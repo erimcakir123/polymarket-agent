@@ -37,8 +37,14 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │                                             │
 │  2. Portfolio Monitor (CLOB, no auth)       │
 │     └─ Update midpoints                    │
-│     └─ Check stop-loss (30%)               │
-│     └─ Check take-profit (40%)             │
+│     └─ Check stop-loss (30% loss on entry) │
+│     └─ Check take-profit (40% gain)        │
+│     └─ Detect resolved markets → claim     │
+│     └─ Reconcile local state vs on-chain   │
+│                                             │
+│  2b. Order Manager                          │
+│     └─ Check pending GTC fill status       │
+│     └─ Cancel stale orders (>2 cycles old) │
 │                                             │
 │  3. AI Analyst (SINGLE Sonnet call)         │
 │     └─ Batch top 5 markets                 │
@@ -79,15 +85,18 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 | Portfolio cap | **None** — uncapped growth | Let compound work |
 | Max single bet | $75 or 15% of bankroll (whichever is smaller) | Diversification |
 | Kelly fraction | 0.50 (half-Kelly) | ~75% growth rate, manageable drawdowns |
-| Stop-loss | 30% of entry value | Wide enough to avoid noise exits |
-| Take-profit | 40% of entry value | Asymmetric risk/reward |
+| Stop-loss | 30% loss on entry value (current_value < 0.70 * entry_cost) | Wide enough to avoid noise exits |
+| Take-profit | 40% gain on entry value (current_value > 1.40 * entry_cost) | Asymmetric risk/reward |
 | Min edge | 6% (medium), 9% (low), 4.5% (high) | Only trade when AI has real edge |
 | Min liquidity | $5,000 | Avoid slippage |
 | Min volume 24h | $50,000 | Only liquid markets |
 | Max positions | 5 concurrent | Focus over diversification |
 | Correlation cap | 30% in same category | Avoid concentrated exposure |
 | Cool-down | 3 consecutive losses → skip 2 cycles | Tilt protection |
+| Drawdown breaker | Bankroll < 50% of high-water mark → halt + notify | Catastrophic loss protection |
+| Cache invalidation | Invalidate AI cache if market price moves >5% since last analysis | Stale probability protection |
 | Cycle interval | 30 minutes | Token-efficient for political markets |
+| API hit rate assumption | ~25-30% of cycles find qualifying markets | Explains 12-15 calls/day |
 
 ## Cost Structure
 
@@ -118,14 +127,16 @@ polymarket-agent/
 ├── .env                     # Secrets (never committed)
 ├── src/
 │   ├── __init__.py
-│   ├── main.py              # Entry point, main loop
+│   ├── main.py              # Entry point, main loop, graceful shutdown
 │   ├── config.py            # Pydantic config model
 │   ├── market_scanner.py    # Gamma API integration
 │   ├── ai_analyst.py        # Claude Sonnet signal engine
 │   ├── edge_calculator.py   # Edge detection + direction
 │   ├── risk_manager.py      # Kelly sizing, veto logic
-│   ├── portfolio.py         # Position tracking, PnL
+│   ├── portfolio.py         # Position tracking, PnL, resolution
 │   ├── executor.py          # Order execution (dry/paper/live)
+│   ├── order_manager.py     # Pending order tracking, stale cancellation
+│   ├── wallet.py            # On-chain ops: balance, allowances, gas
 │   ├── trade_logger.py      # JSONL trade logging
 │   └── models.py            # Pydantic data models
 ├── logs/
@@ -171,11 +182,27 @@ polymarket-agent/
 ### portfolio.py
 - Track open positions with entry price, current price, PnL
 - Update midpoints from CLOB API each cycle
-- Check stop-loss (30%) and take-profit (40%) triggers
+- Check stop-loss: trigger when current_value < 0.70 * entry_cost
+- Check take-profit: trigger when current_value > 1.40 * entry_cost
+- Detect resolved markets (via Gamma API closed status) and claim winnings
+- Reconcile local state vs on-chain USDC balance each cycle
+- Track high-water mark for drawdown circuit breaker
 - Persist to portfolio.jsonl
 
+### order_manager.py
+- Track pending GTC orders and their fill status
+- Cancel stale unfilled orders after 2 cycles (60 min)
+- On FOK exit failure: retry at 2% worse price, then alert user
+- Check actual USDC balance before submitting new orders
+
+### wallet.py
+- Check on-chain USDC balance (Polygon)
+- Monitor MATIC balance for gas
+- Set token allowances (USDC, CTF, Exchange contracts)
+- Phase 1 setup: generate wallet, guide user through funding
+
 ### executor.py
-- Three modes: dry_run (log only), paper (simulate with prices), live (real orders)
+- Three modes: dry_run (log only), paper (simulate with limit fill when price crosses), live (real orders)
 - GTC limit orders for entry, FOK market orders for exits
 - Never execute real orders in dry_run/paper mode
 
@@ -183,11 +210,16 @@ polymarket-agent/
 - Log every decision to trades.jsonl
 - Fields: timestamp, market, direction, size, price, edge, confidence, mode, status
 
+### main.py — Lifecycle
+- Graceful shutdown on SIGINT/Ctrl+C: finish current cycle, cancel pending orders, save state
+- On transient API errors: skip cycle, log error, continue next cycle
+- On 3 consecutive API failures: pause 5 min, then retry
+
 ## Operating Phases
 
 | Phase | What happens |
 |---|---|
-| Phase 1: Infrastructure | Project setup, config, wallet generation, Gamma API connection |
+| Phase 1: Infrastructure | Project setup, config, wallet generation + funding guide, USDC bridge to Polygon, token allowances, Gamma API connection |
 | Phase 2: AI Signal | Claude Sonnet integration, batch analysis, edge calculation |
 | Phase 3: Risk Engine | Kelly sizing, portfolio tracker, stop-loss/take-profit |
 | Phase 4: Executor | Order engine (dry_run mode), trade logging, main loop |
@@ -202,3 +234,5 @@ polymarket-agent/
 4. Type hints on all functions, Pydantic models for data
 5. Log every decision (trade or skip) with reasoning
 6. User must explicitly confirm before any live trading begins
+7. Drawdown circuit breaker: halt all trading if bankroll drops below 50% of high-water mark
+8. Always check on-chain USDC balance before placing orders — never trust local state alone
