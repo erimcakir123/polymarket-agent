@@ -46,10 +46,17 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │     └─ Check pending GTC fill status       │
 │     └─ Cancel stale orders (>2 cycles old) │
 │                                             │
-│  3. AI Analyst (SINGLE Sonnet call)         │
-│     └─ Batch top 5 markets                 │
-│     └─ Probability + confidence JSON       │
-│     └─ ~2K token input, ~500 output        │
+│  2c. News Scanner                            │
+│     └─ Fetch recent headlines (RSS/NewsAPI)│
+│     └─ Match to open positions + top mkts  │
+│     └─ Breaking news → force AI re-analyze │
+│                                             │
+│  3. AI Analyst (DUAL Sonnet calls)          │
+│     └─ Batch top 5 markets + news context  │
+│     └─ Call A: "Why YES?" → pro-probability│
+│     └─ Call B: "Why NO?" → anti-probability│
+│     └─ Final: weighted average of A and B  │
+│     └─ ~4K token input, ~1K output total   │
 │     └─ ONLY called when filtered markets   │
 │       pass volume/liquidity thresholds     │
 │                                             │
@@ -73,8 +80,23 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │     └─ FOK market orders (exit)            │
 │     └─ JSONL trade log                     │
 │                                             │
-│  7. Dashboard Log (terminal)                │
-│     └─ Portfolio summary, PnL, edge stats  │
+│  7. Performance Tracker (self-improving)     │
+│     └─ Track win rate, edge accuracy        │
+│     └─ Category-level performance           │
+│     └─ Auto-adjust: Kelly, min_edge, focus  │
+│     └─ Weekly calibration report            │
+│                                             │
+│  8. Telegram Notifier                        │
+│     └─ Trade opened/closed                  │
+│     └─ Stop-loss / take-profit triggered    │
+│     └─ Drawdown breaker activated           │
+│     └─ Daily PnL summary                   │
+│                                             │
+│  9. Dashboard (web UI)                       │
+│     └─ Live portfolio view                  │
+│     └─ PnL chart, trade history             │
+│     └─ Edge accuracy over time              │
+│     └─ Category breakdown                   │
 └─────────────────────────────────────────────┘
 ```
 
@@ -102,9 +124,9 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 
 | Item | Daily | Monthly |
 |---|---|---|
-| Claude API (Sonnet, ~12-15 smart calls/day) | ~$0.20 | ~$6 |
+| Claude API (Sonnet, ~24-30 dual calls/day) | ~$0.40 | ~$12 |
 | Polygon gas fees | ~$0.05 | ~$1.50 |
-| **Total** | **~$0.25** | **~$7.50** |
+| **Total** | **~$0.45** | **~$13.50** |
 
 ## Growth Projection (Moderate — 1.5%/day target)
 
@@ -137,11 +159,16 @@ polymarket-agent/
 │   ├── executor.py          # Order execution (dry/paper/live)
 │   ├── order_manager.py     # Pending order tracking, stale cancellation
 │   ├── wallet.py            # On-chain ops: balance, allowances, gas
+│   ├── news_scanner.py      # RSS/NewsAPI headline fetcher
 │   ├── trade_logger.py      # JSONL trade logging
+│   ├── performance_tracker.py # Win rate, edge accuracy, auto-tuning
+│   ├── notifier.py          # Telegram bot notifications
+│   ├── dashboard.py         # Flask/FastAPI web dashboard
 │   └── models.py            # Pydantic data models
 ├── logs/
 │   ├── trades.jsonl         # Trade history
-│   └── portfolio.jsonl      # Portfolio snapshots
+│   ├── portfolio.jsonl      # Portfolio snapshots
+│   └── performance.jsonl    # Edge accuracy, calibration data
 ├── tests/
 │   ├── test_edge_calculator.py
 │   ├── test_risk_manager.py
@@ -161,12 +188,21 @@ polymarket-agent/
 - Parse JSON string fields (outcomePrices, clobTokenIds)
 - Return list of MarketData models
 
-### ai_analyst.py
-- Single Claude Sonnet call per cycle with batch of top 5 markets
-- Calibrated superforecaster system prompt
+### news_scanner.py
+- Fetch headlines from RSS feeds (Google News, Reuters, AP) and/or NewsAPI
+- Match headlines to open positions and top scanned markets by keyword
+- On breaking news match: invalidate AI cache for that market, force re-analysis
+- News context is passed to AI analyst for enriched probability estimation
+- Rate limit: max 1 fetch per cycle (30 min), cache headlines between cycles
+
+### ai_analyst.py (Adversarial Dual-Prompt)
+- TWO Claude Sonnet calls per cycle with batch of top 5 markets + news context
+- Call A (Pro): "Analyze why this market should resolve YES. Be thorough."
+- Call B (Con): "Analyze why this market should resolve NO. Be thorough."
+- Final probability: weighted average of both calls, adjusted by argument strength
 - Returns probability + confidence for each market
 - Only called when scanner finds qualifying markets (smart call optimization)
-- Cache results for 15-30 min to avoid redundant calls
+- Cache results for 15-30 min, invalidate if market price moves >5% or breaking news
 
 ### edge_calculator.py
 - Compare AI probability vs market price
@@ -210,6 +246,31 @@ polymarket-agent/
 - Log every decision to trades.jsonl
 - Fields: timestamp, market, direction, size, price, edge, confidence, mode, status
 
+### performance_tracker.py (Self-Improving)
+- Track per-trade outcomes: did AI probability match actual resolution?
+- Calculate rolling win rate, edge accuracy, Brier score
+- Category-level breakdown: politics vs geopolitics vs other
+- Auto-tuning (weekly): if win rate < 50% in a category → raise min_edge for that category
+- Auto-tuning: if edge accuracy is consistently off by X% → adjust Kelly fraction
+- Generate weekly calibration report to logs/performance.jsonl
+- If a category underperforms for 2+ weeks → auto-exclude from scanning
+
+### notifier.py (Telegram Bot)
+- Send notifications via Telegram Bot API (free, requires bot token + chat_id in .env)
+- Events: trade opened, trade closed, stop-loss triggered, take-profit hit
+- Alerts: drawdown breaker activated, 3 consecutive losses, API failures
+- Daily summary: PnL, open positions, win rate, bankroll
+- User can reply /status to get current portfolio snapshot
+
+### dashboard.py (Web UI)
+- Lightweight Flask/FastAPI app serving on localhost
+- Live portfolio view: open positions, unrealized PnL, current prices
+- PnL chart: daily/weekly/monthly with compound growth curve
+- Trade history table: sortable, filterable by market/direction/outcome
+- Edge accuracy chart: AI predicted probability vs actual resolution over time
+- Category breakdown: win rate and PnL by politics/geopolitics/other
+- Read-only — no trading actions from dashboard
+
 ### main.py — Lifecycle
 - Graceful shutdown on SIGINT/Ctrl+C: finish current cycle, cancel pending orders, save state
 - On transient API errors: skip cycle, log error, continue next cycle
@@ -220,11 +281,14 @@ polymarket-agent/
 | Phase | What happens |
 |---|---|
 | Phase 1: Infrastructure | Project setup, config, wallet generation + funding guide, USDC bridge to Polygon, token allowances, Gamma API connection |
-| Phase 2: AI Signal | Claude Sonnet integration, batch analysis, edge calculation |
-| Phase 3: Risk Engine | Kelly sizing, portfolio tracker, stop-loss/take-profit |
-| Phase 4: Executor | Order engine (dry_run mode), trade logging, main loop |
-| Phase 5: Paper Trading | 1-2 weeks simulated trading, validate strategy, track PnL |
-| Phase 6: Live | User's explicit approval required. Start with minimum bets. |
+| Phase 2: AI Signal | Dual-prompt Claude Sonnet, news scanner, batch analysis, edge calculation |
+| Phase 3: Risk Engine | Kelly sizing, portfolio tracker, stop-loss/take-profit, drawdown breaker |
+| Phase 4: Executor | Order engine (dry_run mode), order manager, trade logging, main loop |
+| Phase 5: Notifications | Telegram bot setup, trade alerts, daily PnL summary |
+| Phase 6: Paper Trading | 1-2 weeks simulated trading, validate strategy, track PnL |
+| Phase 7: Performance Tracker | Self-improving calibration, auto-tuning, category analysis |
+| Phase 8: Dashboard | Web UI for portfolio monitoring, PnL charts, edge accuracy |
+| Phase 9: Live | User's explicit approval required. Start with minimum bets. |
 
 ## Non-Negotiable Rules
 
