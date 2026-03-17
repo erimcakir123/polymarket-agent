@@ -51,6 +51,11 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │     └─ Match to open positions + top mkts  │
 │     └─ Breaking news → force AI re-analyze │
 │                                             │
+│  2d. Whale Tracker (Data API)                │
+│     └─ Monitor large positions (>$50K)     │
+│     └─ Whale enters → strong signal boost  │
+│     └─ Track whale win rate over time      │
+│                                             │
 │  3. AI Analyst (DUAL Sonnet calls)          │
 │     └─ Batch top 5 markets + news context  │
 │     └─ Call A: "Why YES?" → pro-probability│
@@ -79,6 +84,12 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │     └─ GTC limit orders (entry)            │
 │     └─ FOK market orders (exit)            │
 │     └─ JSONL trade log                     │
+│                                             │
+│  6b. Liquidity Provider (idle mode)          │
+│     └─ Activates when no edge signals      │
+│     └─ Places bid+ask around midpoint      │
+│     └─ Earns spread (1-2 cent/share)       │
+│     └─ Auto-cancels if price moves >2%     │
 │                                             │
 │  7. Performance Tracker (self-improving)     │
 │     └─ Track win rate, edge accuracy        │
@@ -160,6 +171,9 @@ polymarket-agent/
 │   ├── order_manager.py     # Pending order tracking, stale cancellation
 │   ├── wallet.py            # On-chain ops: balance, allowances, gas
 │   ├── news_scanner.py      # RSS/NewsAPI headline fetcher
+│   ├── whale_tracker.py     # Large position monitoring
+│   ├── liquidity_provider.py # Spread earning in idle mode
+│   ├── event_cluster.py     # Correlated market grouping
 │   ├── trade_logger.py      # JSONL trade logging
 │   ├── performance_tracker.py # Win rate, edge accuracy, auto-tuning
 │   ├── notifier.py          # Telegram bot notifications
@@ -204,9 +218,36 @@ polymarket-agent/
 - Only called when scanner finds qualifying markets (smart call optimization)
 - Cache results for 15-30 min, invalidate if market price moves >5% or breaking news
 
+### whale_tracker.py
+- Query Polymarket Data API for large recent positions (>$50K in a single market)
+- Track known whale addresses and their historical win rate
+- When a whale opens a position: boost AI confidence in that direction
+- Signal weight: whale_signal = 0.15 (blended into final probability)
+- Only follow whales with >55% historical win rate
+- Log whale movements to trades.jsonl for later analysis
+
+### event_cluster.py
+- Group related markets into clusters using event_id from Gamma API
+- Example: "Trump wins 2028", "Republicans win House", "Democrats win Senate" → one cluster
+- AI analyst receives cluster context: analyze conditional probabilities together
+- Edge calculator checks cross-market consistency within cluster
+- Arbitrage detection: if sum of all outcomes in a cluster ≠ 1.00 → flag opportunity
+- Feed cluster tags to risk_manager for smarter correlation tracking
+
+### liquidity_provider.py (Idle Mode)
+- Activates only when edge calculator returns HOLD for all markets in a cycle
+- Places symmetric limit orders around midpoint: bid at mid-1cent, ask at mid+1cent
+- Max exposure per market: 5% of bankroll (small, spread-earning only)
+- Auto-cancel all LP orders if market price moves >2% from placement price
+- Auto-cancel all LP orders when edge signals appear (priority to edge trading)
+- Track LP profit separately in trade logs (mode: "liquidity_provider")
+- Only operates on markets with spread > 3 cents (otherwise not worth it)
+
 ### edge_calculator.py
 - Compare AI probability vs market price
 - Apply confidence-adjusted thresholds (6%/9%/4.5%)
+- Blend in whale signal if available (15% weight)
+- Use event cluster context for cross-market consistency
 - Return direction (BUY_YES / BUY_NO / HOLD) + raw edge value
 
 ### risk_manager.py
@@ -265,7 +306,11 @@ polymarket-agent/
 ### dashboard.py (Web UI)
 - Lightweight Flask/FastAPI app serving on localhost
 - Live portfolio view: open positions, unrealized PnL, current prices
-- PnL chart: daily/weekly/monthly with compound growth curve
+- **Bankroll line graph**: toggleable daily/weekly/monthly view with compound growth curve overlay
+  - X axis: time, Y axis: bankroll value
+  - Overlay: projected growth line (1.5%/day target) vs actual
+  - Drawdown periods highlighted in red
+  - Deposit events marked as vertical markers
 - Trade history table: sortable, filterable by market/direction/outcome
 - Edge accuracy chart: AI predicted probability vs actual resolution over time
 - Category breakdown: win rate and PnL by politics/geopolitics/other
@@ -281,8 +326,9 @@ polymarket-agent/
 | Phase | What happens |
 |---|---|
 | Phase 1: Infrastructure | Project setup, config, wallet generation + funding guide, USDC bridge to Polygon, token allowances, Gamma API connection |
-| Phase 2: AI Signal | Dual-prompt Claude Sonnet, news scanner, batch analysis, edge calculation |
+| Phase 2: AI Signal | Dual-prompt Claude Sonnet, news scanner, whale tracker, event clustering, edge calculation |
 | Phase 3: Risk Engine | Kelly sizing, portfolio tracker, stop-loss/take-profit, drawdown breaker |
+| Phase 3b: Liquidity Provider | Idle-mode spread earning, symmetric orders, auto-cancel logic |
 | Phase 4: Executor | Order engine (dry_run mode), order manager, trade logging, main loop |
 | Phase 5: Notifications | Telegram bot setup, trade alerts, daily PnL summary |
 | Phase 6: Paper Trading | 1-2 weeks simulated trading, validate strategy, track PnL |
