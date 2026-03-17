@@ -196,33 +196,35 @@
             grid-template-columns: 1fr 1fr;
             gap: var(--space-md);
         }
+        .budget-row .card { padding: var(--space-md); }
 
         .gauge-wrap {
             display: flex;
             align-items: center;
-            gap: var(--space-lg);
+            gap: var(--space-md);
+            margin-top: var(--space-sm);
         }
         .gauge-canvas-wrap {
-            width: 100px;
-            height: 60px;
+            width: 80px;
+            height: 48px;
             position: relative;
             flex-shrink: 0;
         }
         .gauge-center {
             position: absolute;
-            bottom: 2px;
+            bottom: 0;
             left: 50%;
             transform: translateX(-50%);
             text-align: center;
         }
         .gauge-center .gauge-val {
             font-family: var(--font-mono);
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
             color: var(--text-primary);
         }
         .gauge-center .gauge-label {
-            font-size: 9px;
+            font-size: 8px;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -230,10 +232,10 @@
         .gauge-info {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 1px;
         }
         .gauge-info .gi-label { font-size: 11px; color: var(--text-muted); }
-        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 
         /* ── Chart Panels ── */
         .panel {
@@ -546,22 +548,22 @@
             <!-- Metric Cards -->
             <div class="metrics-row">
                 <div class="card card-hero">
-                    <div class="card-label">Bankroll</div>
+                    <div class="card-label">Balance</div>
                     <div class="card-value" id="bankroll">$60.00</div>
                     <div class="card-sub" id="bankrollChange">--</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Unrealized PnL</div>
+                    <div class="card-label">Open P&L</div>
                     <div class="card-value" id="pnl">$0.00</div>
                     <div class="card-sub" id="pnlPct">0.0%</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Open Positions</div>
+                    <div class="card-label">Active Bets</div>
                     <div class="card-value" id="positions">0</div>
                     <div class="card-sub" id="maxPositions">/ 10 max</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">High Water Mark</div>
+                    <div class="card-label">Peak Balance</div>
                     <div class="card-value" id="hwm">$60.00</div>
                     <div class="card-sub" id="drawdown">0.0% drawdown</div>
                 </div>
@@ -570,7 +572,7 @@
             <!-- Budget + Drawdown Gauges -->
             <div class="budget-row">
                 <div class="card">
-                    <div class="card-label">API Budget</div>
+                    <div class="card-label">AI Cost (monthly)</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
                             <canvas id="budgetGauge"></canvas>
@@ -581,24 +583,24 @@
                         </div>
                         <div class="gauge-info">
                             <div><span class="gi-label">Spent </span><span class="gi-val" id="budgetSpent">$0.00</span></div>
-                            <div><span class="gi-label">Limit </span><span class="gi-val" id="budgetLimit">$12.00</span></div>
-                            <div><span class="gi-label">Remaining </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
+                            <div><span class="gi-label">Cap </span><span class="gi-val" id="budgetLimit">$12.00</span></div>
+                            <div><span class="gi-label">Left </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
                         </div>
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Drawdown Monitor</div>
+                    <div class="card-label">Loss Protection</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
                             <canvas id="drawdownGauge"></canvas>
                             <div class="gauge-center">
                                 <div class="gauge-val" id="ddPct">0%</div>
-                                <div class="gauge-label">of limit</div>
+                                <div class="gauge-label">risk</div>
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Current </span><span class="gi-val" id="ddCurrent">0.0%</span></div>
-                            <div><span class="gi-label">Halt at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50.0%</span></div>
+                            <div><span class="gi-label">Down </span><span class="gi-val" id="ddCurrent">0.0%</span></div>
+                            <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
                             <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
                         </div>
                     </div>
@@ -620,7 +622,7 @@
                 </div>
                 <div class="panel">
                     <div class="panel-header">
-                        <span class="panel-title">Trade Impact</span>
+                        <span class="panel-title">Per-Trade P&L</span>
                     </div>
                     <div class="chart-fixed"><canvas id="waterfallChart"></canvas></div>
                 </div>
@@ -651,28 +653,28 @@
                     </div>
                     <div class="stats-grid" id="statsGrid">
                         <div class="stat-block">
-                            <div class="stat-label">Win Rate</div>
+                            <div class="stat-label">Wins</div>
                             <div class="stat-value" id="winRate">--%</div>
                             <div class="stat-sub" id="winCount">0W / 0L</div>
                         </div>
                         <div class="stat-block">
-                            <div class="stat-label">Avg Edge</div>
+                            <div class="stat-label">Avg Advantage</div>
                             <div class="stat-value" id="avgEdge">--</div>
                             <div class="stat-sub" id="edgeRange">--</div>
                         </div>
                         <div class="stat-block">
-                            <div class="stat-label">Brier Score</div>
+                            <div class="stat-label">AI Accuracy</div>
                             <div class="stat-value" id="brierScore">--</div>
-                            <div class="stat-sub">lower = better</div>
+                            <div class="stat-sub">lower = sharper</div>
                         </div>
                         <div class="stat-block">
-                            <div class="stat-label">Best Category</div>
+                            <div class="stat-label">Strongest Topic</div>
                             <div class="stat-value" id="bestCat" style="font-size:14px">--</div>
                             <div class="stat-sub" id="bestCatRate">--</div>
                         </div>
                     </div>
                     <div style="margin-top:var(--space-md)">
-                        <div class="panel-title" style="margin-bottom:var(--space-sm);font-size:12px;color:var(--text-muted)">Edge Calibration</div>
+                        <div class="panel-title" style="margin-bottom:var(--space-sm);font-size:12px;color:var(--text-muted)">Prediction vs Reality</div>
                         <div class="chart-fixed-sm"><canvas id="scatterChart"></canvas></div>
                     </div>
                 </div>
