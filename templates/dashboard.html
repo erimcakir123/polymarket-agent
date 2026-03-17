@@ -238,6 +238,31 @@
         .gauge-info .gi-label { font-size: 10px; color: var(--text-muted); }
         .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 
+        .usage-bar-wrap {
+            margin-top: var(--space-sm);
+            width: 100%;
+        }
+        .usage-bar-bg {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .usage-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 600ms ease-out;
+        }
+        .usage-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-family: var(--font-mono);
+        }
+
         /* ── Chart Panels ── */
         .panel {
             background: var(--bg-surface);
@@ -583,10 +608,14 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Spent</span><span class="gi-val" id="budgetSpent">$0.00</span></div>
-                            <div><span class="gi-label">Cap</span><span class="gi-val" id="budgetLimit">$12.00</span></div>
-                            <div><span class="gi-label">Left</span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
+                            <div><span class="gi-label">Spent </span><span class="gi-val" id="budgetSpent">$0.00</span></div>
+                            <div><span class="gi-label">Cap </span><span class="gi-val" id="budgetLimit">$12.00</span></div>
+                            <div><span class="gi-label">Left </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
                         </div>
+                    </div>
+                    <div class="usage-bar-wrap">
+                        <div class="usage-bar-bg"><div class="usage-bar-fill" id="budgetBar" style="width:0%;background:var(--accent)"></div></div>
+                        <div class="usage-bar-labels"><span>$0</span><span id="budgetBarLabel">$12 cap</span></div>
                     </div>
                 </div>
                 <div class="card">
@@ -604,6 +633,10 @@
                             <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
                             <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
                         </div>
+                    </div>
+                    <div class="usage-bar-wrap">
+                        <div class="usage-bar-bg"><div class="usage-bar-fill" id="ddBar" style="width:0%;background:var(--green)"></div></div>
+                        <div class="usage-bar-labels"><span>0%</span><span>50% halt</span></div>
                     </div>
                 </div>
                 <div class="card">
@@ -644,12 +677,12 @@
                 </div>
             </div>
 
-            <!-- Performance + Scatter -->
+            <!-- Performance Stats -->
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-title">Performance</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:var(--space-md);align-items:start">
+                <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
                     <div class="stat-block">
                         <div class="stat-label">Wins</div>
                         <div class="stat-value" id="winRate">--%</div>
@@ -670,11 +703,15 @@
                         <div class="stat-value" id="bestCat" style="font-size:14px">--</div>
                         <div class="stat-sub" id="bestCatRate">--</div>
                     </div>
-                    <div style="width:200px">
-                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:var(--space-xs)">Prediction vs Reality</div>
-                        <div class="chart-fixed-sm" style="height:100px"><canvas id="scatterChart"></canvas></div>
-                    </div>
                 </div>
+            </div>
+
+            <!-- Prediction Accuracy -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Prediction vs Reality</span>
+                </div>
+                <div class="chart-fixed"><canvas id="scatterChart"></canvas></div>
             </div>
         </main>
 
@@ -842,12 +879,13 @@
         /* ── Data Fetching ── */
         async function fetchData() {
             try {
-                const [tradesResp, portfolioResp, perfResp] = await Promise.all([
-                    fetch('/api/trades'), fetch('/api/portfolio'), fetch('/api/performance')
+                const [tradesResp, portfolioResp, perfResp, budgetResp] = await Promise.all([
+                    fetch('/api/trades'), fetch('/api/portfolio'), fetch('/api/performance'), fetch('/api/budget')
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
                 const perfData = await perfResp.json();
+                const budgetData = await budgetResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -856,6 +894,7 @@
                 updatePerformance(perfData, allTrades);
                 updateScatter(allTrades);
                 updateTradeFeed(allTrades);
+                updateBudget(budgetData);
             } catch (e) { console.error('Fetch error:', e); }
         }
 
@@ -890,6 +929,11 @@
             if (dd > 30) { ddStatusEl.textContent = 'Warning'; ddStatusEl.style.color = COLORS.red; }
             else if (dd > 15) { ddStatusEl.textContent = 'Caution'; ddStatusEl.style.color = COLORS.amber; }
             else { ddStatusEl.textContent = 'Safe'; ddStatusEl.style.color = COLORS.green; }
+
+            // Drawdown progress bar
+            const ddBarEl = document.getElementById('ddBar');
+            ddBarEl.style.width = Math.min(dd / 50 * 100, 100) + '%';
+            ddBarEl.style.background = dd > 30 ? COLORS.red : dd > 15 ? COLORS.amber : COLORS.green;
 
             if (data.length >= 2) {
                 const prev = data[data.length - 2].bankroll || bankroll;
@@ -1031,6 +1075,27 @@
                     <div class="feed-time">${t.timestamp ? new Date(t.timestamp).toLocaleString() : '--'}</div>
                 </div>`;
             }).join('');
+        }
+
+        function updateBudget(b) {
+            const spent = b.spent || 0;
+            const limit = b.limit || 12;
+            const remaining = b.remaining || (limit - spent);
+            const pct = limit > 0 ? (spent / limit * 100) : 0;
+
+            document.getElementById('budgetSpent').textContent = '$' + spent.toFixed(2);
+            document.getElementById('budgetLimit').textContent = '$' + limit.toFixed(2);
+            document.getElementById('budgetRemain').textContent = '$' + remaining.toFixed(2);
+            document.getElementById('budgetRemain').style.color = remaining > 2 ? COLORS.green : remaining > 0 ? COLORS.amber : COLORS.red;
+            document.getElementById('budgetPct').textContent = pct.toFixed(0) + '%';
+
+            budgetGauge.data.datasets[0].data = [spent, Math.max(0, limit - spent)];
+            budgetGauge.data.datasets[0].backgroundColor[0] = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
+            budgetGauge.update();
+
+            // Progress bar
+            document.getElementById('budgetBar').style.width = Math.min(pct, 100) + '%';
+            document.getElementById('budgetBar').style.background = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
         }
 
         function setRange(range, btn) {
