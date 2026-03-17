@@ -193,7 +193,7 @@
         /* ── Budget Gauge ── */
         .budget-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: var(--space-md);
         }
         .budget-row .card { padding: var(--space-md); }
@@ -231,11 +231,12 @@
         }
         .gauge-info {
             display: flex;
-            gap: var(--space-lg);
+            flex-direction: column;
+            gap: 1px;
             flex: 1;
         }
-        .gauge-info .gi-label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 1px; }
-        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+        .gauge-info .gi-label { font-size: 10px; color: var(--text-muted); }
+        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 
         /* ── Chart Panels ── */
         .panel {
@@ -599,9 +600,24 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Down</span><span class="gi-val" id="ddCurrent">0.0%</span></div>
-                            <div><span class="gi-label">Stop at</span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
-                            <div><span class="gi-label">Status</span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
+                            <div><span class="gi-label">Down </span><span class="gi-val" id="ddCurrent">0.0%</span></div>
+                            <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
+                            <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Positions</div>
+                    <div class="gauge-wrap">
+                        <div class="gauge-canvas-wrap" style="width:80px;height:80px">
+                            <canvas id="positionChart"></canvas>
+                            <div class="gauge-center" style="bottom:auto;top:50%;transform:translate(-50%,-50%)">
+                                <div class="gauge-val" id="totalPositions">0</div>
+                                <div class="gauge-label">active</div>
+                            </div>
+                        </div>
+                        <div class="gauge-info" id="positionLegend">
+                            <div style="font-size:11px;color:var(--text-muted)">No open positions</div>
                         </div>
                     </div>
                 </div>
@@ -628,54 +644,35 @@
                 </div>
             </div>
 
-            <!-- Position Doughnut + Win Rate Stats + Scatter -->
-            <div class="bottom-row">
-                <div class="panel">
-                    <div class="panel-title" style="margin-bottom:var(--space-md)">Positions</div>
-                    <div class="doughnut-wrap">
-                        <div class="doughnut-canvas-wrap">
-                            <canvas id="positionChart"></canvas>
-                            <div class="doughnut-center">
-                                <div class="dc-val" id="totalPositions">0</div>
-                                <div class="dc-label">Active</div>
-                            </div>
-                        </div>
-                        <div class="legend-list" id="positionLegend">
-                            <div class="empty-state" style="padding:var(--space-md)">
-                                <div class="empty-sub">No open positions</div>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Performance + Scatter -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Performance</span>
                 </div>
-                <div class="panel">
-                    <div class="panel-header">
-                        <span class="panel-title">Performance</span>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:var(--space-md);align-items:start">
+                    <div class="stat-block">
+                        <div class="stat-label">Wins</div>
+                        <div class="stat-value" id="winRate">--%</div>
+                        <div class="stat-sub" id="winCount">0W / 0L</div>
                     </div>
-                    <div class="stats-grid" id="statsGrid">
-                        <div class="stat-block">
-                            <div class="stat-label">Wins</div>
-                            <div class="stat-value" id="winRate">--%</div>
-                            <div class="stat-sub" id="winCount">0W / 0L</div>
-                        </div>
-                        <div class="stat-block">
-                            <div class="stat-label">Avg Advantage</div>
-                            <div class="stat-value" id="avgEdge">--</div>
-                            <div class="stat-sub" id="edgeRange">--</div>
-                        </div>
-                        <div class="stat-block">
-                            <div class="stat-label">AI Accuracy</div>
-                            <div class="stat-value" id="brierScore">--</div>
-                            <div class="stat-sub">lower = sharper</div>
-                        </div>
-                        <div class="stat-block">
-                            <div class="stat-label">Strongest Topic</div>
-                            <div class="stat-value" id="bestCat" style="font-size:14px">--</div>
-                            <div class="stat-sub" id="bestCatRate">--</div>
-                        </div>
+                    <div class="stat-block">
+                        <div class="stat-label">Avg Advantage</div>
+                        <div class="stat-value" id="avgEdge">--</div>
+                        <div class="stat-sub" id="edgeRange">--</div>
                     </div>
-                    <div style="margin-top:var(--space-md)">
-                        <div class="panel-title" style="margin-bottom:var(--space-sm);font-size:12px;color:var(--text-muted)">Prediction vs Reality</div>
-                        <div class="chart-fixed-sm"><canvas id="scatterChart"></canvas></div>
+                    <div class="stat-block">
+                        <div class="stat-label">AI Accuracy</div>
+                        <div class="stat-value" id="brierScore">--</div>
+                        <div class="stat-sub">lower = sharper</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-label">Strongest Topic</div>
+                        <div class="stat-value" id="bestCat" style="font-size:14px">--</div>
+                        <div class="stat-sub" id="bestCatRate">--</div>
+                    </div>
+                    <div style="width:200px">
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:var(--space-xs)">Prediction vs Reality</div>
+                        <div class="chart-fixed-sm" style="height:100px"><canvas id="scatterChart"></canvas></div>
                     </div>
                 </div>
             </div>
