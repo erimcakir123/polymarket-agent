@@ -19,6 +19,7 @@ ai:
   cache_ttl_min: 15
   cache_invalidate_price_move_pct: 0.05
   batch_size: 5
+  monthly_budget_usd: 12.0
 
 edge:
   min_edge: 0.06

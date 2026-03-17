@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import List, Optional, Dict
 
 import anthropic
@@ -39,6 +40,35 @@ class AIAnalyst:
         self.config = config
         self.client = anthropic.Anthropic()
         self._cache: Dict[str, tuple[AIEstimate, float, float]] = {}
+        self._month_key: str = ""
+        self._month_cost_usd: float = 0.0
+        self._reset_if_new_month()
+
+    def _reset_if_new_month(self) -> None:
+        key = datetime.now(timezone.utc).strftime("%Y-%m")
+        if key != self._month_key:
+            self._month_key = key
+            self._month_cost_usd = 0.0
+
+    @property
+    def budget_remaining_usd(self) -> float:
+        self._reset_if_new_month()
+        return max(0.0, self.config.monthly_budget_usd - self._month_cost_usd)
+
+    @property
+    def budget_exhausted(self) -> bool:
+        return self.budget_remaining_usd <= 0.0
+
+    def _track_cost(self, input_tokens: int, output_tokens: int) -> None:
+        cost = (
+            input_tokens * self.config.input_cost_per_mtok / 1_000_000
+            + output_tokens * self.config.output_cost_per_mtok / 1_000_000
+        )
+        self._month_cost_usd += cost
+        logger.info(
+            "API cost: $%.4f | month total: $%.2f / $%.2f",
+            cost, self._month_cost_usd, self.config.monthly_budget_usd,
+        )
 
     def analyze_market(
         self, market: MarketData, news_context: str = ""
@@ -51,6 +81,12 @@ class AIAnalyst:
             price_move = abs(market.yes_price - cached_price)
             if age_min < self.config.cache_ttl_min and price_move < self.config.cache_invalidate_price_move_pct:
                 return estimate
+
+        if self.budget_exhausted:
+            logger.warning("Monthly API budget exhausted ($%.2f). Returning market price as estimate.",
+                           self.config.monthly_budget_usd)
+            return AIEstimate(ai_probability=market.yes_price, confidence="low",
+                              reasoning_pro="Budget exhausted", reasoning_con="Budget exhausted")
 
         prompt = self._build_prompt(market, news_context)
 
@@ -110,6 +146,7 @@ class AIAnalyst:
                 system=system,
                 messages=[{"role": "user", "content": prompt}],
             )
+            self._track_cost(resp.usage.input_tokens, resp.usage.output_tokens)
             text = resp.content[0].text.strip()
             if text.startswith("```"):
                 text = text.split("\n", 1)[1].rsplit("```", 1)[0]

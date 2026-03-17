@@ -35,6 +35,9 @@ class AIConfig(BaseModel):
     cache_ttl_min: int = 15
     cache_invalidate_price_move_pct: float = 0.05
     batch_size: int = 5
+    monthly_budget_usd: float = 12.0
+    input_cost_per_mtok: float = 3.0
+    output_cost_per_mtok: float = 15.0
 
 
 class EdgeConfig(BaseModel):
