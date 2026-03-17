@@ -108,6 +108,19 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 │     └─ PnL chart, trade history             │
 │     └─ Edge accuracy over time              │
 │     └─ Category breakdown                   │
+│                                             │
+│  10. Dynamic Cycle Timer                     │
+│     └─ Default: 30 min                      │
+│     └─ Breaking news detected → 10 min      │
+│     └─ Near stop-loss → 15 min              │
+│     └─ Night / low volatility → 60 min      │
+│     └─ Same daily cost, better response     │
+│                                             │
+│  11. Order Book Analyzer                     │
+│     └─ Read depth before placing orders     │
+│     └─ Detect bid/ask walls (support/res)   │
+│     └─ Estimate real slippage for size      │
+│     └─ Better entry price → higher edge     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -128,7 +141,7 @@ Automated prediction market trading agent for Polymarket. Starts with ~$60 USDC 
 | Cool-down | 3 consecutive losses → skip 2 cycles | Tilt protection |
 | Drawdown breaker | Bankroll < 50% of high-water mark → halt + notify | Catastrophic loss protection |
 | Cache invalidation | Invalidate AI cache if market price moves >5% since last analysis | Stale probability protection |
-| Cycle interval | 30 minutes | Token-efficient for political markets |
+| Cycle interval | 30 min default (dynamic: 10-60 min) | Adapts to urgency, saves tokens when idle |
 | API hit rate assumption | ~25-30% of cycles find qualifying markets | Explains 12-15 calls/day |
 
 ## Cost Structure
@@ -178,6 +191,8 @@ polymarket-agent/
 │   ├── performance_tracker.py # Win rate, edge accuracy, auto-tuning
 │   ├── notifier.py          # Telegram bot notifications
 │   ├── dashboard.py         # Flask/FastAPI web dashboard
+│   ├── cycle_timer.py       # Dynamic cycle interval logic
+│   ├── orderbook_analyzer.py # Order book depth & slippage estimation
 │   └── models.py            # Pydantic data models
 ├── logs/
 │   ├── trades.jsonl         # Trade history
@@ -315,6 +330,23 @@ polymarket-agent/
 - Edge accuracy chart: AI predicted probability vs actual resolution over time
 - Category breakdown: win rate and PnL by politics/geopolitics/other
 - Read-only — no trading actions from dashboard
+
+### cycle_timer.py (Dynamic Timing)
+- Default cycle: 30 minutes
+- Breaking news detected by news_scanner → shorten to 10 min for next 3 cycles
+- Any open position within 5% of stop-loss → shorten to 15 min
+- No open positions + no qualifying markets + night hours (00:00-07:00 local) → extend to 60 min
+- After urgency passes → gradually return to 30 min default
+- Log cycle interval changes with reason
+- Result: same daily API cost, but faster reaction when it matters
+
+### orderbook_analyzer.py (Order Book Depth)
+- Fetch order book from CLOB API before placing any order
+- Analyze bid/ask depth: identify large walls (>$5K at single price level)
+- Estimate real execution price for given order size (slippage calculation)
+- If estimated slippage > 1.5%: reduce order size or use limit order at better price
+- Pass support/resistance levels to edge calculator as additional signal
+- Only fetch for markets where we're about to trade (not all scanned markets)
 
 ### main.py — Lifecycle
 - Graceful shutdown on SIGINT/Ctrl+C: finish current cycle, cancel pending orders, save state
