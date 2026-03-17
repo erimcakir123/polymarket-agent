@@ -67,6 +67,7 @@ python-dotenv>=1.0.0
 flask>=3.0.0
 feedparser>=6.0.0
 httpx>=0.27.0
+eth-account>=0.11.0
 ```
 
 - [ ] **Step 2: Create .gitignore**
@@ -433,7 +434,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 
 class Direction(str, Enum):
@@ -467,7 +468,7 @@ class Position(BaseModel):
     shares: float
     current_price: float
     slug: str = ""
-    entry_timestamp: datetime = datetime.now(timezone.utc)
+    entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
 
     @computed_field
@@ -509,13 +510,13 @@ class TradeRecord(BaseModel):
     confidence: str
     mode: str
     status: str  # executed | rejected | simulated
-    timestamp: datetime = datetime.now(timezone.utc)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reasoning: str = ""
     order_id: Optional[str] = None
 
 
 class PortfolioSnapshot(BaseModel):
-    timestamp: datetime = datetime.now(timezone.utc)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     bankroll_usdc: float
     positions_count: int
     unrealized_pnl: float
@@ -598,6 +599,7 @@ class TradeLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, data: dict[str, Any]) -> None:
+        data = {**data}  # Don't mutate caller's dict
         if "timestamp" not in data:
             data["timestamp"] = datetime.now(timezone.utc).isoformat()
         with open(self.path, "a", encoding="utf-8") as f:
@@ -1038,15 +1040,13 @@ class RiskManager:
         correlated_exposure: float = 0.0,
     ) -> RiskDecision:
         # Cooldown check
-        if self.consecutive_losses >= self.config.consecutive_loss_cooldown:
-            if self.cooldown_remaining > 0:
-                self.cooldown_remaining -= 1
-                return RiskDecision(False, 0, "Cooldown active after consecutive losses")
-            else:
-                self.consecutive_losses = 0
+        if self.cooldown_remaining > 0:
+            self.cooldown_remaining -= 1
+            return RiskDecision(False, 0, "Cooldown active after consecutive losses")
 
         if self.consecutive_losses >= self.config.consecutive_loss_cooldown:
             self.cooldown_remaining = self.config.cooldown_cycles
+            self.consecutive_losses = 0
             return RiskDecision(False, 0, "Cooldown triggered: consecutive losses")
 
         # Max positions
@@ -2965,6 +2965,16 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     config = load_config()
+
+    # Iron Rule 6: User must explicitly confirm before live trading
+    if config.mode == "live":
+        print("\n*** WARNING: LIVE TRADING MODE ***")
+        print("This will execute REAL orders with REAL money on Polymarket.")
+        confirm = input("Type 'CONFIRM LIVE' to proceed: ")
+        if confirm.strip() != "CONFIRM LIVE":
+            print("Aborted. Set mode to 'dry_run' or 'paper' in config.yaml.")
+            sys.exit(1)
+
     agent = Agent(config)
     agent.run()
 
@@ -3088,7 +3098,7 @@ git commit -m "feat: complete Polymarket trading agent — all modules integrate
 ## Execution Notes
 
 - **Total tasks:** 20
-- **Total source files:** 21 (20 Python + 1 HTML template)
+- **Total source files:** 23 (22 Python + 1 HTML template)
 - **Total test files:** 15
 - **Estimated commits:** 20
 - **Working directory:** `C:\Users\erimc\OneDrive\Desktop\CLAUDE\Polymarket Agent`
