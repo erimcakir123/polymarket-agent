@@ -37,4 +37,8 @@ def create_app(
     def api_performance():
         return jsonify(perf_log.read_recent(100))
 
+    @app.route("/api/budget")
+    def api_budget():
+        return jsonify({"spent": 0.0, "limit": 12.0, "remaining": 12.0})
+
     return app
