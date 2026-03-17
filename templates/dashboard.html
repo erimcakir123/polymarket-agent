@@ -201,7 +201,7 @@
         .gauge-wrap {
             display: flex;
             align-items: center;
-            gap: var(--space-md);
+            gap: var(--space-lg);
             margin-top: var(--space-sm);
         }
         .gauge-canvas-wrap {
@@ -231,11 +231,11 @@
         }
         .gauge-info {
             display: flex;
-            flex-direction: column;
-            gap: 1px;
+            gap: var(--space-lg);
+            flex: 1;
         }
-        .gauge-info .gi-label { font-size: 11px; color: var(--text-muted); }
-        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+        .gauge-info .gi-label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 1px; }
+        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
 
         /* ── Chart Panels ── */
         .panel {
@@ -582,9 +582,9 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Spent </span><span class="gi-val" id="budgetSpent">$0.00</span></div>
-                            <div><span class="gi-label">Cap </span><span class="gi-val" id="budgetLimit">$12.00</span></div>
-                            <div><span class="gi-label">Left </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
+                            <div><span class="gi-label">Spent</span><span class="gi-val" id="budgetSpent">$0.00</span></div>
+                            <div><span class="gi-label">Cap</span><span class="gi-val" id="budgetLimit">$12.00</span></div>
+                            <div><span class="gi-label">Left</span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
                         </div>
                     </div>
                 </div>
@@ -599,9 +599,9 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Down </span><span class="gi-val" id="ddCurrent">0.0%</span></div>
-                            <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
-                            <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
+                            <div><span class="gi-label">Down</span><span class="gi-val" id="ddCurrent">0.0%</span></div>
+                            <div><span class="gi-label">Stop at</span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
+                            <div><span class="gi-label">Status</span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
                         </div>
                     </div>
                 </div>
