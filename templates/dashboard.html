@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Agent Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0f; color: #e0e0e0; padding: 24px; }
+        h1 { font-size: 24px; margin-bottom: 24px; color: #fff; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .card { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid #2a2a4a; }
+        .card-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+        .card-value { font-size: 28px; font-weight: 700; color: #fff; }
+        .card-value.green { color: #4ade80; }
+        .card-value.red { color: #f87171; }
+        .chart-container { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid #2a2a4a; margin-bottom: 32px; }
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .chart-title { font-size: 16px; font-weight: 600; }
+        .btn-group { display: flex; gap: 4px; }
+        .btn-group button { background: #2a2a4a; border: none; color: #888; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .btn-group button.active { background: #4f46e5; color: #fff; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px; font-size: 12px; text-transform: uppercase; color: #888; border-bottom: 1px solid #2a2a4a; }
+        td { padding: 10px; font-size: 14px; border-bottom: 1px solid #1a1a2e; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge.buy { background: #064e3b; color: #4ade80; }
+        .badge.sell { background: #7f1d1d; color: #f87171; }
+        .badge.hold { background: #1e293b; color: #94a3b8; }
+        #refreshTimer { font-size: 12px; color: #555; }
+    </style>
+</head>
+<body>
+    <h1>Polymarket Agent Dashboard <span id="refreshTimer"></span></h1>
+
+    <div class="grid" id="summaryCards">
+        <div class="card"><div class="card-label">Bankroll</div><div class="card-value" id="bankroll">$--</div></div>
+        <div class="card"><div class="card-label">Open Positions</div><div class="card-value" id="positions">--</div></div>
+        <div class="card"><div class="card-label">Unrealized PnL</div><div class="card-value" id="pnl">$--</div></div>
+        <div class="card"><div class="card-label">High Water Mark</div><div class="card-value" id="hwm">$--</div></div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <span class="chart-title">Bankroll Over Time</span>
+            <div class="btn-group">
+                <button class="active" onclick="setRange('day')">Day</button>
+                <button onclick="setRange('week')">Week</button>
+                <button onclick="setRange('month')">Month</button>
+            </div>
+        </div>
+        <canvas id="bankrollChart" height="200"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title" style="margin-bottom:16px">Recent Trades</div>
+        <table>
+            <thead><tr><th>Time</th><th>Market</th><th>Action</th><th>Size</th><th>Price</th><th>Edge</th><th>Status</th></tr></thead>
+            <tbody id="tradeRows"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let chart;
+        let allPortfolioData = [];
+
+        async function fetchData() {
+            try {
+                const [tradesResp, portfolioResp] = await Promise.all([
+                    fetch('/api/trades'), fetch('/api/portfolio')
+                ]);
+                const trades = await tradesResp.json();
+                allPortfolioData = await portfolioResp.json();
+                updateSummary(allPortfolioData);
+                updateChart(allPortfolioData);
+                updateTrades(trades);
+            } catch (e) { console.error('Fetch error:', e); }
+        }
+
+        function updateSummary(data) {
+            if (!data.length) return;
+            const latest = data[data.length - 1];
+            document.getElementById('bankroll').textContent = `$${(latest.bankroll || 0).toFixed(2)}`;
+            document.getElementById('positions').textContent = latest.positions || 0;
+            const pnl = latest.unrealized_pnl || 0;
+            const pnlEl = document.getElementById('pnl');
+            pnlEl.textContent = `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+            pnlEl.className = `card-value ${pnl >= 0 ? 'green' : 'red'}`;
+            document.getElementById('hwm').textContent = `$${(latest.hwm || 0).toFixed(2)}`;
+        }
+
+        function updateChart(data) {
+            const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+            const values = data.map(d => d.bankroll);
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = values;
+                chart.update();
+            } else {
+                chart = new Chart(document.getElementById('bankrollChart'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Bankroll ($)',
+                            data: values,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79,70,229,0.1)',
+                            fill: true, tension: 0.3, pointRadius: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: '#1a1a2e' }, ticks: { color: '#555' } },
+                            y: { grid: { color: '#1a1a2e' }, ticks: { color: '#555', callback: v => '$' + v } }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateTrades(trades) {
+            const tbody = document.getElementById('tradeRows');
+            tbody.innerHTML = trades.slice(-20).reverse().map(t => {
+                const action = t.action || '';
+                const cls = action.includes('BUY') ? 'buy' : action === 'HOLD' ? 'hold' : 'sell';
+                return `<tr>
+                    <td>${new Date(t.timestamp).toLocaleString()}</td>
+                    <td>${t.market || ''}</td>
+                    <td><span class="badge ${cls}">${action}</span></td>
+                    <td>${t.size ? '$' + Number(t.size).toFixed(2) : '-'}</td>
+                    <td>${t.price ? '$' + Number(t.price).toFixed(2) : '-'}</td>
+                    <td>${t.edge ? (t.edge * 100).toFixed(1) + '%' : '-'}</td>
+                    <td>${t.status || t.rejected || '-'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function setRange(range) {
+            document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            // Filter data by range
+            const now = Date.now();
+            const ms = { day: 86400000, week: 604800000, month: 2592000000 }[range];
+            const filtered = allPortfolioData.filter(d => now - new Date(d.timestamp).getTime() < ms);
+            updateChart(filtered.length ? filtered : allPortfolioData);
+        }
+
+        fetchData();
+        setInterval(fetchData, 30000);
+
+        let countdown = 30;
+        setInterval(() => {
+            countdown = countdown <= 0 ? 30 : countdown - 1;
+            document.getElementById('refreshTimer').textContent = `(refresh in ${countdown}s)`;
+        }, 1000);
+    </script>
+</body>
+</html>
