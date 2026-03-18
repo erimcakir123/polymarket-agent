@@ -139,6 +139,9 @@
             transition: border-color var(--transition), transform var(--transition);
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         .card:hover {
             border-color: var(--border-hover);
@@ -237,31 +240,6 @@
         }
         .gauge-info .gi-label { font-size: 10px; color: var(--text-muted); }
         .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
-
-        .usage-bar-wrap {
-            margin-top: var(--space-sm);
-            width: 100%;
-        }
-        .usage-bar-bg {
-            width: 100%;
-            height: 4px;
-            background: rgba(255,255,255,0.04);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .usage-bar-fill {
-            height: 100%;
-            border-radius: 2px;
-            transition: width 600ms ease-out;
-        }
-        .usage-bar-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 9px;
-            color: var(--text-muted);
-            margin-top: 2px;
-            font-family: var(--font-mono);
-        }
 
         /* ── Chart Panels ── */
         .panel {
@@ -613,10 +591,6 @@
                             <div><span class="gi-label">Left </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
                         </div>
                     </div>
-                    <div class="usage-bar-wrap">
-                        <div class="usage-bar-bg"><div class="usage-bar-fill" id="budgetBar" style="width:0%;background:var(--accent)"></div></div>
-                        <div class="usage-bar-labels"><span>$0</span><span id="budgetBarLabel">$12 cap</span></div>
-                    </div>
                 </div>
                 <div class="card">
                     <div class="card-label">Loss Protection</div>
@@ -633,10 +607,6 @@
                             <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
                             <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
                         </div>
-                    </div>
-                    <div class="usage-bar-wrap">
-                        <div class="usage-bar-bg"><div class="usage-bar-fill" id="ddBar" style="width:0%;background:var(--green)"></div></div>
-                        <div class="usage-bar-labels"><span>0%</span><span>50% halt</span></div>
                     </div>
                 </div>
                 <div class="card">
@@ -930,11 +900,6 @@
             else if (dd > 15) { ddStatusEl.textContent = 'Caution'; ddStatusEl.style.color = COLORS.amber; }
             else { ddStatusEl.textContent = 'Safe'; ddStatusEl.style.color = COLORS.green; }
 
-            // Drawdown progress bar
-            const ddBarEl = document.getElementById('ddBar');
-            ddBarEl.style.width = Math.min(dd / 50 * 100, 100) + '%';
-            ddBarEl.style.background = dd > 30 ? COLORS.red : dd > 15 ? COLORS.amber : COLORS.green;
-
             if (data.length >= 2) {
                 const prev = data[data.length - 2].bankroll || bankroll;
                 const change = bankroll - prev;
@@ -1093,9 +1058,6 @@
             budgetGauge.data.datasets[0].backgroundColor[0] = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
             budgetGauge.update();
 
-            // Progress bar
-            document.getElementById('budgetBar').style.width = Math.min(pct, 100) + '%';
-            document.getElementById('budgetBar').style.background = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
         }
 
         function setRange(range, btn) {
