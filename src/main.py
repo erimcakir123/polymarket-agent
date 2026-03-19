@@ -68,6 +68,7 @@ class Agent:
         self.consecutive_api_failures = 0
         self.bets_since_approval = 0
         self.cycle_count = 0
+        self._exit_cooldowns: dict[str, int] = {}  # condition_id -> cycle when cooldown expires
         self._last_resolved_count = self._count_resolved()
 
         # Core modules
@@ -268,11 +269,21 @@ class Agent:
                     self.ai.invalidate_cache(cid)
                     self.news_scanner.invalidate_cache(" ".join(market_keywords.get(cid, [])))
 
-        # 9. Skip markets already in portfolio (save API budget)
-        new_markets = [m for m in prioritized if m.condition_id not in self.portfolio.positions]
-        if len(new_markets) < len(prioritized):
-            logger.info("Skipped %d markets already in portfolio (saved API calls)",
-                        len(prioritized) - len(new_markets))
+        # 9. Skip markets already in portfolio or on exit cooldown
+        new_markets = [
+            m for m in prioritized
+            if m.condition_id not in self.portfolio.positions
+            and self._exit_cooldowns.get(m.condition_id, 0) <= self.cycle_count
+        ]
+        skipped_portfolio = sum(1 for m in prioritized if m.condition_id in self.portfolio.positions)
+        skipped_cooldown = sum(
+            1 for m in prioritized
+            if m.condition_id not in self.portfolio.positions
+            and self._exit_cooldowns.get(m.condition_id, 0) > self.cycle_count
+        )
+        if skipped_portfolio or skipped_cooldown:
+            logger.info("Skipped %d in portfolio, %d on cooldown (saved API calls)",
+                        skipped_portfolio, skipped_cooldown)
         prioritized = new_markets
 
         # 9b. Fetch esports match data (PandaScore) for sports/esports markets
@@ -347,18 +358,21 @@ class Agent:
                 })
                 continue
 
-            # Ignorance edge guard: low confidence + high edge = AI has no info,
-            # defaulting to ~50% creates fake edge against extreme market prices
-            if estimate.confidence == "low" and edge > 0.25:
+            # Ignorance edge guard: confidence-proportional edge cap
+            # If AI isn't confident, large edge is likely fake (AI defaulting to ~50%)
+            # High confidence = no cap (AI genuinely sees mispricing)
+            _MAX_EDGE_BY_CONFIDENCE = {"low": 0.15, "medium": 0.25}
+            max_edge = _MAX_EDGE_BY_CONFIDENCE.get(estimate.confidence)
+            if max_edge is not None and edge > max_edge:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "ai_prob": estimate.ai_probability, "price": market.yes_price,
                     "edge": edge, "mode": self.config.mode.value,
-                    "rejected": f"IGNORANCE_EDGE: low confidence ({estimate.confidence}) with "
-                                f"suspiciously high edge ({edge:.1%}) — AI likely has no real info",
+                    "rejected": f"IGNORANCE_EDGE: {estimate.confidence} confidence with "
+                                f"edge {edge:.1%} > cap {max_edge:.0%} — crowd likely knows more",
                 })
-                logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s",
-                            market.slug[:40], edge * 100, estimate.confidence)
+                logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s cap=%.0f%%",
+                            market.slug[:40], edge * 100, estimate.confidence, max_edge * 100)
                 continue
 
             signals_generated = True
@@ -590,10 +604,12 @@ class Agent:
                 )
                 self._exit_position(cid, reason)
 
-    def _exit_position(self, condition_id: str, reason: str) -> None:
+    def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 3) -> None:
         pos = self.portfolio.remove_position(condition_id)
         if not pos:
             return
+        # Set cooldown — don't re-enter this market for N cycles (let dust settle)
+        self._exit_cooldowns[condition_id] = self.cycle_count + cooldown_cycles
         result = self.executor.place_exit_order(pos.token_id, pos.shares)
         self.portfolio.record_realized(pos.unrealized_pnl_usdc)
         self.risk.record_outcome(win=pos.unrealized_pnl_usdc > 0)
@@ -638,7 +654,8 @@ class Agent:
         """Fetch current YES prices for all open positions from Gamma API."""
         if not self.portfolio.positions:
             return
-        for cid, pos in self.portfolio.positions.items():
+        stale_cids = []
+        for cid, pos in list(self.portfolio.positions.items()):
             try:
                 resp = requests.get(
                     "https://gamma-api.polymarket.com/markets",
@@ -650,8 +667,22 @@ class Agent:
                     prices = json.loads(data[0].get("outcomePrices", '["0.5","0.5"]'))
                     new_yes_price = float(prices[0])
                     self.portfolio.update_price(cid, new_yes_price)
+                else:
+                    logger.warning("Market not found on Gamma: %s (%s..)", pos.slug, cid[:16])
+                    stale_cids.append(cid)
             except Exception as e:
                 logger.debug("Price update failed for %s: %s", pos.slug[:30], e)
+
+        # Auto-remove positions whose markets no longer exist (stale/test data)
+        for cid in stale_cids:
+            pos = self.portfolio.remove_position(cid)
+            if pos:
+                logger.warning("Removed stale position: %s (not on Polymarket)", pos.slug)
+                self.trade_log.log({
+                    "market": pos.slug, "action": "REMOVED",
+                    "reason": "stale: market not found on Gamma API",
+                    "mode": self.config.mode.value,
+                })
 
     def _check_resolved_markets(self) -> None:
         """Check if any past predictions have resolved. Log outcome for calibration."""

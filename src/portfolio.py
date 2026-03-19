@@ -123,6 +123,11 @@ class Portfolio:
     def check_stop_losses(self, stop_loss_pct: float = 0.30) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():
+            # Skip if price was never updated (stale 0.0 → fake -100% PnL)
+            if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
+                logger.debug("Skipping stop-loss for %s: price never updated (%.4f)",
+                             pos.slug[:30], pos.current_price)
+                continue
             if pos.unrealized_pnl_pct < -stop_loss_pct:
                 triggered.append(cid)
                 logger.warning("Stop-loss triggered for %s: %.1f%%", pos.slug, pos.unrealized_pnl_pct * 100)
