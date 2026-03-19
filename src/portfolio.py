@@ -56,6 +56,7 @@ class Portfolio:
         slug: str = "",
         category: str = "",
         confidence: str = "medium",
+        ai_probability: float = 0.5,
     ) -> None:
         self.positions[condition_id] = Position(
             condition_id=condition_id,
@@ -68,6 +69,7 @@ class Portfolio:
             slug=slug,
             category=category,
             confidence=confidence,
+            ai_probability=ai_probability,
         )
         self._save_positions()
 
@@ -127,17 +129,25 @@ class Portfolio:
         return triggered
 
     def check_take_profits(self, take_profit_pct: float = 0.40) -> List[str]:
-        # Dynamic take-profit: higher confidence = hold longer
+        # Dynamic take-profit based on confidence + conviction
         confidence_tp = {
-            "low": take_profit_pct,          # low confidence → take profit early
-            "medium": take_profit_pct * 2.0,  # medium → 2x patience
-            "high": take_profit_pct * 3.5,    # high confidence → let it ride
+            "low": take_profit_pct,          # low confidence → take profit early (40%)
+            "medium": take_profit_pct * 2.0,  # medium → 2x patience (80%)
+            "high": take_profit_pct * 3.5,    # high confidence → let it ride (140%)
         }
         triggered = []
         for cid, pos in self.positions.items():
             # Skip if price was never updated (API error → 0.0 inflates PnL)
             if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
                 continue
+
+            # Near-certain conviction: AI > 90% sure → wait for resolution, don't take profit
+            ai_certainty = max(pos.ai_probability, 1 - pos.ai_probability)
+            if ai_certainty >= 0.90:
+                logger.debug("Skipping take-profit for %s: AI %.0f%% certain — waiting for resolution",
+                             pos.slug[:30], ai_certainty * 100)
+                continue
+
             tp = confidence_tp.get(pos.confidence, take_profit_pct)
             if pos.unrealized_pnl_pct > tp:
                 triggered.append(cid)

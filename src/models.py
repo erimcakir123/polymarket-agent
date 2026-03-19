@@ -41,6 +41,7 @@ class Position(BaseModel):
     entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
     confidence: str = "medium"
+    ai_probability: float = 0.5
 
     @computed_field
     @property

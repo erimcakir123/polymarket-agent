@@ -409,6 +409,7 @@ class Agent:
                 market.yes_price, adjusted_size, shares, market.slug,
                 market.tags[0] if market.tags else "",
                 confidence=estimate.confidence,
+                ai_probability=estimate.ai_probability,
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
