@@ -88,6 +88,23 @@ class MarketScanner:
         "tennis", "boxing", "f1", "formula 1", "grand prix",
     }
 
+    _ELECTION_KEYWORDS = {
+        "election", "vote", "referendum", "ballot", "polling",
+        "president", "presidential", "prime minister", "governor",
+        "parliament", "congressional", "senate", "mayor",
+        "party", "candidate", "incumbent", "runoff",
+    }
+
+    def _is_election(self, market: MarketData) -> bool:
+        """Check if market is election-related."""
+        q_lower = market.question.lower()
+        tags_lower = [t.lower() for t in market.tags]
+        if "elections" in tags_lower or "politics" in tags_lower:
+            # Only if question also has election keywords (not all politics = elections)
+            if any(kw in q_lower for kw in self._ELECTION_KEYWORDS):
+                return True
+        return any(kw in q_lower for kw in self._ELECTION_KEYWORDS)
+
     def _is_live_sport(self, market: MarketData) -> bool:
         """Check if market is a sports event based on question and tags."""
         q = market.question.lower()
@@ -127,13 +144,15 @@ class MarketScanner:
         if market.yes_price > 0.95 or market.yes_price < 0.05:
             logger.debug("Excluded extreme price (%.1f%%): %s", market.yes_price * 100, market.question[:60])
             return False
-        # Skip markets resolving too far out — can't test calibration on 9-month bets
+        # Skip markets resolving too far out — elections get a longer window (90 days)
         if market.end_date_iso and self.config.max_duration_days > 0:
             try:
                 end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
                 days_left = (end_dt - datetime.now(timezone.utc)).total_seconds() / 86400
-                if days_left > self.config.max_duration_days:
-                    logger.info("Skipped too far out (%.0fd): %s", days_left, market.question[:60])
+                max_days = 90 if self._is_election(market) else self.config.max_duration_days
+                if days_left > max_days:
+                    logger.info("Skipped too far out (%.0fd, max=%dd): %s",
+                                days_left, max_days, market.question[:60])
                     return False
             except (ValueError, TypeError):
                 pass

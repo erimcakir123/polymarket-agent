@@ -25,7 +25,7 @@ from src.manipulation_guard import ManipulationGuard
 from src.cycle_timer import CycleTimer
 from src.trade_logger import TradeLogger
 from src.notifier import TelegramNotifier
-from src.models import Signal, Direction
+from src.models import MarketData, Signal, Direction
 from src.pre_filter import filter_impossible_markets
 from src.sanity_check import check_bet_sanity
 from src.esports_data import EsportsDataClient
@@ -219,6 +219,9 @@ class Agent:
             self._exit_position(cid, "stop_loss")
         for cid in self.portfolio.check_take_profits(self.config.risk.take_profit_pct):
             self._exit_position(cid, "take_profit")
+
+        # 4b. Re-evaluate election positions — swing trade on opinion shift
+        self._reevaluate_election_positions(bankroll)
 
         # 5. Scan markets
         markets = self.scanner.fetch()
@@ -486,6 +489,106 @@ class Agent:
                 "end_date": market.end_date_iso,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }) + "\n")
+
+    _ELECTION_KEYWORDS = {
+        "election", "vote", "referendum", "ballot", "polling",
+        "president", "presidential", "prime minister", "governor",
+        "parliament", "congressional", "senate", "mayor",
+        "party", "candidate", "incumbent", "runoff",
+    }
+
+    def _is_election_position(self, pos) -> bool:
+        """Check if a position is election-related by slug/category."""
+        slug = (pos.slug or "").lower()
+        cat = (pos.category or "").lower()
+        return any(kw in slug or kw in cat for kw in self._ELECTION_KEYWORDS)
+
+    def _reevaluate_election_positions(self, bankroll: float) -> None:
+        """Re-analyze election positions every cycle. Exit if AI opinion shifted >10%.
+
+        Elections are swing-tradeable: news moves odds, but markets overreact.
+        Buy on calm analysis, sell on spike, re-enter when settled.
+        """
+        if not self.portfolio.positions:
+            return
+
+        election_positions = {
+            cid: pos for cid, pos in self.portfolio.positions.items()
+            if self._is_election_position(pos)
+        }
+        if not election_positions:
+            return
+
+        # Only re-evaluate every 3rd cycle to save API budget
+        if self.cycle_count % 3 != 0:
+            return
+
+        logger.info("Re-evaluating %d election position(s)", len(election_positions))
+
+        for cid, pos in election_positions.items():
+            # Skip if we can't afford another API call
+            if self.ai.budget_exhausted:
+                break
+
+            # Fetch current market data for re-analysis
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"conditionId": cid}, timeout=10,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not data:
+                    continue
+                market_raw = data[0]
+                prices = json.loads(market_raw.get("outcomePrices", '["0.5","0.5"]'))
+                tokens = json.loads(market_raw.get("clobTokenIds", '["",""]'))
+                market = MarketData(
+                    condition_id=cid,
+                    question=market_raw.get("question", ""),
+                    yes_price=float(prices[0]),
+                    no_price=float(prices[1]),
+                    yes_token_id=tokens[0],
+                    no_token_id=tokens[1],
+                    slug=market_raw.get("slug", ""),
+                    description=market_raw.get("description", ""),
+                    end_date_iso=market_raw.get("endDate", ""),
+                )
+            except Exception as e:
+                logger.debug("Election re-eval fetch failed for %s: %s", pos.slug[:30], e)
+                continue
+
+            # Invalidate cache to force fresh analysis
+            self.ai.invalidate_cache(cid)
+            new_estimate = self.ai.analyze_market(market)
+
+            if new_estimate.reasoning_pro in ("BUDGET_EXHAUSTED", "API_ERROR"):
+                continue
+
+            # Compare new AI probability with entry probability
+            old_prob = pos.ai_probability
+            new_prob = new_estimate.ai_probability
+            prob_shift = abs(new_prob - old_prob)
+
+            logger.info(
+                "Election re-eval: %s | entry AI=%.0f%% → now AI=%.0f%% (shift=%.0f%%)",
+                pos.slug[:35], old_prob * 100, new_prob * 100, prob_shift * 100,
+            )
+
+            # If AI opinion shifted >10%, exit — the thesis has changed
+            if prob_shift >= 0.10:
+                reason = (
+                    f"election_reeval: AI shifted {old_prob:.0%}→{new_prob:.0%} "
+                    f"({prob_shift:.0%} change)"
+                )
+                self.notifier.send(
+                    f"\U0001f4ca *Cycle #{self.cycle_count} — Election Re-eval*\n"
+                    f"{pos.slug}\n"
+                    f"\U0001f504 AI: `{old_prob:.0%}` → `{new_prob:.0%}` "
+                    f"(shift: `{prob_shift:.0%}`)\n"
+                    f"\U0001f6aa Exiting — thesis changed"
+                )
+                self._exit_position(cid, reason)
 
     def _exit_position(self, condition_id: str, reason: str) -> None:
         pos = self.portfolio.remove_position(condition_id)
