@@ -331,6 +331,20 @@ class Agent:
                 })
                 continue
 
+            # Ignorance edge guard: low confidence + high edge = AI has no info,
+            # defaulting to ~50% creates fake edge against extreme market prices
+            if estimate.confidence == "low" and edge > 0.25:
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                    "edge": edge, "mode": self.config.mode.value,
+                    "rejected": f"IGNORANCE_EDGE: low confidence ({estimate.confidence}) with "
+                                f"suspiciously high edge ({edge:.1%}) — AI likely has no real info",
+                })
+                logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s",
+                            market.slug[:40], edge * 100, estimate.confidence)
+                continue
+
             signals_generated = True
             signal = Signal(
                 condition_id=market.condition_id,
