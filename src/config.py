@@ -25,8 +25,10 @@ class CycleConfig(BaseModel):
 class ScannerConfig(BaseModel):
     min_volume_24h: float = 50_000
     min_liquidity: float = 5_000
-    tags: List[str] = ["politics", "geopolitics"]
+    tags: List[str] = []
+    prefer_short_duration: bool = True
     max_markets_per_cycle: int = 20
+    max_duration_days: int = 14  # Skip markets resolving more than N days out
 
 
 class AIConfig(BaseModel):
@@ -35,7 +37,8 @@ class AIConfig(BaseModel):
     cache_ttl_min: int = 15
     cache_invalidate_price_move_pct: float = 0.05
     batch_size: int = 5
-    monthly_budget_usd: float = 12.0
+    monthly_budget_usd: float = 48.0
+    sprint_budget_usd: float = 24.0  # Per 2-week sprint (2 sprints/month)
     input_cost_per_mtok: float = 3.0
     output_cost_per_mtok: float = 15.0
 
@@ -48,9 +51,9 @@ class EdgeConfig(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    kelly_fraction: float = 0.50
+    kelly_fraction: float = 0.25
     max_single_bet_usdc: float = 75
-    max_bet_pct: float = 0.15
+    max_bet_pct: float = 0.05
     max_positions: int = 5
     correlation_cap_pct: float = 0.30
     stop_loss_pct: float = 0.30
@@ -67,28 +70,9 @@ class RiskConfig(BaseModel):
         return v
 
 
-class WhaleConfig(BaseModel):
-    min_position_usd: float = 50_000
-    min_win_rate: float = 0.55
-    signal_weight: float = 0.15
-
-
-class LPConfig(BaseModel):
-    enabled: bool = True
-    spread_cents: int = 1
-    max_exposure_pct: float = 0.05
-    min_spread_cents: int = 3
-    price_move_cancel_pct: float = 0.02
-
-
-class OrderBookConfig(BaseModel):
-    max_slippage_pct: float = 0.015
-    wall_threshold_usd: float = 5_000
-
 
 class NotificationConfig(BaseModel):
     telegram_enabled: bool = False
-    daily_summary_hour: int = 21
 
 
 class DashboardConfig(BaseModel):
@@ -104,14 +88,12 @@ class LoggingConfig(BaseModel):
 
 class AppConfig(BaseModel):
     mode: Mode = Mode.DRY_RUN
+    initial_bankroll: float = 60.0
     cycle: CycleConfig = CycleConfig()
     scanner: ScannerConfig = ScannerConfig()
     ai: AIConfig = AIConfig()
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
-    whale: WhaleConfig = WhaleConfig()
-    liquidity_provider: LPConfig = LPConfig()
-    orderbook: OrderBookConfig = OrderBookConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
     logging: LoggingConfig = LoggingConfig()

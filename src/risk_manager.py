@@ -1,4 +1,4 @@
-"""Half-Kelly position sizing and risk gatekeeper."""
+"""Quarter-Kelly position sizing and risk gatekeeper."""
 from __future__ import annotations
 import logging
 from dataclasses import dataclass
@@ -13,9 +13,9 @@ def kelly_position_size(
     ai_prob: float,
     market_price: float,
     bankroll: float,
-    kelly_fraction: float = 0.50,
+    kelly_fraction: float = 0.25,
     max_bet_usdc: float = 75,
-    max_bet_pct: float = 0.15,
+    max_bet_pct: float = 0.05,
     direction: str = "BUY_YES",
 ) -> float:
     if direction == "BUY_YES":
@@ -57,15 +57,10 @@ class RiskManager:
         open_positions: dict,
         correlated_exposure: float = 0.0,
     ) -> RiskDecision:
-        # Cooldown check
+        # Cooldown check (triggered by record_outcome, decremented here)
         if self.cooldown_remaining > 0:
             self.cooldown_remaining -= 1
             return RiskDecision(False, 0, "Cooldown active after consecutive losses")
-
-        if self.consecutive_losses >= self.config.consecutive_loss_cooldown:
-            self.cooldown_remaining = self.config.cooldown_cycles
-            self.consecutive_losses = 0
-            return RiskDecision(False, 0, "Cooldown triggered: consecutive losses")
 
         # Max positions
         if len(open_positions) >= self.config.max_positions:
@@ -91,9 +86,9 @@ class RiskManager:
         )
 
         if size < 5.0:  # Polymarket min order
-            return RiskDecision(False, 0, f"Kelly size too small: ${size:.2f}")
+            return RiskDecision(False, 0, f"Eminlik düşük, bahis çok küçük: ${size:.2f} (min $5)")
 
-        return RiskDecision(True, size, f"Approved: ${size:.2f} via half-Kelly")
+        return RiskDecision(True, size, f"Onaylandı: ${size:.2f}")
 
     def record_outcome(self, win: bool) -> None:
         if win:
@@ -102,4 +97,5 @@ class RiskManager:
             self.consecutive_losses += 1
             if self.consecutive_losses >= self.config.consecutive_loss_cooldown:
                 self.cooldown_remaining = self.config.cooldown_cycles
-                logger.warning("Cooldown triggered: %d consecutive losses", self.consecutive_losses)
+                self.consecutive_losses = 0  # Reset to prevent double cooldown
+                logger.warning("Cooldown triggered: %d consecutive losses", self.config.consecutive_loss_cooldown)

@@ -57,6 +57,9 @@ class Executor:
         from py_clob_client.order_builder.constants import BUY, SELL
 
         clob_side = BUY if side == "BUY" else SELL
+        if price <= 0:
+            logger.error("Cannot execute order with price <= 0")
+            return {"order_id": "", "status": "error", "mode": "live", "reason": "invalid price"}
         shares = size_usdc / price
         order_args = OrderArgs(token_id=token_id, price=price, size=shares, side=clob_side)
         signed = self.client.create_order(order_args)

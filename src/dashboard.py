@@ -1,5 +1,6 @@
 """Flask web dashboard — read-only portfolio monitoring."""
 from __future__ import annotations
+import json
 from pathlib import Path
 
 from flask import Flask, jsonify
@@ -7,6 +8,7 @@ from flask import Flask, jsonify
 from src.trade_logger import TradeLogger
 
 DASHBOARD_HTML = Path(__file__).parent.parent / "templates" / "dashboard.html"
+BUDGET_FILE = Path("logs/ai_budget.json")
 
 
 def create_app(
@@ -39,6 +41,17 @@ def create_app(
 
     @app.route("/api/budget")
     def api_budget():
-        return jsonify({"spent": 0.0, "limit": 12.0, "remaining": 12.0})
+        if BUDGET_FILE.exists():
+            try:
+                data = json.loads(BUDGET_FILE.read_text())
+                return jsonify(data)
+            except (json.JSONDecodeError, KeyError):
+                pass
+        return jsonify({"spent": 0.0, "limit": 0.0, "remaining": 0.0})
 
     return app
+
+
+if __name__ == "__main__":
+    application = create_app()
+    application.run(host="127.0.0.1", port=5050, debug=False)

@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 logs/*.jsonl
+logs/*.json
+logs/*.log
+logs/*.md
+logs/*.tsv
+logs/.last_*
 .venv/
 *.egg-info/
 dist/

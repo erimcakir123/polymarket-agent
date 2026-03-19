@@ -1,8 +1,9 @@
 """Edge detection: AI probability vs market price."""
 from __future__ import annotations
+from typing import Dict, Optional
 from src.models import Direction
 
-CONFIDENCE_MULTIPLIERS = {"low": 1.5, "medium": 1.0, "high": 0.75}
+DEFAULT_CONFIDENCE_MULTIPLIERS = {"low": 1.5, "medium": 1.0, "high": 0.75}
 
 
 def calculate_edge(
@@ -10,8 +11,10 @@ def calculate_edge(
     market_yes_price: float,
     min_edge: float = 0.06,
     confidence: str = "medium",
+    confidence_multipliers: Optional[Dict[str, float]] = None,
 ) -> tuple[Direction, float]:
-    multiplier = CONFIDENCE_MULTIPLIERS.get(confidence, 1.0)
+    multipliers = confidence_multipliers or DEFAULT_CONFIDENCE_MULTIPLIERS
+    multiplier = multipliers.get(confidence, 1.0)
     threshold = min_edge * multiplier
     raw = ai_prob - market_yes_price
 

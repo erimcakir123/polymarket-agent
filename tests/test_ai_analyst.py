@@ -1,9 +1,20 @@
 import json, pytest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from src.models import MarketData
 from src.config import AIConfig
 import src.ai_analyst as ai_analyst_mod
-from src.ai_analyst import AIAnalyst
+from src.ai_analyst import AIAnalyst, BUDGET_FILE
+
+
+@pytest.fixture(autouse=True)
+def clean_budget_file():
+    """Remove budget file before/after each test."""
+    if BUDGET_FILE.exists():
+        BUDGET_FILE.unlink()
+    yield
+    if BUDGET_FILE.exists():
+        BUDGET_FILE.unlink()
 
 SAMPLE_MARKET = MarketData(
     condition_id="0xabc", question="Will X happen?",

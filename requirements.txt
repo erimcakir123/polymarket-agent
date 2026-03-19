@@ -10,4 +10,5 @@ flask>=3.0.0
 feedparser>=6.0.0
 httpx>=0.27.0
 eth-account>=0.11.0
+trafilatura>=1.8.0
 pytest>=8.0.0

@@ -23,10 +23,24 @@ class TradeLogger:
             return []
         lines = self.path.read_text(encoding="utf-8").strip().split("\n")
         lines = [l for l in lines if l.strip()]
-        return [json.loads(l) for l in lines[-n:]]
+        result = []
+        for l in lines[-n:]:
+            try:
+                result.append(json.loads(l))
+            except json.JSONDecodeError:
+                continue
+        return result
 
     def read_all(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
         lines = self.path.read_text(encoding="utf-8").strip().split("\n")
-        return [json.loads(l) for l in lines if l.strip()]
+        result = []
+        for l in lines:
+            if not l.strip():
+                continue
+            try:
+                result.append(json.loads(l))
+            except json.JSONDecodeError:
+                continue
+        return result

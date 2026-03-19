@@ -60,8 +60,9 @@
             display: grid;
             grid-template-columns: 1fr 360px;
             grid-template-rows: auto 1fr;
-            min-height: 100vh;
+            height: 100vh;
             gap: 0;
+            overflow: hidden;
         }
 
         .topbar {
@@ -122,12 +123,17 @@
             display: flex;
             flex-direction: column;
             gap: var(--space-lg);
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-hover) transparent;
         }
+        .main::-webkit-scrollbar { width: 4px; }
+        .main::-webkit-scrollbar-track { background: transparent; }
+        .main::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
 
         /* ── Cards ── */
         .metrics-row {
             display: grid;
-            grid-template-columns: 1.4fr 1fr 1fr 1fr;
+            grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
             gap: var(--space-md);
         }
 
@@ -149,16 +155,18 @@
         }
 
         .card-label {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 12px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
             margin-bottom: var(--space-sm);
+            display: flex;
+            align-items: center;
         }
 
         .card-value {
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             font-size: 28px;
             font-weight: 700;
             letter-spacing: -0.02em;
@@ -184,13 +192,14 @@
         }
 
         .card-sub {
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             font-size: 12px;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             margin-top: var(--space-xs);
         }
 
         .card-value.up { color: var(--green); }
+        .card-value.up-blue { color: #4fc3f7; }
         .card-value.down { color: var(--red); }
 
         /* ── Budget Gauge ── */
@@ -207,38 +216,41 @@
             gap: var(--space-lg);
         }
         .gauge-canvas-wrap {
-            width: 80px;
-            height: 48px;
+            width: 96px;
+            height: 56px;
             position: relative;
             flex-shrink: 0;
         }
         .gauge-center {
             position: absolute;
-            bottom: 0;
+            bottom: -14px;
             left: 50%;
             transform: translateX(-50%);
             text-align: center;
         }
         .gauge-center .gauge-val {
-            font-family: var(--font-mono);
-            font-size: 14px;
+            font-family: var(--font-sans);
+            font-size: 15px;
             font-weight: 700;
             color: var(--text-primary);
+            line-height: 1;
         }
         .gauge-center .gauge-label {
-            font-size: 8px;
+            font-size: 9px;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            margin-top: 2px;
         }
         .gauge-info {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 6px 8px;
             flex: 1;
+            align-items: baseline;
         }
-        .gauge-info .gi-label { font-size: 10px; color: var(--text-muted); }
-        .gauge-info .gi-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+        .gauge-info .gi-label { font-size: 11px; color: var(--text-secondary); text-align: right; }
+        .gauge-info .gi-val { font-family: var(--font-sans); font-size: 13px; font-weight: 600; text-align: left; }
 
         /* ── Chart Panels ── */
         .panel {
@@ -256,9 +268,10 @@
         }
 
         .panel-title {
-            font-size: 13px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 700;
             letter-spacing: -0.01em;
+            color: var(--text-primary);
         }
 
         .pill-group {
@@ -350,7 +363,7 @@
             flex-shrink: 0;
         }
         .legend-label { flex: 1; color: var(--text-secondary); }
-        .legend-val { font-family: var(--font-mono); font-weight: 600; font-size: 12px; }
+        .legend-val { font-family: var(--font-sans); font-weight: 600; font-size: 12px; }
 
         /* ── Win Rate Stats ── */
         .stats-grid {
@@ -368,14 +381,17 @@
         .stat-block:hover { background: var(--bg-hover); }
 
         .stat-label {
-            font-size: 10px;
+            font-size: 11px;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
             margin-bottom: 4px;
+            display: flex;
+            align-items: center;
         }
         .stat-value {
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             font-size: 20px;
             font-weight: 700;
             line-height: 1.1;
@@ -384,7 +400,7 @@
             font-size: 11px;
             color: var(--text-muted);
             margin-top: 2px;
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
         }
 
         /* ── Trade Feed (Right Panel) ── */
@@ -399,21 +415,44 @@
         .feed-header {
             padding: var(--space-md) var(--space-lg);
             border-bottom: 1px solid var(--border);
-            font-size: 13px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 700;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
         }
         .feed-count {
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             font-size: 11px;
             color: var(--text-muted);
             background: var(--bg-elevated);
             padding: 2px 8px;
             border-radius: 10px;
         }
+
+        .feed-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .feed-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 8px 0;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-sans);
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color var(--transition), border-color var(--transition);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .feed-tab:hover { color: var(--text-secondary); }
+        .feed-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
         .feed-scroll {
             flex: 1;
@@ -428,16 +467,48 @@
         .feed-item {
             padding: 14px var(--space-lg);
             border-bottom: 1px solid var(--border);
-            transition: background var(--transition);
-            cursor: default;
+            transition: background var(--transition), box-shadow var(--transition), border-color var(--transition);
+            position: relative;
         }
-        .feed-item:hover { background: var(--bg-elevated); }
+        .feed-item:hover {
+            background: var(--bg-elevated);
+            box-shadow: inset 3px 0 0 var(--accent), 0 0 12px rgba(45,212,168,0.06);
+        }
+        .feed-item.is-new::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            right: var(--space-lg);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow), 0 0 12px var(--accent-glow);
+            animation: new-pulse 2s ease-in-out infinite;
+        }
+        @keyframes new-pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--accent-glow); }
+            50% { opacity: 0.4; box-shadow: 0 0 2px var(--accent-glow); }
+        }
 
         .feed-top {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 6px;
+        }
+        .feed-market-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .feed-tick {
+            font-size: 14px;
+            font-weight: 900;
+            color: var(--green);
+            flex-shrink: 0;
+            line-height: 1;
         }
         .feed-market {
             font-size: 12px;
@@ -448,7 +519,10 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            text-decoration: none;
+            transition: color var(--transition);
         }
+        .feed-market:hover { color: #3b82f6; }
         .feed-badge {
             font-size: 10px;
             font-weight: 700;
@@ -466,16 +540,34 @@
             display: flex;
             gap: var(--space-md);
             font-size: 11px;
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             color: var(--text-muted);
+            align-items: center;
         }
         .feed-detail-label { color: var(--text-muted); }
+        .feed-edge {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .feed-rejected {
+            font-size: 10px;
+            color: var(--amber);
+            font-family: var(--font-sans);
+            margin-top: 4px;
+            padding: 2px 6px;
+            background: var(--amber-dim);
+            border-radius: 3px;
+            display: inline-block;
+        }
 
         .feed-time {
-            font-size: 10px;
+            font-size: 9px;
             color: var(--text-muted);
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             margin-top: 6px;
+            opacity: 0.6;
         }
 
         .feed-impact {
@@ -495,7 +587,7 @@
         .feed-impact-bar.negative { background: var(--red); }
         .feed-impact-val {
             font-size: 11px;
-            font-family: var(--font-mono);
+            font-family: var(--font-sans);
             font-weight: 600;
         }
 
@@ -517,6 +609,216 @@
         }
         .empty-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
         .empty-sub { font-size: 12px; max-width: 200px; }
+
+        /* ── Tooltips ── */
+        .has-tip { position: relative; cursor: help; }
+        .has-tip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1c2433;
+            color: #e6edf3;
+            font-size: 11px;
+            font-weight: 400;
+            font-family: var(--font-sans);
+            letter-spacing: normal;
+            text-transform: none;
+            line-height: 1.5;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            white-space: normal;
+            width: 240px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 150ms ease-out;
+            z-index: 100;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .has-tip:hover::after { opacity: 1; }
+        .has-tip::before {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1c2433;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 150ms ease-out;
+            z-index: 101;
+        }
+        .has-tip:hover::before { opacity: 1; }
+
+        .card-help {
+            position: absolute;
+            top: 10px; right: 10px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background var(--transition), color var(--transition), border-color var(--transition);
+            z-index: 2;
+            line-height: 1;
+        }
+        .card-help:hover { background: var(--accent-dim); color: var(--accent); border-color: rgba(45,212,168,0.2); }
+        .panel-help {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background var(--transition), color var(--transition), border-color var(--transition);
+            flex-shrink: 0;
+        }
+        .panel-help:hover { background: var(--accent-dim); color: var(--accent); border-color: rgba(45,212,168,0.2); }
+
+        .card-icon {
+            font-size: 14px;
+            margin-right: 4px;
+            opacity: 0.9;
+        }
+
+        /* ── Help Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            max-width: 520px;
+            width: 90%;
+            max-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-lg) var(--space-xl) var(--space-md);
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 var(--space-xl) var(--space-xl);
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-hover) transparent;
+        }
+        .modal-body::-webkit-scrollbar { width: 4px; }
+        .modal-body::-webkit-scrollbar-track { background: transparent; }
+        .modal-body::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background var(--transition), color var(--transition);
+        }
+        .modal-close:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+        .guide-section {
+            margin-bottom: var(--space-lg);
+        }
+        .guide-section h3 {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: var(--space-sm);
+        }
+        .guide-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .guide-table td {
+            padding: 6px 0;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .guide-table td:first-child {
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            padding-right: var(--space-md);
+            width: 140px;
+        }
+        .guide-table td:last-child {
+            color: var(--text-secondary);
+        }
+        .guide-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+        .guide-badge.g-yes { background: var(--green-dim); color: var(--green); }
+        .guide-badge.g-no { background: var(--red-dim); color: var(--red); }
+        .guide-badge.g-hold { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+        .guide-badge.g-dry { background: var(--amber-dim); color: var(--amber); }
+        .guide-badge.g-paper { background: var(--blue-dim); color: var(--blue); }
+        .guide-badge.g-live { background: var(--green-dim); color: var(--green); }
+
+        .guide-flow {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin: var(--space-sm) 0;
+            font-size: 11px;
+            font-family: var(--font-mono);
+        }
+        .guide-flow-step {
+            background: var(--bg-elevated);
+            padding: 4px 10px;
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+        .guide-flow-arrow { color: var(--accent); font-weight: 700; }
 
         /* ── Responsive ── */
         @media (max-width: 1100px) {
@@ -551,22 +853,32 @@
             <!-- Metric Cards -->
             <div class="metrics-row">
                 <div class="card card-hero">
-                    <div class="card-label">Balance</div>
+                    <button class="card-help" onclick="openHelp('guide-balance')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#128176;</span> Balance</div>
                     <div class="card-value" id="bankroll">$60.00</div>
                     <div class="card-sub" id="bankrollChange">--</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Open P&L</div>
+                    <button class="card-help" onclick="openHelp('guide-pnl')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#128200;</span> Open P&L</div>
                     <div class="card-value" id="pnl">$0.00</div>
                     <div class="card-sub" id="pnlPct">0.0%</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Active Bets</div>
+                    <button class="card-help" onclick="openHelp('guide-realized')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#128176;</span> Realized P&L</div>
+                    <div class="card-value" id="realizedPnl">$0.00</div>
+                    <div class="card-sub" id="realizedWL">0W / 0L</div>
+                </div>
+                <div class="card">
+                    <button class="card-help" onclick="openHelp('guide-bets')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#127919;</span> Active Bets</div>
                     <div class="card-value" id="positions">0</div>
                     <div class="card-sub" id="maxPositions">/ 10 max</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Peak Balance</div>
+                    <button class="card-help" onclick="openHelp('guide-peak')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#9650;</span> Peak Balance</div>
                     <div class="card-value" id="hwm">$60.00</div>
                     <div class="card-sub" id="drawdown">0.0% drawdown</div>
                 </div>
@@ -575,7 +887,8 @@
             <!-- Budget + Drawdown Gauges -->
             <div class="budget-row">
                 <div class="card">
-                    <div class="card-label">AI Cost (monthly)</div>
+                    <button class="card-help" onclick="openHelp('guide-aicost')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#129302;</span> AI Cost (monthly)</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
                             <canvas id="budgetGauge"></canvas>
@@ -585,14 +898,15 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Spent </span><span class="gi-val" id="budgetSpent">$0.00</span></div>
-                            <div><span class="gi-label">Cap </span><span class="gi-val" id="budgetLimit">$12.00</span></div>
-                            <div><span class="gi-label">Left </span><span class="gi-val" id="budgetRemain" style="color:var(--green)">$12.00</span></div>
+                            <span class="gi-label">Spent</span><span class="gi-val" id="budgetSpent">$0.00</span>
+                            <span class="gi-label">Cap</span><span class="gi-val" id="budgetLimit">$0.00</span>
+                            <span class="gi-label">Left</span><span class="gi-val" id="budgetRemain" style="color:var(--red)">$0.00</span>
                         </div>
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Loss Protection</div>
+                    <button class="card-help" onclick="openHelp('guide-loss')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#9888;</span> Loss Protection</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
                             <canvas id="drawdownGauge"></canvas>
@@ -602,14 +916,15 @@
                             </div>
                         </div>
                         <div class="gauge-info">
-                            <div><span class="gi-label">Down </span><span class="gi-val" id="ddCurrent">0.0%</span></div>
-                            <div><span class="gi-label">Stop at </span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span></div>
-                            <div><span class="gi-label">Status </span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span></div>
+                            <span class="gi-label">Down</span><span class="gi-val" id="ddCurrent">0.0%</span>
+                            <span class="gi-label">Stop at</span><span class="gi-val" id="ddHalt" style="color:var(--red)">50%</span>
+                            <span class="gi-label">Status</span><span class="gi-val" id="ddStatus" style="color:var(--green)">Safe</span>
                         </div>
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-label">Positions</div>
+                    <button class="card-help" onclick="openHelp('guide-positions')"><b>?</b></button>
+                    <div class="card-label"><span class="card-icon">&#128202;</span> Positions</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap" style="width:80px;height:80px">
                             <canvas id="positionChart"></canvas>
@@ -627,9 +942,10 @@
 
             <!-- Bankroll + Waterfall -->
             <div class="charts-row">
-                <div class="panel">
+                <div class="panel" style="position:relative">
+                    <button class="card-help" onclick="openHelp('guide-bankroll')"><b>?</b></button>
                     <div class="panel-header">
-                        <span class="panel-title">Bankroll</span>
+                        <span class="panel-title"><span class="card-icon">&#128176;</span> Bankroll</span>
                         <div class="pill-group">
                             <button class="active" onclick="setRange('day',this)">1D</button>
                             <button onclick="setRange('week',this)">1W</button>
@@ -638,37 +954,39 @@
                     </div>
                     <div class="chart-fixed"><canvas id="bankrollChart"></canvas></div>
                 </div>
-                <div class="panel">
+                <div class="panel" style="position:relative">
+                    <button class="card-help" onclick="openHelp('guide-pertrade')"><b>?</b></button>
                     <div class="panel-header">
-                        <span class="panel-title">Per-Trade P&L</span>
+                        <span class="panel-title"><span class="card-icon">&#128200;</span> Per-Trade P&L</span>
                     </div>
                     <div class="chart-fixed"><canvas id="waterfallChart"></canvas></div>
                 </div>
             </div>
 
             <!-- Performance Stats -->
-            <div class="panel">
+            <div class="panel" style="position:relative">
+                <button class="card-help" onclick="openHelp('guide-performance')"><b>?</b></button>
                 <div class="panel-header">
-                    <span class="panel-title">Performance</span>
+                    <span class="panel-title"><span class="card-icon">&#127942;</span> Performance</span>
                 </div>
                 <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
                     <div class="stat-block">
-                        <div class="stat-label">Wins</div>
+                        <div class="stat-label"><span class="card-icon">&#127942;</span> Wins</div>
                         <div class="stat-value" id="winRate">--%</div>
                         <div class="stat-sub" id="winCount">0W / 0L</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-label">Avg Advantage</div>
+                        <div class="stat-label"><span class="card-icon">&#128161;</span> Avg Advantage</div>
                         <div class="stat-value" id="avgEdge">--</div>
                         <div class="stat-sub" id="edgeRange">--</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-label">AI Accuracy</div>
+                        <div class="stat-label"><span class="card-icon">&#129302;</span> AI Accuracy</div>
                         <div class="stat-value" id="brierScore">--</div>
                         <div class="stat-sub">lower = sharper</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-label">Strongest Topic</div>
+                        <div class="stat-label"><span class="card-icon">&#127775;</span> Strongest Topic</div>
                         <div class="stat-value" id="bestCat" style="font-size:14px">--</div>
                         <div class="stat-sub" id="bestCatRate">--</div>
                     </div>
@@ -676,9 +994,10 @@
             </div>
 
             <!-- Prediction Accuracy -->
-            <div class="panel">
+            <div class="panel" style="position:relative">
+                <button class="card-help" onclick="openHelp('guide-prediction')"><b>?</b></button>
                 <div class="panel-header">
-                    <span class="panel-title">Prediction vs Reality</span>
+                    <span class="panel-title"><span class="card-icon">&#127919;</span> Prediction vs Reality</span>
                 </div>
                 <div class="chart-fixed"><canvas id="scatterChart"></canvas></div>
             </div>
@@ -687,8 +1006,15 @@
         <!-- ── Trade Feed (Right Column) ── -->
         <aside class="trade-feed">
             <div class="feed-header">
-                <span>Live Trades</span>
-                <span class="feed-count" id="tradeCount">0</span>
+                <span><span class="card-icon">&#9889;</span> Trades</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span class="feed-count" id="tradeCount">0</span>
+                    <button class="panel-help" onclick="openHelp('guide-feed')"><b>?</b></button>
+                </div>
+            </div>
+            <div class="feed-tabs">
+                <button class="feed-tab active" onclick="setFeedTab('executed', this)">Executed</button>
+                <button class="feed-tab" onclick="setFeedTab('skipped', this)">Skipped</button>
             </div>
             <div class="feed-scroll" id="feedScroll">
                 <div class="empty-state" id="feedEmpty">
@@ -698,6 +1024,183 @@
                 </div>
             </div>
         </aside>
+    </div>
+
+    <!-- ── Help Modal ── -->
+    <div class="modal-overlay" id="helpModal" onclick="if(event.target===this){this.classList.remove('active');this.querySelectorAll('.guide-section').forEach(s=>s.style.display='')}">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Dashboard Rehberi</span>
+                <button class="modal-close" onclick="document.getElementById('helpModal').classList.remove('active');document.querySelectorAll('.guide-section').forEach(s=>s.style.display='')">&times;</button>
+            </div>
+            <div class="modal-body">
+
+            <div class="guide-section" id="guide-modes">
+                <h3>&#9881; Modlar</h3>
+                <table class="guide-table">
+                    <tr><td><span class="guide-badge g-dry">DRY RUN</span></td><td>Simülasyon. Gerçek para harcanmaz, orderlar sanal. AI analizi gerçek API kullanır ama trade'ler simüle.</td></tr>
+                    <tr><td><span class="guide-badge g-paper">PAPER</span></td><td>Kağıt üstünde trade. DRY RUN ile aynı ama daha detaylı takip.</td></tr>
+                    <tr><td><span class="guide-badge g-live">LIVE</span></td><td>Gerçek trade. Polymarket'te gerçek USDC ile alım/satım yapılır. Dikkat!</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-agent">
+                <h3>&#9881; Agent Nasıl Çalışır?</h3>
+                <div class="guide-flow">
+                    <span class="guide-flow-step">Market Tara</span>
+                    <span class="guide-flow-arrow">&rarr;</span>
+                    <span class="guide-flow-step">AI Analiz</span>
+                    <span class="guide-flow-arrow">&rarr;</span>
+                    <span class="guide-flow-step">Edge Hesapla</span>
+                    <span class="guide-flow-arrow">&rarr;</span>
+                    <span class="guide-flow-step">Risk Kontrol</span>
+                    <span class="guide-flow-arrow">&rarr;</span>
+                    <span class="guide-flow-step">Trade / Hold</span>
+                </div>
+                <table class="guide-table">
+                    <tr><td>Market Tara</td><td>Polymarket'ten hacimli ve likit marketleri çeker (Gamma API, ücretsiz).</td></tr>
+                    <tr><td>AI Analiz</td><td>Claude AI'ya her marketi 2 kez sorar: biri lehte, biri aleyhte argüman üretir. Olasılıkları ortalar.</td></tr>
+                    <tr><td>Edge Hesapla</td><td>AI'ın tahmini ile market fiyatı arasındaki farkı bulur. Fark > %6 ise "edge var" der.</td></tr>
+                    <tr><td>Risk Kontrol</td><td>Eminlik farkına göre bahis büyüklüğü hesaplar. Fark küçükse (< $5) reddeder.</td></tr>
+                    <tr><td>Trade / Hold</td><td>Onaylanırsa BUY_YES veya BUY_NO sinyali verir. Reddedilirse HOLD.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-signals">
+                <h3>&#128640; Trade Sinyalleri</h3>
+                <table class="guide-table">
+                    <tr><td><span class="guide-badge g-yes">BUY YES</span></td><td>AI, market fiyatından daha yüksek olasılık veriyor. "Bu olay gerçekleşecek" diye bahis.</td></tr>
+                    <tr><td><span class="guide-badge g-no">BUY NO</span></td><td>AI, market fiyatından daha düşük olasılık veriyor. "Bu olay gerçekleşmeyecek" diye bahis.</td></tr>
+                    <tr><td><span class="guide-badge g-hold">HOLD</span></td><td>Yeterli edge yok veya risk manager reddetti. İşlem yapılmadı.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-feed">
+                <h3>&#9889; Live Trades — Feed Detayları</h3>
+                <table class="guide-table">
+                    <tr><td>Market Adı</td><td>Tıklanabilir link — Polymarket'teki markete götürür.</td></tr>
+                    <tr><td><span class="guide-badge g-yes">BUY YES</span></td><td>"Bu olacak" yönünde bahis. AI marketten daha yüksek olasılık vermiş.</td></tr>
+                    <tr><td><span class="guide-badge g-no">BUY NO</span></td><td>"Bu olmayacak" yönünde bahis. AI marketten daha düşük olasılık vermiş.</td></tr>
+                    <tr><td><span class="guide-badge g-hold">HOLD</span></td><td>İşlem yapılmadı. Edge yetersiz veya risk manager reddetti.</td></tr>
+                    <tr><td>$XX.XX</td><td>Pozisyon büyüklüğü — bu markete ne kadar yatırıldı. Sadece onaylanan trade'lerde görünür.</td></tr>
+                    <tr><td>@0.XX</td><td>Alım fiyatı — token başına fiyat. @0.35 = %35 olasılık. Çok düşükse gizlenir.</td></tr>
+                    <tr><td>X.X% edge</td><td>AI'ın bulduğu avantaj. Edge 0 ise gösterilmez.</td></tr>
+                    <tr><td style="color:var(--amber)">Rejected</td><td>Risk manager'ın ret sebebi. Ör: "Eminlik düşük, bahis çok küçük" = fark yeterli değil, değmez.</td></tr>
+                    <tr><td style="color:var(--green)">+$X.XX</td><td>Kâr. Yeşil bar ne kadar uzunsa kâr o kadar büyük.</td></tr>
+                    <tr><td style="color:var(--red)">-$X.XX</td><td>Zarar. Kırmızı bar ne kadar uzunsa zarar o kadar büyük.</td></tr>
+                    <tr><td>Zaman</td><td>Trade'in yapıldığı tarih ve saat.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-balance">
+                <h3>&#128176; Balance</h3>
+                <table class="guide-table">
+                    <tr><td>Balance</td><td>Mevcut bakiye. DRY RUN'da sanal, LIVE'da gerçek USDC.</td></tr>
+                    <tr><td>Değişim</td><td>Son döngüdeki bakiye değişimini gösterir (+$X.XX / -$X.XX).</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-pnl">
+                <h3>&#128200; Open P&L</h3>
+                <table class="guide-table">
+                    <tr><td>Open P&L</td><td>Açık pozisyonların toplam kâr/zararı. Henüz kapanmamış — fiyat değişince bu da değişir.</td></tr>
+                    <tr><td>Yüzde</td><td>P&L'nin bakiyeye oranı.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-realized">
+                <h3>&#128176; Realized P&L</h3>
+                <table class="guide-table">
+                    <tr><td>Realized P&L</td><td>Kapanmış pozisyonlardan elde edilen toplam kâr/zarar. Bu değer kesinleşmiştir.</td></tr>
+                    <tr><td>W / L</td><td>Kazanılan ve kaybedilen pozisyon sayısı.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-bets">
+                <h3>&#127919; Active Bets</h3>
+                <table class="guide-table">
+                    <tr><td>Active Bets</td><td>Açık pozisyon sayısı. Maksimum 5 aynı anda açık olabilir (risk limiti).</td></tr>
+                    <tr><td>Her pozisyon</td><td>Bir marketteki bahisi temsil eder.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-peak">
+                <h3>&#9650; Peak Balance</h3>
+                <table class="guide-table">
+                    <tr><td>Peak (HWM)</td><td>Ulaşılan en yüksek bakiye. Drawdown bu değerden hesaplanır.</td></tr>
+                    <tr><td>Drawdown</td><td>Peak'ten ne kadar düşüldüğü. %50'ye ulaşırsa agent otomatik durur.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-aicost">
+                <h3>&#129302; AI Cost</h3>
+                <table class="guide-table">
+                    <tr><td>AI Cost</td><td>Anthropic Claude API'ye ödenen aylık tutar. Her market analizi ~$0.005.</td></tr>
+                    <tr><td>Limit aşılırsa</td><td>AI analizi durur, market fiyatı direkt kullanılır (edge bulunamaz).</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-loss">
+                <h3>&#9888; Loss Protection</h3>
+                <table class="guide-table">
+                    <tr><td>Drawdown</td><td>Peak bakiyeden ne kadar düşüldüğünü gösterir.</td></tr>
+                    <tr><td>%50 Halt</td><td>Drawdown %50'ye ulaşırsa agent tamamen durur, yeni trade açmaz.</td></tr>
+                    <tr><td>Durum</td><td>Safe (yeşil) / Caution (sarı) / Warning (kırmızı).</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-positions">
+                <h3>&#128202; Positions</h3>
+                <table class="guide-table">
+                    <tr><td>Pasta Grafiği</td><td>Açık pozisyonların dağılımı. Hangi marketlere ne kadar yatırıldığını gösterir.</td></tr>
+                    <tr><td>Korelasyon</td><td>Benzer marketlere toplam yatırım %30 ile sınırlı (risk dağılımı).</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-bankroll">
+                <h3>&#128176; Bankroll Grafiği</h3>
+                <table class="guide-table">
+                    <tr><td>Grafik</td><td>Bakiyenin zaman içindeki değişimi. 1D / 1W / 1M filtresi ile dönem seçilebilir.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-pertrade">
+                <h3>&#128200; Per-Trade P&L</h3>
+                <table class="guide-table">
+                    <tr><td>Barlar</td><td>Kapanan her trade'den gelen kâr/zarar. Yeşil = kâr, kırmızı = zarar.</td></tr>
+                    <tr><td>Son 15</td><td>En son 15 kapanmış trade gösterilir.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-performance">
+                <h3>&#127942; Performance</h3>
+                <table class="guide-table">
+                    <tr><td>Win Rate</td><td>Kazanan trade yüzdesi. %50 üstü iyi.</td></tr>
+                    <tr><td>Avg Edge</td><td>Ortalama avantaj. AI'ın piyasadan ne kadar farklı düşündüğü.</td></tr>
+                    <tr><td>AI Accuracy</td><td>Brier skoru — düşük = daha isabetli tahmin.</td></tr>
+                    <tr><td>Strongest Topic</td><td>En başarılı kategori (politics, crypto vb.).</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-prediction">
+                <h3>&#127919; Prediction vs Reality</h3>
+                <table class="guide-table">
+                    <tr><td>Scatter</td><td>AI'ın tahminleri ile gerçek sonuçların karşılaştırması.</td></tr>
+                    <tr><td>Çapraz Çizgi</td><td>Noktalar çizgiye yakınsa AI isabetli, uzaksa sapıyor.</td></tr>
+                </table>
+            </div>
+
+            <div class="guide-section" id="guide-notes">
+                <h3>&#9888; Önemli Notlar</h3>
+                <table class="guide-table">
+                    <tr><td>DRY RUN ≠ Bedava</td><td>Trade'ler simüle ama AI analizi gerçek API kredisi harcar (~$0.005/market).</td></tr>
+                    <tr><td>Edge = Avantaj</td><td>AI'ın piyasadan farklı düşündüğü miktar. Yüksek edge = daha güçlü sinyal.</td></tr>
+                    <tr><td>Bahis Boyutu</td><td>Eminlik farkına göre hesaplanır. Küçük fark = küçük bahis, büyük fark = büyük bahis.</td></tr>
+                    <tr><td>30dk Döngü</td><td>Agent her 30 dakikada bir döngü çalıştırır. Breaking news varsa 10dk'ya düşer.</td></tr>
+                </table>
+            </div>
+            </div><!-- /modal-body -->
+        </div>
     </div>
 
     <script>
@@ -747,7 +1250,7 @@
             });
         }
 
-        budgetGauge = createGauge('budgetGauge', 0, 12, COLORS.accent);
+        budgetGauge = createGauge('budgetGauge', 0, 1, COLORS.accent);
         drawdownGauge = createGauge('drawdownGauge', 0, 50, COLORS.red, 'rgba(255,255,255,0.04)');
 
         /* ── Bankroll Chart ── */
@@ -884,8 +1387,17 @@
 
             const pnlEl = document.getElementById('pnl');
             pnlEl.textContent = '$' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
-            pnlEl.className = 'card-value ' + (pnl >= 0 ? 'up' : 'down');
+            pnlEl.className = 'card-value ' + (pnl >= 0 ? 'up-blue' : 'down');
             document.getElementById('pnlPct').textContent = bankroll > 0 ? (pnl / bankroll * 100).toFixed(1) + '%' : '0%';
+
+            // Realized P&L
+            const realizedPnl = latest.realized_pnl || 0;
+            const realizedWins = latest.realized_wins || 0;
+            const realizedLosses = latest.realized_losses || 0;
+            const realizedEl = document.getElementById('realizedPnl');
+            realizedEl.textContent = '$' + (realizedPnl >= 0 ? '+' : '') + realizedPnl.toFixed(2);
+            realizedEl.className = 'card-value ' + (realizedPnl >= 0 ? 'up' : 'down');
+            document.getElementById('realizedWL').textContent = realizedWins + 'W / ' + realizedLosses + 'L';
 
             // Drawdown gauge
             const ddPct = Math.min(dd / 50 * 100, 100);
@@ -1000,38 +1512,67 @@
             scatterChart.update();
         }
 
+        let currentFeedTab = 'executed';
+
+        function setFeedTab(tab, btn) {
+            currentFeedTab = tab;
+            document.querySelectorAll('.feed-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderFeed();
+        }
+
+        function renderFeed() {
+            updateTradeFeed(allTrades);
+        }
+
         function updateTradeFeed(trades) {
             const feedScroll = document.getElementById('feedScroll');
-            const feedEmpty = document.getElementById('feedEmpty');
             const countEl = document.getElementById('tradeCount');
 
-            if (!trades.length) {
-                feedEmpty.style.display = '';
-                countEl.textContent = '0';
+            const executedTrades = trades.filter(t => t.action && t.action !== 'HOLD' && !t.rejected);
+            const skippedTrades = trades.filter(t => t.action === 'HOLD' || t.rejected);
+
+            const visibleTrades = currentFeedTab === 'executed' ? executedTrades : skippedTrades;
+            countEl.textContent = visibleTrades.length;
+
+            if (!visibleTrades.length) {
+                const msg = currentFeedTab === 'executed' ? 'No executed trades yet' : 'No skipped signals yet';
+                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">${msg}</div></div>`;
                 return;
             }
 
-            feedEmpty.style.display = 'none';
-            countEl.textContent = trades.length;
-
-            feedScroll.innerHTML = trades.slice(-30).reverse().map(t => {
+            feedScroll.innerHTML = visibleTrades.slice(-30).reverse().map(t => {
                 const action = t.action || 'HOLD';
                 const badgeCls = action.includes('YES') ? 'buy-yes' : action.includes('NO') ? 'buy-no' : 'hold';
                 const pnl = t.pnl || 0;
                 const impactW = Math.min(Math.abs(pnl) * 20, 120);
                 const impactCls = pnl >= 0 ? 'positive' : 'negative';
                 const impactColor = pnl >= 0 ? COLORS.green : COLORS.red;
+                const slug = t.market || '';
+                const title = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || t.condition_id || '--';
+                const polyUrl = slug ? `https://polymarket.com/market/${slug}` : '#';
 
-                return `<div class="feed-item">
+                const hasEdge = t.edge && t.edge > 0;
+                const hasSize = t.size && Number(t.size) > 0;
+                const hasPrice = t.price && Number(t.price) > 0.001;
+
+                const isExecuted = action !== 'HOLD' && !t.rejected;
+
+                const isNew = t.timestamp && (Date.now() - new Date(t.timestamp).getTime()) < 5 * 60 * 1000;
+                return `<div class="feed-item${isNew ? ' is-new' : ''}">
                     <div class="feed-top">
-                        <span class="feed-market">${t.market || t.condition_id || '--'}</span>
+                        <div class="feed-market-wrap">
+                            ${isExecuted ? '<span class="feed-tick">&#10003;</span>' : ''}
+                            <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
+                        </div>
                         <span class="feed-badge ${badgeCls}">${action}</span>
                     </div>
                     <div class="feed-details">
-                        ${t.size ? `<span>$${Number(t.size).toFixed(2)}</span>` : ''}
-                        ${t.price ? `<span>@${Number(t.price).toFixed(2)}</span>` : ''}
-                        ${t.edge ? `<span>${(t.edge*100).toFixed(1)}% edge</span>` : ''}
+                        ${hasSize ? `<span>$${Number(t.size).toFixed(2)}</span>` : ''}
+                        ${hasPrice ? `<span>@${Number(t.price).toFixed(2)}</span>` : ''}
+                        ${hasEdge ? `<span class="feed-edge">${(t.edge*100).toFixed(1)}% edge</span>` : ''}
                     </div>
+                    ${t.rejected ? `<div class="feed-rejected">${t.rejected}</div>` : ''}
                     ${pnl !== 0 ? `<div class="feed-impact">
                         <div class="feed-impact-bar ${impactCls}" style="width:${impactW}px"></div>
                         <span class="feed-impact-val" style="color:${impactColor}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</span>
@@ -1043,9 +1584,9 @@
 
         function updateBudget(b) {
             const spent = b.spent || 0;
-            const limit = b.limit || 12;
-            const remaining = b.remaining || (limit - spent);
-            const pct = limit > 0 ? (spent / limit * 100) : 0;
+            const limit = b.limit !== undefined ? b.limit : 0;
+            const remaining = b.remaining !== undefined ? b.remaining : Math.max(0, limit - spent);
+            const pct = limit > 0 ? (spent / limit * 100) : (spent > 0 ? 100 : 0);
 
             document.getElementById('budgetSpent').textContent = '$' + spent.toFixed(2);
             document.getElementById('budgetLimit').textContent = '$' + limit.toFixed(2);
@@ -1053,8 +1594,12 @@
             document.getElementById('budgetRemain').style.color = remaining > 2 ? COLORS.green : remaining > 0 ? COLORS.amber : COLORS.red;
             document.getElementById('budgetPct').textContent = pct.toFixed(0) + '%';
 
-            budgetGauge.data.datasets[0].data = [spent, Math.max(0, limit - spent)];
-            budgetGauge.data.datasets[0].backgroundColor[0] = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
+            if (limit > 0) {
+                budgetGauge.data.datasets[0].data = [spent, Math.max(0, limit - spent)];
+            } else {
+                budgetGauge.data.datasets[0].data = [spent > 0 ? 1 : 0, spent > 0 ? 0 : 1];
+            }
+            budgetGauge.data.datasets[0].backgroundColor[0] = limit === 0 && spent > 0 ? COLORS.red : pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
             budgetGauge.update();
 
         }
@@ -1066,6 +1611,30 @@
             const ms = { day: 86400000, week: 604800000, month: 2592000000 }[range];
             const filtered = allPortfolioData.filter(d => now - new Date(d.timestamp).getTime() < ms);
             updateBankrollChart(filtered.length ? filtered : allPortfolioData);
+        }
+
+        /* ── Help Modal ── */
+        function openHelp(sectionId) {
+            const modal = document.getElementById('helpModal');
+            modal.classList.add('active');
+            if (sectionId) {
+                const el = document.getElementById(sectionId);
+                if (el) {
+                    // Small delay to let modal render
+                    setTimeout(() => {
+                        const modalBody = modal.querySelector('.modal');
+                        // Hide all sections, show only the target one
+                        modal.querySelectorAll('.guide-section').forEach(s => {
+                            s.style.display = s.id === sectionId ? '' : 'none';
+                        });
+                    }, 10);
+                }
+            } else {
+                // Show all sections when opened from topbar
+                modal.querySelectorAll('.guide-section').forEach(s => {
+                    s.style.display = '';
+                });
+            }
         }
 
         /* ── Init ── */

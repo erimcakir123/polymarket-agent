@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -44,6 +44,9 @@ class Position(BaseModel):
     @computed_field
     @property
     def current_value(self) -> float:
+        # For BUY_NO, value increases when YES price drops (NO price = 1 - YES price)
+        if self.direction == "BUY_NO":
+            return self.shares * (1 - self.current_price)
         return self.shares * self.current_price
 
     @computed_field
@@ -66,29 +69,3 @@ class Signal(BaseModel):
     market_price: float
     edge: float
     confidence: str
-    reasoning: str = ""
-    whale_boost: float = 0.0
-
-
-class TradeRecord(BaseModel):
-    condition_id: str
-    slug: str
-    direction: str
-    size_usdc: float
-    price: float
-    edge: float
-    confidence: str
-    mode: str
-    status: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    reasoning: str = ""
-    order_id: Optional[str] = None
-
-
-class PortfolioSnapshot(BaseModel):
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    bankroll_usdc: float
-    positions_count: int
-    unrealized_pnl: float
-    high_water_mark: float
-    consecutive_losses: int = 0
