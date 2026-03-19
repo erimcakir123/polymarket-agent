@@ -74,23 +74,23 @@ class TelegramNotifier:
         """Process pending Telegram commands."""
         for cmd in self.poll_commands():
             if cmd == "/stop":
-                self.send("Bot durduruluyor...")
+                self.send("*STOPPING*\n\nShutting down after current cycle.")
                 agent.running = False
                 logger.info("Telegram /stop command received")
 
             elif cmd == "/pause":
                 PAUSE_FILE.parent.mkdir(parents=True, exist_ok=True)
                 PAUSE_FILE.write_text("Paused via /pause command", encoding="utf-8")
-                self.send("Bot duraklatildi. /resume ile devam edin.")
+                self.send("*PAUSED*\n\nSend /resume to continue.")
                 logger.info("Telegram /pause command received")
 
             elif cmd == "/resume":
                 if PAUSE_FILE.exists():
                     PAUSE_FILE.unlink()
-                    self.send("Bot devam ediyor.")
+                    self.send("*RESUMED*\n\nBot is running.")
                     logger.info("Telegram /resume command received")
                 else:
-                    self.send("Bot zaten calisiyor.")
+                    self.send("Bot is already running.")
 
             elif cmd == "/status":
                 positions = len(agent.portfolio.positions)
@@ -98,17 +98,17 @@ class TelegramNotifier:
                 paused = PAUSE_FILE.exists()
                 budget = agent.ai.budget_remaining_usd
                 self.send(
-                    f"*Bot Durumu*\n"
-                    f"Mod: `{agent.config.mode.value}`\n"
-                    f"Bakiye: `${bankroll:.2f}`\n"
-                    f"Acik pozisyon: `{positions}`\n"
-                    f"API butce kalan: `${budget:.2f}`\n"
-                    f"Durum: `{'DURAKLATILDI' if paused else 'CALISIYOR'}`\n"
-                    f"Toplam bet: `{agent.bets_since_approval}`/10"
+                    f"*STATUS*\n\n"
+                    f"Mode: `{agent.config.mode.value}`\n"
+                    f"Balance: `${bankroll:.2f}`\n"
+                    f"Positions: `{positions}`\n"
+                    f"API budget left: `${budget:.2f}`\n"
+                    f"State: `{'PAUSED' if paused else 'RUNNING'}`\n"
+                    f"Bets: `{agent.bets_since_approval}`/10"
                 )
 
             else:
-                self.send(f"Bilinmeyen komut: {cmd}\nKomutlar: /stop /pause /resume /status")
+                self.send(f"Unknown command: {cmd}\n\nAvailable: /stop /pause /resume /status")
 
     # ------------------------------------------------------------------
     # Message formatters
@@ -118,40 +118,35 @@ class TelegramNotifier:
         self, question: str, direction: str, size: float, price: float, edge: float
     ) -> str:
         return (
-            f"*Trade Opened*\n"
-            f"Market: {question}\n"
-            f"Direction: `{direction}`\n"
-            f"Size: `${size:.2f}`\n"
-            f"Price: `${price:.2f}`\n"
+            f"*TRADE OPENED*\n\n"
+            f"{question}\n"
+            f"`{direction}` | `${size:.2f}` @ `{price:.2f}`\n"
             f"Edge: `{edge:.1%}`"
         )
 
     def format_exit(self, question: str, reason: str, pnl: float) -> str:
-        emoji = "+" if pnl >= 0 else ""
+        sign = "+" if pnl >= 0 else ""
         return (
-            f"*Position Closed*\n"
-            f"Market: {question}\n"
+            f"*POSITION CLOSED*\n\n"
+            f"{question}\n"
             f"Reason: {reason}\n"
-            f"PnL: `{emoji}${pnl:.2f}`"
+            f"PnL: `{sign}${pnl:.2f}`"
         )
 
     def format_suspicious_bet(
         self, question: str, direction: str, size: float, edge: float, reason: str
     ) -> str:
         return (
-            f"*Supheli Bet*\n"
-            f"Market: {question}\n"
-            f"Direction: `{direction}`\n"
-            f"Size: `${size:.2f}`\n"
-            f"Edge: `{edge:.1%}`\n"
-            f"Sebep: {reason}\n"
-            f"_Bu bet otomatik engellendi._"
+            f"*BLOCKED*\n\n"
+            f"{question}\n"
+            f"`{direction}` | `${size:.2f}` | Edge: `{edge:.1%}`\n\n"
+            f"Reason: {reason}"
         )
 
     def alert_drawdown(self, bankroll: float, hwm: float) -> str:
         return (
-            f"*DRAWDOWN BREAKER ACTIVATED*\n"
-            f"Bankroll: `${bankroll:.2f}`\n"
-            f"High Water Mark: `${hwm:.2f}`\n"
+            f"*DRAWDOWN BREAKER*\n\n"
+            f"Balance: `${bankroll:.2f}`\n"
+            f"Peak: `${hwm:.2f}`\n\n"
             f"All trading halted. Manual review required."
         )

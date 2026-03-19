@@ -29,6 +29,7 @@ class ScannerConfig(BaseModel):
     prefer_short_duration: bool = True
     max_markets_per_cycle: int = 20
     max_duration_days: int = 14  # Skip markets resolving more than N days out
+    allowed_categories: List[str] = []  # Empty = allow all; e.g. ["sports", "esports"]
 
 
 class AIConfig(BaseModel):

@@ -42,6 +42,10 @@ class Position(BaseModel):
     category: str = ""
     confidence: str = "medium"
     ai_probability: float = 0.5
+    scouted: bool = False  # True = pre-game scouted entry, hold to resolve (no take-profit)
+    question: str = ""  # Market question (human-readable title)
+    end_date_iso: str = ""  # Market resolution deadline (ISO format)
+    peak_pnl_pct: float = 0.0  # Highest unrealized PnL % seen (for trailing stop)
 
     @computed_field
     @property

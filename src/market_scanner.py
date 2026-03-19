@@ -130,7 +130,23 @@ class MarketScanner:
 
         return sorted(markets, key=sort_key)
 
+    def _is_sports_or_esports(self, market: MarketData) -> bool:
+        """Check if market is sports or esports (not politics, crypto, etc.)."""
+        return self._is_live_sport(market)  # Already covers sports + esports tags & keywords
+
     def _passes_filters(self, market: MarketData) -> bool:
+        # Category filter: only allow specified categories (e.g. sports, esports)
+        if self.config.allowed_categories:
+            allowed = {c.lower() for c in self.config.allowed_categories}
+            if "sports" in allowed or "esports" in allowed:
+                if not self._is_sports_or_esports(market):
+                    logger.debug("Skipped non-sports market: %s", market.question[:60])
+                    return False
+            elif market.tags:
+                tags_lower = {t.lower() for t in market.tags}
+                if not (tags_lower & allowed):
+                    logger.debug("Skipped category mismatch: %s", market.question[:60])
+                    return False
         if market.volume_24h < self.config.min_volume_24h:
             return False
         if market.liquidity < self.config.min_liquidity:

@@ -31,6 +31,15 @@ class CycleTimer:
             self._override_cycles = duration_cycles
             logger.info("Cycle shortened to %d min (near stop-loss)", target)
 
+    def signal_scout_approaching(self, duration_cycles: int = 6) -> None:
+        """Speed up polling when a scouted match is approaching (within 3 hours)."""
+        current = self.get_interval()
+        target = 5  # 5 min polling near match time
+        if target < current:
+            self._override = target
+            self._override_cycles = duration_cycles
+            logger.info("Cycle shortened to %d min (scouted match approaching)", target)
+
     def signal_night_mode(self, current_hour: int) -> None:
         if current_hour in self.config.night_hours:
             self._override = self.config.night_interval_min

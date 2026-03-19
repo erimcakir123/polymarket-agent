@@ -266,8 +266,8 @@ class SportsDataClient:
                 idx = q.lower().index(sep)
                 team_a = q[:idx].strip()
                 team_b = q[idx + len(sep):].strip()
-                # Remove trailing stuff like "(Match)" or " - Tournament"
-                for char in ["(", " -"]:
+                # Remove trailing stuff like "(Match)", " - Tournament", ": O/U 238.5"
+                for char in ["(", " -", ":"]:
                     if char in team_a:
                         team_a = team_a[:team_a.index(char)].strip()
                     if char in team_b:
@@ -286,9 +286,12 @@ class SportsDataClient:
         # Skip prefix (cbb, nba, etc.) and date parts at the end
         # Date parts are 4-digit year, 2-digit month/day
         non_date = []
+        _SLUG_STOP = {"total", "over", "under", "spread", "ml", "moneyline", "pt5", "pts"}
         for p in parts[1:]:
             if len(p) == 4 and p.isdigit():
                 break  # hit the date
+            if p.lower() in _SLUG_STOP:
+                break  # hit O/U or spread suffix
             non_date.append(p)
         if len(non_date) >= 2:
             return non_date[0], non_date[1]

@@ -32,6 +32,8 @@
             --amber-dim: rgba(210,153,34,0.15);
             --blue: #58a6ff;
             --blue-dim: rgba(88,166,255,0.15);
+            --orange: #ff9f43;
+            --orange-dim: rgba(255,159,67,0.15);
             --radius-sm: 6px;
             --radius-md: 10px;
             --radius-lg: 14px;
@@ -133,21 +135,22 @@
         /* ── Cards ── */
         .metrics-row {
             display: grid;
-            grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
-            gap: var(--space-md);
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
         }
 
         .card {
             background: var(--bg-surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: var(--space-lg);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
             transition: border-color var(--transition), transform var(--transition);
             position: relative;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            min-height: 100px;
         }
         .card:hover {
             border-color: var(--border-hover);
@@ -155,19 +158,33 @@
         }
 
         .card-label {
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
             color: var(--text-secondary);
             margin-bottom: var(--space-sm);
+            line-height: 1.4;
             display: flex;
             align-items: center;
+            gap: 8px;
+        }
+        .card-icon {
+            font-size: 28px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .metrics-row .card-icon {
+            font-size: 24px;
+        }
+        .card-label-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
         }
 
         .card-value {
             font-family: var(--font-sans);
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 700;
             letter-spacing: -0.02em;
             color: var(--text-primary);
@@ -175,7 +192,7 @@
         }
 
         .card-hero .card-value {
-            font-size: 36px;
+            font-size: 26px;
         }
 
         .card-hero {
@@ -193,9 +210,9 @@
 
         .card-sub {
             font-family: var(--font-sans);
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-secondary);
-            margin-top: var(--space-xs);
+            margin-top: 2px;
         }
 
         .card-value.up { color: var(--green); }
@@ -532,8 +549,8 @@
             border-radius: 4px;
             flex-shrink: 0;
         }
-        .feed-badge.buy-yes { background: var(--green-dim); color: var(--green); }
-        .feed-badge.buy-no { background: var(--red-dim); color: var(--red); }
+        .feed-badge.buy-yes { background: var(--blue-dim); color: var(--blue); }
+        .feed-badge.buy-no { background: rgba(255,159,67,0.15); color: #ff9f43; }
         .feed-badge.hold { background: rgba(255,255,255,0.05); color: var(--text-muted); }
 
         .feed-details {
@@ -796,8 +813,8 @@
             border-radius: 3px;
             text-transform: uppercase;
         }
-        .guide-badge.g-yes { background: var(--green-dim); color: var(--green); }
-        .guide-badge.g-no { background: var(--red-dim); color: var(--red); }
+        .guide-badge.g-yes { background: var(--blue-dim); color: var(--blue); }
+        .guide-badge.g-no { background: rgba(255,159,67,0.15); color: #ff9f43; }
         .guide-badge.g-hold { background: rgba(255,255,255,0.05); color: var(--text-muted); }
         .guide-badge.g-dry { background: var(--amber-dim); color: var(--amber); }
         .guide-badge.g-paper { background: var(--blue-dim); color: var(--blue); }
@@ -826,7 +843,7 @@
             .trade-feed { display: none; }
         }
         @media (max-width: 768px) {
-            .metrics-row { grid-template-columns: 1fr 1fr; }
+            .metrics-row { grid-template-columns: 1fr 1fr 1fr; }
             .budget-row, .charts-row, .bottom-row { grid-template-columns: 1fr; }
         }
     </style>
@@ -843,8 +860,14 @@
                 </div>
             </div>
             <div class="topbar-right">
+                <span id="botStatus" style="display:inline-flex;align-items:center;gap:5px">
+                    <span id="botStatusDot" style="width:7px;height:7px;border-radius:50%;background:#888;display:inline-block"></span>
+                    <img src="/images/Warren.webp" alt="Warren" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border)">
+                    <span id="botStatusText" style="color:var(--text-muted)">Connecting...</span>
+                </span>
                 <span id="lastCycle">--</span>
                 <span id="refreshTimer">--</span>
+                <button class="card-help" onclick="openHelp('guide-all')" style="position:static;font-size:13px;width:28px;height:28px"><b>?</b></button>
             </div>
         </header>
 
@@ -853,33 +876,33 @@
             <!-- Metric Cards -->
             <div class="metrics-row">
                 <div class="card card-hero">
-                    <button class="card-help" onclick="openHelp('guide-balance')"><b>?</b></button>
-                    <div class="card-label"><span class="card-icon">&#128176;</span> Balance</div>
-                    <div class="card-value" id="bankroll">$60.00</div>
+                    <div class="card-label"><span class="card-icon">&#128176;</span> <span class="card-label-text"><span>Balance</span></span></div>
+                    <div class="card-value" id="bankroll">$1,000.00</div>
                     <div class="card-sub" id="bankrollChange">--</div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-pnl')"><b>?</b></button>
-                    <div class="card-label"><span class="card-icon">&#128200;</span> Open P&L</div>
+                    <div class="card-label"><span class="card-icon">&#128200;</span> <span class="card-label-text"><span>Open</span><span>P&L</span></span></div>
                     <div class="card-value" id="pnl">$0.00</div>
                     <div class="card-sub" id="pnlPct">0.0%</div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-realized')"><b>?</b></button>
-                    <div class="card-label"><span class="card-icon">&#128176;</span> Realized P&L</div>
+                    <div class="card-label"><span class="card-icon">&#128176;</span> <span class="card-label-text"><span>Realized</span><span>P&L</span></span></div>
                     <div class="card-value" id="realizedPnl">$0.00</div>
                     <div class="card-sub" id="realizedWL">0W / 0L</div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-bets')"><b>?</b></button>
-                    <div class="card-label"><span class="card-icon">&#127919;</span> Active Bets</div>
+                    <div class="card-label"><span class="card-icon">&#127919;</span> <span class="card-label-text"><span>Active</span><span>Bets</span></span></div>
                     <div class="card-value" id="positions">0</div>
                     <div class="card-sub" id="maxPositions">/ 10 max</div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-peak')"><b>?</b></button>
-                    <div class="card-label"><span class="card-icon">&#9650;</span> Peak Balance</div>
-                    <div class="card-value" id="hwm">$60.00</div>
+                    <div class="card-label"><span class="card-icon">&#128274;</span> <span class="card-label-text"><span>Locked</span><span>in Bets</span></span></div>
+                    <div class="card-value" id="lockedAmount" style="color:#ff9f43">$0.00</div>
+                    <div class="card-sub" id="lockedSub">0 positions</div>
+                </div>
+                <div class="card">
+                    <div class="card-label"><span class="card-icon">&#9650;</span> <span class="card-label-text"><span>Peak</span><span>Balance</span></span></div>
+                    <div class="card-value" id="hwm">$1,000.00</div>
                     <div class="card-sub" id="drawdown">0.0% drawdown</div>
                 </div>
             </div>
@@ -887,7 +910,6 @@
             <!-- Budget + Drawdown Gauges -->
             <div class="budget-row">
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-aicost')"><b>?</b></button>
                     <div class="card-label"><span class="card-icon">&#129302;</span> AI Cost (monthly)</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
@@ -905,7 +927,6 @@
                     </div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-loss')"><b>?</b></button>
                     <div class="card-label"><span class="card-icon">&#9888;</span> Loss Protection</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
@@ -923,7 +944,6 @@
                     </div>
                 </div>
                 <div class="card">
-                    <button class="card-help" onclick="openHelp('guide-positions')"><b>?</b></button>
                     <div class="card-label"><span class="card-icon">&#128202;</span> Positions</div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap" style="width:80px;height:80px">
@@ -943,9 +963,8 @@
             <!-- Bankroll + Waterfall -->
             <div class="charts-row">
                 <div class="panel" style="position:relative">
-                    <button class="card-help" onclick="openHelp('guide-bankroll')"><b>?</b></button>
                     <div class="panel-header">
-                        <span class="panel-title"><span class="card-icon">&#128176;</span> Bankroll</span>
+                        <span class="panel-title"><span class="card-icon">&#128176;</span> Total Equity</span>
                         <div class="pill-group">
                             <button class="active" onclick="setRange('day',this)">1D</button>
                             <button onclick="setRange('week',this)">1W</button>
@@ -955,7 +974,6 @@
                     <div class="chart-fixed"><canvas id="bankrollChart"></canvas></div>
                 </div>
                 <div class="panel" style="position:relative">
-                    <button class="card-help" onclick="openHelp('guide-pertrade')"><b>?</b></button>
                     <div class="panel-header">
                         <span class="panel-title"><span class="card-icon">&#128200;</span> Per-Trade P&L</span>
                     </div>
@@ -965,7 +983,6 @@
 
             <!-- Performance Stats -->
             <div class="panel" style="position:relative">
-                <button class="card-help" onclick="openHelp('guide-performance')"><b>?</b></button>
                 <div class="panel-header">
                     <span class="panel-title"><span class="card-icon">&#127942;</span> Performance</span>
                 </div>
@@ -995,7 +1012,6 @@
 
             <!-- Prediction Accuracy -->
             <div class="panel" style="position:relative">
-                <button class="card-help" onclick="openHelp('guide-prediction')"><b>?</b></button>
                 <div class="panel-header">
                     <span class="panel-title"><span class="card-icon">&#127919;</span> Prediction vs Reality</span>
                 </div>
@@ -1013,7 +1029,8 @@
                 </div>
             </div>
             <div class="feed-tabs">
-                <button class="feed-tab active" onclick="setFeedTab('executed', this)">Executed</button>
+                <button class="feed-tab active" onclick="setFeedTab('active', this)">Active</button>
+                <button class="feed-tab" onclick="setFeedTab('exited', this)">Exited</button>
                 <button class="feed-tab" onclick="setFeedTab('skipped', this)">Skipped</button>
             </div>
             <div class="feed-scroll" id="feedScroll">
@@ -1124,6 +1141,14 @@
                 </table>
             </div>
 
+            <div class="guide-section" id="guide-locked">
+                <h3>&#128274; Locked in Bets</h3>
+                <table class="guide-table">
+                    <tr><td>Locked</td><td>Açık pozisyonlarda kitli olan toplam USDC miktarı. Bu para bet sonuçlanana kadar kullanılamaz.</td></tr>
+                    <tr><td>Positions</td><td>Kaç adet açık pozisyon olduğu.</td></tr>
+                </table>
+            </div>
+
             <div class="guide-section" id="guide-peak">
                 <h3>&#9650; Peak Balance</h3>
                 <table class="guide-table">
@@ -1158,9 +1183,9 @@
             </div>
 
             <div class="guide-section" id="guide-bankroll">
-                <h3>&#128176; Bankroll Grafiği</h3>
+                <h3>&#128176; Total Equity</h3>
                 <table class="guide-table">
-                    <tr><td>Grafik</td><td>Bakiyenin zaman içindeki değişimi. 1D / 1W / 1M filtresi ile dönem seçilebilir.</td></tr>
+                    <tr><td>Grafik</td><td>Toplam portföy değeri (nakit + açık pozisyonlar + unrealized P&L). Gerçek performansı gösterir.</td></tr>
                 </table>
             </div>
 
@@ -1210,16 +1235,50 @@
         Chart.defaults.font.family = "'Inter', sans-serif";
         Chart.defaults.font.size = 11;
 
+        // Format dollar value with dimmed decimals: "$1,000<span>.00</span>"
+        function dimDollars(value, prefix) {
+            prefix = prefix || '$';
+            const abs = Math.abs(value);
+            const sign = value < 0 ? '-' : (prefix.includes('+') ? '+' : '');
+            prefix = prefix.replace('+', '').replace('-', '');
+            const whole = Math.floor(abs).toLocaleString('en-US');
+            const dec = (abs % 1).toFixed(2).substring(1); // ".00"
+            return `${sign}${prefix}${whole}<span style="opacity:0.4">${dec}</span>`;
+        }
+
         const COLORS = {
             accent: '#2dd4a8',
             accentDim: 'rgba(45,212,168,0.12)',
             green: '#3fb950', greenDim: 'rgba(63,185,80,0.15)',
             red: '#f85149', redDim: 'rgba(248,81,73,0.15)',
             amber: '#d29922',
-            blue: '#58a6ff',
+            blue: '#58a6ff', blueDim: 'rgba(88,166,255,0.15)',
+            orange: '#ff9f43', orangeDim: 'rgba(255,159,67,0.15)',
             purple: '#bc8cff',
             surface: '#0d1117',
+            dim: '#484f58',
         };
+
+        // Extract meaningful label from question + direction
+        function getDirectionLabel(question, direction, slug) {
+            const isYes = direction.includes('YES');
+            const q = (question || '').trim();
+            // O/U format: "Cavaliers vs. Bulls: O/U 238.5"
+            if (/O\/U|total|over.*under/i.test(q)) {
+                return isYes ? 'Over' : 'Under';
+            }
+            // "X vs. Y" format
+            const vsMatch = q.match(/^(.+?)\s+vs\.?\s+(.+?)$/i);
+            if (vsMatch) {
+                return isYes ? vsMatch[1].trim() : vsMatch[2].trim();
+            }
+            // "Will X win" format
+            const willMatch = q.match(/^Will\s+(.+?)\s+win/i);
+            if (willMatch) {
+                return willMatch[1].trim();
+            }
+            return isYes ? 'YES' : 'NO';
+        }
 
         const POSITION_COLORS = [COLORS.accent, COLORS.blue, COLORS.purple, COLORS.amber, '#f778ba', '#79c0ff'];
 
@@ -1348,16 +1407,30 @@
             }
         });
 
+        let allPositions = {};
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         /* ── Data Fetching ── */
         async function fetchData() {
             try {
-                const [tradesResp, portfolioResp, perfResp, budgetResp] = await Promise.all([
-                    fetch('/api/trades'), fetch('/api/portfolio'), fetch('/api/performance'), fetch('/api/budget')
+                const ts = Date.now();
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp] = await Promise.all([
+                    fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/budget?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/positions?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
                 const perfData = await perfResp.json();
                 const budgetData = await budgetResp.json();
+                allPositions = await posResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -1372,7 +1445,7 @@
 
         /* ── Update Functions ── */
         function updateSummary(data) {
-            if (!data.length) return;
+            if (!Array.isArray(data) || !data.length) return;
             const latest = data[data.length - 1];
             const bankroll = latest.bankroll || 60;
             const hwm = latest.hwm || bankroll;
@@ -1380,14 +1453,25 @@
             const positions = latest.positions || 0;
             const dd = hwm > 0 ? ((hwm - bankroll) / hwm * 100) : 0;
 
-            document.getElementById('bankroll').textContent = '$' + bankroll.toFixed(2);
-            document.getElementById('hwm').textContent = '$' + hwm.toFixed(2);
+            document.getElementById('bankroll').innerHTML = dimDollars(bankroll);
+            document.getElementById('hwm').innerHTML = dimDollars(hwm);
             document.getElementById('positions').textContent = positions;
             document.getElementById('drawdown').textContent = dd.toFixed(1) + '% drawdown';
 
+            // Locked in bets
+            const allPos = Object.values(allPositions || {});
+            const locked = allPos.reduce((sum, p) => sum + (p.size_usdc || 0), 0);
+            document.getElementById('lockedAmount').innerHTML = dimDollars(locked);
+            document.getElementById('lockedSub').textContent = allPos.length + ' position' + (allPos.length !== 1 ? 's' : '');
+
             const pnlEl = document.getElementById('pnl');
-            pnlEl.textContent = '$' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
-            pnlEl.className = 'card-value ' + (pnl >= 0 ? 'up-blue' : 'down');
+            if (Math.abs(pnl) < 0.005) {
+                pnlEl.innerHTML = dimDollars(0);
+                pnlEl.className = 'card-value up-blue';
+            } else {
+                pnlEl.innerHTML = dimDollars(pnl, pnl >= 0 ? '+$' : '-$');
+                pnlEl.className = 'card-value ' + (pnl >= 0 ? 'up-blue' : 'down');
+            }
             document.getElementById('pnlPct').textContent = bankroll > 0 ? (pnl / bankroll * 100).toFixed(1) + '%' : '0%';
 
             // Realized P&L
@@ -1395,8 +1479,13 @@
             const realizedWins = latest.realized_wins || 0;
             const realizedLosses = latest.realized_losses || 0;
             const realizedEl = document.getElementById('realizedPnl');
-            realizedEl.textContent = '$' + (realizedPnl >= 0 ? '+' : '') + realizedPnl.toFixed(2);
-            realizedEl.className = 'card-value ' + (realizedPnl >= 0 ? 'up' : 'down');
+            if (Math.abs(realizedPnl) < 0.005) {
+                realizedEl.innerHTML = dimDollars(0);
+                realizedEl.className = 'card-value up';
+            } else {
+                realizedEl.innerHTML = dimDollars(realizedPnl, realizedPnl >= 0 ? '+$' : '-$');
+                realizedEl.className = 'card-value ' + (realizedPnl >= 0 ? 'up' : 'down');
+            }
             document.getElementById('realizedWL').textContent = realizedWins + 'W / ' + realizedLosses + 'L';
 
             // Drawdown gauge
@@ -1414,8 +1503,10 @@
             if (data.length >= 2) {
                 const prev = data[data.length - 2].bankroll || bankroll;
                 const change = bankroll - prev;
-                document.getElementById('bankrollChange').textContent =
-                    (change >= 0 ? '+' : '') + '$' + change.toFixed(2) + ' last cycle';
+                const changeStr = Math.abs(change) < 0.005
+                    ? '$0.00 last cycle'
+                    : (change >= 0 ? '+$' : '-$') + Math.abs(change).toFixed(2) + ' last cycle';
+                document.getElementById('bankrollChange').textContent = changeStr;
             }
         }
 
@@ -1424,7 +1515,14 @@
                 const dt = new Date(d.timestamp);
                 return dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             });
-            bankrollChart.data.datasets[0].data = data.map(d => d.bankroll);
+            // Total equity = initial_bankroll + realized_pnl + unrealized_pnl
+            // This formula never drifts — no incremental bankroll tracking needed
+            bankrollChart.data.datasets[0].data = data.map(d => {
+                if (d.equity) return d.equity;
+                // Fallback for old data without equity field
+                const initial = d.initial_bankroll || 1000;
+                return initial + (d.realized_pnl || 0) + (d.unrealized_pnl || 0);
+            });
             bankrollChart.update();
         }
 
@@ -1472,47 +1570,77 @@
         }
 
         function updatePerformance(perfData, trades) {
-            if (!perfData.length && !trades.length) return;
+            if (!Array.isArray(trades)) trades = [];
 
-            const resolved = trades.filter(t => t.resolved !== undefined);
-            const wins = resolved.filter(t => t.resolved === true || t.pnl > 0).length;
-            const losses = resolved.filter(t => t.resolved === false || t.pnl < 0).length;
+            // Derive wins/losses from EXIT trades with reason field
+            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.reason);
+            const wins = exits.filter(t => t.reason.includes('win')).length;
+            const losses = exits.filter(t => t.reason.includes('loss')).length;
             const total = wins + losses;
 
             document.getElementById('winRate').textContent = total > 0 ? (wins / total * 100).toFixed(0) + '%' : '--%';
             document.getElementById('winRate').style.color = total > 0 ? (wins / total > 0.5 ? COLORS.green : COLORS.red) : '';
             document.getElementById('winCount').textContent = wins + 'W / ' + losses + 'L';
 
-            const edges = trades.filter(t => t.edge).map(t => t.edge);
-            if (edges.length) {
-                const avg = edges.reduce((a, b) => a + b, 0) / edges.length;
+            // Edge stats from BUY trades
+            const buyEdges = trades.filter(t => (t.action === 'BUY_YES' || t.action === 'BUY_NO') && t.edge).map(t => t.edge);
+            if (buyEdges.length) {
+                const avg = buyEdges.reduce((a, b) => a + b, 0) / buyEdges.length;
                 document.getElementById('avgEdge').textContent = (avg * 100).toFixed(1) + '%';
                 document.getElementById('edgeRange').textContent =
-                    (Math.min(...edges) * 100).toFixed(0) + '% – ' + (Math.max(...edges) * 100).toFixed(0) + '%';
+                    (Math.min(...buyEdges) * 100).toFixed(0) + '% \u2013 ' + (Math.max(...buyEdges) * 100).toFixed(0) + '%';
             }
 
-            if (perfData.length) {
-                const latest = perfData[perfData.length - 1];
-                if (latest.brier_score !== undefined) {
-                    document.getElementById('brierScore').textContent = latest.brier_score.toFixed(3);
+            // Brier score: compute from BUY trades matched with EXIT outcomes
+            const buyMap = {};
+            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => { buyMap[t.market] = t; });
+            const calibrationPairs = exits.filter(t => buyMap[t.market] && buyMap[t.market].ai_probability)
+                .map(t => {
+                    const buy = buyMap[t.market];
+                    const prob = buy.ai_probability;
+                    const outcome = t.reason.includes('win') ? 1 : 0;
+                    return { prob, outcome };
+                });
+            if (calibrationPairs.length >= 2) {
+                const brier = calibrationPairs.reduce((sum, p) => sum + Math.pow(p.prob - p.outcome, 2), 0) / calibrationPairs.length;
+                document.getElementById('brierScore').textContent = brier.toFixed(3);
+            }
+
+            // Best category from BUY trade markets
+            if (exits.length >= 2) {
+                const catWins = {};
+                const catTotal = {};
+                exits.forEach(t => {
+                    const cat = (t.market || '').match(/^(nba|nhl|cbb|nfl|mlb)/i);
+                    const label = cat ? cat[1].toUpperCase() : 'Other';
+                    catTotal[label] = (catTotal[label] || 0) + 1;
+                    if (t.reason.includes('win')) catWins[label] = (catWins[label] || 0) + 1;
+                });
+                let bestCat = '--', bestRate = 0;
+                for (const [cat, tot] of Object.entries(catTotal)) {
+                    const rate = (catWins[cat] || 0) / tot;
+                    if (rate > bestRate || (rate === bestRate && tot > (catTotal[bestCat] || 0))) {
+                        bestCat = cat; bestRate = rate;
+                    }
                 }
-                if (latest.best_category) {
-                    document.getElementById('bestCat').textContent = latest.best_category;
-                    document.getElementById('bestCatRate').textContent = latest.best_category_rate ?
-                        (latest.best_category_rate * 100).toFixed(0) + '% win' : '--';
-                }
+                document.getElementById('bestCat').textContent = bestCat;
+                document.getElementById('bestCatRate').textContent = (bestRate * 100).toFixed(0) + '% win';
             }
         }
 
         function updateScatter(trades) {
-            const calibration = trades
-                .filter(t => t.edge !== undefined && t.resolved !== undefined)
-                .map(t => ({ x: t.edge, y: t.resolved ? 1 : 0 }));
+            // Match BUY entries with EXIT outcomes for scatter plot
+            const buyMap = {};
+            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => { buyMap[t.market] = t; });
+            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.reason);
+            const calibration = exits
+                .filter(t => buyMap[t.market] && buyMap[t.market].edge !== undefined)
+                .map(t => ({ x: buyMap[t.market].edge, y: t.reason.includes('win') ? 1 : 0 }));
             scatterChart.data.datasets[0].data = calibration;
             scatterChart.update();
         }
 
-        let currentFeedTab = 'executed';
+        let currentFeedTab = 'active';
 
         function setFeedTab(tab, btn) {
             currentFeedTab = tab;
@@ -1525,58 +1653,253 @@
             updateTradeFeed(allTrades);
         }
 
-        function updateTradeFeed(trades) {
+        function renderActivePositions() {
             const feedScroll = document.getElementById('feedScroll');
             const countEl = document.getElementById('tradeCount');
+            const positions = Object.values(allPositions || {});
+            countEl.textContent = positions.length;
 
-            const executedTrades = trades.filter(t => t.action && t.action !== 'HOLD' && !t.rejected);
-            const skippedTrades = trades.filter(t => t.action === 'HOLD' || t.rejected);
-
-            const visibleTrades = currentFeedTab === 'executed' ? executedTrades : skippedTrades;
-            countEl.textContent = visibleTrades.length;
-
-            if (!visibleTrades.length) {
-                const msg = currentFeedTab === 'executed' ? 'No executed trades yet' : 'No skipped signals yet';
-                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">${msg}</div></div>`;
+            if (!positions.length) {
+                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">No active positions</div><div class="empty-sub">Positions will appear here as the bot trades</div></div>`;
                 return;
             }
 
-            feedScroll.innerHTML = visibleTrades.slice(-30).reverse().map(t => {
-                const action = t.action || 'HOLD';
-                const badgeCls = action.includes('YES') ? 'buy-yes' : action.includes('NO') ? 'buy-no' : 'hold';
-                const pnl = t.pnl || 0;
-                const impactW = Math.min(Math.abs(pnl) * 20, 120);
-                const impactCls = pnl >= 0 ? 'positive' : 'negative';
-                const impactColor = pnl >= 0 ? COLORS.green : COLORS.red;
-                const slug = t.market || '';
-                const title = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || t.condition_id || '--';
-                const polyUrl = slug ? `https://polymarket.com/market/${slug}` : '#';
+            feedScroll.innerHTML = positions.map(p => {
+                const slug = p.slug || '';
+                // Use question if available (readable), fall back to slug cleanup
+                const rawTitle = p.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || p.condition_id || '--';
+                const title = escapeHtml(rawTitle);
+                const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
+                const direction = p.direction || 'BUY_YES';
+                const isYes = direction.includes('YES');
+                const dirLabel = getDirectionLabel(p.question, direction, slug);
+                const dirColor = isYes ? COLORS.blue : COLORS.orange;
+                // For BUY_NO: stored prices are YES-side, flip to NO perspective
+                const rawEntry = p.entry_price || 0;
+                const rawCurrent = p.current_price || 0;
+                const entryPrice = isYes ? rawEntry : (1 - rawEntry);
+                const currentPrice = isYes ? rawCurrent : (1 - rawCurrent);
+                const size = p.size_usdc || 0;
+                const pnlUsdc = p.unrealized_pnl_usdc || 0;
+                const pnlPct = p.unrealized_pnl_pct || 0;
+                const confidence = p.confidence || 'medium';
+                const confLabel = confidence === 'high' ? 'High' : confidence === 'medium' ? 'Med' : 'Low';
+                const rawAiProb = p.ai_probability || 0;
+                const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
+                const scouted = p.scouted || false;
+                const entryTime = p.entry_timestamp ? new Date(p.entry_timestamp).toLocaleString() : '--';
+                let countdown = '';
+                if (p.end_date_iso) {
+                    const end = new Date(p.end_date_iso);
+                    const now = new Date();
+                    const diffMs = end - now;
+                    if (diffMs <= 0) {
+                        countdown = 'Resolving...';
+                    } else {
+                        const h = Math.floor(diffMs / 3600000);
+                        const m = Math.floor((diffMs % 3600000) / 60000);
+                        countdown = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                    }
+                }
+                const pnlNeutral = Math.abs(pnlUsdc) < 0.01;
+                const pnlColor = pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red);
+                const pnlSign = pnlNeutral ? '' : (pnlUsdc > 0 ? '+' : '');
+                const confColor = confidence === 'high' ? COLORS.green : confidence === 'medium' ? COLORS.amber : COLORS.red;
+                const priceInfo = currentPrice > 0
+                    ? `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.6">→</span><span>Now: ${(currentPrice*100).toFixed(0)}%</span>`
+                    : `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.5">Awaiting price</span>`;
 
-                const hasEdge = t.edge && t.edge > 0;
-                const hasSize = t.size && Number(t.size) > 0;
-                const hasPrice = t.price && Number(t.price) > 0.001;
-
-                const isExecuted = action !== 'HOLD' && !t.rejected;
-
-                const isNew = t.timestamp && (Date.now() - new Date(t.timestamp).getTime()) < 5 * 60 * 1000;
-                return `<div class="feed-item${isNew ? ' is-new' : ''}">
+                return `<div class="feed-item">
                     <div class="feed-top">
                         <div class="feed-market-wrap">
-                            ${isExecuted ? '<span class="feed-tick">&#10003;</span>' : ''}
+                            <span class="feed-tick" style="color:${pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red)}">&#9679;</span>
+                            ${scouted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;flex-shrink:0" title="Scouted — hold to resolve">S</span>' : ''}
                             <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
                         </div>
-                        <span class="feed-badge ${badgeCls}">${action}</span>
+                        <span class="feed-badge" style="background:${dirColor}22;color:${dirColor}">${dirLabel}</span>
                     </div>
                     <div class="feed-details">
-                        ${hasSize ? `<span>$${Number(t.size).toFixed(2)}</span>` : ''}
-                        ${hasPrice ? `<span>@${Number(t.price).toFixed(2)}</span>` : ''}
-                        ${hasEdge ? `<span class="feed-edge">${(t.edge*100).toFixed(1)}% edge</span>` : ''}
+                        <span>$${size.toFixed(2)}</span>
+                        ${priceInfo}
                     </div>
-                    ${t.rejected ? `<div class="feed-rejected">${t.rejected}</div>` : ''}
-                    ${pnl !== 0 ? `<div class="feed-impact">
-                        <div class="feed-impact-bar ${impactCls}" style="width:${impactW}px"></div>
-                        <span class="feed-impact-val" style="color:${impactColor}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</span>
+                    <div class="feed-details" style="margin-top:2px">
+                        <span style="color:${confColor}">Conf: ${confLabel}</span>
+                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
+                        ${scouted ? '<span style="color:var(--accent)">&#128270; Hold-to-resolve</span>' : ''}
+                    </div>
+                    <div class="feed-impact">
+                        <div class="feed-impact-bar ${pnlNeutral ? '' : (pnlUsdc > 0 ? 'positive' : 'negative')}" style="width:${pnlNeutral ? 0 : Math.min(Math.abs(pnlUsdc) * 20, 120)}px"></div>
+                        <span class="feed-impact-val" style="color:${pnlColor}">${pnlNeutral ? '$0.00' : `${pnlSign}$${pnlUsdc.toFixed(2)} (${pnlSign}${(pnlPct*100).toFixed(1)}%)`}</span>
+                    </div>
+                    <div class="feed-time" style="display:flex;justify-content:space-between">
+                        <span>${entryTime}</span>
+                        ${countdown ? `<span style="color:${countdown === 'Resolving...' ? COLORS.amber : COLORS.accent};font-weight:600">&#9202; ${countdown}</span>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderExitedTrades(trades) {
+            const feedScroll = document.getElementById('feedScroll');
+            const countEl = document.getElementById('tradeCount');
+            const exited = trades.filter(t => t.action === 'EXIT' || t.action === 'REMOVED');
+            countEl.textContent = exited.length;
+
+            if (!exited.length) {
+                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">No closed positions yet</div><div class="empty-sub">Stop-loss, take-profit or resolved bets appear here</div></div>`;
+                return;
+            }
+
+            // Build a map of BUY entries by market slug for enrichment
+            const buyMap = {};
+            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => {
+                buyMap[t.market] = t;
+            });
+
+            // Relative time helper
+            function relativeTime(ts) {
+                if (!ts) return '';
+                const now = Date.now();
+                const dt = new Date(ts).getTime();
+                const diffMin = Math.floor((now - dt) / 60000);
+                if (diffMin < 1) return 'just now';
+                if (diffMin < 60) return diffMin + 'm ago';
+                const diffHr = Math.floor(diffMin / 60);
+                if (diffHr < 24) return diffHr + 'h ago';
+                const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                const diffDay = Math.floor(diffHr / 24);
+                if (diffDay < 7) return days[new Date(ts).getDay()];
+                return new Date(ts).toLocaleDateString([], {month:'short', day:'numeric'});
+            }
+
+            // Cycle-based opacity: group exits within 10min of each other as same cycle
+            const sorted = exited.slice(-30).reverse();
+            const cycleGap = 10 * 60 * 1000; // 10 minutes
+            let currentCycleTs = sorted.length ? new Date(sorted[0].timestamp || 0).getTime() : 0;
+            const cycleMap = new Map();
+            let cycleId = 0;
+            sorted.forEach(t => {
+                const ts = new Date(t.timestamp || 0).getTime();
+                if (currentCycleTs - ts > cycleGap) { cycleId++; currentCycleTs = ts; }
+                cycleMap.set(t, cycleId);
+            });
+
+            feedScroll.innerHTML = sorted.map(t => {
+                const slug = t.market || '';
+                const buy = buyMap[slug] || {};
+                const rawTitle = buy.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const title = escapeHtml(rawTitle);
+                const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
+                const pnl = t.pnl || 0;
+                const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
+                const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
+                const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;
+                const reason = t.reason || 'manual';
+                const isWin = reason.includes('win');
+                const isLoss = reason.includes('loss');
+                const resultIcon = isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
+                const resultColor = isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+                const resultLabel = isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
+                const resultBg = isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+
+                // Enrichment from BUY entry
+                const direction = buy.action || '';
+                const isYes = direction.includes('YES');
+                const dirLabel = direction ? getDirectionLabel(buy.question, direction, slug) : '';
+                const dirColor = isYes ? COLORS.blue : COLORS.orange;
+                const rawBuyPrice = buy.price || 0;
+                const entryPrice = isYes ? rawBuyPrice : (1 - rawBuyPrice);
+                const size = buy.size || 0;
+                const confidence = buy.confidence || '';
+                const confLabel = confidence === 'high' ? 'High' : confidence === 'medium' ? 'Med' : confidence === 'low' ? 'Low' : '';
+                const confColor = confidence === 'high' ? COLORS.green : confidence === 'medium' ? COLORS.amber : COLORS.red;
+                const rawAiProb2 = buy.ai_probability || 0;
+                const aiProb = isYes ? rawAiProb2 : (1 - rawAiProb2);
+                const edge = buy.edge || 0;
+                const impactW = Math.min(Math.abs(pnl) * 3, 120);
+                const relTime = relativeTime(t.timestamp);
+                const pnlPct = size > 0 ? (pnl / size * 100).toFixed(1) : '0.0';
+
+                // Opacity: latest cycle = 1.0, older cycles = 0.45
+                const opacity = cycleMap.get(t) === 0 ? 1 : 0.45;
+
+                return `<div class="feed-item" style="opacity:${opacity.toFixed(2)};min-height:90px">
+                    <div class="feed-top">
+                        <div class="feed-market-wrap">
+                            <span class="feed-tick" style="color:${resultColor}">${resultIcon}</span>
+                            <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:11px;color:${COLORS.dim}">${relTime}</span>
+                            <span class="feed-badge" style="background:${resultBg}22;color:${resultBg}">${resultLabel}</span>
+                        </div>
+                    </div>
+                    <div class="feed-details">
+                        ${dirLabel ? `<span class="feed-badge" style="background:${dirColor}22;color:${dirColor};font-size:11px;padding:1px 6px">${dirLabel}</span>` : ''}
+                        ${size > 0 ? `<span>$${size.toFixed(2)}</span>` : ''}
+                        ${entryPrice > 0 ? `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span>` : ''}
+                        <span style="opacity:0.6">${escapeHtml(reason.replace(/_/g,' '))}</span>
+                    </div>
+                    ${confLabel || aiProb > 0 || edge > 0 ? `<div class="feed-details" style="margin-top:2px">
+                        ${confLabel ? `<span style="color:${confColor}">Conf: ${confLabel}</span>` : ''}
+                        ${aiProb > 0 ? `<span>AI: ${(aiProb*100).toFixed(0)}%</span>` : ''}
+                        ${edge > 0 ? `<span>Edge: ${(edge*100).toFixed(1)}%</span>` : ''}
                     </div>` : ''}
+                    <div class="feed-impact">
+                        <div class="feed-impact-bar ${pnl >= 0 ? 'positive' : 'negative'}" style="width:${impactW}px"></div>
+                        <span class="feed-impact-val" style="color:${pnlColor}">${pnlText} (${pnlSign}${pnlPct}%)</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function updateTradeFeed(trades) {
+            if (currentFeedTab === 'active') {
+                renderActivePositions();
+                return;
+            }
+            if (currentFeedTab === 'exited') {
+                renderExitedTrades(trades);
+                return;
+            }
+
+            // Skipped tab
+            const feedScroll = document.getElementById('feedScroll');
+            const countEl = document.getElementById('tradeCount');
+            const skippedTrades = trades.filter(t => t.action === 'HOLD' || t.rejected);
+            countEl.textContent = skippedTrades.length;
+
+            if (!skippedTrades.length) {
+                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">No skipped signals</div><div class="empty-sub">Low edge or high risk skips appear here</div></div>`;
+                return;
+            }
+
+            feedScroll.innerHTML = skippedTrades.slice(-30).reverse().map(t => {
+                const slug = t.market || '';
+                const rawTitle = t.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const title = escapeHtml(rawTitle);
+                const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
+                const edge = t.edge || 0;
+                const aiProb = t.ai_prob || t.ai_probability || 0;
+                const price = t.price || 0;
+                const reason = t.rejected || t.reason || '';
+                const manipRisk = t.manip_risk || '';
+
+                return `<div class="feed-item">
+                    <div class="feed-top">
+                        <div class="feed-market-wrap">
+                            <span class="feed-tick" style="color:${COLORS.dim}">&#9711;</span>
+                            <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
+                        </div>
+                        <span class="feed-badge" style="background:${COLORS.dim}22;color:${COLORS.dim}">SKIPPED</span>
+                    </div>
+                    <div class="feed-details">
+                        ${price > 0 ? `<span>Price: ${(price*100).toFixed(0)}%</span>` : ''}
+                        ${aiProb > 0 ? `<span>AI: ${(aiProb*100).toFixed(0)}%</span>` : ''}
+                        ${edge > 0 ? `<span style="color:${COLORS.amber}">Edge: ${(edge*100).toFixed(1)}%</span>` : `<span style="color:${COLORS.red}">No edge</span>`}
+                    </div>
+                    ${reason ? `<div class="feed-details" style="margin-top:2px"><span style="opacity:0.7;font-size:12px">${escapeHtml(reason)}</span></div>` : ''}
+                    ${manipRisk && manipRisk !== 'low' ? `<div class="feed-details" style="margin-top:2px"><span style="color:${COLORS.red}">&#9888; Manipulation risk: ${manipRisk}</span></div>` : ''}
                     <div class="feed-time">${t.timestamp ? new Date(t.timestamp).toLocaleString() : '--'}</div>
                 </div>`;
             }).join('');
@@ -1617,13 +1940,10 @@
         function openHelp(sectionId) {
             const modal = document.getElementById('helpModal');
             modal.classList.add('active');
-            if (sectionId) {
+            if (sectionId && sectionId !== 'guide-all') {
                 const el = document.getElementById(sectionId);
                 if (el) {
-                    // Small delay to let modal render
                     setTimeout(() => {
-                        const modalBody = modal.querySelector('.modal');
-                        // Hide all sections, show only the target one
                         modal.querySelectorAll('.guide-section').forEach(s => {
                             s.style.display = s.id === sectionId ? '' : 'none';
                         });
@@ -1637,15 +1957,57 @@
             }
         }
 
+        /* ── Bot Status Polling ── */
+        let _botStatusData = null;
+        async function fetchBotStatus() {
+            try {
+                const resp = await fetch('/api/status?_=' + Date.now());
+                _botStatusData = await resp.json();
+            } catch(e) {
+                _botStatusData = null;
+            }
+            renderBotStatus();
+        }
+        function renderBotStatus() {
+            const dot = document.getElementById('botStatusDot');
+            const text = document.getElementById('botStatusText');
+            const data = _botStatusData;
+            if (!data) {
+                dot.style.background = '#888'; dot.style.animation = 'none';
+                text.textContent = 'Offline'; return;
+            }
+            if (data.state === 'running') {
+                dot.style.background = '#2dd4a8';
+                dot.style.animation = 'pulse 2s ease-in-out infinite';
+                text.textContent = (data.step || 'Processing...').replace(/\bAI\b/gi, 'Warren');
+            } else if (data.state === 'waiting') {
+                dot.style.background = '#4fc3f7';
+                dot.style.animation = 'pulse 3s ease-in-out infinite';
+                const minMatch = (data.step || '').match(/(\d+)min/);
+                if (minMatch && data.ts) {
+                    const intervalSec = parseInt(minMatch[1]) * 60;
+                    const elapsed = (Date.now() - new Date(data.ts).getTime()) / 1000;
+                    const remaining = Math.max(0, Math.round(intervalSec - elapsed));
+                    const m = Math.floor(remaining / 60);
+                    const s = remaining % 60;
+                    text.textContent = remaining > 0
+                        ? `Next cycle in ${m}m ${s.toString().padStart(2,'0')}s`
+                        : 'Starting cycle...';
+                } else {
+                    text.textContent = data.step || 'Idle';
+                }
+            } else {
+                dot.style.background = '#888'; dot.style.animation = 'none';
+                text.textContent = 'Offline';
+            }
+        }
+
         /* ── Init ── */
         fetchData();
-        setInterval(fetchData, 30000);
-
-        let countdown = 30;
-        setInterval(() => {
-            countdown = countdown <= 0 ? 30 : countdown - 1;
-            document.getElementById('refreshTimer').textContent = countdown + 's';
-        }, 1000);
+        fetchBotStatus();
+        setInterval(fetchData, 60000);
+        setInterval(fetchBotStatus, 5000);
+        setInterval(renderBotStatus, 1000);
     </script>
 </body>
 </html>

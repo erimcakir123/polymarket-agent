@@ -6,9 +6,9 @@ def test_config_loads_from_yaml():
     from src.config import load_config
     config = load_config(Path("config.yaml"))
     assert config.mode == "dry_run"
-    assert config.risk.kelly_fraction == 0.50
+    assert config.risk.kelly_fraction == 0.25
     assert config.risk.max_single_bet_usdc == 75
-    assert config.edge.min_edge == 0.06
+    assert config.edge.min_edge == 0.05
     assert config.cycle.default_interval_min == 30
 
 

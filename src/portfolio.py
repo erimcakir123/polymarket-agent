@@ -16,6 +16,7 @@ REALIZED_FILE = Path("logs/realized_pnl.json")
 class Portfolio:
     def __init__(self, initial_bankroll: float = 0.0) -> None:
         self.positions: Dict[str, Position] = {}
+        self._initial_bankroll = initial_bankroll
         self.bankroll: float = initial_bankroll
         self.high_water_mark: float = initial_bankroll
         self.realized_pnl: float = 0.0
@@ -23,6 +24,13 @@ class Portfolio:
         self.realized_losses: int = 0
         self._load_positions()
         self._load_realized()
+        # Restore bankroll: initial + realized gains - money locked in open positions
+        invested = sum(p.size_usdc for p in self.positions.values())
+        self.bankroll = initial_bankroll + self.realized_pnl - invested
+        self.high_water_mark = max(self.high_water_mark, self.bankroll)
+        if self.realized_pnl != 0 or invested != 0:
+            logger.info("Bankroll restored: $%.2f (initial=$%.0f + realized=$%.2f - invested=$%.2f)",
+                        self.bankroll, initial_bankroll, self.realized_pnl, invested)
 
     def _load_positions(self) -> None:
         """Restore positions from disk on startup."""
@@ -57,6 +65,9 @@ class Portfolio:
         category: str = "",
         confidence: str = "medium",
         ai_probability: float = 0.5,
+        scouted: bool = False,
+        question: str = "",
+        end_date_iso: str = "",
     ) -> None:
         self.positions[condition_id] = Position(
             condition_id=condition_id,
@@ -70,7 +81,11 @@ class Portfolio:
             category=category,
             confidence=confidence,
             ai_probability=ai_probability,
+            scouted=scouted,
+            question=question,
+            end_date_iso=end_date_iso,
         )
+        self.bankroll -= size_usdc
         self._save_positions()
 
     def _load_realized(self) -> None:
@@ -82,6 +97,7 @@ class Portfolio:
             self.realized_pnl = data.get("total", 0.0)
             self.realized_wins = data.get("wins", 0)
             self.realized_losses = data.get("losses", 0)
+            self.high_water_mark = data.get("hwm", self.high_water_mark)
         except Exception as e:
             logger.warning("Could not load realized P&L: %s", e)
 
@@ -93,6 +109,7 @@ class Portfolio:
             "total": round(self.realized_pnl, 2),
             "wins": self.realized_wins,
             "losses": self.realized_losses,
+            "hwm": round(self.high_water_mark, 2),
         }), encoding="utf-8")
         tmp.replace(REALIZED_FILE)
 
@@ -113,7 +130,11 @@ class Portfolio:
 
     def update_price(self, condition_id: str, new_price: float) -> None:
         if condition_id in self.positions:
-            self.positions[condition_id].current_price = new_price
+            pos = self.positions[condition_id]
+            pos.current_price = new_price
+            # Track peak PnL for trailing stop
+            if pos.unrealized_pnl_pct > pos.peak_pnl_pct:
+                pos.peak_pnl_pct = pos.unrealized_pnl_pct
 
     def update_bankroll(self, new_bankroll: float) -> None:
         self.bankroll = new_bankroll
@@ -133,6 +154,31 @@ class Portfolio:
                 logger.warning("Stop-loss triggered for %s: %.1f%%", pos.slug, pos.unrealized_pnl_pct * 100)
         return triggered
 
+    def check_trailing_stops(self, trailing_drop_pct: float = 0.40) -> List[str]:
+        """Trailing stop: if position was up significantly and dropped back, protect profit.
+
+        Triggers when: peak PnL was >= 20% AND current PnL dropped 40% from peak.
+        Example: peaked at +80%, now at +40% → drop = 40% → triggered.
+        """
+        triggered = []
+        min_peak = 0.20  # Only activate trailing stop if it was up at least 20%
+        for cid, pos in self.positions.items():
+            if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
+                continue
+            if pos.scouted:
+                continue  # Scouted positions hold to resolve
+            if pos.peak_pnl_pct < min_peak:
+                continue  # Never reached meaningful profit
+            drop_from_peak = pos.peak_pnl_pct - pos.unrealized_pnl_pct
+            if drop_from_peak >= trailing_drop_pct:
+                triggered.append(cid)
+                logger.warning(
+                    "Trailing stop for %s: peaked at +%.1f%%, now +%.1f%% (dropped %.1f%%)",
+                    pos.slug[:30], pos.peak_pnl_pct * 100,
+                    pos.unrealized_pnl_pct * 100, drop_from_peak * 100,
+                )
+        return triggered
+
     def check_take_profits(self, take_profit_pct: float = 0.40) -> List[str]:
         # Dynamic take-profit based on confidence + conviction
         confidence_tp = {
@@ -144,6 +190,12 @@ class Portfolio:
         for cid, pos in self.positions.items():
             # Skip if price was never updated (API error → 0.0 inflates PnL)
             if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
+                continue
+
+            # Pre-scouted positions: hold to resolve, no take-profit
+            if pos.scouted:
+                logger.debug("Skipping take-profit for scouted position %s — hold to resolve",
+                             pos.slug[:30])
                 continue
 
             # Near-certain conviction: AI > 90% sure → wait for resolution, don't take profit

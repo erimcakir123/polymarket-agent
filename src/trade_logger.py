@@ -21,15 +21,28 @@ class TradeLogger:
     def read_recent(self, n: int = 50) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        lines = self.path.read_text(encoding="utf-8").strip().split("\n")
-        lines = [l for l in lines if l.strip()]
-        result = []
-        for l in lines[-n:]:
-            try:
-                result.append(json.loads(l))
-            except json.JSONDecodeError:
-                continue
-        return result
+        # Read from end of file — avoids loading entire file into memory
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                # Read last chunk (generous: ~500 bytes per line)
+                chunk_size = min(size, n * 500)
+                f.seek(size - chunk_size)
+                data = f.read().decode("utf-8", errors="replace")
+            lines = [l for l in data.strip().split("\n") if l.strip()]
+            # If we didn't read from the start, first line may be partial
+            if chunk_size < size:
+                lines = lines[1:]
+            result = []
+            for l in lines[-n:]:
+                try:
+                    result.append(json.loads(l))
+                except json.JSONDecodeError:
+                    continue
+            return result
+        except OSError:
+            return []
 
     def read_all(self) -> list[dict[str, Any]]:
         if not self.path.exists():

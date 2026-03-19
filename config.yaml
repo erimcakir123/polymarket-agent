@@ -6,7 +6,7 @@ cycle:
   breaking_news_interval_min: 10
   near_stop_loss_interval_min: 15
   night_interval_min: 60
-  night_hours: [0, 1, 2, 3, 4, 5, 6]
+  night_hours: [8, 9, 10, 11, 12, 13]  # UTC 08-13 = US midnight-8am (no games)
 
 scanner:
   min_volume_24h: 50000
