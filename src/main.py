@@ -66,6 +66,8 @@ class Agent:
         self.running = True
         self.consecutive_api_failures = 0
         self.bets_since_approval = 0
+        self.cycle_count = 0
+        self._last_resolved_count = self._count_resolved()
 
         # Core modules
         self.scanner = MarketScanner(config.scanner)
@@ -160,11 +162,33 @@ class Agent:
             logger.warning("Bet limit reached (%d). Paused for approval.", self.bets_since_approval)
             self.bets_since_approval = 0
 
+    def _count_resolved(self) -> int:
+        """Count resolved predictions in calibration file."""
+        cal = Path("logs/calibration.jsonl")
+        if not cal.exists():
+            return 0
+        return sum(1 for line in cal.read_text(encoding="utf-8").strip().split("\n") if line.strip())
+
+    def _check_self_improve_ready(self) -> None:
+        """Notify via Telegram when enough new data exists for self-improvement."""
+        current = self._count_resolved()
+        new_resolved = current - self._last_resolved_count
+        if new_resolved >= 15:
+            self.notifier.send(
+                f"*Self-Improve Hazir*\n"
+                f"{new_resolved} yeni resolved prediction birikti.\n"
+                f"Toplam: {current} resolved\n"
+                f"Claude Code'da `/self-improve` calistirin."
+            )
+            self._last_resolved_count = current
+            logger.info("Self-improve readiness notification sent (%d new resolved)", new_resolved)
+
     def run_cycle(self) -> None:
         # Skip cycle if paused
         if self._is_paused():
             return
-        logger.info("=== Cycle start ===")
+        self.cycle_count += 1
+        logger.info("=== Cycle #%d start ===", self.cycle_count)
 
         # 0. Daily milestone reminder + self-reflection
         self._maybe_send_milestone_reminder()
@@ -403,14 +427,20 @@ class Agent:
                 market.question, direction.value, adjusted_size, price,
                 edge, estimate, manip_check.risk_level,
             )
-            self.notifier.send(self.notifier.format_trade(
-                market.question, direction.value, adjusted_size, price, edge
-            ))
+            self.notifier.send(
+                f"*Cycle #{self.cycle_count} — Trade*\n"
+                f"{market.question}\n"
+                f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}` | "
+                f"Edge: `{edge:.1%}`"
+            )
             # Bet counter — pause after N bets for approval
             self.bets_since_approval += 1
             self._check_bet_limit()
 
         self._log_cycle_summary(bankroll, "complete")
+
+        # Check if enough data for self-improvement
+        self._check_self_improve_ready()
 
     def _log_prediction(self, market, estimate) -> None:
         """Log every AI prediction (BUY and HOLD) for calibration tracking."""
@@ -440,9 +470,12 @@ class Agent:
             "reason": reason, "pnl": pos.unrealized_pnl_usdc,
             "mode": self.config.mode.value, "status": result.get("status", ""),
         })
-        self.notifier.send(self.notifier.format_exit(
-            pos.slug, reason, pos.unrealized_pnl_usdc
-        ))
+        pnl_sign = "+" if pos.unrealized_pnl_usdc >= 0 else ""
+        self.notifier.send(
+            f"*Cycle #{self.cycle_count} — Exit ({reason})*\n"
+            f"{pos.slug}\n"
+            f"PnL: `{pnl_sign}${pos.unrealized_pnl_usdc:.2f}`"
+        )
 
     def _log_reasoning(
         self, question: str, direction: str, size: float, price: float,
@@ -678,11 +711,12 @@ class Agent:
 
     def run(self) -> None:
         logger.info("Agent starting in %s mode", self.config.mode)
+        pos_count = len(self.portfolio.positions)
         self.notifier.send(
-            f"*Bot Başladı*\n"
-            f"Mod: `{self.config.mode.value}`\n"
-            f"Bakiye: `${self.portfolio.bankroll:.2f}`\n"
-            f"Bütçe: `${self.ai.budget_remaining_usd:.2f}`"
+            f"*Agent Online* | `{self.config.mode.value}`\n"
+            f"Bakiye: `${self.portfolio.bankroll:.2f}` | "
+            f"Pozisyon: `{pos_count}` | "
+            f"API: `${self.ai.budget_remaining_usd:.2f}`"
         )
         signal.signal(signal.SIGINT, lambda *_: self.shutdown())
 
@@ -723,9 +757,9 @@ class Agent:
                 time.sleep(1)
 
         self.notifier.send(
-            f"*Bot Durdu*\n"
-            f"Bakiye: `${self.portfolio.bankroll:.2f}`\n"
-            f"Açık pozisyon: `{len(self.portfolio.positions)}`"
+            f"*Agent Offline* | {self.cycle_count} cycle tamamlandi\n"
+            f"Bakiye: `${self.portfolio.bankroll:.2f}` | "
+            f"Pozisyon: `{len(self.portfolio.positions)}`"
         )
         logger.info("Agent stopped")
 
