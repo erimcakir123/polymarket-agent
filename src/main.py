@@ -29,6 +29,8 @@ from src.models import MarketData, Signal, Direction
 from src.pre_filter import filter_impossible_markets
 from src.sanity_check import check_bet_sanity
 from src.esports_data import EsportsDataClient
+from src.sports_data import SportsDataClient
+from src.odds_api import OddsAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,8 @@ class Agent:
 
         # Signal enhancers
         self.esports = EsportsDataClient()
+        self.sports = SportsDataClient()
+        self.odds_api = OddsAPIClient()
         self.news_scanner = NewsScanner()
         self.manip_guard = ManipulationGuard()
         self.cycle_timer = CycleTimer(config.cycle)
@@ -286,16 +290,23 @@ class Agent:
                         skipped_portfolio, skipped_cooldown)
         prioritized = new_markets
 
-        # 9b. Fetch esports match data (PandaScore) for sports/esports markets
+        # 9b. Fetch sports/esports match data for AI context
         esports_contexts = {}
-        if self.esports.available:
-            for m in prioritized:
+        for m in prioritized:
+            # Try ESPN first (traditional sports — free, no key)
+            ctx = self.sports.get_match_context(m.question, m.slug, m.tags)
+            if ctx:
+                esports_contexts[m.condition_id] = ctx
+                logger.info("ESPN data loaded for: %s", m.question[:50])
+                continue
+            # Try PandaScore (esports — needs API key)
+            if self.esports.available:
                 ctx = self.esports.get_match_context(m.question, m.tags)
                 if ctx:
                     esports_contexts[m.condition_id] = ctx
                     logger.info("Esports data loaded for: %s", m.question[:50])
-            if esports_contexts:
-                logger.info("Esports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
+        if esports_contexts:
+            logger.info("Sports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
 
         # 10. Analyze markets
         estimates = self.ai.analyze_batch(prioritized, news_context, esports_contexts)
@@ -357,6 +368,42 @@ class Agent:
                     "manip_risk": manip_check.risk_level,
                 })
                 continue
+
+            # ULTI: Bookmaker odds second opinion when AI is uncertain on sports
+            # Fires only for low/medium confidence sports markets (saves 500 req/month quota)
+            if estimate.confidence in ("low", "medium") and self.odds_api.available:
+                odds = self.odds_api.get_bookmaker_odds(market.question, market.slug, market.tags)
+                if odds:
+                    # Use bookmaker probability as ground truth anchor
+                    book_prob = odds["bookmaker_prob_a"]  # prob of YES outcome (team A wins)
+                    ai_prob = estimate.ai_probability
+                    # Blend: 60% bookmaker + 40% AI (bookmakers are sharper)
+                    blended = 0.6 * book_prob + 0.4 * ai_prob
+                    old_edge = edge
+                    logger.info(
+                        "ULTI activated: %s | AI=%.0f%% Book=%.0f%% Blended=%.0f%% (%d bookmakers)",
+                        market.slug[:35], ai_prob * 100, book_prob * 100,
+                        blended * 100, odds["num_bookmakers"],
+                    )
+                    # Recalculate edge with blended probability
+                    estimate.ai_probability = round(blended, 3)
+                    direction, edge = calculate_edge(
+                        ai_prob=blended,
+                        market_yes_price=market.yes_price,
+                        min_edge=self.config.edge.min_edge,
+                        confidence="medium",  # upgrade confidence since we have bookmaker data
+                        confidence_multipliers=self.config.edge.confidence_multipliers,
+                    )
+                    estimate.confidence = "medium"  # bookmaker data = at least medium confidence
+                    self.trade_log.log({
+                        "market": market.slug, "action": "ULTI_ODDS",
+                        "ai_prob_original": ai_prob, "bookmaker_prob": book_prob,
+                        "blended_prob": blended, "old_edge": old_edge, "new_edge": edge,
+                        "bookmakers": odds["num_bookmakers"],
+                        "mode": self.config.mode.value,
+                    })
+                    if direction == Direction.HOLD:
+                        continue
 
             # Ignorance edge guard: confidence-proportional edge cap
             # If AI isn't confident, large edge is likely fake (AI defaulting to ~50%)
