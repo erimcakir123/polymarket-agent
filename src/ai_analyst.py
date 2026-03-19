@@ -17,49 +17,60 @@ logger = logging.getLogger(__name__)
 
 BUDGET_FILE = Path("logs/ai_budget.json")
 
-PRO_SYSTEM = """You are an expert superforecaster arguing FOR this outcome.
-Estimate the probability that this market resolves YES.
-
-RULES:
-- Base your estimate ONLY on the evidence provided (news, description, time remaining).
-- Do NOT anchor to any market price — form your OWN independent estimate.
-- For sports: consider team form, head-to-head record, injuries, home/away advantage.
-- For politics/events: consider historical precedent, current conditions, stakeholder incentives.
-- Be specific about your reasoning — cite concrete evidence, not vague intuitions.
-- Account for time remaining until resolution. Use today's date to calculate how far away the event is.
-
+_SLUG_GUIDE = """
 READING THE SLUG:
 The market slug contains encoded info. Decode it to understand the full context:
 - "ucl" = UEFA Champions League, "uel" = Europa League, "epl" = Premier League
 - Team abbreviations: "liv" = Liverpool, "gal" = Galatasaray, "bay" = Bayern, "bar" = Barcelona, etc.
 - "cbb" = college basketball, "nba"/"nfl"/"nhl" = US sports leagues
+- "cs2"/"csgo" = Counter-Strike 2, "val" = Valorant, "lol" = League of Legends
 - Format is usually: league-team1-team2-date-outcome
-If the question mentions one team, use the slug to identify the opponent and competition.
+If the question mentions one team, use the slug to identify the opponent and competition."""
 
-Respond with ONLY JSON: {"probability": 0.XX, "confidence": "low|medium|high",
-"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}"""
+_SPORTS_RULES = """
+SPORTS-SPECIFIC RULES:
+- You MUST use the match data provided (win rates, recent form, H2H) as your primary signal.
+- Recent form (last 5 matches) matters more than all-time record.
+- Head-to-head record is very important — some teams consistently beat others.
+- Tournament tier matters: teams play harder in Majors/playoffs vs group stages.
+- BO1 (best-of-1) is more volatile than BO3/BO5 — widen your confidence interval.
+- If you have NO data about a team, set confidence to "low" — do NOT guess.
+- Underdogs win ~20-30% of the time in esports BO1s. Don't overestimate favorites."""
+
+_POLITICS_RULES = """
+POLITICS/EVENTS RULES:
+- Consider historical precedent, current conditions, stakeholder incentives.
+- For events resolving within 7 days: focus on what's already in motion, not speculation.
+- Be very conservative on long-shot political events — they almost never happen.
+- Base rates matter more than narratives."""
+
+PRO_SYSTEM = """You are an expert superforecaster arguing FOR this outcome.
+Estimate the probability that this market resolves YES.
+
+RULES:
+- Base your estimate ONLY on the evidence provided (news, description, match data, time remaining).
+- Do NOT anchor to any market price — form your OWN independent estimate.
+- Be specific about your reasoning — cite concrete evidence, not vague intuitions.
+- Account for time remaining until resolution. Use today's date to calculate how far away the event is.
+{category_rules}
+{slug_guide}
+
+Respond with ONLY JSON: {{"probability": 0.XX, "confidence": "low|medium|high",
+"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}}"""
 
 CON_SYSTEM = """You are an expert superforecaster arguing AGAINST this outcome.
 Estimate the probability that this market resolves YES.
 
 RULES:
-- Base your estimate ONLY on the evidence provided (news, description, time remaining).
+- Base your estimate ONLY on the evidence provided (news, description, match data, time remaining).
 - Do NOT anchor to any market price — form your OWN independent estimate.
-- For sports: consider team form, head-to-head record, injuries, home/away advantage.
-- For politics/events: consider historical precedent, current conditions, stakeholder incentives.
 - Focus on why it might NOT happen. Be skeptical. Find counterarguments.
 - Account for time remaining until resolution. Use today's date to calculate how far away the event is.
+{category_rules}
+{slug_guide}
 
-READING THE SLUG:
-The market slug contains encoded info. Decode it to understand the full context:
-- "ucl" = UEFA Champions League, "uel" = Europa League, "epl" = Premier League
-- Team abbreviations: "liv" = Liverpool, "gal" = Galatasaray, "bay" = Bayern, "bar" = Barcelona, etc.
-- "cbb" = college basketball, "nba"/"nfl"/"nhl" = US sports leagues
-- Format is usually: league-team1-team2-date-outcome
-If the question mentions one team, use the slug to identify the opponent and competition.
-
-Respond with ONLY JSON: {"probability": 0.XX, "confidence": "low|medium|high",
-"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}"""
+Respond with ONLY JSON: {{"probability": 0.XX, "confidence": "low|medium|high",
+"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}}"""
 
 
 @dataclass
@@ -201,8 +212,29 @@ class AIAnalyst:
                     )
         return alerts
 
+    def _is_sports_market(self, market: MarketData) -> bool:
+        """Check if market is sports/esports based on tags and question."""
+        sport_tags = {"sports", "soccer", "football", "basketball", "baseball",
+                      "hockey", "tennis", "boxing", "mma", "cricket", "esports"}
+        tags_lower = {t.lower() for t in market.tags}
+        if sport_tags & tags_lower:
+            return True
+        sport_kw = {"vs", "vs.", "match", "game", "win", "score", "nba", "nfl",
+                    "ncaa", "ufc", "counter-strike", "cs2", "valorant"}
+        q_lower = market.question.lower()
+        return any(kw in q_lower for kw in sport_kw)
+
+    def _get_system_prompts(self, market: MarketData) -> tuple[str, str]:
+        """Return category-aware PRO and CON system prompts."""
+        is_sports = self._is_sports_market(market)
+        category_rules = _SPORTS_RULES if is_sports else _POLITICS_RULES
+        pro = PRO_SYSTEM.format(category_rules=category_rules, slug_guide=_SLUG_GUIDE)
+        con = CON_SYSTEM.format(category_rules=category_rules, slug_guide=_SLUG_GUIDE)
+        return pro, con
+
     def analyze_market(
-        self, market: MarketData, news_context: str = ""
+        self, market: MarketData, news_context: str = "",
+        esports_context: str = "",
     ) -> AIEstimate:
         # Check cache
         cached = self._cache.get(market.condition_id)
@@ -228,11 +260,14 @@ class AIAnalyst:
             return AIEstimate(ai_probability=0.5, confidence="low",
                               reasoning_pro="BUDGET_EXHAUSTED", reasoning_con="BUDGET_EXHAUSTED")
 
-        prompt = self._build_prompt(market, news_context)
+        prompt = self._build_prompt(market, news_context, esports_context)
+
+        # Category-aware system prompts
+        pro_system, con_system = self._get_system_prompts(market)
 
         # Dual calls
-        pro_result = self._call_claude(PRO_SYSTEM, prompt)
-        con_result = self._call_claude(CON_SYSTEM, prompt)
+        pro_result = self._call_claude(pro_system, prompt)
+        con_result = self._call_claude(con_system, prompt)
 
         if pro_result is None or con_result is None:
             logger.warning("AI call failed — returning neutral 0.5 (no trade will trigger)")
@@ -261,14 +296,21 @@ class AIAnalyst:
         return estimate
 
     def analyze_batch(
-        self, markets: List[MarketData], news_context: str = ""
+        self, markets: List[MarketData], news_context: str = "",
+        esports_contexts: Optional[Dict[str, str]] = None,
     ) -> List[AIEstimate]:
-        return [self.analyze_market(m, news_context) for m in markets[:self.config.batch_size]]
+        ctx = esports_contexts or {}
+        return [
+            self.analyze_market(m, news_context, ctx.get(m.condition_id, ""))
+            for m in markets[:self.config.batch_size]
+        ]
 
     def invalidate_cache(self, condition_id: str) -> None:
         self._cache.pop(condition_id, None)
 
-    def _build_prompt(self, market: MarketData, news_context: str) -> str:
+    def _build_prompt(
+        self, market: MarketData, news_context: str, esports_context: str = ""
+    ) -> str:
         # Format today's date so AI knows when "now" is
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         parts = [
@@ -279,6 +321,9 @@ class AIAnalyst:
             # Market price intentionally excluded — prevents anchoring bias
             f"Resolution date: {market.end_date_iso}" if market.end_date_iso else "",
         ]
+        # Esports/sports match data (from PandaScore)
+        if esports_context:
+            parts.append(f"\n{esports_context}")
         if news_context:
             parts.append(f"\nRecent news:\n{news_context}")
         # Include lessons from past mistakes (if any)

@@ -28,6 +28,7 @@ from src.notifier import TelegramNotifier
 from src.models import Signal, Direction
 from src.pre_filter import filter_impossible_markets
 from src.sanity_check import check_bet_sanity
+from src.esports_data import EsportsDataClient
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class Agent:
         self.portfolio = Portfolio(initial_bankroll=config.initial_bankroll)
 
         # Signal enhancers
+        self.esports = EsportsDataClient()
         self.news_scanner = NewsScanner()
         self.manip_guard = ManipulationGuard()
         self.cycle_timer = CycleTimer(config.cycle)
@@ -270,8 +272,19 @@ class Agent:
                         len(prioritized) - len(new_markets))
         prioritized = new_markets
 
+        # 9b. Fetch esports match data (PandaScore) for sports/esports markets
+        esports_contexts = {}
+        if self.esports.available:
+            for m in prioritized:
+                ctx = self.esports.get_match_context(m.question, m.tags)
+                if ctx:
+                    esports_contexts[m.condition_id] = ctx
+                    logger.info("Esports data loaded for: %s", m.question[:50])
+            if esports_contexts:
+                logger.info("Esports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
+
         # 10. Analyze markets
-        estimates = self.ai.analyze_batch(prioritized, news_context)
+        estimates = self.ai.analyze_batch(prioritized, news_context, esports_contexts)
 
         # 10a. Check budget alerts
         for alert in self.ai.check_budget_alerts():
