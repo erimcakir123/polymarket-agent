@@ -293,18 +293,31 @@ class Agent:
         # 9b. Fetch sports/esports match data for AI context
         esports_contexts = {}
         for m in prioritized:
+            parts = []
             # Try ESPN first (traditional sports — free, no key)
-            ctx = self.sports.get_match_context(m.question, m.slug, m.tags)
-            if ctx:
-                esports_contexts[m.condition_id] = ctx
+            espn_ctx = self.sports.get_match_context(m.question, m.slug, m.tags)
+            if espn_ctx:
+                parts.append(espn_ctx)
                 logger.info("ESPN data loaded for: %s", m.question[:50])
-                continue
-            # Try PandaScore (esports — needs API key)
-            if self.esports.available:
-                ctx = self.esports.get_match_context(m.question, m.tags)
-                if ctx:
-                    esports_contexts[m.condition_id] = ctx
-                    logger.info("Esports data loaded for: %s", m.question[:50])
+            else:
+                # Try PandaScore (esports — needs API key)
+                if self.esports.available:
+                    panda_ctx = self.esports.get_match_context(m.question, m.tags)
+                    if panda_ctx:
+                        parts.append(panda_ctx)
+                        logger.info("Esports data loaded for: %s", m.question[:50])
+
+            # Add bookmaker odds to AI context (uses quota sparingly — cached 1hr)
+            if self.odds_api.available and (espn_ctx or parts):
+                odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
+                if odds:
+                    parts.append(self.odds_api.build_odds_context(odds))
+                    logger.info("Bookmaker odds loaded: %s (%.0f%% vs %.0f%%, %d books)",
+                                m.slug[:30], odds["bookmaker_prob_a"] * 100,
+                                odds["bookmaker_prob_b"] * 100, odds["num_bookmakers"])
+
+            if parts:
+                esports_contexts[m.condition_id] = "\n".join(parts)
         if esports_contexts:
             logger.info("Sports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
 
