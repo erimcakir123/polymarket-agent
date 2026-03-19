@@ -408,6 +408,7 @@ class Agent:
                 market.condition_id, token_id, direction.value,
                 market.yes_price, adjusted_size, shares, market.slug,
                 market.tags[0] if market.tags else "",
+                confidence=estimate.confidence,
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,

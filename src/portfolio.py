@@ -55,6 +55,7 @@ class Portfolio:
         shares: float,
         slug: str = "",
         category: str = "",
+        confidence: str = "medium",
     ) -> None:
         self.positions[condition_id] = Position(
             condition_id=condition_id,
@@ -66,6 +67,7 @@ class Portfolio:
             current_price=entry_price,
             slug=slug,
             category=category,
+            confidence=confidence,
         )
         self._save_positions()
 
@@ -125,11 +127,22 @@ class Portfolio:
         return triggered
 
     def check_take_profits(self, take_profit_pct: float = 0.40) -> List[str]:
+        # Dynamic take-profit: higher confidence = hold longer
+        confidence_tp = {
+            "low": take_profit_pct,          # low confidence → take profit early
+            "medium": take_profit_pct * 2.0,  # medium → 2x patience
+            "high": take_profit_pct * 3.5,    # high confidence → let it ride
+        }
         triggered = []
         for cid, pos in self.positions.items():
-            if pos.unrealized_pnl_pct > take_profit_pct:
+            # Skip if price was never updated (API error → 0.0 inflates PnL)
+            if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
+                continue
+            tp = confidence_tp.get(pos.confidence, take_profit_pct)
+            if pos.unrealized_pnl_pct > tp:
                 triggered.append(cid)
-                logger.info("Take-profit triggered for %s: %.1f%%", pos.slug, pos.unrealized_pnl_pct * 100)
+                logger.info("Take-profit triggered for %s: %.1f%% (threshold: %.0f%%, confidence: %s)",
+                            pos.slug, pos.unrealized_pnl_pct * 100, tp * 100, pos.confidence)
         return triggered
 
     def is_drawdown_breaker_active(self, halt_pct: float = 0.50) -> bool:

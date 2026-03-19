@@ -40,6 +40,7 @@ class Position(BaseModel):
     slug: str = ""
     entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
+    confidence: str = "medium"
 
     @computed_field
     @property
