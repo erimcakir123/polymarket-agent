@@ -175,10 +175,10 @@ class Agent:
         new_resolved = current - self._last_resolved_count
         if new_resolved >= 15:
             self.notifier.send(
-                f"*Self-Improve Hazir*\n"
-                f"{new_resolved} yeni resolved prediction birikti.\n"
-                f"Toplam: {current} resolved\n"
-                f"Claude Code'da `/self-improve` calistirin."
+                f"\U0001f9ea *Self-Improve Hazir*\n"
+                f"\U0001f4c8 {new_resolved} yeni resolved prediction\n"
+                f"\U0001f4ca Toplam: {current} resolved\n"
+                f"\U0001f449 Claude Code'da `/self-improve` calistirin"
             )
             self._last_resolved_count = current
             logger.info("Self-improve readiness notification sent (%d new resolved)", new_resolved)
@@ -428,10 +428,10 @@ class Agent:
                 edge, estimate, manip_check.risk_level,
             )
             self.notifier.send(
-                f"*Cycle #{self.cycle_count} — Trade*\n"
+                f"\U0001f3af *Cycle #{self.cycle_count} — Trade*\n"
                 f"{market.question}\n"
-                f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}` | "
-                f"Edge: `{edge:.1%}`"
+                f"\U0001f4cd `{direction.value}` | \U0001f4b5 `${adjusted_size:.0f}` @ `{price:.3f}` | "
+                f"\U0001f4c8 Edge: `{edge:.1%}`"
             )
             # Bet counter — pause after N bets for approval
             self.bets_since_approval += 1
@@ -470,11 +470,12 @@ class Agent:
             "reason": reason, "pnl": pos.unrealized_pnl_usdc,
             "mode": self.config.mode.value, "status": result.get("status", ""),
         })
+        pnl_emoji = "\u2705" if pos.unrealized_pnl_usdc >= 0 else "\u274c"
         pnl_sign = "+" if pos.unrealized_pnl_usdc >= 0 else ""
         self.notifier.send(
-            f"*Cycle #{self.cycle_count} — Exit ({reason})*\n"
+            f"\U0001f6aa *Cycle #{self.cycle_count} — Exit ({reason})*\n"
             f"{pos.slug}\n"
-            f"PnL: `{pnl_sign}${pos.unrealized_pnl_usdc:.2f}`"
+            f"{pnl_emoji} PnL: `{pnl_sign}${pos.unrealized_pnl_usdc:.2f}`"
         )
 
     def _log_reasoning(
@@ -713,10 +714,14 @@ class Agent:
         logger.info("Agent starting in %s mode", self.config.mode)
         pos_count = len(self.portfolio.positions)
         self.notifier.send(
-            f"*Agent Online* | `{self.config.mode.value}`\n"
-            f"Bakiye: `${self.portfolio.bankroll:.2f}` | "
-            f"Pozisyon: `{pos_count}` | "
-            f"API: `${self.ai.budget_remaining_usd:.2f}`"
+            "\U0001f7e2 *Agent Online* | `{mode}`\n"
+            "\U0001f4b0 `${bank:.2f}` | \U0001f4ca {pos} pozisyon | "
+            "\U0001f916 API: `${api:.2f}`".format(
+                mode=self.config.mode.value,
+                bank=self.portfolio.bankroll,
+                pos=pos_count,
+                api=self.ai.budget_remaining_usd,
+            )
         )
         signal.signal(signal.SIGINT, lambda *_: self.shutdown())
 
@@ -757,9 +762,9 @@ class Agent:
                 time.sleep(1)
 
         self.notifier.send(
-            f"*Agent Offline* | {self.cycle_count} cycle tamamlandi\n"
-            f"Bakiye: `${self.portfolio.bankroll:.2f}` | "
-            f"Pozisyon: `{len(self.portfolio.positions)}`"
+            f"\U0001f534 *Agent Offline* | {self.cycle_count} cycle\n"
+            f"\U0001f4b0 `${self.portfolio.bankroll:.2f}` | "
+            f"\U0001f4ca {len(self.portfolio.positions)} pozisyon"
         )
         logger.info("Agent stopped")
 
