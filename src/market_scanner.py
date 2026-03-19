@@ -149,7 +149,7 @@ class MarketScanner:
             try:
                 end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
                 days_left = (end_dt - datetime.now(timezone.utc)).total_seconds() / 86400
-                max_days = 90 if self._is_election(market) else self.config.max_duration_days
+                max_days = 30 if self._is_election(market) else self.config.max_duration_days
                 if days_left > max_days:
                     logger.info("Skipped too far out (%.0fd, max=%dd): %s",
                                 days_left, max_days, market.question[:60])
