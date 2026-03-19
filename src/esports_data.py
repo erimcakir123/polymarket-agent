@@ -133,9 +133,10 @@ class EsportsDataClient:
                 team_a = q[:idx].strip()
                 team_b = q[idx + len(sep):].strip()
                 # Remove tournament info in parentheses
-                for t in [team_a, team_b]:
-                    if "(" in t:
-                        t = t[:t.index("(")].strip()
+                if "(" in team_a:
+                    team_a = team_a[:team_a.index("(")].strip()
+                if "(" in team_b:
+                    team_b = team_b[:team_b.index("(")].strip()
                 # Clean up trailing tournament info after " - "
                 if " - " in team_b:
                     team_b = team_b[:team_b.index(" - ")].strip()
