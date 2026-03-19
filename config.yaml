@@ -13,20 +13,21 @@ scanner:
   min_liquidity: 5000
   tags: []  # Empty = accept all categories (sports resolve fast → quicker test data)
   prefer_short_duration: true  # Prioritize markets resolving within 48h
-  max_markets_per_cycle: 20
+  max_markets_per_cycle: 100  # Fetch more to catch all sports/esports after filtering
   max_duration_days: 14  # Skip markets resolving more than 14 days out (test calibration)
+  allowed_categories: ["sports", "esports"]  # Only sports/esports bets — remove to allow all
 
 ai:
   model: "claude-sonnet-4-20250514"
   max_tokens: 1024
-  cache_ttl_min: 15
+  cache_ttl_min: 120  # 2 hour cache — don't re-analyze same market within 2h
   cache_invalidate_price_move_pct: 0.05
-  batch_size: 5
-  monthly_budget_usd: 48.0  # $48/month — 2 sprints
-  sprint_budget_usd: 24.0  # $24 per 2-week sprint
+  batch_size: 10
+  monthly_budget_usd: 48.0
+  sprint_budget_usd: 24.0
 
 edge:
-  min_edge: 0.06
+  min_edge: 0.05
   confidence_multipliers:
     low: 1.5
     medium: 1.0
@@ -36,7 +37,7 @@ risk:
   kelly_fraction: 0.25  # Quarter Kelly — 75% less risk, 75% of growth rate
   max_single_bet_usdc: 75
   max_bet_pct: 0.05  # Max 5% of bankroll = $50 (dry_run $1000)
-  max_positions: 5
+  max_positions: 10
   correlation_cap_pct: 0.30
   stop_loss_pct: 0.30
   take_profit_pct: 0.40
