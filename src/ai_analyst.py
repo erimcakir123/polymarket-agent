@@ -38,11 +38,15 @@ SPORTS-SPECIFIC RULES:
 - Underdogs win ~20-30% of the time in esports BO1s. Don't overestimate favorites."""
 
 _POLITICS_RULES = """
-POLITICS/EVENTS RULES:
+POLITICS/ELECTIONS/EVENTS RULES:
 - Consider historical precedent, current conditions, stakeholder incentives.
 - For events resolving within 7 days: focus on what's already in motion, not speculation.
 - Be very conservative on long-shot political events — they almost never happen.
-- Base rates matter more than narratives."""
+- Base rates matter more than narratives.
+- ELECTIONS: Markets often overreact to last-minute news near election day.
+  Voters rarely change their minds in the final week — polls 7 days out are highly predictive.
+  Incumbent advantage is real (~55-60% win rate globally). Don't let dramatic headlines move your estimate.
+  If you know the country's political landscape, USE that knowledge — it's your edge over emotional traders."""
 
 PRO_SYSTEM = """You are an expert superforecaster arguing FOR this outcome.
 Estimate the probability that this market resolves YES.
