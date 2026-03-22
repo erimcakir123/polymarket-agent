@@ -65,6 +65,20 @@ class Position(BaseModel):
     hold_revoked_at: datetime | None = None  # When hold-to-resolve was revoked
     hold_was_original: bool = False          # Was this originally a hold-to-resolve position
 
+    # Scale Out fields (v2)
+    original_shares: float | None = None
+    original_size_usdc: float | None = None
+    partial_exits: list[dict] = []
+    scale_out_tier: int = 0
+    # Scale-In fields (v2)
+    intended_size_usdc: float = 0.0
+    scale_in_complete: bool = False
+    # σ-Trailing fields (v2)
+    price_history_buffer: list[float] = []
+    peak_price: float = 0.0
+    # Grace period (v2)
+    cycles_held: int = 0
+
     @computed_field
     @property
     def current_value(self) -> float:
