@@ -108,3 +108,79 @@ class TestGameDuration:
         from src.match_exit import get_game_duration
         # Unknown esports game but has BO format → generic esports
         assert get_game_duration("hok-team1-team2-2026", 3) == 120
+
+
+class TestEntryPriceMultiplier:
+    def test_heavy_underdog(self):
+        from src.match_exit import get_entry_price_multiplier
+        assert get_entry_price_multiplier(0.15) == 1.50
+
+    def test_underdog(self):
+        from src.match_exit import get_entry_price_multiplier
+        assert get_entry_price_multiplier(0.25) == 1.25
+
+    def test_coin_flip(self):
+        from src.match_exit import get_entry_price_multiplier
+        assert get_entry_price_multiplier(0.45) == 1.00
+
+    def test_favorite(self):
+        from src.match_exit import get_entry_price_multiplier
+        assert get_entry_price_multiplier(0.60) == 0.85
+
+    def test_heavy_favorite(self):
+        from src.match_exit import get_entry_price_multiplier
+        assert get_entry_price_multiplier(0.80) == 0.70
+
+
+class TestGraduatedMaxLoss:
+    def test_early_match_coin_flip(self):
+        from src.match_exit import get_graduated_max_loss
+        # 30% progress, 45¢ entry, no score
+        loss = get_graduated_max_loss(0.30, 0.45, {"available": False})
+        assert loss == pytest.approx(0.40, abs=0.01)  # -40% × 1.0 × 1.0
+
+    def test_mid_match_favorite(self):
+        from src.match_exit import get_graduated_max_loss
+        # 50% progress, 65¢ entry, no score
+        loss = get_graduated_max_loss(0.50, 0.65, {"available": False})
+        assert loss == pytest.approx(0.255, abs=0.01)  # -30% × 0.85
+
+    def test_late_match_underdog_ahead(self):
+        from src.match_exit import get_graduated_max_loss
+        # 75% progress, 25¢ entry, score ahead
+        score = {"available": True, "map_diff": 1, "is_already_lost": False, "is_already_won": False}
+        loss = get_graduated_max_loss(0.75, 0.25, score)
+        # -20% × 1.25 × 1.25 = -31.25%
+        assert loss == pytest.approx(0.3125, abs=0.01)
+
+    def test_final_phase_favorite_behind(self):
+        from src.match_exit import get_graduated_max_loss
+        # 90% progress, 70¢ entry, score behind
+        score = {"available": True, "map_diff": -1, "is_already_lost": False, "is_already_won": False}
+        loss = get_graduated_max_loss(0.90, 0.70, score)
+        # -15% × 0.70 × 0.75 = -7.875%
+        assert loss == pytest.approx(0.07875, abs=0.01)
+
+    def test_overtime(self):
+        from src.match_exit import get_graduated_max_loss
+        loss = get_graduated_max_loss(1.10, 0.50, {"available": False})
+        assert loss == pytest.approx(0.05, abs=0.01)  # -5% × 1.0
+
+    def test_pre_match(self):
+        from src.match_exit import get_graduated_max_loss
+        loss = get_graduated_max_loss(-0.5, 0.50, {"available": False})
+        assert loss == pytest.approx(0.40, abs=0.01)  # Pre-match default
+
+    def test_clamp_max(self):
+        from src.match_exit import get_graduated_max_loss
+        # Heavy underdog early: -40% × 1.50 × 1.25 (ahead) = -75% → clamped to -70%
+        score = {"available": True, "map_diff": 1, "is_already_lost": False, "is_already_won": False}
+        loss = get_graduated_max_loss(0.30, 0.10, score)
+        assert loss <= 0.70
+
+    def test_clamp_min(self):
+        from src.match_exit import get_graduated_max_loss
+        # Overtime heavy favorite behind: -5% × 0.70 × 0.75 = -2.625% → clamped to -5%
+        score = {"available": True, "map_diff": -2, "is_already_lost": False, "is_already_won": False}
+        loss = get_graduated_max_loss(1.10, 0.80, score)
+        assert loss >= 0.05

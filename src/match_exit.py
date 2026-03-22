@@ -111,3 +111,71 @@ def get_game_duration(slug: str, number_of_games: int) -> int:
 
     # Absolute fallback
     return 90
+
+
+def get_entry_price_multiplier(entry_price: float) -> float:
+    """Return stop loss width multiplier based on entry price.
+
+    Low entry (underdog) → wider tolerance (1.50)
+    High entry (favorite) → tighter tolerance (0.70)
+    """
+    if entry_price < 0.20:
+        return 1.50
+    elif entry_price < 0.35:
+        return 1.25
+    elif entry_price <= 0.50:
+        return 1.00
+    elif entry_price < 0.70:
+        return 0.85
+    else:
+        return 0.70
+
+
+# Base tiers: (elapsed_pct_threshold, max_loss)
+# The tier that matches the HIGHEST threshold <= elapsed_pct is used.
+_BASE_TIERS = [
+    (1.00, 0.05),   # Overtime
+    (0.85, 0.15),   # Final phase
+    (0.65, 0.20),   # Late match
+    (0.40, 0.30),   # Mid match
+    (0.00, 0.40),   # Early match
+]
+
+
+def get_graduated_max_loss(
+    elapsed_pct: float,
+    entry_price: float,
+    score_info: dict,
+) -> float:
+    """Calculate max allowed loss: base_tier × price_mult × score_adj.
+
+    Returns a float in [0.05, 0.70] representing the max loss fraction.
+    E.g. 0.30 means position is exited if unrealized_pnl_pct < -0.30.
+    """
+    # Pre-match: use base -40%
+    if elapsed_pct < 0:
+        base = 0.40
+    else:
+        # Find matching tier (sorted descending, first match wins)
+        base = 0.40  # default
+        for threshold, loss in _BASE_TIERS:
+            if elapsed_pct >= threshold:
+                base = loss
+                break
+
+    # Entry price multiplier
+    price_mult = get_entry_price_multiplier(entry_price)
+
+    # Score adjustment
+    score_adj = 1.0
+    if score_info.get("available"):
+        md = score_info.get("map_diff", 0)
+        if md > 0:
+            score_adj = 1.25  # ahead: loosen
+        elif md < 0:
+            score_adj = 0.75  # behind: tighten
+
+    result = base * price_mult * score_adj
+
+    # Clamp to [0.05, 0.70]
+    return max(0.05, min(0.70, result))
