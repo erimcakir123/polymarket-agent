@@ -199,7 +199,7 @@ def check_match_exit(data: dict) -> dict:
     """
     result = {"exit": False, "layer": "", "reason": "",
               "revoke_hold": False, "restore_hold": False, "momentum_tighten": False,
-              "elapsed_pct": -1.0}
+              "momentum_multiplier": 1.0, "elapsed_pct": -1.0}
 
     entry_price = data["entry_price"]
     current_price = data["current_price"]
@@ -271,10 +271,14 @@ def check_match_exit(data: dict) -> dict:
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
     max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
 
-    # Momentum tightening: if 3+ consecutive down cycles with 5c+ drop, tighten one tier
-    if consecutive_down >= 3 and cumulative_drop >= 0.05:
+    # Check DEEPER tier first (5+ is subset of 3+, must come first):
+    if consecutive_down >= 5 and cumulative_drop >= 0.10:
         result["momentum_tighten"] = True
-        # Tighten by reducing tolerance by 25%
+        result["momentum_multiplier"] = 0.60
+        max_loss = max(0.05, max_loss * 0.60)
+    elif consecutive_down >= 3 and cumulative_drop >= 0.05:
+        result["momentum_tighten"] = True
+        result["momentum_multiplier"] = 0.75
         max_loss = max(0.05, max_loss * 0.75)
 
     if pnl_pct < -max_loss:

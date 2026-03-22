@@ -561,3 +561,44 @@ class TestBuyNoDirection:
         data = self._make_data(entry_price=0.65, current_price=0.50)
         result = check_match_exit(data)
         assert result["exit"] is False or result["layer"] != "catastrophic_floor"
+
+
+class TestMomentumTighteningV2:
+    def _make_data(self, **overrides):
+        base = {
+            "entry_price": 0.50, "current_price": 0.35, "direction": "BUY_YES",
+            "number_of_games": 3, "slug": "cs2-test",
+            "match_score": "", "match_start_iso": (datetime.now(timezone.utc) - timedelta(minutes=80)).isoformat(),
+            "ever_in_profit": False, "peak_pnl_pct": 0.0, "scouted": False,
+            "confidence": "medium", "ai_probability": 0.5,
+            "consecutive_down_cycles": 0, "cumulative_drop": 0.0,
+            "hold_revoked_at": None, "hold_was_original": False,
+            "volatility_swing": False, "unrealized_pnl_pct": -0.30,
+            "entry_reason": "", "cycles_held": 10,
+        }
+        base.update(overrides)
+        return base
+
+    def test_deeper_tier_fires_at_5_cycles_10c(self):
+        """5+ consecutive down, 10c+ drop -> x0.60 (not x0.75)."""
+        from src.match_exit import check_match_exit
+        data = self._make_data(consecutive_down_cycles=6, cumulative_drop=0.12)
+        result = check_match_exit(data)
+        assert result["momentum_tighten"] is True
+        assert result["momentum_multiplier"] == 0.60  # Deeper tier
+
+    def test_moderate_tier_fires_at_3_cycles_5c(self):
+        """3 consecutive down, 5c drop -> x0.75."""
+        from src.match_exit import check_match_exit
+        data = self._make_data(consecutive_down_cycles=3, cumulative_drop=0.06)
+        result = check_match_exit(data)
+        assert result["momentum_tighten"] is True
+        assert result["momentum_multiplier"] == 0.75  # Moderate tier
+
+    def test_deeper_tier_not_reachable_at_3_cycles(self):
+        """3 cycles, 12c drop -> moderate tier (x0.75) not deeper."""
+        from src.match_exit import check_match_exit
+        data = self._make_data(consecutive_down_cycles=3, cumulative_drop=0.12)
+        result = check_match_exit(data)
+        assert result["momentum_tighten"] is True
+        assert result["momentum_multiplier"] == 0.75  # Only moderate -- need 5+ cycles for 0.60
