@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 from src.config import AppConfig, Mode, load_config
 from src.market_scanner import MarketScanner
 from src.ai_analyst import AIAnalyst, AIEstimate
-from src.edge_calculator import calculate_edge
-from src.risk_manager import RiskManager
+from src.edge_calculator import calculate_edge, scale_min_edge, boost_confidence
+from src.risk_manager import RiskManager, kelly_position_size
 from src.portfolio import Portfolio
 from src.executor import Executor
 from src.news_scanner import NewsScanner
@@ -36,6 +36,8 @@ from src.odds_api import OddsAPIClient
 from src.scout_scheduler import ScoutScheduler
 from src.process_lock import acquire_lock
 from src.dashboard import create_app as create_dashboard
+from src.live_dip_entry import find_live_dip_candidates
+from src.esports_early_entry import find_esports_early_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +89,23 @@ class Agent:
         self.config = config
         self.running = True
         self.consecutive_api_failures = 0
+        self.last_cycle_has_live_clob = False
         self.bets_since_approval = 0
         self.cycle_count = 0
         self._exit_cooldowns: dict[str, int] = {}  # condition_id -> cycle when cooldown expires
         self._exited_markets: set[str] = self._load_exited_markets()  # Never re-enter these
         self._seen_market_ids: set[str] = set()  # Track markets across cycles for new-market detection
+        self._analyzed_market_ids: dict[str, float] = self._load_recent_analyses()  # condition_id -> timestamp of last AI analysis
+        self._far_market_ids: set[str] = set()  # Far markets in current batch (need higher edge)
+        self._candidate_stock: list[dict] = []  # AI-analyzed candidates waiting for slots
+        self._stock_stats = {"used": 0, "stale": 0, "expired": 0}  # Pipeline metrics
+        self._fav_stock: list[dict] = []  # FAV_TIME_GATE candidates with own slots (max 3)
+        self._FAV_MAX_SLOTS = 3  # Dedicated FAV slots (separate from normal 15)
+        self._FAV_MIN_EDGE = 0.15  # Only stok favorites with ≥15% edge
+        self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
+        self._spike_reentry: dict[str, dict] = {}  # condition_id -> saved AI data for re-entry
+        self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
+        self._last_esports_early_check: float = 0  # Timestamp of last esports early scan
         self._last_resolved_count = self._count_resolved()
 
         # Core modules
@@ -107,6 +121,8 @@ class Agent:
         self.news_scanner = NewsScanner()
         self.manip_guard = ManipulationGuard()
         self.cycle_timer = CycleTimer(config.cycle)
+        self._last_candidate_count: int = 0
+        self._last_light_ts: str = ""
         self.scout = ScoutScheduler(self.sports, self.esports)
 
         # Logging & notifications
@@ -151,17 +167,24 @@ class Agent:
         self.running = False
         logger.info("Shutdown requested — finishing current cycle")
 
-    def _set_status(self, state: str, step: str = "") -> None:
+    def _set_status(self, state: str, step: str = "", light_ts: str = "") -> None:
         """Write current bot status to disk for dashboard polling."""
         try:
             STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
             tmp = STATUS_FILE.with_suffix(".tmp")
-            tmp.write_text(json.dumps({
+            payload = {
                 "state": state,
                 "step": step,
                 "cycle": self.cycle_count,
                 "ts": datetime.now(timezone.utc).isoformat(),
-            }), encoding="utf-8")
+                "has_positions": len(self.portfolio.positions) > 0,
+                "max_positions": self.config.risk.max_positions,
+            }
+            if light_ts:
+                payload["light_ts"] = light_ts
+            elif hasattr(self, '_last_light_ts'):
+                payload["light_ts"] = self._last_light_ts
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
             tmp.replace(STATUS_FILE)
         except OSError:
             pass
@@ -210,20 +233,74 @@ class Agent:
         marker.write_text(str(today), encoding="utf-8")
 
     def _check_bet_limit(self) -> None:
-        """After N bets, pause and ask for approval."""
-        if self.bets_since_approval >= BETS_PER_APPROVAL:
-            PAUSE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            PAUSE_FILE.write_text(
-                f"Paused after {self.bets_since_approval} bets. Delete this file to resume.",
-                encoding="utf-8",
+        """Bet limit check — disabled (slots should fill freely)."""
+        pass
+
+    def _load_recent_analyses(self) -> dict[str, float]:
+        """Restore recently analyzed market IDs from predictions.jsonl on restart.
+
+        Only caches HOLD signals (low edge or low confidence).
+        BUY-worthy markets (edge ≥8% + medium_high/high) are NOT cached
+        so they can re-enter the pipeline if not in portfolio.
+        """
+        pred_path = Path("logs/predictions.jsonl")
+        if not pred_path.exists():
+            return {}
+        cutoff = time.time() - 4 * 3600  # 4 hours
+        # Load current portfolio to know what's already held
+        pos_path = Path("logs/positions.json")
+        held_ids: set[str] = set()
+        if pos_path.exists():
+            try:
+                held_ids = set(json.loads(pos_path.read_text(encoding="utf-8")).keys())
+            except Exception:
+                pass
+
+        restored: dict[str, float] = {}
+        skipped_buy = 0
+        try:
+            for line in pred_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                ts_str = entry.get("timestamp", "")
+                cid = entry.get("condition_id", "")
+                if not ts_str or not cid:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                    ts = dt.timestamp()
+                except (ValueError, TypeError):
+                    continue
+                if ts < cutoff:
+                    continue
+
+                # If already in portfolio, always cache (no need to re-analyze)
+                if cid in held_ids:
+                    restored[cid] = ts
+                    continue
+
+                # Check if this was a BUY-worthy signal
+                ai_prob = entry.get("ai_probability", 0.5)
+                mkt_price = entry.get("market_price", 0.5)
+                conf = entry.get("confidence", "low")
+                edge = abs(ai_prob - mkt_price)
+
+                if edge >= 0.08 and conf in ("high", "medium_high"):
+                    # BUY-worthy but not in portfolio → don't cache, let it re-enter
+                    skipped_buy += 1
+                    continue
+
+                restored[cid] = ts
+        except Exception as e:
+            logger.warning("Could not restore analyzed markets: %s", e)
+            return {}
+        if restored or skipped_buy:
+            logger.info(
+                "Analysis cache: %d HOLD cached (saved AI calls), %d BUY-worthy uncached (will re-evaluate)",
+                len(restored), skipped_buy,
             )
-            self.notifier.send(
-                f"\u23f8 *PAUSED*\n\n"
-                f"{self.bets_since_approval} bets completed.\n"
-                f"Send /resume to continue."
-            )
-            logger.warning("Bet limit reached (%d). Paused for approval.", self.bets_since_approval)
-            self.bets_since_approval = 0
+        return restored
 
     def _load_exited_markets(self) -> set:
         """Load condition IDs of previously exited markets from disk."""
@@ -288,6 +365,90 @@ class Agent:
             self._save_last_resolved_count(current)
             logger.info("Self-improve readiness notification sent (%d new resolved)", new_resolved)
 
+    def run_light_cycle(self) -> None:
+        """Price-only cycle: update prices + check exits. No scanning, no AI, no news."""
+        if self._is_paused():
+            return
+        logger.info("=== Light cycle (price check only) ===")
+        self._set_status("running", "Light cycle — price check")
+
+        # Update bankroll
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+        self.portfolio.update_bankroll(bankroll)
+
+        # Update position prices from CLOB
+        self.last_cycle_has_live_clob = self._update_position_prices()
+
+        # --- Match-aware exit system (4 layers) ---
+        match_exit_results = self.portfolio.check_match_aware_exits()
+        for mexr in match_exit_results:
+            cid = mexr["condition_id"]
+            if mexr.get("exit") and cid in self.portfolio.positions:
+                slug = self.portfolio.positions[cid].slug[:40]
+                logger.info("Match-aware exit [%s]: %s — %s", mexr["layer"], slug, mexr.get("reason", ""))
+                self._exit_position(cid, f"match_exit_{mexr['layer']}")
+            if mexr.get("revoke_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                if pos.scouted:
+                    pos.hold_was_original = True
+                    pos.scouted = False
+                    pos.hold_revoked_at = datetime.now(timezone.utc)
+                    logger.info("Hold-to-resolve REVOKED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+            if mexr.get("restore_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                pos.scouted = True
+                pos.hold_revoked_at = None
+                logger.info("Hold-to-resolve RESTORED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+
+        # Check stop-losses and take-profits
+        vs_cfg = self.config.volatility_swing
+        for cid in self.portfolio.check_stop_losses(
+                self.config.risk.stop_loss_pct, vs_stop_loss_pct=vs_cfg.stop_loss_pct,
+                esports_stop_loss_pct=self.config.risk.esports_stop_loss_pct):
+            self._exit_position(cid, "stop_loss")
+        for cid in self.portfolio.check_take_profits(
+                self.config.risk.take_profit_pct, vs_take_profit_pct=vs_cfg.take_profit_pct,
+                vs_tp_floor=vs_cfg.tp_floor, vs_tp_ceiling=vs_cfg.tp_ceiling):
+            pos = self.portfolio.positions.get(cid)
+            is_vs = pos and pos.volatility_swing
+            is_spike = (pos and not is_vs and pos.confidence in ("high", "medium_high") and
+                        max(pos.ai_probability, 1 - pos.ai_probability) > 0.60)
+            reason = "vs_take_profit" if is_vs else ("spike_exit" if is_spike else "take_profit")
+            cooldown = 0 if (is_vs or is_spike) else 3  # spike/VS: immediate re-entry eligible
+            self._exit_position(cid, reason, cooldown_cycles=cooldown)
+        trailing_tiers = [{"min_peak": t.min_peak, "drop_pct": t.drop_pct}
+                          for t in self.config.risk.trailing_stop_tiers]
+        for cid in self.portfolio.check_trailing_stops(trailing_tiers=trailing_tiers):
+            self._exit_position(cid, "trailing_stop")
+        for cid in self.portfolio.check_volatility_swing_exits():
+            self._exit_position(cid, "vs_mandatory_exit", cooldown_cycles=0)
+
+        # Spike re-entry check — if price dropped back after spike exit, re-enter without AI call
+        self._check_spike_reentry()
+        # Scouted re-entry — if scouted TP/trailing exit dropped back, re-enter as scouted
+        self._check_scouted_reentry()
+
+        # Persist updated prices to disk so dashboard sees them
+        self.portfolio.save_prices_to_disk()
+
+        # Live dip check — every 5 min (ESPN rate limit)
+        if time.time() - self._last_live_dip_check >= 300:
+            self._check_live_dips()
+            self._last_live_dip_check = time.time()
+
+        # Esports early entry — every 10 min (PandaScore rate limit)
+        if time.time() - self._last_esports_early_check >= 600:
+            self._check_esports_early()
+            self._last_esports_early_check = time.time()
+
+        # Log portfolio snapshot so dashboard picks up realized PnL changes from exits
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+        self._log_cycle_summary(bankroll, "light_cycle")
+
+        self._last_light_ts = datetime.now(timezone.utc).isoformat()
+        self._set_status("idle", "Light cycle done")
+        logger.info("Light cycle done — %d positions checked", len(self.portfolio.positions))
+
     def run_cycle(self) -> None:
         # Skip cycle if paused
         if self._is_paused():
@@ -330,19 +491,70 @@ class Agent:
 
         # 3. Update position prices from current market data
         self._set_status("running", "Updating prices")
-        self._update_position_prices()
+        self.last_cycle_has_live_clob = self._update_position_prices()
+        self._check_price_drift_reanalysis()
 
-        # 4. Check stop-losses and take-profits
+        # 4. Match-aware exit system + stop-losses/take-profits
         self._set_status("running", "Checking stop-losses")
-        for cid in self.portfolio.check_stop_losses(self.config.risk.stop_loss_pct):
+
+        # --- Match-aware exit system (4 layers) ---
+        match_exit_results = self.portfolio.check_match_aware_exits()
+        for mexr in match_exit_results:
+            cid = mexr["condition_id"]
+            if mexr.get("exit") and cid in self.portfolio.positions:
+                slug = self.portfolio.positions[cid].slug[:40]
+                logger.info("Match-aware exit [%s]: %s — %s", mexr["layer"], slug, mexr.get("reason", ""))
+                self._exit_position(cid, f"match_exit_{mexr['layer']}")
+            if mexr.get("revoke_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                if pos.scouted:
+                    pos.hold_was_original = True
+                    pos.scouted = False
+                    pos.hold_revoked_at = datetime.now(timezone.utc)
+                    logger.info("Hold-to-resolve REVOKED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+            if mexr.get("restore_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                pos.scouted = True
+                pos.hold_revoked_at = None
+                logger.info("Hold-to-resolve RESTORED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+
+        vs_cfg = self.config.volatility_swing
+        for cid in self.portfolio.check_stop_losses(
+                self.config.risk.stop_loss_pct, vs_stop_loss_pct=vs_cfg.stop_loss_pct,
+                esports_stop_loss_pct=self.config.risk.esports_stop_loss_pct):
             self._exit_position(cid, "stop_loss")
-        for cid in self.portfolio.check_take_profits(self.config.risk.take_profit_pct):
-            self._exit_position(cid, "take_profit")
-        for cid in self.portfolio.check_trailing_stops(trailing_drop_pct=0.40):
+        for cid in self.portfolio.check_take_profits(
+                self.config.risk.take_profit_pct, vs_take_profit_pct=vs_cfg.take_profit_pct,
+                vs_tp_floor=vs_cfg.tp_floor, vs_tp_ceiling=vs_cfg.tp_ceiling):
+            # Spike exits get 0 cooldown — re-evaluate immediately if price drops back
+            pos = self.portfolio.positions.get(cid)
+            is_vs = pos and pos.volatility_swing
+            is_spike = (pos and not is_vs and pos.confidence in ("high", "medium_high") and
+                        max(pos.ai_probability, 1 - pos.ai_probability) > 0.60)
+            reason = "vs_take_profit" if is_vs else ("spike_exit" if is_spike else "take_profit")
+            cooldown = 0 if (is_vs or is_spike) else 3  # spike/VS: immediate re-entry eligible
+            self._exit_position(cid, reason, cooldown_cycles=cooldown)
+        trailing_tiers = [{"min_peak": t.min_peak, "drop_pct": t.drop_pct}
+                          for t in self.config.risk.trailing_stop_tiers]
+        for cid in self.portfolio.check_trailing_stops(trailing_tiers=trailing_tiers):
             self._exit_position(cid, "trailing_stop")
+        # Volatility swing mandatory exit (30 min before resolve)
+        for cid in self.portfolio.check_volatility_swing_exits():
+            self._exit_position(cid, "vs_mandatory_exit", cooldown_cycles=0)
+
+        # Spike re-entry check — if price dropped back after spike exit, re-enter without AI call
+        self._check_spike_reentry()
+        # Scouted re-entry — if scouted TP/trailing exit dropped back, re-enter as scouted
+        self._check_scouted_reentry()
 
         # 4b. Re-evaluate election positions — swing trade on opinion shift
         self._reevaluate_election_positions(bankroll)
+
+        # 4c. Fill from stock — use pre-analyzed candidates if slots opened
+        self._fill_from_stock()
+
+        # 4d. Fill from FAV stock — execute favorites in their dedicated slots
+        self._fill_from_fav_stock()
 
         # 5. Scan markets
         self._set_status("running", "Scanning markets")
@@ -375,8 +587,154 @@ class Agent:
                                 m.question[:60], m.yes_price * 100, m.volume_24h)
         self._seen_market_ids = current_ids
 
-        # 7. Select markets for analysis (whale pre-filter disabled — Data API requires wallet address)
-        prioritized = markets[:self.config.ai.batch_size]
+        # 7. Filter BEFORE batch cut — don't waste AI calls on known-skip markets
+        # 7a. Remove markets already in portfolio or on exit cooldown
+        skipped_portfolio = sum(1 for m in markets if m.condition_id in self.portfolio.positions)
+        skipped_cooldown = sum(
+            1 for m in markets
+            if m.condition_id not in self.portfolio.positions
+            and self._exit_cooldowns.get(m.condition_id, 0) > self.cycle_count
+        )
+        markets = [
+            m for m in markets
+            if m.condition_id not in self.portfolio.positions
+            and m.condition_id not in self._exited_markets
+            and self._exit_cooldowns.get(m.condition_id, 0) <= self.cycle_count
+        ]
+        if skipped_portfolio or skipped_cooldown:
+            logger.info("Skipped %d in portfolio, %d on cooldown (saved API calls)",
+                        skipped_portfolio, skipped_cooldown)
+
+        # 7b. Skip markets already analyzed recently (don't re-send to AI)
+        now_ts = time.time()
+        # Clean up old entries (>4 hours = allow re-analysis)
+        self._analyzed_market_ids = {
+            cid: ts for cid, ts in self._analyzed_market_ids.items()
+            if now_ts - ts < 4 * 3600
+        }
+        already_analyzed = sum(1 for m in markets if m.condition_id in self._analyzed_market_ids)
+        markets = [m for m in markets if m.condition_id not in self._analyzed_market_ids]
+        if already_analyzed:
+            logger.info("Skipped %d already analyzed (saved AI calls)", already_analyzed)
+
+        # 7c. Pre-filter LIVE matches (don't waste AI calls on in-progress games)
+        live_markets = []
+        non_live = []
+        now_live_check = datetime.now(timezone.utc)
+        for m in markets:
+            # If scout has actual start time → use it for definitive LIVE check
+            scout_entry = self.scout.match_market(m.question, m.slug)
+            if scout_entry and scout_entry.get("match_time"):
+                try:
+                    mt = datetime.fromisoformat(scout_entry["match_time"])
+                    if mt > now_live_check:
+                        non_live.append(m)
+                        continue  # Confirmed future match, skip LIVE check
+                    else:
+                        live_markets.append(m)
+                        logger.debug("LIVE skip (scout): %s started at %s", m.question[:60], mt.isoformat())
+                        continue  # Match already started → LIVE
+                except (ValueError, TypeError):
+                    pass
+            # Fallback: estimate from endDate (unreliable but catches obvious cases)
+            if self._estimate_match_live(m.slug, m.question, m.end_date_iso):
+                live_markets.append(m)
+                logger.debug("LIVE skip: %s (end=%s)", m.question[:60], m.end_date_iso)
+            else:
+                non_live.append(m)
+        if live_markets:
+            logger.info("Skipped %d LIVE matches pre-batch (saved AI calls)", len(live_markets))
+        markets = non_live
+
+        # 7d. Near-first batch allocation
+        # Fill batch with near matches (≤6h) first — faster capital turnover
+        # Far matches (>6h) only fill remaining slots when near can't fill batch
+        # Smart batch sizing: only analyze what we need to fill
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        normal_max = self.config.risk.max_positions - vs_reserved  # 15 normal slots
+        current_normal = self.portfolio.normal_position_count
+        open_slots = max(0, normal_max - current_normal)
+        stock_viable = len([c for c in self._candidate_stock
+                           if time.time() - c.get("stocked_at", 0) < 3600])
+        stock_max = 5
+        stock_empty = max(0, stock_max - stock_viable)
+        total_need = open_slots + stock_empty  # positions to fill + stock to fill
+
+        if total_need == 0:
+            # Everything full → skip AI entirely, only do exits/price checks
+            logger.info("Pool full (%d positions) + stock full (%d) → skipping market scan (save API)",
+                        self.portfolio.active_position_count, stock_viable)
+            return
+        else:
+            # Analyze proportional to need: 2x multiplier for selection quality
+            batch_size = min(self.config.ai.batch_size, max(5, total_need * 2))
+            logger.info("Need %d (slots=%d + stock=%d) → batch_size=%d",
+                        total_need, open_slots, stock_empty, batch_size)
+        now_utc = datetime.now(timezone.utc)
+
+        # Pre-match scout queue for actual start times (PandaScore/ESPN)
+        # endDate from Gamma is a settlement buffer, NOT match end time
+        _scout_match_times: dict[str, float] = {}  # condition_id -> hours_to_start
+        for m in markets:
+            scout_entry = self.scout.match_market(m.question, m.slug)
+            if scout_entry and scout_entry.get("match_time"):
+                try:
+                    mt = datetime.fromisoformat(scout_entry["match_time"])
+                    h = (mt - now_utc).total_seconds() / 3600
+                    _scout_match_times[m.condition_id] = max(0, h)
+                except (ValueError, TypeError):
+                    pass
+
+        def _hours_to_end(m: MarketData) -> float:
+            if not m.end_date_iso:
+                return 999.0
+            try:
+                end_dt = datetime.fromisoformat(m.end_date_iso.replace("Z", "+00:00"))
+                return max(0, (end_dt - now_utc).total_seconds() / 3600)
+            except (ValueError, TypeError):
+                return 999.0
+
+        def _hours_to_start(m: MarketData) -> float:
+            """Hours until match STARTS. Uses actual start time from
+            PandaScore (esports) or ESPN (sports) when available.
+            Falls back to endDate - duration estimate otherwise."""
+            # Prefer actual start time from scout queue
+            if m.condition_id in _scout_match_times:
+                return _scout_match_times[m.condition_id]
+            # Fallback: estimate from endDate (unreliable, but better than nothing)
+            h_end = _hours_to_end(m)
+            if h_end >= 999:
+                return 999.0
+            duration = self._match_duration(m.slug, m.question)
+            return max(0, h_end - duration)
+
+        if _scout_match_times:
+            logger.info("Scout match times: %d/%d markets have actual start times",
+                        len(_scout_match_times), len(markets))
+
+        # Filter out live matches BEFORE AI analysis (save API cost)
+        pre_live = len(markets)
+        markets = [m for m in markets if not self._estimate_match_live(m.slug, m.question, m.end_date_iso)]
+        if len(markets) < pre_live:
+            logger.info("Pre-filtered %d live matches (saved API cost)", pre_live - len(markets))
+
+        near = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
+        far = sorted([m for m in markets if _hours_to_start(m) > 6], key=_hours_to_start)
+
+        # Near first (closest match = highest priority), far fills remaining
+        prioritized = near[:batch_size]
+        remaining_slots = batch_size - len(prioritized)
+        far_used = 0
+        if remaining_slots > 0:
+            prioritized += far[:remaining_slots]
+            far_used = min(len(far), remaining_slots)
+
+        # Track which markets are far (for higher edge threshold at evaluation)
+        self._far_market_ids = {m.condition_id for m in far[:remaining_slots]} if far_used else set()
+
+        logger.info("Batch: %d markets (%d near + %d far, %d eligible)",
+                     len(prioritized), len(prioritized) - far_used,
+                     far_used, len(markets))
 
         # 8. Fetch news (multi-source: NewsAPI → GNews → RSS)
         self._set_status("running", f"Fetching news for {len(prioritized)} markets")
@@ -399,11 +757,12 @@ class Agent:
         }
         news_by_market = self.news_scanner.search_for_markets(market_keywords)
 
-        # Build combined news context for AI
-        all_articles = []
+        # Build per-market news context (each market gets only its own relevant news)
+        news_context_by_market: dict[str, str] = {}
         for cid, articles in news_by_market.items():
-            all_articles.extend(articles)
-        news_context = self.news_scanner.build_news_context(all_articles)
+            ctx = self.news_scanner.build_news_context(articles)
+            if ctx:
+                news_context_by_market[cid] = ctx
 
         # Check for breaking news and adjust cycle timer
         has_breaking = any(
@@ -417,24 +776,6 @@ class Agent:
                     self.ai.invalidate_cache(cid)
                     self.news_scanner.invalidate_cache(" ".join(market_keywords.get(cid, [])))
 
-        # 9. Skip markets already in portfolio or on exit cooldown
-        new_markets = [
-            m for m in prioritized
-            if m.condition_id not in self.portfolio.positions
-            and m.condition_id not in self._exited_markets
-            and self._exit_cooldowns.get(m.condition_id, 0) <= self.cycle_count
-        ]
-        skipped_portfolio = sum(1 for m in prioritized if m.condition_id in self.portfolio.positions)
-        skipped_cooldown = sum(
-            1 for m in prioritized
-            if m.condition_id not in self.portfolio.positions
-            and self._exit_cooldowns.get(m.condition_id, 0) > self.cycle_count
-        )
-        if skipped_portfolio or skipped_cooldown:
-            logger.info("Skipped %d in portfolio, %d on cooldown (saved API calls)",
-                        skipped_portfolio, skipped_cooldown)
-        prioritized = new_markets
-
         # 9b. Check scout queue — inject pre-fetched sports data for matched markets
         scouted_markets = {}  # condition_id -> scout_entry (for marking as scouted after entry)
         esports_contexts = {}
@@ -447,6 +788,7 @@ class Agent:
 
         # 9c. Fetch sports/esports data for non-scouted markets
         data_sources_by_market: dict[str, list[str]] = {}  # condition_id -> list of source names
+        odds_by_market: dict[str, dict] = {}  # condition_id -> odds dict (bookmaker_prob_a, etc.)
         for cid in scouted_markets:
             data_sources_by_market[cid] = ["scout", "espn"]
 
@@ -476,6 +818,7 @@ class Agent:
                 if odds:
                     parts.append(self.odds_api.build_odds_context(odds))
                     sources.append("odds_api")
+                    odds_by_market[m.condition_id] = odds
                     logger.info("Bookmaker odds loaded: %s (%.0f%% vs %.0f%%, %d books)",
                                 m.slug[:30], odds["bookmaker_prob_a"] * 100,
                                 odds["bookmaker_prob_b"] * 100, odds["num_bookmakers"])
@@ -488,28 +831,111 @@ class Agent:
 
         # 10. Analyze ALL markets with AI (scout only pre-fetches sports data, not AI)
         self._set_status("running", f"Warren analyzing {len(prioritized)} markets")
-        estimates = self.ai.analyze_batch(prioritized, news_context, esports_contexts)
+        estimates = self.ai.analyze_batch(prioritized, "", esports_contexts,
+                                          news_by_market=news_context_by_market)
 
-        # 10a. Check budget alerts
+        # 10a. Mark as analyzed (don't re-send to AI next cycle)
+        for m in prioritized:
+            self._analyzed_market_ids[m.condition_id] = time.time()
+
+        # 10b. Check budget alerts
         for alert in self.ai.check_budget_alerts():
             self.notifier.send(alert)
             logger.warning("Budget alert sent: %s", alert[:60])
 
-        # 11. Generate signals
+        # 11. Evaluate all markets — collect candidates, then pick the best
         self._set_status("running", "Evaluating signals")
         signals_generated = False
+        _CONF_SCORE = {"high": 4, "medium_high": 3, "medium_low": 2, "low": 1,
+                        "medium": 2}  # backward compat
+        _SKIP_CONFIDENCE = {"low", "", "?"}  # Low confidence = skip (medium_low allowed with restrictions)
+        _MAX_EDGE_BY_CONFIDENCE = {"low": 0.15, "medium_low": 0.15, "medium_high": 0.25}
+        candidates = []  # List of (score, market, estimate, direction, edge, manip_check, mkt_sources, decision, adjusted_size, sanity)
+        vs_candidates = []  # VS candidates collected from ignorance/sanity blocks
+
+        # Fill-ratio scaling: adjust min_edge based on how full the portfolio is
+        fill_ratio = self.portfolio.active_position_count / max(1, self.config.risk.max_positions)
+        if self.config.edge.fill_ratio_scaling:
+            effective_min_edge = scale_min_edge(
+                self.config.edge.min_edge, fill_ratio,
+                self.config.edge.fill_ratio_aggressive,
+                self.config.edge.fill_ratio_selective)
+        else:
+            effective_min_edge = self.config.edge.min_edge
+
         for market, estimate in zip(prioritized, estimates):
             # Hard stop: budget exhausted → skip all remaining markets
             if estimate.reasoning_pro == "BUDGET_EXHAUSTED":
                 logger.warning("Budget exhausted — skipping remaining markets")
                 break
-            # API error → skip this market (0.5 would cause false edge on extreme-priced markets)
+            # API error → skip this market
             if estimate.reasoning_pro == "API_ERROR":
                 logger.warning("API error for %s — skipping", market.slug[:40])
                 continue
 
-            # Log ALL AI predictions for calibration (including future HOLDs)
+            # Log ALL AI predictions for calibration
             self._log_prediction(market, estimate)
+
+            # Skip live matches — our edge is pre-match analysis, not real-time reaction
+            if self._estimate_match_live(market.slug, market.question, market.end_date_iso):
+                logger.info("Skipping LIVE match (no pre-match edge): %s", market.slug[:40])
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "question": market.question,
+                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                    "edge": abs(estimate.ai_probability - market.yes_price),
+                    "mode": self.config.mode.value,
+                    "rejected": "LIVE_MATCH: crowd reacts to live score, AI has no edge mid-match",
+                })
+                continue
+
+            # Bookmaker confidence modifier: boost/drop confidence based on agreement
+            if self.config.edge.bookmaker_confidence_boost:
+                mkt_odds = odds_by_market.get(market.condition_id)
+                if mkt_odds:
+                    book_prob = mkt_odds["bookmaker_prob_a"]
+                    ai_direction_yes = estimate.ai_probability > 0.5
+                    book_direction_yes = book_prob > 0.5
+                    if ai_direction_yes == book_direction_yes:
+                        old_conf = estimate.confidence
+                        estimate.confidence = boost_confidence(estimate.confidence, +1)
+                        if estimate.confidence != old_conf:
+                            logger.info("Bookmaker AGREES: %s | AI=%.0f%% Book=%.0f%% → confidence %s→%s",
+                                        market.slug[:35], estimate.ai_probability * 100,
+                                        book_prob * 100, old_conf, estimate.confidence)
+                    else:
+                        old_conf = estimate.confidence
+                        estimate.confidence = boost_confidence(estimate.confidence, -1)
+                        if estimate.confidence != old_conf:
+                            logger.info("Bookmaker DISAGREES: %s | AI=%.0f%% Book=%.0f%% → confidence %s→%s",
+                                        market.slug[:35], estimate.ai_probability * 100,
+                                        book_prob * 100, old_conf, estimate.confidence)
+
+            # Confidence gate: skip low (unreliable signals)
+            if estimate.confidence in _SKIP_CONFIDENCE:
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "question": market.question,
+                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                    "edge": abs(estimate.ai_probability - market.yes_price),
+                    "mode": self.config.mode.value,
+                    "rejected": f"LOW_CONFIDENCE: {estimate.confidence} — skipped",
+                })
+                continue
+
+            # medium_low (B-) experiment: allow but require high edge (≥15%)
+            _is_medium_low = estimate.confidence == "medium_low"
+            if _is_medium_low:
+                raw_edge = abs(estimate.ai_probability - market.yes_price)
+                if raw_edge < 0.15:
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": raw_edge, "mode": self.config.mode.value,
+                        "rejected": f"MEDIUM_LOW_EDGE: {raw_edge:.1%} < 15% min for B- bets",
+                    })
+                    continue
 
             # Manipulation check
             market_articles = news_by_market.get(market.condition_id, [])
@@ -532,19 +958,20 @@ class Agent:
                 })
                 continue
 
-            # Track data sources for this market
+            # Track data sources
             mkt_sources = list(data_sources_by_market.get(market.condition_id, []))
             if news_by_market.get(market.condition_id):
                 mkt_sources.append("news")
             mkt_sources.append("claude_sonnet")
 
-            # Edge calculation (pure AI probability first)
+            # Edge calculation
             direction, edge = calculate_edge(
                 ai_prob=estimate.ai_probability,
                 market_yes_price=market.yes_price,
-                min_edge=self.config.edge.min_edge,
+                min_edge=effective_min_edge,
                 confidence=estimate.confidence,
                 confidence_multipliers=self.config.edge.confidence_multipliers,
+                spread=self.config.edge.default_spread,
             )
 
             if direction == Direction.HOLD:
@@ -558,21 +985,29 @@ class Agent:
                 })
                 continue
 
-            # Ignorance edge guard: confidence-proportional edge cap
-            # If AI isn't confident, large edge is likely fake (AI defaulting to ~50%)
-            # High confidence = no cap (AI genuinely sees mispricing)
-            _MAX_EDGE_BY_CONFIDENCE = {"low": 0.15, "medium": 0.25}
+            # Far markets need higher edge (8%+) — capital locked longer, must justify
+            if market.condition_id in self._far_market_ids and edge < 0.08:
+                logger.info("Far market edge too low (%.1f%% < 8%%): %s", edge * 100, market.slug[:40])
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "question": market.question,
+                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                    "edge": edge, "mode": self.config.mode.value,
+                    "rejected": f"FAR_LOW_EDGE: {edge*100:.1f}% < 8% threshold for >6h markets",
+                    "data_sources": mkt_sources,
+                })
+                continue
+
+            # Ignorance edge guard + ULTI rescue
             ulti_used = False
             original_ai_prob = estimate.ai_probability
-
             max_edge = _MAX_EDGE_BY_CONFIDENCE.get(estimate.confidence)
             blocked_by_ignorance = max_edge is not None and edge > max_edge
 
             if blocked_by_ignorance:
-                # ULTI rescue: AI wasn't confident enough, try bookmaker odds
                 logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s cap=%.0f%% — trying ULTI",
                             market.slug[:40], edge * 100, estimate.confidence, max_edge * 100)
-                if estimate.confidence in ("low", "medium") and self.odds_api.available:
+                if estimate.confidence in ("low", "medium_low", "medium_high", "medium") and self.odds_api.available:
                     odds = self.odds_api.get_bookmaker_odds(market.question, market.slug, market.tags)
                     if odds:
                         book_prob = odds["bookmaker_prob_a"]
@@ -593,15 +1028,15 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "medium"
+                        estimate.confidence = "medium_high"
                         ulti_used = True
-                        # Recalculate edge with blended probability
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
                             market_yes_price=market.yes_price,
-                            min_edge=self.config.edge.min_edge,
+                            min_edge=effective_min_edge,
                             confidence=estimate.confidence,
                             confidence_multipliers=self.config.edge.confidence_multipliers,
+                            spread=self.config.edge.default_spread,
                         )
                         if direction == Direction.HOLD:
                             self.trade_log.log({
@@ -613,27 +1048,26 @@ class Agent:
                                 "data_sources": mkt_sources,
                             })
                             continue
-                        # Re-check ignorance with new edge
                         max_edge = _MAX_EDGE_BY_CONFIDENCE.get(estimate.confidence)
                         blocked_by_ignorance = max_edge is not None and edge > max_edge
 
                 if blocked_by_ignorance:
+                    block_msg = (f"IGNORANCE_EDGE: {estimate.confidence} confidence with "
+                                 f"edge {edge:.1%} > cap {max_edge:.0%} — crowd likely knows more"
+                                 + (" (ULTI tried)" if ulti_used else ""))
+                    # Do NOT send to VS — ignorance edge means crowd knows more,
+                    # buying cheap tokens as VS would repeat the same mistake
                     self.trade_log.log({
                         "market": market.slug, "action": "HOLD",
                         "question": market.question,
                         "ai_prob": estimate.ai_probability, "price": market.yes_price,
                         "edge": edge, "mode": self.config.mode.value,
-                        "rejected": f"IGNORANCE_EDGE: {estimate.confidence} confidence with "
-                                    f"edge {edge:.1%} > cap {max_edge:.0%} — crowd likely knows more"
-                                    + (" (ULTI tried)" if ulti_used else ""),
+                        "rejected": block_msg,
                         "data_sources": mkt_sources,
                     })
-                    logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s cap=%.0f%%%s",
-                                market.slug[:40], edge * 100, estimate.confidence, max_edge * 100,
-                                " (ULTI tried)" if ulti_used else "")
                     continue
 
-            signals_generated = True
+            # Risk check
             signal = Signal(
                 condition_id=market.condition_id,
                 direction=direction,
@@ -642,13 +1076,13 @@ class Agent:
                 edge=edge,
                 confidence=estimate.confidence,
             )
-
-            # Risk check
             corr_exposure = self.portfolio.correlated_exposure(
                 market.tags[0] if market.tags else ""
             )
+            league_count = self.portfolio.count_by_category(market.tags[0] if market.tags else "")
             decision = self.risk.evaluate(
-                signal, bankroll, self.portfolio.positions, corr_exposure
+                signal, bankroll, self.portfolio.positions, corr_exposure,
+                league_count=league_count, confidence=estimate.confidence,
             )
 
             if not decision.approved:
@@ -662,10 +1096,12 @@ class Agent:
                 })
                 continue
 
-            # Adjust position size for medium-risk markets
+            # Adjust position size (medium_low capped at 1.5% of bankroll)
             adjusted_size = self.manip_guard.adjust_position_size(
                 decision.size_usdc, manip_check
             )
+            if _is_medium_low:
+                adjusted_size = min(adjusted_size, self.portfolio.bankroll * 0.015)
             if adjusted_size < 5.0:
                 self.trade_log.log({
                     "market": market.slug, "action": direction.value,
@@ -675,7 +1111,15 @@ class Agent:
                 })
                 continue
 
-            # Sanity check: catch absurd bets before execution
+            # Sanity check + ULTI rescue
+            # Determine if bookmakers side with market (against AI)
+            mkt_odds = odds_by_market.get(market.condition_id)
+            _book_count = mkt_odds["num_bookmakers"] if mkt_odds else 0
+            _book_agrees_market = False
+            if mkt_odds:
+                book_fav_yes = mkt_odds["bookmaker_prob_a"] > 0.5
+                market_fav_yes = market.yes_price > 0.5
+                _book_agrees_market = (book_fav_yes == market_fav_yes)
             sanity = check_bet_sanity(
                 question=market.question,
                 direction=direction.value,
@@ -683,10 +1127,11 @@ class Agent:
                 market_price=market.yes_price,
                 edge=edge,
                 confidence=estimate.confidence,
+                bookmaker_count=_book_count,
+                bookmaker_agrees_with_market=_book_agrees_market,
             )
             if not sanity.ok:
-                # ULTI rescue for sanity block (only if not already tried)
-                if not ulti_used and estimate.confidence in ("low", "medium") and self.odds_api.available:
+                if not ulti_used and estimate.confidence in ("low", "medium_low", "medium_high", "medium") and self.odds_api.available:
                     logger.info("Sanity blocked: %s — %s — trying ULTI", market.slug[:40], sanity.reason)
                     odds = self.odds_api.get_bookmaker_odds(market.question, market.slug, market.tags)
                     if odds:
@@ -708,17 +1153,16 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "medium"
+                        estimate.confidence = "medium_high"
                         ulti_used = True
-                        # Recalculate edge
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
                             market_yes_price=market.yes_price,
-                            min_edge=self.config.edge.min_edge,
+                            min_edge=effective_min_edge,
                             confidence=estimate.confidence,
                             confidence_multipliers=self.config.edge.confidence_multipliers,
+                            spread=self.config.edge.default_spread,
                         )
-                        # Re-check sanity with blended probability
                         sanity = check_bet_sanity(
                             question=market.question,
                             direction=direction.value,
@@ -726,16 +1170,22 @@ class Agent:
                             market_price=market.yes_price,
                             edge=edge,
                             confidence=estimate.confidence,
+                            bookmaker_count=_book_count,
+                            bookmaker_agrees_with_market=_book_agrees_market,
                         )
                         if sanity.ok:
                             logger.info("ULTI RESCUED sanity: %s — proceeding", market.slug[:40])
-                            # Fall through to execution below
 
                 if not sanity.ok:
+                    sanity_msg = f"SANITY: {sanity.reason}" + (" (ULTI tried)" if ulti_used else "")
+                    # Collect VS candidate instead of executing immediately
+                    vs_candidate = self._evaluate_vs_candidate(market, estimate, direction, mkt_sources, sanity_msg)
+                    if vs_candidate:
+                        vs_candidates.append(vs_candidate)
+                        continue
                     self.trade_log.log({
                         "market": market.slug, "action": direction.value,
-                        "edge": edge, "rejected": f"SANITY: {sanity.reason}"
-                                                   + (" (ULTI tried)" if ulti_used else ""),
+                        "edge": edge, "rejected": sanity_msg,
                         "mode": self.config.mode.value,
                         "data_sources": mkt_sources,
                     })
@@ -745,20 +1195,171 @@ class Agent:
                     logger.warning("Sanity BLOCKED: %s — %s%s", market.slug[:40], sanity.reason,
                                    " (ULTI tried)" if ulti_used else "")
                     continue
+
             if sanity.suspicious:
                 self.notifier.send(self.notifier.format_suspicious_bet(
                     market.question, direction.value, adjusted_size, edge, sanity.reason
                 ))
                 logger.info("Sanity WARNING (proceeding): %s — %s", market.slug[:40], sanity.reason)
 
+            # Resolution proximity gate: don't enter if market resolves within 45 min
+            # (30 min mandatory exit + 15 min buffer for execution)
+            if market.end_date_iso:
+                try:
+                    _end = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
+                    _mins_left = (_end - datetime.now(timezone.utc)).total_seconds() / 60
+                    if 0 < _mins_left < 20:
+                        logger.info("Skipped near-resolve entry (%.0f min left): %s", _mins_left, market.slug[:40])
+                        self.trade_log.log({
+                            "market": market.slug, "action": "HOLD",
+                            "question": market.question, "edge": edge,
+                            "rejected": f"NEAR_RESOLVE: {_mins_left:.0f} min left, min 20 min required",
+                            "mode": self.config.mode.value,
+                        })
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            # ✓ Passed all checks — add to candidates
+            # Time-weighted score: edge * confidence * (1 + time_bonus)
+            # Nearby matches get a bonus but edge remains dominant factor
+            remaining_hours = 168.0  # default 7 days if no end_date
+            time_bonus = 0.0
+            if market.end_date_iso:
+                try:
+                    end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
+                    delta_h = (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600
+                    remaining_hours = max(1.0, min(168.0, delta_h))  # clamp 1h-168h
+                    # Time bonus: closer matches get priority (capital turnover)
+                    if delta_h <= 2:
+                        time_bonus = 0.50
+                    elif delta_h <= 6:
+                        time_bonus = 0.25
+                    elif delta_h <= 12:
+                        time_bonus = 0.10
+                except (ValueError, TypeError):
+                    pass
+
+            # Favorite time gate: favorites lock capital until resolution — limit early entry.
+            # Favorite = AI ≥ 65% AND confidence high/medium_high (hold-to-resolve).
+            # Underdogs use edge TP so they can exit anytime, early entry is fine.
+            # Time limits: price < 10¢ → 24h (cheap, high upside), otherwise → 12h.
+            # If edge ≥ 15%, save to FAV stok (separate slots) instead of rejecting.
+            effective_ai_for_side = estimate.ai_probability if direction == Direction.BUY_YES else (1 - estimate.ai_probability)
+            entry_price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+            is_favorite = effective_ai_for_side >= 0.65 and estimate.confidence in ("high", "medium_high")
+            if is_favorite:
+                max_hours = 24 if entry_price < 0.10 else 12
+                if remaining_hours > max_hours:
+                    # Good edge → save to FAV stok (own slots, no AI cost later)
+                    if edge >= self._FAV_MIN_EDGE:
+                        fav_current = self.portfolio.count_by_entry_reason("fav_time_gate")
+                        if fav_current < self._FAV_MAX_SLOTS:
+                            fav_score = edge * _CONF_SCORE.get(estimate.confidence, 1)
+                            fav_entry = {
+                                "score": fav_score,
+                                "remaining_hours": remaining_hours,
+                                "market": market,
+                                "estimate": estimate,
+                                "direction": direction,
+                                "edge": edge,
+                                "manip_check": manip_check,
+                                "mkt_sources": mkt_sources,
+                                "stocked_at": time.time(),
+                                "stocked_price": market.yes_price,
+                            }
+                            self._fav_stock.append(fav_entry)
+                            logger.info("FAV_STOK: %s | AI=%.0f%% edge=%.0f%% hours=%.0f — saved to FAV stok (%d/%d)",
+                                        market.slug[:40], effective_ai_for_side * 100, edge * 100,
+                                        remaining_hours, fav_current + 1, self._FAV_MAX_SLOTS)
+                            self.trade_log.log({
+                                "market": market.slug, "action": "FAV_STOK",
+                                "question": market.question,
+                                "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                                "edge": edge, "mode": self.config.mode.value,
+                                "rejected": f"FAV_STOK: AI={effective_ai_for_side:.0%} edge={edge:.0%} {remaining_hours:.0f}h away — saved to FAV slots",
+                            })
+                            continue
+                    # Low edge or FAV slots full → normal reject
+                    logger.info("FAV_TIME_GATE: %s | AI=%.0f%% conf=%s price=%.0f¢ hours=%.0f — favorite too far (max %dh)",
+                                market.slug[:40], estimate.ai_probability * 100, estimate.confidence,
+                                entry_price * 100, remaining_hours, max_hours)
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": edge, "mode": self.config.mode.value,
+                        "rejected": f"FAV_TIME_GATE: favorite AI={effective_ai_for_side:.0%} conf={estimate.confidence} but {remaining_hours:.0f}h away (max {max_hours}h) edge={edge:.0%}<{self._FAV_MIN_EDGE:.0%}",
+                    })
+                    continue
+
+            rank_score = edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus)
+            candidates.append({
+                "score": rank_score,
+                "remaining_hours": remaining_hours,
+                "market": market,
+                "estimate": estimate,
+                "direction": direction,
+                "edge": edge,
+                "manip_check": manip_check,
+                "mkt_sources": mkt_sources,
+                "decision": decision,
+                "adjusted_size": adjusted_size,
+                "sanity": sanity,
+            })
+            logger.info("Candidate: %s | edge=%.1f%% conf=%s hours=%.0f tbonus=+%.0f%% score=%.4f",
+                        market.slug[:40], edge * 100, estimate.confidence, remaining_hours, time_bonus * 100, rank_score)
+
+        # 12. Rank candidates by score and execute the best ones
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        normal_max = self.config.risk.max_positions - vs_reserved  # 15 normal slots
+        current_normal_count = self.portfolio.normal_position_count
+        normal_slots = max(0, normal_max - current_normal_count)
+        available_slots = normal_slots
+        # Sort: confidence tier first (A > B+ > B-), then score within tier
+        _CONF_TIER = {"high": 3, "medium_high": 2, "medium_low": 1}
+        candidates.sort(key=lambda c: (_CONF_TIER.get(c["estimate"].confidence, 0), c["score"]), reverse=True)
+        self._last_candidate_count = len(candidates) + len(vs_candidates)
+
+        if candidates:
+            logger.info("Ranked %d candidates for %d normal slots (%d VS reserved)",
+                        len(candidates), available_slots, vs_reserved)
+
+        for c in candidates[:max(0, available_slots)]:
+            market = c["market"]
+            estimate = c["estimate"]
+            direction = c["direction"]
+            edge = c["edge"]
+            manip_check = c["manip_check"]
+            mkt_sources = c["mkt_sources"]
+            adjusted_size = c["adjusted_size"]
+
+            signals_generated = True
+
             # Execute
             token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             price = market.yes_price if direction == Direction.BUY_YES else market.no_price
             result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
 
-            # Track — always store YES price for consistent P&L calculation
+            # Track
             shares = adjusted_size / price if price > 0 else 0
             is_scouted = market.condition_id in scouted_markets
+            # Scouted hold-to-resolve guard:
+            # 1. AI certainty must be ≥40% (underdog protection)
+            # 2. Confidence must be B+ (medium_high) or higher
+            # 3. AI certainty must be >60% for our side
+            # B- or lower → don't hold to resolve, apply normal exit rules
+            ai_certainty = max(estimate.ai_probability, 1 - estimate.ai_probability)
+            if is_scouted and (ai_certainty < 0.40 or
+                               estimate.confidence not in ("high", "medium_high") or
+                               ai_certainty <= 0.60):
+                logger.info("Scout downgraded: %s (AI=%.0f%%, conf=%s — needs B+ and >60%% certainty for hold-to-resolve)",
+                            market.slug[:40], ai_certainty * 100, estimate.confidence)
+                is_scouted = False
+            # Get actual match start time from scout if available
+            _scout_entry = self.scout.match_market(market.question, market.slug)
+            _match_start = _scout_entry.get("match_time", "") if _scout_entry else ""
+            _num_games = _scout_entry.get("number_of_games", 0) if _scout_entry else 0
             self.portfolio.add_position(
                 market.condition_id, token_id, direction.value,
                 market.yes_price, adjusted_size, shares, market.slug,
@@ -768,9 +1369,18 @@ class Agent:
                 scouted=is_scouted,
                 question=market.question,
                 end_date_iso=market.end_date_iso,
+                match_start_iso=_match_start,
+                number_of_games=_num_games,
             )
+            # Set live_on_clob immediately if match is already in progress
+            pos = self.portfolio.positions.get(market.condition_id)
+            if pos:
+                pos.live_on_clob = self._estimate_match_live(
+                    market.slug, market.question, market.end_date_iso,
+                    match_start_iso=pos.match_start_iso)
+                self.portfolio._save_positions()
             # Note: bankroll deduction happens inside add_position()
-            # Mark scout entry as used
+            self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
             if is_scouted:
                 scout_entry = scouted_markets[market.condition_id]
                 self.scout.mark_entered(scout_entry["scout_key"])
@@ -788,8 +1398,8 @@ class Agent:
                 "market_yes_price": market.yes_price,
                 "end_date": market.end_date_iso,
                 "data_sources": mkt_sources,
+                "rank_score": c["score"],
             })
-            # Write human-readable reasoning log
             self._log_reasoning(
                 market.question, direction.value, adjusted_size, price,
                 edge, estimate, manip_check.risk_level,
@@ -800,14 +1410,603 @@ class Agent:
                 f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}`\n"
                 f"Edge: `{edge:.1%}`"
             )
-            # Bet counter — pause after N bets for approval
             self.bets_since_approval += 1
             self._check_bet_limit()
+
+        # 13. Slot upgrade: swap weak positions for better candidates
+        SPREAD_COST_PCT = 0.045  # 4.5% round-trip cost (realistic Polymarket spread + fees)
+        UPGRADE_THRESHOLD = 2.0  # New candidate must score 2x better than weakest position
+        min_edge_swap = self.config.edge.min_edge_swap  # 8.5% — must cover spread
+        leftover = candidates[max(0, available_slots):]
+        if leftover and self.portfolio.active_position_count >= self.config.risk.max_positions:
+            # Filter leftover: candidate edge must exceed spread cost for swaps
+            leftover = [c for c in leftover if c["edge"] >= min_edge_swap]
+
+            # Score existing positions
+            now = datetime.now(timezone.utc)
+            swappable = []
+            for cid, pos in self.portfolio.positions.items():
+                # Never swap hold-to-resolve positions (AI >60% + high only)
+                ai_certainty = max(pos.ai_probability, 1 - pos.ai_probability)
+                if ai_certainty > 0.60 and pos.confidence == "high":
+                    continue
+                # Never swap positions at a loss — selling would realize unnecessary loss
+                if pos.unrealized_pnl_pct < 0:
+                    continue
+                # Never swap positions with significant profit movement (let them play out)
+                if pos.unrealized_pnl_pct > 0.05:
+                    continue
+                # Never swap positions resolving within 2 hours
+                if pos.end_date_iso:
+                    try:
+                        end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
+                        if (end_dt - now).total_seconds() < 7200:
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+                # Calculate position score using same time-weighted formula
+                conf_score = _CONF_SCORE.get(pos.confidence, 1)
+                pos_edge = abs(pos.ai_probability - pos.entry_price)
+                pos_remaining_hours = 168.0
+                if pos.end_date_iso:
+                    try:
+                        end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
+                        delta_h = (end_dt - now).total_seconds() / 3600
+                        pos_remaining_hours = max(1.0, min(168.0, delta_h))
+                    except (ValueError, TypeError):
+                        pass
+                pos_time_bonus = 0.0
+                if pos_remaining_hours <= 2:
+                    pos_time_bonus = 0.50
+                elif pos_remaining_hours <= 6:
+                    pos_time_bonus = 0.25
+                elif pos_remaining_hours <= 12:
+                    pos_time_bonus = 0.10
+                pos_score = pos_edge * conf_score * (1 + pos_time_bonus)
+                swappable.append((pos_score, cid, pos, pos_remaining_hours))
+
+            if swappable:
+                swappable.sort(key=lambda x: x[0])  # Weakest first
+                for candidate in leftover[:]:
+                    if not swappable:
+                        break
+                    weakest_score, weakest_cid, weakest_pos, weakest_hours = swappable[0]
+                    # Time factor: penalize swapping near-resolution bets for distant ones
+                    cand_hours = candidate["remaining_hours"]
+                    time_ratio = weakest_hours / max(1.0, cand_hours)  # >1 if candidate resolves faster
+                    adjusted_score = candidate["score"] * min(time_ratio, 2.0)  # Cap time bonus at 2x
+                    # Only swap if candidate is significantly better (covers spread cost + time)
+                    if adjusted_score >= weakest_score * UPGRADE_THRESHOLD:
+                        # Exit the weak position (with spread cost simulation)
+                        spread_loss = weakest_pos.size_usdc * SPREAD_COST_PCT
+                        logger.info(
+                            "SLOT UPGRADE: exit %s (score=%.3f) for %s (score=%.3f) | spread cost=$%.2f",
+                            weakest_pos.slug[:30], weakest_score,
+                            candidate["market"].slug[:30], candidate["score"], spread_loss,
+                        )
+                        # Apply spread cost to bankroll in dry-run
+                        if not self.wallet:
+                            self.portfolio.update_bankroll(
+                                self.portfolio.bankroll - spread_loss
+                            )
+                        self._exit_position(weakest_cid, f"SLOT_UPGRADE: replaced by {candidate['market'].slug[:40]} (score {candidate['score']:.3f} vs {weakest_score:.3f})", cooldown_cycles=0)
+
+                        # Enter the better candidate
+                        market = candidate["market"]
+                        estimate = candidate["estimate"]
+                        direction = candidate["direction"]
+                        edge = candidate["edge"]
+                        adjusted_size = candidate["adjusted_size"]
+                        manip_check = candidate["manip_check"]
+                        mkt_sources = candidate["mkt_sources"]
+
+                        token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
+                        price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+                        result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
+
+                        shares = adjusted_size / price if price > 0 else 0
+                        is_scouted = market.condition_id in scouted_markets
+                        # Apply same scouted guard: B+ or higher + >60% certainty required
+                        if is_scouted:
+                            _cert = max(estimate.ai_probability, 1 - estimate.ai_probability)
+                            if (_cert < 0.40 or
+                                    estimate.confidence not in ("high", "medium_high") or
+                                    _cert <= 0.60):
+                                is_scouted = False
+                        self.portfolio.add_position(
+                            market.condition_id, token_id, direction.value,
+                            market.yes_price, adjusted_size, shares, market.slug,
+                            market.tags[0] if market.tags else "",
+                            confidence=estimate.confidence,
+                            ai_probability=estimate.ai_probability,
+                            scouted=is_scouted,
+                            question=market.question,
+                            end_date_iso=market.end_date_iso,
+                        )
+                        self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
+                        self.trade_log.log({
+                            "market": market.slug, "action": direction.value,
+                            "size": adjusted_size, "price": price,
+                            "edge": edge, "confidence": estimate.confidence,
+                            "mode": self.config.mode.value, "status": result["status"],
+                            "manip_risk": manip_check.risk_level,
+                            "question": market.question,
+                            "ai_probability": estimate.ai_probability,
+                            "slot_upgrade": True,
+                            "replaced": weakest_pos.slug,
+                            "spread_cost": round(spread_loss, 2),
+                            "rank_score": candidate["score"],
+                            "data_sources": mkt_sources,
+                        })
+                        self._log_reasoning(
+                            market.question, direction.value, adjusted_size, price,
+                            edge, estimate, manip_check.risk_level,
+                        )
+                        self.notifier.send(
+                            f"\U0001f504 *SLOT UPGRADE* — Cycle #{self.cycle_count}\n\n"
+                            f"OUT: {weakest_pos.slug[:40]}\n"
+                            f"IN: {market.question}\n"
+                            f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}`\n"
+                            f"Edge: `{edge:.1%}` | Spread cost: `${spread_loss:.2f}`"
+                        )
+                        signals_generated = True
+                        swappable.pop(0)
+                        leftover.remove(candidate)
+                        self.bets_since_approval += 1
+                        self._check_bet_limit()
+                    else:
+                        break  # Remaining candidates are weaker (sorted by score desc)
+
+        # 13b. Execute VS candidates (fill reserved VS slots)
+        current_vs_count = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        vs_slots_available = vs_reserved - current_vs_count
+        if vs_candidates and vs_slots_available > 0:
+            vs_candidates.sort(key=lambda c: c["score"], reverse=True)
+            for vc in vs_candidates[:vs_slots_available]:
+                if self._execute_vs_entry(vc):
+                    signals_generated = True
+
+        # Save ranked-out candidates to stock (for instant fill when slots open)
+        for c in leftover:
+            c["stocked_at"] = time.time()
+            c["stocked_price"] = c["market"].yes_price
+            self._candidate_stock.append(c)
+            self.trade_log.log({
+                "market": c["market"].slug, "action": c["direction"].value,
+                "edge": c["edge"], "rejected": f"STOCKED: score={c['score']:.3f}, waiting for slot",
+                "confidence": c["estimate"].confidence,
+                "mode": self.config.mode.value,
+                "question": c["market"].question,
+                "data_sources": c["mkt_sources"],
+            })
+            logger.info("Stocked: %s | score=%.3f (waiting for slot)", c["market"].slug[:40], c["score"])
+        # Cap stock size (keep best 5, drop weakest)
+        if len(self._candidate_stock) > 5:
+            self._candidate_stock.sort(key=lambda c: c["score"], reverse=True)
+            self._candidate_stock = self._candidate_stock[:5]
+
+        # Persist stock to disk for dashboard
+        self._save_stock_to_disk()
 
         self._log_cycle_summary(bankroll, "complete")
 
         # Check if enough data for self-improvement
         self._check_self_improve_ready()
+
+    def _fill_from_stock(self) -> None:
+        """Fill open slots from pre-analyzed candidate stock. No AI call needed."""
+        if not self._candidate_stock:
+            return
+
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        normal_max = self.config.risk.max_positions - vs_reserved
+        current_normal_count = self.portfolio.normal_position_count
+        available_slots = max(0, normal_max - current_normal_count)
+        if available_slots == 0:
+            return
+
+        now = time.time()
+        used = []
+        stale = []
+        expired = []
+        filled = 0
+
+        # Sort stock by score (best first)
+        self._candidate_stock.sort(key=lambda c: c["score"], reverse=True)
+
+        for c in self._candidate_stock[:]:
+            if filled >= available_slots:
+                break
+
+            market = c["market"]
+            age_min = (now - c["stocked_at"]) / 60
+
+            # Expired: >60 min old or market already in portfolio/exited
+            if age_min > 60:
+                expired.append(c)
+                self._candidate_stock.remove(c)
+                continue
+            if market.condition_id in self.portfolio.positions:
+                self._candidate_stock.remove(c)
+                continue
+            if market.condition_id in self._exited_markets:
+                self._candidate_stock.remove(c)
+                continue
+            if self._exit_cooldowns.get(market.condition_id, 0) > self.cycle_count:
+                self._candidate_stock.remove(c)
+                continue
+
+            # Freshness check: get current price from CLOB
+            current_price = self._get_current_price(market)
+            if current_price is not None:
+                price_move = abs(current_price - c["stocked_price"])
+                if price_move > 0.05:
+                    stale.append(c)
+                    self._candidate_stock.remove(c)
+                    logger.info("Stock STALE: %s | price moved %.1f%% (%.3f→%.3f)",
+                                market.slug[:40], price_move * 100,
+                                c["stocked_price"], current_price)
+                    continue
+                # Update market price for execution
+                market.yes_price = current_price
+                market.no_price = 1 - current_price
+
+            # Execute from stock
+            direction = c["direction"]
+            estimate = c["estimate"]
+            edge = c["edge"]
+            adjusted_size = c["adjusted_size"]
+            manip_check = c["manip_check"]
+            mkt_sources = c["mkt_sources"]
+
+            token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
+            price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+            result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
+
+            shares = adjusted_size / price if price > 0 else 0
+            self.portfolio.add_position(
+                market.condition_id, token_id, direction.value,
+                market.yes_price, adjusted_size, shares, market.slug,
+                market.tags[0] if market.tags else "",
+                confidence=estimate.confidence,
+                ai_probability=estimate.ai_probability,
+                question=market.question,
+                end_date_iso=market.end_date_iso,
+            )
+            self.trade_log.log({
+                "market": market.slug, "action": direction.value,
+                "size": adjusted_size, "price": price,
+                "edge": edge, "confidence": estimate.confidence,
+                "mode": self.config.mode.value, "status": result["status"],
+                "question": market.question,
+                "ai_probability": estimate.ai_probability,
+                "from_stock": True, "stock_age_min": round(age_min, 1),
+                "data_sources": mkt_sources,
+            })
+            self._log_reasoning(
+                market.question, direction.value, adjusted_size, price,
+                edge, estimate, manip_check.risk_level,
+            )
+            self.notifier.send(
+                f"\U0001f4e6 *FROM STOCK* — no AI cost\n\n"
+                f"{market.question}\n"
+                f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}`\n"
+                f"Edge: `{edge:.1%}` | Age: `{age_min:.0f}min`"
+            )
+            used.append(c)
+            self._candidate_stock.remove(c)
+            filled += 1
+            self.bets_since_approval += 1
+
+        # Update stats
+        self._stock_stats["used"] += len(used)
+        self._stock_stats["stale"] += len(stale)
+        self._stock_stats["expired"] += len(expired)
+
+        if used or stale or expired:
+            logger.info("Stock: %d filled, %d stale, %d expired, %d remaining | totals: %s",
+                        len(used), len(stale), len(expired),
+                        len(self._candidate_stock), self._stock_stats)
+
+    def _fill_from_fav_stock(self) -> None:
+        """Execute FAV stok candidates into their dedicated slots (no AI cost)."""
+        if not self._fav_stock:
+            return
+
+        fav_current = self.portfolio.count_by_entry_reason("fav_time_gate")
+        available = self._FAV_MAX_SLOTS - fav_current
+        if available <= 0:
+            return
+
+        now = time.time()
+        self._fav_stock.sort(key=lambda c: c["score"], reverse=True)
+        filled = 0
+
+        for c in self._fav_stock[:]:
+            if filled >= available:
+                break
+
+            market = c["market"]
+            age_min = (now - c["stocked_at"]) / 60
+
+            # Expire after 4 hours (FAV candidates are far-out, longer TTL than normal stock)
+            if age_min > 240:
+                self._fav_stock.remove(c)
+                continue
+            if market.condition_id in self.portfolio.positions:
+                self._fav_stock.remove(c)
+                continue
+            if market.condition_id in self._exited_markets:
+                self._fav_stock.remove(c)
+                continue
+
+            # Freshness: check current price hasn't moved too much
+            current_price = self._get_current_price(market)
+            if current_price is not None:
+                price_move = abs(current_price - c["stocked_price"])
+                if price_move > 0.08:  # 8% tolerance (wider than normal stock)
+                    logger.info("FAV stok STALE: %s | price moved %.1f%%", market.slug[:40], price_move * 100)
+                    self._fav_stock.remove(c)
+                    continue
+                market.yes_price = current_price
+                market.no_price = 1 - current_price
+
+            direction = c["direction"]
+            estimate = c["estimate"]
+            edge = c["edge"]
+            manip_check = c["manip_check"]
+            mkt_sources = c["mkt_sources"]
+
+            # Position sizing: normal sizing (not B- reduced)
+            adjusted_size = self.portfolio.bankroll * 0.05
+            adjusted_size = min(adjusted_size, self.portfolio.bankroll * 0.10)
+
+            token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
+            price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+            result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
+
+            shares = adjusted_size / price if price > 0 else 0
+            self.portfolio.add_position(
+                market.condition_id, token_id, direction.value,
+                market.yes_price, adjusted_size, shares, market.slug,
+                market.tags[0] if market.tags else "",
+                confidence=estimate.confidence,
+                ai_probability=estimate.ai_probability,
+                question=market.question,
+                end_date_iso=market.end_date_iso,
+                entry_reason="fav_time_gate",
+            )
+            self.trade_log.log({
+                "market": market.slug, "action": direction.value,
+                "size": adjusted_size, "price": price,
+                "edge": edge, "confidence": estimate.confidence,
+                "mode": self.config.mode.value, "status": result["status"],
+                "question": market.question,
+                "ai_probability": estimate.ai_probability,
+                "from_fav_stock": True, "stock_age_min": round(age_min, 1),
+                "data_sources": mkt_sources,
+            })
+            self.notifier.send(
+                f"\u2b50 *FAV EARLY ENTRY* \u2014 no AI cost\n\n"
+                f"{market.question}\n"
+                f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}`\n"
+                f"Edge: `{edge:.1%}` | Conf: `{estimate.confidence}` | Age: `{age_min:.0f}min`"
+            )
+            logger.info("FAV ENTRY: %s | %s | edge=%.0f%% | conf=%s",
+                        market.slug[:40], direction.value, edge * 100, estimate.confidence)
+
+            self._fav_stock.remove(c)
+            filled += 1
+
+        # Cap FAV stock size
+        if len(self._fav_stock) > 5:
+            self._fav_stock.sort(key=lambda c: c["score"], reverse=True)
+            self._fav_stock = self._fav_stock[:5]
+
+    def _save_stock_to_disk(self) -> None:
+        """Persist candidate stock to disk for dashboard visibility."""
+        try:
+            stock_data = []
+            for c in self._candidate_stock:
+                m = c.get("market")
+                estimate = c.get("estimate")
+                direction = c.get("direction", "")
+                stock_data.append({
+                    "slug": getattr(m, "slug", "") if m else "",
+                    "question": getattr(m, "question", "") if m else "",
+                    "score": c.get("score", 0),
+                    "edge": c.get("edge", 0),
+                    "confidence": getattr(estimate, "confidence", "") if estimate else "",
+                    "ai_probability": getattr(estimate, "ai_probability", 0) if estimate else 0,
+                    "direction": direction.value if hasattr(direction, "value") else str(direction),
+                    "stocked_at": c.get("stocked_at", 0),
+                    "stocked_price": c.get("stocked_price", 0),
+                })
+            Path("logs/candidate_stock.json").write_text(
+                json.dumps(stock_data), encoding="utf-8"
+            )
+        except Exception as e:
+            logger.debug("Failed to save stock: %s", e)
+
+    def _check_live_dips(self) -> None:
+        """Scan for live-dip entry opportunities (rule-based, no AI)."""
+        try:
+            markets = self.scanner.fetch()
+            if not markets:
+                return
+
+            candidates = find_live_dip_candidates(
+                markets=markets,
+                portfolio_positions=self.portfolio.positions,
+                exited_markets=self._exited_markets,
+                get_clob_midpoint=self._get_clob_midpoint,
+                max_concurrent=2,
+                min_drop_pct=0.10,
+            )
+
+            for c in candidates:
+                # Fixed bet size — no Kelly (no AI probability)
+                bet_size = min(25.0, self.portfolio.bankroll * 0.05)
+                if bet_size < 5:
+                    logger.info("Live dip skip: bankroll too low for %s", c.slug[:40])
+                    continue
+
+                # Find the matching market object for token IDs
+                market = None
+                for m in markets:
+                    if m.condition_id == c.condition_id:
+                        market = m
+                        break
+                if not market:
+                    continue
+
+                token_id = market.yes_token_id if c.direction == "BUY_YES" else market.no_token_id
+                price = c.current_price if c.direction == "BUY_YES" else (1 - c.current_price)
+
+                result = self.executor.place_order(token_id, "BUY", price, bet_size)
+                shares = bet_size / price if price > 0 else 0
+
+                # Look up pre-match AI prediction from trade log
+                prior_ai_prob = 0.0
+                prior_conf = "medium_low"
+                for prev in reversed(self.trade_log.read_recent(200)):
+                    if prev.get("market") == market.slug and prev.get("ai_prob", 0) > 0:
+                        prior_ai_prob = prev["ai_prob"]
+                        prior_conf = prev.get("confidence", "medium_low")
+                        if prior_conf == "medium":
+                            prior_conf = "medium_low"
+                        logger.info("Live dip: reusing pre-match AI pred for %s: %.0f%% (%s)",
+                                    market.slug[:35], prior_ai_prob * 100, prior_conf)
+                        break
+
+                self.portfolio.add_position(
+                    market.condition_id, token_id, c.direction,
+                    market.yes_price, bet_size, shares, market.slug,
+                    market.tags[0] if market.tags else "",
+                    confidence=prior_conf if prior_ai_prob > 0 else "live_dip",
+                    ai_probability=prior_ai_prob,
+                    question=market.question,
+                    end_date_iso=market.end_date_iso,
+                    entry_reason="live_dip",
+                )
+
+                self.trade_log.log({
+                    "market": market.slug, "action": c.direction,
+                    "size": bet_size, "price": price,
+                    "edge": 0, "confidence": "live_dip",
+                    "mode": self.config.mode.value, "status": result["status"],
+                    "question": market.question,
+                    "live_dip": True,
+                    "pre_match_price": c.pre_match_price,
+                    "drop_pct": c.drop_pct,
+                    "score_summary": c.score_summary,
+                })
+
+                self.notifier.send(
+                    f"\U0001f4c9 *LIVE DIP ENTRY* — no AI cost\n\n"
+                    f"{market.question}\n"
+                    f"`{c.direction}` | `${bet_size:.0f}` @ `{price:.3f}`\n"
+                    f"Drop: `{c.drop_pct:.0%}` from `{c.pre_match_price:.3f}`\n"
+                    f"Score: {c.score_summary}"
+                )
+
+                logger.info("LIVE DIP ENTRY: %s | %s | drop=%.0f%% | %s",
+                            market.slug[:40], c.direction, c.drop_pct * 100, c.score_summary)
+
+        except Exception as e:
+            logger.debug("Live dip check error: %s", e)
+
+    def _check_esports_early(self) -> None:
+        """Scan for esports early entry opportunities (PandaScore-based, no AI)."""
+        try:
+            markets = self.scanner.fetch()
+            if not markets:
+                return
+
+            # Filter to only non-live esports (we want pre-match entry)
+            non_live = [
+                m for m in markets
+                if not self._estimate_match_live(m.slug, m.question, m.end_date_iso)
+            ]
+
+            candidates = find_esports_early_candidates(
+                markets=non_live,
+                esports_client=self.esports,
+                portfolio_positions=self.portfolio.positions,
+                exited_markets=self._exited_markets,
+                exit_cooldowns=self._exit_cooldowns,
+                cycle_count=self.cycle_count,
+                max_concurrent=3,
+                min_edge=0.10,
+            )
+
+            for c in candidates:
+                # Fixed bet size — no Kelly (PandaScore-based, not AI)
+                bet_size = min(25.0, self.portfolio.bankroll * 0.05)
+                if bet_size < 5:
+                    logger.info("Esports early skip: bankroll too low for %s", c.slug[:40])
+                    continue
+
+                # Check esports_early own slot limit (3 max, separate from normal slots)
+                if self.portfolio.count_by_entry_reason("esports_early") >= 3:
+                    logger.info("Esports early skip: max esports_early slots (3) reached")
+                    break
+
+                price = c.token_price
+                result = self.executor.place_order(c.token_id, "BUY", price, bet_size)
+                shares = bet_size / price if price > 0 else 0
+                # entry_price must always be YES price for consistent PnL calculation
+                yes_price = price if c.direction == "BUY_YES" else (1 - price)
+
+                self.portfolio.add_position(
+                    c.condition_id, c.token_id, c.direction,
+                    yes_price, bet_size, shares, c.slug,
+                    "esports",
+                    confidence="medium",
+                    ai_probability=c.fair_value,
+                    question=c.question,
+                    end_date_iso=c.match_start_iso or "",
+                    match_start_iso=c.match_start_iso or "",
+                    number_of_games=c.number_of_games,
+                    entry_reason="esports_early",
+                )
+
+                self.trade_log.log({
+                    "market": c.slug, "action": c.direction,
+                    "size": bet_size, "price": price,
+                    "edge": c.edge, "confidence": "esports_early",
+                    "mode": self.config.mode.value, "status": result["status"],
+                    "question": c.question,
+                    "esports_early": True,
+                    "fair_value": c.fair_value,
+                    "market_price": c.market_price,
+                    "data_summary": c.data_summary,
+                    "is_reentry": c.is_reentry,
+                })
+
+                emoji = "\U0001f504" if c.is_reentry else "\U0001f3ae"
+                label = "RE-ENTRY" if c.is_reentry else "EARLY ENTRY"
+                self.notifier.send(
+                    f"{emoji} *ESPORTS {label}* — no AI cost\n\n"
+                    f"{c.question}\n"
+                    f"`{c.direction}` | `${bet_size:.0f}` @ `{price:.3f}`\n"
+                    f"Edge: `{c.edge:.0%}` | Fair: `{c.fair_value:.0%}` vs Market: `{c.market_price:.0%}`\n"
+                    f"{c.data_summary}"
+                )
+
+                logger.info("ESPORTS %s: %s | %s | edge=%.0f%% | fair=%.0f%% | %s",
+                            label, c.slug[:40], c.direction, c.edge * 100,
+                            c.fair_value * 100, c.data_summary)
+
+        except Exception as e:
+            logger.warning("Esports early check error: %s", e)
+
+    def _get_current_price(self, market) -> float | None:
+        """Get current CLOB price for freshness check. Returns None if unavailable."""
+        mid = self._get_clob_midpoint(market.yes_token_id)
+        if mid and mid > 0:
+            return mid
+        return None
 
     def _log_prediction(self, market, estimate) -> None:
         """Log every AI prediction (BUY and HOLD) for calibration tracking."""
@@ -925,14 +2124,184 @@ class Agent:
                 )
                 self._exit_position(cid, reason)
 
+    def _evaluate_vs_candidate(
+        self, market: "MarketData", estimate: "AIEstimate",
+        direction: "Direction", mkt_sources: list, block_reason: str,
+    ) -> dict | None:
+        """Evaluate a market as a volatility swing candidate without executing.
+
+        Returns a candidate dict with score if eligible, None otherwise.
+        Same checks as _try_volatility_swing but deferred execution.
+        """
+        vs_cfg = self.config.volatility_swing
+        if not vs_cfg.enabled:
+            return None
+
+        # Already have a position in this market?
+        if market.condition_id in self.portfolio.positions:
+            return None
+
+        # Cooldown check
+        if market.condition_id in self._exit_cooldowns:
+            if self.cycle_count < self._exit_cooldowns[market.condition_id]:
+                return None
+
+        # Token price must be in sweet spot
+        underdog_price = min(market.yes_price, market.no_price)
+        if underdog_price > vs_cfg.max_token_price or underdog_price < vs_cfg.min_token_price:
+            return None
+
+        # Match must start within max_hours_to_start
+        if not market.end_date_iso:
+            return None
+        try:
+            end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
+            hours_left = (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600
+            if hours_left > vs_cfg.max_hours_to_start or hours_left < 0:
+                return None
+        except (ValueError, TypeError):
+            return None
+
+        # Determine direction: buy the underdog token
+        if market.yes_price <= market.no_price:
+            vs_direction = Direction.BUY_YES
+            token_price = market.yes_price
+            token_id = market.yes_token_id
+        else:
+            vs_direction = Direction.BUY_NO
+            token_price = market.no_price
+            token_id = market.no_token_id
+
+        # Size check
+        bankroll = self.portfolio.bankroll
+        size = min(bankroll * vs_cfg.bet_pct, self.config.risk.max_single_bet_usdc)
+        if size < 5.0:
+            return None
+
+        # Score: edge * inverse of token price (cheaper = higher upside)
+        edge = abs(estimate.ai_probability - market.yes_price)
+        score = edge / max(token_price, 0.01)
+
+        return {
+            "market": market,
+            "estimate": estimate,
+            "vs_direction": vs_direction,
+            "token_price": token_price,
+            "token_id": token_id,
+            "size": size,
+            "score": score,
+            "block_reason": block_reason,
+            "mkt_sources": mkt_sources,
+        }
+
+    def _execute_vs_entry(self, vc: dict) -> bool:
+        """Execute a volatility swing entry from a candidate dict.
+
+        Returns True if position was opened.
+        """
+        market = vc["market"]
+        estimate = vc["estimate"]
+        vs_direction = vc["vs_direction"]
+        token_price = vc["token_price"]
+        token_id = vc["token_id"]
+        size = vc["size"]
+        block_reason = vc["block_reason"]
+        mkt_sources = vc["mkt_sources"]
+
+        # Double-check we still don't have a position (may have been added during normal execution)
+        if market.condition_id in self.portfolio.positions:
+            return False
+
+        # Re-check VS count (may have changed during normal execution)
+        vs_count = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        if vs_count >= self.config.volatility_swing.max_concurrent:
+            return False
+
+        result = self.executor.place_order(token_id, "BUY", token_price, size)
+        shares = size / token_price if token_price > 0 else 0
+
+        self.portfolio.add_position(
+            market.condition_id, token_id, vs_direction.value,
+            market.yes_price, size, shares, market.slug,
+            market.tags[0] if market.tags else "",
+            confidence=estimate.confidence,
+            ai_probability=estimate.ai_probability,
+            scouted=False,
+            question=market.question,
+            end_date_iso=market.end_date_iso,
+            volatility_swing=True,
+        )
+        self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
+
+        self.trade_log.log({
+            "market": market.slug, "action": f"VOLATILITY_SWING_{vs_direction.value}",
+            "size": size, "price": token_price,
+            "edge": abs(estimate.ai_probability - market.yes_price),
+            "confidence": estimate.confidence,
+            "mode": self.config.mode.value, "status": result["status"],
+            "block_reason": block_reason,
+            "question": market.question,
+            "ai_probability": estimate.ai_probability,
+            "data_sources": mkt_sources,
+            "vs_slot_reserved": True,
+        })
+        logger.info(
+            "VOLATILITY SWING (reserved slot): %s | %s @ %.0fc | $%.0f | blocked by: %s",
+            market.slug[:40], vs_direction.value, token_price * 100, size, block_reason,
+        )
+        self.notifier.send(
+            f"\U0001f30a *VOLATILITY SWING* -- Cycle #{self.cycle_count}\n\n"
+            f"{market.question}\n"
+            f"`{vs_direction.value}` | `${size:.0f}` @ `{token_price:.3f}`\n"
+            f"Target: `{token_price * 2:.3f}` (+100%) | Stop: `{token_price * 0.5:.3f}` (-50%)\n"
+            f"Reason: {block_reason}"
+        )
+        self.bets_since_approval += 1
+        return True
+
     def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 3) -> None:
         pos = self.portfolio.remove_position(condition_id)
         if not pos:
             return
         # Set cooldown — don't re-enter this market for N cycles (let dust settle)
         self._exit_cooldowns[condition_id] = self.cycle_count + cooldown_cycles
-        # Persist to disk so we never re-enter after restart
-        self._save_exited_market(condition_id)
+
+        # Spike exit: save AI data for re-entry, DON'T permanently block
+        if reason == "spike_exit":
+            self._spike_reentry[condition_id] = {
+                "ai_probability": pos.ai_probability,
+                "confidence": pos.confidence,
+                "direction": pos.direction,
+                "slug": pos.slug,
+                "token_id": pos.token_id,
+                "exit_price": pos.current_price,
+                "entry_price": pos.entry_price,
+                "exit_cycle": self.cycle_count,
+                "question": getattr(pos, "question", ""),
+                "end_date_iso": getattr(pos, "end_date_iso", ""),
+            }
+            logger.info("Spike exit — saved for re-entry: %s (AI=%.0f%%, conf=%s)",
+                        pos.slug[:40], pos.ai_probability * 100, pos.confidence)
+        elif reason in ("take_profit", "trailing_stop") and getattr(pos, "scouted", False):
+            # Scouted position exited via TP/trailing — save for re-entry if price drops back
+            self._scouted_reentry[condition_id] = {
+                "ai_probability": pos.ai_probability,
+                "confidence": pos.confidence,
+                "direction": pos.direction,
+                "slug": pos.slug,
+                "token_id": pos.token_id,
+                "exit_price": pos.current_price,
+                "entry_price": pos.entry_price,
+                "exit_cycle": self.cycle_count,
+                "question": getattr(pos, "question", ""),
+                "end_date_iso": getattr(pos, "end_date_iso", ""),
+                "match_start_iso": getattr(pos, "match_start_iso", ""),
+            }
+            logger.info("Scouted exit (%s) — saved for re-entry: %s (AI=%.0f%%, conf=%s)",
+                        reason, pos.slug[:40], pos.ai_probability * 100, pos.confidence)
+        else:
+            # Persist to disk so we never re-enter after restart
+            self._save_exited_market(condition_id)
         result = self.executor.place_exit_order(pos.token_id, pos.shares)
         realized_pnl = pos.unrealized_pnl_usdc
         self.portfolio.record_realized(realized_pnl)
@@ -945,6 +2314,9 @@ class Agent:
             "reason": reason, "pnl": realized_pnl,
             "mode": self.config.mode.value, "status": result.get("status", ""),
         })
+        # Remove from "already analyzed" list so AI can re-evaluate if needed
+        self._analyzed_market_ids.pop(condition_id, None)
+
         pnl_sign = "+" if realized_pnl >= 0 else ""
         self.notifier.send(
             f"\U0001f6aa *EXIT* — Cycle #{self.cycle_count}\n\n"
@@ -952,6 +2324,247 @@ class Agent:
             f"Reason: {reason}\n"
             f"PnL: `{pnl_sign}${realized_pnl:.2f}`"
         )
+
+    def _check_spike_reentry(self) -> None:
+        """Re-enter spike-exited positions if price dropped back and edge still exists.
+
+        No AI call — uses saved analysis from original entry.
+        Logic: if current_price < exit_price and edge (ai_prob vs price) is still good, re-enter.
+        """
+        if not self._spike_reentry:
+            return
+
+        expired = []
+        for cid, data in list(self._spike_reentry.items()):
+            # Expire after 10 cycles (don't chase forever)
+            if self.cycle_count - data["exit_cycle"] > 10:
+                expired.append(cid)
+                continue
+
+            # Skip if already back in portfolio or slots full
+            if cid in self.portfolio.positions:
+                expired.append(cid)
+                continue
+
+            vs_reserved = self.config.volatility_swing.reserved_slots
+            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+            current_normal = self.portfolio.active_position_count - current_vs
+            if current_normal >= self.config.risk.max_positions - vs_reserved:
+                continue  # No slots, try next cycle
+
+            # Fetch current price
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"conditionId": cid}, timeout=10,
+                )
+                if resp.status_code != 200:
+                    continue
+                mkt_data = resp.json()
+                if not mkt_data:
+                    expired.append(cid)
+                    continue
+                mkt = mkt_data[0] if isinstance(mkt_data, list) else mkt_data
+                prices = json.loads(mkt.get("outcomePrices", '["0.5","0.5"]'))
+                current_price = float(prices[0])
+            except (requests.RequestException, ValueError, IndexError, json.JSONDecodeError):
+                continue
+
+            # Direction-aware price
+            ai_prob = data["ai_probability"]
+            direction = data["direction"]
+            if direction == "BUY_NO":
+                current_price = 1.0 - current_price
+
+            # Check: price must have dropped below exit price
+            if current_price >= data["exit_price"]:
+                continue  # Still high, wait
+
+            # Check: edge must still exist (ai_prob vs current_price > min_edge)
+            edge = abs(ai_prob - current_price)
+            min_edge = self.config.edge.min_edge
+            if edge < min_edge:
+                logger.debug("Spike re-entry skip (low edge): %s | edge=%.1f%% < %.1f%%",
+                             data["slug"][:40], edge * 100, min_edge * 100)
+                continue
+
+            # Re-enter!
+            token_id = data["token_id"]
+            size = kelly_position_size(
+                ai_prob if direction == "BUY_YES" else 1 - ai_prob,
+                current_price, self.portfolio.bankroll,
+                kelly_fraction=self.config.risk.kelly_fraction,
+                max_bet_usdc=self.config.risk.max_single_bet_usdc,
+                max_bet_pct=self.config.risk.max_bet_pct,
+                direction=direction,
+            )
+
+            if size < 5.0:
+                continue  # Polymarket minimum $5
+
+            result = self.executor.place_order(token_id, "BUY", current_price, size)
+            shares = size / current_price if current_price > 0 else 0
+            # entry_price must always be YES price for consistent PnL calculation
+            yes_price_entry = current_price if direction == "BUY_YES" else (1 - current_price)
+
+            self.portfolio.add_position(
+                cid, token_id, direction,
+                yes_price_entry, size, shares, data["slug"],
+                "", confidence=data["confidence"],
+                ai_probability=ai_prob,
+                question=data.get("question", ""),
+                end_date_iso=data.get("end_date_iso", ""),
+            )
+
+            self.trade_log.log({
+                "market": data["slug"], "action": f"SPIKE_REENTRY_{direction}",
+                "size": size, "price": current_price, "edge": edge,
+                "confidence": data["confidence"],
+                "mode": self.config.mode.value, "status": result.get("status", ""),
+                "ai_probability": ai_prob,
+            })
+
+            logger.info("SPIKE RE-ENTRY: %s | %s @ %.0fc | edge=%.1f%% | no AI call",
+                        data["slug"][:40], direction, current_price * 100, edge * 100)
+            self.notifier.send(
+                f"\U0001f504 *SPIKE RE-ENTRY* — Cycle #{self.cycle_count}\n\n"
+                f"{data['slug']}\n"
+                f"Exit: `{data['exit_price']:.3f}` → Re-entry: `{current_price:.3f}`\n"
+                f"Edge: `{edge:.1%}` | Conf: `{data['confidence']}`\n"
+                f"_No AI call — using saved analysis_"
+            )
+            expired.append(cid)
+            self.bets_since_approval += 1
+
+        for cid in expired:
+            self._spike_reentry.pop(cid, None)
+
+    def _check_scouted_reentry(self) -> None:
+        """Re-enter scouted positions that exited via TP/trailing if price dropped back.
+
+        Similar to spike re-entry but for scouted positions.
+        Re-enters with scouted=True so it continues hold-to-resolve behavior.
+        Requires price to drop at least 15% from exit price before re-entering.
+        """
+        if not self._scouted_reentry:
+            return
+
+        expired = []
+        for cid, data in list(self._scouted_reentry.items()):
+            # Expire after 15 cycles (scouted matches have longer horizon)
+            if self.cycle_count - data["exit_cycle"] > 15:
+                expired.append(cid)
+                continue
+
+            # Skip if already back in portfolio or slots full
+            if cid in self.portfolio.positions:
+                expired.append(cid)
+                continue
+
+            # Check if match already ended
+            if data.get("end_date_iso"):
+                try:
+                    end_dt = datetime.fromisoformat(data["end_date_iso"].replace("Z", "+00:00"))
+                    if datetime.now(timezone.utc) > end_dt:
+                        expired.append(cid)
+                        continue
+                except Exception:
+                    pass
+
+            vs_reserved = self.config.volatility_swing.reserved_slots
+            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+            current_normal = self.portfolio.active_position_count - current_vs
+            if current_normal >= self.config.risk.max_positions - vs_reserved:
+                continue  # No slots, try next cycle
+
+            # Fetch current price
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"conditionId": cid}, timeout=10,
+                )
+                if resp.status_code != 200:
+                    continue
+                mkt_data = resp.json()
+                if not mkt_data:
+                    expired.append(cid)
+                    continue
+                mkt = mkt_data[0] if isinstance(mkt_data, list) else mkt_data
+                prices = json.loads(mkt.get("outcomePrices", '["0.5","0.5"]'))
+                current_price = float(prices[0])
+            except (requests.RequestException, ValueError, IndexError, json.JSONDecodeError):
+                continue
+
+            # Direction-aware price
+            ai_prob = data["ai_probability"]
+            direction = data["direction"]
+            if direction == "BUY_NO":
+                current_price = 1.0 - current_price
+
+            # Must drop at least 15% from exit price (not just any dip)
+            exit_price = data["exit_price"]
+            drop_pct = (exit_price - current_price) / exit_price if exit_price > 0 else 0
+            if drop_pct < 0.15:
+                continue  # Not enough drop yet
+
+            # Edge must still exist
+            edge = abs(ai_prob - current_price)
+            min_edge = self.config.edge.min_edge
+            if edge < min_edge:
+                logger.debug("Scouted re-entry skip (low edge): %s | edge=%.1f%% < %.1f%%",
+                             data["slug"][:40], edge * 100, min_edge * 100)
+                continue
+
+            # Re-enter as scouted position
+            token_id = data["token_id"]
+            size = kelly_position_size(
+                ai_prob if direction == "BUY_YES" else 1 - ai_prob,
+                current_price, self.portfolio.bankroll,
+                kelly_fraction=self.config.risk.kelly_fraction,
+                max_bet_usdc=self.config.risk.max_single_bet_usdc,
+                max_bet_pct=self.config.risk.max_bet_pct,
+                direction=direction,
+            )
+
+            if size < 5.0:
+                continue
+
+            result = self.executor.place_order(token_id, "BUY", current_price, size)
+            shares = size / current_price if current_price > 0 else 0
+            yes_price_entry = current_price if direction == "BUY_YES" else (1 - current_price)
+
+            self.portfolio.add_position(
+                cid, token_id, direction,
+                yes_price_entry, size, shares, data["slug"],
+                "", confidence=data["confidence"],
+                ai_probability=ai_prob,
+                question=data.get("question", ""),
+                end_date_iso=data.get("end_date_iso", ""),
+                scouted=True,  # Re-enter as scouted — hold to resolve
+            )
+
+            self.trade_log.log({
+                "market": data["slug"], "action": f"SCOUTED_REENTRY_{direction}",
+                "size": size, "price": current_price, "edge": edge,
+                "confidence": data["confidence"],
+                "mode": self.config.mode.value, "status": result.get("status", ""),
+                "ai_probability": ai_prob,
+            })
+
+            logger.info("SCOUTED RE-ENTRY: %s | %s @ %.0fc | edge=%.1f%% | drop=%.0f%%",
+                        data["slug"][:40], direction, current_price * 100, edge * 100, drop_pct * 100)
+            self.notifier.send(
+                f"\U0001f504 *SCOUTED RE-ENTRY* — Cycle #{self.cycle_count}\n\n"
+                f"{data['slug']}\n"
+                f"Exit: `{exit_price:.3f}` → Re-entry: `{current_price:.3f}` (drop: {drop_pct:.0%})\n"
+                f"Edge: `{edge:.1%}` | Conf: `{data['confidence']}`\n"
+                f"_No AI call — using saved analysis, hold to resolve_"
+            )
+            expired.append(cid)
+            self.bets_since_approval += 1
+
+        for cid in expired:
+            self._scouted_reentry.pop(cid, None)
 
     def _log_reasoning(
         self, question: str, direction: str, size: float, price: float,
@@ -977,60 +2590,281 @@ class Agent:
             f.write(entry)
         logger.info("Reasoning logged for: %s", question[:60])
 
-    def _update_position_prices(self) -> None:
-        """Fetch current YES prices for all open positions from Gamma API."""
-        if not self.portfolio.positions:
+    def _get_clob_midpoint(self, token_id: str) -> float | None:
+        """Fetch midpoint price from CLOB API for a token. Returns None on failure."""
+        try:
+            resp = requests.get(
+                "https://clob.polymarket.com/midpoint",
+                params={"token_id": token_id}, timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            mid = float(data.get("mid", 0))
+            return mid if mid > 0 else None
+        except Exception as e:
+            logger.debug("CLOB midpoint failed for %s: %s", token_id[:16], e)
+            return None
+
+    @staticmethod
+    def _match_duration(slug: str, question: str) -> float:
+        """Estimated match duration in hours based on sport/format.
+
+        Data sources: HLTV (CS2), VLR.gg (Val), Oracle's Elixir (LoL), Datdota (Dota2).
+        """
+        text = (slug + " " + question).lower()
+
+        # Esports — average durations
+        # CS2: BO1~35m, BO3~1.5h, BO5~2.5h | Val: BO3~1.7h, BO5~2.75h
+        # LoL: BO3~1.3h, BO5~2.25h | Dota2: BO3~2h, BO5~3.25h
+        if "bo5" in text or "best of 5" in text:
+            if "dota" in text:
+                return 3.25
+            return 2.75
+        if "bo1" in text:
+            return 0.75
+        if "bo3" in text or "best of 3" in text:
+            if "dota" in text:
+                return 2.0
+            if any(k in text for k in ("lol:", "league")):
+                return 1.5
+            return 1.75  # CS2/Valorant BO3
+        if any(k in text for k in ("cs2", "cs:", "csgo", "counter-strike", "valorant")):
+            return 1.75
+        if any(k in text for k in ("lol:", "league")):
+            return 1.5
+        if "dota" in text:
+            return 2.0
+        # Traditional sports — wall clock averages
+        if any(k in text for k in ("nba", "cbb", "ncaa basket")):
+            return 2.25
+        if any(k in text for k in ("nfl", "football")):
+            return 3.25
+        if any(k in text for k in ("nhl", "hockey")):
+            return 2.33
+        if any(k in text for k in ("epl", "ucl", "uel", "soccer", "fc ", "united")):
+            return 2.0
+        if any(k in text for k in ("mlb", "baseball")):
+            return 2.75
+        return 2.0
+
+    @staticmethod
+    def _estimate_match_live(slug: str, question: str, end_date_iso: str,
+                             match_start_iso: str = "") -> bool:
+        """Estimate if a match is currently in progress.
+
+        Prefers match_start_iso (actual start time from ESPN/PandaScore).
+        Falls back to end_date - match_duration estimate.
+        """
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
+        # Best source: actual match start time
+        if match_start_iso:
+            try:
+                start_dt = datetime.fromisoformat(
+                    match_start_iso.replace("Z", "+00:00")
+                    .replace(" ", "T")  # PandaScore format: "2026-03-22 12:00:00+00"
+                )
+                return now >= start_dt
+            except (ValueError, TypeError):
+                pass
+
+        # Fallback: estimate from endDate
+        if not end_date_iso:
+            return False
+        try:
+            end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
+            hours_to_end = (end_dt - now).total_seconds() / 3600
+        except (ValueError, TypeError):
+            return False
+        if hours_to_end <= 0:
+            return True  # Past end → finished or live
+        duration_h = Agent._match_duration(slug, question)
+        return hours_to_end <= duration_h
+
+    def _backfill_match_start(self, pos, cid: str) -> None:
+        """Backfill match_start_iso from PandaScore or ESPN if missing."""
+        if pos.match_start_iso:
             return
+        # Try PandaScore (esports)
+        if self.esports.available:
+            game_slug = self.esports.detect_game(pos.question, [])
+            if game_slug:
+                ta, tb = self.esports._extract_team_names(pos.question)
+                if ta and tb:
+                    minfo = self.esports.get_upcoming_match_info(game_slug, ta, tb)
+                    if minfo and minfo.get("begin_at"):
+                        candidate_start = minfo["begin_at"]
+                        use_it = True
+                        if pos.end_date_iso:
+                            try:
+                                from datetime import datetime, timezone
+                                end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
+                                start_dt = datetime.fromisoformat(candidate_start.replace("Z", "+00:00"))
+                                if (end_dt - start_dt).total_seconds() > 86400:
+                                    logger.warning("Backfill rejected: %s start=%s too far from end=%s",
+                                                   pos.slug[:30], candidate_start[:16], pos.end_date_iso[:16])
+                                    use_it = False
+                            except Exception:
+                                pass
+                        if use_it:
+                            pos.match_start_iso = candidate_start
+                            if not pos.number_of_games:
+                                pos.number_of_games = minfo.get("number_of_games", 0)
+                            self.portfolio._save_positions()
+                            logger.info("Backfilled match_start_iso for %s: %s (PandaScore)",
+                                        pos.slug[:35], pos.match_start_iso)
+        # Try ESPN (traditional sports)
+        if not pos.match_start_iso and hasattr(self, 'sports'):
+            _tag = getattr(pos, 'category', '') or ''
+            espn_info = self.sports.get_upcoming_match_info(
+                pos.question, pos.slug, [_tag] if _tag else [])
+            if espn_info and espn_info.get("match_start_iso"):
+                pos.match_start_iso = espn_info["match_start_iso"]
+                self.portfolio._save_positions()
+                logger.info("Backfilled match_start_iso for %s: %s (ESPN)",
+                            pos.slug[:35], pos.match_start_iso)
+
+    def _update_position_prices(self) -> bool:
+        """Fetch current YES prices for all open positions via slug query.
+
+        Uses slug-based Gamma query which returns correct prices AND event data
+        (startTime, live, score, period). conditionId queries return stale/wrong data.
+        Returns True if any live positions found.
+        """
+        if not self.portfolio.positions:
+            return False
         stale_cids = []
+        has_live_clob = False
         for cid, pos in list(self.portfolio.positions.items()):
             try:
+                # Query by slug — conditionId queries return wrong market data
+                if not pos.slug:
+                    logger.debug("No slug for position %s, skipping price update", cid[:16])
+                    continue
                 resp = requests.get(
                     "https://gamma-api.polymarket.com/markets",
-                    params={"conditionId": cid}, timeout=10,
+                    params={"slug": pos.slug}, timeout=10,
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                if data:
-                    market_data = data[0]
-                    prices = json.loads(market_data.get("outcomePrices", '["0.5","0.5"]'))
-                    new_yes_price = float(prices[0])
-                    is_closed = market_data.get("closed", False)
-
-                    if is_closed:
-                        # Market resolved — determine outcome
-                        # Gamma returns ["1","0"] (YES won) or ["0","1"] (NO won)
-                        no_price = float(prices[1]) if len(prices) > 1 else 1 - new_yes_price
-
-                        if new_yes_price >= 0.95:
-                            yes_won = True  # YES clearly won
-                        elif no_price >= 0.95:
-                            yes_won = False  # NO clearly won
-                        else:
-                            # Gamma returned ambiguous prices (e.g. ["0","0"])
-                            # Market closed but not fully resolved yet — wait
-                            logger.info(
-                                "Closed but not resolved yet: %s (prices=[%.2f, %.2f]) — waiting",
-                                pos.slug, new_yes_price, no_price,
-                            )
-                            continue
-
-                        won = (pos.direction == "BUY_YES" and yes_won) or \
-                              (pos.direction == "BUY_NO" and not yes_won)
-
-                        # Update current_price to resolution value BEFORE exit
-                        # so unrealized_pnl_usdc calculates correctly
-                        resolution_price = 1.0 if yes_won else 0.0
-                        self.portfolio.update_price(cid, resolution_price)
-
-                        pnl = pos.shares - pos.size_usdc if won else -pos.size_usdc
-                        logger.info("RESOLVED: %s | %s | %s | PnL=$%.2f",
-                                    pos.slug, pos.direction, "WIN" if won else "LOSS", pnl)
-                        self._exit_position(cid, f"resolved_{'win' if won else 'loss'}")
-                    else:
-                        self.portfolio.update_price(cid, new_yes_price)
-                else:
+                if not data:
                     logger.warning("Market not found on Gamma: %s (%s..)", pos.slug, cid[:16])
                     stale_cids.append(cid)
+                    continue
+
+                market_data = data[0] if isinstance(data, list) else data
+                prices = json.loads(market_data.get("outcomePrices", '["0.5","0.5"]'))
+                new_yes_price = float(prices[0])
+                no_price = float(prices[1]) if len(prices) > 1 else 1 - new_yes_price
+                is_closed = market_data.get("closed", False)
+
+                # Extract event data (startTime, live, score, period)
+                events = market_data.get("events", [])
+                if events:
+                    ev = events[0]
+                    ev_start = ev.get("startTime")
+                    ev_live = ev.get("live")
+                    ev_ended = ev.get("ended")
+                    ev_score = ev.get("score") or ""
+                    ev_period = ev.get("period") or ""
+
+                    # Populate match_start_iso from event.startTime
+                    if ev_start and not pos.match_start_iso:
+                        pos.match_start_iso = ev_start
+                        logger.info("Match start from Gamma event: %s → %s",
+                                    pos.slug[:35], ev_start)
+
+                    # Update live/ended status directly from Gamma
+                    if ev_live is not None:
+                        pos.match_live = bool(ev_live)
+                        pos.live_on_clob = bool(ev_live)
+                        if ev_live:
+                            has_live_clob = True
+                    if ev_ended is not None:
+                        pos.match_ended = bool(ev_ended)
+                    if ev_score:
+                        pos.match_score = ev_score
+                    if ev_period:
+                        pos.match_period = ev_period
+
+                if is_closed:
+                    # Market resolved — determine outcome
+                    if new_yes_price >= 0.95:
+                        yes_won = True
+                    elif no_price >= 0.95:
+                        yes_won = False
+                    elif new_yes_price <= 0.05 and no_price <= 0.05:
+                        # Ambiguous [0,0] — check if event says ended
+                        if events and events[0].get("ended"):
+                            # Event ended but prices ambiguous — check CLOB as tiebreaker
+                            clob_price = self._get_clob_midpoint(pos.token_id)
+                            if clob_price is not None and clob_price > 0.01:
+                                # CLOB still active despite event "ended"
+                                if pos.direction == "BUY_NO":
+                                    self.portfolio.update_price(cid, 1.0 - clob_price)
+                                else:
+                                    self.portfolio.update_price(cid, clob_price)
+                                has_live_clob = True
+                                continue
+                        # Truly ambiguous — awaiting oracle
+                        if not pos.pending_resolution:
+                            self.portfolio.mark_pending_resolution(cid)
+                        logger.info("Closed and awaiting resolution: %s (prices=[%.2f, %.2f])",
+                                    pos.slug, new_yes_price, no_price)
+                        continue
+                    else:
+                        # Prices not at extremes but market closed
+                        # Check if match likely ended (start time + estimated duration passed)
+                        match_likely_ended = False
+                        if pos.match_start_iso:
+                            try:
+                                start_dt = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
+                                elapsed = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
+                                bo = pos.number_of_games or 0
+                                est_duration = 180 if bo >= 5 else 120 if bo >= 3 else 90
+                                if elapsed > est_duration:
+                                    match_likely_ended = True
+                            except (ValueError, TypeError):
+                                pass
+
+                        if match_likely_ended:
+                            # Match likely over — mark pending, awaiting oracle
+                            self.portfolio.update_price(cid, new_yes_price)
+                            if not pos.pending_resolution:
+                                self.portfolio.mark_pending_resolution(cid)
+                                logger.info("Match likely ended (elapsed > est duration): %s — marking pending",
+                                            pos.slug[:40])
+                        else:
+                            # Match not started or in progress — treat as active
+                            self.portfolio.update_price(cid, new_yes_price)
+                        continue
+
+                    won = (pos.direction == "BUY_YES" and yes_won) or \
+                          (pos.direction == "BUY_NO" and not yes_won)
+                    resolution_price = 1.0 if yes_won else 0.0
+                    self.portfolio.update_price(cid, resolution_price)
+                    pnl = pos.shares - pos.size_usdc if won else -pos.size_usdc
+                    logger.info("RESOLVED: %s | %s | %s | PnL=$%.2f",
+                                pos.slug, pos.direction, "WIN" if won else "LOSS", pnl)
+                    self._exit_position(cid, f"resolved_{'win' if won else 'loss'}")
+                else:
+                    # Market still open — update price
+                    self.portfolio.update_price(cid, new_yes_price)
+                    # Fallback live detection if event data missing
+                    if not events or events[0].get("live") is None:
+                        pos.live_on_clob = self._estimate_match_live(
+                            pos.slug, pos.question, pos.end_date_iso,
+                            match_start_iso=pos.match_start_iso)
+                        if pos.live_on_clob:
+                            has_live_clob = True
+                    # Mark as pending resolution when price near extremes
+                    if not pos.pending_resolution and (new_yes_price >= 0.95 or new_yes_price <= 0.05):
+                        self.portfolio.mark_pending_resolution(cid)
+                    # Pending positions are no longer live
+                    if pos.pending_resolution:
+                        pos.live_on_clob = False
+                        pos.match_live = False
             except Exception as e:
                 logger.debug("Price update failed for %s: %s", pos.slug[:30], e)
 
@@ -1044,6 +2878,23 @@ class Agent:
                     "reason": "stale: market not found on Gamma API",
                     "mode": self.config.mode.value,
                 })
+        # Persist updated prices + live status to disk
+        self.portfolio.save_prices_to_disk()
+        return has_live_clob
+
+    def _check_price_drift_reanalysis(self) -> None:
+        """Invalidate AI cache for positions whose price drifted significantly from entry."""
+        threshold = self.config.risk.price_drift_reanalysis_pct
+        for cid, pos in self.portfolio.positions.items():
+            if pos.current_price <= 0.001:
+                continue
+            drift = abs(pos.current_price - pos.entry_price) / max(pos.entry_price, 0.01)
+            if drift >= threshold:
+                self.ai.invalidate_cache(cid)
+                logger.info(
+                    "Price drift detected: %s | entry=%.0f¢ now=%.0f¢ drift=%.1f%%",
+                    pos.slug, pos.entry_price * 100, pos.current_price * 100, drift * 100,
+                )
 
     def _check_resolved_markets(self) -> None:
         """Check if any past predictions have resolved. Log outcome for calibration."""
@@ -1086,13 +2937,21 @@ class Agent:
                     continue
 
                 market = data[0]
-                if not market.get("closed", False):
+                # Must be truly resolved (not just closed for trading)
+                # Gamma sets resolved=true only when outcome is final
+                if not market.get("resolved", False):
                     unresolved.append(line)
                     continue
 
                 # Market resolved — log calibration result
                 outcome_prices = json.loads(market.get("outcomePrices", '["0.5","0.5"]'))
-                resolved_yes = float(outcome_prices[0]) > 0.95  # YES won
+                yes_price = float(outcome_prices[0])
+                # Resolved markets have prices at exactly 1.0 or 0.0 (or very close)
+                if 0.02 < yes_price < 0.98:
+                    # Not truly resolved — prices still mid-range
+                    unresolved.append(line)
+                    continue
+                resolved_yes = yes_price > 0.50  # YES won
                 ai_prob = pred.get("ai_probability", 0.5)
                 ai_was_right = (ai_prob > 0.5 and resolved_yes) or (ai_prob <= 0.5 and not resolved_yes)
                 error = abs(ai_prob - (1.0 if resolved_yes else 0.0))
@@ -1253,21 +3112,32 @@ class Agent:
             return
         if not lines:
             return
-        wins = sum(1 for l in lines if l.get("outcome") == 1)
-        losses = sum(1 for l in lines if l.get("outcome") == 0)
+        # Calibration uses ai_correct (bool) and ai_probability fields
+        wins = sum(1 for l in lines if l.get("ai_correct", False))
+        losses = sum(1 for l in lines if not l.get("ai_correct", False))
         total = wins + losses
         if total == 0:
             return
-        brier = sum((l.get("probability", 0) - l.get("outcome", 0)) ** 2 for l in lines) / len(lines)
+        # Brier score: (predicted_prob - actual_outcome)^2
+        brier_pairs = []
+        for l in lines:
+            prob = l.get("ai_probability", 0.5)
+            outcome = 1 if l.get("resolved_yes", False) else 0
+            brier_pairs.append((prob - outcome) ** 2)
+        brier = sum(brier_pairs) / len(brier_pairs) if brier_pairs else 0.5
         # Best category by win rate
         cat_wins: dict[str, int] = {}
         cat_total: dict[str, int] = {}
         for l in lines:
-            market = l.get("market", "")
-            cat_match = re.match(r"^(nba|nhl|cbb|nfl|mlb|cs2|lol|dota2|valorant)", market, re.IGNORECASE)
-            cat = cat_match.group(1).upper() if cat_match else "Other"
+            q = l.get("question", "")
+            slug = l.get("condition_id", "")
+            # Try category field first, then detect from question text
+            cat = l.get("category", "")
+            if not cat:
+                cat_match = re.search(r"\b(NBA|NHL|CBB|NFL|MLB|CS2|CS:GO|LoL|EPL|UCL|UEL|Dota|Valorant)\b", q, re.IGNORECASE)
+                cat = cat_match.group(1).upper() if cat_match else "Other"
             cat_total[cat] = cat_total.get(cat, 0) + 1
-            if l.get("outcome") == 1:
+            if l.get("ai_correct", False):
                 cat_wins[cat] = cat_wins.get(cat, 0) + 1
         best_cat = max(cat_total, key=lambda c: (cat_wins.get(c, 0) / cat_total[c], cat_total[c])) if cat_total else None
         self.perf_log.log({
@@ -1321,9 +3191,63 @@ class Agent:
         except (OSError, AttributeError):
             pass  # SIGTERM not available on Windows
 
+        # Track when last full cycle ran (for interleaving light cycles)
+        last_full_cycle_time = 0.0
+
         while self.running:
+            # Determine if we should run a light cycle or full cycle
+            # Light cycle = price update + exit checks only (no AI, no scan)
+            has_positions = len(self.portfolio.positions) > 0
+            vs_near_match = False
+            if has_positions:
+                vs_positions = [p for p in self.portfolio.positions.values() if p.volatility_swing]
+                if vs_positions:
+                    now = datetime.now(timezone.utc)
+                    for vp in vs_positions:
+                        if vp.end_date_iso:
+                            try:
+                                end_dt = datetime.fromisoformat(vp.end_date_iso.replace("Z", "+00:00"))
+                                hours_left = (end_dt - now).total_seconds() / 3600
+                                if hours_left <= 4.0:
+                                    vs_near_match = True
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+
+            # Full cycle at normal interval, light cycles in between when positions are open
+            time_since_full = time.time() - last_full_cycle_time
+            # Use dynamic interval from cycle_timer (respects live positions, VS, scout signals)
+            dynamic_interval = self.cycle_timer.get_interval()
+            full_interval_sec = dynamic_interval * 60
+            run_full = not has_positions or time_since_full >= full_interval_sec
+
             try:
-                self.run_cycle()
+                if run_full:
+                    self.run_cycle()
+                    last_full_cycle_time = time.time()
+
+                    # Auto-refill: keep running cycles until pool is full
+                    # Safety: stop if no new positions were added (no viable markets left)
+                    vs_reserved = self.config.volatility_swing.reserved_slots
+                    _refill_round = 0
+                    while True:
+                        current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+                        current_normal = self.portfolio.active_position_count - current_vs
+                        open_slots = self.config.risk.max_positions - vs_reserved - current_normal
+                        if open_slots <= 0:
+                            break
+                        _refill_round += 1
+                        positions_before = len(self.portfolio.positions)
+                        logger.info("Pool not full (%d open slots) — refill cycle %d",
+                                    open_slots, _refill_round)
+                        self.run_cycle()
+                        last_full_cycle_time = time.time()
+                        positions_after = len(self.portfolio.positions)
+                        if positions_after <= positions_before:
+                            logger.info("Refill cycle added 0 positions — no more viable markets, stopping")
+                            break
+                else:
+                    self.run_light_cycle()
                 self.consecutive_api_failures = 0
             except Exception as e:
                 self.consecutive_api_failures += 1
@@ -1336,16 +3260,25 @@ class Agent:
             # Tick first, then get interval (otherwise override lasts 1 extra cycle)
             self.cycle_timer.tick()
 
-            # Night mode — only if no active breaking news override
-            current_hour = datetime.now(timezone.utc).hour
+            # Market-aware cycle — adjust based on activity, not clock
             if not (self.cycle_timer._override and self.cycle_timer._override_cycles > 0):
-                self.cycle_timer.signal_night_mode(current_hour)
+                active_count = getattr(self, '_last_candidate_count', 0)
+                self.cycle_timer.signal_market_aware(active_count, len(self.portfolio.positions))
 
             # Near stop-loss check
             for pos in self.portfolio.positions.values():
                 if pos.unrealized_pnl_pct < -(self.config.risk.stop_loss_pct * 0.83):
                     self.cycle_timer.signal_near_stop_loss()
                     break
+
+            # Live positions on CLOB — speed up polling to 5 min
+            if self.last_cycle_has_live_clob:
+                self.cycle_timer.signal_live_positions()
+
+            # Volatility swing near match — speed up to 3 min with light cycles
+            if vs_near_match:
+                self.cycle_timer.signal_volatility_swing(
+                    polling_min=self.config.volatility_swing.polling_interval_min)
 
             # Scout approaching check — speed up polling when scouted match within 3 hours
             upcoming = self.scout.get_upcoming_match_times()
@@ -1361,12 +3294,20 @@ class Agent:
             interval = self.cycle_timer.get_interval()
             logger.info("Next cycle in %d min", interval)
             self._set_status("waiting", f"Next cycle in {interval}min")
+            light_interval_sec = 60  # Light cycle every 60s when positions open
             for tick in range(interval * 60):
                 if not self.running:
                     break
                 # Poll Telegram commands every 5 seconds
                 if tick % 5 == 0:
                     self.notifier.handle_commands(self)
+                # Light cycle: price + exit checks every 60s (free, no API cost)
+                if self.portfolio.positions and tick > 0 and tick % light_interval_sec == 0:
+                    try:
+                        self.run_light_cycle()
+                        self._set_status("waiting", f"Next cycle in {interval}min")
+                    except Exception as e:
+                        logger.debug("Light cycle error: %s", e)
                 time.sleep(1)
 
         self._set_status("offline", "Bot stopped")
