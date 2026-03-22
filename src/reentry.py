@@ -224,6 +224,24 @@ def qualifies_for_score_reversal_reentry(
     return True, f"Score reversal: map_diff={map_diff}, elapsed={elapsed_pct:.0%}"
 
 
+def passes_confidence_momentum(
+    saved_ai_prob: float,
+    current_ai_prob: float,
+    direction: str,
+    threshold: float = 1.05,
+) -> tuple[bool, str]:
+    """Check if AI confidence is rising (for re-entry qualification).
+    Compares saved effective prob at exit with current effective prob."""
+    saved_eff = saved_ai_prob if direction == "BUY_YES" else (1 - saved_ai_prob)
+    current_eff = current_ai_prob if direction == "BUY_YES" else (1 - current_ai_prob)
+    if saved_eff < 0.10:
+        return True, "Saved effective prob too low"
+    ratio = current_eff / saved_eff
+    if ratio >= threshold:
+        return True, f"Confidence rising: {saved_eff:.0%} → {current_eff:.0%}"
+    return False, f"Confidence not rising: ratio {ratio:.2f} < {threshold}"
+
+
 class Blacklist:
     def __init__(self, path: str = "logs/blacklist.json"):
         self._path = Path(path)

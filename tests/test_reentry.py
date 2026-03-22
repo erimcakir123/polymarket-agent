@@ -231,3 +231,34 @@ class TestScoreReversal:
             entry, {"available": True, "map_diff": 3}, elapsed_pct=0.50, current_cycle=50,
         )
         assert ok is False
+
+
+class TestConfidenceMomentum:
+    def test_rising_confidence_passes(self):
+        from src.reentry import passes_confidence_momentum
+        ok, _ = passes_confidence_momentum(0.60, 0.65, "BUY_YES")
+        assert ok is True  # 0.65/0.60 = 1.083 >= 1.05
+
+    def test_flat_confidence_fails(self):
+        from src.reentry import passes_confidence_momentum
+        ok, _ = passes_confidence_momentum(0.60, 0.61, "BUY_YES")
+        assert ok is False  # 0.61/0.60 = 1.017 < 1.05
+
+    def test_buy_no_direction_conversion(self):
+        """BUY_NO: saved_ai=0.30 (eff=0.70), current_ai=0.25 (eff=0.75).
+        Ratio = 0.75/0.70 = 1.071 >= 1.05 → passes."""
+        from src.reentry import passes_confidence_momentum
+        ok, _ = passes_confidence_momentum(0.30, 0.25, "BUY_NO")
+        assert ok is True
+
+    def test_buy_no_wrong_direction_fails(self):
+        """BUY_NO: saved_ai=0.30 (eff=0.70), current_ai=0.35 (eff=0.65).
+        Ratio = 0.65/0.70 = 0.929 < 1.05 → fails."""
+        from src.reentry import passes_confidence_momentum
+        ok, _ = passes_confidence_momentum(0.30, 0.35, "BUY_NO")
+        assert ok is False
+
+    def test_low_saved_passes_trivially(self):
+        from src.reentry import passes_confidence_momentum
+        ok, _ = passes_confidence_momentum(0.05, 0.04, "BUY_YES")
+        assert ok is True  # saved_eff < 0.10 → auto-pass
