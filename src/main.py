@@ -2325,6 +2325,25 @@ class Agent:
             f"PnL: `{pnl_sign}${realized_pnl:.2f}`"
         )
 
+        # Collect price history for future calibration
+        try:
+            from src.price_history import save_price_history
+            save_price_history(
+                slug=pos.slug,
+                token_id=pos.token_id,
+                entry_price=pos.entry_price,
+                exit_price=pos.current_price,
+                exit_reason=reason,
+                exit_layer=reason.replace("match_exit_", "") if reason.startswith("match_exit_") else "",
+                match_start_iso=getattr(pos, "match_start_iso", ""),
+                number_of_games=getattr(pos, "number_of_games", 0),
+                ever_in_profit=getattr(pos, "ever_in_profit", False),
+                peak_pnl_pct=getattr(pos, "peak_pnl_pct", 0.0),
+                match_score=getattr(pos, "match_score", ""),
+            )
+        except Exception as e:
+            logger.debug("Price history collection skipped: %s", e)
+
     def _check_spike_reentry(self) -> None:
         """Re-enter spike-exited positions if price dropped back and edge still exists.
 
