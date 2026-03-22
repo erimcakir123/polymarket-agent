@@ -62,3 +62,52 @@ def parse_match_score(
         "is_already_lost": opp_maps >= wins_needed,
         "is_already_won": our_maps >= wins_needed,
     }
+
+
+# Game-specific duration estimates (minutes)
+# Key: (game_prefix, number_of_games) → duration in minutes
+_DURATION_TABLE: dict[tuple[str, int], int] = {
+    ("cs2", 1): 40,   ("cs2", 3): 130,  ("cs2", 5): 200,
+    ("val", 1): 50,    ("val", 3): 140,  ("val", 5): 220,
+    ("lol", 1): 35,    ("lol", 3): 100,  ("lol", 5): 160,
+    ("dota2", 1): 45,  ("dota2", 3): 130, ("dota2", 5): 210,
+}
+
+# Sport detection from slug prefix
+_SPORT_DURATION: dict[str, int] = {
+    "epl": 95, "laliga": 95, "ucl": 95, "seriea": 95, "bundesliga": 95, "ligue1": 95,
+    "nba": 150,
+    "cbb": 120,
+    "mlb": 180,
+    "nhl": 150,
+}
+
+# Generic esports fallback (when game is unknown but BO format exists)
+_GENERIC_ESPORTS: dict[int, int] = {1: 40, 3: 120, 5: 180}
+
+
+def get_game_duration(slug: str, number_of_games: int) -> int:
+    """Return estimated match duration in minutes.
+
+    Uses game-specific lookup from slug prefix + BO format.
+    Falls back to sport-specific, then generic esports, then 90 min default.
+    """
+    slug_lower = slug.lower()
+
+    # Try game-specific esports lookup
+    for prefix in ("cs2", "val", "lol", "dota2"):
+        if slug_lower.startswith(f"{prefix}-"):
+            bo = number_of_games if number_of_games > 0 else 3
+            return _DURATION_TABLE.get((prefix, bo), _DURATION_TABLE.get((prefix, 3), 120))
+
+    # Try sport-specific lookup
+    for prefix, duration in _SPORT_DURATION.items():
+        if slug_lower.startswith(f"{prefix}-"):
+            return duration
+
+    # If BO format is specified, assume generic esports
+    if number_of_games in (1, 3, 5):
+        return _GENERIC_ESPORTS[number_of_games]
+
+    # Absolute fallback
+    return 90
