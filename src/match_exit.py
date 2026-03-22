@@ -279,8 +279,8 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
     if not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
-        # Score ahead -> STAY regardless
-        if score_info.get("available") and score_info.get("map_diff", 0) > 0:
+        score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
+        if score_ahead:
             pass  # Stay — winning despite no profit
         elif current_price >= entry_price * 0.90:
             pass  # Stay — close to entry, right side
@@ -288,13 +288,6 @@ def check_match_exit(data: dict) -> dict:
             return {**result, "exit": True, "layer": "never_in_profit",
                     "reason": f"Never profited + 70%+ done + price {current_price:.3f} < entry*75% ({entry_price*0.75:.3f})"}
         # Between 0.75 and 0.90: Layer 2 handles via graduated SL
-
-        # Force exit at 80%+ if price < entry*0.75 and score not ahead
-        if elapsed_pct >= 0.80 and current_price < entry_price * 0.75:
-            score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
-            if not score_ahead:
-                return {**result, "exit": True, "layer": "never_in_profit",
-                        "reason": f"Force exit at 80%+ — never profited, price {current_price:.3f}"}
 
     # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
     is_hold_candidate = scouted or (

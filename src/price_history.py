@@ -56,7 +56,8 @@ def save_price_history(
 
         PRICE_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
         safe_slug = slug.replace("/", "_")[:80]
-        path = PRICE_HISTORY_DIR / f"{safe_slug}.json"
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        path = PRICE_HISTORY_DIR / f"{safe_slug}_{ts}.json"
         path.write_text(json.dumps(record, indent=2), encoding="utf-8")
         logger.info("Saved price history: %s (%d points)", slug[:30], len(history))
 
