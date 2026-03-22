@@ -43,9 +43,27 @@ class Position(BaseModel):
     confidence: str = "medium"
     ai_probability: float = 0.5
     scouted: bool = False  # True = pre-game scouted entry, hold to resolve (no take-profit)
+    volatility_swing: bool = False  # True = bought cheap underdog for in-game spike, tight TP/SL
     question: str = ""  # Market question (human-readable title)
     end_date_iso: str = ""  # Market resolution deadline (ISO format)
+    match_start_iso: str = ""  # Actual match start time from scout (ISO format)
+    number_of_games: int = 0   # BO format from PandaScore (3=BO3, 5=BO5, 0=unknown)
     peak_pnl_pct: float = 0.0  # Highest unrealized PnL % seen (for trailing stop)
+    live_on_clob: bool = False  # True when market is actively trading on CLOB
+    match_live: bool = False  # True when match is live (from Gamma event.live)
+    match_ended: bool = False  # True when match ended (from Gamma event.ended)
+    match_score: str = ""  # Live score (from Gamma event.score, e.g. "2-1|Bo3")
+    match_period: str = ""  # Current period (from Gamma event.period, e.g. "2/3")
+    entry_reason: str = ""  # How this position was entered (e.g. "ai", "stock", "live_dip")
+    pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
+
+    # Match-aware exit system fields
+    ever_in_profit: bool = False           # True once peak_pnl_pct > 0.01 (never resets)
+    consecutive_down_cycles: int = 0       # Consecutive cycles where price dropped
+    cumulative_drop: float = 0.0           # Total price drop during current down streak
+    previous_cycle_price: float = 0.0      # Price at last cycle (for momentum tracking)
+    hold_revoked_at: datetime | None = None  # When hold-to-resolve was revoked
+    hold_was_original: bool = False          # Was this originally a hold-to-resolve position
 
     @computed_field
     @property

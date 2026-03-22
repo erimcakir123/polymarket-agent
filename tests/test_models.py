@@ -51,3 +51,18 @@ def test_trade_record():
         mode="dry_run", status="executed",
     )
     assert t.mode == "dry_run"
+
+
+def test_position_match_exit_fields():
+    """New fields for match-aware exit system."""
+    from src.models import Position
+    pos = Position(
+        condition_id="0xtest", token_id="tok", direction="BUY_YES",
+        entry_price=0.55, size_usdc=20.0, shares=36.36, current_price=0.55,
+    )
+    assert pos.ever_in_profit is False
+    assert pos.consecutive_down_cycles == 0
+    assert pos.cumulative_drop == 0.0
+    assert pos.previous_cycle_price == 0.0
+    assert pos.hold_revoked_at is None
+    assert pos.hold_was_original is False
