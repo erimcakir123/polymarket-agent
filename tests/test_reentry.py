@@ -1,6 +1,7 @@
 # tests/test_reentry.py
 import pytest
-from datetime import datetime, timezone
+import tempfile
+import os
 
 
 class TestCanReenter:
@@ -104,3 +105,55 @@ class TestReentryDynamicParams:
         mult = get_reentry_size_multiplier(0.20, "BUY_NO", {"available": False}, 0.40)
         # effective_ai = 0.80 → +0.25 bonus
         assert mult >= 0.70
+
+
+class TestBlacklist:
+    @pytest.fixture
+    def bl(self, tmp_path):
+        from src.reentry import Blacklist
+        path = str(tmp_path / "blacklist.json")
+        return Blacklist(path=path)
+
+    def test_permanent_always_blocked(self, bl):
+        bl.add("cond-1", "catastrophic_floor", "permanent", expires_at_cycle=None)
+        assert bl.is_blocked("cond-1", current_cycle=0) is True
+        assert bl.is_blocked("cond-1", current_cycle=999999) is True
+
+    def test_timed_blocked_before_expiry(self, bl):
+        bl.add("cond-2", "stop_loss", "timed", expires_at_cycle=100)
+        assert bl.is_blocked("cond-2", current_cycle=50) is True
+        assert bl.is_blocked("cond-2", current_cycle=99) is True
+
+    def test_timed_unblocked_after_expiry(self, bl):
+        bl.add("cond-2", "stop_loss", "timed", expires_at_cycle=100)
+        assert bl.is_blocked("cond-2", current_cycle=100) is False
+        assert bl.is_blocked("cond-2", current_cycle=200) is False
+
+    def test_reentry_blocked_before_expiry(self, bl):
+        bl.add("cond-3", "take_profit", "reentry", expires_at_cycle=50)
+        assert bl.is_blocked("cond-3", current_cycle=30) is True
+
+    def test_reentry_unblocked_after_expiry(self, bl):
+        bl.add("cond-3", "take_profit", "reentry", expires_at_cycle=50)
+        assert bl.is_blocked("cond-3", current_cycle=50) is False
+        assert bl.is_blocked("cond-3", current_cycle=51) is False
+
+    def test_cleanup_removes_expired_keeps_permanent(self, bl):
+        bl.add("perm-1", "catastrophic_floor", "permanent", expires_at_cycle=None)
+        bl.add("timed-1", "stop_loss", "timed", expires_at_cycle=10)
+        bl.add("timed-2", "graduated_sl", "timed", expires_at_cycle=20)
+        bl.cleanup(current_cycle=15)
+        # timed-1 expired (10 < 15), timed-2 still active, perm-1 permanent
+        assert bl.get_entry("perm-1") is not None
+        assert bl.get_entry("timed-1") is None
+        assert bl.get_entry("timed-2") is not None
+
+    def test_get_entry_returns_correct_or_none(self, bl):
+        bl.add("cond-5", "take_profit", "reentry", expires_at_cycle=50,
+               exit_data={"price": 0.60})
+        entry = bl.get_entry("cond-5")
+        assert entry is not None
+        assert entry.condition_id == "cond-5"
+        assert entry.exit_reason == "take_profit"
+        assert entry.exit_data == {"price": 0.60}
+        assert bl.get_entry("nonexistent") is None
