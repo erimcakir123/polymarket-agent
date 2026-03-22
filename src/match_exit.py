@@ -198,11 +198,16 @@ def check_match_exit(data: dict) -> dict:
             momentum_tighten: bool — should graduated SL be tightened next cycle?
     """
     result = {"exit": False, "layer": "", "reason": "",
-              "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+              "revoke_hold": False, "restore_hold": False, "momentum_tighten": False,
+              "elapsed_pct": -1.0}
 
     entry_price = data["entry_price"]
     current_price = data["current_price"]
     direction = data.get("direction", "BUY_YES")
+
+    # Direction-aware effective prices: for BUY_NO, effective = 1 - YES price
+    effective_entry = entry_price if direction == "BUY_YES" else (1 - entry_price)
+    effective_current = current_price if direction == "BUY_YES" else (1 - current_price)
     number_of_games = data.get("number_of_games", 0)
     slug = data.get("slug", "")
     match_score = data.get("match_score", "")
@@ -228,19 +233,18 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 0a: Score terminal checks ---
     if score_info.get("is_already_lost"):
-        return {"exit": True, "layer": "score_terminal",
-                "reason": f"Match already lost (score: {match_score})",
-                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+        return {**result, "exit": True, "layer": "score_terminal_loss",
+                "reason": f"Match already lost (score: {match_score})"}
     if score_info.get("is_already_won"):
-        return {"exit": False, "layer": "score_terminal",
-                "reason": f"Match already won — hold to resolve (score: {match_score})",
-                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+        return {**result, "exit": False, "layer": "score_terminal_win",
+                "reason": f"Match already won — hold to resolve (score: {match_score})"}
 
     # --- Step 1: Catastrophic Floor (Layer 1) ---
-    if entry_price >= 0.25 and current_price < entry_price * 0.50:
-        return {"exit": True, "layer": "catastrophic_floor",
-                "reason": f"Price {current_price:.3f} < entry*50% ({entry_price*0.50:.3f})",
-                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+    is_reentry = data.get("entry_reason", "").startswith("re_entry") or data.get("entry_reason") == "scale_in"
+    cat_floor_mult = 0.75 if is_reentry else 0.50
+    if effective_entry >= 0.25 and effective_current < effective_entry * cat_floor_mult:
+        return {**result, "exit": True, "layer": "catastrophic_floor",
+                "reason": f"Price eff:{effective_current:.3f} < eff_entry*{cat_floor_mult:.0%} ({effective_entry*cat_floor_mult:.3f})"}
 
     # --- Step 2: Calculate elapsed_pct ---
     elapsed_pct = -1.0
@@ -260,12 +264,12 @@ def check_match_exit(data: dict) -> dict:
 
     # Ultra-low entry (<9¢) guard: normally exempt from stop loss, but
     # if match is >90% done and price <5¢, exit (position is dead)
-    if entry_price < 0.09 and elapsed_pct >= 0.90 and current_price < 0.05:
+    if effective_entry < 0.09 and elapsed_pct >= 0.90 and effective_current < 0.05:
         return {**result, "exit": True, "layer": "ultra_low_guard",
-                "reason": f"Ultra-low {entry_price:.0f}¢ at {elapsed_pct:.0%} done, price {current_price:.0f}¢ < 5¢"}
+                "reason": f"Ultra-low eff:{effective_entry:.0f}¢ at {elapsed_pct:.0%} done, eff_price {effective_current:.0f}¢ < 5¢"}
 
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
-    max_loss = get_graduated_max_loss(elapsed_pct, entry_price, score_info)
+    max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
 
     # Momentum tightening: if 3+ consecutive down cycles with 5c+ drop, tighten one tier
     if consecutive_down >= 3 and cumulative_drop >= 0.05:
@@ -282,11 +286,11 @@ def check_match_exit(data: dict) -> dict:
         score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
         if score_ahead:
             pass  # Stay — winning despite no profit
-        elif current_price >= entry_price * 0.90:
+        elif effective_current >= effective_entry * 0.90:
             pass  # Stay — close to entry, right side
-        elif current_price < entry_price * 0.75:
+        elif effective_current < effective_entry * 0.75:
             return {**result, "exit": True, "layer": "never_in_profit",
-                    "reason": f"Never profited + 70%+ done + price {current_price:.3f} < entry*75% ({entry_price*0.75:.3f})"}
+                    "reason": f"Never profited + 70%+ done + eff_price {effective_current:.3f} < eff_entry*75% ({effective_entry*0.75:.3f})"}
         # Between 0.75 and 0.90: Layer 2 handles via graduated SL
 
     # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
@@ -299,19 +303,19 @@ def check_match_exit(data: dict) -> dict:
         # Momentum guard: dips shorter than 3 cycles or smaller than 5c are temporary -> keep hold
         dip_is_temporary = (consecutive_down < 3 or cumulative_drop < 0.05)
 
-        if ever_in_profit and current_price < entry_price * 0.70 and elapsed_pct > 0.60:
+        if ever_in_profit and effective_current < effective_entry * 0.70 and elapsed_pct > 0.60:
             score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
             if not score_ahead and not dip_is_temporary:
                 result["revoke_hold"] = True
-                result["reason"] = f"Hold revoked: saw profit but now at {current_price:.3f} < entry*70%"
+                result["reason"] = f"Hold revoked: eff_price {effective_current:.3f} < eff_entry*70%"
 
-        if not ever_in_profit and current_price < entry_price * 0.75 and elapsed_pct > 0.70:
+        if not ever_in_profit and effective_current < effective_entry * 0.75 and elapsed_pct > 0.70:
             score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
             if not score_ahead and not dip_is_temporary:
                 result["revoke_hold"] = True
                 result["exit"] = True
                 result["layer"] = "hold_revoked"
-                result["reason"] = f"Hold revoked + exit: never profited, {current_price:.3f} < entry*75% at {elapsed_pct:.0%}"
+                result["reason"] = f"Hold revoked + exit: eff_price {effective_current:.3f} < eff_entry*75% at {elapsed_pct:.0%}"
 
     # Check restore (if previously revoked)
     if hold_was_original and not scouted and hold_revoked_at:
@@ -319,12 +323,13 @@ def check_match_exit(data: dict) -> dict:
             revoked_dt = hold_revoked_at if isinstance(hold_revoked_at, datetime) else \
                 datetime.fromisoformat(str(hold_revoked_at).replace("Z", "+00:00"))
             minutes_since = (datetime.now(timezone.utc) - revoked_dt).total_seconds() / 60
-            if minutes_since >= 10 and current_price > entry_price * 0.85:
+            if minutes_since >= 10 and effective_current > effective_entry * 0.85:
                 score_behind = score_info.get("available") and score_info.get("map_diff", 0) < 0
                 if not score_behind:
                     result["restore_hold"] = True
-                    result["reason"] = f"Hold restored: price recovered to {current_price:.3f} > entry*85%"
+                    result["reason"] = f"Hold restored: eff_price recovered to {effective_current:.3f} > eff_entry*85%"
         except (ValueError, TypeError):
             pass
 
+    result["elapsed_pct"] = elapsed_pct
     return result

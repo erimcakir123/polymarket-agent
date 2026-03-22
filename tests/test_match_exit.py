@@ -258,7 +258,7 @@ class TestLayer1CatastrophicFloor:
         )
         result = check_match_exit(data)
         assert result["exit"] is True
-        assert result["layer"] == "score_terminal"
+        assert result["layer"] == "score_terminal_loss"
 
 
 class TestLayer3NeverInProfit:
@@ -478,7 +478,7 @@ class TestSuccessCriteria:
         )
         result = check_match_exit(data)
         assert result["exit"] is True
-        assert result["layer"] == "score_terminal"
+        assert result["layer"] == "score_terminal_loss"
 
     def test_bo3_score_10_no_exit(self):
         """BO3 score 1-0, never in profit, price dipped → STAY (score ahead)."""
@@ -514,3 +514,50 @@ class TestSuccessCriteria:
         # -30% base × 0.70 mult (>70¢ entry) = -21%. PnL is -22.7% > -21% → EXIT
         assert result["exit"] is True
         assert result["layer"] == "graduated_sl"
+
+
+class TestBuyNoDirection:
+    """BUY_NO positions must use effective prices (1 - YES price)."""
+
+    def _make_data(self, **overrides):
+        base = {
+            "entry_price": 0.65,
+            "current_price": 0.65,
+            "direction": "BUY_NO",
+            "number_of_games": 3,
+            "slug": "cs2-test-match",
+            "match_score": "",
+            "match_start_iso": (datetime.now(timezone.utc) - timedelta(minutes=60)).isoformat(),
+            "ever_in_profit": False,
+            "peak_pnl_pct": 0.0,
+            "scouted": False,
+            "confidence": "medium",
+            "ai_probability": 0.5,
+            "consecutive_down_cycles": 0,
+            "cumulative_drop": 0.0,
+            "hold_revoked_at": None,
+            "hold_was_original": False,
+            "volatility_swing": False,
+            "unrealized_pnl_pct": 0.0,
+            "entry_reason": "",
+            "cycles_held": 0,
+        }
+        base.update(overrides)
+        return base
+
+    def test_catastrophic_floor_buy_no_triggers_on_adverse_move(self):
+        """BUY_NO at YES=0.35 (eff=0.65). YES rises to 0.85 (eff=0.15).
+        Eff 0.15 < eff_entry 0.65 * 0.50 = 0.325 -> should EXIT."""
+        from src.match_exit import check_match_exit
+        data = self._make_data(entry_price=0.35, current_price=0.85)
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "catastrophic_floor"
+
+    def test_catastrophic_floor_buy_no_no_false_trigger(self):
+        """BUY_NO at YES=0.65 (eff=0.35). YES drops to 0.50 (eff=0.50).
+        Eff 0.50 > eff_entry 0.35 * 0.50 = 0.175 -> should NOT exit (we're profiting)."""
+        from src.match_exit import check_match_exit
+        data = self._make_data(entry_price=0.65, current_price=0.50)
+        result = check_match_exit(data)
+        assert result["exit"] is False or result["layer"] != "catastrophic_floor"
