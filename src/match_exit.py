@@ -5,6 +5,7 @@ Spec: docs/superpowers/specs/2026-03-22-match-aware-exit-system-design.md
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -179,3 +180,152 @@ def get_graduated_max_loss(
 
     # Clamp to [0.05, 0.70]
     return max(0.05, min(0.70, result))
+
+
+def check_match_exit(data: dict) -> dict:
+    """Run 4-layer match-aware exit check on a position.
+
+    Args:
+        data: Dict with position fields (see _make_pos_data in tests for schema)
+
+    Returns:
+        dict with keys:
+            exit: bool — should this position be exited?
+            layer: str — which layer triggered (if exit=True)
+            reason: str — human-readable reason
+            revoke_hold: bool — should hold-to-resolve be revoked?
+            restore_hold: bool — should hold-to-resolve be restored?
+            momentum_tighten: bool — should graduated SL be tightened next cycle?
+    """
+    result = {"exit": False, "layer": "", "reason": "",
+              "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+
+    entry_price = data["entry_price"]
+    current_price = data["current_price"]
+    direction = data.get("direction", "BUY_YES")
+    number_of_games = data.get("number_of_games", 0)
+    slug = data.get("slug", "")
+    match_score = data.get("match_score", "")
+    match_start_iso = data.get("match_start_iso", "")
+    ever_in_profit = data.get("ever_in_profit", False)
+    peak_pnl_pct = data.get("peak_pnl_pct", 0.0)
+    scouted = data.get("scouted", False)
+    confidence = data.get("confidence", "medium")
+    ai_probability = data.get("ai_probability", 0.5)
+    consecutive_down = data.get("consecutive_down_cycles", 0)
+    cumulative_drop = data.get("cumulative_drop", 0.0)
+    hold_revoked_at = data.get("hold_revoked_at")
+    hold_was_original = data.get("hold_was_original", False)
+    volatility_swing = data.get("volatility_swing", False)
+    pnl_pct = data.get("unrealized_pnl_pct", 0.0)
+
+    # VS positions use their own exit system
+    if volatility_swing:
+        return result
+
+    # --- Step 0: Parse score ---
+    score_info = parse_match_score(match_score, number_of_games, direction)
+
+    # --- Step 0a: Score terminal checks ---
+    if score_info.get("is_already_lost"):
+        return {"exit": True, "layer": "score_terminal",
+                "reason": f"Match already lost (score: {match_score})",
+                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+    if score_info.get("is_already_won"):
+        return {"exit": False, "layer": "score_terminal",
+                "reason": f"Match already won — hold to resolve (score: {match_score})",
+                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+
+    # --- Step 1: Catastrophic Floor (Layer 1) ---
+    if entry_price >= 0.25 and current_price < entry_price * 0.50:
+        return {"exit": True, "layer": "catastrophic_floor",
+                "reason": f"Price {current_price:.3f} < entry*50% ({entry_price*0.50:.3f})",
+                "revoke_hold": False, "restore_hold": False, "momentum_tighten": False}
+
+    # --- Step 2: Calculate elapsed_pct ---
+    elapsed_pct = -1.0
+    if match_start_iso:
+        try:
+            start_dt = datetime.fromisoformat(match_start_iso.replace("Z", "+00:00"))
+            elapsed_min = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
+            duration = get_game_duration(slug, number_of_games)
+            elapsed_pct = elapsed_min / duration if duration > 0 else 0
+        except (ValueError, TypeError):
+            pass
+
+    if elapsed_pct < 0:
+        # No match timing -> can't do graduated/never-in-profit checks
+        # Return no exit, let existing flat stop loss handle
+        return result
+
+    # --- Step 3: Graduated Stop Loss (Layer 2) ---
+    max_loss = get_graduated_max_loss(elapsed_pct, entry_price, score_info)
+
+    # Momentum tightening: if 3+ consecutive down cycles with 5c+ drop, tighten one tier
+    if consecutive_down >= 3 and cumulative_drop >= 0.05:
+        result["momentum_tighten"] = True
+        # Tighten by reducing tolerance by 25%
+        max_loss = max(0.05, max_loss * 0.75)
+
+    if pnl_pct < -max_loss:
+        return {**result, "exit": True, "layer": "graduated_sl",
+                "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
+
+    # --- Step 4: Never-in-Profit Guard (Layer 3) ---
+    if not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
+        # Score ahead -> STAY regardless
+        if score_info.get("available") and score_info.get("map_diff", 0) > 0:
+            pass  # Stay — winning despite no profit
+        elif current_price >= entry_price * 0.90:
+            pass  # Stay — close to entry, right side
+        elif current_price < entry_price * 0.75:
+            return {**result, "exit": True, "layer": "never_in_profit",
+                    "reason": f"Never profited + 70%+ done + price {current_price:.3f} < entry*75% ({entry_price*0.75:.3f})"}
+        # Between 0.75 and 0.90: Layer 2 handles via graduated SL
+
+        # Force exit at 80%+ if price < entry*0.75 and score not ahead
+        if elapsed_pct >= 0.80 and current_price < entry_price * 0.75:
+            score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
+            if not score_ahead:
+                return {**result, "exit": True, "layer": "never_in_profit",
+                        "reason": f"Force exit at 80%+ — never profited, price {current_price:.3f}"}
+
+    # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
+    is_hold_candidate = scouted or (
+        ai_probability >= 0.65 and confidence in ("high", "medium_high")
+    )
+
+    if is_hold_candidate:
+        # Check revocation
+        # Momentum guard: dips shorter than 3 cycles or smaller than 5c are temporary -> keep hold
+        dip_is_temporary = (consecutive_down < 3 or cumulative_drop < 0.05)
+
+        if ever_in_profit and current_price < entry_price * 0.70 and elapsed_pct > 0.60:
+            score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
+            if not score_ahead and not dip_is_temporary:
+                result["revoke_hold"] = True
+                result["reason"] = f"Hold revoked: saw profit but now at {current_price:.3f} < entry*70%"
+
+        if not ever_in_profit and current_price < entry_price * 0.75 and elapsed_pct > 0.70:
+            score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
+            if not score_ahead and not dip_is_temporary:
+                result["revoke_hold"] = True
+                result["exit"] = True
+                result["layer"] = "hold_revoked"
+                result["reason"] = f"Hold revoked + exit: never profited, {current_price:.3f} < entry*75% at {elapsed_pct:.0%}"
+
+    # Check restore (if previously revoked)
+    if hold_was_original and not scouted and hold_revoked_at:
+        try:
+            revoked_dt = hold_revoked_at if isinstance(hold_revoked_at, datetime) else \
+                datetime.fromisoformat(str(hold_revoked_at).replace("Z", "+00:00"))
+            minutes_since = (datetime.now(timezone.utc) - revoked_dt).total_seconds() / 60
+            if minutes_since >= 10 and current_price > entry_price * 0.85:
+                score_behind = score_info.get("available") and score_info.get("map_diff", 0) < 0
+                if not score_behind:
+                    result["restore_hold"] = True
+                    result["reason"] = f"Hold restored: price recovered to {current_price:.3f} > entry*85%"
+        except (ValueError, TypeError):
+            pass
+
+    return result
