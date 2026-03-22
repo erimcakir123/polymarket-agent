@@ -157,3 +157,77 @@ class TestBlacklist:
         assert entry.exit_reason == "take_profit"
         assert entry.exit_data == {"price": 0.60}
         assert bl.get_entry("nonexistent") is None
+
+
+class TestSnowballBan:
+    def test_moba_behind_banned(self):
+        from src.reentry import is_snowball_banned
+        banned, _ = is_snowball_banned("lol-test", 0.40, {"available": True, "map_diff": -1})
+        assert banned is True
+
+    def test_cs2_behind_not_banned(self):
+        from src.reentry import is_snowball_banned
+        banned, _ = is_snowball_banned("cs2-test", 0.40, {"available": True, "map_diff": -1})
+        assert banned is False
+
+    def test_moba_early_not_banned(self):
+        from src.reentry import is_snowball_banned
+        banned, _ = is_snowball_banned("lol-test", 0.20, {"available": True, "map_diff": -1})
+        assert banned is False
+
+
+class TestGracePeriod:
+    def test_reentry_gets_grace(self):
+        from src.reentry import is_grace_period_active
+        assert is_grace_period_active({
+            "entry_reason": "re_entry_after_profit", "cycles_held": 3,
+            "entry_price": 0.50, "current_price": 0.49, "direction": "BUY_YES",
+        }) is True
+
+    def test_grace_expired(self):
+        from src.reentry import is_grace_period_active
+        assert is_grace_period_active({
+            "entry_reason": "re_entry_after_profit", "cycles_held": 10,
+            "entry_price": 0.50, "current_price": 0.49, "direction": "BUY_YES",
+        }) is False
+
+    def test_grace_revoked_on_drop(self):
+        from src.reentry import is_grace_period_active
+        assert is_grace_period_active({
+            "entry_reason": "re_entry_after_profit", "cycles_held": 2,
+            "entry_price": 0.50, "current_price": 0.46, "direction": "BUY_YES",
+        }) is False  # 4c drop > 3c max
+
+    def test_buy_no_grace_direction(self):
+        """BUY_NO: YES price rising = bad for us = should revoke grace."""
+        from src.reentry import is_grace_period_active
+        assert is_grace_period_active({
+            "entry_reason": "re_entry_after_profit", "cycles_held": 2,
+            "entry_price": 0.60, "current_price": 0.64, "direction": "BUY_NO",
+        }) is False  # eff drop = (0.64-0.60) = 4c > 3c
+
+
+class TestScoreReversal:
+    def test_convincing_lead_overrides(self):
+        from src.reentry import qualifies_for_score_reversal_reentry, BlacklistEntry
+        entry = BlacklistEntry("cid1", "graduated_sl", "timed", 100, {})
+        ok, _ = qualifies_for_score_reversal_reentry(
+            entry, {"available": True, "map_diff": 2}, elapsed_pct=0.50, current_cycle=50,
+        )
+        assert ok is True
+
+    def test_single_map_lead_not_enough(self):
+        from src.reentry import qualifies_for_score_reversal_reentry, BlacklistEntry
+        entry = BlacklistEntry("cid1", "graduated_sl", "timed", 100, {})
+        ok, _ = qualifies_for_score_reversal_reentry(
+            entry, {"available": True, "map_diff": 1}, elapsed_pct=0.50, current_cycle=50,
+        )
+        assert ok is False
+
+    def test_permanent_blacklist_not_overrideable(self):
+        from src.reentry import qualifies_for_score_reversal_reentry, BlacklistEntry
+        entry = BlacklistEntry("cid1", "catastrophic_floor", "permanent", None, {})
+        ok, _ = qualifies_for_score_reversal_reentry(
+            entry, {"available": True, "map_diff": 3}, elapsed_pct=0.50, current_cycle=50,
+        )
+        assert ok is False

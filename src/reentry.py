@@ -110,6 +110,47 @@ def can_reenter(
     return True, "OK"
 
 
+# --- Snowball Ban (#11) ---
+SNOWBALL_GAMES = {"lol", "dota2"}
+
+
+def is_snowball_banned(
+    slug: str, elapsed_pct: float, score_info: dict
+) -> tuple[bool, str]:
+    slug_lower = slug.lower()
+    is_moba = any(slug_lower.startswith(f"{g}-") for g in SNOWBALL_GAMES)
+    if not is_moba:
+        return False, ""
+    if elapsed_pct > 0.30 and score_info.get("available") and score_info.get("map_diff", 0) < 0:
+        return True, f"MOBA snowball ban: {elapsed_pct:.0%} elapsed, score behind"
+    return False, ""
+
+
+# --- Layer 3 Grace Period (#9) ---
+REENTRY_GRACE_CYCLES = 5
+REENTRY_GRACE_MAX_DROP = 0.03  # 3 cents
+
+
+def is_grace_period_active(data: dict) -> bool:
+    """Re-entry positions get limited immunity from Layer 3 (never-in-profit guard)."""
+    entry_reason = data.get("entry_reason", "")
+    if not entry_reason.startswith("re_entry") and entry_reason != "scale_in":
+        return False
+    cycles_held = data.get("cycles_held", 999)
+    if cycles_held > REENTRY_GRACE_CYCLES:
+        return False
+    entry_p = data.get("entry_price", 0)
+    current_p = data.get("current_price", 0)
+    direction = data.get("direction", "BUY_YES")
+    if direction == "BUY_NO":
+        drop_since_entry = current_p - entry_p  # YES price rising = bad for BUY_NO
+    else:
+        drop_since_entry = entry_p - current_p
+    if drop_since_entry > REENTRY_GRACE_MAX_DROP:
+        return False
+    return True
+
+
 # --- Tiered Blacklist ---
 
 BLACKLIST_RULES = {
@@ -155,6 +196,32 @@ class BlacklistEntry:
     blacklist_type: str
     expires_at_cycle: int | None
     exit_data: dict
+
+
+# --- Score Reversal Blacklist Exception (#13) ---
+
+
+def qualifies_for_score_reversal_reentry(
+    blacklist_entry: BlacklistEntry,
+    score_info: dict,
+    elapsed_pct: float,
+    current_cycle: int,
+) -> tuple[bool, str]:
+    """Override blacklist if score dramatically reversed. Very narrow conditions."""
+    if not score_info.get("available"):
+        return False, "No score data"
+    map_diff = score_info.get("map_diff", 0)
+    if map_diff < 2:
+        return False, f"map_diff {map_diff} < 2 (need convincing lead)"
+    if elapsed_pct > 0.70:
+        return False, f"Too late: {elapsed_pct:.0%} > 70%"
+    if blacklist_entry.blacklist_type == "permanent":
+        return False, "Cannot override permanent blacklist"
+    if blacklist_entry.blacklist_type == "timed":
+        remaining = (blacklist_entry.expires_at_cycle or 0) - current_cycle
+        if remaining <= 10:
+            return False, f"Only {remaining} cycles left, let it expire naturally"
+    return True, f"Score reversal: map_diff={map_diff}, elapsed={elapsed_pct:.0%}"
 
 
 class Blacklist:
