@@ -370,6 +370,38 @@ class TestLayer4HoldToResolve:
         result = check_match_exit(data)
         assert result.get("revoke_hold") is True
 
+class TestUltraLowGuard:
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+    def test_ultra_low_late_match_exit(self):
+        from src.match_exit import check_match_exit
+        # Entry <9¢, price <5¢, elapsed >90% → should exit
+        data = _make_pos_data(
+            entry_price=0.07, current_price=0.03,
+            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "ultra_low_guard"
+
+    def test_ultra_low_early_match_no_exit(self):
+        from src.match_exit import check_match_exit
+        # Entry <9¢, price <5¢, but elapsed only 30% → don't exit
+        data = _make_pos_data(
+            entry_price=0.07, current_price=0.03,
+            match_start_iso=self._match_started_ago(39),  # 39/130 = 30%
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+
+class TestLayer4HoldToResolveRestoreAndMore:
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
     def test_restore_after_recovery(self):
         from src.match_exit import check_match_exit
         data = _make_pos_data(

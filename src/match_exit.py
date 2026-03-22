@@ -258,6 +258,12 @@ def check_match_exit(data: dict) -> dict:
         # Return no exit, let existing flat stop loss handle
         return result
 
+    # Ultra-low entry (<9¢) guard: normally exempt from stop loss, but
+    # if match is >90% done and price <5¢, exit (position is dead)
+    if entry_price < 0.09 and elapsed_pct >= 0.90 and current_price < 0.05:
+        return {**result, "exit": True, "layer": "ultra_low_guard",
+                "reason": f"Ultra-low {entry_price:.0f}¢ at {elapsed_pct:.0%} done, price {current_price:.0f}¢ < 5¢"}
+
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
     max_loss = get_graduated_max_loss(elapsed_pct, entry_price, score_info)
 
