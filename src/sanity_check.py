@@ -25,6 +25,8 @@ def check_bet_sanity(
     market_price: float,
     edge: float,
     confidence: str,
+    bookmaker_count: int = 0,
+    bookmaker_agrees_with_market: bool = False,
 ) -> SanityResult:
     """Validate that a bet makes basic sense.
 
@@ -48,7 +50,7 @@ def check_bet_sanity(
         )
 
     # 3. Large edge with low confidence — contradictory signals
-    if edge > 0.20 and confidence == "low":
+    if edge > 0.20 and confidence == "C":
         return SanityResult(
             ok=True, suspicious=True,
             reason=f"Large edge ({edge:.0%}) but low confidence — contradictory",

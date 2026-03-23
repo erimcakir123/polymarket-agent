@@ -27,6 +27,9 @@ class MarketData(BaseModel):
     end_date_iso: str = ""
     description: str = ""
     event_id: Optional[str] = None
+    event_live: bool = False  # True when event is currently live (from Gamma API)
+    event_ended: bool = False  # True when event has ended (from Gamma API)
+    sport_tag: str = ""  # Source sport tag (e.g. "cs2", "lol", "nba") from tag_id scan
 
 
 class Position(BaseModel):
@@ -40,7 +43,7 @@ class Position(BaseModel):
     slug: str = ""
     entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
-    confidence: str = "medium"
+    confidence: str = "B-"
     ai_probability: float = 0.5
     scouted: bool = False  # True = pre-game scouted entry, hold to resolve (no take-profit)
     volatility_swing: bool = False  # True = bought cheap underdog for in-game spike, tight TP/SL

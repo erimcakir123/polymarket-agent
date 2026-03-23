@@ -34,7 +34,7 @@ SPORTS-SPECIFIC RULES:
 - Head-to-head record is very important — some teams consistently beat others.
 - Tournament tier matters: teams play harder in Majors/playoffs vs group stages.
 - BO1 (best-of-1) is more volatile than BO3/BO5 — widen your confidence interval.
-- If you have NO data about a team, set confidence to "low" — do NOT guess.
+- If you have NO data about a team, set confidence to "C" — do NOT guess.
 - Underdogs win ~20-30% of the time in esports BO1s. Don't overestimate favorites."""
 
 _POLITICS_RULES = """
@@ -48,8 +48,11 @@ POLITICS/ELECTIONS/EVENTS RULES:
   Incumbent advantage is real (~55-60% win rate globally). Don't let dramatic headlines move your estimate.
   If you know the country's political landscape, USE that knowledge — it's your edge over emotional traders."""
 
-PRO_SYSTEM = """You are an expert superforecaster arguing FOR this outcome.
-Estimate the probability that this market resolves YES.
+UNIFIED_SYSTEM = """You are an expert superforecaster. Analyze BOTH sides of this market.
+
+STEP 1 — Argue FOR: Why this outcome WILL happen. Cite concrete evidence.
+STEP 2 — Argue AGAINST: Why this outcome will NOT happen. Be skeptical, find counterarguments.
+STEP 3 — Synthesize: Weigh both sides and give your final probability estimate.
 
 RULES:
 - Base your estimate ONLY on the evidence provided (news, description, match data, time remaining).
@@ -59,22 +62,16 @@ RULES:
 {category_rules}
 {slug_guide}
 
-Respond with ONLY JSON: {{"probability": 0.XX, "confidence": "low|medium|high",
-"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}}"""
+Respond with ONLY JSON:
+{{"probability": 0.XX, "confidence": "C|B-|B+|A",
+"reasoning_pro": "why YES...", "reasoning_con": "why NO...",
+"key_evidence_for": [...], "key_evidence_against": [...]}}
 
-CON_SYSTEM = """You are an expert superforecaster arguing AGAINST this outcome.
-Estimate the probability that this market resolves YES.
-
-RULES:
-- Base your estimate ONLY on the evidence provided (news, description, match data, time remaining).
-- Do NOT anchor to any market price — form your OWN independent estimate.
-- Focus on why it might NOT happen. Be skeptical. Find counterarguments.
-- Account for time remaining until resolution. Use today's date to calculate how far away the event is.
-{category_rules}
-{slug_guide}
-
-Respond with ONLY JSON: {{"probability": 0.XX, "confidence": "low|medium|high",
-"reasoning": "...", "key_evidence_for": [...], "key_evidence_against": [...]}}"""
+Confidence grades:
+- "A" = strong data, high conviction (multiple corroborating sources, clear edge)
+- "B+" = good data, solid conviction (reasonable certainty with minor gaps)
+- "B-" = decent data, moderate conviction (some uncertainty but reasonable estimate)
+- "C" = weak/no data, low conviction (guessing, unreliable — will be skipped)"""
 
 
 @dataclass
@@ -228,13 +225,11 @@ class AIAnalyst:
         q_lower = market.question.lower()
         return any(kw in q_lower for kw in sport_kw)
 
-    def _get_system_prompts(self, market: MarketData) -> tuple[str, str]:
-        """Return category-aware PRO and CON system prompts."""
+    def _get_system_prompt(self, market: MarketData) -> str:
+        """Return category-aware unified system prompt."""
         is_sports = self._is_sports_market(market)
         category_rules = _SPORTS_RULES if is_sports else _POLITICS_RULES
-        pro = PRO_SYSTEM.format(category_rules=category_rules, slug_guide=_SLUG_GUIDE)
-        con = CON_SYSTEM.format(category_rules=category_rules, slug_guide=_SLUG_GUIDE)
-        return pro, con
+        return UNIFIED_SYSTEM.format(category_rules=category_rules, slug_guide=_SLUG_GUIDE)
 
     def analyze_market(
         self, market: MarketData, news_context: str = "",
@@ -255,9 +250,9 @@ class AIAnalyst:
             return AIEstimate(ai_probability=0.5, confidence="low",
                               reasoning_pro="BUDGET_EXHAUSTED", reasoning_con="BUDGET_EXHAUSTED")
 
-        # Pre-flight: estimate cost of 2 calls (~2000 tokens each) and check remaining
-        estimated_cost = 2 * (2000 * self.config.input_cost_per_mtok / 1_000_000
-                              + self.config.max_tokens * self.config.output_cost_per_mtok / 1_000_000)
+        # Pre-flight: estimate cost of 1 unified call and check remaining
+        estimated_cost = (2000 * self.config.input_cost_per_mtok / 1_000_000
+                          + self.config.max_tokens * self.config.output_cost_per_mtok / 1_000_000)
         if self.budget_remaining_usd < estimated_cost:
             logger.warning("HARD STOP: Budget too low for analysis ($%.4f remaining, ~$%.4f needed).",
                            self.budget_remaining_usd, estimated_cost)
@@ -266,34 +261,27 @@ class AIAnalyst:
 
         prompt = self._build_prompt(market, news_context, esports_context)
 
-        # Category-aware system prompts
-        pro_system, con_system = self._get_system_prompts(market)
+        # Single unified call (PRO + CON in one request)
+        system_prompt = self._get_system_prompt(market)
+        result = self._call_claude(system_prompt, prompt)
 
-        # Dual calls
-        pro_result = self._call_claude(pro_system, prompt)
-        con_result = self._call_claude(con_system, prompt)
-
-        if pro_result is None or con_result is None:
+        if result is None:
             logger.warning("AI call failed — returning neutral 0.5 (no trade will trigger)")
-            return AIEstimate(ai_probability=0.5, confidence="low",
+            return AIEstimate(ai_probability=0.5, confidence="C",
                               reasoning_pro="API_ERROR", reasoning_con="API_ERROR")
 
-        # Weighted average (equal weight for now)
-        avg_prob = (pro_result.get("probability", 0.5) + con_result.get("probability", 0.5)) / 2
-        avg_prob = max(0.01, min(0.99, avg_prob))
-
-        # Conservative confidence: take the lower one
-        conf_order = {"low": 0, "medium": 1, "high": 2}
-        pro_conf = conf_order.get(pro_result.get("confidence", "medium"), 1)
-        con_conf = conf_order.get(con_result.get("confidence", "medium"), 1)
-        conf_map = {0: "low", 1: "medium", 2: "high"}
-        final_conf = conf_map[min(pro_conf, con_conf)]
+        prob = result.get("probability", 0.5)
+        prob = max(0.01, min(0.99, prob))
+        confidence = result.get("confidence", "B-")
+        # Normalize confidence to valid values
+        if confidence not in ("C", "B-", "B+", "A"):
+            confidence = "B-"
 
         estimate = AIEstimate(
-            ai_probability=round(avg_prob, 3),
-            confidence=final_conf,
-            reasoning_pro=pro_result.get("reasoning", ""),
-            reasoning_con=con_result.get("reasoning", ""),
+            ai_probability=round(prob, 3),
+            confidence=confidence,
+            reasoning_pro=result.get("reasoning_pro", result.get("reasoning", "")),
+            reasoning_con=result.get("reasoning_con", ""),
         )
 
         self._cache[market.condition_id] = (estimate, time.monotonic(), market.yes_price)
@@ -302,10 +290,16 @@ class AIAnalyst:
     def analyze_batch(
         self, markets: List[MarketData], news_context: str = "",
         esports_contexts: Optional[Dict[str, str]] = None,
+        news_by_market: Optional[Dict[str, str]] = None,
     ) -> List[AIEstimate]:
         ctx = esports_contexts or {}
+        news_map = news_by_market or {}
         return [
-            self.analyze_market(m, news_context, ctx.get(m.condition_id, ""))
+            self.analyze_market(
+                m,
+                news_map.get(m.condition_id, news_context),
+                ctx.get(m.condition_id, ""),
+            )
             for m in markets[:self.config.batch_size]
         ]
 

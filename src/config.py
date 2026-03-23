@@ -47,7 +47,7 @@ class AIConfig(BaseModel):
 class EdgeConfig(BaseModel):
     min_edge: float = 0.06
     confidence_multipliers: Dict[str, float] = {
-        "low": 1.5, "medium": 1.0, "high": 0.75
+        "C": 1.5, "B-": 1.0, "B+": 0.85, "A": 0.75
     }
     fill_ratio_scaling: bool = False
     fill_ratio_aggressive: float = 0.3
@@ -113,6 +113,25 @@ class VolatilitySwingConfig(BaseModel):
     polling_interval_min: int = 5
 
 
+class FarConfig(BaseModel):
+    enabled: bool = True
+    max_slots: int = 2
+    min_edge: float = 0.10
+    min_ai_probability: float = 0.55
+    min_confidence: str = "B-"
+    bookmaker_pre_screen_edge: float = 0.08
+    min_hours_to_start: float = 6.0       # Only markets >6h out qualify as FAR
+    max_hours_to_start: float = 336.0     # 14 days max
+    bet_pct: float = 0.05                 # 5% bankroll per FAR bet
+    stop_loss_pct: float = 0.30
+    take_profit_pct: float = 0.40         # Swing trade TP (overridden for penny)
+    # Penny Alpha thresholds ($0.01-$0.02 tokens)
+    penny_max_price: float = 0.02         # Tokens at $0.01-$0.02
+    penny_1c_target_multiplier: float = 5.0  # $0.01 → wait for 5x ($0.05)
+    penny_2c_target_multiplier: float = 2.0  # $0.02 → wait for 2x ($0.04)
+    penny_bet_pct: float = 0.05           # 5% bankroll for penny bets
+
+
 class NotificationConfig(BaseModel):
     telegram_enabled: bool = False
 
@@ -137,6 +156,7 @@ class AppConfig(BaseModel):
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
+    far: FarConfig = FarConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
     logging: LoggingConfig = LoggingConfig()

@@ -478,44 +478,29 @@
             scrollbar-color: var(--bg-hover) transparent;
         }
 
-        /* ── Slot Tracker ── */
-        .slot-tracker {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .slot-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .slot-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            width: 70px;
+        /* ── Slot Tags ── */
+        /* ── Entry Reason Tags ── */
+        .entry-tag {
+            font-size: 9px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.03em;
+            letter-spacing: 0.05em;
+            padding: 1px 6px;
+            border-radius: 3px;
         }
-        .slot-bar-bg {
-            flex: 1;
-            height: 8px;
-            background: var(--bg-hover);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .slot-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.4s ease-out;
-        }
-        .slot-count {
-            font-size: 11px;
-            font-family: var(--font-mono);
-            color: var(--text-secondary);
-            min-width: 36px;
-            text-align: right;
-        }
+        .tag-vs { background: var(--orange-dim); color: var(--orange); }
+        .tag-ee { background: var(--amber-dim); color: var(--amber); }
+        .tag-far { background: var(--blue-dim); color: var(--blue); }
+        .tag-ld { background: var(--red-dim); color: var(--red); }
+        .tag-fav { background: var(--green-dim); color: var(--green); }
+
+        /* ── Position card border by entry reason ── */
+        .feed-item.border-vs { border-left: 3px solid var(--orange); }
+        .feed-item.border-ee { border-left: 3px solid var(--amber); }
+        .feed-item.border-far { border-left: 3px solid var(--blue); }
+        .feed-item.border-ld { border-left: 3px solid var(--red); }
+        .feed-item.border-fav { border-left: 3px solid var(--green); }
+
         .feed-scroll::-webkit-scrollbar { width: 4px; }
         .feed-scroll::-webkit-scrollbar-track { background: transparent; }
         .feed-scroll::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
@@ -571,12 +556,12 @@
             font-weight: 500;
             color: var(--text-primary);
             line-height: 1.3;
-            max-width: 220px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
             text-decoration: none;
             transition: color var(--transition);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
         .feed-market:hover { color: #3b82f6; }
         .feed-badge {
@@ -985,47 +970,24 @@
                 <div class="card">
                     <div class="card-label"><span class="card-icon">&#128202;</span> Positions</div>
                     <div class="gauge-wrap">
-                        <div class="gauge-canvas-wrap" style="width:80px;height:80px">
+                        <div class="gauge-canvas-wrap">
                             <canvas id="positionChart"></canvas>
-                            <div class="gauge-center" style="bottom:auto;top:50%;transform:translate(-50%,-50%)">
+                            <div class="gauge-center">
                                 <div class="gauge-val" id="totalPositions">0</div>
                                 <div class="gauge-label">active</div>
                             </div>
                         </div>
-                        <div class="gauge-info" id="positionLegend">
-                            <div style="font-size:11px;color:var(--text-muted)">No open positions</div>
+                        <div style="width:1px;align-self:stretch;background:var(--border);margin:0 var(--space-sm)"></div>
+                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-content:center">
+                            <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:9px;padding:2px 6px;text-align:center">VS 0/3</span>
+                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:9px;padding:2px 6px;text-align:center">EE 0/3</span>
+                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:9px;padding:2px 6px;text-align:center">FAR 0/2</span>
+                            <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:9px;padding:2px 6px;text-align:center">LD 0/2</span>
+                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:9px;padding:2px 6px;text-align:center">FAV 0/3</span>
+                            <span class="entry-tag" style="font-size:9px;padding:2px 6px;text-align:center;background:var(--accent-dim);color:var(--accent)" id="slotNormalInline">NRM 0/12</span>
                         </div>
                     </div>
-                </div>
-                <div class="card">
-                    <div class="card-label"><span class="card-icon">&#127919;</span> Slot Allocation</div>
-                    <div class="slot-tracker" id="slotTracker">
-                        <div class="slot-row">
-                            <span class="slot-label">Normal</span>
-                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotNormal" style="width:0%;background:var(--accent)"></div></div>
-                            <span class="slot-count" id="slotNormalCount">0/12</span>
-                        </div>
-                        <div class="slot-row">
-                            <span class="slot-label">VS</span>
-                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotVs" style="width:0%;background:var(--orange)"></div></div>
-                            <span class="slot-count" id="slotVsCount">0/3</span>
-                        </div>
-                        <div class="slot-row">
-                            <span class="slot-label">FAV</span>
-                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotFav" style="width:0%;background:var(--blue)"></div></div>
-                            <span class="slot-count" id="slotFavCount">0/3</span>
-                        </div>
-                        <div class="slot-row">
-                            <span class="slot-label">Esports</span>
-                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotEsports" style="width:0%;background:var(--amber)"></div></div>
-                            <span class="slot-count" id="slotEsportsCount">0/3</span>
-                        </div>
-                        <div class="slot-row">
-                            <span class="slot-label">Live Dip</span>
-                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotLiveDip" style="width:0%;background:var(--red)"></div></div>
-                            <span class="slot-count" id="slotLiveDipCount">0/2</span>
-                        </div>
-                    </div>
+                    <div id="positionLegend" style="display:none"></div>
                 </div>
             </div>
 
@@ -1101,6 +1063,7 @@
                 <button class="feed-tab active" onclick="setFeedTab('active', this)">Active</button>
                 <button class="feed-tab" onclick="setFeedTab('exited', this)">Exited</button>
                 <button class="feed-tab" onclick="setFeedTab('skipped', this)">Skipped</button>
+                <button class="feed-tab" onclick="setFeedTab('stock', this)">Stock</button>
             </div>
             <div class="feed-scroll" id="feedScroll">
                 <div class="empty-state" id="feedEmpty">
@@ -1328,24 +1291,77 @@
             dim: '#484f58',
         };
 
-        // Extract meaningful label from question + direction
+        // Extract clean "X vs Y" title from question
+        function cleanMatchTitle(question) {
+            let q = (question || '').trim();
+            // Strip game prefix: "LoL:", "Counter-Strike:", etc.
+            q = q.replace(/^(LoL|Counter-Strike|CS2|Valorant|Dota\s*2|MLBB|Overwatch)\s*:\s*/i, '');
+            // O/U → "Lakers vs Pistons: O/U 227.5" → "Lakers vs Pistons (O/U 227.5)"
+            const ouMatch = q.match(/^(.+?)\s*:\s*(O\/U\s+[\d.]+)/i);
+            if (ouMatch) return `${ouMatch[1].replace(/\./g, '').trim()} (${ouMatch[2]})`;
+            // Total → same treatment
+            const totalMatch = q.match(/^(.+?)\s*:\s*(Total\s+[\d.]+)/i);
+            if (totalMatch) return `${totalMatch[1].replace(/\./g, '').trim()} (${totalMatch[2]})`;
+            // Map Handicap: "Map Handicap: VIT (-1.5) vs PARIVISION (+1.5)" → "VIT vs PARIVISION"
+            const hMatch = q.match(/Map Handicap:\s*(.+?)\s*\([^)]+\)\s+vs\.?\s+(.+?)\s*\([^)]+\)/i);
+            if (hMatch) return `${hMatch[1].trim()} vs ${hMatch[2].trim()} (HC)`;
+            // Extract "X vs Y", strip tournament suffix
+            const vsMatch = q.match(/^(.+?)\s+vs\.?\s+(.+?)(?:\s*\(BO\d\)|\s*-\s+.+)?$/i);
+            if (vsMatch) {
+                let a = vsMatch[1].trim();
+                let b = vsMatch[2].trim();
+                b = b.replace(/\s*\(BO\d\)\s*.*$/, '').replace(/\s*-\s+.*$/, '').trim();
+                return `${a} vs ${b}`;
+            }
+            return q;
+        }
+
+        // Extract BO format from question or number_of_games
+        function getBoFormat(question, numberOfGames) {
+            if (numberOfGames > 0) return `BO${numberOfGames}`;
+            const m = (question || '').match(/\(BO(\d)\)/i);
+            if (m) return `BO${m[1]}`;
+            return '';
+        }
+
+        // Get short team abbreviation we're betting on
         function getDirectionLabel(question, direction, slug) {
             const isYes = direction.includes('YES');
             const q = (question || '').trim();
-            // O/U format: "Cavaliers vs. Bulls: O/U 238.5"
+            // O/U format
             if (/O\/U|total|over.*under/i.test(q)) {
-                return isYes ? 'Over' : 'Under';
+                return isYes ? 'OVR' : 'UND';
             }
-            // "X vs. Y" format
-            const vsMatch = q.match(/^(.+?)\s+vs\.?\s+(.+?)$/i);
+            // Map Handicap
+            const hm = q.match(/Map Handicap:\s*(.+?)\s*\(/i);
+            if (hm) {
+                const oppMatch = q.match(/vs\.?\s+(.+?)\s*\(/i);
+                return isYes ? hm[1].trim() : (oppMatch ? oppMatch[1].trim() : 'NO');
+            }
+            // "X vs Y" — extract short name
+            const vsMatch = q.match(/^(?:(?:LoL|Counter-Strike|CS2|Valorant|Dota\s*2|MLBB|Overwatch)\s*:\s*)?(.+?)\s+vs\.?\s+(.+?)(?:\s*\(|\s*-\s|$)/i);
             if (vsMatch) {
-                return isYes ? vsMatch[1].trim() : vsMatch[2].trim();
+                let a = vsMatch[1].trim();
+                let b = vsMatch[2].trim();
+                b = b.replace(/\s*\(BO\d\).*$/, '').replace(/\s*-\s+.*$/, '').trim();
+                // Abbreviate: initials for long multi-word names, full if short
+                function abbr(name) {
+                    if (name.length <= 6) return name;
+                    const words = name.split(/\s+/);
+                    if (words.length === 1) return name.substring(0, 4).toUpperCase();
+                    // Filter out filler words for initials
+                    const skip = new Set(['of','the','vs','and','de','da','fc','sc']);
+                    const sig = words.filter(w => !skip.has(w.toLowerCase()));
+                    if (sig.length >= 2) return sig.map(w => w[0]).join('').toUpperCase();
+                    return words.map(w => w[0]).join('').toUpperCase();
+                }
+                const shortA = abbr(a);
+                const shortB = abbr(b);
+                return isYes ? shortA : shortB;
             }
-            // "Will X win" format
+            // "Will X win"
             const willMatch = q.match(/^Will\s+(.+?)\s+win/i);
-            if (willMatch) {
-                return willMatch[1].trim();
-            }
+            if (willMatch) return willMatch[1].trim();
             return isYes ? 'YES' : 'NO';
         }
 
@@ -1431,9 +1447,11 @@
             type: 'doughnut',
             data: { labels: [], datasets: [{ data: [], backgroundColor: POSITION_COLORS, borderWidth: 0 }] },
             options: {
-                cutout: '65%',
+                cutout: '75%',
+                rotation: -90,
+                circumference: 180,
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: {
                     callbacks: { label: ctx => ctx.label + ': $' + ctx.raw.toFixed(2) }
                 }},
@@ -1477,6 +1495,7 @@
         });
 
         let allPositions = {};
+        let allStockData = [];
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -1488,13 +1507,14 @@
         async function fetchData() {
             try {
                 const ts = Date.now();
-                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp] = await Promise.all([
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp] = await Promise.all([
                     fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/budget?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/positions?_=' + ts, {cache: 'no-store'}),
-                    fetch('/api/slots?_=' + ts, {cache: 'no-store'})
+                    fetch('/api/slots?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/stock?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
@@ -1502,6 +1522,7 @@
                 const budgetData = await budgetResp.json();
                 allPositions = await posResp.json();
                 const slotsData = await slotsResp.json();
+                allStockData = await stockResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -1738,9 +1759,9 @@
 
             feedScroll.innerHTML = positions.map(p => {
                 const slug = p.slug || '';
-                // Use question if available (readable), fall back to slug cleanup
-                const rawTitle = p.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || p.condition_id || '--';
-                const title = escapeHtml(rawTitle);
+                const rawQ = p.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const title = escapeHtml(cleanMatchTitle(rawQ));
+                const boFormat = getBoFormat(rawQ, p.number_of_games || 0);
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const direction = p.direction || 'BUY_YES';
                 const isYes = direction.includes('YES');
@@ -1755,7 +1776,7 @@
                 const pnlUsdc = p.unrealized_pnl_usdc || 0;
                 const pnlPct = p.unrealized_pnl_pct || 0;
                 const confidence = p.confidence || 'medium';
-                const confLabel = confidence === 'high' ? 'High' : confidence === 'medium' ? 'Med' : 'Low';
+                const confLabel = confidence || 'B-';
                 const rawAiProb = p.ai_probability || 0;
                 const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
                 const scouted = p.scouted || false;
@@ -1776,28 +1797,55 @@
                 const pnlNeutral = Math.abs(pnlUsdc) < 0.01;
                 const pnlColor = pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red);
                 const pnlSign = pnlNeutral ? '' : (pnlUsdc > 0 ? '+' : '');
-                const confColor = confidence === 'high' ? COLORS.green : confidence === 'medium' ? COLORS.amber : COLORS.red;
+                const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
                 const priceInfo = currentPrice > 0
                     ? `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.6">→</span><span>Now: ${(currentPrice*100).toFixed(0)}%</span>`
                     : `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.5">Awaiting price</span>`;
 
-                return `<div class="feed-item">
+                const borderClass = (() => {
+                    const er = p.entry_reason || '';
+                    const vs = p.volatility_swing || false;
+                    if (vs) return 'border-vs';
+                    if (er === 'esports_early') return 'border-ee';
+                    if (er === 'far') return 'border-far';
+                    if (er === 'live_dip') return 'border-ld';
+                    if (er === 'fav_time_gate') return 'border-fav';
+                    return '';
+                })();
+
+                return `<div class="feed-item ${borderClass}">
                     <div class="feed-top">
                         <div class="feed-market-wrap">
                             <span class="feed-tick" style="color:${pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red)}">&#9679;</span>
                             ${scouted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;flex-shrink:0" title="Scouted — hold to resolve">S</span>' : ''}
                             <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
                         </div>
-                        <span class="feed-badge" style="background:${dirColor}22;color:${dirColor}">${dirLabel}</span>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+                            <span class="feed-badge" style="background:${dirColor}22;color:${dirColor}">${dirLabel}</span>
+                            ${boFormat ? `<span class="feed-badge" style="background:var(--surface-2);color:var(--text-secondary);font-size:9px;padding:1px 5px">${boFormat}</span>` : ''}
+                        </div>
                     </div>
                     <div class="feed-details">
-                        <span>$${size.toFixed(2)}</span>
-                        ${priceInfo}
+                        <span>Entry: ${(entryPrice*100).toFixed(0)}%</span>
+                        <span style="opacity:0.6">→</span>
+                        <span>Now: ${currentPrice > 0 ? (currentPrice*100).toFixed(0)+'%' : '—'}</span>
+                        <span style="opacity:0.6">→</span>
+                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
                     </div>
                     <div class="feed-details" style="margin-top:2px">
-                        <span style="color:${confColor}">Conf: ${confLabel}</span>
-                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
+                        <span>$${size.toFixed(2)}</span>
+                        <span style="color:${confColor};font-weight:700">${confLabel}</span>
                         ${scouted ? '<span style="color:var(--accent)">&#128270; Hold-to-resolve</span>' : ''}
+                        ${(() => {
+                            const er = p.entry_reason || '';
+                            const vs = p.volatility_swing || false;
+                            if (vs) return '<span class="entry-tag tag-vs">VS</span>';
+                            if (er === 'esports_early') return '<span class="entry-tag tag-ee">EE</span>';
+                            if (er === 'far') return '<span class="entry-tag tag-far">FAR</span>';
+                            if (er === 'live_dip') return '<span class="entry-tag tag-ld">LD</span>';
+                            if (er === 'fav_time_gate') return '<span class="entry-tag tag-fav">FAV</span>';
+                            return '';
+                        })()}
                     </div>
                     <div class="feed-impact">
                         <div class="feed-impact-bar ${pnlNeutral ? '' : (pnlUsdc > 0 ? 'positive' : 'negative')}" style="width:${pnlNeutral ? 0 : Math.min(Math.abs(pnlUsdc) * 20, 120)}px"></div>
@@ -1859,8 +1907,8 @@
             feedScroll.innerHTML = sorted.map(t => {
                 const slug = t.market || '';
                 const buy = buyMap[slug] || {};
-                const rawTitle = buy.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
-                const title = escapeHtml(rawTitle);
+                const rawQ2 = buy.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const title = escapeHtml(cleanMatchTitle(rawQ2));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const pnl = t.pnl || 0;
                 const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
@@ -1883,8 +1931,8 @@
                 const entryPrice = isYes ? rawBuyPrice : (1 - rawBuyPrice);
                 const size = buy.size || 0;
                 const confidence = buy.confidence || '';
-                const confLabel = confidence === 'high' ? 'High' : confidence === 'medium' ? 'Med' : confidence === 'low' ? 'Low' : '';
-                const confColor = confidence === 'high' ? COLORS.green : confidence === 'medium' ? COLORS.amber : COLORS.red;
+                const confLabel = confidence || '';
+                const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
                 const rawAiProb2 = buy.ai_probability || 0;
                 const aiProb = isYes ? rawAiProb2 : (1 - rawAiProb2);
                 const edge = buy.edge || 0;
@@ -1913,7 +1961,7 @@
                         <span style="opacity:0.6">${escapeHtml(reason.replace(/_/g,' '))}</span>
                     </div>
                     ${confLabel || aiProb > 0 || edge > 0 ? `<div class="feed-details" style="margin-top:2px">
-                        ${confLabel ? `<span style="color:${confColor}">Conf: ${confLabel}</span>` : ''}
+                        ${confLabel ? `<span style="color:${confColor};font-weight:700">${confLabel}</span>` : ''}
                         ${aiProb > 0 ? `<span>AI: ${(aiProb*100).toFixed(0)}%</span>` : ''}
                         ${edge > 0 ? `<span>Edge: ${(edge*100).toFixed(1)}%</span>` : ''}
                     </div>` : ''}
@@ -1925,6 +1973,59 @@
             }).join('');
         }
 
+        function renderStockPipeline() {
+            const feedScroll = document.getElementById('feedScroll');
+            const countEl = document.getElementById('tradeCount');
+            const stocks = Array.isArray(allStockData) ? allStockData : [];
+            countEl.textContent = stocks.length;
+
+            if (!stocks.length) {
+                feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">Stock pipeline empty</div><div class="empty-sub">AI-analyzed candidates waiting for open slots appear here</div></div>`;
+                return;
+            }
+
+            feedScroll.innerHTML = stocks.map(s => {
+                const slug = s.slug || '';
+                const rawQ = s.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const title = escapeHtml(cleanMatchTitle(rawQ));
+                const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
+                const edge = s.edge || 0;
+                const aiProb = s.ai_probability || 0;
+                const conf = s.confidence || '';
+                const dir = s.direction || '';
+                const isYes = dir.includes('YES');
+                const dirColor = isYes ? COLORS.blue : COLORS.orange;
+                const dirLabel = dir.includes('YES') ? 'YES' : dir.includes('NO') ? 'NO' : dir;
+                const price = s.stocked_price || 0;
+                const ageMin = s.stocked_at ? Math.floor((Date.now() / 1000 - s.stocked_at) / 60) : 0;
+                const ageStr = ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ago`;
+                const stockType = s.stock_type || 'normal';
+                const typeTag = stockType === 'far' ? '<span class="entry-tag tag-far">FAR</span>'
+                              : stockType === 'fav' ? '<span class="entry-tag tag-fav">FAV</span>'
+                              : '<span class="entry-tag" style="background:var(--accent-dim);color:var(--accent)">STK</span>';
+
+                return `<div class="feed-item" style="border-left:3px solid var(--text-muted)">
+                    <div class="feed-top">
+                        <div class="feed-market-wrap">
+                            <span class="feed-tick" style="color:var(--text-muted)">&#9202;</span>
+                            <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
+                        </div>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+                            <span class="feed-badge" style="background:${dirColor}22;color:${dirColor}">${dirLabel}</span>
+                            ${typeTag}
+                        </div>
+                    </div>
+                    <div class="feed-details">
+                        <span>Edge: ${(edge*100).toFixed(1)}%</span>
+                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
+                        <span>Price: ${(price*100).toFixed(0)}¢</span>
+                        ${conf ? `<span>Conf: ${conf}</span>` : ''}
+                    </div>
+                    <div class="feed-time">${ageStr} — waiting for slot</div>
+                </div>`;
+            }).join('');
+        }
+
         function updateTradeFeed(trades) {
             if (currentFeedTab === 'active') {
                 renderActivePositions();
@@ -1932,6 +2033,10 @@
             }
             if (currentFeedTab === 'exited') {
                 renderExitedTrades(trades);
+                return;
+            }
+            if (currentFeedTab === 'stock') {
+                renderStockPipeline();
                 return;
             }
 
@@ -2001,24 +2106,18 @@
 
         function updateSlots(s) {
             if (!s) return;
-            const cats = [
-                {id: 'Normal', data: s.normal, color: 'var(--accent)'},
-                {id: 'Vs', data: s.vs, color: 'var(--orange)'},
-                {id: 'Fav', data: s.fav, color: 'var(--blue)'},
-                {id: 'Esports', data: s.esports, color: 'var(--amber)'},
-                {id: 'LiveDip', data: s.live_dip, color: 'var(--red)'}
+            const tags = [
+                {id: 'slotNormalInline', label: 'NRM', data: s.normal},
+                {id: 'slotVsInline', label: 'VS', data: s.vs},
+                {id: 'slotEeInline', label: 'EE', data: s.esports},
+                {id: 'slotFarInline', label: 'FAR', data: s.far},
+                {id: 'slotLdInline', label: 'LD', data: s.live_dip},
+                {id: 'slotFavInline', label: 'FAV', data: s.fav},
             ];
-            for (const c of cats) {
-                const cur = c.data?.current || 0;
-                const max = c.data?.max || 1;
-                const pct = Math.min(100, (cur / max) * 100);
-                const bar = document.getElementById('slot' + c.id);
-                const count = document.getElementById('slot' + c.id + 'Count');
-                if (bar) {
-                    bar.style.width = pct + '%';
-                    bar.style.background = cur >= max ? 'var(--red)' : c.color;
-                }
-                if (count) count.textContent = cur + '/' + max;
+            for (const t of tags) {
+                const el = document.getElementById(t.id);
+                if (!el || !t.data) continue;
+                el.textContent = `${t.label} ${t.data.current || 0}/${t.data.max || 0}`;
             }
         }
 

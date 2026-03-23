@@ -1,6 +1,6 @@
 """Pre-game scout scheduler — fetches match calendars and pre-analyzes before bets appear.
 
-Runs twice daily (06:00 + 18:00 UTC). Looks 48 hours ahead for upcoming matches
+Runs 4x daily (00, 06, 12, 18 UTC). Looks 24 hours ahead for upcoming matches
 via ESPN (traditional sports) and PandaScore (esports). Runs AI analysis once per
 match and saves results to scout_queue.json. The main loop checks this queue each
 cycle and enters immediately when matching Polymarket bets appear.
@@ -87,12 +87,12 @@ class ScoutScheduler:
         tmp.replace(SCOUT_QUEUE_FILE)
 
     def should_run_scout(self) -> bool:
-        """Check if it's time for a scout run (06:00 or 18:00 UTC, twice daily)."""
+        """Check if it's time for a scout run (4x daily: 00, 06, 12, 18 UTC)."""
         now = datetime.now(timezone.utc)
         current_hour = now.hour
 
-        # Scout windows: 06:00-06:59 and 18:00-18:59 UTC
-        if current_hour not in (6, 18):
+        # Scout windows: every 6 hours
+        if current_hour not in (0, 6, 12, 18):
             return False
 
         # Check if we already scouted in this window
@@ -100,7 +100,7 @@ class ScoutScheduler:
             try:
                 last = datetime.fromisoformat(SCOUT_MARKER_FILE.read_text().strip())
                 hours_since = (now - last).total_seconds() / 3600
-                if hours_since < 10:  # Don't run again within 10 hours
+                if hours_since < 5:  # Don't run again within 5 hours
                     return False
             except (ValueError, OSError):
                 pass
@@ -242,10 +242,10 @@ class ScoutScheduler:
         return times
 
     def _fetch_espn_upcoming(self) -> List[dict]:
-        """Fetch upcoming matches from ESPN scoreboard (next 48 hours)."""
+        """Fetch upcoming matches from ESPN scoreboard (next 24 hours)."""
         matches = []
         now = datetime.now(timezone.utc)
-        cutoff = now + timedelta(hours=48)
+        cutoff = now + timedelta(hours=24)
 
         for sport, league, display_name in _SCOUT_LEAGUES:
             try:
@@ -316,13 +316,13 @@ class ScoutScheduler:
         return matches
 
     def _fetch_esports_upcoming(self) -> List[dict]:
-        """Fetch upcoming esports matches from PandaScore (next 48 hours)."""
+        """Fetch upcoming esports matches from PandaScore (next 24 hours)."""
         if not self.esports.available:
             return []
 
         matches = []
         now = datetime.now(timezone.utc)
-        cutoff = now + timedelta(hours=48)
+        cutoff = now + timedelta(hours=24)
 
         for game in _ESPORT_GAMES:
             try:

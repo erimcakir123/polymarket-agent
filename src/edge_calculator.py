@@ -3,24 +3,25 @@ from __future__ import annotations
 from typing import Dict, Optional
 from src.models import Direction
 
-DEFAULT_CONFIDENCE_MULTIPLIERS = {"low": 1.5, "medium": 1.0, "high": 0.75}
+DEFAULT_CONFIDENCE_MULTIPLIERS = {"C": 1.5, "B-": 1.0, "B+": 0.85, "A": 0.75}
 
 
 def calculate_edge(
     ai_prob: float,
     market_yes_price: float,
     min_edge: float = 0.06,
-    confidence: str = "medium",
+    confidence: str = "B-",
     confidence_multipliers: Optional[Dict[str, float]] = None,
+    spread: float = 0.0,
 ) -> tuple[Direction, float]:
     multipliers = confidence_multipliers or DEFAULT_CONFIDENCE_MULTIPLIERS
     multiplier = multipliers.get(confidence, 1.0)
     threshold = min_edge * multiplier
     raw = ai_prob - market_yes_price
 
-    if raw > threshold:
+    if raw > threshold + spread:
         return Direction.BUY_YES, raw
-    elif raw < -threshold:
+    elif raw < -(threshold + spread):
         return Direction.BUY_NO, abs(raw)
     else:
         return Direction.HOLD, abs(raw)
@@ -30,7 +31,7 @@ def calculate_edge_with_whale(
     ai_prob: float,
     market_price: float,
     min_edge: float = 0.06,
-    confidence: str = "medium",
+    confidence: str = "B-",
     whale_prob: float | None = None,
     whale_weight: float = 0.15,
 ) -> tuple[Direction, float]:
@@ -59,7 +60,7 @@ def scale_min_edge(
     return base_min_edge
 
 
-_CONFIDENCE_LEVELS = ["low", "medium", "high"]
+_CONFIDENCE_LEVELS = ["C", "B-", "B+", "A"]
 
 
 def boost_confidence(current: str, delta: int) -> str:

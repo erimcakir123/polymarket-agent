@@ -29,9 +29,10 @@ ai:
 edge:
   min_edge: 0.05
   confidence_multipliers:
-    low: 1.5
-    medium: 1.0
-    high: 0.75
+    C: 1.5
+    B-: 1.0
+    B+: 0.85
+    A: 0.75
 
 risk:
   kelly_fraction: 0.25  # Quarter Kelly — 75% less risk, 75% of growth rate
@@ -57,6 +58,23 @@ volatility_swing:
   max_hours_to_start: 24.0
   bet_pct: 0.05
   polling_interval_min: 5
+
+far:
+  enabled: true
+  max_slots: 2                    # 2 dedicated FAR slots (swing trade + penny alpha)
+  min_edge: 0.10                  # 10% min edge for FAR
+  min_ai_probability: 0.55        # AI must be ≥55% confident
+  min_confidence: "B-"            # B- minimum
+  bookmaker_pre_screen_edge: 0.08 # Bookmaker must show ≥8% edge vs market
+  min_hours_to_start: 6.0         # Only markets >6h qualify as FAR
+  max_hours_to_start: 336.0       # 14 days max
+  bet_pct: 0.05                   # 5% bankroll per FAR bet
+  stop_loss_pct: 0.30
+  take_profit_pct: 0.40           # Normal swing TP
+  penny_max_price: 0.02           # $0.01-$0.02 = penny zone
+  penny_1c_target_multiplier: 5.0 # $0.01 → hold for 5x ($0.05)
+  penny_2c_target_multiplier: 2.0 # $0.02 → hold for 2x ($0.04)
+  penny_bet_pct: 0.05             # 5% bankroll for penny (high sizing — near-guaranteed)
 
 notifications:
   telegram_enabled: true

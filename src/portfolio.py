@@ -65,7 +65,7 @@ class Portfolio:
         shares: float,
         slug: str = "",
         category: str = "",
-        confidence: str = "medium",
+        confidence: str = "B-",
         ai_probability: float = 0.5,
         scouted: bool = False,
         question: str = "",
@@ -138,7 +138,7 @@ class Portfolio:
         return sum(1 for p in self.positions.values() if not p.pending_resolution)
 
     # Special entry reasons that get their own slots (don't eat normal slots)
-    _SPECIAL_ENTRY_REASONS = {"esports_early", "live_dip", "fav_time_gate"}
+    _SPECIAL_ENTRY_REASONS = {"esports_early", "live_dip", "fav_time_gate", "far"}
 
     @property
     def normal_position_count(self) -> int:
@@ -253,8 +253,8 @@ class Portfolio:
                 # Linear scale: 9¢ → 60%, 20¢ → 40%
                 t = (pos.entry_price - 0.09) / (0.20 - 0.09)  # 0..1
                 sl = 0.60 - t * 0.20  # 60% → 40%
-            elif pos.confidence == "medium_low":
-                sl = 0.30  # B- experiment: tighter stop-loss
+            elif pos.confidence == "B-":
+                sl = 0.30  # B- tighter stop-loss
             elif pos.category == "esports":
                 sl = esports_stop_loss_pct + (0.10 if pos.number_of_games >= 5 else 0.0)
             else:
@@ -319,11 +319,10 @@ class Portfolio:
                            vs_tp_ceiling: float = 2.00) -> List[str]:
         # Dynamic take-profit based on confidence + conviction
         confidence_tp = {
-            "low": take_profit_pct,               # low → take profit early (40%)
-            "medium_low": take_profit_pct,         # medium_low → same as low (40%)
-            "medium": take_profit_pct * 2.0,       # medium (legacy) → 2x patience (80%)
-            "medium_high": take_profit_pct * 2.0,  # medium_high → 2x patience (80%)
-            "high": take_profit_pct * 3.5,         # high → let it ride (140%)
+            "C": take_profit_pct,                  # C → take profit early (40%)
+            "B-": take_profit_pct * 2.0,           # B- → 2x patience (80%)
+            "B+": take_profit_pct * 2.0,           # B+ → 2x patience (80%)
+            "A": take_profit_pct * 3.5,            # A → let it ride (140%)
         }
         triggered = []
         for cid, pos in self.positions.items():
@@ -332,6 +331,10 @@ class Portfolio:
                 continue
             # O/U and spread markets: hold to resolution
             if self._is_totals_or_spread(pos):
+                continue
+
+            # FAR penny positions: handled by _check_far_penny_exits() in main.py
+            if pos.entry_reason == "far" and pos.entry_price <= 0.05:
                 continue
 
             # Volatility swing: dynamic take-profit based on entry price
@@ -356,7 +359,7 @@ class Portfolio:
                 effective_ai = 1 - pos.ai_probability
 
             # FAVORITE: AI ≥ 65% for our side AND high/medium_high confidence → hold to resolve
-            is_favorite = effective_ai >= 0.65 and pos.confidence in ("high", "medium_high")
+            is_favorite = effective_ai >= 0.65 and pos.confidence in ("A", "B+")
 
             if is_favorite:
                 # Hold to resolve — only emergency exit on massive overshoot (>50% gain)
@@ -469,7 +472,7 @@ class Portfolio:
         for cid, pos in self.positions.items():
             if pos.volatility_swing:
                 continue  # VS has its own exit logic
-            if pos.confidence in ("high", "medium_high"):
+            if pos.confidence in ("A", "B+"):
                 continue  # Favorite confidence exempt — hold to resolve
             if pos.entry_reason in ("esports_early", "live_dip"):
                 continue  # Esports early & live dip have their own exit logic

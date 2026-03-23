@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Bot — System Flowchart</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    color: #00ff88;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 13px;
+    margin-bottom: 40px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* Flow sections */
+  .flow-section {
+    position: relative;
+    margin-bottom: 24px;
+    padding: 24px;
+    border: 1px solid #1a1a2e;
+    border-radius: 12px;
+    background: #0d0d15;
+  }
+  .flow-section::before {
+    content: attr(data-step);
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: #0a0a0f;
+    padding: 0 12px;
+    color: #00ff88;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-size: 18px;
+    color: #fff;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .icon { font-size: 22px; }
+
+  /* Flow nodes */
+  .flow-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .node {
+    flex: 1;
+    min-width: 200px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    position: relative;
+  }
+  .node-process {
+    background: #111128;
+    border: 1px solid #2a2a4a;
+  }
+  .node-decision {
+    background: #1a1208;
+    border: 1px solid #3a3018;
+    border-left: 3px solid #f0a030;
+  }
+  .node-action {
+    background: #081a10;
+    border: 1px solid #183a28;
+    border-left: 3px solid #00ff88;
+  }
+  .node-block {
+    background: #1a0808;
+    border: 1px solid #3a1818;
+    border-left: 3px solid #ff4444;
+  }
+  .node-info {
+    background: #080818;
+    border: 1px solid #18183a;
+    border-left: 3px solid #4488ff;
+  }
+  .node-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+  .node-title {
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .node-detail {
+    color: #888;
+    font-size: 12px;
+  }
+  .highlight { color: #00ff88; }
+  .warn { color: #f0a030; }
+  .danger { color: #ff4444; }
+  .info { color: #4488ff; }
+
+  /* Arrow connector */
+  .arrow {
+    text-align: center;
+    color: #333;
+    font-size: 20px;
+    margin: 8px 0;
+    letter-spacing: 2px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 40px;
+  }
+  .stat-card {
+    background: #0d0d15;
+    border: 1px solid #1a1a2e;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .green { color: #00ff88; }
+  .yellow { color: #f0a030; }
+  .red { color: #ff4444; }
+  .blue { color: #4488ff; }
+
+  /* Comparison table */
+  .comparison {
+    margin-top: 40px;
+    overflow-x: auto;
+  }
+  .comparison table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .comparison th {
+    background: #111128;
+    color: #00ff88;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #2a2a4a;
+  }
+  .comparison td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #1a1a2e;
+    vertical-align: top;
+  }
+  .comparison tr:hover { background: #0d0d18; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .tag-yes { background: #0a2a15; color: #00ff88; }
+  .tag-no { background: #2a0a0a; color: #ff4444; }
+  .tag-partial { background: #2a2008; color: #f0a030; }
+  .tag-superior { background: #0a1a2a; color: #44aaff; }
+
+  .section-divider {
+    text-align: center;
+    margin: 50px 0 30px;
+    font-size: 20px;
+    color: #333;
+    letter-spacing: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>POLYMARKET PREDICTION BOT</h1>
+<p class="subtitle">System Architecture & Decision Flowchart — v3.0 (March 2026)</p>
+
+<!-- CURRENT STATS -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value green">92.2%</div>
+    <div class="stat-label">AI Accuracy (64 cal.)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value blue">0.162</div>
+    <div class="stat-label">Brier Score</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value yellow">$993</div>
+    <div class="stat-label">Equity ($1000 start)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">22</div>
+    <div class="stat-label">Positions Entered</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value yellow">8</div>
+    <div class="stat-label">Active Positions</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value blue">35</div>
+    <div class="stat-label">AI Predictions</div>
+  </div>
+</div>
+
+<div class="section-divider">--- MAIN LOOP FLOWCHART ---</div>
+
+<!-- STEP 1: SCAN -->
+<div class="flow-section" data-step="STEP 1 — MARKET DISCOVERY">
+  <div class="section-title"><span class="icon">🔍</span> Scanner (Gamma API)</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Fetch</div>
+      <div class="node-title">Gamma API Query</div>
+      <div class="node-detail">
+        min_volume: <span class="highlight">$5,000</span><br>
+        min_liquidity: <span class="highlight">$5,000</span><br>
+        max_duration: <span class="highlight">14 days</span><br>
+        categories: <span class="highlight">sports, esports</span><br>
+        max per cycle: <span class="highlight">100 markets</span>
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Filter</div>
+      <div class="node-title">Near-First Allocation</div>
+      <div class="node-detail">
+        1. Near matches (<span class="highlight">&le;6h</span>) fill batch first<br>
+        2. Far matches (<span class="warn">&gt;6h</span>) only as fallback<br>
+        3. Far markets need <span class="warn">8% min edge</span> (vs 4% near)<br>
+        4. Batch size: <span class="highlight">15</span> (reduced if stock full)
+      </div>
+    </div>
+    <div class="node node-info">
+      <div class="node-label">Smart Batching</div>
+      <div class="node-title">Stock-Aware Reduction</div>
+      <div class="node-detail">
+        Stock &ge;3 viable + no slots → <span class="info">batch=5</span><br>
+        Stock &ge; open slots → <span class="info">batch=half</span><br>
+        Otherwise → <span class="info">batch=15</span><br>
+        Saves AI budget when pool is full
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 2: AI ANALYSIS -->
+<div class="flow-section" data-step="STEP 2 — AI SIGNAL ENGINE">
+  <div class="section-title"><span class="icon">🧠</span> Claude Sonnet Analysis</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Input</div>
+      <div class="node-title">Multi-Source Data</div>
+      <div class="node-detail">
+        Market question + current price<br>
+        Bookmaker odds (<span class="highlight">30+ sources</span>)<br>
+        Recent news & injury reports<br>
+        Historical head-to-head data<br>
+        Manipulation risk assessment
+      </div>
+    </div>
+    <div class="node node-action">
+      <div class="node-label">Output</div>
+      <div class="node-title">AI Prediction</div>
+      <div class="node-detail">
+        <span class="highlight">ai_probability</span>: 0.0 — 1.0<br>
+        <span class="highlight">confidence</span>: low → high<br>
+        <span class="highlight">direction</span>: YES / NO<br>
+        <span class="highlight">reasoning</span>: detailed analysis<br>
+        Budget: <span class="warn">$48/mo</span> (sprint: $24)
+      </div>
+    </div>
+    <div class="node node-info">
+      <div class="node-label">Cache</div>
+      <div class="node-title">Dynamic TTL</div>
+      <div class="node-detail">
+        Near-resolve: <span class="info">15 min TTL</span><br>
+        Normal: <span class="info">2h TTL</span><br>
+        Far-out: <span class="info">6h TTL</span><br>
+        Price move &gt;5% → <span class="warn">cache invalidated</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 3: EDGE + SANITY -->
+<div class="flow-section" data-step="STEP 3 — EDGE CALCULATION & SANITY CHECK">
+  <div class="section-title"><span class="icon">⚖️</span> Edge & Safety Gates</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Calculate</div>
+      <div class="node-title">Edge = |AI prob - Market price|</div>
+      <div class="node-detail">
+        Spread-aware: subtract <span class="highlight">CLOB spread</span><br>
+        Confidence multiplier applied<br>
+        Fill-ratio scaling (pool fullness)<br>
+        Near min: <span class="highlight">4%</span> | Far min: <span class="warn">8%</span>
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Gate 1</div>
+      <div class="node-title">Sanity Check</div>
+      <div class="node-detail">
+        Edge &gt;40% → <span class="danger">BLOCK</span> (hallucination)<br>
+        AI prob &gt;95% or &lt;5% → <span class="danger">BLOCK</span><br>
+        Edge &gt;20% + low conf → <span class="warn">SUSPICIOUS</span><br>
+      </div>
+    </div>
+    <div class="node node-block">
+      <div class="node-label">Gate 2 — NEW</div>
+      <div class="node-title">Bookmaker Blocking</div>
+      <div class="node-detail">
+        AI vs Market gap &gt;<span class="danger">25%</span><br>
+        AND <span class="danger">15+ bookmakers</span> side with market<br>
+        → <span class="danger">BET BLOCKED</span><br>
+        <em>Crowd + books consensus &gt; solo AI</em>
+      </div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <div class="node node-decision">
+      <div class="node-label">Gate 3</div>
+      <div class="node-title">Resolution Proximity</div>
+      <div class="node-detail">
+        Market resolves in &lt;<span class="warn">45 min</span>?<br>
+        → <span class="danger">SKIP ENTRY</span><br>
+        Too late to capture value
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Gate 4</div>
+      <div class="node-title">Live Match Filter</div>
+      <div class="node-detail">
+        Match already in progress?<br>
+        → <span class="danger">SKIP</span><br>
+        <em>Crowd reacts to live score, AI has no edge mid-match</em>
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Gate 5</div>
+      <div class="node-title">Confidence Filter</div>
+      <div class="node-detail">
+        Confidence = "low"?<br>
+        → <span class="danger">SKIP</span><br>
+        <em>9 bets blocked by this filter</em>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 4: RISK & SIZING -->
+<div class="flow-section" data-step="STEP 4 — RISK MANAGEMENT & POSITION SIZING">
+  <div class="section-title"><span class="icon">🛡️</span> Kelly Criterion + Portfolio Limits</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Sizing</div>
+      <div class="node-title">Dynamic Kelly</div>
+      <div class="node-detail">
+        High conf: <span class="highlight">25% Kelly</span><br>
+        Medium-high: <span class="highlight">20% Kelly</span><br>
+        Medium-low: <span class="warn">12% Kelly</span><br>
+        Low: <span class="warn">8% Kelly</span><br>
+        Max single: <span class="danger">$75 or 5% bankroll</span>
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Limits</div>
+      <div class="node-title">Portfolio Constraints</div>
+      <div class="node-detail">
+        Max positions: <span class="highlight">10</span> (8 normal + 2 VS)<br>
+        Max same league: <span class="warn">3</span><br>
+        Stop-loss: <span class="danger">30%</span><br>
+        Take-profit: <span class="highlight">40%</span><br>
+        Drawdown halt: <span class="danger">50%</span>
+      </div>
+    </div>
+    <div class="node node-info">
+      <div class="node-label">Trailing Stop</div>
+      <div class="node-title">Graduated Tiers</div>
+      <div class="node-detail">
+        Peak &ge;10% → trail <span class="info">50%</span> drop<br>
+        Peak &ge;20% → trail <span class="info">35%</span> drop<br>
+        Peak &ge;40% → trail <span class="info">25%</span> drop<br>
+        <em>Higher peak = tighter stop</em>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 5: RANKING + STOCK -->
+<div class="flow-section" data-step="STEP 5 — RANKING & CANDIDATE STOCK">
+  <div class="section-title"><span class="icon">📊</span> Score, Rank, Execute or Stock</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Score</div>
+      <div class="node-title">Candidate Scoring</div>
+      <div class="node-detail">
+        Score = edge × confidence_weight<br>
+        Rank all candidates by score<br>
+        Top N fill open slots<br>
+        Swap: existing position replaced if new score higher + <span class="warn">8.5% edge</span>
+      </div>
+    </div>
+    <div class="node node-action">
+      <div class="node-label">Execute</div>
+      <div class="node-title">Place Order (Dry Run)</div>
+      <div class="node-detail">
+        BUY_YES or BUY_NO<br>
+        CLOB limit order (FOK/GTC)<br>
+        Log to <span class="highlight">trades.jsonl</span><br>
+        Telegram notification sent
+      </div>
+    </div>
+    <div class="node node-info">
+      <div class="node-label">Pipeline — NEW</div>
+      <div class="node-title">Candidate Stock</div>
+      <div class="node-detail">
+        Ranked-out candidates → <span class="info">saved to stock</span><br>
+        Max stock size: <span class="info">20</span><br>
+        When slots open → fill from stock<br>
+        Expiry: <span class="warn">60 min</span> | Stale if price moved &gt;5%<br>
+        <em>No AI re-call needed</em>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 6: MONITORING -->
+<div class="flow-section" data-step="STEP 6 — POSITION MONITORING & EXIT">
+  <div class="section-title"><span class="icon">📡</span> Continuous Monitoring</div>
+  <div class="flow-row">
+    <div class="node node-process">
+      <div class="node-label">Monitor</div>
+      <div class="node-title">Price Drift Detection</div>
+      <div class="node-detail">
+        Check CLOB midpoint every cycle<br>
+        Drift &gt;<span class="warn">15%</span> → re-analyze<br>
+        Trailing stop evaluation<br>
+        Stop-loss / take-profit checks
+      </div>
+    </div>
+    <div class="node node-decision">
+      <div class="node-label">Exit Rules</div>
+      <div class="node-title">When to Sell</div>
+      <div class="node-detail">
+        Stop-loss hit (<span class="danger">-30%</span>)<br>
+        Take-profit hit (<span class="highlight">+40%</span>)<br>
+        Trailing stop triggered<br>
+        Market resolved<br>
+        Swapped for better candidate
+      </div>
+    </div>
+    <div class="node node-action">
+      <div class="node-label">Calibration</div>
+      <div class="node-title">Resolution Tracking</div>
+      <div class="node-detail">
+        Check <span class="highlight">resolved</span> field (not closed)<br>
+        Verify price near 0 or 1<br>
+        Log to <span class="highlight">calibration.jsonl</span><br>
+        Feed self-improvement engine
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">▼</div>
+
+<!-- STEP 7: CYCLE -->
+<div class="flow-section" data-step="STEP 7 — ADAPTIVE CYCLE">
+  <div class="section-title"><span class="icon">🔄</span> Dynamic Interval</div>
+  <div class="flow-row">
+    <div class="node node-info">
+      <div class="node-label">Intervals</div>
+      <div class="node-title">Context-Aware Timing</div>
+      <div class="node-detail">
+        Default: <span class="info">30 min</span><br>
+        Breaking news: <span class="warn">10 min</span><br>
+        Near stop-loss: <span class="warn">15 min</span><br>
+        Quiet (no markets): <span class="info">45 min</span><br>
+        Busy (4+ candidates): <span class="info">20 min</span><br>
+        VS polling: <span class="warn">3 min</span>
+      </div>
+    </div>
+    <div class="node node-process">
+      <div class="node-label">Volatility Swing</div>
+      <div class="node-title">Underdog Module</div>
+      <div class="node-detail">
+        Token price: <span class="highlight">3¢ — 30¢</span><br>
+        Max hours to start: <span class="highlight">18h</span><br>
+        Reserved slots: <span class="highlight">2</span><br>
+        Dynamic TP: <span class="highlight">50% — 200%</span><br>
+        Stop-loss: <span class="danger">50%</span>
+      </div>
+    </div>
+    <div class="node node-action">
+      <div class="node-label">Loop</div>
+      <div class="node-title">→ Back to Step 1</div>
+      <div class="node-detail">
+        Fill from stock if slots opened<br>
+        Check consecutive losses (<span class="warn">3 → cooldown</span>)<br>
+        Check drawdown (<span class="danger">50% → halt</span>)<br>
+        Sleep → next cycle
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARISON TABLE -->
+<div class="section-divider">--- REPO COMPARISON ---</div>
+
+<div class="comparison">
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Our Bot</th>
+      <th>poly-maker</th>
+      <th>echandsome</th>
+      <th>CrewSX</th>
+      <th>CryptoVictor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Strategy Type</strong></td>
+      <td>AI edge detection</td>
+      <td>Market making</td>
+      <td>Copy trading</td>
+      <td>Price prediction</td>
+      <td>Copy trading</td>
+    </tr>
+    <tr>
+      <td><strong>AI Analysis</strong></td>
+      <td><span class="tag tag-superior">Claude + bookmakers</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-partial">Gradient descent</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Edge Calculation</strong></td>
+      <td><span class="tag tag-superior">Multi-source + spread-aware</span></td>
+      <td><span class="tag tag-partial">Spread only</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-partial">Momentum-based</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Risk Management</strong></td>
+      <td><span class="tag tag-superior">Dynamic Kelly + trailing + drawdown halt</span></td>
+      <td><span class="tag tag-yes">Stop-loss + PnL</span></td>
+      <td><span class="tag tag-partial">Fixed sizing</span></td>
+      <td><span class="tag tag-partial">Fixed sizing</span></td>
+      <td><span class="tag tag-yes">Tiered multipliers</span></td>
+    </tr>
+    <tr>
+      <td><strong>Sanity Checks</strong></td>
+      <td><span class="tag tag-superior">5 gates + bookmaker blocking</span></td>
+      <td><span class="tag tag-partial">Price range guard</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-partial">Stability detection</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Order Book Depth</strong></td>
+      <td><span class="tag tag-no">Not yet (live mode)</span></td>
+      <td><span class="tag tag-superior">Full depth + smart placement</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Position Merging</strong></td>
+      <td><span class="tag tag-no">Not yet (live mode)</span></td>
+      <td><span class="tag tag-yes">YES+NO merge</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Calibration Tracking</strong></td>
+      <td><span class="tag tag-superior">Brier score + self-improve</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-partial">Accuracy per cycle</span></td>
+      <td><span class="tag tag-partial">PnL tracking</span></td>
+    </tr>
+    <tr>
+      <td><strong>Self-Improvement</strong></td>
+      <td><span class="tag tag-superior">Autoresearch engine</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Multi-Source Odds</strong></td>
+      <td><span class="tag tag-superior">30+ bookmakers</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Candidate Pipeline</strong></td>
+      <td><span class="tag tag-superior">Stock system (no AI re-call)</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+      <td><span class="tag tag-no">None</span></td>
+    </tr>
+    <tr>
+      <td><strong>Live Trading</strong></td>
+      <td><span class="tag tag-partial">Dry run only</span></td>
+      <td><span class="tag tag-superior">Production</span></td>
+      <td><span class="tag tag-yes">Live</span></td>
+      <td><span class="tag tag-yes">Live</span></td>
+      <td><span class="tag tag-yes">Live</span></td>
+    </tr>
+    <tr>
+      <td><strong>WebSocket / Real-time</strong></td>
+      <td><span class="tag tag-no">Polling only</span></td>
+      <td><span class="tag tag-superior">Full WebSocket</span></td>
+      <td><span class="tag tag-partial">Block monitoring</span></td>
+      <td><span class="tag tag-no">Polling</span></td>
+      <td><span class="tag tag-no">Polling</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- SWOT ANALYSIS -->
+<div class="section-divider">--- STRENGTHS & WEAKNESSES ---</div>
+
+<div class="flow-row" style="margin-top: 20px;">
+  <div class="node node-action" style="flex: 1;">
+    <div class="node-label">Strengths — Why We're Better</div>
+    <div class="node-title" style="color: #00ff88;">Our Unique Advantages</div>
+    <div class="node-detail" style="font-size: 13px; line-height: 1.8;">
+      <strong>1. AI + Bookmaker fusion</strong> — No other bot combines LLM analysis with 30+ bookmaker odds. We triangulate: AI probability, market price, bookmaker consensus.<br><br>
+      <strong>2. Multi-layer safety</strong> — 5 sanity gates catch AI errors before execution. Bookmaker blocking is unique to us.<br><br>
+      <strong>3. Self-improvement engine</strong> — Autoresearch loop analyzes past performance and proposes config changes. No other bot learns from its mistakes automatically.<br><br>
+      <strong>4. Candidate stock pipeline</strong> — Pre-analyzed candidates reused without AI cost. Saves budget, fills slots faster.<br><br>
+      <strong>5. Calibration science</strong> — Brier scoring, prediction error tracking, confidence-stratified analysis. We measure what matters.<br><br>
+      <strong>6. Dynamic everything</strong> — Kelly fraction, cache TTL, cycle interval, batch size, TP targets — all adapt to context.
+    </div>
+  </div>
+  <div class="node node-block" style="flex: 1;">
+    <div class="node-label">Weaknesses — Where We're Behind</div>
+    <div class="node-title" style="color: #ff4444;">Gaps to Close</div>
+    <div class="node-detail" style="font-size: 13px; line-height: 1.8;">
+      <strong>1. No order book depth</strong> — poly-maker checks liquidity, skips thin levels, steps ahead of best bid. We place blind orders. Critical for live mode.<br><br>
+      <strong>2. No position merging</strong> — When holding YES+NO on same market, capital stays locked. poly-maker frees it automatically.<br><br>
+      <strong>3. Polling, not WebSocket</strong> — We check every 3-30 min. poly-maker reacts in milliseconds to order book changes.<br><br>
+      <strong>4. Still in dry run</strong> — All other legitimate bots are live. We haven't validated execution quality with real fills.<br><br>
+      <strong>5. No on-chain monitoring</strong> — echandsome decodes Polygon transactions for whale tracking. We only see CLOB data.<br><br>
+      <strong>6. AI cost dependency</strong> — $48/mo budget for Claude API. If budget runs out, bot is blind. Others have zero AI cost.
+    </div>
+  </div>
+</div>
+
+<div class="flow-row" style="margin-top: 16px;">
+  <div class="node node-info" style="flex: 1;">
+    <div class="node-label">Bottom Line</div>
+    <div class="node-title" style="color: #4488ff;">Assessment</div>
+    <div class="node-detail" style="font-size: 14px; line-height: 1.8;">
+      <strong>We have the best brain, they have better hands.</strong><br><br>
+      Our edge detection and risk management are superior to every repo reviewed. No one else combines AI + bookmakers + calibration + self-improvement.<br><br>
+      But poly-maker's execution layer (order book depth, smart placement, WebSocket, position merging) is production-grade and we need to adopt those patterns before going live.<br><br>
+      <strong>Priority: Validate dry-run P&L → then port poly-maker's execution patterns → go live.</strong>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

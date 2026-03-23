@@ -108,6 +108,7 @@ class Agent:
         self._fav_stock: list[dict] = []  # FAV_TIME_GATE candidates with own slots (max 3)
         self._FAV_MAX_SLOTS = 3  # Dedicated FAV slots (separate from normal 15)
         self._FAV_MIN_EDGE = 0.15  # Only stok favorites with ≥15% edge
+        self._far_stock: list[dict] = []  # FAR candidates (swing trade + penny alpha)
         self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
         self._spike_reentry: dict[str, dict] = {}  # condition_id -> saved AI data for re-entry
         self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
@@ -298,10 +299,10 @@ class Agent:
                 # Check if this was a BUY-worthy signal
                 ai_prob = entry.get("ai_probability", 0.5)
                 mkt_price = entry.get("market_price", 0.5)
-                conf = entry.get("confidence", "low")
+                conf = entry.get("confidence", "C")
                 edge = abs(ai_prob - mkt_price)
 
-                if edge >= 0.08 and conf in ("high", "medium_high"):
+                if edge >= 0.08 and conf in ("A", "B+"):
                     # BUY-worthy but not in portfolio → don't cache, let it re-enter
                     skipped_buy += 1
                     continue
@@ -426,7 +427,7 @@ class Agent:
                 vs_tp_floor=vs_cfg.tp_floor, vs_tp_ceiling=vs_cfg.tp_ceiling):
             pos = self.portfolio.positions.get(cid)
             is_vs = pos and pos.volatility_swing
-            is_spike = (pos and not is_vs and pos.confidence in ("high", "medium_high") and
+            is_spike = (pos and not is_vs and pos.confidence in ("A", "B+") and
                         max(pos.ai_probability, 1 - pos.ai_probability) > 0.60)
             reason = "vs_take_profit" if is_vs else ("spike_exit" if is_spike else "take_profit")
             cooldown = 0 if (is_vs or is_spike) else 3  # spike/VS: immediate re-entry eligible
@@ -437,6 +438,9 @@ class Agent:
             self._exit_position(cid, "trailing_stop")
         for cid in self.portfolio.check_volatility_swing_exits():
             self._exit_position(cid, "vs_mandatory_exit", cooldown_cycles=0)
+
+        # FAR penny exits — multiplier targets ($0.01→5x, $0.02→2x)
+        self._check_far_penny_exits()
 
         # Spike re-entry check — if price dropped back after spike exit, re-enter without AI call
         self._check_spike_reentry()
@@ -459,6 +463,7 @@ class Agent:
         # Log portfolio snapshot so dashboard picks up realized PnL changes from exits
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self._log_cycle_summary(bankroll, "light_cycle")
+        self._save_stock_to_disk()
 
         self._last_light_ts = datetime.now(timezone.utc).isoformat()
         self._set_status("idle", "Light cycle done")
@@ -555,7 +560,7 @@ class Agent:
             # Spike exits get 0 cooldown — re-evaluate immediately if price drops back
             pos = self.portfolio.positions.get(cid)
             is_vs = pos and pos.volatility_swing
-            is_spike = (pos and not is_vs and pos.confidence in ("high", "medium_high") and
+            is_spike = (pos and not is_vs and pos.confidence in ("A", "B+") and
                         max(pos.ai_probability, 1 - pos.ai_probability) > 0.60)
             reason = "vs_take_profit" if is_vs else ("spike_exit" if is_spike else "take_profit")
             cooldown = 0 if (is_vs or is_spike) else 3  # spike/VS: immediate re-entry eligible
@@ -581,6 +586,9 @@ class Agent:
 
         # 4d. Fill from FAV stock — execute favorites in their dedicated slots
         self._fill_from_fav_stock()
+
+        # 4e. Fill from FAR stock — execute swing/penny candidates in FAR slots
+        self._fill_from_far_stock()
 
         # 5. Scan markets
         self._set_status("running", "Scanning markets")
@@ -662,10 +670,11 @@ class Agent:
                         continue  # Match already started → LIVE
                 except (ValueError, TypeError):
                     pass
-            # Fallback: estimate from endDate (unreliable but catches obvious cases)
-            if self._estimate_match_live(m.slug, m.question, m.end_date_iso):
+            # Use Gamma event.live (definitive), fallback to heuristic
+            is_live = m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso)
+            if is_live:
                 live_markets.append(m)
-                logger.debug("LIVE skip: %s (end=%s)", m.question[:60], m.end_date_iso)
+                logger.debug("LIVE skip: %s (event_live=%s)", m.question[:60], m.event_live if hasattr(m, 'event_live') else 'heuristic')
             else:
                 non_live.append(m)
         if live_markets:
@@ -740,7 +749,7 @@ class Agent:
 
         # Filter out live matches BEFORE AI analysis (save API cost)
         pre_live = len(markets)
-        markets = [m for m in markets if not self._estimate_match_live(m.slug, m.question, m.end_date_iso)]
+        markets = [m for m in markets if not (m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso))]
         if len(markets) < pre_live:
             logger.info("Pre-filtered %d live matches (saved API cost)", pre_live - len(markets))
 
@@ -872,10 +881,9 @@ class Agent:
         # 11. Evaluate all markets — collect candidates, then pick the best
         self._set_status("running", "Evaluating signals")
         signals_generated = False
-        _CONF_SCORE = {"high": 4, "medium_high": 3, "medium_low": 2, "low": 1,
-                        "medium": 2}  # backward compat
-        _SKIP_CONFIDENCE = {"low", "", "?"}  # Low confidence = skip (medium_low allowed with restrictions)
-        _MAX_EDGE_BY_CONFIDENCE = {"low": 0.15, "medium_low": 0.15, "medium_high": 0.25}
+        _CONF_SCORE = {"A": 4, "B+": 3, "B-": 2, "C": 1}
+        _SKIP_CONFIDENCE = {"C", "", "?"}  # C confidence = skip
+        _MAX_EDGE_BY_CONFIDENCE = {"C": 0.15, "B-": 0.35, "B+": 0.40}
         candidates = []  # List of (score, market, estimate, direction, edge, manip_check, mkt_sources, decision, adjusted_size, sanity)
         vs_candidates = []  # VS candidates collected from ignorance/sanity blocks
 
@@ -903,7 +911,7 @@ class Agent:
             self._log_prediction(market, estimate)
 
             # Skip live matches — our edge is pre-match analysis, not real-time reaction
-            if self._estimate_match_live(market.slug, market.question, market.end_date_iso):
+            if (market.event_live if hasattr(market, 'event_live') else self._estimate_match_live(market.slug, market.question, market.end_date_iso)):
                 logger.info("Skipping LIVE match (no pre-match edge): %s", market.slug[:40])
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
@@ -950,7 +958,7 @@ class Agent:
                 continue
 
             # medium_low (B-) experiment: allow but require high edge (≥15%)
-            _is_medium_low = estimate.confidence == "medium_low"
+            _is_medium_low = estimate.confidence == "B-"
             if _is_medium_low:
                 raw_edge = abs(estimate.ai_probability - market.yes_price)
                 if raw_edge < 0.15:
@@ -1033,7 +1041,7 @@ class Agent:
             if blocked_by_ignorance:
                 logger.info("Ignorance edge blocked: %s | edge=%.1f%% conf=%s cap=%.0f%% — trying ULTI",
                             market.slug[:40], edge * 100, estimate.confidence, max_edge * 100)
-                if estimate.confidence in ("low", "medium_low", "medium_high", "medium") and self.odds_api.available:
+                if estimate.confidence in ("C", "B-", "B+") and self.odds_api.available:
                     odds = self.odds_api.get_bookmaker_odds(market.question, market.slug, market.tags)
                     if odds:
                         book_prob = odds["bookmaker_prob_a"]
@@ -1054,7 +1062,7 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "medium_high"
+                        estimate.confidence = "B+"
                         ulti_used = True
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
@@ -1157,7 +1165,7 @@ class Agent:
                 bookmaker_agrees_with_market=_book_agrees_market,
             )
             if not sanity.ok:
-                if not ulti_used and estimate.confidence in ("low", "medium_low", "medium_high", "medium") and self.odds_api.available:
+                if not ulti_used and estimate.confidence in ("C", "B-", "B+") and self.odds_api.available:
                     logger.info("Sanity blocked: %s — %s — trying ULTI", market.slug[:40], sanity.reason)
                     odds = self.odds_api.get_bookmaker_odds(market.question, market.slug, market.tags)
                     if odds:
@@ -1179,7 +1187,7 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "medium_high"
+                        estimate.confidence = "B+"
                         ulti_used = True
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
@@ -1273,7 +1281,7 @@ class Agent:
             # If edge ≥ 15%, save to FAV stok (separate slots) instead of rejecting.
             effective_ai_for_side = estimate.ai_probability if direction == Direction.BUY_YES else (1 - estimate.ai_probability)
             entry_price = market.yes_price if direction == Direction.BUY_YES else market.no_price
-            is_favorite = effective_ai_for_side >= 0.65 and estimate.confidence in ("high", "medium_high")
+            is_favorite = effective_ai_for_side >= 0.65 and estimate.confidence in ("A", "B+")
             if is_favorite:
                 max_hours = 24 if entry_price < 0.10 else 12
                 if remaining_hours > max_hours:
@@ -1320,6 +1328,53 @@ class Agent:
                     continue
 
             rank_score = edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus)
+
+            # FAR slot detection: far markets (>6h) with qualifying edge go to far_stock
+            _is_far_market = market.condition_id in self._far_market_ids
+            _is_penny = entry_price <= self.config.far.penny_max_price  # $0.01-$0.02
+            _far_eligible = (
+                self.config.far.enabled
+                and (_is_far_market or _is_penny)
+                and remaining_hours > self.config.far.min_hours_to_start
+                and edge >= self.config.far.min_edge
+                and effective_ai_for_side >= self.config.far.min_ai_probability
+            )
+            if _far_eligible:
+                far_current = self.portfolio.count_by_entry_reason("far")
+                if far_current < self.config.far.max_slots:
+                    far_entry = {
+                        "score": rank_score,
+                        "remaining_hours": remaining_hours,
+                        "market": market,
+                        "estimate": estimate,
+                        "direction": direction,
+                        "edge": edge,
+                        "manip_check": manip_check,
+                        "mkt_sources": mkt_sources,
+                        "decision": decision,
+                        "adjusted_size": adjusted_size,
+                        "sanity": sanity,
+                        "stocked_at": time.time(),
+                        "stocked_price": market.yes_price,
+                        "is_penny": _is_penny,
+                        "entry_price": entry_price,
+                    }
+                    self._far_stock.append(far_entry)
+                    logger.info("FAR_CANDIDATE: %s | edge=%.0f%% AI=%.0f%% price=%.0f¢ hours=%.0f %s",
+                                market.slug[:40], edge * 100, effective_ai_for_side * 100,
+                                entry_price * 100, remaining_hours,
+                                "PENNY" if _is_penny else "SWING")
+                    self.trade_log.log({
+                        "market": market.slug, "action": "FAR_CANDIDATE",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": edge, "mode": self.config.mode.value,
+                        "far_type": "penny" if _is_penny else "swing",
+                        "entry_price_cents": round(entry_price * 100, 1),
+                        "hours_to_start": round(remaining_hours, 1),
+                    })
+                    continue  # Don't add to normal candidates
+
             candidates.append({
                 "score": rank_score,
                 "remaining_hours": remaining_hours,
@@ -1343,7 +1398,7 @@ class Agent:
         normal_slots = max(0, normal_max - current_normal_count)
         available_slots = normal_slots
         # Sort: confidence tier first (A > B+ > B-), then score within tier
-        _CONF_TIER = {"high": 3, "medium_high": 2, "medium_low": 1}
+        _CONF_TIER = {"A": 3, "B+": 2, "B-": 1}
         candidates.sort(key=lambda c: (_CONF_TIER.get(c["estimate"].confidence, 0), c["score"]), reverse=True)
         self._last_candidate_count = len(candidates) + len(vs_candidates)
 
@@ -1377,7 +1432,7 @@ class Agent:
             # B- or lower → don't hold to resolve, apply normal exit rules
             ai_certainty = max(estimate.ai_probability, 1 - estimate.ai_probability)
             if is_scouted and (ai_certainty < 0.40 or
-                               estimate.confidence not in ("high", "medium_high") or
+                               estimate.confidence not in ("A", "B+") or
                                ai_certainty <= 0.60):
                 logger.info("Scout downgraded: %s (AI=%.0f%%, conf=%s — needs B+ and >60%% certainty for hold-to-resolve)",
                             market.slug[:40], ai_certainty * 100, estimate.confidence)
@@ -1454,7 +1509,7 @@ class Agent:
             for cid, pos in self.portfolio.positions.items():
                 # Never swap hold-to-resolve positions (AI >60% + high only)
                 ai_certainty = max(pos.ai_probability, 1 - pos.ai_probability)
-                if ai_certainty > 0.60 and pos.confidence == "high":
+                if ai_certainty > 0.60 and pos.confidence == "A":
                     continue
                 # Never swap positions at a loss — selling would realize unnecessary loss
                 if pos.unrealized_pnl_pct < 0:
@@ -1536,7 +1591,7 @@ class Agent:
                         if is_scouted:
                             _cert = max(estimate.ai_probability, 1 - estimate.ai_probability)
                             if (_cert < 0.40 or
-                                    estimate.confidence not in ("high", "medium_high") or
+                                    estimate.confidence not in ("A", "B+") or
                                     _cert <= 0.60):
                                 is_scouted = False
                         self.portfolio.add_position(
@@ -1829,25 +1884,144 @@ class Agent:
             self._fav_stock.sort(key=lambda c: c["score"], reverse=True)
             self._fav_stock = self._fav_stock[:5]
 
+    def _fill_from_far_stock(self) -> None:
+        """Execute FAR stock candidates into dedicated FAR slots (swing trade + penny alpha)."""
+        if not self._far_stock or not self.config.far.enabled:
+            return
+
+        far_current = self.portfolio.count_by_entry_reason("far")
+        available = self.config.far.max_slots - far_current
+        if available <= 0:
+            return
+
+        now = time.time()
+        self._far_stock.sort(key=lambda c: c["score"], reverse=True)
+        filled = 0
+
+        for c in self._far_stock[:]:
+            if filled >= available:
+                break
+
+            market = c["market"]
+            age_min = (now - c["stocked_at"]) / 60
+
+            # Expire after 6 hours (FAR candidates are distant, long TTL)
+            if age_min > 360:
+                self._far_stock.remove(c)
+                continue
+            if market.condition_id in self.portfolio.positions:
+                self._far_stock.remove(c)
+                continue
+            if self.blacklist.is_blocked(market.condition_id, self.cycle_count):
+                self._far_stock.remove(c)
+                continue
+
+            # Freshness: check current price
+            current_price = self._get_current_price(market)
+            if current_price is not None:
+                price_move = abs(current_price - c["stocked_price"])
+                if price_move > 0.10:  # 10% tolerance (wide — FAR markets are volatile)
+                    logger.info("FAR stock STALE: %s | price moved %.1f%%", market.slug[:40], price_move * 100)
+                    self._far_stock.remove(c)
+                    continue
+                market.yes_price = current_price
+                market.no_price = 1 - current_price
+
+            direction = c["direction"]
+            estimate = c["estimate"]
+            edge = c["edge"]
+            is_penny = c.get("is_penny", False)
+            entry_price = c.get("entry_price", market.yes_price if direction == Direction.BUY_YES else market.no_price)
+
+            # Position sizing: penny gets penny_bet_pct, swing gets bet_pct
+            if is_penny:
+                adjusted_size = self.portfolio.bankroll * self.config.far.penny_bet_pct
+            else:
+                adjusted_size = self.portfolio.bankroll * self.config.far.bet_pct
+            adjusted_size = min(adjusted_size, self.config.risk.max_single_bet_usdc)
+
+            # Correlation cap
+            match_key = extract_match_key(market.slug)
+            adjusted_size = apply_correlation_cap(
+                adjusted_size, match_key,
+                [{"slug": p.slug, "size_usdc": p.size_usdc, "direction": p.direction}
+                 for p in self.portfolio.positions.values()],
+                self.portfolio.bankroll,
+            )
+            if adjusted_size < 2.0:
+                self._far_stock.remove(c)
+                continue
+
+            token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
+            price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+            result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
+
+            shares = adjusted_size / price if price > 0 else 0
+            far_type = "penny" if is_penny else "swing"
+            self.portfolio.add_position(
+                market.condition_id, token_id, direction.value,
+                market.yes_price, adjusted_size, shares, market.slug,
+                market.tags[0] if market.tags else "",
+                confidence=estimate.confidence,
+                ai_probability=estimate.ai_probability,
+                question=market.question,
+                end_date_iso=market.end_date_iso,
+                entry_reason="far",
+            )
+            self.trade_log.log({
+                "market": market.slug, "action": direction.value,
+                "size": adjusted_size, "price": price,
+                "edge": edge, "confidence": estimate.confidence,
+                "mode": self.config.mode.value, "status": result["status"],
+                "question": market.question,
+                "ai_probability": estimate.ai_probability,
+                "far_type": far_type, "is_penny": is_penny,
+                "entry_price_cents": round(entry_price * 100, 1),
+                "from_far_stock": True, "stock_age_min": round(age_min, 1),
+            })
+            emoji = "\U0001f4b0" if is_penny else "\U0001f30d"
+            self.notifier.send(
+                f"{emoji} *FAR {'PENNY' if is_penny else 'SWING'}* \u2014 Cycle #{self.cycle_count}\n\n"
+                f"{market.question}\n"
+                f"`{direction.value}` | `${adjusted_size:.0f}` @ `{price:.3f}`\n"
+                f"Edge: `{edge:.1%}` | Entry: `{entry_price*100:.0f}\u00a2` | Type: `{far_type}`"
+            )
+            logger.info("FAR ENTRY [%s]: %s | %s | edge=%.0f%% @ %.0f\u00a2",
+                        far_type, market.slug[:40], direction.value, edge * 100, entry_price * 100)
+
+            self._far_stock.remove(c)
+            filled += 1
+
+        # Cap FAR stock
+        if len(self._far_stock) > 5:
+            self._far_stock.sort(key=lambda c: c["score"], reverse=True)
+            self._far_stock = self._far_stock[:5]
+
     def _save_stock_to_disk(self) -> None:
-        """Persist candidate stock to disk for dashboard visibility."""
+        """Persist all stock pipelines to disk for dashboard visibility."""
         try:
             stock_data = []
-            for c in self._candidate_stock:
-                m = c.get("market")
-                estimate = c.get("estimate")
-                direction = c.get("direction", "")
-                stock_data.append({
-                    "slug": getattr(m, "slug", "") if m else "",
-                    "question": getattr(m, "question", "") if m else "",
-                    "score": c.get("score", 0),
-                    "edge": c.get("edge", 0),
-                    "confidence": getattr(estimate, "confidence", "") if estimate else "",
-                    "ai_probability": getattr(estimate, "ai_probability", 0) if estimate else 0,
-                    "direction": direction.value if hasattr(direction, "value") else str(direction),
-                    "stocked_at": c.get("stocked_at", 0),
-                    "stocked_price": c.get("stocked_price", 0),
-                })
+            for stock_type, stock_list in [
+                ("normal", self._candidate_stock),
+                ("fav", self._fav_stock),
+                ("far", self._far_stock),
+            ]:
+                for c in stock_list:
+                    m = c.get("market")
+                    estimate = c.get("estimate")
+                    direction = c.get("direction", "")
+                    stock_data.append({
+                        "slug": getattr(m, "slug", "") if m else "",
+                        "question": getattr(m, "question", "") if m else "",
+                        "score": c.get("score", 0),
+                        "edge": c.get("edge", 0),
+                        "confidence": getattr(estimate, "confidence", "") if estimate else "",
+                        "ai_probability": getattr(estimate, "ai_probability", 0) if estimate else 0,
+                        "direction": direction.value if hasattr(direction, "value") else str(direction),
+                        "stocked_at": c.get("stocked_at", 0),
+                        "stocked_price": c.get("stocked_price", 0),
+                        "stock_type": stock_type,
+                    })
             Path("logs/candidate_stock.json").write_text(
                 json.dumps(stock_data), encoding="utf-8"
             )
@@ -1894,13 +2068,11 @@ class Agent:
 
                 # Look up pre-match AI prediction from trade log
                 prior_ai_prob = 0.0
-                prior_conf = "medium_low"
+                prior_conf = "B-"
                 for prev in reversed(self.trade_log.read_recent(200)):
                     if prev.get("market") == market.slug and prev.get("ai_prob", 0) > 0:
                         prior_ai_prob = prev["ai_prob"]
-                        prior_conf = prev.get("confidence", "medium_low")
-                        if prior_conf == "medium":
-                            prior_conf = "medium_low"
+                        prior_conf = prev.get("confidence", "B-")
                         logger.info("Live dip: reusing pre-match AI pred for %s: %.0f%% (%s)",
                                     market.slug[:35], prior_ai_prob * 100, prior_conf)
                         break
@@ -1952,7 +2124,7 @@ class Agent:
             # Filter to only non-live esports (we want pre-match entry)
             non_live = [
                 m for m in markets
-                if not self._estimate_match_live(m.slug, m.question, m.end_date_iso)
+                if not (m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso))
             ]
 
             candidates = find_esports_early_candidates(
@@ -1988,7 +2160,7 @@ class Agent:
                     c.condition_id, c.token_id, c.direction,
                     yes_price, bet_size, shares, c.slug,
                     "esports",
-                    confidence="medium",
+                    confidence="B-",
                     ai_probability=c.fair_value,
                     question=c.question,
                     end_date_iso=c.match_start_iso or "",
@@ -2397,6 +2569,43 @@ class Agent:
             )
         except Exception as e:
             logger.debug("Price history collection skipped: %s", e)
+
+    def _check_far_penny_exits(self) -> None:
+        """Check FAR penny positions for multiplier target exits.
+        $0.01 entry → hold for 5x ($0.05), then trailing stop
+        $0.02 entry → hold for 2x ($0.04), then trailing stop
+        Swing FAR uses normal TP/SL (handled by portfolio.check_take_profits)."""
+        if not self.config.far.enabled:
+            return
+        far_cfg = self.config.far
+        for cid, pos in list(self.portfolio.positions.items()):
+            if pos.entry_reason != "far" or pos.pending_resolution:
+                continue
+            if pos.entry_price > far_cfg.penny_max_price:
+                continue  # Swing FAR — normal TP/SL applies
+
+            # Penny position — check multiplier target
+            entry_cents = round(pos.entry_price * 100)
+            eff_price = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+
+            if entry_cents <= 1:
+                target_price = pos.entry_price * far_cfg.penny_1c_target_multiplier  # 5x
+                target_label = f"{far_cfg.penny_1c_target_multiplier:.0f}x"
+            else:
+                target_price = pos.entry_price * far_cfg.penny_2c_target_multiplier  # 2x
+                target_label = f"{far_cfg.penny_2c_target_multiplier:.0f}x"
+
+            if eff_price >= target_price:
+                logger.info("PENNY TARGET HIT: %s | entry=%.0f¢ current=%.0f¢ target=%.0f¢ (%s)",
+                            pos.slug[:40], pos.entry_price * 100, eff_price * 100,
+                            target_price * 100, target_label)
+                self._exit_position(cid, f"far_penny_{target_label}_target", cooldown_cycles=0)
+                self.notifier.send(
+                    f"\U0001f4b0 *PENNY TARGET* \u2014 {target_label}\n\n"
+                    f"{pos.question}\n"
+                    f"Entry: `{pos.entry_price*100:.0f}\u00a2` \u2192 Current: `{eff_price*100:.0f}\u00a2`\n"
+                    f"PnL: `{pos.unrealized_pnl_pct:.0%}`"
+                )
 
     def _check_spike_reentry(self) -> None:
         """Re-enter spike-exited positions if price dropped back and edge still exists.
