@@ -16,10 +16,28 @@
 - [ ] Ultra-low <9¢ guard — elapsed>90% + price<5¢ ise çık (şu an hiç SL yok)
 - [ ] Pending resolution fix — pending pozisyonlar exit logic'i atlamamalı (kârdaysa hold, zarardaysa da hold ama bypass değil)
 
+## Data API Entegrasyonu (Cascade Sistemi)
+### Şimdi (Free Tier Test)
+- [ ] HLTV scraper (hltv-async-api) — CS2 tier-2/3 takım istatistikleri, pip install, key yok
+- [ ] VLR scraper (vlrdevapi) — Valorant tier-2/3 maç geçmişi, pip install, key yok
+- [ ] Cascade sırası: PandaScore → HLTV/VLR → The Odds API (fallback)
+- [ ] Dashboard API kullanım kartı — Claude API + The Odds API bar'ları
+
+### API Karşılaştırma & İleride Karar Verilecek
+| API | Free | İlk Ücretli | Not |
+|-----|------|-------------|-----|
+| ~~OddsPapi~~ | ~~250 req/ay~~ | ~~$49/ay~~ | ❌ İptal — 250 req yetersiz, ücretli pahalı |
+| The Odds API | 500 credit/ay | $30/ay (20K) | ✅ Zaten entegre, esports zayıf ama fallback olarak iyi |
+| PandaScore | 1000 req/saat | €150/ay | Mevcut, tier-1 iyi ama tier-2/3 zayıf |
+| SportDevs | RapidAPI'den kalkmış | — | Skip |
+| HLTV scraper | Sınırsız | — | CS2 tüm tier'lar, Cloudflare riski, proxy gerekebilir |
+| VLR scraper | Sınırsız | — | Valorant tüm tier'lar |
+- [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) upgrade değerlendir
+- [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
+
 ## Gelecek Geliştirmeler
 - [ ] WebSocket live prices — CLOB WebSocket ile gerçek zamanlı fiyat akışı (polling yerine), anlık SL/TP tetikleme
 - [ ] Price movement tracking — Her cycle fiyat değişimini kaydet, momentum/trend analizi, spike detection, entry/exit kararlarına veri sağla
-- [ ] Odds API 20K plan ($30/mo) — Live trading için gerçek zamanlı oran verisi, PandaScore'a ek olarak
 
 ## Test Sürecinde Eklenecek (Live Öncesi)
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
