@@ -21,22 +21,59 @@ class MarketScanner:
         self.config = config
 
     def fetch(self) -> List[MarketData]:
-        params = {
-            "active": "true",
-            "closed": "false",
-            "limit": self.config.max_markets_per_cycle,
-            "order": "volume24hr",
-            "ascending": "false",
-        }
-        try:
-            resp = requests.get(f"{GAMMA_BASE}/markets", params=params, timeout=15)
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            logger.error("Gamma API error: %s", e)
-            return []
+        # When category filter is set, fetch per-tag from Gamma API
+        # This ensures we get sports/esports markets instead of
+        # politics/crypto dominating the volume-sorted top 100
+        tags_to_fetch = []
+        if self.config.allowed_categories:
+            for cat in self.config.allowed_categories:
+                if cat.lower() in ("sports", "esports"):
+                    tags_to_fetch.append(cat.lower())
+
+        seen_ids: set[str] = set()
+        all_raw: list[dict] = []
+
+        if tags_to_fetch:
+            per_tag_limit = self.config.max_markets_per_cycle
+            for tag in tags_to_fetch:
+                params = {
+                    "active": "true",
+                    "closed": "false",
+                    "limit": per_tag_limit,
+                    "order": "volume24hr",
+                    "ascending": "false",
+                    "tag": tag,
+                }
+                try:
+                    resp = requests.get(f"{GAMMA_BASE}/markets", params=params, timeout=15)
+                    resp.raise_for_status()
+                    for raw in resp.json():
+                        cid = raw.get("conditionId", "")
+                        if cid and cid not in seen_ids:
+                            seen_ids.add(cid)
+                            all_raw.append(raw)
+                except requests.RequestException as e:
+                    logger.error("Gamma API error (tag=%s): %s", tag, e)
+            logger.info("Fetched %d unique markets from %d tag queries", len(all_raw), len(tags_to_fetch))
+        else:
+            # No category filter — single fetch (original behavior)
+            params = {
+                "active": "true",
+                "closed": "false",
+                "limit": self.config.max_markets_per_cycle,
+                "order": "volume24hr",
+                "ascending": "false",
+            }
+            try:
+                resp = requests.get(f"{GAMMA_BASE}/markets", params=params, timeout=15)
+                resp.raise_for_status()
+                all_raw = resp.json()
+            except requests.RequestException as e:
+                logger.error("Gamma API error: %s", e)
+                return []
 
         result: List[MarketData] = []
-        for raw in resp.json():
+        for raw in all_raw:
             market = self._parse_market(raw)
             if market and self._passes_filters(market):
                 result.append(market)

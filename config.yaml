@@ -9,11 +9,11 @@ cycle:
   night_hours: [8, 9, 10, 11, 12, 13]  # UTC 08-13 = US midnight-8am (no games)
 
 scanner:
-  min_volume_24h: 50000
+  min_volume_24h: 10000  # Lower threshold to catch esports + smaller sports events
   min_liquidity: 5000
   tags: []  # Empty = accept all categories (sports resolve fast → quicker test data)
   prefer_short_duration: true  # Prioritize markets resolving within 48h
-  max_markets_per_cycle: 100  # Fetch more to catch all sports/esports after filtering
+  max_markets_per_cycle: 300  # Fetch more per tag to catch esports + lower volume sports
   max_duration_days: 14  # Skip markets resolving more than 14 days out (test calibration)
   allowed_categories: ["sports", "esports"]  # Only sports/esports bets — remove to allow all
 
@@ -22,7 +22,7 @@ ai:
   max_tokens: 1024
   cache_ttl_min: 120  # 2 hour cache — don't re-analyze same market within 2h
   cache_invalidate_price_move_pct: 0.05
-  batch_size: 10
+  batch_size: 20  # Analyze more markets per cycle for better selection
   monthly_budget_usd: 48.0
   sprint_budget_usd: 24.0
 
