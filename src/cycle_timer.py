@@ -55,6 +55,14 @@ class CycleTimer:
                 self._override_cycles = 1
                 logger.info("Cycle shortened to %d min (active markets)", target)
 
+    def signal_volatility_swing(self, polling_min: int = 5, duration_cycles: int = 4) -> None:
+        """Speed up polling when VS position is near match time."""
+        current = self.get_interval()
+        if polling_min < current:
+            self._override = polling_min
+            self._override_cycles = duration_cycles
+            logger.info("Cycle shortened to %d min (VS near match)", polling_min)
+
     def signal_live_positions(self, duration_cycles: int = 1) -> None:
         """Speed up polling when positions are live on CLOB."""
         current = self.get_interval()

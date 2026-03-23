@@ -753,23 +753,53 @@ class Agent:
         if len(markets) < pre_live:
             logger.info("Pre-filtered %d live matches (saved API cost)", pre_live - len(markets))
 
-        near = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
-        far = sorted([m for m in markets if _hours_to_start(m) > 6], key=_hours_to_start)
+        # Position-aware dynamic batch allocation:
+        # Few positions open → explore distant markets (early entry = better odds)
+        # Many positions open → focus on near markets (fast turnover = capital velocity)
+        imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
+        midrange = sorted([m for m in markets if 6 < _hours_to_start(m) <= 24], key=_hours_to_start)
+        discovery = sorted([m for m in markets if _hours_to_start(m) > 24], key=_hours_to_start)
 
-        # Near first (closest match = highest priority), far fills remaining
-        prioritized = near[:batch_size]
-        remaining_slots = batch_size - len(prioritized)
-        far_used = 0
-        if remaining_slots > 0:
-            prioritized += far[:remaining_slots]
-            far_used = min(len(far), remaining_slots)
+        pos_count = self.portfolio.active_position_count
+        max_pos = self.config.risk.max_positions
+        capacity_pct = pos_count / max(1, max_pos)  # 0.0 = empty, 1.0 = full
+
+        if capacity_pct <= 0.3:
+            # High capacity: explore for deep value
+            imm_slots = max(2, batch_size * 2 // 10)
+            mid_slots = batch_size * 4 // 10
+            disc_slots = batch_size - imm_slots - mid_slots
+        elif capacity_pct <= 0.7:
+            # Medium capacity: balanced
+            imm_slots = batch_size * 5 // 10
+            mid_slots = batch_size * 3 // 10
+            disc_slots = batch_size - imm_slots - mid_slots
+        else:
+            # Low capacity: maximize turnover
+            imm_slots = batch_size
+            mid_slots = 0
+            disc_slots = 0
+
+        prioritized = imminent[:imm_slots]
+        prioritized += midrange[:mid_slots]
+        prioritized += discovery[:disc_slots]
+        # If any bucket was underfilled, fill from others
+        if len(prioritized) < batch_size:
+            used_ids = {m.condition_id for m in prioritized}
+            remaining = [m for m in imminent + midrange + discovery if m.condition_id not in used_ids]
+            prioritized += remaining[:batch_size - len(prioritized)]
+
+        far_used = sum(1 for m in prioritized if _hours_to_start(m) > 6)
+        near_used = len(prioritized) - far_used
 
         # Track which markets are far (for higher edge threshold at evaluation)
-        self._far_market_ids = {m.condition_id for m in far[:remaining_slots]} if far_used else set()
+        self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
 
-        logger.info("Batch: %d markets (%d near + %d far, %d eligible)",
-                     len(prioritized), len(prioritized) - far_used,
-                     far_used, len(markets))
+        logger.info("Batch: %d markets (%d imminent + %d mid + %d disc, capacity=%.0f%%, %d eligible)",
+                     len(prioritized), near_used,
+                     sum(1 for m in prioritized if 6 < _hours_to_start(m) <= 24),
+                     sum(1 for m in prioritized if _hours_to_start(m) > 24),
+                     capacity_pct * 100, len(markets))
 
         # 8. Fetch news (multi-source: NewsAPI → GNews → RSS)
         self._set_status("running", f"Fetching news for {len(prioritized)} markets")
@@ -1274,6 +1304,30 @@ class Agent:
                 except (ValueError, TypeError):
                     pass
 
+            # Freshness bonus: newly listed markets have incomplete price discovery
+            freshness_bonus = 0.0
+            if market.accepting_orders_at:
+                try:
+                    opened = datetime.fromisoformat(market.accepting_orders_at.replace("Z", "+00:00"))
+                    age_h = (datetime.now(timezone.utc) - opened).total_seconds() / 3600
+                    if age_h <= 2:
+                        freshness_bonus = 0.40  # brand new, crowd hasn't converged
+                    elif age_h <= 12:
+                        freshness_bonus = 0.20
+                    elif age_h <= 24:
+                        freshness_bonus = 0.10
+                except (ValueError, TypeError):
+                    pass
+
+            # Price uncertainty bonus: prices near 0.50 have max edge potential
+            # FAR/penny candidates exempt (they target extreme prices)
+            price_mid = min(market.yes_price, market.no_price)  # closer to 0.50 = higher
+            price_uncertainty_bonus = 0.0
+            if price_mid >= 0.35:  # 0.35-0.50 range
+                price_uncertainty_bonus = 0.15
+            elif price_mid >= 0.20:  # 0.20-0.35 range
+                price_uncertainty_bonus = 0.05
+
             # Favorite time gate: favorites lock capital until resolution — limit early entry.
             # Favorite = AI ≥ 65% AND confidence high/medium_high (hold-to-resolve).
             # Underdogs use edge TP so they can exit anytime, early entry is fine.
@@ -1327,7 +1381,7 @@ class Agent:
                     })
                     continue
 
-            rank_score = edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus)
+            rank_score = edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus + freshness_bonus + price_uncertainty_bonus)
 
             # FAR slot detection: far markets (>6h) with qualifying edge go to far_stock
             _is_far_market = market.condition_id in self._far_market_ids
@@ -1670,6 +1724,26 @@ class Agent:
         self._save_stock_to_disk()
 
         self._log_cycle_summary(bankroll, "complete")
+
+        # Telegram: hard cycle report
+        pos_count = self.portfolio.active_position_count
+        stock_count = len(self._candidate_stock) + len(self._fav_stock) + len(self._far_stock)
+        vs_count = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        far_count = self.portfolio.count_by_entry_reason("far")
+        fav_count = self.portfolio.count_by_entry_reason("fav_time_gate")
+        ee_count = self.portfolio.count_by_entry_reason("esports_early")
+        normal_count = pos_count - vs_count - far_count - fav_count - ee_count
+        invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+        unrealized = self.portfolio.total_unrealized_pnl()
+        pnl_sign = "+" if unrealized >= 0 else ""
+        self.notifier.send(
+            f"\U0001f4ca *CYCLE #{self.cycle_count} REPORT*\n\n"
+            f"Scanned: `{len(markets)}` markets\n"
+            f"Candidates: `{len(candidates)}` | Stocked: `{len(leftover)}`\n"
+            f"\n\U0001f3af Positions: `{pos_count}` (Normal:{normal_count} VS:{vs_count} FAR:{far_count} FAV:{fav_count} EE:{ee_count})\n"
+            f"Stock: `{stock_count}` (N:{len(self._candidate_stock)} FAV:{len(self._fav_stock)} FAR:{len(self._far_stock)})\n"
+            f"\n\U0001f4b0 Invested: `${invested:.2f}` | PnL: `{pnl_sign}${unrealized:.2f}`"
+        )
 
         # Check if enough data for self-improvement
         self._check_self_improve_ready()

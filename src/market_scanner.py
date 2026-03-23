@@ -167,6 +167,7 @@ class MarketScanner:
                 event_live=raw.get("_event_live", False),
                 event_ended=raw.get("_event_ended", False),
                 sport_tag=raw.get("_sport_tag", ""),
+                accepting_orders_at=raw.get("acceptingOrdersTimestamp", ""),
             )
         except (json.JSONDecodeError, IndexError, ValueError) as e:
             logger.warning("Failed to parse market: %s", e)

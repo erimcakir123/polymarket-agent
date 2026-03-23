@@ -30,6 +30,7 @@ class MarketData(BaseModel):
     event_live: bool = False  # True when event is currently live (from Gamma API)
     event_ended: bool = False  # True when event has ended (from Gamma API)
     sport_tag: str = ""  # Source sport tag (e.g. "cs2", "lol", "nba") from tag_id scan
+    accepting_orders_at: str = ""  # When trading opened (proxy for market freshness)
 
 
 class Position(BaseModel):
