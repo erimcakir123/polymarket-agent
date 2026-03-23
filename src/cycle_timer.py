@@ -46,6 +46,24 @@ class CycleTimer:
             self._override_cycles = 1
             logger.info("Cycle extended to %d min (night mode)", self._override)
 
+    def signal_market_aware(self, candidate_count: int, position_count: int) -> None:
+        """Adjust cycle interval based on market activity."""
+        if candidate_count > 5 or position_count > 3:
+            target = max(5, self.config.default_interval_min // 2)
+            if target < self.get_interval():
+                self._override = target
+                self._override_cycles = 1
+                logger.info("Cycle shortened to %d min (active markets)", target)
+
+    def signal_live_positions(self, duration_cycles: int = 1) -> None:
+        """Speed up polling when positions are live on CLOB."""
+        current = self.get_interval()
+        target = 5
+        if target < current:
+            self._override = target
+            self._override_cycles = duration_cycles
+            logger.info("Cycle shortened to %d min (live CLOB positions)", target)
+
     def tick(self) -> None:
         if self._override_cycles > 0:
             self._override_cycles -= 1

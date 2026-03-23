@@ -49,6 +49,17 @@ class EdgeConfig(BaseModel):
     confidence_multipliers: Dict[str, float] = {
         "low": 1.5, "medium": 1.0, "high": 0.75
     }
+    fill_ratio_scaling: bool = False
+    fill_ratio_aggressive: float = 0.3
+    fill_ratio_selective: float = 0.7
+    bookmaker_confidence_boost: bool = False
+    default_spread: float = 0.02
+    min_edge_swap: float = 0.085
+
+
+class TrailingStopTier(BaseModel):
+    min_peak: float
+    drop_pct: float
 
 
 class RiskConfig(BaseModel):
@@ -62,19 +73,22 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     drawdown_halt_pct: float = 0.50
+    esports_stop_loss_pct: float = 0.50
+    trailing_stop_tiers: List[TrailingStopTier] = []
 
     # Re-entry (#6, #12)
-    reentry_fresh_ai_call: bool = False  # If True, call AI again before re-entry
-    max_daily_reentries: int = 5  # Spec: can_reenter() checks >= 5
+    reentry_fresh_ai_call: bool = False
+    max_daily_reentries: int = 5
     max_market_reentries: int = 2
 
     # Correlation (#17)
-    max_match_exposure_pct: float = 0.15  # 15% of bankroll per match
+    max_match_exposure_pct: float = 0.15
 
     # Scale-In (#7)
-    scale_in_min_pnl_pct: float = 0.02  # Spec: > 2% PnL or score_ahead
+    scale_in_min_pnl_pct: float = 0.02
     scale_in_min_cycles: int = 3
-    scale_in_num_tranches: int = 2  # Spec: 2-tranche system (50% + 50%)
+    scale_in_num_tranches: int = 2
+    price_drift_reanalysis_pct: float = 0.15
 
     @field_validator("kelly_fraction")
     @classmethod
@@ -83,6 +97,20 @@ class RiskConfig(BaseModel):
             raise ValueError("kelly_fraction must be in (0, 1]")
         return v
 
+
+class VolatilitySwingConfig(BaseModel):
+    enabled: bool = True
+    stop_loss_pct: float = 0.20
+    take_profit_pct: float = 0.60
+    tp_floor: float = 0.30
+    tp_ceiling: float = 1.00
+    reserved_slots: int = 5
+    max_concurrent: int = 5
+    max_token_price: float = 0.50
+    min_token_price: float = 0.10
+    max_hours_to_start: float = 24.0
+    bet_pct: float = 0.05
+    polling_interval_min: int = 5
 
 
 class NotificationConfig(BaseModel):
@@ -108,6 +136,7 @@ class AppConfig(BaseModel):
     ai: AIConfig = AIConfig()
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
+    volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
     logging: LoggingConfig = LoggingConfig()
