@@ -167,6 +167,8 @@ BLACKLIST_RULES = {
     "spike_exit": ("reentry", 3),
     "scale_out_final": ("reentry", 5),
     "score_terminal_win": ("none", 0),
+    "re_entry_resolve_win": ("reentry", 3),
+    "re_entry_resolve_loss": ("timed", 15),
 }
 
 

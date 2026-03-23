@@ -1914,21 +1914,26 @@
 
             // Add pending_resolution positions as pseudo-exited entries
             const pendingPositions = Object.values(allPositions || {}).filter(p => p.pending_resolution);
-            const pendingEntries = pendingPositions.map(p => ({
-                _isPending: true,
-                action: 'RESOLVING',
-                market: p.slug || '',
-                question: p.question || '',
-                timestamp: new Date().toISOString(),
-                pnl: p.unrealized_pnl_usdc || 0,
-                size: p.size_usdc || 0,
-                price: p.entry_price || 0,
-                direction: p.direction || '',
-                confidence: p.confidence || '',
-                ai_probability: p.ai_probability || 0,
-                edge: 0,
-                reason: 'pending_resolution'
-            }));
+            const pendingEntries = pendingPositions.map(p => {
+                // Pending resolution = match ended, awaiting oracle
+                // Calculate PnL assuming $1.00 resolution (shares - cost)
+                const resolvedPnl = (p.shares || 0) - (p.size_usdc || 0);
+                return {
+                    _isPending: true,
+                    action: 'RESOLVING',
+                    market: p.slug || '',
+                    question: p.question || '',
+                    timestamp: new Date().toISOString(),
+                    pnl: resolvedPnl,
+                    size: p.size_usdc || 0,
+                    price: p.entry_price || 0,
+                    direction: p.direction || '',
+                    confidence: p.confidence || '',
+                    ai_probability: p.ai_probability || 0,
+                    edge: 0,
+                    reason: 'pending_resolution'
+                };
+            });
 
             const allExited = [...pendingEntries, ...exited];
             countEl.textContent = allExited.length;

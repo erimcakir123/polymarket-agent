@@ -40,6 +40,7 @@ from src.process_lock import acquire_lock
 from src.dashboard import create_app as create_dashboard
 from src.live_dip_entry import find_live_dip_candidates
 from src.circuit_breaker import CircuitBreaker
+from src.reentry_farming import ReentryPool, check_reentry
 from src.reentry import Blacklist, can_reenter, get_blacklist_rule, is_snowball_banned, qualifies_for_score_reversal_reentry, passes_confidence_momentum, get_reentry_size_multiplier
 from src.edge_decay import get_decayed_ai_target
 from src.correlation import apply_correlation_cap, extract_match_key
@@ -111,8 +112,12 @@ class Agent:
         self._FAV_MIN_EDGE = 0.15  # Only stok favorites with ≥15% edge
         self._far_stock: list[dict] = []  # FAR candidates (swing trade + penny alpha)
         self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
-        self._spike_reentry: dict[str, dict] = {}  # condition_id -> saved AI data for re-entry
-        self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
+        self._spike_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
+        self._scouted_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
+        self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
+        self._daily_reentry_count: int = 0  # Re-entries today (reset each heavy cycle at midnight)
+        self._last_reentry_reset_date = datetime.now(timezone.utc).date()
+        self._cycle_ai_cost_start: float = 0.0  # Sprint cost at cycle start (for per-cycle tracking)
         self._eligible_cache: list = []  # Cached eligible markets from last Gamma scan
         self._eligible_pointer: int = 0  # Next index to analyze from cache
         self._eligible_cache_ts: float = 0  # When cache was last refreshed
@@ -447,10 +452,8 @@ class Agent:
         # FAR penny exits — multiplier targets ($0.01→5x, $0.02→2x)
         self._check_far_penny_exits()
 
-        # Spike re-entry check — if price dropped back after spike exit, re-enter without AI call
-        self._check_spike_reentry()
-        # Scouted re-entry — if scouted TP/trailing exit dropped back, re-enter as scouted
-        self._check_scouted_reentry()
+        # Unified farming re-entry — check pool for dip opportunities (no AI cost)
+        self._check_farming_reentry()
 
         # Persist updated prices to disk so dashboard sees them
         self.portfolio.save_prices_to_disk()
@@ -474,6 +477,7 @@ class Agent:
         if self._is_paused():
             return
         self.cycle_count += 1
+        self._cycle_ai_cost_start = self.ai._sprint_cost_usd  # Track per-cycle AI cost
         logger.info("=== Cycle #%d start ===", self.cycle_count)
         self._set_status("running", "Starting cycle")
 
@@ -573,10 +577,8 @@ class Agent:
         for cid in self.portfolio.check_volatility_swing_exits():
             self._exit_position(cid, "vs_mandatory_exit", cooldown_cycles=0)
 
-        # Spike re-entry check — if price dropped back after spike exit, re-enter without AI call
-        self._check_spike_reentry()
-        # Scouted re-entry — if scouted TP/trailing exit dropped back, re-enter as scouted
-        self._check_scouted_reentry()
+        # Unified farming re-entry — check pool for dip opportunities (no AI cost)
+        self._check_farming_reentry()
 
         # 4b. Re-evaluate election positions — swing trade on opinion shift
         self._reevaluate_election_positions(bankroll)
@@ -1829,7 +1831,7 @@ class Agent:
             f"\n\U0001f3af Positions: `{pos_count}` (Normal:{normal_count} VS:{vs_count} FAR:{far_count} FAV:{fav_count})\n"
             f"Stock: `{stock_count}` (N:{len(self._candidate_stock)} FAV:{len(self._fav_stock)} FAR:{len(self._far_stock)})\n"
             f"\n\U0001f4b0 Invested: `${invested:.2f}` | PnL: `{pnl_sign}${unrealized:.2f}`\n"
-            f"\U0001f4b8 AI: `${self.ai._sprint_cost_usd:.2f}` / `${self.ai.config.sprint_budget_usd:.2f}` sprint"
+            f"\U0001f4b8 AI: `${self.ai._sprint_cost_usd - self._cycle_ai_cost_start:.4f}` cycle | `${self.ai._sprint_cost_usd:.2f}` / `${self.ai.config.sprint_budget_usd:.2f}` sprint"
         )
 
         # Check if enough data for self-improvement
@@ -2561,41 +2563,35 @@ class Agent:
         # Set cooldown — don't re-enter this market for N cycles (let dust settle)
         self._exit_cooldowns[condition_id] = self.cycle_count + cooldown_cycles
 
-        # Spike exit: save AI data for re-entry, DON'T permanently block
-        if reason == "spike_exit":
-            self._spike_reentry[condition_id] = {
-                "ai_probability": pos.ai_probability,
-                "confidence": pos.confidence,
-                "direction": pos.direction,
-                "slug": pos.slug,
-                "token_id": pos.token_id,
-                "exit_price": pos.current_price,
-                "entry_price": pos.entry_price,
-                "exit_cycle": self.cycle_count,
-                "question": getattr(pos, "question", ""),
-                "end_date_iso": getattr(pos, "end_date_iso", ""),
-            }
-            logger.info("Spike exit — saved for re-entry: %s (AI=%.0f%%, conf=%s)",
-                        pos.slug[:40], pos.ai_probability * 100, pos.confidence)
-        elif reason in ("take_profit", "trailing_stop") and getattr(pos, "scouted", False):
-            # Scouted position exited via TP/trailing — save for re-entry if price drops back
-            self._scouted_reentry[condition_id] = {
-                "ai_probability": pos.ai_probability,
-                "confidence": pos.confidence,
-                "direction": pos.direction,
-                "slug": pos.slug,
-                "token_id": pos.token_id,
-                "exit_price": pos.current_price,
-                "entry_price": pos.entry_price,
-                "exit_cycle": self.cycle_count,
-                "question": getattr(pos, "question", ""),
-                "end_date_iso": getattr(pos, "end_date_iso", ""),
-                "match_start_iso": getattr(pos, "match_start_iso", ""),
-            }
-            logger.info("Scouted exit (%s) — saved for re-entry: %s (AI=%.0f%%, conf=%s)",
-                        reason, pos.slug[:40], pos.ai_probability * 100, pos.confidence)
+        # Profitable exit → add to farming re-entry pool
+        profitable_reasons = ("take_profit", "trailing_stop", "spike_exit", "edge_tp", "scale_out_final", "vs_take_profit")
+        realized_pnl = pos.unrealized_pnl_usdc
+        if reason in profitable_reasons and realized_pnl > 0:
+            # Get original entry price (first ever entry, not re-entry price)
+            existing_pool = self.reentry_pool.get(condition_id)
+            original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
+
+            self.reentry_pool.add(
+                condition_id=condition_id,
+                event_id=getattr(pos, "event_id", "") or "",
+                slug=pos.slug,
+                question=getattr(pos, "question", ""),
+                direction=pos.direction,
+                token_id=pos.token_id,
+                ai_probability=pos.ai_probability,
+                confidence=pos.confidence,
+                original_entry_price=original_entry,
+                exit_price=pos.current_price,
+                exit_cycle=self.cycle_count,
+                end_date_iso=getattr(pos, "end_date_iso", ""),
+                match_start_iso=getattr(pos, "match_start_iso", ""),
+                sport_tag=getattr(pos, "sport_tag", ""),
+                number_of_games=getattr(pos, "number_of_games", 0),
+                was_scouted=getattr(pos, "scouted", False),
+                realized_pnl=realized_pnl,
+            )
         else:
-            # V2: Tiered blacklist instead of permanent ban
+            # Non-profitable exit → tiered blacklist
             exit_data = {
                 "ai_probability": pos.ai_probability,
                 "confidence": pos.confidence,
@@ -2612,8 +2608,6 @@ class Agent:
                 self.blacklist.add(condition_id, reason, "timed", self.cycle_count + duration, exit_data)
             elif btype == "reentry":
                 self.blacklist.add(condition_id, reason, "reentry", self.cycle_count + duration, exit_data)
-            # "none" type = no blacklist entry (e.g., score_terminal_win)
-            # Also persist to legacy exited_markets for backward compat
             self._save_exited_market(condition_id)
 
         # V2: Check exit liquidity before selling
@@ -2729,34 +2723,43 @@ class Agent:
                     f"PnL: `{pos.unrealized_pnl_pct:.0%}`"
                 )
 
-    def _check_spike_reentry(self) -> None:
-        """Re-enter spike-exited positions if price dropped back and edge still exists.
+    def _check_farming_reentry(self) -> None:
+        """Unified farming re-entry — check pool for dip opportunities (no AI cost).
 
-        No AI call — uses saved analysis from original entry.
-        Logic: if current_price < exit_price and edge (ai_prob vs price) is still good, re-enter.
+        Replaces old spike_reentry and scouted_reentry with a 3-tier system.
         """
-        if not self._spike_reentry:
+        self.reentry_pool.cleanup_expired(self.cycle_count)
+
+        # Reset daily reentry count at midnight (UTC)
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        if not hasattr(self, '_last_reentry_reset_date') or self._last_reentry_reset_date != now_utc.date():
+            self._daily_reentry_count = 0
+            self._last_reentry_reset_date = now_utc.date()
+
+        if not self.reentry_pool.candidates:
             return
 
-        expired = []
-        for cid, data in list(self._spike_reentry.items()):
-            # Expire after 10 cycles (don't chase forever)
-            if self.cycle_count - data["exit_cycle"] > 10:
-                expired.append(cid)
+        held_event_ids = {
+            p.event_id for p in self.portfolio.positions.values()
+            if p.event_id
+        }
+
+        # Check slot availability
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        current_normal = self.portfolio.active_position_count - current_vs
+
+        for cid, candidate in list(self.reentry_pool.candidates.items()):
+            # Cooldown check
+            if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
                 continue
 
-            # Skip if already back in portfolio or slots full
-            if cid in self.portfolio.positions:
-                expired.append(cid)
-                continue
-
-            vs_reserved = self.config.volatility_swing.reserved_slots
-            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
-            current_normal = self.portfolio.active_position_count - current_vs
+            # Slot check
             if current_normal >= self.config.risk.max_positions - vs_reserved:
-                continue  # No slots, try next cycle
+                break  # No slots available
 
-            # Fetch current price
+            # Fetch current price from Gamma
             try:
                 resp = requests.get(
                     "https://gamma-api.polymarket.com/markets",
@@ -2766,213 +2769,124 @@ class Agent:
                     continue
                 mkt_data = resp.json()
                 if not mkt_data:
-                    expired.append(cid)
+                    self.reentry_pool.remove(cid)
                     continue
                 mkt = mkt_data[0] if isinstance(mkt_data, list) else mkt_data
                 prices = json.loads(mkt.get("outcomePrices", '["0.5","0.5"]'))
-                current_price = float(prices[0])
+                current_yes_price = float(prices[0])
             except (requests.RequestException, ValueError, IndexError, json.JSONDecodeError):
                 continue
 
-            # Direction-aware price
-            ai_prob = data["ai_probability"]
-            direction = data["direction"]
-            if direction == "BUY_NO":
-                current_price = 1.0 - current_price
+            # Update price history for stabilization tracking (use effective price for direction)
+            eff_stab_price = (1.0 - current_yes_price) if candidate.direction == "BUY_NO" else current_yes_price
+            self.reentry_pool.update_price(cid, eff_stab_price)
 
-            # Check: price must have dropped below exit price
-            if current_price >= data["exit_price"]:
-                continue  # Still high, wait
+            # Run decision logic
+            decision = check_reentry(
+                candidate=candidate,
+                current_yes_price=current_yes_price,
+                current_cycle=self.cycle_count,
+                portfolio_positions=self.portfolio.positions,
+                held_event_ids=held_event_ids,
+                daily_reentry_count=self._daily_reentry_count,
+            )
 
-            # Check: edge must still exist (ai_prob vs current_price > min_edge)
-            edge = abs(ai_prob - current_price)
-            min_edge = self.config.edge.min_edge
-            if edge < min_edge:
-                logger.debug("Spike re-entry skip (low edge): %s | edge=%.1f%% < %.1f%%",
-                             data["slug"][:40], edge * 100, min_edge * 100)
+            if decision["action"] == "BLOCK":
+                logger.debug("Farming re-entry BLOCK: %s | %s", candidate.slug[:35], decision["reason"])
+                # Permanent blocks → remove from pool
+                if "Max re-entries" in decision["reason"] or "Thesis broken" in decision["reason"]:
+                    self.reentry_pool.remove(cid)
                 continue
 
-            # Re-enter!
-            token_id = data["token_id"]
-            size = kelly_position_size(
+            if decision["action"] == "WAIT":
+                continue
+
+            # --- ENTER ---
+            direction = candidate.direction
+            ai_prob = candidate.ai_probability
+            size_mult = decision["size_mult"]
+
+            # Calculate position size (Kelly * tier multiplier)
+            eff_price = current_yes_price if direction == "BUY_YES" else (1.0 - current_yes_price)
+            base_size = kelly_position_size(
                 ai_prob if direction == "BUY_YES" else 1 - ai_prob,
-                current_price, self.portfolio.bankroll,
+                eff_price, self.portfolio.bankroll,
                 kelly_fraction=self.config.risk.kelly_fraction,
                 max_bet_usdc=self.config.risk.max_single_bet_usdc,
                 max_bet_pct=self.config.risk.max_bet_pct,
                 direction=direction,
             )
+            size = base_size * size_mult
 
             if size < 5.0:
-                continue  # Polymarket minimum $5
+                continue  # Polymarket minimum
 
-            result = self.executor.place_order(token_id, "BUY", current_price, size)
-            shares = size / current_price if current_price > 0 else 0
-            # entry_price must always be YES price for consistent PnL calculation
-            yes_price_entry = current_price if direction == "BUY_YES" else (1 - current_price)
+            # Profit protection cap
+            if candidate.total_realized_profit > 0:
+                max_risk = candidate.total_realized_profit * 0.50
+                remaining_risk = max_risk - candidate.total_reentry_risk
+                if remaining_risk <= 0:
+                    logger.info("Farming skip (profit cap): %s", candidate.slug[:35])
+                    continue
+                size = min(size, remaining_risk)
+                if size < 5.0:
+                    continue
+
+            token_id = candidate.token_id
+            result = self.executor.place_order(token_id, "BUY", eff_price, size)
+            shares = size / eff_price if eff_price > 0 else 0
+            yes_price_entry = current_yes_price
+
+            tier_num = decision["tier"]
+            reentry_num = candidate.reentry_count + 1
+            entry_reason = f"re_entry_t{tier_num}"
 
             self.portfolio.add_position(
                 cid, token_id, direction,
-                yes_price_entry, size, shares, data["slug"],
-                "", confidence=data["confidence"],
+                yes_price_entry, size, shares, candidate.slug,
+                "", confidence=candidate.confidence,
                 ai_probability=ai_prob,
-                question=data.get("question", ""),
-                end_date_iso=data.get("end_date_iso", ""),
-                sport_tag=data.get("sport_tag", ""),
-                event_id=data.get("event_id", ""),
+                question=candidate.question,
+                end_date_iso=candidate.end_date_iso,
+                match_start_iso=candidate.match_start_iso,
+                scouted=candidate.was_scouted,
+                sport_tag=candidate.sport_tag,
+                event_id=candidate.event_id,
+                entry_reason=entry_reason,
+                number_of_games=candidate.number_of_games,
             )
 
+            # Record in pool
+            self.reentry_pool.record_reentry(cid, size)
+            self._daily_reentry_count += 1
+            current_normal += 1
+
             self.trade_log.log({
-                "market": data["slug"], "action": f"SPIKE_REENTRY_{direction}",
-                "size": size, "price": current_price, "edge": edge,
-                "confidence": data["confidence"],
-                "mode": self.config.mode.value, "status": result.get("status", ""),
+                "market": candidate.slug, "action": f"FARMING_REENTRY_{direction}",
+                "size": size, "price": eff_price,
+                "edge": decision["edge"],
+                "confidence": candidate.confidence,
+                "mode": self.config.mode.value,
+                "status": result.get("status", ""),
                 "ai_probability": ai_prob,
+                "reentry_tier": tier_num,
+                "reentry_count": reentry_num,
             })
 
-            logger.info("SPIKE RE-ENTRY: %s | %s @ %.0fc | edge=%.1f%% | no AI call",
-                        data["slug"][:40], direction, current_price * 100, edge * 100)
+            logger.info(
+                "FARMING RE-ENTRY T%d (#%d): %s | %s @ %.0fc | edge=%.1f%% | size=$%.0f (%.0f%%) | no AI",
+                tier_num, reentry_num, candidate.slug[:35], direction,
+                eff_price * 100, decision["edge"] * 100, size, size_mult * 100,
+            )
             self.notifier.send(
-                f"\U0001f504 *SPIKE RE-ENTRY* — Cycle #{self.cycle_count}\n\n"
-                f"{data['slug']}\n"
-                f"Exit: `{data['exit_price']:.3f}` → Re-entry: `{current_price:.3f}`\n"
-                f"Edge: `{edge:.1%}` | Conf: `{data['confidence']}`\n"
+                f"\U0001f504 *FARMING RE-ENTRY* T{tier_num} (#{reentry_num}) — Cycle #{self.cycle_count}\n\n"
+                f"{candidate.question}\n"
+                f"Exit: `{candidate.last_exit_price:.3f}` → Re-entry: `{eff_price:.3f}`\n"
+                f"Edge: `{decision['edge']:.1%}` | Size: `${size:.0f}` ({size_mult:.0%})\n"
+                f"Profit so far: `${candidate.total_realized_profit:.2f}`\n"
                 f"_No AI call — using saved analysis_"
             )
-            expired.append(cid)
             self.bets_since_approval += 1
-
-        for cid in expired:
-            self._spike_reentry.pop(cid, None)
-
-    def _check_scouted_reentry(self) -> None:
-        """Re-enter scouted positions that exited via TP/trailing if price dropped back.
-
-        Similar to spike re-entry but for scouted positions.
-        Re-enters with scouted=True so it continues hold-to-resolve behavior.
-        Requires price to drop at least 15% from exit price before re-entering.
-        """
-        if not self._scouted_reentry:
-            return
-
-        expired = []
-        for cid, data in list(self._scouted_reentry.items()):
-            # Expire after 15 cycles (scouted matches have longer horizon)
-            if self.cycle_count - data["exit_cycle"] > 15:
-                expired.append(cid)
-                continue
-
-            # Skip if already back in portfolio or slots full
-            if cid in self.portfolio.positions:
-                expired.append(cid)
-                continue
-
-            # Check if match already ended
-            if data.get("end_date_iso"):
-                try:
-                    end_dt = datetime.fromisoformat(data["end_date_iso"].replace("Z", "+00:00"))
-                    if datetime.now(timezone.utc) > end_dt:
-                        expired.append(cid)
-                        continue
-                except Exception:
-                    pass
-
-            vs_reserved = self.config.volatility_swing.reserved_slots
-            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
-            current_normal = self.portfolio.active_position_count - current_vs
-            if current_normal >= self.config.risk.max_positions - vs_reserved:
-                continue  # No slots, try next cycle
-
-            # Fetch current price
-            try:
-                resp = requests.get(
-                    "https://gamma-api.polymarket.com/markets",
-                    params={"conditionId": cid}, timeout=10,
-                )
-                if resp.status_code != 200:
-                    continue
-                mkt_data = resp.json()
-                if not mkt_data:
-                    expired.append(cid)
-                    continue
-                mkt = mkt_data[0] if isinstance(mkt_data, list) else mkt_data
-                prices = json.loads(mkt.get("outcomePrices", '["0.5","0.5"]'))
-                current_price = float(prices[0])
-            except (requests.RequestException, ValueError, IndexError, json.JSONDecodeError):
-                continue
-
-            # Direction-aware price
-            ai_prob = data["ai_probability"]
-            direction = data["direction"]
-            if direction == "BUY_NO":
-                current_price = 1.0 - current_price
-
-            # Must drop at least 15% from exit price (not just any dip)
-            exit_price = data["exit_price"]
-            drop_pct = (exit_price - current_price) / exit_price if exit_price > 0 else 0
-            if drop_pct < 0.15:
-                continue  # Not enough drop yet
-
-            # Edge must still exist
-            edge = abs(ai_prob - current_price)
-            min_edge = self.config.edge.min_edge
-            if edge < min_edge:
-                logger.debug("Scouted re-entry skip (low edge): %s | edge=%.1f%% < %.1f%%",
-                             data["slug"][:40], edge * 100, min_edge * 100)
-                continue
-
-            # Re-enter as scouted position
-            token_id = data["token_id"]
-            size = kelly_position_size(
-                ai_prob if direction == "BUY_YES" else 1 - ai_prob,
-                current_price, self.portfolio.bankroll,
-                kelly_fraction=self.config.risk.kelly_fraction,
-                max_bet_usdc=self.config.risk.max_single_bet_usdc,
-                max_bet_pct=self.config.risk.max_bet_pct,
-                direction=direction,
-            )
-
-            if size < 5.0:
-                continue
-
-            result = self.executor.place_order(token_id, "BUY", current_price, size)
-            shares = size / current_price if current_price > 0 else 0
-            yes_price_entry = current_price if direction == "BUY_YES" else (1 - current_price)
-
-            self.portfolio.add_position(
-                cid, token_id, direction,
-                yes_price_entry, size, shares, data["slug"],
-                "", confidence=data["confidence"],
-                ai_probability=ai_prob,
-                question=data.get("question", ""),
-                end_date_iso=data.get("end_date_iso", ""),
-                scouted=True,  # Re-enter as scouted — hold to resolve
-                sport_tag=data.get("sport_tag", ""),
-                event_id=data.get("event_id", ""),
-            )
-
-            self.trade_log.log({
-                "market": data["slug"], "action": f"SCOUTED_REENTRY_{direction}",
-                "size": size, "price": current_price, "edge": edge,
-                "confidence": data["confidence"],
-                "mode": self.config.mode.value, "status": result.get("status", ""),
-                "ai_probability": ai_prob,
-            })
-
-            logger.info("SCOUTED RE-ENTRY: %s | %s @ %.0fc | edge=%.1f%% | drop=%.0f%%",
-                        data["slug"][:40], direction, current_price * 100, edge * 100, drop_pct * 100)
-            self.notifier.send(
-                f"\U0001f504 *SCOUTED RE-ENTRY* — Cycle #{self.cycle_count}\n\n"
-                f"{data['slug']}\n"
-                f"Exit: `{exit_price:.3f}` → Re-entry: `{current_price:.3f}` (drop: {drop_pct:.0%})\n"
-                f"Edge: `{edge:.1%}` | Conf: `{data['confidence']}`\n"
-                f"_No AI call — using saved analysis, hold to resolve_"
-            )
-            expired.append(cid)
-            self.bets_since_approval += 1
-
-        for cid in expired:
-            self._scouted_reentry.pop(cid, None)
 
     def _log_reasoning(
         self, question: str, direction: str, size: float, price: float,
@@ -3150,6 +3064,7 @@ class Agent:
         if not self.portfolio.positions:
             return False
         stale_cids = []
+        reentry_resolve_exits = []
         has_live_clob = False
         for cid, pos in list(self.portfolio.positions.items()):
             try:
@@ -3273,6 +3188,21 @@ class Agent:
                             match_start_iso=pos.match_start_iso)
                         if pos.live_on_clob:
                             has_live_clob = True
+                    # Re-entry resolve guard: exit re-entry positions before they hit resolve
+                    # to avoid 1¢/99¢ losses. Exit at 90¢ (winning) or 10¢ (losing side).
+                    if getattr(pos, "entry_reason", "").startswith("re_entry"):
+                        eff_p = (1.0 - new_yes_price) if pos.direction == "BUY_NO" else new_yes_price
+                        if eff_p >= 0.90:
+                            logger.info("RE-ENTRY RESOLVE GUARD (WIN): %s @ %.0f%% — exiting before resolve",
+                                        pos.slug[:35], eff_p * 100)
+                            reentry_resolve_exits.append((cid, "re_entry_resolve_win"))
+                            continue
+                        elif eff_p <= 0.10:
+                            logger.info("RE-ENTRY RESOLVE GUARD (LOSS): %s @ %.0f%% — exiting before resolve",
+                                        pos.slug[:35], eff_p * 100)
+                            reentry_resolve_exits.append((cid, "re_entry_resolve_loss"))
+                            continue
+
                     # Mark as pending resolution when price near extremes
                     if not pos.pending_resolution and (new_yes_price >= 0.95 or new_yes_price <= 0.05):
                         self.portfolio.mark_pending_resolution(cid)
@@ -3293,6 +3223,11 @@ class Agent:
                     "reason": "stale: market not found on Gamma API",
                     "mode": self.config.mode.value,
                 })
+        # Process re-entry resolve guard exits (outside iteration loop)
+        for cid, reason in reentry_resolve_exits:
+            self._exit_position(cid, reason)
+            self.reentry_pool.remove(cid)  # Don't let near-resolved markets re-enter
+
         # Persist updated prices + live status to disk
         self.portfolio.save_prices_to_disk()
         return has_live_clob
