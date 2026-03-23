@@ -62,6 +62,7 @@ class Position(BaseModel):
     entry_reason: str = ""  # How this position was entered (e.g. "ai", "stock", "live_dip")
     pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
     sport_tag: str = ""  # Specific sport (e.g. "cs2", "dota2", "lol", "nba") for correlation
+    event_id: str = ""  # Gamma event ID — all outcomes of the same match share this
 
     # Match-aware exit system fields
     ever_in_profit: bool = False           # True once peak_pnl_pct > 0.01 (never resets)

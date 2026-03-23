@@ -40,6 +40,9 @@
 - [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
 
 ## Gelecek Geliştirmeler
+- [ ] Dynamic hold-to-resolve promotion — kâr %50+ ve AI certainty >60% ise scouted'a promote et, %50 altına düşünce geri al (30+ sample sonrası kalibre)
+- [ ] Maç sonucu log'lama — pozisyon kapanınca Gamma API'den final sonucu çek, logs/match_outcomes.jsonl'e kaydet (AI tahmin vs gerçek sonuç karşılaştırma)
+- [ ] Pool dolu iken AI skip — slot açık yoksa Claude API çağırma, kredi harcama (şu an 0 slot olsa bile analiz yapıyor)
 - [ ] WebSocket live prices — CLOB WebSocket ile gerçek zamanlı fiyat akışı (polling yerine), anlık SL/TP tetikleme
 - [ ] Price movement tracking — Her cycle fiyat değişimini kaydet, momentum/trend analizi, spike detection, entry/exit kararlarına veri sağla
 

@@ -597,7 +597,28 @@ class Agent:
         # 4e. Fill from FAR stock — execute swing/penny candidates in FAR slots
         self._fill_from_far_stock()
 
-        # 5. Scan markets — use cached eligible list if available, else fresh scan
+        # 5. Early slot check — skip scan + AI if ALL slot types are full
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        normal_max = self.config.risk.max_positions - vs_reserved
+        current_normal = self.portfolio.normal_position_count
+        current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        fav_current = sum(1 for p in self.portfolio.positions.values()
+                          if getattr(p, 'entry_reason', '') == 'fav_time_gate')
+        far_current = sum(1 for p in self.portfolio.positions.values()
+                          if getattr(p, 'entry_reason', '') == 'far')
+        all_full = (current_normal >= normal_max and
+                    current_vs >= vs_reserved and
+                    fav_current >= self._FAV_MAX_SLOTS and
+                    far_current >= self.config.far.max_slots)
+        if all_full:
+            logger.info("All slots full (NRM:%d/%d VS:%d/%d FAV:%d/%d FAR:%d/%d) — skipping scan + AI",
+                        current_normal, normal_max, current_vs, vs_reserved,
+                        fav_current, self._FAV_MAX_SLOTS, far_current, self.config.far.max_slots)
+            self._log_cycle_summary(bankroll, "full_cycle")
+            self._set_status("idle", "All slots full — waiting")
+            return
+
+        # 5b. Scan markets — use cached eligible list if available, else fresh scan
         self._set_status("running", "Scanning markets")
         ELIGIBLE_CACHE_TTL = 1800  # 30 min — refresh when slots are full or cache stale
         now_ts = time.time()
@@ -655,9 +676,15 @@ class Agent:
             if m.condition_id not in self.portfolio.positions
             and self._exit_cooldowns.get(m.condition_id, 0) > self.cycle_count
         )
+        # Collect event_ids already held — block all outcomes of same event
+        held_event_ids = {
+            p.event_id for p in self.portfolio.positions.values()
+            if p.event_id
+        }
         markets = [
             m for m in markets
             if m.condition_id not in self.portfolio.positions
+            and not (m.event_id and m.event_id in held_event_ids)
             and not self.blacklist.is_blocked(m.condition_id, self.cycle_count)
             and self._exit_cooldowns.get(m.condition_id, 0) <= self.cycle_count
         ]
@@ -1567,6 +1594,7 @@ class Agent:
                 match_start_iso=_match_start,
                 number_of_games=_num_games,
                 sport_tag=market.sport_tag or "",
+                event_id=market.event_id or "",
             )
             # Set live_on_clob immediately if match is already in progress
             pos = self.portfolio.positions.get(market.condition_id)
@@ -1721,6 +1749,7 @@ class Agent:
                             end_date_iso=market.end_date_iso,
                             match_start_iso=getattr(market, 'match_start_iso', '') or "",
                             sport_tag=market.sport_tag or "",
+                            event_id=market.event_id or "",
                         )
                         self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
                         self.trade_log.log({
@@ -1894,6 +1923,7 @@ class Agent:
                 end_date_iso=market.end_date_iso,
                 match_start_iso=getattr(market, 'match_start_iso', '') or "",
                 sport_tag=market.sport_tag or "",
+                event_id=market.event_id or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -1999,6 +2029,7 @@ class Agent:
                 match_start_iso=getattr(market, 'match_start_iso', '') or "",
                 entry_reason="fav_time_gate",
                 sport_tag=market.sport_tag or "",
+                event_id=market.event_id or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -2113,6 +2144,7 @@ class Agent:
                 match_start_iso=getattr(market, 'match_start_iso', '') or "",
                 entry_reason="far",
                 sport_tag=market.sport_tag or "",
+                event_id=market.event_id or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -2235,6 +2267,7 @@ class Agent:
                     match_start_iso=getattr(market, 'match_start_iso', '') or "",
                     entry_reason="live_dip",
                     sport_tag=market.sport_tag or "",
+                    event_id=market.event_id or "",
                 )
 
                 self.trade_log.log({
@@ -2318,6 +2351,7 @@ class Agent:
                     number_of_games=c.number_of_games,
                     entry_reason="esports_early",
                     sport_tag=getattr(c, 'sport_tag', '') or "esports",
+                    event_id=getattr(c, 'event_id', '') or "",
                 )
 
                 self.trade_log.log({
@@ -2584,6 +2618,7 @@ class Agent:
             match_start_iso=getattr(market, 'match_start_iso', '') or "",
             volatility_swing=True,
             sport_tag=market.sport_tag or "",
+            event_id=market.event_id or "",
         )
         self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
 
@@ -2727,6 +2762,31 @@ class Agent:
         except Exception as e:
             logger.debug("Price history collection skipped: %s", e)
 
+        # Log match outcome for AI calibration
+        try:
+            from src.match_outcomes import log_outcome
+            log_outcome(
+                slug=pos.slug,
+                question=getattr(pos, "question", ""),
+                direction=pos.direction,
+                ai_probability=pos.ai_probability,
+                confidence=pos.confidence,
+                entry_price=pos.entry_price,
+                exit_price=pos.current_price,
+                exit_reason=reason,
+                pnl=realized_pnl,
+                size=pos.size_usdc,
+                sport_tag=getattr(pos, "sport_tag", ""),
+                entry_reason=getattr(pos, "entry_reason", ""),
+                scouted=getattr(pos, "scouted", False),
+                peak_pnl_pct=getattr(pos, "peak_pnl_pct", 0.0),
+                match_score=getattr(pos, "match_score", ""),
+                price_history=getattr(pos, "price_history_buffer", []),
+                cycles_held=getattr(pos, "cycles_held", 0),
+            )
+        except Exception as e:
+            logger.debug("Match outcome logging skipped: %s", e)
+
     def _check_far_penny_exits(self) -> None:
         """Check FAR penny positions for multiplier target exits.
         $0.01 entry → hold for 5x ($0.05), then trailing stop
@@ -2854,6 +2914,7 @@ class Agent:
                 question=data.get("question", ""),
                 end_date_iso=data.get("end_date_iso", ""),
                 sport_tag=data.get("sport_tag", ""),
+                event_id=data.get("event_id", ""),
             )
 
             self.trade_log.log({
@@ -2982,6 +3043,7 @@ class Agent:
                 end_date_iso=data.get("end_date_iso", ""),
                 scouted=True,  # Re-enter as scouted — hold to resolve
                 sport_tag=data.get("sport_tag", ""),
+                event_id=data.get("event_id", ""),
             )
 
             self.trade_log.log({

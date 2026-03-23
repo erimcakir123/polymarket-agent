@@ -33,6 +33,8 @@
             --blue: #58a6ff;
             --blue-dim: rgba(88,166,255,0.15);
             --orange: #ff9f43;
+            --purple: #a78bfa;
+            --purple-dim: rgba(167,139,250,0.15);
             --orange-dim: rgba(255,159,67,0.15);
             --radius-sm: 6px;
             --radius-md: 10px;
@@ -498,14 +500,14 @@
         .tag-vs { background: var(--orange-dim); color: var(--orange); }
         .tag-ee { background: var(--amber-dim); color: var(--amber); }
         .tag-far { background: var(--blue-dim); color: var(--blue); }
-        .tag-ld { background: var(--red-dim); color: var(--red); }
+        .tag-ld { background: var(--purple-dim); color: var(--purple); }
         .tag-fav { background: var(--green-dim); color: var(--green); }
 
         /* ── Position card border by entry reason ── */
         .feed-item.border-vs { border-left: 3px solid var(--orange); }
         .feed-item.border-ee { border-left: 3px solid var(--amber); }
         .feed-item.border-far { border-left: 3px solid var(--blue); }
-        .feed-item.border-ld { border-left: 3px solid var(--red); }
+        .feed-item.border-ld { border-left: 3px solid var(--purple); }
         .feed-item.border-fav { border-left: 3px solid var(--green); }
 
         .feed-scroll::-webkit-scrollbar { width: 4px; }
@@ -1819,6 +1821,7 @@
                 const confidence = p.confidence || 'medium';
                 const confLabel = confidence || 'B-';
                 const rawAiProb = p.ai_probability || 0;
+                // Show AI probability for OUR side: BUY_YES=X winning%, BUY_NO=Y winning%
                 const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
                 const scouted = p.scouted || false;
                 const entryTime = p.entry_timestamp ? new Date(p.entry_timestamp).toLocaleString() : '--';
@@ -2000,12 +2003,14 @@
                 const dirLabel = isPending ? (isYes ? 'YES' : 'NO') : (direction ? getDirectionLabel(buy.question, direction, slug) : '');
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 const rawBuyPrice = isPending ? (t.price || 0) : (buy.price || 0);
-                const entryPrice = isYes ? rawBuyPrice : (1 - rawBuyPrice);
+                // rawBuyPrice is execution price (already our side): YES price for BUY_YES, NO price for BUY_NO
+                const entryPrice = rawBuyPrice;
                 const size = isPending ? (t.size || 0) : (buy.size || 0);
                 const confidence = isPending ? (t.confidence || '') : (buy.confidence || '');
                 const confLabel = confidence || '';
                 const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
                 const rawAiProb2 = isPending ? (t.ai_probability || 0) : (buy.ai_probability || 0);
+                // Show AI probability for OUR side: BUY_YES=X winning%, BUY_NO=Y winning%
                 const aiProb = isYes ? rawAiProb2 : (1 - rawAiProb2);
                 const edge = buy.edge || 0;
                 const impactW = Math.min(Math.abs(pnl) * 3, 120);
@@ -2279,18 +2284,25 @@
                 dot.style.background = '#4fc3f7';
                 dot.style.animation = 'pulse 3s ease-in-out infinite';
                 const minMatch = (data.step || '').match(/(\d+)min/);
+                let statusParts = [];
                 if (minMatch && data.ts) {
                     const intervalSec = parseInt(minMatch[1]) * 60;
                     const elapsed = (Date.now() - new Date(data.ts).getTime()) / 1000;
                     const remaining = Math.max(0, Math.round(intervalSec - elapsed));
                     const m = Math.floor(remaining / 60);
                     const s = remaining % 60;
-                    text.textContent = remaining > 0
-                        ? `Next cycle in ${m}m ${s.toString().padStart(2,'0')}s`
-                        : 'Starting cycle...';
-                } else {
-                    text.textContent = data.step || 'Idle';
+                    statusParts.push(remaining > 0
+                        ? `Hard ${m}m ${s.toString().padStart(2,'0')}s`
+                        : 'Starting cycle...');
                 }
+                // Light cycle countdown (every 60s when positions open)
+                if (data.light_ts && data.has_positions) {
+                    const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
+                    const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
+                    const ls = lightRemaining % 60;
+                    statusParts.push(`Light ${ls}s`);
+                }
+                text.textContent = statusParts.length > 0 ? statusParts.join(' · ') : (data.step || 'Idle');
             } else {
                 dot.style.background = '#888'; dot.style.animation = 'none';
                 text.textContent = 'Offline';

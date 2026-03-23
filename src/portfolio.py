@@ -75,7 +75,17 @@ class Portfolio:
         volatility_swing: bool = False,
         entry_reason: str = "",
         sport_tag: str = "",
+        event_id: str = "",
     ) -> None:
+        # Event-level duplicate guard — never bet on two outcomes of the same event
+        if event_id:
+            for cid, pos in self.positions.items():
+                if pos.event_id and pos.event_id == event_id:
+                    logger.warning(
+                        "BLOCKED: same event already held — existing %s (%s), attempted %s (%s), event_id=%s",
+                        pos.slug[:35], pos.direction, slug[:35], direction, event_id,
+                    )
+                    return
         self.positions[condition_id] = Position(
             condition_id=condition_id,
             token_id=token_id,
@@ -96,6 +106,7 @@ class Portfolio:
             number_of_games=number_of_games,
             entry_reason=entry_reason,
             sport_tag=sport_tag,
+            event_id=event_id,
         )
         self.bankroll -= size_usdc
         self._save_positions()
@@ -198,8 +209,6 @@ class Portfolio:
             pos.cycles_held += 1
             eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
             pos.price_history_buffer.append(eff_price)
-            if len(pos.price_history_buffer) > 20:
-                pos.price_history_buffer = pos.price_history_buffer[-20:]
             if eff_price > pos.peak_price:
                 pos.peak_price = eff_price
 
