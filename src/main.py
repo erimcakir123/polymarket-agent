@@ -38,6 +38,12 @@ from src.process_lock import acquire_lock
 from src.dashboard import create_app as create_dashboard
 from src.live_dip_entry import find_live_dip_candidates
 from src.esports_early_entry import find_esports_early_candidates
+from src.circuit_breaker import CircuitBreaker
+from src.reentry import Blacklist, can_reenter, get_blacklist_rule, is_snowball_banned, qualifies_for_score_reversal_reentry, passes_confidence_momentum, get_reentry_size_multiplier
+from src.edge_decay import get_decayed_ai_target
+from src.correlation import apply_correlation_cap, extract_match_key
+from src.liquidity_check import check_exit_liquidity
+from src.adaptive_kelly import get_adaptive_kelly_fraction
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +113,15 @@ class Agent:
         self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
         self._last_esports_early_check: float = 0  # Timestamp of last esports early scan
         self._last_resolved_count = self._count_resolved()
+
+        # V2: Circuit breaker and tiered blacklist
+        self.circuit_breaker = CircuitBreaker()
+        self.blacklist = Blacklist(path="logs/blacklist.json")
+
+        # Migrate old exited_markets into blacklist
+        for cid in self._exited_markets:
+            if not self.blacklist.is_blocked(cid, 0):
+                self.blacklist.add(cid, "legacy", "permanent", None)
 
         # Core modules
         self.scanner = MarketScanner(config.scanner)
@@ -485,6 +500,17 @@ class Agent:
             self.running = False
             return
 
+        # V2: Circuit breaker check
+        halt, halt_reason = self.circuit_breaker.should_halt_entries()
+        if halt:
+            logger.warning("Circuit breaker active: %s", halt_reason)
+        if halt and not getattr(self, '_cb_was_active', False):
+            self.notifier.send(f"\u26a0\ufe0f Circuit breaker ACTIVATED: {halt_reason}")
+            self._cb_was_active = True
+        elif not halt and getattr(self, '_cb_was_active', False):
+            self.notifier.send("\u2705 Circuit breaker deactivated \u2014 entries resumed")
+            self._cb_was_active = False
+
         # 2. Check resolved markets for calibration
         self._set_status("running", "Checking resolved markets")
         self._check_resolved_markets()
@@ -598,7 +624,7 @@ class Agent:
         markets = [
             m for m in markets
             if m.condition_id not in self.portfolio.positions
-            and m.condition_id not in self._exited_markets
+            and not self.blacklist.is_blocked(m.condition_id, self.cycle_count)
             and self._exit_cooldowns.get(m.condition_id, 0) <= self.cycle_count
         ]
         if skipped_portfolio or skipped_cooldown:
@@ -1629,7 +1655,7 @@ class Agent:
             if market.condition_id in self.portfolio.positions:
                 self._candidate_stock.remove(c)
                 continue
-            if market.condition_id in self._exited_markets:
+            if self.blacklist.is_blocked(market.condition_id, self.cycle_count):
                 self._candidate_stock.remove(c)
                 continue
             if self._exit_cooldowns.get(market.condition_id, 0) > self.cycle_count:
@@ -1736,7 +1762,7 @@ class Agent:
             if market.condition_id in self.portfolio.positions:
                 self._fav_stock.remove(c)
                 continue
-            if market.condition_id in self._exited_markets:
+            if self.blacklist.is_blocked(market.condition_id, self.cycle_count):
                 self._fav_stock.remove(c)
                 continue
 
@@ -2300,12 +2326,40 @@ class Agent:
             logger.info("Scouted exit (%s) — saved for re-entry: %s (AI=%.0f%%, conf=%s)",
                         reason, pos.slug[:40], pos.ai_probability * 100, pos.confidence)
         else:
-            # Persist to disk so we never re-enter after restart
+            # V2: Tiered blacklist instead of permanent ban
+            exit_data = {
+                "ai_probability": pos.ai_probability,
+                "confidence": pos.confidence,
+                "direction": pos.direction,
+                "entry_price": pos.entry_price,
+                "exit_price": pos.current_price,
+                "slug": pos.slug,
+                "token_id": pos.token_id,
+            }
+            btype, duration = get_blacklist_rule(reason, elapsed_pct=0.0)
+            if btype == "permanent":
+                self.blacklist.add(condition_id, reason, "permanent", None, exit_data)
+            elif btype == "timed":
+                self.blacklist.add(condition_id, reason, "timed", self.cycle_count + duration, exit_data)
+            elif btype == "reentry":
+                self.blacklist.add(condition_id, reason, "reentry", self.cycle_count + duration, exit_data)
+            # "none" type = no blacklist entry (e.g., score_terminal_win)
+            # Also persist to legacy exited_markets for backward compat
             self._save_exited_market(condition_id)
+
+        # V2: Check exit liquidity before selling
+        liq = check_exit_liquidity(pos.token_id, pos.shares)
+        if not liq["fillable"]:
+            logger.warning("Low liquidity for %s: %s — %s", pos.slug[:30], liq["strategy"], liq.get("note", ""))
+
         result = self.executor.place_exit_order(pos.token_id, pos.shares)
         realized_pnl = pos.unrealized_pnl_usdc
         self.portfolio.record_realized(realized_pnl)
         self.risk.record_outcome(win=realized_pnl > 0)
+
+        # V2: Record in circuit breaker
+        bankroll_for_cb = self.portfolio.bankroll + sum(p.size_usdc for p in self.portfolio.positions.values())
+        self.circuit_breaker.record_exit(realized_pnl, bankroll_for_cb)
         # Dry-run bankroll: return position value (investment + profit/loss)
         if not self.wallet:
             self.portfolio.update_bankroll(self.portfolio.bankroll + pos.current_value)

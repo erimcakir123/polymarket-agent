@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from src.config import RiskConfig
 from src.models import Signal
+from src.adaptive_kelly import get_adaptive_kelly_fraction
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class RiskManager:
         bankroll: float,
         open_positions: dict,
         correlated_exposure: float = 0.0,
+        **kwargs,
     ) -> RiskDecision:
         # Cooldown check (triggered by record_outcome, decremented here)
         if self.cooldown_remaining > 0:
@@ -79,7 +81,13 @@ class RiskManager:
             ai_prob=signal.ai_probability,
             market_price=signal.market_price,
             bankroll=bankroll,
-            kelly_fraction=self.config.kelly_fraction,
+            kelly_fraction=get_adaptive_kelly_fraction(
+                confidence=getattr(signal, 'confidence', "medium"),
+                ai_probability=signal.ai_probability,
+                category=getattr(signal, 'category', ''),
+                is_reentry=False,
+                config_kelly_by_conf={"low": 0.08, "medium_low": 0.10, "medium": 0.15, "medium_high": 0.20, "high": 0.25},
+            ),
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
             direction=signal.direction.value,
