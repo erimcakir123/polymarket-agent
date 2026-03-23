@@ -192,6 +192,15 @@ class Portfolio:
                 pos.consecutive_down_cycles = 0
                 pos.cumulative_drop = 0.0
 
+            # V2: Track cycles_held, effective price history, peak effective price
+            pos.cycles_held += 1
+            eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
+            pos.price_history_buffer.append(eff_price)
+            if len(pos.price_history_buffer) > 20:
+                pos.price_history_buffer = pos.price_history_buffer[-20:]
+            if eff_price > pos.peak_price:
+                pos.peak_price = eff_price
+
     def save_prices_to_disk(self) -> None:
         """Persist current prices to disk so dashboard can read them."""
         self._save_positions()
@@ -256,62 +265,51 @@ class Portfolio:
                 logger.warning("%s triggered for %s: %.1f%%", label, pos.slug, pos.unrealized_pnl_pct * 100)
         return triggered
 
+    def check_scale_outs(self) -> list[dict]:
+        """Check positions for scale-out tier triggers. Returns list of scale-out actions."""
+        from src.scale_out import check_scale_out
+        results = []
+        for cid, pos in self.positions.items():
+            # Note: scouted positions intentionally participate in scale-out (spec §9j)
+            result = check_scale_out(
+                scale_out_tier=pos.scale_out_tier,
+                unrealized_pnl_pct=pos.unrealized_pnl_pct,
+                volatility_swing=pos.volatility_swing,
+            )
+            if result is not None:
+                results.append({"condition_id": cid, **result})
+        return results
+
     def check_trailing_stops(self, trailing_tiers: list | None = None) -> List[str]:
-        """Graduated trailing stop: higher peak → tighter protection.
-
-        Default tiers: 10%+ peak → 50% drop, 20%+ → 35%, 40%+ → 25%.
-        Highest matching tier wins (tightest stop).
+        """σ-based trailing stop: volatility-adjusted using rolling standard deviation.
+        Replaces the old graduated tier-based trailing stop (V2 upgrade).
         """
-        if trailing_tiers is None:
-            trailing_tiers = [
-                {"min_peak": 0.10, "drop_pct": 0.50},
-                {"min_peak": 0.20, "drop_pct": 0.35},
-                {"min_peak": 0.40, "drop_pct": 0.25},
-            ]
-        # Sort tiers descending by min_peak so tightest matches first
-        tiers = sorted(trailing_tiers, key=lambda t: t["min_peak"], reverse=True)
-
+        from src.trailing_sigma import calculate_sigma_trailing_stop
         triggered = []
         for cid, pos in self.positions.items():
             if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
                 continue
-            # O/U and spread markets: hold to resolution
             if self._is_totals_or_spread(pos):
                 continue
-            # VS positions: skip trailing stop — they have their own exit logic
-            # (VS take-profit, VS stop-loss, mandatory exit before resolution)
             if pos.volatility_swing:
                 continue
-            # Favorite = AI ≥ 65% for our side + high/medium_high confidence → hold to resolve
-            _eff_ai = pos.ai_probability if not (pos.direction and 'NO' in pos.direction) else (1 - pos.ai_probability)
-            if _eff_ai >= 0.65 and pos.confidence in ("high", "medium_high"):
-                continue  # Favorite: hold to resolve — no trailing stop
-
-            # Find the tightest matching tier
-            drop_threshold = None
-            for tier in tiers:
-                if pos.peak_pnl_pct >= tier["min_peak"]:
-                    drop_threshold = tier["drop_pct"]
-                    break  # Tightest match (highest min_peak that qualifies)
-
-            if drop_threshold is None:
-                continue  # Peak too low for any tier
-
-            drop_from_peak = pos.peak_pnl_pct - pos.unrealized_pnl_pct
-            if drop_from_peak >= drop_threshold:
-                # Only trigger trailing stop if still in profit (or at least breakeven)
-                # If in loss, let stop_loss handle it instead
-                if pos.unrealized_pnl_pct < 0:
-                    logger.info(
-                        "Trailing stop skipped (in loss): %s peaked +%.1f%%, now %.1f%% — deferring to stop_loss",
-                        pos.slug[:30], pos.peak_pnl_pct * 100, pos.unrealized_pnl_pct * 100,
-                    )
-                    continue
+            # Scale-out tier > 0 means profit already partially locked — σ-trailing protects remainder
+            # Favorite hold-to-resolve logic: skip trailing if σ says inactive (peak too low)
+            eff_entry = (1 - pos.entry_price) if pos.direction == "BUY_NO" else pos.entry_price
+            eff_current = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+            result = calculate_sigma_trailing_stop(
+                peak_pnl_pct=pos.peak_pnl_pct,
+                price_history=pos.price_history_buffer,
+                current_price=eff_current,
+                peak_price=pos.peak_price,
+                entry_price=eff_entry,
+            )
+            if result.get("active") and result.get("triggered"):
                 triggered.append(cid)
                 logger.warning(
-                    "Trailing stop for %s: peaked at +%.1f%%, now +%.1f%% (dropped %.1f%% >= %.0f%% tier)",
-                    pos.slug[:30], pos.peak_pnl_pct * 100,
-                    pos.unrealized_pnl_pct * 100, drop_from_peak * 100, drop_threshold * 100,
+                    "σ-trailing stop: %s | stop=%.3f, current=%.3f (z=%.1f, σ=%.4f)",
+                    pos.slug[:30], result["stop_price"], eff_current,
+                    result["z_score"], result["sigma"],
                 )
         return triggered
 
@@ -371,15 +369,50 @@ class Portfolio:
                              pos.slug[:30], effective_ai * 100, pos.confidence)
                 continue
 
-            # UNDERDOG: everything else → edge trade, take profit at 85% of AI target
+            # V2: Resolution-aware hold for scaled-out positions
+            if pos.scale_out_tier >= 1:
+                from src.vs_spike import should_hold_for_resolution
+                eff_price = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                score_behind = False  # TODO: wire score data when available
+                is_won = False  # TODO: wire from match data
+                hold, hold_reason = should_hold_for_resolution(
+                    effective_price=eff_price, effective_ai=effective_ai,
+                    scale_out_tier=pos.scale_out_tier, score_behind=score_behind,
+                    is_already_won=is_won,
+                )
+                if hold and eff_price >= 0.65:
+                    logger.debug("Resolution hold (V2): %s — %s", pos.slug[:30], hold_reason)
+                    continue  # Skip TP, hold for resolution
+
+            # UNDERDOG: edge trade with decayed AI target (V2: edge decay)
             if pos.ai_probability > 0:
+                from src.edge_decay import get_decayed_ai_target
+                from datetime import datetime, timezone
+                # Compute elapsed_pct
+                elapsed_pct = 0.0
+                if pos.match_start_iso:
+                    try:
+                        start_dt = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
+                        now = datetime.now(timezone.utc)
+                        elapsed_sec = max(0, (now - start_dt).total_seconds())
+                        total_sec = 5400  # ~90 min default match
+                        if pos.number_of_games >= 5:
+                            total_sec = 12600  # ~210 min BO5
+                        elif pos.number_of_games >= 3:
+                            total_sec = 9000  # ~150 min BO3
+                        elapsed_pct = min(1.0, elapsed_sec / total_sec)
+                    except (ValueError, TypeError):
+                        pass
+
                 ai_target = pos.ai_probability
                 current = pos.current_price or pos.entry_price
                 if pos.direction and 'NO' in pos.direction:
                     ai_target = 1 - pos.ai_probability
                     current = 1 - current if current else pos.entry_price
 
-                edge_tp_price = ai_target * 0.85
+                # V2: Decay AI target toward market price as match progresses
+                decayed_target = get_decayed_ai_target(ai_target, current, elapsed_pct)
+                edge_tp_price = decayed_target * 0.85
                 if current >= edge_tp_price and current > pos.entry_price * 1.10:
                     triggered.append(cid)
                     logger.info("Edge TP (underdog): %s | price=%.0f¢ → AI target %.0f¢ (85%%=%.0f¢) | +%.1f%%",
@@ -531,6 +564,8 @@ class Portfolio:
                 "volatility_swing": pos.volatility_swing,
                 "category": pos.category,
                 "unrealized_pnl_pct": pos.unrealized_pnl_pct,
+                "entry_reason": pos.entry_reason,
+                "cycles_held": pos.cycles_held,
             }
 
             check = check_match_exit(data)
