@@ -66,6 +66,65 @@ def create_app(
                 pass
         return jsonify({"spent": 0.0, "limit": 0.0, "remaining": 0.0})
 
+    @app.route("/api/slots")
+    def api_slots():
+        """Slot allocation breakdown for dashboard widget."""
+        positions = {}
+        if POSITIONS_FILE.exists():
+            try:
+                positions = json.loads(POSITIONS_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Count by category
+        vs_count = 0
+        fav_count = 0
+        esports_count = 0
+        live_dip_count = 0
+        normal_count = 0
+        pending_count = 0
+        special_reasons = {"esports_early", "live_dip", "fav_time_gate"}
+
+        for pos in (positions.values() if isinstance(positions, dict) else []):
+            if pos.get("pending_resolution"):
+                pending_count += 1
+                continue
+            if pos.get("volatility_swing"):
+                vs_count += 1
+            elif pos.get("entry_reason") == "fav_time_gate":
+                fav_count += 1
+            elif pos.get("entry_reason") == "esports_early":
+                esports_count += 1
+            elif pos.get("entry_reason") == "live_dip":
+                live_dip_count += 1
+            else:
+                normal_count += 1
+
+        # Load config for max values
+        import yaml
+        config_path = Path("config.yaml")
+        max_positions = 15
+        vs_reserved = 3
+        try:
+            if config_path.exists():
+                cfg = yaml.safe_load(config_path.read_text()) or {}
+                max_positions = cfg.get("risk", {}).get("max_positions", 15)
+                vs_reserved = cfg.get("volatility_swing", {}).get("reserved_slots", 3)
+        except Exception:
+            pass
+
+        normal_max = max_positions - vs_reserved
+
+        return jsonify({
+            "normal": {"current": normal_count, "max": normal_max},
+            "vs": {"current": vs_count, "max": vs_reserved},
+            "fav": {"current": fav_count, "max": 3},
+            "esports": {"current": esports_count, "max": 3},
+            "live_dip": {"current": live_dip_count, "max": 2},
+            "pending": pending_count,
+            "total": normal_count + vs_count + fav_count + esports_count + live_dip_count,
+        })
+
     @app.route("/api/status")
     def api_status():
         if STATUS_FILE.exists():

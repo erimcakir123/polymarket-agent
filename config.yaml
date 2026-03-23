@@ -37,7 +37,7 @@ risk:
   kelly_fraction: 0.25  # Quarter Kelly — 75% less risk, 75% of growth rate
   max_single_bet_usdc: 75
   max_bet_pct: 0.05  # Max 5% of bankroll = $50 (dry_run $1000)
-  max_positions: 10
+  max_positions: 15  # Normal slots = max_positions - vs reserved_slots (15-3=12)
   correlation_cap_pct: 0.30
   stop_loss_pct: 0.30
   take_profit_pct: 0.40
@@ -45,6 +45,18 @@ risk:
   cooldown_cycles: 2
   drawdown_halt_pct: 0.50
 
+
+volatility_swing:
+  enabled: true
+  reserved_slots: 3  # 3 VS slots (15-3=12 normal)
+  max_concurrent: 3
+  stop_loss_pct: 0.20
+  take_profit_pct: 0.60
+  max_token_price: 0.50
+  min_token_price: 0.10
+  max_hours_to_start: 24.0
+  bet_pct: 0.05
+  polling_interval_min: 5
 
 notifications:
   telegram_enabled: true

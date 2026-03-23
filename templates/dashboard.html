@@ -477,6 +477,45 @@
             scrollbar-width: thin;
             scrollbar-color: var(--bg-hover) transparent;
         }
+
+        /* ── Slot Tracker ── */
+        .slot-tracker {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .slot-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .slot-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            width: 70px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .slot-bar-bg {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-hover);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .slot-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.4s ease-out;
+        }
+        .slot-count {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            min-width: 36px;
+            text-align: right;
+        }
         .feed-scroll::-webkit-scrollbar { width: 4px; }
         .feed-scroll::-webkit-scrollbar-track { background: transparent; }
         .feed-scroll::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
@@ -893,7 +932,7 @@
                 <div class="card">
                     <div class="card-label"><span class="card-icon">&#127919;</span> <span class="card-label-text"><span>Active</span><span>Bets</span></span></div>
                     <div class="card-value" id="positions">0</div>
-                    <div class="card-sub" id="maxPositions">/ 10 max</div>
+                    <div class="card-sub" id="maxPositions">/ 15 max</div>
                 </div>
                 <div class="card">
                     <div class="card-label"><span class="card-icon">&#128274;</span> <span class="card-label-text"><span>Locked</span><span>in Bets</span></span></div>
@@ -955,6 +994,36 @@
                         </div>
                         <div class="gauge-info" id="positionLegend">
                             <div style="font-size:11px;color:var(--text-muted)">No open positions</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-label"><span class="card-icon">&#127919;</span> Slot Allocation</div>
+                    <div class="slot-tracker" id="slotTracker">
+                        <div class="slot-row">
+                            <span class="slot-label">Normal</span>
+                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotNormal" style="width:0%;background:var(--accent)"></div></div>
+                            <span class="slot-count" id="slotNormalCount">0/12</span>
+                        </div>
+                        <div class="slot-row">
+                            <span class="slot-label">VS</span>
+                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotVs" style="width:0%;background:var(--orange)"></div></div>
+                            <span class="slot-count" id="slotVsCount">0/3</span>
+                        </div>
+                        <div class="slot-row">
+                            <span class="slot-label">FAV</span>
+                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotFav" style="width:0%;background:var(--blue)"></div></div>
+                            <span class="slot-count" id="slotFavCount">0/3</span>
+                        </div>
+                        <div class="slot-row">
+                            <span class="slot-label">Esports</span>
+                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotEsports" style="width:0%;background:var(--amber)"></div></div>
+                            <span class="slot-count" id="slotEsportsCount">0/3</span>
+                        </div>
+                        <div class="slot-row">
+                            <span class="slot-label">Live Dip</span>
+                            <div class="slot-bar-bg"><div class="slot-bar-fill" id="slotLiveDip" style="width:0%;background:var(--red)"></div></div>
+                            <span class="slot-count" id="slotLiveDipCount">0/2</span>
                         </div>
                     </div>
                 </div>
@@ -1419,18 +1488,20 @@
         async function fetchData() {
             try {
                 const ts = Date.now();
-                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp] = await Promise.all([
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp] = await Promise.all([
                     fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/budget?_=' + ts, {cache: 'no-store'}),
-                    fetch('/api/positions?_=' + ts, {cache: 'no-store'})
+                    fetch('/api/positions?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/slots?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
                 const perfData = await perfResp.json();
                 const budgetData = await budgetResp.json();
                 allPositions = await posResp.json();
+                const slotsData = await slotsResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -1440,6 +1511,7 @@
                 updateScatter(allTrades);
                 updateTradeFeed(allTrades);
                 updateBudget(budgetData);
+                updateSlots(slotsData);
             } catch (e) { console.error('Fetch error:', e); }
         }
 
@@ -1925,6 +1997,29 @@
             budgetGauge.data.datasets[0].backgroundColor[0] = limit === 0 && spent > 0 ? COLORS.red : pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
             budgetGauge.update();
 
+        }
+
+        function updateSlots(s) {
+            if (!s) return;
+            const cats = [
+                {id: 'Normal', data: s.normal, color: 'var(--accent)'},
+                {id: 'Vs', data: s.vs, color: 'var(--orange)'},
+                {id: 'Fav', data: s.fav, color: 'var(--blue)'},
+                {id: 'Esports', data: s.esports, color: 'var(--amber)'},
+                {id: 'LiveDip', data: s.live_dip, color: 'var(--red)'}
+            ];
+            for (const c of cats) {
+                const cur = c.data?.current || 0;
+                const max = c.data?.max || 1;
+                const pct = Math.min(100, (cur / max) * 100);
+                const bar = document.getElementById('slot' + c.id);
+                const count = document.getElementById('slot' + c.id + 'Count');
+                if (bar) {
+                    bar.style.width = pct + '%';
+                    bar.style.background = cur >= max ? 'var(--red)' : c.color;
+                }
+                if (count) count.textContent = cur + '/' + max;
+            }
         }
 
         function setRange(range, btn) {
