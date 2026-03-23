@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from src.api_usage import record_call
+
 logger = logging.getLogger(__name__)
 
 PANDASCORE_BASE = "https://api.pandascore.co"
@@ -93,6 +95,7 @@ class EsportsDataClient:
                 timeout=10,
             )
             resp.raise_for_status()
+            record_call("pandascore")
             data = resp.json()
             self._cache[cache_key] = (data, time.monotonic())
             return data

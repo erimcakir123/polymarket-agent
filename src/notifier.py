@@ -18,6 +18,21 @@ class TelegramNotifier:
         self.chat_id = chat_id
         self.enabled = enabled and bool(bot_token and chat_id)
         self._last_update_id: int = 0
+        if self.enabled:
+            self._flush_old_updates()
+
+    def _flush_old_updates(self) -> None:
+        """Discard all pending Telegram updates so old /stop commands don't fire."""
+        try:
+            url = TELEGRAM_API.format(token=self.bot_token, method="getUpdates")
+            resp = requests.get(url, params={"offset": -1, "timeout": 1}, timeout=5)
+            if resp.status_code == 200:
+                results = resp.json().get("result", [])
+                if results:
+                    self._last_update_id = results[-1]["update_id"]
+                    logger.info("Flushed %d old Telegram updates (last_id=%d)", len(results), self._last_update_id)
+        except Exception as e:
+            logger.debug("Telegram flush error: %s", e)
 
     # ------------------------------------------------------------------
     # Sending

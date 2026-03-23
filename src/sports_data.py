@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from src.api_usage import record_call
+
 logger = logging.getLogger(__name__)
 
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
@@ -79,6 +81,7 @@ class SportsDataClient:
         try:
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
+            record_call("espn")
             data = resp.json()
             self._cache[url] = (data, time.monotonic())
             return data

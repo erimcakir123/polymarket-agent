@@ -29,10 +29,14 @@
 | ~~OddsPapi~~ | ~~250 req/ay~~ | ~~$49/ay~~ | ❌ İptal — 250 req yetersiz, ücretli pahalı |
 | The Odds API | 500 credit/ay | $30/ay (20K) | ✅ Zaten entegre, esports zayıf ama fallback olarak iyi |
 | PandaScore | 1000 req/saat | €150/ay | Mevcut, tier-1 iyi ama tier-2/3 zayıf |
-| SportDevs | RapidAPI'den kalkmış | — | Skip |
+| SportsGameOdds | 2500 obj/ay | $99/ay (100K) | Key var, sadece geleneksel spor (esports yok), 8 lig, 9 bookmaker |
 | HLTV scraper | Sınırsız | — | CS2 tüm tier'lar, Cloudflare riski, proxy gerekebilir |
 | VLR scraper | Sınırsız | — | Valorant tüm tier'lar |
-- [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) upgrade değerlendir
+| Riot Games API | Sınırsız | — | LoL/Valorant resmi API, key gereksiz |
+| OpenDota API | 60 req/dk | — | Dota2 open source API, key gereksiz |
+- [ ] SportsGameOdds entegrasyonu — key var (.env), geleneksel spor odds fallback olarak kullan
+- [ ] SportsGameOdds vs The Odds API karşılaştır — $99/ay Rookie plan (17 lig, 77 bookmaker) değer mi?
+- [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) veya SportsGameOdds Rookie ($99/ay) upgrade değerlendir
 - [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
 
 ## Gelecek Geliştirmeler

@@ -142,6 +142,12 @@ def create_app(
                 pass
         return jsonify([])
 
+    @app.route("/api/api-usage")
+    def api_api_usage():
+        """Return API usage stats for dashboard."""
+        from src.api_usage import get_usage
+        return jsonify(get_usage())
+
     @app.route("/api/status")
     def api_status():
         if STATUS_FILE.exists():

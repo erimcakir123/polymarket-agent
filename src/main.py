@@ -33,6 +33,8 @@ from src.sanity_check import check_bet_sanity
 from src.esports_data import EsportsDataClient
 from src.sports_data import SportsDataClient
 from src.odds_api import OddsAPIClient
+from src.vlr_data import VLRDataClient
+from src.hltv_data import HLTVDataClient
 from src.scout_scheduler import ScoutScheduler
 from src.process_lock import acquire_lock
 from src.dashboard import create_app as create_dashboard
@@ -137,6 +139,8 @@ class Agent:
         self.esports = EsportsDataClient()
         self.sports = SportsDataClient()
         self.odds_api = OddsAPIClient()
+        self.vlr = VLRDataClient()
+        self.hltv = HLTVDataClient()
         self.news_scanner = NewsScanner()
         self.manip_guard = ManipulationGuard()
         self.cycle_timer = CycleTimer(config.cycle)
@@ -910,6 +914,21 @@ class Agent:
                         parts.append(panda_ctx)
                         sources.append("pandascore")
                         logger.info("Esports data loaded for: %s", m.question[:50])
+
+                # CASCADE: If PandaScore had no data, try VLR (Valorant) or HLTV (CS2)
+                if not parts:
+                    if self.vlr.available:
+                        vlr_ctx = self.vlr.get_match_context(m.question, m.tags)
+                        if vlr_ctx:
+                            parts.append(vlr_ctx)
+                            sources.append("vlr")
+                            logger.info("VLR fallback data loaded for: %s", m.question[:50])
+                    if self.hltv.available and not parts:
+                        hltv_ctx = self.hltv.get_match_context(m.question, m.tags)
+                        if hltv_ctx:
+                            parts.append(hltv_ctx)
+                            sources.append("hltv")
+                            logger.info("HLTV fallback data loaded for: %s", m.question[:50])
 
             # Add bookmaker odds to AI context (uses quota sparingly — cached 1hr)
             if self.odds_api.available and (espn_ctx or parts):

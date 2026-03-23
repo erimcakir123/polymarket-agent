@@ -12,6 +12,7 @@ import anthropic
 
 from src.config import AIConfig
 from src.models import MarketData
+from src.api_usage import record_call
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,7 @@ class AIAnalyst:
         self._month_cost_usd += cost
         self._sprint_cost_usd += cost
         self._save_budget()
+        record_call("claude")
         logger.info(
             "API cost: $%.4f | sprint: $%.2f/$%.2f | month: $%.2f/$%.2f",
             cost, self._sprint_cost_usd, self.config.sprint_budget_usd,

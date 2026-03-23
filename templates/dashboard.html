@@ -222,7 +222,7 @@
         /* ── Budget Gauge ── */
         .budget-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1.6fr 1fr 1.1fr;
             gap: var(--space-md);
         }
         .budget-row .card { padding: var(--space-md); }
@@ -268,6 +268,13 @@
         }
         .gauge-info .gi-label { font-size: 11px; color: var(--text-secondary); text-align: right; }
         .gauge-info .gi-val { font-family: var(--font-sans); font-size: 13px; font-weight: 600; text-align: left; }
+
+        /* ── API Usage Bars ── */
+        .api-bar-row{display:flex;align-items:center;gap:6px;transition:opacity 0.3s}
+        .api-bar-label{font-size:9px;color:var(--text-secondary);width:60px;text-align:right;flex-shrink:0;letter-spacing:-0.01em}
+        .api-bar-track{flex:1;height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;min-width:20px;max-width:80px}
+        .api-bar-fill{height:100%;border-radius:3px;background:var(--accent);transition:width 0.6s cubic-bezier(0.4,0,0.2,1)}
+        .api-bar-count{font-size:9px;color:var(--text-muted);width:44px;text-align:left;flex-shrink:0;font-family:var(--font-sans);font-weight:600;letter-spacing:-0.02em}
 
         /* ── Chart Panels ── */
         .panel {
@@ -928,20 +935,33 @@
 
             <!-- Budget + Drawdown Gauges -->
             <div class="budget-row">
-                <div class="card">
-                    <div class="card-label"><span class="card-icon">&#129302;</span> AI Cost (monthly)</div>
-                    <div class="gauge-wrap">
-                        <div class="gauge-canvas-wrap">
-                            <canvas id="budgetGauge"></canvas>
-                            <div class="gauge-center">
-                                <div class="gauge-val" id="budgetPct">0%</div>
-                                <div class="gauge-label">used</div>
+                <div class="card" style="padding:14px 18px">
+                    <div class="card-label"><span class="card-icon">&#128225;</span> API Usage</div>
+                    <div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:16px;align-items:center;margin-top:4px">
+                        <!-- Left: Claude AI gauge -->
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:110px">
+                            <div class="gauge-canvas-wrap" style="width:88px;height:50px">
+                                <canvas id="budgetGauge"></canvas>
+                                <div class="gauge-center" style="bottom:-12px">
+                                    <div class="gauge-val" id="budgetPct" style="font-size:13px">0%</div>
+                                    <div class="gauge-label" style="font-size:8px">CLAUDE</div>
+                                </div>
                             </div>
+                            <div style="text-align:center;margin-top:6px;line-height:1.5">
+                                <div style="font-size:10px;color:var(--text-secondary);font-weight:600"><span id="budgetSpent">$0.00</span> / <span id="budgetLimit">$0.00</span></div>
+                                <div style="font-size:9px;color:var(--text-muted)">Left: <span id="budgetRemain" style="color:var(--green);font-weight:600">$0.00</span></div>
+                            </div>
+                            <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener" style="display:block;padding:2px 10px;background:rgba(45,212,168,0.08);border:1px solid rgba(45,212,168,0.2);border-radius:4px;color:var(--accent);text-align:center;font-size:8px;font-weight:600;text-decoration:none;letter-spacing:0.03em;transition:background 0.2s;cursor:pointer;margin-top:2px" onmouseover="this.style.background='rgba(45,212,168,0.18)'" onmouseout="this.style.background='rgba(45,212,168,0.08)'">BILLING &#8599;</a>
                         </div>
-                        <div class="gauge-info">
-                            <span class="gi-label">Spent</span><span class="gi-val" id="budgetSpent">$0.00</span>
-                            <span class="gi-label">Cap</span><span class="gi-val" id="budgetLimit">$0.00</span>
-                            <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener" style="grid-column:span 2;display:block;padding:3px 0;background:rgba(45,212,168,0.1);border:1px solid rgba(45,212,168,0.25);border-radius:4px;color:var(--accent);text-align:center;font-size:9px;font-weight:600;text-decoration:none;transition:background 0.2s,border-color 0.2s;cursor:pointer" onmouseover="this.style.background='rgba(45,212,168,0.2)';this.style.borderColor='rgba(45,212,168,0.4)'" onmouseout="this.style.background='rgba(45,212,168,0.1)';this.style.borderColor='rgba(45,212,168,0.25)'">Billing &#8599;</a>
+                        <!-- Divider -->
+                        <div style="align-self:stretch;background:var(--border)"></div>
+                        <!-- Right: API bars -->
+                        <div style="display:flex;flex-direction:column;gap:6px;justify-content:center" id="apiBarsWrap">
+                            <div class="api-bar-row" data-api="pandascore"><span class="api-bar-label">PandaScore</span><div class="api-bar-track"><div class="api-bar-fill" style="width:0%"></div></div><span class="api-bar-count">0</span></div>
+                            <div class="api-bar-row" data-api="odds_api"><span class="api-bar-label">Odds API</span><div class="api-bar-track"><div class="api-bar-fill" style="width:0%"></div></div><span class="api-bar-count">0/500</span></div>
+                            <div class="api-bar-row" data-api="espn"><span class="api-bar-label">ESPN</span><div class="api-bar-track"><div class="api-bar-fill" style="width:0%"></div></div><span class="api-bar-count">0</span></div>
+                            <div class="api-bar-row" data-api="vlr"><span class="api-bar-label">VLR.gg</span><div class="api-bar-track"><div class="api-bar-fill" style="width:0%"></div></div><span class="api-bar-count">0</span></div>
+                            <div class="api-bar-row" data-api="hltv"><span class="api-bar-label">HLTV</span><div class="api-bar-track"><div class="api-bar-fill" style="width:0%"></div></div><span class="api-bar-count">0</span></div>
                         </div>
                     </div>
                 </div>
@@ -962,18 +982,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="card">
+                <div class="card" style="overflow:visible">
                     <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
                         <span><span class="card-icon">&#128202;</span> Positions</span>
                         <div style="position:relative;display:inline-block" id="slotHelpWrap">
-                            <button onclick="var d=document.getElementById('slotHelpDrop');d.style.display=d.style.display==='block'?'none':'block'" style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">?</button>
-                            <div id="slotHelpDrop" style="display:none;position:absolute;right:0;top:22px;width:220px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:10px;line-height:1.5">
-                                <div style="margin-bottom:4px"><b style="color:rgba(255,255,255,0.5)">NRM</b> — Normal betler (ana slotlar)</div>
-                                <div style="margin-bottom:4px"><b style="color:var(--green)">VS</b> — Volatility Swing (fiyat dalgalanmasından faydalanma)</div>
-                                <div style="margin-bottom:4px"><b style="color:var(--blue)">EE</b> — Esports Early (erken giriş, maç öncesi)</div>
-                                <div style="margin-bottom:4px"><b style="color:var(--amber)">FAR</b> — Uzak maçlar (6h+, swing trade)</div>
-                                <div style="margin-bottom:4px"><b style="color:var(--red)">LD</b> — Live Dip (canlıda düşüşe giriş)</div>
-                                <div><b style="color:var(--green)">FAV</b> — Favori zamanlaması (yüksek edge favoriler)</div>
+                            <button onclick="event.stopPropagation();var d=document.getElementById('slotHelpDrop');d.style.display=d.style.display==='block'?'none':'block'" style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.35);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.15)'">?</button>
+                            <div id="slotHelpDrop" style="display:none;position:absolute;right:0;top:24px;width:200px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.6);font-size:9px;line-height:1.6;backdrop-filter:blur(8px)">
+                                <div style="margin-bottom:3px"><b style="color:rgba(255,255,255,0.45)">NRM</b> <span style="color:var(--text-muted)">Normal</span></div>
+                                <div style="margin-bottom:3px"><b style="color:var(--green)">VS</b> <span style="color:var(--text-muted)">Volatility Swing</span></div>
+                                <div style="margin-bottom:3px"><b style="color:var(--blue)">EE</b> <span style="color:var(--text-muted)">Esports Early</span></div>
+                                <div style="margin-bottom:3px"><b style="color:var(--amber)">FAR</b> <span style="color:var(--text-muted)">Uzak mac (6h+)</span></div>
+                                <div style="margin-bottom:3px"><b style="color:var(--red)">LD</b> <span style="color:var(--text-muted)">Live Dip</span></div>
+                                <div><b style="color:var(--green)">FAV</b> <span style="color:var(--text-muted)">Favori</span></div>
                             </div>
                         </div>
                     </div>
@@ -985,14 +1005,14 @@
                                 <div class="gauge-label">ACTIVE</div>
                             </div>
                         </div>
-                        <div style="width:1px;align-self:stretch;background:var(--border);margin:0 var(--space-sm)"></div>
-                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-content:center">
-                            <span class="entry-tag" style="font-size:9px;padding:2px 6px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5)" id="slotNormalInline">NRM 0/10</span>
-                            <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:9px;padding:2px 6px;text-align:center">VS 0/5</span>
-                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:9px;padding:2px 6px;text-align:center">EE 0/5</span>
-                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:9px;padding:2px 6px;text-align:center">FAR 0/4</span>
-                            <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:9px;padding:2px 6px;text-align:center">LD 0/2</span>
-                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:9px;padding:2px 6px;text-align:center">FAV 0/5</span>
+                        <div style="width:1px;align-self:stretch;background:var(--border);margin:0 4px"></div>
+                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;align-content:center">
+                            <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/10</span>
+                            <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">VS 0/5</span>
+                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">EE 0/5</span>
+                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAR 0/4</span>
+                            <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">LD 0/2</span>
+                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAV 0/5</span>
                         </div>
                     </div>
                     <div id="positionLegend" style="display:none"></div>
@@ -1505,14 +1525,15 @@
         async function fetchData() {
             try {
                 const ts = Date.now();
-                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp] = await Promise.all([
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp, apiUsageResp] = await Promise.all([
                     fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/budget?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/positions?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/slots?_=' + ts, {cache: 'no-store'}),
-                    fetch('/api/stock?_=' + ts, {cache: 'no-store'})
+                    fetch('/api/stock?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/api-usage?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
@@ -1521,6 +1542,7 @@
                 allPositions = await posResp.json();
                 const slotsData = await slotsResp.json();
                 allStockData = await stockResp.json();
+                const apiUsageData = await apiUsageResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -1531,6 +1553,7 @@
                 updateTradeFeed(allTrades);
                 updateBudget(budgetData);
                 updateSlots(slotsData);
+                updateApiUsage(apiUsageData);
             } catch (e) { console.error('Fetch error:', e); }
         }
 
@@ -2151,6 +2174,35 @@
             budgetGauge.data.datasets[0].backgroundColor[0] = limit === 0 && spent > 0 ? COLORS.red : pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
             budgetGauge.update();
 
+        }
+
+        function updateApiUsage(data) {
+            if (!data) return;
+            const apis = ['pandascore', 'odds_api', 'espn', 'vlr', 'hltv'];
+            apis.forEach(api => {
+                const row = document.querySelector(`.api-bar-row[data-api="${api}"]`);
+                if (!row) return;
+                const info = data[api] || {};
+                const calls = info.monthly_calls || 0;
+                const limit = info.monthly_limit;
+                const fill = row.querySelector('.api-bar-fill');
+                const count = row.querySelector('.api-bar-count');
+
+                if (limit) {
+                    const pct = Math.min(100, calls / limit * 100);
+                    fill.style.width = pct + '%';
+                    fill.style.background = pct > 80 ? COLORS.red : pct > 50 ? COLORS.amber : COLORS.accent;
+                    count.textContent = calls + '/' + limit;
+                } else {
+                    // No limit — show total calls, bar based on relative activity
+                    fill.style.width = calls > 0 ? Math.min(100, Math.max(8, calls / 5)) + '%' : '0%';
+                    fill.style.background = COLORS.accent;
+                    count.textContent = calls.toString();
+                }
+
+                // Dim row if 0 calls
+                row.style.opacity = calls > 0 ? '1' : '0.4';
+            });
         }
 
         function updateSlots(s) {

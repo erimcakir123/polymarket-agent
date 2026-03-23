@@ -12,6 +12,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from src.api_usage import record_call
+
 logger = logging.getLogger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
@@ -104,6 +106,7 @@ class OddsAPIClient:
             used = resp.headers.get("x-requests-used", "?")
             logger.info("Odds API quota: %s used, %s remaining", used, remaining)
             self._requests_used += 1
+            record_call("odds_api")
 
             data = resp.json()
             self._cache[cache_key] = (data, time.monotonic())
