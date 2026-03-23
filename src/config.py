@@ -63,6 +63,19 @@ class RiskConfig(BaseModel):
     cooldown_cycles: int = 2
     drawdown_halt_pct: float = 0.50
 
+    # Re-entry (#6, #12)
+    reentry_fresh_ai_call: bool = False  # If True, call AI again before re-entry
+    max_daily_reentries: int = 5  # Spec: can_reenter() checks >= 5
+    max_market_reentries: int = 2
+
+    # Correlation (#17)
+    max_match_exposure_pct: float = 0.15  # 15% of bankroll per match
+
+    # Scale-In (#7)
+    scale_in_min_pnl_pct: float = 0.02  # Spec: > 2% PnL or score_ahead
+    scale_in_min_cycles: int = 3
+    scale_in_num_tranches: int = 2  # Spec: 2-tranche system (50% + 50%)
+
     @field_validator("kelly_fraction")
     @classmethod
     def kelly_in_range(cls, v: float) -> float:
