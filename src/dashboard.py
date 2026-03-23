@@ -80,7 +80,6 @@ def create_app(
         # Count by category
         vs_count = 0
         fav_count = 0
-        esports_count = 0
         live_dip_count = 0
         far_count = 0
         normal_count = 0
@@ -94,8 +93,6 @@ def create_app(
                 vs_count += 1
             elif pos.get("entry_reason") == "fav_time_gate":
                 fav_count += 1
-            elif pos.get("entry_reason") == "esports_early":
-                esports_count += 1
             elif pos.get("entry_reason") == "live_dip":
                 live_dip_count += 1
             elif pos.get("entry_reason") == "far":
@@ -124,11 +121,10 @@ def create_app(
             "normal": {"current": normal_count, "max": normal_max},
             "vs": {"current": vs_count, "max": vs_reserved},
             "fav": {"current": fav_count, "max": 5},
-            "esports": {"current": esports_count, "max": 5},
             "live_dip": {"current": live_dip_count, "max": 2},
             "far": {"current": far_count, "max": far_max},
             "pending": pending_count,
-            "total": normal_count + vs_count + fav_count + esports_count + live_dip_count + far_count,
+            "total": normal_count + vs_count + fav_count + live_dip_count + far_count,
         })
 
     @app.route("/api/stock")

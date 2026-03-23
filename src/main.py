@@ -39,7 +39,6 @@ from src.scout_scheduler import ScoutScheduler
 from src.process_lock import acquire_lock
 from src.dashboard import create_app as create_dashboard
 from src.live_dip_entry import find_live_dip_candidates
-from src.esports_early_entry import find_esports_early_candidates
 from src.circuit_breaker import CircuitBreaker
 from src.reentry import Blacklist, can_reenter, get_blacklist_rule, is_snowball_banned, qualifies_for_score_reversal_reentry, passes_confidence_momentum, get_reentry_size_multiplier
 from src.edge_decay import get_decayed_ai_target
@@ -114,7 +113,6 @@ class Agent:
         self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
         self._spike_reentry: dict[str, dict] = {}  # condition_id -> saved AI data for re-entry
         self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
-        self._last_esports_early_check: float = 0  # Timestamp of last esports early scan
         self._eligible_cache: list = []  # Cached eligible markets from last Gamma scan
         self._eligible_pointer: int = 0  # Next index to analyze from cache
         self._eligible_cache_ts: float = 0  # When cache was last refreshed
@@ -461,11 +459,6 @@ class Agent:
         if time.time() - self._last_live_dip_check >= 300:
             self._check_live_dips()
             self._last_live_dip_check = time.time()
-
-        # Esports early entry — every 10 min (PandaScore rate limit)
-        if time.time() - self._last_esports_early_check >= 600:
-            self._check_esports_early()
-            self._last_esports_early_check = time.time()
 
         # Log portfolio snapshot so dashboard picks up realized PnL changes from exits
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
@@ -1825,8 +1818,7 @@ class Agent:
         vs_count = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
         far_count = self.portfolio.count_by_entry_reason("far")
         fav_count = self.portfolio.count_by_entry_reason("fav_time_gate")
-        ee_count = self.portfolio.count_by_entry_reason("esports_early")
-        normal_count = pos_count - vs_count - far_count - fav_count - ee_count
+        normal_count = pos_count - vs_count - far_count - fav_count
         invested = sum(p.size_usdc for p in self.portfolio.positions.values())
         unrealized = self.portfolio.total_unrealized_pnl()
         pnl_sign = "+" if unrealized >= 0 else ""
@@ -1834,9 +1826,10 @@ class Agent:
             f"\U0001f4ca *CYCLE #{self.cycle_count} REPORT*\n\n"
             f"Scanned: `{len(markets)}` markets\n"
             f"Candidates: `{len(candidates)}` | Stocked: `{len(leftover)}`\n"
-            f"\n\U0001f3af Positions: `{pos_count}` (Normal:{normal_count} VS:{vs_count} FAR:{far_count} FAV:{fav_count} EE:{ee_count})\n"
+            f"\n\U0001f3af Positions: `{pos_count}` (Normal:{normal_count} VS:{vs_count} FAR:{far_count} FAV:{fav_count})\n"
             f"Stock: `{stock_count}` (N:{len(self._candidate_stock)} FAV:{len(self._fav_stock)} FAR:{len(self._far_stock)})\n"
-            f"\n\U0001f4b0 Invested: `${invested:.2f}` | PnL: `{pnl_sign}${unrealized:.2f}`"
+            f"\n\U0001f4b0 Invested: `${invested:.2f}` | PnL: `{pnl_sign}${unrealized:.2f}`\n"
+            f"\U0001f4b8 AI: `${self.ai._sprint_cost_usd:.2f}` / `${self.ai.config.sprint_budget_usd:.2f}` sprint"
         )
 
         # Check if enough data for self-improvement
@@ -2296,94 +2289,6 @@ class Agent:
 
         except Exception as e:
             logger.debug("Live dip check error: %s", e)
-
-    def _check_esports_early(self) -> None:
-        """Scan for esports early entry opportunities (PandaScore-based, no AI)."""
-        try:
-            markets = self.scanner.fetch()
-            if not markets:
-                return
-
-            # Filter to only non-live esports (we want pre-match entry)
-            non_live = [
-                m for m in markets
-                if not (m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso))
-            ]
-
-            candidates = find_esports_early_candidates(
-                markets=non_live,
-                esports_client=self.esports,
-                portfolio_positions=self.portfolio.positions,
-                exited_markets=self._exited_markets,
-                exit_cooldowns=self._exit_cooldowns,
-                cycle_count=self.cycle_count,
-                max_concurrent=3,
-                min_edge=0.10,
-            )
-
-            for c in candidates:
-                # Fixed bet size — no Kelly (PandaScore-based, not AI)
-                bet_size = min(25.0, self.portfolio.bankroll * 0.05)
-                if bet_size < 5:
-                    logger.info("Esports early skip: bankroll too low for %s", c.slug[:40])
-                    continue
-
-                # Check esports_early own slot limit (5 max, separate from normal slots)
-                if self.portfolio.count_by_entry_reason("esports_early") >= 5:
-                    logger.info("Esports early skip: max esports_early slots (5) reached")
-                    break
-
-                price = c.token_price
-                result = self.executor.place_order(c.token_id, "BUY", price, bet_size)
-                shares = bet_size / price if price > 0 else 0
-                # entry_price must always be YES price for consistent PnL calculation
-                yes_price = price if c.direction == "BUY_YES" else (1 - price)
-
-                self.portfolio.add_position(
-                    c.condition_id, c.token_id, c.direction,
-                    yes_price, bet_size, shares, c.slug,
-                    "esports",
-                    confidence="B-",
-                    ai_probability=c.fair_value,
-                    question=c.question,
-                    end_date_iso=c.match_start_iso or "",
-                    match_start_iso=c.match_start_iso or "",
-                    number_of_games=c.number_of_games,
-                    entry_reason="esports_early",
-                    sport_tag=getattr(c, 'sport_tag', '') or "esports",
-                    event_id=getattr(c, 'event_id', '') or "",
-                )
-
-                self.trade_log.log({
-                    "market": c.slug, "action": c.direction,
-                    "size": bet_size, "price": price,
-                    "edge": c.edge, "confidence": "esports_early",
-                    "mode": self.config.mode.value, "status": result["status"],
-                    "question": c.question,
-                    "esports_early": True,
-                    "fair_value": c.fair_value,
-                    "market_price": c.market_price,
-                    "data_summary": c.data_summary,
-                    "is_reentry": c.is_reentry,
-                    "sport_tag": getattr(c, 'sport_tag', '') or "esports",
-                })
-
-                emoji = "\U0001f504" if c.is_reentry else "\U0001f3ae"
-                label = "RE-ENTRY" if c.is_reentry else "EARLY ENTRY"
-                self.notifier.send(
-                    f"{emoji} *ESPORTS {label}* — no AI cost\n\n"
-                    f"{c.question}\n"
-                    f"`{c.direction}` | `${bet_size:.0f}` @ `{price:.3f}`\n"
-                    f"Edge: `{c.edge:.0%}` | Fair: `{c.fair_value:.0%}` vs Market: `{c.market_price:.0%}`\n"
-                    f"{c.data_summary}"
-                )
-
-                logger.info("ESPORTS %s: %s | %s | edge=%.0f%% | fair=%.0f%% | %s",
-                            label, c.slug[:40], c.direction, c.edge * 100,
-                            c.fair_value * 100, c.data_summary)
-
-        except Exception as e:
-            logger.warning("Esports early check error: %s", e)
 
     def _get_current_price(self, market) -> float | None:
         """Get current CLOB price for freshness check. Returns None if unavailable."""

@@ -498,14 +498,12 @@
             border-radius: 3px;
         }
         .tag-vs { background: var(--orange-dim); color: var(--orange); }
-        .tag-ee { background: var(--amber-dim); color: var(--amber); }
         .tag-far { background: var(--blue-dim); color: var(--blue); }
         .tag-ld { background: var(--purple-dim); color: var(--purple); }
         .tag-fav { background: var(--green-dim); color: var(--green); }
 
         /* ── Position card border by entry reason ── */
         .feed-item.border-vs { border-left: 3px solid var(--orange); }
-        .feed-item.border-ee { border-left: 3px solid var(--amber); }
         .feed-item.border-far { border-left: 3px solid var(--blue); }
         .feed-item.border-ld { border-left: 3px solid var(--purple); }
         .feed-item.border-fav { border-left: 3px solid var(--green); }
@@ -992,7 +990,6 @@
                             <div id="slotHelpDrop" style="display:none;position:absolute;right:0;top:24px;width:200px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.6);font-size:9px;line-height:1.6;backdrop-filter:blur(8px)">
                                 <div style="margin-bottom:3px"><b style="color:rgba(255,255,255,0.45)">NRM</b> <span style="color:var(--text-muted)">Normal</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--green)">VS</b> <span style="color:var(--text-muted)">Volatility Swing</span></div>
-                                <div style="margin-bottom:3px"><b style="color:var(--blue)">EE</b> <span style="color:var(--text-muted)">Esports Early</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--amber)">FAR</b> <span style="color:var(--text-muted)">Uzak mac (6h+)</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--red)">LD</b> <span style="color:var(--text-muted)">Live Dip</span></div>
                                 <div><b style="color:var(--green)">FAV</b> <span style="color:var(--text-muted)">Favori</span></div>
@@ -1011,7 +1008,6 @@
                         <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;align-content:center">
                             <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/10</span>
                             <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">VS 0/5</span>
-                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">EE 0/5</span>
                             <span class="entry-tag tag-far" id="slotFarInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAR 0/4</span>
                             <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">LD 0/2</span>
                             <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAV 0/5</span>
@@ -1693,10 +1689,10 @@
         function updatePerformance(perfData, trades) {
             if (!Array.isArray(trades)) trades = [];
 
-            // Derive wins/losses from EXIT trades with reason field
-            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.reason);
-            const wins = exits.filter(t => t.reason.includes('win')).length;
-            const losses = exits.filter(t => t.reason.includes('loss')).length;
+            // Derive wins/losses from EXIT trades — use PnL to determine win/loss
+            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.pnl !== undefined);
+            const wins = exits.filter(t => t.pnl > 0).length;
+            const losses = exits.filter(t => t.pnl <= 0).length;
             const total = wins + losses;
 
             document.getElementById('winRate').textContent = total > 0 ? (wins / total * 100).toFixed(0) + '%' : '--%';
@@ -1719,7 +1715,7 @@
                 .map(t => {
                     const buy = buyMap[t.market];
                     const prob = buy.ai_probability;
-                    const outcome = t.reason.includes('win') ? 1 : 0;
+                    const outcome = t.pnl > 0 ? 1 : 0;
                     return { prob, outcome };
                 });
             if (calibrationPairs.length >= 2) {
@@ -1735,7 +1731,7 @@
                     const cat = (t.market || '').match(/^(nba|nhl|cbb|nfl|mlb)/i);
                     const label = cat ? cat[1].toUpperCase() : 'Other';
                     catTotal[label] = (catTotal[label] || 0) + 1;
-                    if (t.reason.includes('win')) catWins[label] = (catWins[label] || 0) + 1;
+                    if (t.pnl > 0) catWins[label] = (catWins[label] || 0) + 1;
                 });
                 let bestCat = '--', bestRate = 0;
                 for (const [cat, tot] of Object.entries(catTotal)) {
@@ -1753,10 +1749,10 @@
             // Match BUY entries with EXIT outcomes for scatter plot
             const buyMap = {};
             trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => { buyMap[t.market] = t; });
-            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.reason);
+            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.pnl !== undefined);
             const calibration = exits
                 .filter(t => buyMap[t.market] && buyMap[t.market].edge !== undefined)
-                .map(t => ({ x: buyMap[t.market].edge, y: t.reason.includes('win') ? 1 : 0 }));
+                .map(t => ({ x: buyMap[t.market].edge, y: t.pnl > 0 ? 1 : 0 }));
             scatterChart.data.datasets[0].data = calibration;
             scatterChart.update();
         }
@@ -1860,7 +1856,6 @@
                     const er = p.entry_reason || '';
                     const vs = p.volatility_swing || false;
                     if (vs) return 'border-vs';
-                    if (er === 'esports_early') return 'border-ee';
                     if (er === 'far') return 'border-far';
                     if (er === 'live_dip') return 'border-ld';
                     if (er === 'fav_time_gate') return 'border-fav';
@@ -1894,7 +1889,6 @@
                             const er = p.entry_reason || '';
                             const vs = p.volatility_swing || false;
                             if (vs) return '<span class="entry-tag tag-vs">VS</span>';
-                            if (er === 'esports_early') return '<span class="entry-tag tag-ee">EE</span>';
                             if (er === 'far') return '<span class="entry-tag tag-far">FAR</span>';
                             if (er === 'live_dip') return '<span class="entry-tag tag-ld">LD</span>';
                             if (er === 'fav_time_gate') return '<span class="entry-tag tag-fav">FAV</span>';
@@ -2215,7 +2209,6 @@
             const tags = [
                 {id: 'slotNormalInline', label: 'NRM', data: s.normal},
                 {id: 'slotVsInline', label: 'VS', data: s.vs},
-                {id: 'slotEeInline', label: 'EE', data: s.esports},
                 {id: 'slotFarInline', label: 'FAR', data: s.far},
                 {id: 'slotLdInline', label: 'LD', data: s.live_dip},
                 {id: 'slotFavInline', label: 'FAV', data: s.fav},

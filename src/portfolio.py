@@ -151,11 +151,11 @@ class Portfolio:
         return sum(1 for p in self.positions.values() if not p.pending_resolution)
 
     # Special entry reasons that get their own slots (don't eat normal slots)
-    _SPECIAL_ENTRY_REASONS = {"esports_early", "live_dip", "fav_time_gate", "far"}
+    _SPECIAL_ENTRY_REASONS = {"live_dip", "fav_time_gate", "far"}
 
     @property
     def normal_position_count(self) -> int:
-        """Count normal positions (excluding VS, esports_early, live_dip, fav_time_gate)."""
+        """Count normal positions (excluding VS, live_dip, fav_time_gate, far)."""
         return sum(
             1 for p in self.positions.values()
             if not p.pending_resolution
@@ -197,6 +197,21 @@ class Portfolio:
             # Track ever_in_profit (never resets)
             if not pos.ever_in_profit and pos.peak_pnl_pct > 0.01:
                 pos.ever_in_profit = True
+            # Dynamic FAV promotion/demotion — based on current market price
+            eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
+            if not pos.scouted and not pos.volatility_swing:
+                if (eff_price >= 0.65
+                        and pos.confidence in ("A", "B+")
+                        and pos.peak_pnl_pct >= 0.50):
+                    pos.scouted = True
+                    pos.hold_was_original = False
+                    logger.info("FAV PROMOTED: %s | price=%.0f%% | conf=%s | peak=%.0f%%",
+                                pos.slug[:35], eff_price * 100, pos.confidence, pos.peak_pnl_pct * 100)
+            elif pos.scouted and not pos.hold_was_original:
+                if eff_price < 0.65:
+                    pos.scouted = False
+                    logger.info("FAV DEMOTED: %s | price %.0f%% < 65%% — no longer favorite",
+                                pos.slug[:35], eff_price * 100)
             # Track consecutive down cycles for momentum alert
             if pos.previous_cycle_price > 0 and new_price < pos.previous_cycle_price:
                 pos.consecutive_down_cycles += 1
@@ -485,8 +500,8 @@ class Portfolio:
                 continue  # VS has its own exit logic
             if pos.confidence in ("A", "B+"):
                 continue  # Favorite confidence exempt — hold to resolve
-            if pos.entry_reason in ("esports_early", "live_dip"):
-                continue  # Esports early & live dip have their own exit logic
+            if pos.entry_reason == "live_dip":
+                continue  # Live dip has its own exit logic
             if not pos.end_date_iso:
                 continue
             try:
