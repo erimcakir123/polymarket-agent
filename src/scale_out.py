@@ -96,3 +96,43 @@ def apply_partial_exit(
         "tier": tier,
         "pct_of_original": shares_sold / original_shares if original_shares else 0,
     }
+
+
+def should_scale_in(
+    unrealized_pnl_pct: float,
+    cycles_held: int,
+    scale_in_complete: bool,
+    intended_size_usdc: float,
+    current_size_usdc: float,
+    score_ahead: bool = False,
+    min_pnl_pct: float = 0.02,
+    min_cycles: int = 3,
+) -> tuple[bool, str]:
+    """Check if position should scale in (add to winning position)."""
+    if scale_in_complete:
+        return False, "Scale-in already complete"
+    if current_size_usdc >= intended_size_usdc:
+        return False, "Already at intended size"
+    if cycles_held < min_cycles:
+        return False, f"Need {min_cycles} cycles, have {cycles_held}"
+    if unrealized_pnl_pct < 0:
+        return False, f"Position losing ({unrealized_pnl_pct:.1%}), no scale-in"
+    pnl_confirmed = unrealized_pnl_pct >= min_pnl_pct
+    if not pnl_confirmed and not score_ahead:
+        return False, f"PnL {unrealized_pnl_pct:.1%} < {min_pnl_pct:.0%} and no score advantage"
+    return True, "Position confirmed — scale in"
+
+
+def get_scale_in_size(
+    intended_size_usdc: float,
+    current_size_usdc: float,
+    kelly_size_now: float,
+) -> float:
+    """Size based on Kelly re-evaluation. Returns min(remaining_intended, kelly_gap)."""
+    remaining = intended_size_usdc - current_size_usdc
+    if remaining <= 0:
+        return 0.0
+    kelly_gap = kelly_size_now - current_size_usdc
+    if kelly_gap <= 0:
+        return 0.0
+    return min(remaining, kelly_gap)
