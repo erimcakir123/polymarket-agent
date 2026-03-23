@@ -16,6 +16,11 @@
 - [ ] Ultra-low <9¢ guard — elapsed>90% + price<5¢ ise çık (şu an hiç SL yok)
 - [ ] Pending resolution fix — pending pozisyonlar exit logic'i atlamamalı (kârdaysa hold, zarardaysa da hold ama bypass değil)
 
+## Gelecek Geliştirmeler
+- [ ] WebSocket live prices — CLOB WebSocket ile gerçek zamanlı fiyat akışı (polling yerine), anlık SL/TP tetikleme
+- [ ] Price movement tracking — Her cycle fiyat değişimini kaydet, momentum/trend analizi, spike detection, entry/exit kararlarına veri sağla
+- [ ] Odds API 20K plan ($30/mo) — Live trading için gerçek zamanlı oran verisi, PandaScore'a ek olarak
+
 ## Test Sürecinde Eklenecek (Live Öncesi)
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
 - [ ] Kelly rebalance — maç sırasında pozisyon boyutu güncelleme

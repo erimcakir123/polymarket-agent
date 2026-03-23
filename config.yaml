@@ -9,8 +9,8 @@ cycle:
   night_hours: [8, 9, 10, 11, 12, 13]  # UTC 08-13 = US midnight-8am (no games)
 
 scanner:
-  min_volume_24h: 10000  # Lower threshold to catch esports + smaller sports events
-  min_liquidity: 5000
+  min_volume_24h: 5000  # Enough liquidity for reliable pricing, esports exempt
+  min_liquidity: 1000
   tags: []  # Empty = accept all categories (sports resolve fast → quicker test data)
   prefer_short_duration: true  # Prioritize markets resolving within 48h
   max_markets_per_cycle: 300  # Fetch more per tag to catch esports + lower volume sports
@@ -49,8 +49,8 @@ risk:
 
 volatility_swing:
   enabled: true
-  reserved_slots: 3  # 3 VS slots (15-3=12 normal)
-  max_concurrent: 3
+  reserved_slots: 5  # 5 VS slots
+  max_concurrent: 5
   stop_loss_pct: 0.20
   take_profit_pct: 0.60
   max_token_price: 0.50
@@ -61,7 +61,7 @@ volatility_swing:
 
 far:
   enabled: true
-  max_slots: 2                    # 2 dedicated FAR slots (swing trade + penny alpha)
+  max_slots: 4                    # 4 dedicated FAR slots (swing trade + penny alpha)
   min_edge: 0.10                  # 10% min edge for FAR
   min_ai_probability: 0.55        # AI must be ≥55% confident
   min_confidence: "B-"            # B- minimum

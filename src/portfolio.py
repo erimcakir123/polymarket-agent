@@ -74,6 +74,7 @@ class Portfolio:
         number_of_games: int = 0,
         volatility_swing: bool = False,
         entry_reason: str = "",
+        sport_tag: str = "",
     ) -> None:
         self.positions[condition_id] = Position(
             condition_id=condition_id,
@@ -94,6 +95,7 @@ class Portfolio:
             match_start_iso=match_start_iso,
             number_of_games=number_of_games,
             entry_reason=entry_reason,
+            sport_tag=sport_tag,
         )
         self.bankroll -= size_usdc
         self._save_positions()
@@ -591,14 +593,22 @@ class Portfolio:
     def total_unrealized_pnl(self) -> float:
         return sum(p.unrealized_pnl_usdc for p in self.positions.values())
 
-    def correlated_exposure(self, category: str) -> float:
+    def correlated_exposure(self, category: str, sport_tag: str = "") -> float:
+        """Calculate exposure in same sport (sport_tag preferred, fallback to category)."""
         if self.bankroll <= 0:
             return 0.0
+        if sport_tag:
+            tag_total = sum(p.size_usdc for p in self.positions.values()
+                          if getattr(p, 'sport_tag', '') == sport_tag)
+            return tag_total / self.bankroll
         cat_total = sum(p.size_usdc for p in self.positions.values() if p.category == category)
         return cat_total / self.bankroll
 
-    def count_by_category(self, category: str) -> int:
-        """Count positions in the same league/category for correlation cap."""
+    def count_by_category(self, category: str, sport_tag: str = "") -> int:
+        """Count positions in the same sport/category for correlation cap."""
+        if sport_tag:
+            return sum(1 for p in self.positions.values()
+                      if getattr(p, 'sport_tag', '') == sport_tag)
         if not category:
             return 0
         return sum(1 for p in self.positions.values() if p.category == category)

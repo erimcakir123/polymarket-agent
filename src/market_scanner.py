@@ -14,31 +14,25 @@ logger = logging.getLogger(__name__)
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
 
-# Verified tag_ids from Gamma /sports endpoint (2026-03-23)
-# Parent tags cover all sub-leagues (e.g. 100350 = ALL soccer)
-SPORT_TAG_IDS: dict[str, int] = {
-    # Esports
-    "cs2": 100780,
-    "lol": 65,
-    "dota2": 102366,
-    "valorant": 101672,
-    "mlbb": 102750,
-    "overwatch": 102753,
-    # Traditional sports
-    "nba": 745,
-    "nhl": 899,
-    "mlb": 100381,
-    "nfl": 450,
-    "soccer": 100350,   # Parent — covers EPL, La Liga, Serie A, Bundesliga, UCL, etc.
-    "cricket": 517,
+# Parent tags that cover ALL sports and esports on Polymarket
+PARENT_TAGS: list[tuple[str, int]] = [
+    ("sports", 1),      # All traditional sports
+    ("esports", 64),    # All esports
+]
+
+EVENTS_PER_PAGE = 200  # Gamma API max per request
+
+# Esport identifiers — includes both short names and seriesSlug values from Gamma
+ESPORT_TAGS: set[str] = {
+    # Short names (from /sports endpoint)
+    "cs2", "lol", "dota2", "val", "mlbb", "ow", "codmw", "pubg",
+    "r6siege", "rl", "hok", "wildrift", "sc2", "sc", "fifa",
+    # seriesSlug values (from parent tag scan)
+    "counter-strike", "league-of-legends", "dota-2", "valorant",
+    "overwatch", "mobile-legends", "call-of-duty", "pubg-esports",
+    "rainbow-six", "rocket-league", "honor-of-kings", "wild-rift",
+    "starcraft-2", "starcraft", "fifa-esports",
 }
-
-ESPORT_TAGS: set[str] = {"cs2", "lol", "dota2", "valorant", "mlbb", "overwatch"}
-
-EVENTS_PER_TAG = 100  # Max events per tag_id query
-
-# Sports with 500+ events — use date filter to get nearby matches instead of first 100
-HIGH_EVENT_TAGS: set[str] = {"soccer", "cricket"}
 
 
 class MarketScanner:
@@ -70,56 +64,85 @@ class MarketScanner:
         return result
 
     def _fetch_by_tag_ids(self) -> list[dict]:
-        """Fetch markets via /events endpoint using tag_id (numeric).
-        The broken text `tag` parameter is bypassed entirely.
-        Each tag_id call returns events with nested markets arrays."""
+        """Fetch ALL sports & esports markets using 2 parent tags + pagination.
+        Only filters by end_date_min (now) — max_duration_days handles upper bound."""
         seen_ids: set[str] = set()
         all_raw: list[dict] = []
         total_events = 0
+        total_queries = 0
 
-        for sport, tag_id in SPORT_TAG_IDS.items():
-            params: dict = {
-                "tag_id": tag_id,
-                "active": "true",
-                "closed": "false",
-                "limit": EVENTS_PER_TAG,
-            }
-            # High-event sports (soccer, cricket): use date filter to get
-            # nearby daily matches instead of first 100 (mostly long-term)
-            if sport in HIGH_EVENT_TAGS:
-                now = datetime.now(timezone.utc)
-                params["end_date_min"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-                params["end_date_max"] = (now + timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(timezone.utc)
+        date_min = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            try:
-                resp = requests.get(f"{GAMMA_BASE}/events", params=params, timeout=20)
-                resp.raise_for_status()
-                events = resp.json()
-                event_count = len(events)
-                total_events += event_count
-                market_count = 0
+        for category, tag_id in PARENT_TAGS:
+            offset = 0
+            while True:
+                params: dict = {
+                    "tag_id": tag_id,
+                    "active": "true",
+                    "closed": "false",
+                    "limit": EVENTS_PER_PAGE,
+                    "offset": offset,
+                    "end_date_min": date_min,
+                }
+                try:
+                    resp = requests.get(f"{GAMMA_BASE}/events", params=params, timeout=20)
+                    resp.raise_for_status()
+                    events = resp.json()
+                    total_queries += 1
 
-                for event in events:
-                    event_live = event.get("live", False)
-                    markets = event.get("markets", [])
-                    for raw_market in markets:
-                        cid = raw_market.get("conditionId", "")
-                        if cid and cid not in seen_ids:
-                            seen_ids.add(cid)
-                            raw_market["_event_live"] = bool(event_live)
-                            raw_market["_event_ended"] = bool(event.get("ended", False))
-                            raw_market["_sport_tag"] = sport
-                            all_raw.append(raw_market)
-                            market_count += 1
+                    if not events:
+                        break
 
-                logger.debug("tag_id %s (%s): %d events, %d new markets",
-                             tag_id, sport, event_count, market_count)
-            except requests.RequestException as e:
-                logger.error("Gamma /events error (tag_id=%s, %s): %s", tag_id, sport, e)
+                    total_events += len(events)
+                    for event in events:
+                        event_live = event.get("live", False)
+                        # Detect sport from event's series slug or title
+                        sport_tag = self._detect_sport_tag(event, category)
+                        for raw_market in event.get("markets", []):
+                            cid = raw_market.get("conditionId", "")
+                            if cid and cid not in seen_ids:
+                                seen_ids.add(cid)
+                                raw_market["_event_live"] = bool(event_live)
+                                raw_market["_event_ended"] = bool(event.get("ended", False))
+                                raw_market["_sport_tag"] = sport_tag
+                                raw_market["_event_start_time"] = event.get("startTime", "")
+                                all_raw.append(raw_market)
 
-        logger.info("Tag-ID scan: %d tag queries → %d events → %d unique markets",
-                     len(SPORT_TAG_IDS), total_events, len(all_raw))
+                    # If we got fewer than the page size, no more pages
+                    if len(events) < EVENTS_PER_PAGE:
+                        break
+                    offset += EVENTS_PER_PAGE
+
+                except requests.RequestException as e:
+                    logger.error("Gamma /events error (tag_id=%s, %s): %s", tag_id, category, e)
+                    break
+
+        logger.info("Parent-tag scan: %d queries → %d events → %d unique markets",
+                     total_queries, total_events, len(all_raw))
         return all_raw
+
+    @staticmethod
+    def _detect_sport_tag(event: dict, category: str) -> str:
+        """Detect the sport name from event metadata."""
+        # seriesSlug is most reliable (e.g. "cs2", "nba", "epl")
+        series = event.get("seriesSlug", "")
+        if series:
+            return series
+        # Fallback: try to infer from title
+        title = event.get("title", "").lower()
+        slug = event.get("slug", "").lower()
+        for indicator, sport in [
+            ("counter-strike", "cs2"), ("league of legends", "lol"),
+            ("dota", "dota2"), ("valorant", "val"), ("overwatch", "ow"),
+            ("nba", "nba"), ("nhl", "nhl"), ("mlb", "mlb"), ("nfl", "nfl"),
+            ("soccer", "soccer"), ("cricket", "cricket"), ("tennis", "tennis"),
+            ("ufc", "ufc"), ("mma", "mma"), ("boxing", "boxing"),
+            ("formula", "f1"), ("rugby", "rugby"),
+        ]:
+            if indicator in title or indicator in slug:
+                return sport
+        return category  # "sports" or "esports" as generic fallback
 
     def _fetch_volume_sorted(self) -> list[dict]:
         """Fallback: fetch markets sorted by volume (original behavior)."""
@@ -168,6 +191,7 @@ class MarketScanner:
                 event_ended=raw.get("_event_ended", False),
                 sport_tag=raw.get("_sport_tag", ""),
                 accepting_orders_at=raw.get("acceptingOrdersTimestamp", ""),
+                match_start_iso=raw.get("_event_start_time", ""),
             )
         except (json.JSONDecodeError, IndexError, ValueError) as e:
             logger.warning("Failed to parse market: %s", e)
@@ -234,7 +258,9 @@ class MarketScanner:
 
     def _is_sports_or_esports(self, market: MarketData) -> bool:
         """Check if market is sports or esports (not politics, crypto, etc.)."""
-        return self._is_live_sport(market)  # Already covers sports + esports tags & keywords
+        if market.sport_tag:
+            return True
+        return self._is_live_sport(market)
 
     def _passes_filters(self, market: MarketData) -> bool:
         # Category filter: only allow specified categories (e.g. sports, esports)
@@ -261,6 +287,25 @@ class MarketScanner:
         if self.config.tags and market.tags:
             if not any(t in self.config.tags for t in market.tags):
                 return False
+        # Block sub-markets (Game X, Map X) — we don't watch matches, can't predict individual games
+        # Only allow main match outcome and Over/Under (O/U is statistical, testable)
+        q_lower = market.question.lower()
+        slug_lower = market.slug.lower()
+        _SUB_PATTERNS = [
+            "map 1", "map 2", "map 3", "map 4", "map 5",
+            "game 1", "game 2", "game 3", "game 4", "game 5",
+            "- map ", "- game ", "map winner", "game winner",
+            "first blood", "first kill", "first tower", "first baron",
+            "first dragon", "pistol round", "round handicap",
+        ]
+        is_sub = any(p in q_lower for p in _SUB_PATTERNS)
+        is_sub = is_sub or any(s in slug_lower for s in ["-game", "-map-"])
+        # Allow Over/Under through (statistical, not match-watching dependent)
+        is_over_under = any(p in q_lower for p in ["over", "under", "o/u", "total"])
+        if is_sub and not is_over_under:
+            logger.debug("Blocked sub-market: %s", market.question[:60])
+            return False
+
         # Skip nearly-resolved markets (>95%) — no edge left
         # Allow low-price tokens (<5%) through — FAR/penny alpha candidates
         if market.yes_price > 0.95:

@@ -74,36 +74,68 @@ _DURATION_TABLE: dict[tuple[str, int], int] = {
     ("dota2", 1): 45,  ("dota2", 3): 130, ("dota2", 5): 210,
 }
 
-# Sport detection from slug prefix
+# Sport detection from slug/seriesSlug prefix → duration in minutes
 _SPORT_DURATION: dict[str, int] = {
+    # Football/Soccer (all leagues)
     "epl": 95, "laliga": 95, "ucl": 95, "seriea": 95, "bundesliga": 95, "ligue1": 95,
-    "nba": 150,
-    "cbb": 120,
-    "mlb": 180,
-    "nhl": 150,
+    "mls": 95, "liga": 95, "soccer": 95, "primera": 95, "serie": 95,
+    "la-liga": 95, "premier": 95, "champions": 95, "europa": 95,
+    "eredivisie": 95, "superlig": 95, "ligue": 95, "copa": 95,
+    "concacaf": 95, "caf": 95, "afc": 95, "fifa": 95,
+    # US Sports
+    "nba": 150, "nba-": 150,
+    "nhl": 150, "nhl-": 150,
+    "mlb": 180, "mlb-": 180,
+    "nfl": 195, "nfl-": 195,
+    "ncaa": 120, "cbb": 120, "cwbb": 120, "ncaab": 120,
+    # Combat sports
+    "ufc": 75, "mma": 75, "boxing": 120, "zuffa": 75,
+    # Tennis
+    "atp": 120, "wta": 100,
+    # Cricket
+    "t20": 180, "odi": 480, "test": 1800, "ipl": 210, "cricket": 210,
+    # Hockey (non-NHL)
+    "khl": 150, "shl": 150, "ahl": 150, "cehl": 150,
+    # Basketball (non-NBA)
+    "euroleague": 120, "bk": 120,
+    # Rugby
+    "rugby": 100,
+    # Motorsport
+    "f1": 120, "formula": 120,
 }
 
 # Generic esports fallback (when game is unknown but BO format exists)
 _GENERIC_ESPORTS: dict[int, int] = {1: 40, 3: 120, 5: 180}
 
 
-def get_game_duration(slug: str, number_of_games: int) -> int:
+def get_game_duration(slug: str, number_of_games: int, sport_tag: str = "") -> int:
     """Return estimated match duration in minutes.
 
     Uses game-specific lookup from slug prefix + BO format.
-    Falls back to sport-specific, then generic esports, then 90 min default.
+    Falls back to sport_tag, then sport-specific, then generic esports, then 90 min default.
     """
     slug_lower = slug.lower()
+    tag_lower = sport_tag.lower() if sport_tag else ""
 
-    # Try game-specific esports lookup
+    # Try game-specific esports lookup (slug or sport_tag)
     for prefix in ("cs2", "val", "lol", "dota2"):
-        if slug_lower.startswith(f"{prefix}-"):
+        if slug_lower.startswith(f"{prefix}-") or tag_lower.startswith(prefix):
             bo = number_of_games if number_of_games > 0 else 3
             return _DURATION_TABLE.get((prefix, bo), _DURATION_TABLE.get((prefix, 3), 120))
 
-    # Try sport-specific lookup
+    # Also match seriesSlug-style names (counter-strike, league-of-legends etc.)
+    esport_slug_map = {
+        "counter-strike": "cs2", "league-of-legends": "lol",
+        "dota-2": "dota2", "valorant": "val",
+    }
+    for slug_prefix, game_key in esport_slug_map.items():
+        if tag_lower.startswith(slug_prefix) or slug_lower.startswith(slug_prefix):
+            bo = number_of_games if number_of_games > 0 else 3
+            return _DURATION_TABLE.get((game_key, bo), _DURATION_TABLE.get((game_key, 3), 120))
+
+    # Try sport-specific lookup (check both slug and sport_tag)
     for prefix, duration in _SPORT_DURATION.items():
-        if slug_lower.startswith(f"{prefix}-"):
+        if slug_lower.startswith(f"{prefix}-") or slug_lower.startswith(prefix) or tag_lower.startswith(prefix):
             return duration
 
     # If BO format is specified, assume generic esports

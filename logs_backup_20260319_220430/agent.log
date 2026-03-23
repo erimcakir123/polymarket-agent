@@ -1,0 +1,530 @@
+2026-03-19 21:26:24,895 [WARNING] src.process_lock: Stale lock file found (PID 24776 not running). Overwriting.
+2026-03-19 21:26:24,896 [INFO] src.process_lock: Process lock acquired (PID 76240)
+2026-03-19 21:26:25,206 [INFO] src.portfolio: Restored 6 positions from disk
+2026-03-19 21:26:25,206 [INFO] src.portfolio: Bankroll restored: $1256.75 (initial=$1000 + realized=$638.83 - invested=$382.08)
+2026-03-19 21:26:25,215 [INFO] src.scout_scheduler: Loaded 147 scout entries from disk
+2026-03-19 21:26:25,216 [INFO] __main__: Agent starting in Mode.DRY_RUN mode
+2026-03-19 21:26:25,221 [INFO] __main__: Dashboard running at http://127.0.0.1:5050
+ * Serving Flask app 'src.dashboard'
+ * Debug mode: off
+2026-03-19 21:26:25,232 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5050
+2026-03-19 21:26:25,232 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-03-19 21:26:25,680 [INFO] __main__: === Cycle #1 start ===
+2026-03-19 21:26:26,065 [INFO] __main__: Calibration: Islanders vs. Senators | AI=50% | Result=NO | CORRECT
+2026-03-19 21:26:26,392 [INFO] __main__: Calibration: Counter-Strike: MOUZ vs TheMongolz (BO3) | AI=25% | Result=NO | CORRECT
+2026-03-19 21:26:26,669 [INFO] __main__: Calibration: Rangers vs. Blue Jackets | AI=32% | Result=NO | CORRECT
+2026-03-19 21:26:27,049 [INFO] __main__: Calibration: Texas Longhorns vs. BYU Cougars | AI=43% | Result=NO | CORRECT
+2026-03-19 21:26:27,379 [INFO] __main__: Calibration: Blackhawks vs. Wild | AI=31% | Result=NO | CORRECT
+2026-03-19 21:26:27,714 [INFO] __main__: Calibration: Lakers vs. Heat | AI=38% | Result=NO | CORRECT
+2026-03-19 21:26:28,113 [INFO] __main__: Closed but not resolved yet: uel-rom1-bol1-2026-03-19-rom1 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:28,481 [INFO] __main__: Closed but not resolved yet: nba-orl-cha-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:28,788 [INFO] __main__: Closed but not resolved yet: uel-ast4-lil-2026-03-19-ast4 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:29,145 [INFO] __main__: Closed but not resolved yet: nba-lac-nop-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:29,517 [INFO] __main__: Closed but not resolved yet: nba-cle-chi-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:29,841 [INFO] __main__: Closed but not resolved yet: nba-lal-mia-2026-03-19-total-239pt5 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:26:30,386 [INFO] src.market_scanner: Skipped in-progress sport (1.6h to end): Will AS Roma win on 2026-03-19?
+2026-03-19 21:26:30,386 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 21:26:30,386 [INFO] src.market_scanner: Skipped in-progress sport (1.6h to end): Will Aston Villa FC win on 2026-03-19?
+2026-03-19 21:26:30,386 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 21:26:30,387 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 21:26:30,387 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 21:26:30,388 [INFO] src.market_scanner: Skipped too far out (15d, max=14d): Will Iowa State win the 2026 NCAA Tournament?
+2026-03-19 21:26:30,390 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): TCU Horned Frogs vs. Ohio State Buckeyes
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Saint Louis Billikens vs. Georgia Bulldogs
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will ACF Fiorentina win on 2026-03-19?
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Nottingham Forest FC win on 2026-03-19?
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will RC Celta de Vigo win on 2026-03-19?
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will SC Freiburg win on 2026-03-19?
+2026-03-19 21:26:30,391 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will FC Midtjylland vs. Nottingham Forest FC end in a draw?
+2026-03-19 21:26:30,948 [INFO] src.news_scanner: NewsAPI returned 0 articles for 'counter-strike mouz themongolz' (usage: 1/100)
+2026-03-19 21:26:31,633 [WARNING] src.news_scanner: GNews error: 400 Client Error: Bad Request for url: https://gnews.io/api/v4/search?q=counter-strike+mouz+themongolz&max=5&lang=en&token=ccf1c8d8838b90aa3ca820746be29617
+2026-03-19 21:26:32,849 [INFO] src.news_scanner: RSS returned 0 articles for 'counter-strike mouz themongolz'
+2026-03-19 21:26:33,371 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 2/100)
+2026-03-19 21:26:35,496 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'magic hornets' (usage: 3/100)
+2026-03-19 21:26:36,493 [ERROR] trafilatura.downloads: not a 200 response: 401 for URL https://consent.yahoo.com/v2/collectConsent?sessionId=1_cc-session_a6828cc4-4769-479f-a2af-3dd051c4857d
+2026-03-19 21:26:37,071 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'islanders senators' (usage: 4/100)
+2026-03-19 21:26:38,210 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'rangers blue jackets' (usage: 5/100)
+2026-03-19 21:26:38,887 [ERROR] trafilatura.utils: parsed tree length: 1, wrong data type or not valid HTML
+2026-03-19 21:26:38,887 [ERROR] trafilatura.core: empty HTML tree: None
+2026-03-19 21:26:38,887 [WARNING] trafilatura.core: discarding data: None
+2026-03-19 21:26:41,800 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'canadiens red wings' (usage: 6/100)
+2026-03-19 21:26:44,746 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'texas longhorns byu' (usage: 7/100)
+2026-03-19 21:27:18,145 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ReadTimeoutError("HTTPSConnectionPool(host='www.covers.com', port=443): Read timed out. (read timeout=30)")': /ncaab/march-madness/moneyline-picks-thursday-march-19-2026
+2026-03-19 21:27:39,189 [ERROR] trafilatura.downloads: download error: https://www.covers.com/ncaab/march-madness/moneyline-picks-thursday-march-19-2026 HTTPSConnectionPool(host='www.covers.com', port=443): Max retries exceeded with url: /ncaab/march-madness/moneyline-picks-thursday-march-19-2026 (Caused by ConnectTimeoutError(<HTTPSConnection(host='www.covers.com', port=443) at 0x1ee7b7dfc50>, 'Connection to www.covers.com timed out. (connect timeout=30)'))
+2026-03-19 21:27:39,567 [ERROR] trafilatura.downloads: not a 200 response: 403 for URL https://www.forbes.com/sites/darren-cooper/2026/03/18/get-your-first-round-march-madness-upsets-here/
+2026-03-19 21:27:40,720 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'blackhawks wild' (usage: 8/100)
+2026-03-19 21:27:43,049 [ERROR] trafilatura.downloads: not a 200 response: 401 for URL https://consent.yahoo.com/v2/collectConsent?sessionId=1_cc-session_7a63d7f3-26c0-4820-8a0f-f5ca24d74e9e
+2026-03-19 21:27:43,522 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'lakers heat' (usage: 9/100)
+2026-03-19 21:27:44,502 [ERROR] trafilatura.downloads: not a 200 response: 403 for URL https://www.sun-sentinel.com/2026/03/18/ira-winderman-heats-herro-powell-pairing-remains-ride-yet-to-be-solved/
+2026-03-19 21:27:45,053 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'clippers pelicans' (usage: 10/100)
+2026-03-19 21:27:45,923 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 21:27:45,923 [INFO] __main__: Skipped 2 in portfolio, 0 on cooldown (saved API calls)
+2026-03-19 21:27:45,926 [INFO] src.scout_scheduler: Scout match found: basketball_mens-college-basketball_BYU Cougars_Texas Longhorns_20260319 \u2194 cbb-tx-byu-2026-03-19
+2026-03-19 21:27:45,926 [INFO] __main__: Scout HIT: cbb-tx-byu-2026-03-19 (pre-fetched sports data injected)
+2026-03-19 21:27:45,927 [INFO] src.esports_data: Fetching esports data: MOUZ vs TheMongolz (csgo)
+2026-03-19 21:27:50,880 [INFO] __main__: Esports data loaded for: Counter-Strike: MOUZ vs TheMongolz (BO3) - BLAST O
+2026-03-19 21:27:50,881 [INFO] src.sports_data: Fetching ESPN data: Islanders vs Senators (NHL)
+2026-03-19 21:27:58,111 [INFO] __main__: ESPN data loaded for: Islanders vs. Senators
+2026-03-19 21:27:58,793 [INFO] src.odds_api: Odds API quota: 92 used, 408 remaining
+2026-03-19 21:27:58,796 [INFO] __main__: Bookmaker odds loaded: nhl-nyi-ott-2026-03-19 (45% vs 55%, 30 books)
+2026-03-19 21:27:58,796 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 21:28:05,474 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 21:28:05,475 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:28:05,475 [INFO] src.sports_data: Fetching ESPN data: Canadiens vs Red Wings (NHL)
+2026-03-19 21:28:11,250 [INFO] __main__: ESPN data loaded for: Canadiens vs. Red Wings
+2026-03-19 21:28:11,251 [INFO] __main__: Bookmaker odds loaded: nhl-mon-det-2026-03-19 (51% vs 49%, 30 books)
+2026-03-19 21:28:11,251 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 21:28:17,870 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 21:28:17,871 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:28:17,871 [INFO] src.sports_data: Fetching ESPN data: Lakers vs Heat (NBA)
+2026-03-19 21:28:25,006 [INFO] __main__: ESPN data loaded for: Lakers vs. Heat
+2026-03-19 21:28:25,737 [INFO] src.odds_api: Odds API quota: 94 used, 406 remaining
+2026-03-19 21:28:25,738 [INFO] __main__: Bookmaker odds loaded: nba-lal-mia-2026-03-19 (34% vs 66%, 31 books)
+2026-03-19 21:28:25,738 [INFO] __main__: Sports data fetched for 7/7 markets
+2026-03-19 21:28:38,676 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:28:38,692 [INFO] src.ai_analyst: API cost: $0.0106 | sprint: $2.83/$24.00 | month: $4.14/$48.00
+2026-03-19 21:28:53,365 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:28:53,367 [INFO] src.ai_analyst: API cost: $0.0137 | sprint: $2.84/$24.00 | month: $4.16/$48.00
+2026-03-19 21:29:08,768 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:29:08,770 [INFO] src.ai_analyst: API cost: $0.0144 | sprint: $2.86/$24.00 | month: $4.17/$48.00
+2026-03-19 21:29:19,529 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:29:19,532 [INFO] src.ai_analyst: API cost: $0.0112 | sprint: $2.87/$24.00 | month: $4.18/$48.00
+2026-03-19 21:29:29,075 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:29:29,078 [INFO] src.ai_analyst: API cost: $0.0115 | sprint: $2.88/$24.00 | month: $4.19/$48.00
+2026-03-19 21:29:39,220 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:29:39,223 [INFO] src.ai_analyst: API cost: $0.0113 | sprint: $2.89/$24.00 | month: $4.20/$48.00
+2026-03-19 21:29:49,003 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:29:49,005 [INFO] src.ai_analyst: API cost: $0.0110 | sprint: $2.90/$24.00 | month: $4.22/$48.00
+2026-03-19 21:30:01,181 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:30:01,183 [INFO] src.ai_analyst: API cost: $0.0117 | sprint: $2.91/$24.00 | month: $4.23/$48.00
+2026-03-19 21:30:15,431 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:30:15,434 [INFO] src.ai_analyst: API cost: $0.0143 | sprint: $2.93/$24.00 | month: $4.24/$48.00
+2026-03-19 21:30:24,716 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:30:24,718 [INFO] src.ai_analyst: API cost: $0.0110 | sprint: $2.94/$24.00 | month: $4.25/$48.00
+2026-03-19 21:30:33,619 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:30:33,622 [INFO] src.ai_analyst: API cost: $0.0106 | sprint: $2.95/$24.00 | month: $4.26/$48.00
+2026-03-19 21:30:45,579 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:30:45,582 [INFO] src.ai_analyst: API cost: $0.0120 | sprint: $2.96/$24.00 | month: $4.27/$48.00
+2026-03-19 21:31:01,733 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:31:01,735 [INFO] src.ai_analyst: API cost: $0.0146 | sprint: $2.98/$24.00 | month: $4.29/$48.00
+2026-03-19 21:31:11,785 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:31:11,788 [INFO] src.ai_analyst: API cost: $0.0105 | sprint: $2.99/$24.00 | month: $4.30/$48.00
+2026-03-19 21:31:11,800 [INFO] src.manipulation_guard: Manipulation check [Islanders vs. Senators]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:31:12,563 [INFO] src.odds_api: Odds API quota: 96 used, 404 remaining
+2026-03-19 21:31:12,568 [INFO] __main__: ULTI activated: cbb-tx-byu-2026-03-19 | AI=34% Book=44% Blended=40% (19 bookmakers)
+2026-03-19 21:31:12,570 [INFO] __main__: ULTI activated: nhl-chi-min-2026-03-19 | AI=29% Book=33% Blended=31% (30 bookmakers)
+2026-03-19 21:31:12,579 [INFO] src.cycle_timer: Cycle shortened to 5 min (scouted match approaching)
+2026-03-19 21:31:12,579 [INFO] __main__: Scouted match in 0.3h — polling every 5 min
+2026-03-19 21:31:12,579 [INFO] __main__: Next cycle in 5 min
+2026-03-19 21:37:55,976 [INFO] __main__: === Cycle #2 start ===
+2026-03-19 21:37:56,382 [INFO] __main__: Calibration: Canadiens vs. Red Wings | AI=50% | Result=NO | CORRECT
+2026-03-19 21:37:56,776 [INFO] __main__: Calibration: Will Andrey Esipenko win the 2026 FIDE C | AI=8% | Result=NO | CORRECT
+2026-03-19 21:37:57,237 [INFO] __main__: Calibration: Counter-Strike: MOUZ vs TheMongolz (BO3) | AI=48% | Result=NO | CORRECT
+2026-03-19 21:37:57,629 [INFO] __main__: Calibration: Rangers vs. Blue Jackets | AI=32% | Result=NO | CORRECT
+2026-03-19 21:37:58,037 [INFO] __main__: Calibration: Islanders vs. Senators | AI=50% | Result=NO | CORRECT
+2026-03-19 21:37:58,375 [INFO] __main__: Calibration: Texas Longhorns vs. BYU Cougars | AI=43% | Result=NO | CORRECT
+2026-03-19 21:37:58,821 [INFO] __main__: Calibration: Blackhawks vs. Wild | AI=31% | Result=NO | CORRECT
+2026-03-19 21:37:59,266 [INFO] __main__: Calibration: Lakers vs. Heat | AI=38% | Result=NO | CORRECT
+2026-03-19 21:37:59,642 [INFO] __main__: Closed but not resolved yet: uel-rom1-bol1-2026-03-19-rom1 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:00,057 [INFO] __main__: Closed but not resolved yet: nba-orl-cha-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:00,415 [INFO] __main__: Closed but not resolved yet: uel-ast4-lil-2026-03-19-ast4 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:00,903 [INFO] __main__: Closed but not resolved yet: nba-lac-nop-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:01,259 [INFO] __main__: Closed but not resolved yet: nba-cle-chi-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:01,590 [INFO] __main__: Closed but not resolved yet: nba-lal-mia-2026-03-19-total-239pt5 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:38:01,981 [INFO] src.market_scanner: Skipped in-progress sport (1.4h to end): Will AS Roma win on 2026-03-19?
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped in-progress sport (1.4h to end): Will Aston Villa FC win on 2026-03-19?
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 21:38:01,982 [INFO] src.market_scanner: Skipped too far out (15d, max=14d): Will Iowa State win the 2026 NCAA Tournament?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Saint Louis Billikens vs. Georgia Bulldogs
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Nottingham Forest FC win on 2026-03-19?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will ACF Fiorentina win on 2026-03-19?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will RC Celta de Vigo win on 2026-03-19?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will SC Freiburg win on 2026-03-19?
+2026-03-19 21:38:01,984 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will FC Midtjylland vs. Nottingham Forest FC end in a draw?
+2026-03-19 21:38:01,984 [INFO] __main__: NEW MARKETS DETECTED: 1 new markets this cycle
+2026-03-19 21:38:01,984 [INFO] __main__:   NEW: Magic vs. Hornets: O/U 226.5 (50%) vol=$364598
+2026-03-19 21:38:02,472 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 11/100)
+2026-03-19 21:38:21,702 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /nba/news/nba-expansion-mock-draft-seattle-las-vegas-zion-williamson-tyler-herro/
+2026-03-19 21:38:41,867 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /pistons-videos/49704/under-the-hood-dominant-duren
+2026-03-19 21:38:42,459 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 21:38:42,460 [INFO] __main__: Skipped 2 in portfolio, 0 on cooldown (saved API calls)
+2026-03-19 21:38:42,463 [INFO] src.scout_scheduler: Scout match found: basketball_mens-college-basketball_BYU Cougars_Texas Longhorns_20260319 \u2194 cbb-tx-byu-2026-03-19
+2026-03-19 21:38:42,463 [INFO] __main__: Scout HIT: cbb-tx-byu-2026-03-19 (pre-fetched sports data injected)
+2026-03-19 21:38:42,464 [INFO] src.sports_data: Fetching ESPN data: Magic vs Hornets (NBA)
+2026-03-19 21:38:49,425 [INFO] __main__: ESPN data loaded for: Magic vs. Hornets: O/U 226.5
+2026-03-19 21:38:49,426 [INFO] __main__: Bookmaker odds loaded: nba-orl-cha-2026-03-19-total-2 (34% vs 66%, 31 books)
+2026-03-19 21:38:49,426 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 21:38:49,429 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 21:38:49,431 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:38:49,431 [INFO] src.sports_data: Fetching ESPN data: Islanders vs Senators (NHL)
+2026-03-19 21:38:49,437 [INFO] __main__: ESPN data loaded for: Islanders vs. Senators
+2026-03-19 21:38:49,439 [INFO] __main__: Bookmaker odds loaded: nhl-nyi-ott-2026-03-19 (45% vs 55%, 30 books)
+2026-03-19 21:38:49,439 [INFO] src.sports_data: Fetching ESPN data: Canadiens vs Red Wings (NHL)
+2026-03-19 21:38:49,441 [INFO] __main__: ESPN data loaded for: Canadiens vs. Red Wings
+2026-03-19 21:38:49,443 [INFO] __main__: Bookmaker odds loaded: nhl-mon-det-2026-03-19 (51% vs 49%, 30 books)
+2026-03-19 21:38:49,443 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 21:38:49,451 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 21:38:49,452 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:38:49,453 [INFO] src.sports_data: Fetching ESPN data: Lakers vs Heat (NBA)
+2026-03-19 21:38:49,460 [INFO] __main__: ESPN data loaded for: Lakers vs. Heat
+2026-03-19 21:38:49,460 [INFO] __main__: Bookmaker odds loaded: nba-lal-mia-2026-03-19 (34% vs 66%, 31 books)
+2026-03-19 21:38:49,461 [INFO] __main__: Sports data fetched for 7/7 markets
+2026-03-19 21:39:05,772 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:39:05,775 [INFO] src.ai_analyst: API cost: $0.0152 | sprint: $3.00/$24.00 | month: $4.32/$48.00
+2026-03-19 21:39:18,835 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:39:18,838 [INFO] src.ai_analyst: API cost: $0.0121 | sprint: $3.01/$24.00 | month: $4.33/$48.00
+2026-03-19 21:39:18,839 [INFO] src.manipulation_guard: Manipulation check [Magic vs. Hornets: O/U 226.5]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:39:18,851 [INFO] src.manipulation_guard: Manipulation check [Islanders vs. Senators]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:39:19,326 [INFO] __main__: Self-improve readiness notification sent (21 new resolved)
+2026-03-19 21:39:19,327 [INFO] src.cycle_timer: Cycle shortened to 5 min (scouted match approaching)
+2026-03-19 21:39:19,327 [INFO] __main__: Scouted match in 0.2h — polling every 5 min
+2026-03-19 21:39:19,327 [INFO] __main__: Next cycle in 5 min
+2026-03-19 21:43:25,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:43:25] "GET /api/performance?_=1773945805807 HTTP/1.1" 200 -
+2026-03-19 21:43:25,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:43:25] "GET /api/trades?_=1773945805807 HTTP/1.1" 200 -
+2026-03-19 21:43:25,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:43:25] "GET /api/budget?_=1773945805807 HTTP/1.1" 200 -
+2026-03-19 21:43:25,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:43:25] "GET /api/positions?_=1773945805807 HTTP/1.1" 200 -
+2026-03-19 21:43:25,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:43:25] "GET /api/portfolio?_=1773945805807 HTTP/1.1" 200 -
+2026-03-19 21:44:33,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:33] "GET /api/trades?_=1773945873810 HTTP/1.1" 200 -
+2026-03-19 21:44:33,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:33] "GET /api/portfolio?_=1773945873810 HTTP/1.1" 200 -
+2026-03-19 21:44:33,833 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:33] "GET /api/performance?_=1773945873810 HTTP/1.1" 200 -
+2026-03-19 21:44:33,834 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:33] "GET /api/budget?_=1773945873810 HTTP/1.1" 200 -
+2026-03-19 21:44:33,835 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:33] "GET /api/positions?_=1773945873810 HTTP/1.1" 200 -
+2026-03-19 21:44:57,935 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:57] "GET / HTTP/1.1" 200 -
+2026-03-19 21:44:58,545 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "GET /api/trades?_=1773945898539 HTTP/1.1" 200 -
+2026-03-19 21:44:58,545 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "GET /api/portfolio?_=1773945898539 HTTP/1.1" 200 -
+2026-03-19 21:44:58,546 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "GET /api/performance?_=1773945898539 HTTP/1.1" 200 -
+2026-03-19 21:44:58,548 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "GET /api/budget?_=1773945898539 HTTP/1.1" 200 -
+2026-03-19 21:44:58,550 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "GET /api/positions?_=1773945898539 HTTP/1.1" 200 -
+2026-03-19 21:44:58,660 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:44:58] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-19 21:45:47,240 [INFO] __main__: === Cycle #3 start ===
+2026-03-19 21:45:47,566 [INFO] __main__: Calibration: Magic vs. Hornets: O/U 226.5 | AI=50% | Result=NO | CORRECT
+2026-03-19 21:45:47,919 [INFO] __main__: Calibration: Rangers vs. Blue Jackets | AI=32% | Result=NO | CORRECT
+2026-03-19 21:45:48,225 [INFO] __main__: Calibration: Islanders vs. Senators | AI=48% | Result=NO | CORRECT
+2026-03-19 21:45:48,550 [INFO] __main__: Calibration: Canadiens vs. Red Wings | AI=50% | Result=NO | CORRECT
+2026-03-19 21:45:48,851 [INFO] __main__: Calibration: Texas Longhorns vs. BYU Cougars | AI=40% | Result=NO | CORRECT
+2026-03-19 21:45:49,169 [INFO] __main__: Calibration: Blackhawks vs. Wild | AI=31% | Result=NO | CORRECT
+2026-03-19 21:45:49,486 [INFO] __main__: Calibration: Lakers vs. Heat | AI=38% | Result=NO | CORRECT
+2026-03-19 21:45:49,773 [INFO] __main__: Closed but not resolved yet: uel-rom1-bol1-2026-03-19-rom1 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:50,084 [INFO] __main__: Closed but not resolved yet: nba-orl-cha-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:50,400 [INFO] __main__: Closed but not resolved yet: uel-ast4-lil-2026-03-19-ast4 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:50,710 [INFO] __main__: Closed but not resolved yet: nba-lac-nop-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:51,003 [INFO] __main__: Closed but not resolved yet: nba-cle-chi-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:51,309 [INFO] __main__: Closed but not resolved yet: nba-lal-mia-2026-03-19-total-239pt5 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:45:51,692 [INFO] src.market_scanner: Skipped in-progress sport (1.2h to end): Will AS Roma win on 2026-03-19?
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped in-progress sport (1.2h to end): Will Aston Villa FC win on 2026-03-19?
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 21:45:51,693 [INFO] src.market_scanner: Skipped too far out (15d, max=14d): Will Iowa State win the 2026 NCAA Tournament?
+2026-03-19 21:45:51,694 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 21:45:51,694 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Saint Louis Billikens vs. Georgia Bulldogs
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Nottingham Forest FC win on 2026-03-19?
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will ACF Fiorentina win on 2026-03-19?
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will RC Celta de Vigo win on 2026-03-19?
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will SC Freiburg win on 2026-03-19?
+2026-03-19 21:45:51,695 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will FC Midtjylland vs. Nottingham Forest FC end in a draw?
+2026-03-19 21:45:51,695 [INFO] __main__: NEW MARKETS DETECTED: 1 new markets this cycle
+2026-03-19 21:45:51,695 [INFO] __main__:   NEW: Jets vs. Bruins (44%) vol=$304957
+2026-03-19 21:45:52,197 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'jets bruins' (usage: 12/100)
+2026-03-19 21:45:58,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:45:58] "GET /api/trades?_=1773945958806 HTTP/1.1" 200 -
+2026-03-19 21:45:58,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:45:58] "GET /api/performance?_=1773945958806 HTTP/1.1" 200 -
+2026-03-19 21:45:58,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:45:58] "GET /api/portfolio?_=1773945958806 HTTP/1.1" 200 -
+2026-03-19 21:45:58,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:45:58] "GET /api/budget?_=1773945958806 HTTP/1.1" 200 -
+2026-03-19 21:45:58,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:45:58] "GET /api/positions?_=1773945958806 HTTP/1.1" 200 -
+2026-03-19 21:46:11,443 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /nhl/news/nhl-power-rankings-dallas-stars-seattle-kraken-march-madness/
+2026-03-19 21:46:42,938 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ReadTimeoutError("HTTPSConnectionPool(host='www.cbc.ca', port=443): Read timed out. (read timeout=30)")': /news/canada/manitoba/jets-preds-march17-9.7132789
+2026-03-19 21:46:58,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:46:58] "GET /api/trades?_=1773946018809 HTTP/1.1" 200 -
+2026-03-19 21:46:58,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:46:58] "GET /api/portfolio?_=1773946018809 HTTP/1.1" 200 -
+2026-03-19 21:46:58,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:46:58] "GET /api/performance?_=1773946018809 HTTP/1.1" 200 -
+2026-03-19 21:46:58,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:46:58] "GET /api/budget?_=1773946018809 HTTP/1.1" 200 -
+2026-03-19 21:46:58,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:46:58] "GET /api/positions?_=1773946018809 HTTP/1.1" 200 -
+2026-03-19 21:47:34,842 [WARNING] urllib3.connectionpool: Retrying (Retry(total=0, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /news/canada/manitoba/jets-preds-march17-9.7132789
+2026-03-19 21:47:58,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:47:58] "GET /api/trades?_=1773946078810 HTTP/1.1" 200 -
+2026-03-19 21:47:58,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:47:58] "GET /api/portfolio?_=1773946078810 HTTP/1.1" 200 -
+2026-03-19 21:47:58,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:47:58] "GET /api/performance?_=1773946078810 HTTP/1.1" 200 -
+2026-03-19 21:47:58,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:47:58] "GET /api/budget?_=1773946078810 HTTP/1.1" 200 -
+2026-03-19 21:47:58,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:47:58] "GET /api/positions?_=1773946078810 HTTP/1.1" 200 -
+2026-03-19 21:48:05,072 [ERROR] trafilatura.downloads: download error: https://www.cbc.ca/news/canada/manitoba/jets-preds-march17-9.7132789 HTTPSConnectionPool(host='www.cbc.ca', port=443): Max retries exceeded with url: /news/canada/manitoba/jets-preds-march17-9.7132789 (Caused by ReadTimeoutError("HTTPSConnectionPool(host='www.cbc.ca', port=443): Read timed out. (read timeout=30)"))
+2026-03-19 21:48:05,565 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 13/100)
+2026-03-19 21:48:25,241 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /pistons-videos/49704/under-the-hood-dominant-duren
+2026-03-19 21:48:25,883 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 21:48:25,883 [INFO] __main__: Skipped 1 in portfolio, 0 on cooldown (saved API calls)
+2026-03-19 21:48:25,886 [INFO] src.scout_scheduler: Scout match found: basketball_mens-college-basketball_BYU Cougars_Texas Longhorns_20260319 \u2194 cbb-tx-byu-2026-03-19
+2026-03-19 21:48:25,886 [INFO] __main__: Scout HIT: cbb-tx-byu-2026-03-19 (pre-fetched sports data injected)
+2026-03-19 21:48:25,887 [INFO] src.sports_data: Fetching ESPN data: Jets vs Bruins (NHL)
+2026-03-19 21:48:32,571 [INFO] __main__: ESPN data loaded for: Jets vs. Bruins
+2026-03-19 21:48:32,572 [INFO] __main__: Bookmaker odds loaded: nhl-wpg-bos-2026-03-19 (43% vs 57%, 30 books)
+2026-03-19 21:48:32,572 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 21:48:32,573 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 21:48:32,574 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:48:32,574 [INFO] src.sports_data: Fetching ESPN data: Islanders vs Senators (NHL)
+2026-03-19 21:48:32,577 [INFO] __main__: ESPN data loaded for: Islanders vs. Senators
+2026-03-19 21:48:32,577 [INFO] __main__: Bookmaker odds loaded: nhl-nyi-ott-2026-03-19 (45% vs 55%, 30 books)
+2026-03-19 21:48:32,577 [INFO] src.sports_data: Fetching ESPN data: Magic vs Hornets (NBA)
+2026-03-19 21:48:32,579 [INFO] __main__: ESPN data loaded for: Magic vs. Hornets: O/U 226.5
+2026-03-19 21:48:32,579 [INFO] __main__: Bookmaker odds loaded: nba-orl-cha-2026-03-19-total-2 (34% vs 66%, 31 books)
+2026-03-19 21:48:32,579 [INFO] src.sports_data: Fetching ESPN data: Canadiens vs Red Wings (NHL)
+2026-03-19 21:48:32,581 [INFO] __main__: ESPN data loaded for: Canadiens vs. Red Wings
+2026-03-19 21:48:32,582 [INFO] __main__: Bookmaker odds loaded: nhl-mon-det-2026-03-19 (51% vs 49%, 30 books)
+2026-03-19 21:48:32,582 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 21:48:32,583 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 21:48:32,584 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:48:32,584 [INFO] src.sports_data: Fetching ESPN data: Lakers vs Heat (NBA)
+2026-03-19 21:48:32,585 [INFO] __main__: ESPN data loaded for: Lakers vs. Heat
+2026-03-19 21:48:32,586 [INFO] __main__: Bookmaker odds loaded: nba-lal-mia-2026-03-19 (34% vs 66%, 31 books)
+2026-03-19 21:48:32,586 [INFO] __main__: Sports data fetched for 8/8 markets
+2026-03-19 21:48:42,577 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:48:42,580 [INFO] src.ai_analyst: API cost: $0.0106 | sprint: $3.02/$24.00 | month: $4.34/$48.00
+2026-03-19 21:48:58,292 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:48:58,294 [INFO] src.ai_analyst: API cost: $0.0138 | sprint: $3.04/$24.00 | month: $4.35/$48.00
+2026-03-19 21:48:58,296 [INFO] src.manipulation_guard: Manipulation check [Islanders vs. Senators]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:48:58,296 [INFO] src.manipulation_guard: Manipulation check [Magic vs. Hornets: O/U 226.5]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:48:58,307 [INFO] src.cycle_timer: Cycle shortened to 5 min (scouted match approaching)
+2026-03-19 21:48:58,307 [INFO] __main__: Scouted match in 0.0h — polling every 5 min
+2026-03-19 21:48:58,307 [INFO] __main__: Next cycle in 5 min
+2026-03-19 21:48:58,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:48:58] "GET /api/performance?_=1773946138817 HTTP/1.1" 200 -
+2026-03-19 21:48:58,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:48:58] "GET /api/positions?_=1773946138817 HTTP/1.1" 200 -
+2026-03-19 21:48:58,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:48:58] "GET /api/trades?_=1773946138817 HTTP/1.1" 200 -
+2026-03-19 21:48:58,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:48:58] "GET /api/portfolio?_=1773946138817 HTTP/1.1" 200 -
+2026-03-19 21:48:58,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:48:58] "GET /api/budget?_=1773946138817 HTTP/1.1" 200 -
+2026-03-19 21:49:10,295 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET / HTTP/1.1" 200 -
+2026-03-19 21:49:10,567 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET /api/trades?_=1773946150563 HTTP/1.1" 200 -
+2026-03-19 21:49:10,568 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET /api/portfolio?_=1773946150563 HTTP/1.1" 200 -
+2026-03-19 21:49:10,569 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET /api/performance?_=1773946150563 HTTP/1.1" 200 -
+2026-03-19 21:49:10,572 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET /api/budget?_=1773946150563 HTTP/1.1" 200 -
+2026-03-19 21:49:10,573 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "GET /api/positions?_=1773946150563 HTTP/1.1" 200 -
+2026-03-19 21:49:10,690 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:49:10] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-19 21:50:10,570 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:50:10] "GET /api/performance?_=1773946210565 HTTP/1.1" 200 -
+2026-03-19 21:50:10,571 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:50:10] "GET /api/portfolio?_=1773946210565 HTTP/1.1" 200 -
+2026-03-19 21:50:10,573 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:50:10] "GET /api/trades?_=1773946210565 HTTP/1.1" 200 -
+2026-03-19 21:50:10,575 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:50:10] "GET /api/budget?_=1773946210565 HTTP/1.1" 200 -
+2026-03-19 21:50:10,576 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:50:10] "GET /api/positions?_=1773946210565 HTTP/1.1" 200 -
+2026-03-19 21:51:10,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:51:10] "GET /api/performance?_=1773946270806 HTTP/1.1" 200 -
+2026-03-19 21:51:10,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:51:10] "GET /api/portfolio?_=1773946270806 HTTP/1.1" 200 -
+2026-03-19 21:51:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:51:10] "GET /api/trades?_=1773946270806 HTTP/1.1" 200 -
+2026-03-19 21:51:10,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:51:10] "GET /api/budget?_=1773946270806 HTTP/1.1" 200 -
+2026-03-19 21:51:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:51:10] "GET /api/positions?_=1773946270806 HTTP/1.1" 200 -
+2026-03-19 21:52:10,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:52:10] "GET /api/trades?_=1773946330807 HTTP/1.1" 200 -
+2026-03-19 21:52:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:52:10] "GET /api/performance?_=1773946330807 HTTP/1.1" 200 -
+2026-03-19 21:52:10,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:52:10] "GET /api/portfolio?_=1773946330807 HTTP/1.1" 200 -
+2026-03-19 21:52:10,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:52:10] "GET /api/budget?_=1773946330807 HTTP/1.1" 200 -
+2026-03-19 21:52:10,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:52:10] "GET /api/positions?_=1773946330807 HTTP/1.1" 200 -
+2026-03-19 21:53:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:53:10] "GET /api/trades?_=1773946390807 HTTP/1.1" 200 -
+2026-03-19 21:53:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:53:10] "GET /api/performance?_=1773946390807 HTTP/1.1" 200 -
+2026-03-19 21:53:10,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:53:10] "GET /api/portfolio?_=1773946390807 HTTP/1.1" 200 -
+2026-03-19 21:53:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:53:10] "GET /api/budget?_=1773946390807 HTTP/1.1" 200 -
+2026-03-19 21:53:10,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:53:10] "GET /api/positions?_=1773946390807 HTTP/1.1" 200 -
+2026-03-19 21:54:10,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:54:10] "GET /api/trades?_=1773946450813 HTTP/1.1" 200 -
+2026-03-19 21:54:10,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:54:10] "GET /api/performance?_=1773946450813 HTTP/1.1" 200 -
+2026-03-19 21:54:10,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:54:10] "GET /api/portfolio?_=1773946450813 HTTP/1.1" 200 -
+2026-03-19 21:54:10,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:54:10] "GET /api/budget?_=1773946450813 HTTP/1.1" 200 -
+2026-03-19 21:54:10,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:54:10] "GET /api/positions?_=1773946450813 HTTP/1.1" 200 -
+2026-03-19 21:55:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:55:10] "GET /api/trades?_=1773946510807 HTTP/1.1" 200 -
+2026-03-19 21:55:10,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:55:10] "GET /api/performance?_=1773946510807 HTTP/1.1" 200 -
+2026-03-19 21:55:10,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:55:10] "GET /api/portfolio?_=1773946510807 HTTP/1.1" 200 -
+2026-03-19 21:55:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:55:10] "GET /api/budget?_=1773946510807 HTTP/1.1" 200 -
+2026-03-19 21:55:10,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:55:10] "GET /api/positions?_=1773946510807 HTTP/1.1" 200 -
+2026-03-19 21:55:24,534 [INFO] __main__: === Cycle #4 start ===
+2026-03-19 21:55:24,951 [INFO] __main__: Calibration: Jets vs. Bruins | AI=40% | Result=NO | CORRECT
+2026-03-19 21:55:25,312 [INFO] __main__: Calibration: Rangers vs. Blue Jackets | AI=32% | Result=NO | CORRECT
+2026-03-19 21:55:25,662 [INFO] __main__: Calibration: Islanders vs. Senators | AI=48% | Result=NO | CORRECT
+2026-03-19 21:55:25,983 [INFO] __main__: Calibration: Magic vs. Hornets: O/U 226.5 | AI=50% | Result=NO | CORRECT
+2026-03-19 21:55:26,340 [INFO] __main__: Calibration: Canadiens vs. Red Wings | AI=50% | Result=NO | CORRECT
+2026-03-19 21:55:26,738 [INFO] __main__: Calibration: Texas Longhorns vs. BYU Cougars | AI=40% | Result=NO | CORRECT
+2026-03-19 21:55:27,120 [INFO] __main__: Calibration: Blackhawks vs. Wild | AI=31% | Result=NO | CORRECT
+2026-03-19 21:55:27,430 [INFO] __main__: Calibration: Lakers vs. Heat | AI=38% | Result=NO | CORRECT
+2026-03-19 21:55:27,736 [INFO] __main__: Closed but not resolved yet: uel-rom1-bol1-2026-03-19-rom1 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:28,086 [INFO] __main__: Closed but not resolved yet: nba-orl-cha-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:28,536 [INFO] __main__: Closed but not resolved yet: uel-ast4-lil-2026-03-19-ast4 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:29,157 [INFO] __main__: Closed but not resolved yet: nba-lac-nop-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:29,470 [INFO] __main__: Closed but not resolved yet: nba-cle-chi-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:29,817 [INFO] __main__: Closed but not resolved yet: nba-lal-mia-2026-03-19-total-239pt5 (prices=[0.00, 0.00]) — waiting
+2026-03-19 21:55:30,192 [INFO] src.market_scanner: Skipped in-progress sport (1.1h to end): Will AS Roma win on 2026-03-19?
+2026-03-19 21:55:30,192 [INFO] src.market_scanner: Skipped in-progress sport (1.1h to end): Will Aston Villa FC win on 2026-03-19?
+2026-03-19 21:55:30,192 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 21:55:30,193 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 21:55:30,193 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 21:55:30,193 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 21:55:30,193 [INFO] src.market_scanner: Skipped too far out (15d, max=14d): Will Iowa State win the 2026 NCAA Tournament?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Saint Louis Billikens vs. Georgia Bulldogs
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Nottingham Forest FC win on 2026-03-19?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will ACF Fiorentina win on 2026-03-19?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will RC Celta de Vigo win on 2026-03-19?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will SC Freiburg win on 2026-03-19?
+2026-03-19 21:55:30,194 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will FC Midtjylland vs. Nottingham Forest FC end in a draw?
+2026-03-19 21:55:30,195 [INFO] __main__: NEW MARKETS DETECTED: 1 new markets this cycle
+2026-03-19 21:55:30,195 [INFO] __main__:   NEW: Miami Open: Dalma Galfi vs Elvina Kalieva (18%) vol=$317123
+2026-03-19 21:55:30,831 [INFO] src.news_scanner: NewsAPI returned 0 articles for 'miami open dalma' (usage: 14/100)
+2026-03-19 21:55:31,471 [INFO] src.news_scanner: GNews returned 0 articles for 'miami open dalma' (usage: 2/100)
+2026-03-19 21:55:32,492 [INFO] src.news_scanner: RSS returned 3 articles for 'miami open dalma'
+2026-03-19 21:55:32,911 [ERROR] trafilatura.downloads: not a 200 response: 403 for URL https://www.nytimes.com/2026/03/19/world/americas/argentina-immigration-issue.html
+2026-03-19 21:55:33,313 [ERROR] trafilatura.downloads: not a 200 response: 403 for URL https://www.nytimes.com/2026/03/19/world/middleeast/uk-us-strait-of-hormuz-reopening-plans.html
+2026-03-19 21:55:34,760 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 15/100)
+2026-03-19 21:55:53,975 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /nba/news/nba-expansion-mock-draft-seattle-las-vegas-zion-williamson-tyler-herro/
+2026-03-19 21:56:14,138 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /pistons-videos/49704/under-the-hood-dominant-duren
+2026-03-19 21:56:14,786 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 21:56:14,786 [INFO] __main__: Skipped 1 in portfolio, 0 on cooldown (saved API calls)
+2026-03-19 21:56:14,800 [INFO] src.scout_scheduler: Scout match found: basketball_mens-college-basketball_BYU Cougars_Texas Longhorns_20260319 \u2194 cbb-tx-byu-2026-03-19
+2026-03-19 21:56:14,800 [INFO] __main__: Scout HIT: cbb-tx-byu-2026-03-19 (pre-fetched sports data injected)
+2026-03-19 21:56:14,800 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 21:56:14,804 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 21:56:14,805 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:56:14,805 [INFO] src.sports_data: Fetching ESPN data: Islanders vs Senators (NHL)
+2026-03-19 21:56:14,808 [INFO] __main__: ESPN data loaded for: Islanders vs. Senators
+2026-03-19 21:56:14,808 [INFO] __main__: Bookmaker odds loaded: nhl-nyi-ott-2026-03-19 (45% vs 55%, 30 books)
+2026-03-19 21:56:14,809 [INFO] src.sports_data: Fetching ESPN data: Magic vs Hornets (NBA)
+2026-03-19 21:56:14,810 [INFO] __main__: ESPN data loaded for: Magic vs. Hornets: O/U 226.5
+2026-03-19 21:56:14,811 [INFO] __main__: Bookmaker odds loaded: nba-orl-cha-2026-03-19-total-2 (34% vs 66%, 31 books)
+2026-03-19 21:56:14,811 [INFO] src.sports_data: Fetching ESPN data: Canadiens vs Red Wings (NHL)
+2026-03-19 21:56:14,816 [INFO] __main__: ESPN data loaded for: Canadiens vs. Red Wings
+2026-03-19 21:56:14,817 [INFO] __main__: Bookmaker odds loaded: nhl-mon-det-2026-03-19 (51% vs 49%, 30 books)
+2026-03-19 21:56:14,817 [INFO] src.sports_data: Fetching ESPN data: Jets vs Bruins (NHL)
+2026-03-19 21:56:14,819 [INFO] __main__: ESPN data loaded for: Jets vs. Bruins
+2026-03-19 21:56:14,819 [INFO] __main__: Bookmaker odds loaded: nhl-wpg-bos-2026-03-19 (43% vs 57%, 30 books)
+2026-03-19 21:56:14,819 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 21:56:14,821 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 21:56:14,822 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 21:56:14,822 [INFO] __main__: Sports data fetched for 7/8 markets
+2026-03-19 21:56:21,479 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:56:21,482 [INFO] src.ai_analyst: API cost: $0.0079 | sprint: $3.05/$24.00 | month: $4.36/$48.00
+2026-03-19 21:56:32,672 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 21:56:32,677 [INFO] src.ai_analyst: API cost: $0.0104 | sprint: $3.06/$24.00 | month: $4.37/$48.00
+2026-03-19 21:56:32,678 [INFO] __main__: Ignorance edge blocked: wta-galfi-kalieva-2026-03-18 | edge=29.5% conf=low cap=15%
+2026-03-19 21:56:32,680 [INFO] src.manipulation_guard: Manipulation check [Islanders vs. Senators]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:56:32,680 [INFO] src.manipulation_guard: Manipulation check [Magic vs. Hornets: O/U 226.5]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 21:56:33,257 [INFO] __main__: Self-improve readiness notification sent (15 new resolved)
+2026-03-19 21:56:33,257 [INFO] src.cycle_timer: Cycle shortened to 5 min (scouted match approaching)
+2026-03-19 21:56:33,257 [INFO] __main__: Scouted match in 0.3h — polling every 5 min
+2026-03-19 21:56:33,257 [INFO] __main__: Next cycle in 5 min
+2026-03-19 21:56:33,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:33] "GET /api/performance?_=1773946593805 HTTP/1.1" 200 -
+2026-03-19 21:56:33,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:33] "GET /api/positions?_=1773946593805 HTTP/1.1" 200 -
+2026-03-19 21:56:33,837 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:33] "GET /api/trades?_=1773946593805 HTTP/1.1" 200 -
+2026-03-19 21:56:33,838 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:33] "GET /api/portfolio?_=1773946593805 HTTP/1.1" 200 -
+2026-03-19 21:56:33,839 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:33] "GET /api/budget?_=1773946593805 HTTP/1.1" 200 -
+2026-03-19 21:56:47,491 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET / HTTP/1.1" 200 -
+2026-03-19 21:56:47,741 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET /api/trades?_=1773946607737 HTTP/1.1" 200 -
+2026-03-19 21:56:47,742 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET /api/performance?_=1773946607737 HTTP/1.1" 200 -
+2026-03-19 21:56:47,743 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET /api/portfolio?_=1773946607737 HTTP/1.1" 200 -
+2026-03-19 21:56:47,745 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET /api/budget?_=1773946607737 HTTP/1.1" 200 -
+2026-03-19 21:56:47,747 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "GET /api/positions?_=1773946607737 HTTP/1.1" 200 -
+2026-03-19 21:56:47,879 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:56:47] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-19 21:57:47,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:57:47] "GET /api/trades?_=1773946667809 HTTP/1.1" 200 -
+2026-03-19 21:57:47,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:57:47] "GET /api/portfolio?_=1773946667809 HTTP/1.1" 200 -
+2026-03-19 21:57:47,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:57:47] "GET /api/performance?_=1773946667809 HTTP/1.1" 200 -
+2026-03-19 21:57:47,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:57:47] "GET /api/budget?_=1773946667809 HTTP/1.1" 200 -
+2026-03-19 21:57:47,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:57:47] "GET /api/positions?_=1773946667809 HTTP/1.1" 200 -
+2026-03-19 21:58:47,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:58:47] "GET /api/trades?_=1773946727824 HTTP/1.1" 200 -
+2026-03-19 21:58:47,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:58:47] "GET /api/performance?_=1773946727824 HTTP/1.1" 200 -
+2026-03-19 21:58:47,832 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:58:47] "GET /api/portfolio?_=1773946727824 HTTP/1.1" 200 -
+2026-03-19 21:58:47,835 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:58:47] "GET /api/budget?_=1773946727824 HTTP/1.1" 200 -
+2026-03-19 21:58:47,836 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:58:47] "GET /api/positions?_=1773946727824 HTTP/1.1" 200 -
+2026-03-19 21:59:47,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:59:47] "GET /api/trades?_=1773946787805 HTTP/1.1" 200 -
+2026-03-19 21:59:47,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:59:47] "GET /api/performance?_=1773946787805 HTTP/1.1" 200 -
+2026-03-19 21:59:47,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:59:47] "GET /api/portfolio?_=1773946787805 HTTP/1.1" 200 -
+2026-03-19 21:59:47,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:59:47] "GET /api/budget?_=1773946787805 HTTP/1.1" 200 -
+2026-03-19 21:59:47,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 21:59:47] "GET /api/positions?_=1773946787805 HTTP/1.1" 200 -
+2026-03-19 22:00:47,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:00:47] "GET /api/performance?_=1773946847819 HTTP/1.1" 200 -
+2026-03-19 22:00:47,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:00:47] "GET /api/portfolio?_=1773946847819 HTTP/1.1" 200 -
+2026-03-19 22:00:47,829 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:00:47] "GET /api/trades?_=1773946847819 HTTP/1.1" 200 -
+2026-03-19 22:00:47,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:00:47] "GET /api/budget?_=1773946847819 HTTP/1.1" 200 -
+2026-03-19 22:00:47,832 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:00:47] "GET /api/positions?_=1773946847819 HTTP/1.1" 200 -
+2026-03-19 22:01:47,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:01:47] "GET /api/trades?_=1773946907805 HTTP/1.1" 200 -
+2026-03-19 22:01:47,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:01:47] "GET /api/portfolio?_=1773946907805 HTTP/1.1" 200 -
+2026-03-19 22:01:47,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:01:47] "GET /api/performance?_=1773946907805 HTTP/1.1" 200 -
+2026-03-19 22:01:47,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:01:47] "GET /api/budget?_=1773946907805 HTTP/1.1" 200 -
+2026-03-19 22:01:47,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:01:47] "GET /api/positions?_=1773946907805 HTTP/1.1" 200 -
+2026-03-19 22:02:47,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:02:47] "GET /api/trades?_=1773946967817 HTTP/1.1" 200 -
+2026-03-19 22:02:47,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:02:47] "GET /api/performance?_=1773946967817 HTTP/1.1" 200 -
+2026-03-19 22:02:47,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:02:47] "GET /api/portfolio?_=1773946967817 HTTP/1.1" 200 -
+2026-03-19 22:02:47,829 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:02:47] "GET /api/budget?_=1773946967817 HTTP/1.1" 200 -
+2026-03-19 22:02:47,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 22:02:47] "GET /api/positions?_=1773946967817 HTTP/1.1" 200 -
+2026-03-19 22:02:58,570 [INFO] __main__: === Cycle #5 start ===
+2026-03-19 22:02:58,894 [INFO] __main__: Calibration: Miami Open: Dalma Galfi vs Elvina Kaliev | AI=48% | Result=NO | CORRECT
+2026-03-19 22:02:59,252 [INFO] __main__: Calibration: Rangers vs. Blue Jackets | AI=32% | Result=NO | CORRECT
+2026-03-19 22:02:59,640 [INFO] __main__: Calibration: Islanders vs. Senators | AI=48% | Result=NO | CORRECT
+2026-03-19 22:02:59,934 [INFO] __main__: Calibration: Magic vs. Hornets: O/U 226.5 | AI=50% | Result=NO | CORRECT
+2026-03-19 22:03:00,236 [INFO] __main__: Calibration: Canadiens vs. Red Wings | AI=50% | Result=NO | CORRECT
+2026-03-19 22:03:00,606 [INFO] __main__: Calibration: Jets vs. Bruins | AI=40% | Result=NO | CORRECT
+2026-03-19 22:03:00,934 [INFO] __main__: Calibration: Texas Longhorns vs. BYU Cougars | AI=40% | Result=NO | CORRECT
+2026-03-19 22:03:01,314 [INFO] __main__: Calibration: Blackhawks vs. Wild | AI=31% | Result=NO | CORRECT
+2026-03-19 22:03:01,696 [INFO] __main__: Closed but not resolved yet: uel-rom1-bol1-2026-03-19-rom1 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:02,061 [INFO] __main__: Closed but not resolved yet: nba-orl-cha-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:02,385 [INFO] __main__: Closed but not resolved yet: uel-ast4-lil-2026-03-19-ast4 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:02,722 [INFO] __main__: Closed but not resolved yet: nba-lac-nop-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:03,068 [INFO] __main__: Closed but not resolved yet: nba-cle-chi-2026-03-19 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:03,402 [INFO] __main__: Closed but not resolved yet: nba-lal-mia-2026-03-19-total-239pt5 (prices=[0.00, 0.00]) — waiting
+2026-03-19 22:03:03,734 [INFO] src.market_scanner: Skipped in-progress sport (0.9h to end): Will AS Roma win on 2026-03-19?
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped in-progress sport (0.9h to end): Will Aston Villa FC win on 2026-03-19?
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 22:03:03,735 [INFO] src.market_scanner: Skipped too far out (15d, max=14d): Will Iowa State win the 2026 NCAA Tournament?
+2026-03-19 22:03:03,736 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 22:03:03,736 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 22:03:03,736 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 22:03:03,736 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Saint Louis Billikens vs. Georgia Bulldogs
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will Nottingham Forest FC win on 2026-03-19?
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will ACF Fiorentina win on 2026-03-19?
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will RC Celta de Vigo win on 2026-03-19?
+2026-03-19 22:03:03,737 [INFO] src.pre_filter: Pre-filter SKIP (impossible): Will FC Midtjylland vs. Nottingham Forest FC end in a draw?
+2026-03-19 22:03:04,195 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 16/100)
+2026-03-19 22:03:23,405 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /nba/news/nba-expansion-mock-draft-seattle-las-vegas-zion-williamson-tyler-herro/
+2026-03-19 22:03:43,605 [WARNING] urllib3.connectionpool: Retrying (Retry(total=1, connect=0, read=None, redirect=2, status=None)) after connection broken by 'ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)': /pistons-videos/49704/under-the-hood-dominant-duren
+2026-03-19 22:03:44,172 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 22:03:44,172 [INFO] __main__: Skipped 1 in portfolio, 0 on cooldown (saved API calls)
+2026-03-19 22:03:44,175 [INFO] src.scout_scheduler: Scout match found: basketball_mens-college-basketball_BYU Cougars_Texas Longhorns_20260319 \u2194 cbb-tx-byu-2026-03-19
+2026-03-19 22:03:44,175 [INFO] __main__: Scout HIT: cbb-tx-byu-2026-03-19 (pre-fetched sports data injected)
+2026-03-19 22:03:44,175 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 22:03:51,507 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 22:03:51,508 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 22:03:51,508 [INFO] src.sports_data: Fetching ESPN data: Islanders vs Senators (NHL)
+2026-03-19 22:03:57,291 [INFO] __main__: ESPN data loaded for: Islanders vs. Senators
+2026-03-19 22:03:57,292 [INFO] __main__: Bookmaker odds loaded: nhl-nyi-ott-2026-03-19 (45% vs 55%, 30 books)
+2026-03-19 22:03:57,292 [INFO] src.sports_data: Fetching ESPN data: Magic vs Hornets (NBA)
+2026-03-19 22:03:58,412 [INFO] __main__: ESPN data loaded for: Magic vs. Hornets: O/U 226.5
+2026-03-19 22:03:58,413 [INFO] __main__: Bookmaker odds loaded: nba-orl-cha-2026-03-19-total-2 (34% vs 66%, 31 books)
+2026-03-19 22:03:58,413 [INFO] src.sports_data: Fetching ESPN data: Canadiens vs Red Wings (NHL)
+2026-03-19 22:04:04,881 [INFO] __main__: ESPN data loaded for: Canadiens vs. Red Wings
+2026-03-19 22:04:04,882 [INFO] __main__: Bookmaker odds loaded: nhl-mon-det-2026-03-19 (51% vs 49%, 30 books)
+2026-03-19 22:04:04,882 [INFO] src.sports_data: Fetching ESPN data: Jets vs Bruins (NHL)
+2026-03-19 22:04:04,884 [INFO] __main__: ESPN data loaded for: Jets vs. Bruins
+2026-03-19 22:04:04,885 [INFO] __main__: Bookmaker odds loaded: nhl-wpg-bos-2026-03-19 (43% vs 57%, 30 books)
+2026-03-19 22:04:04,885 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 22:04:10,583 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 22:04:10,584 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 22:04:10,584 [INFO] src.sports_data: Fetching ESPN data: Lakers vs Heat (NBA)
+2026-03-19 22:04:16,428 [INFO] __main__: ESPN data loaded for: Lakers vs. Heat
+2026-03-19 22:04:16,429 [INFO] __main__: Bookmaker odds loaded: nba-lal-mia-2026-03-19 (34% vs 66%, 31 books)
+2026-03-19 22:04:16,429 [INFO] __main__: Sports data fetched for 8/8 markets
+2026-03-19 22:04:16,431 [INFO] src.manipulation_guard: Manipulation check [Islanders vs. Senators]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 22:04:16,432 [INFO] src.manipulation_guard: Manipulation check [Magic vs. Hornets: O/U 226.5]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 22:04:16,444 [INFO] src.cycle_timer: Cycle shortened to 5 min (scouted match approaching)
+2026-03-19 22:04:16,444 [INFO] __main__: Scouted match in 0.2h — polling every 5 min
+2026-03-19 22:04:16,445 [INFO] __main__: Next cycle in 5 min

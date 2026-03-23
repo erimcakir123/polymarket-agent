@@ -1,0 +1,464 @@
+2026-03-19 19:39:22,168 [INFO] src.process_lock: Process lock acquired (PID 102040)
+2026-03-19 19:39:22,419 [INFO] src.portfolio: Bankroll restored: $1638.83 (initial=$1000 + realized=$638.83 - invested=$0.00)
+2026-03-19 19:39:22,420 [INFO] __main__: Agent starting in Mode.DRY_RUN mode
+2026-03-19 19:39:22,423 [INFO] __main__: Dashboard running at http://127.0.0.1:5050
+ * Serving Flask app 'src.dashboard'
+ * Debug mode: off
+2026-03-19 19:39:22,432 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5050
+2026-03-19 19:39:22,432 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-03-19 19:39:22,854 [INFO] __main__: === Cycle #1 start ===
+2026-03-19 19:39:23,210 [INFO] src.market_scanner: Skipped too far out (68d, max=14d): Will Manchester City win the 2025–26 English Premier League?
+2026-03-19 19:39:23,211 [INFO] src.market_scanner: Skipped in-progress sport (1.1h to end): Will Olympique Lyonnais win on 2026-03-19?
+2026-03-19 19:39:23,211 [INFO] src.market_scanner: Skipped too far out (226d, max=14d): Will Houston Astros win the 2026 American League Championshi
+2026-03-19 19:39:23,211 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Barcelona win the 2025–26 Champions League?
+2026-03-19 19:39:23,211 [INFO] src.market_scanner: Skipped too far out (72d, max=14d): Will Liverpool win the 2025–26 Champions League?
+2026-03-19 19:39:23,211 [INFO] src.market_scanner: Skipped too far out (88d, max=14d): Will the Los Angeles Lakers win the NBA Western Conference F
+2026-03-19 19:39:23,212 [INFO] src.pre_filter: Pre-filter SKIP (impossible): South Florida Bulls vs. Louisville Cardinals
+2026-03-19 19:39:23,213 [INFO] src.pre_filter: Pre-filter SKIP (impossible): TCU Horned Frogs vs. Ohio State Buckeyes
+2026-03-19 19:39:23,213 [INFO] src.pre_filter: Pre-filter SKIP (impossible): VCU Rams vs. North Carolina Tar Heels
+2026-03-19 19:39:23,213 [INFO] src.pre_filter: Pre-filter SKIP (impossible): High Point Panthers vs. Wisconsin Badgers
+2026-03-19 19:39:23,213 [INFO] src.pre_filter: Pre-filter SKIP (impossible): McNeese State Cowboys vs. Vanderbilt Commodores
+2026-03-19 19:39:23,730 [INFO] src.news_scanner: NewsAPI returned 2 articles for 'roma 2026-03-19' (usage: 1/100)
+2026-03-19 19:39:24,904 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:24] "GET /api/trades?_=1773938364899 HTTP/1.1" 200 -
+2026-03-19 19:39:24,905 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:24] "GET /api/performance?_=1773938364899 HTTP/1.1" 200 -
+2026-03-19 19:39:24,906 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:24] "GET /api/portfolio?_=1773938364899 HTTP/1.1" 200 -
+2026-03-19 19:39:24,909 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:24] "GET /api/budget?_=1773938364899 HTTP/1.1" 200 -
+2026-03-19 19:39:24,910 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:24] "GET /api/positions?_=1773938364899 HTTP/1.1" 200 -
+2026-03-19 19:39:25,513 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'aston villa fc' (usage: 2/100)
+2026-03-19 19:39:26,024 [ERROR] trafilatura.utils: parsed tree length: 1, wrong data type or not valid HTML
+2026-03-19 19:39:26,024 [ERROR] trafilatura.core: empty HTML tree: None
+2026-03-19 19:39:26,024 [WARNING] trafilatura.core: discarding data: None
+2026-03-19 19:39:27,115 [INFO] src.news_scanner: NewsAPI returned 0 articles for 'counter-strike mouz themongolz' (usage: 3/100)
+2026-03-19 19:39:27,748 [WARNING] src.news_scanner: GNews error: 400 Client Error: Bad Request for url: https://gnews.io/api/v4/search?q=counter-strike+mouz+themongolz&max=5&lang=en&token=ccf1c8d8838b90aa3ca820746be29617
+2026-03-19 19:39:29,384 [INFO] src.news_scanner: RSS returned 0 articles for 'counter-strike mouz themongolz'
+2026-03-19 19:39:29,893 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'pistons wizards' (usage: 4/100)
+2026-03-19 19:39:32,196 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'magic hornets' (usage: 5/100)
+2026-03-19 19:39:33,102 [ERROR] trafilatura.downloads: not a 200 response: 401 for URL https://consent.yahoo.com/v2/collectConsent?sessionId=1_cc-session_a6828cc4-4769-479f-a2af-3dd051c4857d
+2026-03-19 19:39:34,908 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:34] "GET /api/trades?_=1773938374902 HTTP/1.1" 200 -
+2026-03-19 19:39:34,909 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:34] "GET /api/portfolio?_=1773938374902 HTTP/1.1" 200 -
+2026-03-19 19:39:34,908 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:34] "GET /api/performance?_=1773938374902 HTTP/1.1" 200 -
+2026-03-19 19:39:34,912 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:34] "GET /api/budget?_=1773938374902 HTTP/1.1" 200 -
+2026-03-19 19:39:34,912 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:34] "GET /api/positions?_=1773938374902 HTTP/1.1" 200 -
+2026-03-19 19:39:35,368 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'rangers blue jackets' (usage: 6/100)
+2026-03-19 19:39:36,082 [ERROR] trafilatura.utils: parsed tree length: 1, wrong data type or not valid HTML
+2026-03-19 19:39:36,082 [ERROR] trafilatura.core: empty HTML tree: None
+2026-03-19 19:39:36,082 [WARNING] trafilatura.core: discarding data: None
+2026-03-19 19:39:39,364 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'texas longhorns byu' (usage: 7/100)
+2026-03-19 19:39:41,533 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'blackhawks wild' (usage: 8/100)
+2026-03-19 19:39:43,161 [ERROR] trafilatura.downloads: not a 200 response: 401 for URL https://consent.yahoo.com/v2/collectConsent?sessionId=1_cc-session_7a63d7f3-26c0-4820-8a0f-f5ca24d74e9e
+2026-03-19 19:39:43,651 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'lakers heat' (usage: 9/100)
+2026-03-19 19:39:44,640 [ERROR] trafilatura.downloads: not a 200 response: 403 for URL https://www.sun-sentinel.com/2026/03/18/ira-winderman-heats-herro-powell-pairing-remains-ride-yet-to-be-solved/
+2026-03-19 19:39:45,768 [INFO] src.news_scanner: NewsAPI returned 5 articles for 'cavaliers bulls' (usage: 10/100)
+2026-03-19 19:39:45,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:45] "GET /api/performance?_=1773938385808 HTTP/1.1" 200 -
+2026-03-19 19:39:45,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:45] "GET /api/trades?_=1773938385808 HTTP/1.1" 200 -
+2026-03-19 19:39:45,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:45] "GET /api/budget?_=1773938385808 HTTP/1.1" 200 -
+2026-03-19 19:39:45,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:45] "GET /api/portfolio?_=1773938385808 HTTP/1.1" 200 -
+2026-03-19 19:39:45,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:45] "GET /api/positions?_=1773938385808 HTTP/1.1" 200 -
+2026-03-19 19:39:46,157 [INFO] src.cycle_timer: Cycle shortened to 10 min (breaking news)
+2026-03-19 19:39:46,157 [INFO] src.esports_data: Fetching esports data: MOUZ vs TheMongolz (csgo)
+2026-03-19 19:39:50,929 [INFO] __main__: Esports data loaded for: Counter-Strike: MOUZ vs TheMongolz (BO3) - BLAST O
+2026-03-19 19:39:50,929 [INFO] src.sports_data: Fetching ESPN data: Pistons vs Wizards (NBA)
+2026-03-19 19:39:55,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:55] "GET /api/trades?_=1773938395818 HTTP/1.1" 200 -
+2026-03-19 19:39:55,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:55] "GET /api/performance?_=1773938395818 HTTP/1.1" 200 -
+2026-03-19 19:39:55,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:55] "GET /api/portfolio?_=1773938395818 HTTP/1.1" 200 -
+2026-03-19 19:39:55,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:55] "GET /api/budget?_=1773938395818 HTTP/1.1" 200 -
+2026-03-19 19:39:55,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:39:55] "GET /api/positions?_=1773938395818 HTTP/1.1" 200 -
+2026-03-19 19:39:57,925 [INFO] __main__: ESPN data loaded for: Pistons vs. Wizards
+2026-03-19 19:39:58,621 [INFO] src.odds_api: Odds API quota: 70 used, 430 remaining
+2026-03-19 19:39:58,623 [INFO] __main__: Bookmaker odds loaded: nba-det-was-2026-03-19 (88% vs 12%, 31 books)
+2026-03-19 19:39:58,623 [INFO] src.sports_data: Fetching ESPN data: Magic vs Hornets (NBA)
+2026-03-19 19:40:05,087 [INFO] __main__: ESPN data loaded for: Magic vs. Hornets
+2026-03-19 19:40:05,088 [INFO] __main__: Bookmaker odds loaded: nba-orl-cha-2026-03-19 (34% vs 66%, 31 books)
+2026-03-19 19:40:05,088 [INFO] src.sports_data: Fetching ESPN data: Rangers vs Blue Jackets (NHL)
+2026-03-19 19:40:05,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:05] "GET /api/trades?_=1773938405811 HTTP/1.1" 200 -
+2026-03-19 19:40:05,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:05] "GET /api/portfolio?_=1773938405811 HTTP/1.1" 200 -
+2026-03-19 19:40:05,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:05] "GET /api/performance?_=1773938405811 HTTP/1.1" 200 -
+2026-03-19 19:40:05,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:05] "GET /api/budget?_=1773938405811 HTTP/1.1" 200 -
+2026-03-19 19:40:05,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:05] "GET /api/positions?_=1773938405811 HTTP/1.1" 200 -
+2026-03-19 19:40:12,144 [INFO] __main__: ESPN data loaded for: Rangers vs. Blue Jackets
+2026-03-19 19:40:12,823 [INFO] src.odds_api: Odds API quota: 72 used, 428 remaining
+2026-03-19 19:40:12,826 [INFO] __main__: Bookmaker odds loaded: nhl-nyr-cbj-2026-03-19 (33% vs 67%, 30 books)
+2026-03-19 19:40:12,826 [INFO] src.sports_data: Fetching ESPN data: Texas Longhorns vs BYU Cougars (NCAA Basketball)
+2026-03-19 19:40:15,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:15] "GET /api/trades?_=1773938415820 HTTP/1.1" 200 -
+2026-03-19 19:40:15,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:15] "GET /api/performance?_=1773938415820 HTTP/1.1" 200 -
+2026-03-19 19:40:15,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:15] "GET /api/portfolio?_=1773938415820 HTTP/1.1" 200 -
+2026-03-19 19:40:15,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:15] "GET /api/budget?_=1773938415820 HTTP/1.1" 200 -
+2026-03-19 19:40:15,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:15] "GET /api/positions?_=1773938415820 HTTP/1.1" 200 -
+2026-03-19 19:40:19,649 [INFO] __main__: ESPN data loaded for: Texas Longhorns vs. BYU Cougars
+2026-03-19 19:40:20,427 [INFO] src.odds_api: Odds API quota: 74 used, 426 remaining
+2026-03-19 19:40:20,432 [INFO] __main__: Bookmaker odds loaded: cbb-tx-byu-2026-03-19 (44% vs 56%, 19 books)
+2026-03-19 19:40:20,432 [INFO] src.sports_data: Fetching ESPN data: Blackhawks vs Wild (NHL)
+2026-03-19 19:40:25,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:25] "GET /api/trades?_=1773938425813 HTTP/1.1" 200 -
+2026-03-19 19:40:25,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:25] "GET /api/performance?_=1773938425813 HTTP/1.1" 200 -
+2026-03-19 19:40:25,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:25] "GET /api/portfolio?_=1773938425813 HTTP/1.1" 200 -
+2026-03-19 19:40:25,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:25] "GET /api/budget?_=1773938425813 HTTP/1.1" 200 -
+2026-03-19 19:40:25,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:25] "GET /api/positions?_=1773938425813 HTTP/1.1" 200 -
+2026-03-19 19:40:26,697 [INFO] __main__: ESPN data loaded for: Blackhawks vs. Wild
+2026-03-19 19:40:26,698 [INFO] __main__: Bookmaker odds loaded: nhl-chi-min-2026-03-19 (32% vs 68%, 30 books)
+2026-03-19 19:40:26,698 [INFO] src.sports_data: Fetching ESPN data: Lakers vs Heat (NBA)
+2026-03-19 19:40:32,786 [INFO] __main__: ESPN data loaded for: Lakers vs. Heat
+2026-03-19 19:40:32,787 [INFO] __main__: Bookmaker odds loaded: nba-lal-mia-2026-03-19 (42% vs 58%, 31 books)
+2026-03-19 19:40:32,787 [INFO] src.sports_data: Fetching ESPN data: Cavaliers vs Bulls (NBA)
+2026-03-19 19:40:35,810 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:35] "GET /api/trades?_=1773938435805 HTTP/1.1" 200 -
+2026-03-19 19:40:35,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:35] "GET /api/performance?_=1773938435805 HTTP/1.1" 200 -
+2026-03-19 19:40:35,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:35] "GET /api/portfolio?_=1773938435805 HTTP/1.1" 200 -
+2026-03-19 19:40:35,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:35] "GET /api/budget?_=1773938435805 HTTP/1.1" 200 -
+2026-03-19 19:40:35,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:35] "GET /api/positions?_=1773938435805 HTTP/1.1" 200 -
+2026-03-19 19:40:38,923 [INFO] __main__: ESPN data loaded for: Cavaliers vs. Bulls: O/U 238.5
+2026-03-19 19:40:38,924 [INFO] __main__: Bookmaker odds loaded: nba-cle-chi-2026-03-19-total-2 (83% vs 17%, 30 books)
+2026-03-19 19:40:38,924 [INFO] __main__: Sports data fetched for 8/10 markets
+2026-03-19 19:40:39,951 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:39] "GET / HTTP/1.1" 200 -
+2026-03-19 19:40:40,120 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "GET /api/trades?_=1773938440115 HTTP/1.1" 200 -
+2026-03-19 19:40:40,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "GET /api/performance?_=1773938440115 HTTP/1.1" 200 -
+2026-03-19 19:40:40,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "GET /api/portfolio?_=1773938440115 HTTP/1.1" 200 -
+2026-03-19 19:40:40,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "GET /api/budget?_=1773938440115 HTTP/1.1" 200 -
+2026-03-19 19:40:40,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "GET /api/positions?_=1773938440115 HTTP/1.1" 200 -
+2026-03-19 19:40:40,236 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:40] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-19 19:40:50,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:50] "GET /api/trades?_=1773938450806 HTTP/1.1" 200 -
+2026-03-19 19:40:50,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:50] "GET /api/portfolio?_=1773938450806 HTTP/1.1" 200 -
+2026-03-19 19:40:50,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:50] "GET /api/performance?_=1773938450806 HTTP/1.1" 200 -
+2026-03-19 19:40:50,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:50] "GET /api/budget?_=1773938450806 HTTP/1.1" 200 -
+2026-03-19 19:40:50,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:40:50] "GET /api/positions?_=1773938450806 HTTP/1.1" 200 -
+2026-03-19 19:40:53,029 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:40:53,046 [INFO] src.ai_analyst: API cost: $0.0112 | sprint: $2.17/$24.00 | month: $3.49/$48.00
+2026-03-19 19:41:00,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:00] "GET /api/portfolio?_=1773938460813 HTTP/1.1" 200 -
+2026-03-19 19:41:00,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:00] "GET /api/trades?_=1773938460813 HTTP/1.1" 200 -
+2026-03-19 19:41:00,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:00] "GET /api/performance?_=1773938460813 HTTP/1.1" 200 -
+2026-03-19 19:41:00,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:00] "GET /api/positions?_=1773938460813 HTTP/1.1" 200 -
+2026-03-19 19:41:00,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:00] "GET /api/budget?_=1773938460813 HTTP/1.1" 200 -
+2026-03-19 19:41:02,217 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:41:02,219 [INFO] src.ai_analyst: API cost: $0.0088 | sprint: $2.18/$24.00 | month: $3.49/$48.00
+2026-03-19 19:41:10,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:10] "GET /api/trades?_=1773938470116 HTTP/1.1" 200 -
+2026-03-19 19:41:10,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:10] "GET /api/performance?_=1773938470116 HTTP/1.1" 200 -
+2026-03-19 19:41:10,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:10] "GET /api/portfolio?_=1773938470116 HTTP/1.1" 200 -
+2026-03-19 19:41:10,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:10] "GET /api/positions?_=1773938470116 HTTP/1.1" 200 -
+2026-03-19 19:41:10,134 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:10] "GET /api/budget?_=1773938470116 HTTP/1.1" 200 -
+2026-03-19 19:41:13,570 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:41:13,574 [INFO] src.ai_analyst: API cost: $0.0104 | sprint: $2.19/$24.00 | month: $3.50/$48.00
+2026-03-19 19:41:20,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:20] "GET /api/trades?_=1773938480811 HTTP/1.1" 200 -
+2026-03-19 19:41:20,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:20] "GET /api/portfolio?_=1773938480811 HTTP/1.1" 200 -
+2026-03-19 19:41:20,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:20] "GET /api/performance?_=1773938480811 HTTP/1.1" 200 -
+2026-03-19 19:41:20,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:20] "GET /api/positions?_=1773938480811 HTTP/1.1" 200 -
+2026-03-19 19:41:20,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:20] "GET /api/budget?_=1773938480811 HTTP/1.1" 200 -
+2026-03-19 19:41:28,525 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:41:28,527 [INFO] src.ai_analyst: API cost: $0.0130 | sprint: $2.20/$24.00 | month: $3.52/$48.00
+2026-03-19 19:41:30,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:30] "GET /api/trades?_=1773938490814 HTTP/1.1" 200 -
+2026-03-19 19:41:30,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:30] "GET /api/performance?_=1773938490814 HTTP/1.1" 200 -
+2026-03-19 19:41:30,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:30] "GET /api/positions?_=1773938490814 HTTP/1.1" 200 -
+2026-03-19 19:41:30,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:30] "GET /api/portfolio?_=1773938490814 HTTP/1.1" 200 -
+2026-03-19 19:41:30,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:30] "GET /api/budget?_=1773938490814 HTTP/1.1" 200 -
+2026-03-19 19:41:39,255 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:41:39,258 [INFO] src.ai_analyst: API cost: $0.0121 | sprint: $2.22/$24.00 | month: $3.53/$48.00
+2026-03-19 19:41:40,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:40] "GET /api/trades?_=1773938500816 HTTP/1.1" 200 -
+2026-03-19 19:41:40,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:40] "GET /api/performance?_=1773938500816 HTTP/1.1" 200 -
+2026-03-19 19:41:40,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:40] "GET /api/portfolio?_=1773938500816 HTTP/1.1" 200 -
+2026-03-19 19:41:40,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:40] "GET /api/positions?_=1773938500816 HTTP/1.1" 200 -
+2026-03-19 19:41:40,833 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:40] "GET /api/budget?_=1773938500816 HTTP/1.1" 200 -
+2026-03-19 19:41:50,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:50] "GET /api/trades?_=1773938510806 HTTP/1.1" 200 -
+2026-03-19 19:41:50,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:50] "GET /api/portfolio?_=1773938510806 HTTP/1.1" 200 -
+2026-03-19 19:41:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:50] "GET /api/performance?_=1773938510806 HTTP/1.1" 200 -
+2026-03-19 19:41:50,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:50] "GET /api/budget?_=1773938510806 HTTP/1.1" 200 -
+2026-03-19 19:41:50,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:41:50] "GET /api/positions?_=1773938510806 HTTP/1.1" 200 -
+2026-03-19 19:41:51,806 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:41:51,808 [INFO] src.ai_analyst: API cost: $0.0138 | sprint: $2.23/$24.00 | month: $3.54/$48.00
+2026-03-19 19:42:00,390 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:00] "GET /api/trades?_=1773938520381 HTTP/1.1" 200 -
+2026-03-19 19:42:00,391 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:00] "GET /api/performance?_=1773938520381 HTTP/1.1" 200 -
+2026-03-19 19:42:00,392 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:00] "GET /api/portfolio?_=1773938520381 HTTP/1.1" 200 -
+2026-03-19 19:42:00,395 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:00] "GET /api/budget?_=1773938520381 HTTP/1.1" 200 -
+2026-03-19 19:42:00,396 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:00] "GET /api/positions?_=1773938520381 HTTP/1.1" 200 -
+2026-03-19 19:42:04,710 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:42:04,713 [INFO] src.ai_analyst: API cost: $0.0144 | sprint: $2.24/$24.00 | month: $3.56/$48.00
+2026-03-19 19:42:10,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:10] "GET /api/trades?_=1773938530117 HTTP/1.1" 200 -
+2026-03-19 19:42:10,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:10] "GET /api/portfolio?_=1773938530117 HTTP/1.1" 200 -
+2026-03-19 19:42:10,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:10] "GET /api/performance?_=1773938530117 HTTP/1.1" 200 -
+2026-03-19 19:42:10,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:10] "GET /api/positions?_=1773938530117 HTTP/1.1" 200 -
+2026-03-19 19:42:10,136 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:10] "GET /api/budget?_=1773938530117 HTTP/1.1" 200 -
+2026-03-19 19:42:15,329 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:42:15,331 [INFO] src.ai_analyst: API cost: $0.0125 | sprint: $2.26/$24.00 | month: $3.57/$48.00
+2026-03-19 19:42:20,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:20] "GET /api/trades?_=1773938540816 HTTP/1.1" 200 -
+2026-03-19 19:42:20,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:20] "GET /api/performance?_=1773938540816 HTTP/1.1" 200 -
+2026-03-19 19:42:20,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:20] "GET /api/portfolio?_=1773938540816 HTTP/1.1" 200 -
+2026-03-19 19:42:20,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:20] "GET /api/positions?_=1773938540816 HTTP/1.1" 200 -
+2026-03-19 19:42:20,842 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:20] "GET /api/budget?_=1773938540816 HTTP/1.1" 200 -
+2026-03-19 19:42:29,937 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:42:29,941 [INFO] src.ai_analyst: API cost: $0.0147 | sprint: $2.27/$24.00 | month: $3.59/$48.00
+2026-03-19 19:42:30,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:30] "GET /api/trades?_=1773938550814 HTTP/1.1" 200 -
+2026-03-19 19:42:30,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:30] "GET /api/performance?_=1773938550814 HTTP/1.1" 200 -
+2026-03-19 19:42:30,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:30] "GET /api/portfolio?_=1773938550814 HTTP/1.1" 200 -
+2026-03-19 19:42:30,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:30] "GET /api/positions?_=1773938550814 HTTP/1.1" 200 -
+2026-03-19 19:42:30,829 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:30] "GET /api/budget?_=1773938550814 HTTP/1.1" 200 -
+2026-03-19 19:42:40,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:40] "GET /api/performance?_=1773938560805 HTTP/1.1" 200 -
+2026-03-19 19:42:40,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:40] "GET /api/portfolio?_=1773938560805 HTTP/1.1" 200 -
+2026-03-19 19:42:40,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:40] "GET /api/trades?_=1773938560805 HTTP/1.1" 200 -
+2026-03-19 19:42:40,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:40] "GET /api/budget?_=1773938560805 HTTP/1.1" 200 -
+2026-03-19 19:42:40,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:40] "GET /api/positions?_=1773938560805 HTTP/1.1" 200 -
+2026-03-19 19:42:46,608 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:46] "GET /api/portfolio HTTP/1.1" 200 -
+2026-03-19 19:42:50,501 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:42:50,503 [INFO] src.ai_analyst: API cost: $0.0136 | sprint: $2.29/$24.00 | month: $3.60/$48.00
+2026-03-19 19:42:50,811 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:50] "GET /api/portfolio?_=1773938570806 HTTP/1.1" 200 -
+2026-03-19 19:42:50,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:50] "GET /api/performance?_=1773938570806 HTTP/1.1" 200 -
+2026-03-19 19:42:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:50] "GET /api/trades?_=1773938570806 HTTP/1.1" 200 -
+2026-03-19 19:42:50,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:50] "GET /api/positions?_=1773938570806 HTTP/1.1" 200 -
+2026-03-19 19:42:50,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:42:50] "GET /api/budget?_=1773938570806 HTTP/1.1" 200 -
+2026-03-19 19:42:59,275 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:42:59,278 [INFO] src.ai_analyst: API cost: $0.0107 | sprint: $2.30/$24.00 | month: $3.61/$48.00
+2026-03-19 19:43:00,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:00] "GET /api/performance?_=1773938580808 HTTP/1.1" 200 -
+2026-03-19 19:43:00,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:00] "GET /api/trades?_=1773938580808 HTTP/1.1" 200 -
+2026-03-19 19:43:00,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:00] "GET /api/portfolio?_=1773938580808 HTTP/1.1" 200 -
+2026-03-19 19:43:00,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:00] "GET /api/positions?_=1773938580808 HTTP/1.1" 200 -
+2026-03-19 19:43:00,834 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:00] "GET /api/budget?_=1773938580808 HTTP/1.1" 200 -
+2026-03-19 19:43:09,671 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:43:09,673 [INFO] src.ai_analyst: API cost: $0.0116 | sprint: $2.31/$24.00 | month: $3.62/$48.00
+2026-03-19 19:43:10,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:10] "GET /api/trades?_=1773938590806 HTTP/1.1" 200 -
+2026-03-19 19:43:10,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:10] "GET /api/performance?_=1773938590806 HTTP/1.1" 200 -
+2026-03-19 19:43:10,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:10] "GET /api/portfolio?_=1773938590806 HTTP/1.1" 200 -
+2026-03-19 19:43:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:10] "GET /api/positions?_=1773938590806 HTTP/1.1" 200 -
+2026-03-19 19:43:10,833 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:10] "GET /api/budget?_=1773938590806 HTTP/1.1" 200 -
+2026-03-19 19:43:19,692 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:43:19,694 [INFO] src.ai_analyst: API cost: $0.0118 | sprint: $2.32/$24.00 | month: $3.63/$48.00
+2026-03-19 19:43:30,314 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:43:30,316 [INFO] src.ai_analyst: API cost: $0.0125 | sprint: $2.33/$24.00 | month: $3.65/$48.00
+2026-03-19 19:43:33,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:33] "GET /api/trades?_=1773938613806 HTTP/1.1" 200 -
+2026-03-19 19:43:33,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:33] "GET /api/portfolio?_=1773938613806 HTTP/1.1" 200 -
+2026-03-19 19:43:33,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:33] "GET /api/performance?_=1773938613806 HTTP/1.1" 200 -
+2026-03-19 19:43:33,832 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:33] "GET /api/positions?_=1773938613806 HTTP/1.1" 200 -
+2026-03-19 19:43:33,842 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:43:33] "GET /api/budget?_=1773938613806 HTTP/1.1" 200 -
+2026-03-19 19:43:44,947 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:43:44,950 [INFO] src.ai_analyst: API cost: $0.0145 | sprint: $2.35/$24.00 | month: $3.66/$48.00
+2026-03-19 19:43:54,328 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:43:54,330 [INFO] src.ai_analyst: API cost: $0.0114 | sprint: $2.36/$24.00 | month: $3.67/$48.00
+2026-03-19 19:44:05,998 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:44:06,001 [INFO] src.ai_analyst: API cost: $0.0118 | sprint: $2.37/$24.00 | month: $3.68/$48.00
+2026-03-19 19:44:23,165 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:44:23,168 [INFO] src.ai_analyst: API cost: $0.0152 | sprint: $2.39/$24.00 | month: $3.70/$48.00
+2026-03-19 19:44:33,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:33] "GET /api/trades?_=1773938673808 HTTP/1.1" 200 -
+2026-03-19 19:44:33,829 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:33] "GET /api/portfolio?_=1773938673808 HTTP/1.1" 200 -
+2026-03-19 19:44:33,854 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:33] "GET /api/performance?_=1773938673808 HTTP/1.1" 200 -
+2026-03-19 19:44:33,877 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:33] "GET /api/positions?_=1773938673808 HTTP/1.1" 200 -
+2026-03-19 19:44:33,889 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:33] "GET /api/budget?_=1773938673808 HTTP/1.1" 200 -
+2026-03-19 19:44:38,517 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:44:38,520 [INFO] src.ai_analyst: API cost: $0.0142 | sprint: $2.40/$24.00 | month: $3.71/$48.00
+2026-03-19 19:44:50,089 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-19 19:44:50,091 [INFO] src.ai_analyst: API cost: $0.0122 | sprint: $2.41/$24.00 | month: $3.72/$48.00
+2026-03-19 19:44:50,092 [INFO] src.executor: [dry_run] Simulated BUY 37155325 @ $0.43, size=$75.00
+2026-03-19 19:44:50,105 [INFO] __main__: Reasoning logged for: Will AS Roma win on 2026-03-19?
+2026-03-19 19:44:50,535 [INFO] src.manipulation_guard: Manipulation check [Will Aston Villa FC win on 2026-03-19?]: low — SINGLE_SOURCE_NEWS: only 1 source(s)
+2026-03-19 19:44:50,536 [INFO] __main__: Ignorance edge blocked: uel-ast4-lil-2026-03-19-ast4 | edge=16.5% conf=low cap=15%
+2026-03-19 19:44:50,537 [INFO] __main__: Ignorance edge blocked: cs2-mouz-mglz-2026-03-19 | edge=44.5% conf=low cap=15%
+2026-03-19 19:44:50,977 [INFO] __main__: Sanity WARNING (proceeding): nba-det-was-2026-03-19 — AI vs market gap too large (38%) — verify manually
+2026-03-19 19:44:50,978 [INFO] src.executor: [dry_run] Simulated BUY 10773319 @ $0.10, size=$75.00
+2026-03-19 19:44:50,980 [INFO] __main__: Reasoning logged for: Pistons vs. Wizards
+2026-03-19 19:44:51,571 [INFO] __main__: ULTI activated: nba-orl-cha-2026-03-19 | AI=48% Book=34% Blended=40% (31 bookmakers)
+2026-03-19 19:44:51,571 [INFO] src.executor: [dry_run] Simulated BUY 79673614 @ $0.34, size=$39.43
+2026-03-19 19:44:51,574 [INFO] __main__: Reasoning logged for: Magic vs. Hornets
+2026-03-19 19:44:52,074 [INFO] __main__: ULTI activated: nba-lal-mia-2026-03-19 | AI=34% Book=42% Blended=39% (31 bookmakers)
+2026-03-19 19:44:52,075 [INFO] __main__: ULTI activated: nba-cle-chi-2026-03-19-total-238pt5 | AI=40% Book=83% Blended=66% (30 bookmakers)
+2026-03-19 19:44:52,075 [INFO] src.executor: [dry_run] Simulated BUY 77611360 @ $0.52, size=$75.00
+2026-03-19 19:44:52,077 [INFO] __main__: Reasoning logged for: Cavaliers vs. Bulls: O/U 238.5
+2026-03-19 19:44:52,504 [INFO] __main__: Next cycle in 10 min
+2026-03-19 19:44:58,027 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:58] "GET /api/performance?_=1773938698021 HTTP/1.1" 200 -
+2026-03-19 19:44:58,038 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:58] "GET /api/trades?_=1773938698021 HTTP/1.1" 200 -
+2026-03-19 19:44:58,038 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:58] "GET /api/budget?_=1773938698021 HTTP/1.1" 200 -
+2026-03-19 19:44:58,038 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:58] "GET /api/portfolio?_=1773938698021 HTTP/1.1" 200 -
+2026-03-19 19:44:58,051 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:44:58] "GET /api/positions?_=1773938698021 HTTP/1.1" 200 -
+2026-03-19 19:45:00,120 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:00] "GET /api/performance?_=1773938700116 HTTP/1.1" 200 -
+2026-03-19 19:45:00,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:00] "GET /api/portfolio?_=1773938700116 HTTP/1.1" 200 -
+2026-03-19 19:45:00,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:00] "GET /api/trades?_=1773938700116 HTTP/1.1" 200 -
+2026-03-19 19:45:00,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:00] "GET /api/budget?_=1773938700116 HTTP/1.1" 200 -
+2026-03-19 19:45:00,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:00] "GET /api/positions?_=1773938700116 HTTP/1.1" 200 -
+2026-03-19 19:45:10,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:10] "GET /api/performance?_=1773938710118 HTTP/1.1" 200 -
+2026-03-19 19:45:10,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:10] "GET /api/portfolio?_=1773938710118 HTTP/1.1" 200 -
+2026-03-19 19:45:10,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:10] "GET /api/trades?_=1773938710118 HTTP/1.1" 200 -
+2026-03-19 19:45:10,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:10] "GET /api/budget?_=1773938710118 HTTP/1.1" 200 -
+2026-03-19 19:45:10,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:10] "GET /api/positions?_=1773938710118 HTTP/1.1" 200 -
+2026-03-19 19:45:20,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:20] "GET /api/trades?_=1773938720122 HTTP/1.1" 200 -
+2026-03-19 19:45:20,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:20] "GET /api/performance?_=1773938720122 HTTP/1.1" 200 -
+2026-03-19 19:45:20,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:20] "GET /api/portfolio?_=1773938720122 HTTP/1.1" 200 -
+2026-03-19 19:45:20,129 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:20] "GET /api/budget?_=1773938720122 HTTP/1.1" 200 -
+2026-03-19 19:45:20,132 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:20] "GET /api/positions?_=1773938720122 HTTP/1.1" 200 -
+2026-03-19 19:45:30,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:30] "GET /api/trades?_=1773938730119 HTTP/1.1" 200 -
+2026-03-19 19:45:30,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:30] "GET /api/portfolio?_=1773938730119 HTTP/1.1" 200 -
+2026-03-19 19:45:30,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:30] "GET /api/performance?_=1773938730119 HTTP/1.1" 200 -
+2026-03-19 19:45:30,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:30] "GET /api/budget?_=1773938730119 HTTP/1.1" 200 -
+2026-03-19 19:45:30,129 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:30] "GET /api/positions?_=1773938730119 HTTP/1.1" 200 -
+2026-03-19 19:45:40,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:40] "GET /api/trades?_=1773938740814 HTTP/1.1" 200 -
+2026-03-19 19:45:40,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:40] "GET /api/portfolio?_=1773938740814 HTTP/1.1" 200 -
+2026-03-19 19:45:40,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:40] "GET /api/performance?_=1773938740814 HTTP/1.1" 200 -
+2026-03-19 19:45:40,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:40] "GET /api/budget?_=1773938740814 HTTP/1.1" 200 -
+2026-03-19 19:45:40,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:40] "GET /api/positions?_=1773938740814 HTTP/1.1" 200 -
+2026-03-19 19:45:50,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:50] "GET /api/trades?_=1773938750812 HTTP/1.1" 200 -
+2026-03-19 19:45:50,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:50] "GET /api/portfolio?_=1773938750812 HTTP/1.1" 200 -
+2026-03-19 19:45:50,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:50] "GET /api/performance?_=1773938750812 HTTP/1.1" 200 -
+2026-03-19 19:45:50,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:50] "GET /api/budget?_=1773938750812 HTTP/1.1" 200 -
+2026-03-19 19:45:50,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:45:50] "GET /api/positions?_=1773938750812 HTTP/1.1" 200 -
+2026-03-19 19:46:00,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:00] "GET /api/trades?_=1773938760119 HTTP/1.1" 200 -
+2026-03-19 19:46:00,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:00] "GET /api/portfolio?_=1773938760119 HTTP/1.1" 200 -
+2026-03-19 19:46:00,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:00] "GET /api/performance?_=1773938760119 HTTP/1.1" 200 -
+2026-03-19 19:46:00,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:00] "GET /api/budget?_=1773938760119 HTTP/1.1" 200 -
+2026-03-19 19:46:00,129 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:00] "GET /api/positions?_=1773938760119 HTTP/1.1" 200 -
+2026-03-19 19:46:10,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:10] "GET /api/trades?_=1773938770119 HTTP/1.1" 200 -
+2026-03-19 19:46:10,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:10] "GET /api/portfolio?_=1773938770119 HTTP/1.1" 200 -
+2026-03-19 19:46:10,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:10] "GET /api/performance?_=1773938770119 HTTP/1.1" 200 -
+2026-03-19 19:46:10,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:10] "GET /api/budget?_=1773938770119 HTTP/1.1" 200 -
+2026-03-19 19:46:10,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:10] "GET /api/positions?_=1773938770119 HTTP/1.1" 200 -
+2026-03-19 19:46:20,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:20] "GET /api/trades?_=1773938780812 HTTP/1.1" 200 -
+2026-03-19 19:46:20,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:20] "GET /api/portfolio?_=1773938780812 HTTP/1.1" 200 -
+2026-03-19 19:46:20,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:20] "GET /api/performance?_=1773938780812 HTTP/1.1" 200 -
+2026-03-19 19:46:20,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:20] "GET /api/budget?_=1773938780812 HTTP/1.1" 200 -
+2026-03-19 19:46:20,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:20] "GET /api/positions?_=1773938780812 HTTP/1.1" 200 -
+2026-03-19 19:46:30,822 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:30] "GET /api/trades?_=1773938790814 HTTP/1.1" 200 -
+2026-03-19 19:46:30,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:30] "GET /api/portfolio?_=1773938790814 HTTP/1.1" 200 -
+2026-03-19 19:46:30,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:30] "GET /api/performance?_=1773938790814 HTTP/1.1" 200 -
+2026-03-19 19:46:30,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:30] "GET /api/budget?_=1773938790814 HTTP/1.1" 200 -
+2026-03-19 19:46:30,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:30] "GET /api/positions?_=1773938790814 HTTP/1.1" 200 -
+2026-03-19 19:46:40,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:40] "GET /api/trades?_=1773938800811 HTTP/1.1" 200 -
+2026-03-19 19:46:40,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:40] "GET /api/performance?_=1773938800811 HTTP/1.1" 200 -
+2026-03-19 19:46:40,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:40] "GET /api/portfolio?_=1773938800811 HTTP/1.1" 200 -
+2026-03-19 19:46:40,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:40] "GET /api/budget?_=1773938800811 HTTP/1.1" 200 -
+2026-03-19 19:46:40,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:40] "GET /api/positions?_=1773938800811 HTTP/1.1" 200 -
+2026-03-19 19:46:50,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:50] "GET /api/trades?_=1773938810807 HTTP/1.1" 200 -
+2026-03-19 19:46:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:50] "GET /api/performance?_=1773938810807 HTTP/1.1" 200 -
+2026-03-19 19:46:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:50] "GET /api/portfolio?_=1773938810807 HTTP/1.1" 200 -
+2026-03-19 19:46:50,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:50] "GET /api/budget?_=1773938810807 HTTP/1.1" 200 -
+2026-03-19 19:46:50,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:46:50] "GET /api/positions?_=1773938810807 HTTP/1.1" 200 -
+2026-03-19 19:47:00,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:00] "GET /api/portfolio?_=1773938820812 HTTP/1.1" 200 -
+2026-03-19 19:47:00,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:00] "GET /api/trades?_=1773938820812 HTTP/1.1" 200 -
+2026-03-19 19:47:00,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:00] "GET /api/performance?_=1773938820812 HTTP/1.1" 200 -
+2026-03-19 19:47:00,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:00] "GET /api/budget?_=1773938820812 HTTP/1.1" 200 -
+2026-03-19 19:47:00,821 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:00] "GET /api/positions?_=1773938820812 HTTP/1.1" 200 -
+2026-03-19 19:47:10,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:10] "GET /api/portfolio?_=1773938830810 HTTP/1.1" 200 -
+2026-03-19 19:47:10,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:10] "GET /api/performance?_=1773938830810 HTTP/1.1" 200 -
+2026-03-19 19:47:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:10] "GET /api/trades?_=1773938830810 HTTP/1.1" 200 -
+2026-03-19 19:47:10,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:10] "GET /api/budget?_=1773938830810 HTTP/1.1" 200 -
+2026-03-19 19:47:10,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:10] "GET /api/positions?_=1773938830810 HTTP/1.1" 200 -
+2026-03-19 19:47:33,841 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:33] "GET /api/trades?_=1773938853814 HTTP/1.1" 200 -
+2026-03-19 19:47:33,846 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:33] "GET /api/portfolio?_=1773938853814 HTTP/1.1" 200 -
+2026-03-19 19:47:33,847 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:33] "GET /api/performance?_=1773938853814 HTTP/1.1" 200 -
+2026-03-19 19:47:33,849 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:33] "GET /api/budget?_=1773938853814 HTTP/1.1" 200 -
+2026-03-19 19:47:33,849 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:33] "GET /api/positions?_=1773938853814 HTTP/1.1" 200 -
+2026-03-19 19:47:54,884 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:54] "GET /api/trades?_=1773938874879 HTTP/1.1" 200 -
+2026-03-19 19:47:54,884 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:54] "GET /api/performance?_=1773938874879 HTTP/1.1" 200 -
+2026-03-19 19:47:54,885 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:54] "GET /api/portfolio?_=1773938874879 HTTP/1.1" 200 -
+2026-03-19 19:47:54,888 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:54] "GET /api/budget?_=1773938874879 HTTP/1.1" 200 -
+2026-03-19 19:47:54,889 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:47:54] "GET /api/positions?_=1773938874879 HTTP/1.1" 200 -
+2026-03-19 19:48:00,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:00] "GET /api/trades?_=1773938880116 HTTP/1.1" 200 -
+2026-03-19 19:48:00,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:00] "GET /api/performance?_=1773938880116 HTTP/1.1" 200 -
+2026-03-19 19:48:00,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:00] "GET /api/portfolio?_=1773938880116 HTTP/1.1" 200 -
+2026-03-19 19:48:00,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:00] "GET /api/budget?_=1773938880116 HTTP/1.1" 200 -
+2026-03-19 19:48:00,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:00] "GET /api/positions?_=1773938880116 HTTP/1.1" 200 -
+2026-03-19 19:48:10,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:10] "GET /api/trades?_=1773938890810 HTTP/1.1" 200 -
+2026-03-19 19:48:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:10] "GET /api/performance?_=1773938890810 HTTP/1.1" 200 -
+2026-03-19 19:48:10,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:10] "GET /api/portfolio?_=1773938890810 HTTP/1.1" 200 -
+2026-03-19 19:48:10,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:10] "GET /api/budget?_=1773938890810 HTTP/1.1" 200 -
+2026-03-19 19:48:10,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:10] "GET /api/positions?_=1773938890810 HTTP/1.1" 200 -
+2026-03-19 19:48:20,121 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:20] "GET /api/trades?_=1773938900116 HTTP/1.1" 200 -
+2026-03-19 19:48:20,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:20] "GET /api/portfolio?_=1773938900116 HTTP/1.1" 200 -
+2026-03-19 19:48:20,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:20] "GET /api/performance?_=1773938900116 HTTP/1.1" 200 -
+2026-03-19 19:48:20,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:20] "GET /api/budget?_=1773938900116 HTTP/1.1" 200 -
+2026-03-19 19:48:20,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:20] "GET /api/positions?_=1773938900116 HTTP/1.1" 200 -
+2026-03-19 19:48:30,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:30] "GET /api/performance?_=1773938910809 HTTP/1.1" 200 -
+2026-03-19 19:48:30,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:30] "GET /api/budget?_=1773938910809 HTTP/1.1" 200 -
+2026-03-19 19:48:30,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:30] "GET /api/portfolio?_=1773938910809 HTTP/1.1" 200 -
+2026-03-19 19:48:30,819 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:30] "GET /api/trades?_=1773938910809 HTTP/1.1" 200 -
+2026-03-19 19:48:30,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:30] "GET /api/positions?_=1773938910809 HTTP/1.1" 200 -
+2026-03-19 19:48:40,810 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:40] "GET /api/trades?_=1773938920805 HTTP/1.1" 200 -
+2026-03-19 19:48:40,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:40] "GET /api/performance?_=1773938920805 HTTP/1.1" 200 -
+2026-03-19 19:48:40,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:40] "GET /api/portfolio?_=1773938920805 HTTP/1.1" 200 -
+2026-03-19 19:48:40,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:40] "GET /api/budget?_=1773938920805 HTTP/1.1" 200 -
+2026-03-19 19:48:40,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:40] "GET /api/positions?_=1773938920805 HTTP/1.1" 200 -
+2026-03-19 19:48:50,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:50] "GET /api/trades?_=1773938930807 HTTP/1.1" 200 -
+2026-03-19 19:48:50,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:50] "GET /api/performance?_=1773938930807 HTTP/1.1" 200 -
+2026-03-19 19:48:50,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:50] "GET /api/portfolio?_=1773938930807 HTTP/1.1" 200 -
+2026-03-19 19:48:50,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:50] "GET /api/budget?_=1773938930807 HTTP/1.1" 200 -
+2026-03-19 19:48:50,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:48:50] "GET /api/positions?_=1773938930807 HTTP/1.1" 200 -
+2026-03-19 19:49:00,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:00] "GET /api/trades?_=1773938940117 HTTP/1.1" 200 -
+2026-03-19 19:49:00,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:00] "GET /api/performance?_=1773938940117 HTTP/1.1" 200 -
+2026-03-19 19:49:00,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:00] "GET /api/portfolio?_=1773938940117 HTTP/1.1" 200 -
+2026-03-19 19:49:00,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:00] "GET /api/budget?_=1773938940117 HTTP/1.1" 200 -
+2026-03-19 19:49:00,129 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:00] "GET /api/positions?_=1773938940117 HTTP/1.1" 200 -
+2026-03-19 19:49:10,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:10] "GET /api/performance?_=1773938950809 HTTP/1.1" 200 -
+2026-03-19 19:49:10,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:10] "GET /api/portfolio?_=1773938950809 HTTP/1.1" 200 -
+2026-03-19 19:49:10,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:10] "GET /api/trades?_=1773938950809 HTTP/1.1" 200 -
+2026-03-19 19:49:10,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:10] "GET /api/budget?_=1773938950809 HTTP/1.1" 200 -
+2026-03-19 19:49:10,820 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:10] "GET /api/positions?_=1773938950809 HTTP/1.1" 200 -
+2026-03-19 19:49:20,812 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:20] "GET /api/performance?_=1773938960807 HTTP/1.1" 200 -
+2026-03-19 19:49:20,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:20] "GET /api/portfolio?_=1773938960807 HTTP/1.1" 200 -
+2026-03-19 19:49:20,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:20] "GET /api/trades?_=1773938960807 HTTP/1.1" 200 -
+2026-03-19 19:49:20,816 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:20] "GET /api/budget?_=1773938960807 HTTP/1.1" 200 -
+2026-03-19 19:49:20,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:20] "GET /api/positions?_=1773938960807 HTTP/1.1" 200 -
+2026-03-19 19:49:30,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:30] "GET /api/trades?_=1773938970120 HTTP/1.1" 200 -
+2026-03-19 19:49:30,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:30] "GET /api/performance?_=1773938970120 HTTP/1.1" 200 -
+2026-03-19 19:49:30,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:30] "GET /api/portfolio?_=1773938970120 HTTP/1.1" 200 -
+2026-03-19 19:49:30,129 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:30] "GET /api/budget?_=1773938970120 HTTP/1.1" 200 -
+2026-03-19 19:49:30,131 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:30] "GET /api/positions?_=1773938970120 HTTP/1.1" 200 -
+2026-03-19 19:49:40,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:40] "GET /api/trades?_=1773938980117 HTTP/1.1" 200 -
+2026-03-19 19:49:40,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:40] "GET /api/performance?_=1773938980117 HTTP/1.1" 200 -
+2026-03-19 19:49:40,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:40] "GET /api/portfolio?_=1773938980117 HTTP/1.1" 200 -
+2026-03-19 19:49:40,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:40] "GET /api/budget?_=1773938980117 HTTP/1.1" 200 -
+2026-03-19 19:49:40,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:40] "GET /api/positions?_=1773938980117 HTTP/1.1" 200 -
+2026-03-19 19:49:50,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:50] "GET /api/trades?_=1773938990119 HTTP/1.1" 200 -
+2026-03-19 19:49:50,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:50] "GET /api/performance?_=1773938990119 HTTP/1.1" 200 -
+2026-03-19 19:49:50,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:50] "GET /api/portfolio?_=1773938990119 HTTP/1.1" 200 -
+2026-03-19 19:49:50,133 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:50] "GET /api/budget?_=1773938990119 HTTP/1.1" 200 -
+2026-03-19 19:49:50,134 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:49:50] "GET /api/positions?_=1773938990119 HTTP/1.1" 200 -
+2026-03-19 19:50:00,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:00] "GET /api/trades?_=1773939000817 HTTP/1.1" 200 -
+2026-03-19 19:50:00,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:00] "GET /api/portfolio?_=1773939000817 HTTP/1.1" 200 -
+2026-03-19 19:50:00,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:00] "GET /api/performance?_=1773939000817 HTTP/1.1" 200 -
+2026-03-19 19:50:00,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:00] "GET /api/budget?_=1773939000817 HTTP/1.1" 200 -
+2026-03-19 19:50:00,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:00] "GET /api/positions?_=1773939000817 HTTP/1.1" 200 -
+2026-03-19 19:50:10,825 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:10] "GET /api/trades?_=1773939010820 HTTP/1.1" 200 -
+2026-03-19 19:50:10,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:10] "GET /api/portfolio?_=1773939010820 HTTP/1.1" 200 -
+2026-03-19 19:50:10,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:10] "GET /api/performance?_=1773939010820 HTTP/1.1" 200 -
+2026-03-19 19:50:10,829 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:10] "GET /api/budget?_=1773939010820 HTTP/1.1" 200 -
+2026-03-19 19:50:10,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:10] "GET /api/positions?_=1773939010820 HTTP/1.1" 200 -
+2026-03-19 19:50:20,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:20] "GET /api/trades?_=1773939020117 HTTP/1.1" 200 -
+2026-03-19 19:50:20,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:20] "GET /api/performance?_=1773939020117 HTTP/1.1" 200 -
+2026-03-19 19:50:20,125 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:20] "GET /api/portfolio?_=1773939020117 HTTP/1.1" 200 -
+2026-03-19 19:50:20,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:20] "GET /api/budget?_=1773939020117 HTTP/1.1" 200 -
+2026-03-19 19:50:20,128 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:20] "GET /api/positions?_=1773939020117 HTTP/1.1" 200 -
+2026-03-19 19:50:30,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:30] "GET /api/trades?_=1773939030121 HTTP/1.1" 200 -
+2026-03-19 19:50:30,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:30] "GET /api/performance?_=1773939030121 HTTP/1.1" 200 -
+2026-03-19 19:50:30,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:30] "GET /api/portfolio?_=1773939030121 HTTP/1.1" 200 -
+2026-03-19 19:50:30,130 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:30] "GET /api/budget?_=1773939030121 HTTP/1.1" 200 -
+2026-03-19 19:50:30,130 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:30] "GET /api/positions?_=1773939030121 HTTP/1.1" 200 -
+2026-03-19 19:50:40,122 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:40] "GET /api/performance?_=1773939040118 HTTP/1.1" 200 -
+2026-03-19 19:50:40,123 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:40] "GET /api/trades?_=1773939040118 HTTP/1.1" 200 -
+2026-03-19 19:50:40,124 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:40] "GET /api/portfolio?_=1773939040118 HTTP/1.1" 200 -
+2026-03-19 19:50:40,126 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:40] "GET /api/budget?_=1773939040118 HTTP/1.1" 200 -
+2026-03-19 19:50:40,127 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:40] "GET /api/positions?_=1773939040118 HTTP/1.1" 200 -
+2026-03-19 19:50:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:50] "GET /api/trades?_=1773939050808 HTTP/1.1" 200 -
+2026-03-19 19:50:50,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:50] "GET /api/portfolio?_=1773939050808 HTTP/1.1" 200 -
+2026-03-19 19:50:50,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:50] "GET /api/performance?_=1773939050808 HTTP/1.1" 200 -
+2026-03-19 19:50:50,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:50] "GET /api/budget?_=1773939050808 HTTP/1.1" 200 -
+2026-03-19 19:50:50,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:50:50] "GET /api/positions?_=1773939050808 HTTP/1.1" 200 -
+2026-03-19 19:51:00,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:00] "GET /api/trades?_=1773939060808 HTTP/1.1" 200 -
+2026-03-19 19:51:00,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:00] "GET /api/performance?_=1773939060808 HTTP/1.1" 200 -
+2026-03-19 19:51:00,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:00] "GET /api/portfolio?_=1773939060808 HTTP/1.1" 200 -
+2026-03-19 19:51:00,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:00] "GET /api/budget?_=1773939060808 HTTP/1.1" 200 -
+2026-03-19 19:51:00,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:00] "GET /api/positions?_=1773939060808 HTTP/1.1" 200 -
+2026-03-19 19:51:10,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:10] "GET /api/trades?_=1773939070818 HTTP/1.1" 200 -
+2026-03-19 19:51:10,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:10] "GET /api/performance?_=1773939070818 HTTP/1.1" 200 -
+2026-03-19 19:51:10,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:10] "GET /api/portfolio?_=1773939070818 HTTP/1.1" 200 -
+2026-03-19 19:51:10,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:10] "GET /api/budget?_=1773939070818 HTTP/1.1" 200 -
+2026-03-19 19:51:10,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:10] "GET /api/positions?_=1773939070818 HTTP/1.1" 200 -
+2026-03-19 19:51:20,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:20] "GET /api/trades?_=1773939080807 HTTP/1.1" 200 -
+2026-03-19 19:51:20,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:20] "GET /api/performance?_=1773939080807 HTTP/1.1" 200 -
+2026-03-19 19:51:20,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:20] "GET /api/portfolio?_=1773939080807 HTTP/1.1" 200 -
+2026-03-19 19:51:20,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:20] "GET /api/budget?_=1773939080807 HTTP/1.1" 200 -
+2026-03-19 19:51:20,818 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:20] "GET /api/positions?_=1773939080807 HTTP/1.1" 200 -
+2026-03-19 19:51:30,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:30] "GET /api/trades?_=1773939090820 HTTP/1.1" 200 -
+2026-03-19 19:51:30,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:30] "GET /api/portfolio?_=1773939090820 HTTP/1.1" 200 -
+2026-03-19 19:51:30,828 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:30] "GET /api/performance?_=1773939090820 HTTP/1.1" 200 -
+2026-03-19 19:51:30,830 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:30] "GET /api/budget?_=1773939090820 HTTP/1.1" 200 -
+2026-03-19 19:51:30,831 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:30] "GET /api/positions?_=1773939090820 HTTP/1.1" 200 -
+2026-03-19 19:51:55,823 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:55] "GET /api/trades?_=1773939115812 HTTP/1.1" 200 -
+2026-03-19 19:51:55,824 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:55] "GET /api/performance?_=1773939115812 HTTP/1.1" 200 -
+2026-03-19 19:51:55,826 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:55] "GET /api/budget?_=1773939115812 HTTP/1.1" 200 -
+2026-03-19 19:51:55,827 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:55] "GET /api/positions?_=1773939115812 HTTP/1.1" 200 -
+2026-03-19 19:51:55,836 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:51:55] "GET /api/portfolio?_=1773939115812 HTTP/1.1" 200 -
+2026-03-19 19:52:00,813 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:52:00] "GET /api/trades?_=1773939120808 HTTP/1.1" 200 -
+2026-03-19 19:52:00,814 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:52:00] "GET /api/performance?_=1773939120808 HTTP/1.1" 200 -
+2026-03-19 19:52:00,815 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:52:00] "GET /api/portfolio?_=1773939120808 HTTP/1.1" 200 -
+2026-03-19 19:52:00,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:52:00] "GET /api/positions?_=1773939120808 HTTP/1.1" 200 -
+2026-03-19 19:52:00,817 [INFO] werkzeug: 127.0.0.1 - - [19/Mar/2026 19:52:00] "GET /api/budget?_=1773939120808 HTTP/1.1" 200 -

@@ -123,8 +123,8 @@ def create_app(
         return jsonify({
             "normal": {"current": normal_count, "max": normal_max},
             "vs": {"current": vs_count, "max": vs_reserved},
-            "fav": {"current": fav_count, "max": 3},
-            "esports": {"current": esports_count, "max": 3},
+            "fav": {"current": fav_count, "max": 5},
+            "esports": {"current": esports_count, "max": 5},
             "live_dip": {"current": live_dip_count, "max": 2},
             "far": {"current": far_count, "max": far_max},
             "pending": pending_count,

@@ -1,0 +1,4 @@
+/stop    → bot durur
+/pause   → bot bekler, trade yapmaz
+/resume  → devam
+/status  → şu an ne yapıyor

@@ -110,6 +110,9 @@ class OddsAPIClient:
             return data
         except requests.RequestException as e:
             logger.warning("Odds API error: %s", e)
+            if "401" in str(e):
+                logger.warning("Odds API key invalid/expired — disabling for this session")
+                self.api_key = ""
             return None
 
     def get_bookmaker_odds(

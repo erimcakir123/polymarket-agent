@@ -1,0 +1,51 @@
+Timeline
+
+GÜN 1  | Bot başlar (dry_run, $48 bütçe)                    | Otomatik | —
+GÜN 2  | Bot çalışıyor, veri topluyor                       | Otomatik | ~$3
+GÜN 3  | CHECKPOINT 1 — İlk veri (~350 prediction)          | Claude   | ~$6
+GÜN 4  | Bot çalışıyor                                      | Otomatik | ~$8
+GÜN 5  | CHECKPOINT 2 — Baseline. BOT DURUR. Optimizasyon.  | Claude   | ~$12
+GÜN 6  | Bot tekrar başlar (optimizasyonlu)                 | Otomatik | ~$13
+GÜN 7  | Bot çalışıyor                                      | Otomatik | ~$15
+GÜN 8  | CHECKPOINT 3 — Optimizasyon sonrası                | Claude   | ~$18
+GÜN 9  | Bot çalışıyor                                      | Otomatik | ~$20
+GÜN 10 | Bot çalışıyor                                      | Otomatik | ~$22
+GÜN 11 | CHECKPOINT 4 — Karşılaştırma. BOT DURUR. Optimize. | Claude   | ~$24
+GÜN 12 | Bot tekrar başlar (2x optimizasyonlu)              | Otomatik | ~$25
+GÜN 13 | Bot çalışıyor                                      | Otomatik | ~$27
+GÜN 14 | Bot çalışıyor                                      | Otomatik | ~$30
+GÜN 15 | CHECKPOINT 5 — Doğrulama. Stabil mi?               | Claude   | ~$33
+GÜN 16 | Bot çalışıyor                                      | Otomatik | ~$35
+GÜN 17 | Bot çalışıyor                                      | Otomatik | ~$38
+GÜN 18 | Bot çalışıyor                                      | Otomatik | ~$40
+GÜN 19 | CHECKPOINT 6 — KARAR: devam/para/dur               | Birlikte | ~$43
+GÜN 20 | (Onay varsa) Gerçek para başlar ($100-200)         | Birlikte | ~$45
+GÜN 25 | CHECKPOINT 7 — İlk gerçek sonuçlar                 | Claude   | ~$48
+GÜN 30 | CHECKPOINT 8 — Ay sonu değerlendirme               | Birlikte | yeni ay
+
+___________________________________________________________________________________
+
+KPI hedefleri
+
+GÜN 1  | Bot başlar (dry_run, $48 bütçe)                    | Otomatik | —      | —
+GÜN 2  | Bot çalışıyor, veri topluyor                       | Otomatik | ~$3    | —
+GÜN 3  | CHECKPOINT 1 — İlk veri (~350 prediction)          | Claude   | ~$6    | Win rate > %45 (< %40 ise bug ara)
+GÜN 4  | Bot çalışıyor                                      | Otomatik | ~$8    | —
+GÜN 5  | CHECKPOINT 2 — Baseline. BOT DURUR. Optimizasyon.  | Claude   | ~$12   | Win rate > %48, en kötü kategori tespit
+GÜN 6  | Bot tekrar başlar (optimizasyonlu)                 | Otomatik | ~$13   | —
+GÜN 7  | Bot çalışıyor                                      | Otomatik | ~$15   | —
+GÜN 8  | CHECKPOINT 3 — Optimizasyon sonrası                | Claude   | ~$18   | Win rate > %50, Faz1'den iyileşme var mı
+GÜN 9  | Bot çalışıyor                                      | Otomatik | ~$20   | —
+GÜN 10 | Bot çalışıyor                                      | Otomatik | ~$22   | —
+GÜN 11 | CHECKPOINT 4 — Karşılaştırma. BOT DURUR. Optimize. | Claude   | ~$24   | Win rate > %52, simüle PnL yükseliyor mu
+GÜN 12 | Bot tekrar başlar (2x optimizasyonlu)              | Otomatik | ~$25   | —
+GÜN 13 | Bot çalışıyor                                      | Otomatik | ~$27   | —
+GÜN 14 | Bot çalışıyor                                      | Otomatik | ~$30   | —
+GÜN 15 | CHECKPOINT 5 — Doğrulama. Stabil mi?               | Claude   | ~$33   | Win rate > %53, max drawdown < %25
+GÜN 16 | Bot çalışıyor                                      | Otomatik | ~$35   | —
+GÜN 17 | Bot çalışıyor                                      | Otomatik | ~$38   | —
+GÜN 18 | Bot çalışıyor                                      | Otomatik | ~$40   | —
+GÜN 19 | CHECKPOINT 6 — KARAR: devam/para/dur               | Birlikte | ~$43   | Win rate > %55 → para, %50-55 → 1 tur daha, < %50 → dur
+GÜN 20 | (Onay varsa) Gerçek para başlar ($100-200)         | Birlikte | ~$45   | —
+GÜN 25 | CHECKPOINT 7 — İlk gerçek sonuçlar                 | Claude   | ~$48   | Gerçek PnL > $0, fill rate > %90
+GÜN 30 | CHECKPOINT 8 — Ay sonu değerlendirme               | Birlikte | yeni ay | Net kâr > API maliyeti net kâr > $0

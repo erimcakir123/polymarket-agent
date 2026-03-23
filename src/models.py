@@ -31,6 +31,7 @@ class MarketData(BaseModel):
     event_ended: bool = False  # True when event has ended (from Gamma API)
     sport_tag: str = ""  # Source sport tag (e.g. "cs2", "lol", "nba") from tag_id scan
     accepting_orders_at: str = ""  # When trading opened (proxy for market freshness)
+    match_start_iso: str = ""  # Actual match start time from Gamma event startTime
 
 
 class Position(BaseModel):
@@ -60,6 +61,7 @@ class Position(BaseModel):
     match_period: str = ""  # Current period (from Gamma event.period, e.g. "2/3")
     entry_reason: str = ""  # How this position was entered (e.g. "ai", "stock", "live_dip")
     pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
+    sport_tag: str = ""  # Specific sport (e.g. "cs2", "dota2", "lol", "nba") for correlation
 
     # Match-aware exit system fields
     ever_in_profit: bool = False           # True once peak_pnl_pct > 0.01 (never resets)

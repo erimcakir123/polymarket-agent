@@ -23,8 +23,8 @@ class CycleConfig(BaseModel):
 
 
 class ScannerConfig(BaseModel):
-    min_volume_24h: float = 50_000
-    min_liquidity: float = 5_000
+    min_volume_24h: float = 1_000   # Low threshold — volume spikes near match time, early entry is the strategy
+    min_liquidity: float = 1_000
     tags: List[str] = []
     prefer_short_duration: bool = True
     max_markets_per_cycle: int = 20

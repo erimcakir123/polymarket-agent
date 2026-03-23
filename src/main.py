@@ -106,13 +106,16 @@ class Agent:
         self._candidate_stock: list[dict] = []  # AI-analyzed candidates waiting for slots
         self._stock_stats = {"used": 0, "stale": 0, "expired": 0}  # Pipeline metrics
         self._fav_stock: list[dict] = []  # FAV_TIME_GATE candidates with own slots (max 3)
-        self._FAV_MAX_SLOTS = 3  # Dedicated FAV slots (separate from normal 15)
+        self._FAV_MAX_SLOTS = 5  # Dedicated FAV slots (separate from normal 15)
         self._FAV_MIN_EDGE = 0.15  # Only stok favorites with ≥15% edge
         self._far_stock: list[dict] = []  # FAR candidates (swing trade + penny alpha)
         self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
         self._spike_reentry: dict[str, dict] = {}  # condition_id -> saved AI data for re-entry
         self._scouted_reentry: dict[str, dict] = {}  # scouted positions exited via TP/trailing
         self._last_esports_early_check: float = 0  # Timestamp of last esports early scan
+        self._eligible_cache: list = []  # Cached eligible markets from last Gamma scan
+        self._eligible_pointer: int = 0  # Next index to analyze from cache
+        self._eligible_cache_ts: float = 0  # When cache was last refreshed
         self._last_resolved_count = self._count_resolved()
 
         # V2: Circuit breaker and tiered blacklist
@@ -590,36 +593,55 @@ class Agent:
         # 4e. Fill from FAR stock — execute swing/penny candidates in FAR slots
         self._fill_from_far_stock()
 
-        # 5. Scan markets
+        # 5. Scan markets — use cached eligible list if available, else fresh scan
         self._set_status("running", "Scanning markets")
-        markets = self.scanner.fetch()
-        if not markets:
-            self._log_cycle_summary(bankroll, "no qualifying markets")
-            return
+        ELIGIBLE_CACHE_TTL = 1800  # 30 min — refresh when slots are full or cache stale
+        now_ts = time.time()
+        cache_stale = (now_ts - self._eligible_cache_ts) > ELIGIBLE_CACHE_TTL
+        cache_exhausted = self._eligible_pointer >= len(self._eligible_cache)
 
-        # 5b. Pre-filter: remove logically impossible markets before spending AI tokens
-        markets = filter_impossible_markets(markets)
-        if not markets:
-            self._log_cycle_summary(bankroll, "all markets filtered as impossible")
-            return
+        if self._eligible_cache and not cache_stale and not cache_exhausted:
+            # Reuse cached list — skip Gamma API call
+            markets = self._eligible_cache
+            logger.info("Using cached eligible list (%d markets, pointer=%d/%d)",
+                        len(markets), self._eligible_pointer, len(markets))
+        else:
+            # Fresh scan from Gamma API
+            if cache_stale and self._eligible_cache:
+                logger.info("Eligible cache stale (%.0fs old) — refreshing from Gamma",
+                            now_ts - self._eligible_cache_ts)
+            markets = self.scanner.fetch()
+            if not markets:
+                self._log_cycle_summary(bankroll, "no qualifying markets")
+                return
 
-        # 6. New market detection — prioritize freshly opened markets (edge erodes fast)
-        current_ids = {m.condition_id for m in markets}
-        if self._seen_market_ids:
-            new_ids = current_ids - self._seen_market_ids
-            if new_ids:
-                logger.info("NEW MARKETS DETECTED: %d new markets this cycle", len(new_ids))
-                new_markets_list = [m for m in markets if m.condition_id in new_ids]
-                old_markets_list = [m for m in markets if m.condition_id not in new_ids]
-                # Invalidate cache for new markets — analyze with fresh data
-                for m in new_markets_list:
-                    self.ai.invalidate_cache(m.condition_id)
-                # New markets first, then old markets fill remaining batch slots
-                markets = new_markets_list + old_markets_list
-                for m in new_markets_list[:5]:
-                    logger.info("  NEW: %s (%.0f%%) vol=$%.0f",
-                                m.question[:60], m.yes_price * 100, m.volume_24h)
-        self._seen_market_ids = current_ids
+            # 5b. Pre-filter: remove logically impossible markets before spending AI tokens
+            markets = filter_impossible_markets(markets)
+            if not markets:
+                self._log_cycle_summary(bankroll, "all markets filtered as impossible")
+                return
+
+            # 6. New market detection — prioritize freshly opened markets (edge erodes fast)
+            current_ids = {m.condition_id for m in markets}
+            if self._seen_market_ids:
+                new_ids = current_ids - self._seen_market_ids
+                if new_ids:
+                    logger.info("NEW MARKETS DETECTED: %d new markets this cycle", len(new_ids))
+                    new_markets_list = [m for m in markets if m.condition_id in new_ids]
+                    old_markets_list = [m for m in markets if m.condition_id not in new_ids]
+                    for m in new_markets_list:
+                        self.ai.invalidate_cache(m.condition_id)
+                    markets = new_markets_list + old_markets_list
+                    for m in new_markets_list[:5]:
+                        logger.info("  NEW: %s (%.0f%%) vol=$%.0f",
+                                    m.question[:60], m.yes_price * 100, m.volume_24h)
+            self._seen_market_ids = current_ids
+
+            # Cache the full eligible list and reset pointer
+            self._eligible_cache = markets
+            self._eligible_pointer = 0
+            self._eligible_cache_ts = now_ts
+            logger.info("Cached %d eligible markets for batch processing", len(markets))
 
         # 7. Filter BEFORE batch cut — don't waste AI calls on known-skip markets
         # 7a. Remove markets already in portfolio or on exit cooldown
@@ -640,7 +662,6 @@ class Agent:
                         skipped_portfolio, skipped_cooldown)
 
         # 7b. Skip markets already analyzed recently (don't re-send to AI)
-        now_ts = time.time()
         # Clean up old entries (>4 hours = allow re-analysis)
         self._analyzed_market_ids = {
             cid: ts for cid, ts in self._analyzed_market_ids.items()
@@ -731,11 +752,20 @@ class Agent:
 
         def _hours_to_start(m: MarketData) -> float:
             """Hours until match STARTS. Uses actual start time from
-            PandaScore (esports) or ESPN (sports) when available.
+            PandaScore (esports) or ESPN (sports) when available,
+            then match_start_iso from Gamma event startTime.
             Falls back to endDate - duration estimate otherwise."""
             # Prefer actual start time from scout queue
             if m.condition_id in _scout_match_times:
                 return _scout_match_times[m.condition_id]
+            # Prefer match_start_iso from Gamma event startTime (if available on MarketData)
+            _msi = getattr(m, 'match_start_iso', '')
+            if _msi:
+                try:
+                    start_dt = datetime.fromisoformat(_msi.replace("Z", "+00:00"))
+                    return max(0, (start_dt - now_utc).total_seconds() / 3600)
+                except (ValueError, TypeError):
+                    pass
             # Fallback: estimate from endDate (unreliable, but better than nothing)
             h_end = _hours_to_end(m)
             if h_end >= 999:
@@ -749,7 +779,7 @@ class Agent:
 
         # Filter out live matches BEFORE AI analysis (save API cost)
         pre_live = len(markets)
-        markets = [m for m in markets if not (m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso))]
+        markets = [m for m in markets if not (m.event_live if hasattr(m, 'event_live') else self._estimate_match_live(m.slug, m.question, m.end_date_iso, match_start_iso=getattr(m, 'match_start_iso', '')))]
         if len(markets) < pre_live:
             logger.info("Pre-filtered %d live matches (saved API cost)", pre_live - len(markets))
 
@@ -764,21 +794,25 @@ class Agent:
         max_pos = self.config.risk.max_positions
         capacity_pct = pos_count / max(1, max_pos)  # 0.0 = empty, 1.0 = full
 
-        if capacity_pct <= 0.3:
-            # High capacity: explore for deep value
-            imm_slots = max(2, batch_size * 2 // 10)
-            mid_slots = batch_size * 4 // 10
-            disc_slots = batch_size - imm_slots - mid_slots
-        elif capacity_pct <= 0.7:
-            # Medium capacity: balanced
-            imm_slots = batch_size * 5 // 10
-            mid_slots = batch_size * 3 // 10
-            disc_slots = batch_size - imm_slots - mid_slots
-        else:
-            # Low capacity: maximize turnover
+        # Imminent-first strategy:
+        # 1. Always fill imminent slots first (0-6h = fast turnover)
+        # 2. As imminent fills up, shift to mid/discovery for stock pipeline
+        imm_available = len(imminent)
+        if imm_available >= batch_size:
+            # Plenty of imminent — fill batch with them, stock gets mid/disc later
             imm_slots = batch_size
             mid_slots = 0
             disc_slots = 0
+        elif imm_available >= batch_size * 6 // 10:
+            # Good imminent supply — take all, fill rest with mid
+            imm_slots = imm_available
+            mid_slots = batch_size - imm_slots
+            disc_slots = 0
+        else:
+            # Imminent scarce — take all, fill with mid then discovery
+            imm_slots = imm_available
+            mid_slots = min(len(midrange), (batch_size - imm_slots) * 7 // 10)
+            disc_slots = batch_size - imm_slots - mid_slots
 
         prioritized = imminent[:imm_slots]
         prioritized += midrange[:mid_slots]
@@ -902,6 +936,8 @@ class Agent:
         # 10a. Mark as analyzed (don't re-send to AI next cycle)
         for m in prioritized:
             self._analyzed_market_ids[m.condition_id] = time.time()
+        # Advance eligible cache pointer so next cycle continues from where we left off
+        self._eligible_pointer += len(prioritized)
 
         # 10b. Check budget alerts
         for alert in self.ai.check_budget_alerts():
@@ -1140,10 +1176,10 @@ class Agent:
                 edge=edge,
                 confidence=estimate.confidence,
             )
-            corr_exposure = self.portfolio.correlated_exposure(
-                market.tags[0] if market.tags else ""
-            )
-            league_count = self.portfolio.count_by_category(market.tags[0] if market.tags else "")
+            _cat = market.tags[0] if market.tags else ""
+            _stag = market.sport_tag or ""
+            corr_exposure = self.portfolio.correlated_exposure(_cat, sport_tag=_stag)
+            league_count = self.portfolio.count_by_category(_cat, sport_tag=_stag)
             decision = self.risk.evaluate(
                 signal, bankroll, self.portfolio.positions, corr_exposure,
                 league_count=league_count, confidence=estimate.confidence,
@@ -1289,9 +1325,11 @@ class Agent:
             # Nearby matches get a bonus but edge remains dominant factor
             remaining_hours = 168.0  # default 7 days if no end_date
             time_bonus = 0.0
-            if market.end_date_iso:
+            # Prefer match_start_iso (actual match time) over end_date_iso (settlement)
+            _time_iso = getattr(market, 'match_start_iso', '') or market.end_date_iso
+            if _time_iso:
                 try:
-                    end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(_time_iso.replace("Z", "+00:00"))
                     delta_h = (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600
                     remaining_hours = max(1.0, min(168.0, delta_h))  # clamp 1h-168h
                     # Time bonus: closer matches get priority (capital turnover)
@@ -1494,6 +1532,9 @@ class Agent:
             # Get actual match start time from scout if available
             _scout_entry = self.scout.match_market(market.question, market.slug)
             _match_start = _scout_entry.get("match_time", "") if _scout_entry else ""
+            # Fallback to Gamma event startTime if scout has no match time
+            if not _match_start:
+                _match_start = getattr(market, 'match_start_iso', '') or ""
             _num_games = _scout_entry.get("number_of_games", 0) if _scout_entry else 0
             self.portfolio.add_position(
                 market.condition_id, token_id, direction.value,
@@ -1506,6 +1547,7 @@ class Agent:
                 end_date_iso=market.end_date_iso,
                 match_start_iso=_match_start,
                 number_of_games=_num_games,
+                sport_tag=market.sport_tag or "",
             )
             # Set live_on_clob immediately if match is already in progress
             pos = self.portfolio.positions.get(market.condition_id)
@@ -1534,6 +1576,7 @@ class Agent:
                 "end_date": market.end_date_iso,
                 "data_sources": mkt_sources,
                 "rank_score": c["score"],
+                "sport_tag": market.sport_tag or "",
             })
             self._log_reasoning(
                 market.question, direction.value, adjusted_size, price,
@@ -1657,6 +1700,8 @@ class Agent:
                             scouted=is_scouted,
                             question=market.question,
                             end_date_iso=market.end_date_iso,
+                            match_start_iso=getattr(market, 'match_start_iso', '') or "",
+                            sport_tag=market.sport_tag or "",
                         )
                         self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
                         self.trade_log.log({
@@ -1672,6 +1717,7 @@ class Agent:
                             "spread_cost": round(spread_loss, 2),
                             "rank_score": candidate["score"],
                             "data_sources": mkt_sources,
+                            "sport_tag": market.sport_tag or "",
                         })
                         self._log_reasoning(
                             market.question, direction.value, adjusted_size, price,
@@ -1715,10 +1761,10 @@ class Agent:
                 "data_sources": c["mkt_sources"],
             })
             logger.info("Stocked: %s | score=%.3f (waiting for slot)", c["market"].slug[:40], c["score"])
-        # Cap stock size (keep best 5, drop weakest)
-        if len(self._candidate_stock) > 5:
+        # Cap stock size (keep best 10, drop weakest)
+        if len(self._candidate_stock) > 10:
             self._candidate_stock.sort(key=lambda c: c["score"], reverse=True)
-            self._candidate_stock = self._candidate_stock[:5]
+            self._candidate_stock = self._candidate_stock[:10]
 
         # Persist stock to disk for dashboard
         self._save_stock_to_disk()
@@ -1827,6 +1873,8 @@ class Agent:
                 ai_probability=estimate.ai_probability,
                 question=market.question,
                 end_date_iso=market.end_date_iso,
+                match_start_iso=getattr(market, 'match_start_iso', '') or "",
+                sport_tag=market.sport_tag or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -1929,7 +1977,9 @@ class Agent:
                 ai_probability=estimate.ai_probability,
                 question=market.question,
                 end_date_iso=market.end_date_iso,
+                match_start_iso=getattr(market, 'match_start_iso', '') or "",
                 entry_reason="fav_time_gate",
+                sport_tag=market.sport_tag or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -1940,6 +1990,7 @@ class Agent:
                 "ai_probability": estimate.ai_probability,
                 "from_fav_stock": True, "stock_age_min": round(age_min, 1),
                 "data_sources": mkt_sources,
+                "sport_tag": market.sport_tag or "",
             })
             self.notifier.send(
                 f"\u2b50 *FAV EARLY ENTRY* \u2014 no AI cost\n\n"
@@ -2040,7 +2091,9 @@ class Agent:
                 ai_probability=estimate.ai_probability,
                 question=market.question,
                 end_date_iso=market.end_date_iso,
+                match_start_iso=getattr(market, 'match_start_iso', '') or "",
                 entry_reason="far",
+                sport_tag=market.sport_tag or "",
             )
             self.trade_log.log({
                 "market": market.slug, "action": direction.value,
@@ -2052,6 +2105,7 @@ class Agent:
                 "far_type": far_type, "is_penny": is_penny,
                 "entry_price_cents": round(entry_price * 100, 1),
                 "from_far_stock": True, "stock_age_min": round(age_min, 1),
+                "sport_tag": market.sport_tag or "",
             })
             emoji = "\U0001f4b0" if is_penny else "\U0001f30d"
             self.notifier.send(
@@ -2159,7 +2213,9 @@ class Agent:
                     ai_probability=prior_ai_prob,
                     question=market.question,
                     end_date_iso=market.end_date_iso,
+                    match_start_iso=getattr(market, 'match_start_iso', '') or "",
                     entry_reason="live_dip",
+                    sport_tag=market.sport_tag or "",
                 )
 
                 self.trade_log.log({
@@ -2172,6 +2228,7 @@ class Agent:
                     "pre_match_price": c.pre_match_price,
                     "drop_pct": c.drop_pct,
                     "score_summary": c.score_summary,
+                    "sport_tag": market.sport_tag or "",
                 })
 
                 self.notifier.send(
@@ -2219,9 +2276,9 @@ class Agent:
                     logger.info("Esports early skip: bankroll too low for %s", c.slug[:40])
                     continue
 
-                # Check esports_early own slot limit (3 max, separate from normal slots)
-                if self.portfolio.count_by_entry_reason("esports_early") >= 3:
-                    logger.info("Esports early skip: max esports_early slots (3) reached")
+                # Check esports_early own slot limit (5 max, separate from normal slots)
+                if self.portfolio.count_by_entry_reason("esports_early") >= 5:
+                    logger.info("Esports early skip: max esports_early slots (5) reached")
                     break
 
                 price = c.token_price
@@ -2241,6 +2298,7 @@ class Agent:
                     match_start_iso=c.match_start_iso or "",
                     number_of_games=c.number_of_games,
                     entry_reason="esports_early",
+                    sport_tag=getattr(c, 'sport_tag', '') or "esports",
                 )
 
                 self.trade_log.log({
@@ -2254,6 +2312,7 @@ class Agent:
                     "market_price": c.market_price,
                     "data_summary": c.data_summary,
                     "is_reentry": c.is_reentry,
+                    "sport_tag": getattr(c, 'sport_tag', '') or "esports",
                 })
 
                 emoji = "\U0001f504" if c.is_reentry else "\U0001f3ae"
@@ -2424,10 +2483,12 @@ class Agent:
             return None
 
         # Match must start within max_hours_to_start
-        if not market.end_date_iso:
+        # Prefer match_start_iso (actual match time) over end_date_iso (settlement)
+        _vs_time = getattr(market, 'match_start_iso', '') or market.end_date_iso
+        if not _vs_time:
             return None
         try:
-            end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(_vs_time.replace("Z", "+00:00"))
             hours_left = (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600
             if hours_left > vs_cfg.max_hours_to_start or hours_left < 0:
                 return None
@@ -2501,7 +2562,9 @@ class Agent:
             scouted=False,
             question=market.question,
             end_date_iso=market.end_date_iso,
+            match_start_iso=getattr(market, 'match_start_iso', '') or "",
             volatility_swing=True,
+            sport_tag=market.sport_tag or "",
         )
         self.last_cycle_has_live_clob = True  # Trigger fast polling immediately
 
@@ -2516,6 +2579,7 @@ class Agent:
             "ai_probability": estimate.ai_probability,
             "data_sources": mkt_sources,
             "vs_slot_reserved": True,
+            "sport_tag": market.sport_tag or "",
         })
         logger.info(
             "VOLATILITY SWING (reserved slot): %s | %s @ %.0fc | $%.0f | blocked by: %s",
@@ -2770,6 +2834,7 @@ class Agent:
                 ai_probability=ai_prob,
                 question=data.get("question", ""),
                 end_date_iso=data.get("end_date_iso", ""),
+                sport_tag=data.get("sport_tag", ""),
             )
 
             self.trade_log.log({
@@ -2897,6 +2962,7 @@ class Agent:
                 question=data.get("question", ""),
                 end_date_iso=data.get("end_date_iso", ""),
                 scouted=True,  # Re-enter as scouted — hold to resolve
+                sport_tag=data.get("sport_tag", ""),
             )
 
             self.trade_log.log({
@@ -3021,7 +3087,14 @@ class Agent:
                     match_start_iso.replace("Z", "+00:00")
                     .replace(" ", "T")  # PandaScore format: "2026-03-22 12:00:00+00"
                 )
-                return now >= start_dt
+                # Not live if match hasn't started yet
+                if now < start_dt:
+                    return False
+                # Match started — but allow entry in first 5 min (pre-match odds still valid)
+                minutes_since_start = (now - start_dt).total_seconds() / 60
+                if minutes_since_start <= 5:
+                    return False  # Just started, pre-match edge still valid
+                return True
             except (ValueError, TypeError):
                 pass
 
@@ -3560,9 +3633,11 @@ class Agent:
                 if vs_positions:
                     now = datetime.now(timezone.utc)
                     for vp in vs_positions:
-                        if vp.end_date_iso:
+                        # Prefer match_start_iso (actual match time) over end_date_iso (settlement)
+                        _vp_time = vp.match_start_iso or vp.end_date_iso
+                        if _vp_time:
                             try:
-                                end_dt = datetime.fromisoformat(vp.end_date_iso.replace("Z", "+00:00"))
+                                end_dt = datetime.fromisoformat(_vp_time.replace("Z", "+00:00"))
                                 hours_left = (end_dt - now).total_seconds() / 3600
                                 if hours_left <= 4.0:
                                     vs_near_match = True

@@ -135,7 +135,7 @@
         /* ── Cards ── */
         .metrics-row {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: 2fr repeat(4, 1fr);
             gap: 10px;
         }
 
@@ -915,11 +915,6 @@
                     <div class="card-sub" id="realizedWL">0W / 0L</div>
                 </div>
                 <div class="card">
-                    <div class="card-label"><span class="card-icon">&#127919;</span> <span class="card-label-text"><span>Active</span><span>Bets</span></span></div>
-                    <div class="card-value" id="positions">0</div>
-                    <div class="card-sub" id="maxPositions">/ 15 max</div>
-                </div>
-                <div class="card">
                     <div class="card-label"><span class="card-icon">&#128274;</span> <span class="card-label-text"><span>Locked</span><span>in Bets</span></span></div>
                     <div class="card-value" id="lockedAmount" style="color:#ff9f43">$0.00</div>
                     <div class="card-sub" id="lockedSub">0 positions</div>
@@ -946,7 +941,7 @@
                         <div class="gauge-info">
                             <span class="gi-label">Spent</span><span class="gi-val" id="budgetSpent">$0.00</span>
                             <span class="gi-label">Cap</span><span class="gi-val" id="budgetLimit">$0.00</span>
-                            <span class="gi-label">Left</span><span class="gi-val" id="budgetRemain" style="color:var(--red)">$0.00</span>
+                            <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener" style="grid-column:span 2;display:block;padding:3px 0;background:rgba(45,212,168,0.1);border:1px solid rgba(45,212,168,0.25);border-radius:4px;color:var(--accent);text-align:center;font-size:9px;font-weight:600;text-decoration:none;transition:background 0.2s,border-color 0.2s;cursor:pointer" onmouseover="this.style.background='rgba(45,212,168,0.2)';this.style.borderColor='rgba(45,212,168,0.4)'" onmouseout="this.style.background='rgba(45,212,168,0.1)';this.style.borderColor='rgba(45,212,168,0.25)'">Billing &#8599;</a>
                         </div>
                     </div>
                 </div>
@@ -968,23 +963,36 @@
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-label"><span class="card-icon">&#128202;</span> Positions</div>
+                    <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+                        <span><span class="card-icon">&#128202;</span> Positions</span>
+                        <div style="position:relative;display:inline-block" id="slotHelpWrap">
+                            <button onclick="var d=document.getElementById('slotHelpDrop');d.style.display=d.style.display==='block'?'none':'block'" style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">?</button>
+                            <div id="slotHelpDrop" style="display:none;position:absolute;right:0;top:22px;width:220px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:10px;line-height:1.5">
+                                <div style="margin-bottom:4px"><b style="color:rgba(255,255,255,0.5)">NRM</b> — Normal betler (ana slotlar)</div>
+                                <div style="margin-bottom:4px"><b style="color:var(--green)">VS</b> — Volatility Swing (fiyat dalgalanmasından faydalanma)</div>
+                                <div style="margin-bottom:4px"><b style="color:var(--blue)">EE</b> — Esports Early (erken giriş, maç öncesi)</div>
+                                <div style="margin-bottom:4px"><b style="color:var(--amber)">FAR</b> — Uzak maçlar (6h+, swing trade)</div>
+                                <div style="margin-bottom:4px"><b style="color:var(--red)">LD</b> — Live Dip (canlıda düşüşe giriş)</div>
+                                <div><b style="color:var(--green)">FAV</b> — Favori zamanlaması (yüksek edge favoriler)</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="gauge-wrap">
                         <div class="gauge-canvas-wrap">
                             <canvas id="positionChart"></canvas>
                             <div class="gauge-center">
                                 <div class="gauge-val" id="totalPositions">0</div>
-                                <div class="gauge-label">active</div>
+                                <div class="gauge-label">ACTIVE</div>
                             </div>
                         </div>
                         <div style="width:1px;align-self:stretch;background:var(--border);margin:0 var(--space-sm)"></div>
                         <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-content:center">
-                            <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:9px;padding:2px 6px;text-align:center">VS 0/3</span>
-                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:9px;padding:2px 6px;text-align:center">EE 0/3</span>
-                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:9px;padding:2px 6px;text-align:center">FAR 0/2</span>
+                            <span class="entry-tag" style="font-size:9px;padding:2px 6px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5)" id="slotNormalInline">NRM 0/10</span>
+                            <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:9px;padding:2px 6px;text-align:center">VS 0/5</span>
+                            <span class="entry-tag tag-ee" id="slotEeInline" style="font-size:9px;padding:2px 6px;text-align:center">EE 0/5</span>
+                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:9px;padding:2px 6px;text-align:center">FAR 0/4</span>
                             <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:9px;padding:2px 6px;text-align:center">LD 0/2</span>
-                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:9px;padding:2px 6px;text-align:center">FAV 0/3</span>
-                            <span class="entry-tag" style="font-size:9px;padding:2px 6px;text-align:center;background:var(--accent-dim);color:var(--accent)" id="slotNormalInline">NRM 0/12</span>
+                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:9px;padding:2px 6px;text-align:center">FAV 0/5</span>
                         </div>
                     </div>
                     <div id="positionLegend" style="display:none"></div>
@@ -1162,14 +1170,6 @@
                 <table class="guide-table">
                     <tr><td>Realized P&L</td><td>Kapanmış pozisyonlardan elde edilen toplam kâr/zarar. Bu değer kesinleşmiştir.</td></tr>
                     <tr><td>W / L</td><td>Kazanılan ve kaybedilen pozisyon sayısı.</td></tr>
-                </table>
-            </div>
-
-            <div class="guide-section" id="guide-bets">
-                <h3>&#127919; Active Bets</h3>
-                <table class="guide-table">
-                    <tr><td>Active Bets</td><td>Açık pozisyon sayısı. Maksimum 5 aynı anda açık olabilir (risk limiti).</td></tr>
-                    <tr><td>Her pozisyon</td><td>Bir marketteki bahisi temsil eder.</td></tr>
                 </table>
             </div>
 
@@ -1442,19 +1442,17 @@
             }
         });
 
-        /* ── Position Doughnut ── */
+        /* ── Position Fill Gauge (single-color, red/yellow/green) ── */
         positionChart = new Chart(document.getElementById('positionChart'), {
             type: 'doughnut',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: POSITION_COLORS, borderWidth: 0 }] },
+            data: { labels: ['Filled', 'Empty'], datasets: [{ data: [0, 1], backgroundColor: ['rgba(255,255,255,0.04)', 'rgba(255,255,255,0.04)'], borderWidth: 0 }] },
             options: {
                 cutout: '75%',
                 rotation: -90,
                 circumference: 180,
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false }, tooltip: {
-                    callbacks: { label: ctx => ctx.label + ': $' + ctx.raw.toFixed(2) }
-                }},
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
             }
         });
 
@@ -1527,7 +1525,7 @@
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
                 updateWaterfall(allTrades);
-                updatePositions(allPortfolioData);
+                updatePositions();
                 updatePerformance(perfData, allTrades);
                 updateScatter(allTrades);
                 updateTradeFeed(allTrades);
@@ -1544,15 +1542,17 @@
             const hwm = latest.hwm || bankroll;
             const pnl = latest.unrealized_pnl || 0;
             const positions = latest.positions || 0;
-            const dd = hwm > 0 ? ((hwm - bankroll) / hwm * 100) : 0;
+            // Equity = bankroll + current value of all positions (locked bets are NOT losses)
+            const allPos = Object.values(allPositions || {});
+            const positionValues = allPos.reduce((sum, p) => sum + (p.current_value || p.size_usdc || 0), 0);
+            const equity = bankroll + positionValues;
+            const dd = hwm > 0 ? Math.max(0, (hwm - equity) / hwm * 100) : 0;
 
             document.getElementById('bankroll').innerHTML = dimDollars(bankroll);
             document.getElementById('hwm').innerHTML = dimDollars(hwm);
-            document.getElementById('positions').textContent = positions;
             document.getElementById('drawdown').textContent = dd.toFixed(1) + '% drawdown';
 
             // Locked in bets
-            const allPos = Object.values(allPositions || {});
             const locked = allPos.reduce((sum, p) => sum + (p.size_usdc || 0), 0);
             document.getElementById('lockedAmount').innerHTML = dimDollars(locked);
             document.getElementById('lockedSub').textContent = allPos.length + ' position' + (allPos.length !== 1 ? 's' : '');
@@ -1630,34 +1630,37 @@
             waterfallChart.update();
         }
 
-        function updatePositions(data) {
-            if (!data.length) return;
-            const latest = data[data.length - 1];
-            const pos = latest.open_positions || [];
+        function updatePositions() {
             const legendEl = document.getElementById('positionLegend');
             const totalEl = document.getElementById('totalPositions');
+            const pos = allPositions ? Object.values(allPositions) : [];
+            const maxPos = 15; // max_positions from config
+            const count = pos.length;
+            const pct = maxPos > 0 ? count / maxPos : 0;
 
-            if (!pos.length) {
-                positionChart.data.labels = ['Empty'];
-                positionChart.data.datasets[0].data = [1];
-                positionChart.data.datasets[0].backgroundColor = ['rgba(255,255,255,0.04)'];
-                positionChart.update();
-                totalEl.textContent = '0';
+            // Single color based on fill %: red < 33%, yellow 33-66%, green > 66%
+            let fillColor;
+            if (pct <= 0) fillColor = 'rgba(255,255,255,0.04)';
+            else if (pct < 0.33) fillColor = COLORS.red;
+            else if (pct < 0.67) fillColor = COLORS.amber;
+            else fillColor = COLORS.green;
+
+            totalEl.textContent = count + '/' + maxPos;
+            positionChart.data.labels = ['Filled', 'Empty'];
+            positionChart.data.datasets[0].data = [count, Math.max(0, maxPos - count)];
+            positionChart.data.datasets[0].backgroundColor = [fillColor, 'rgba(255,255,255,0.04)'];
+            positionChart.update();
+
+            // Legend: show position names
+            if (!count) {
                 legendEl.innerHTML = '<div class="empty-state" style="padding:var(--space-md)"><div class="empty-sub">No open positions</div></div>';
                 return;
             }
-
-            totalEl.textContent = pos.length;
-            positionChart.data.labels = pos.map(p => p.market || p.condition_id || 'Unknown');
-            positionChart.data.datasets[0].data = pos.map(p => p.size || p.current_value || 1);
-            positionChart.data.datasets[0].backgroundColor = POSITION_COLORS.slice(0, pos.length);
-            positionChart.update();
-
             legendEl.innerHTML = pos.map((p, i) => `
                 <div class="legend-item">
-                    <div class="legend-dot" style="background:${POSITION_COLORS[i % POSITION_COLORS.length]}"></div>
-                    <span class="legend-label">${(p.market || p.condition_id || '').substring(0, 25)}</span>
-                    <span class="legend-val">$${(p.size || p.current_value || 0).toFixed(2)}</span>
+                    <div class="legend-dot" style="background:${fillColor}"></div>
+                    <span class="legend-label">${(p.question || '').substring(0, 25)}</span>
+                    <span class="legend-val">$${(p.current_value || p.size_usdc || 0).toFixed(2)}</span>
                 </div>
             `).join('');
         }
@@ -1749,13 +1752,28 @@
         function renderActivePositions() {
             const feedScroll = document.getElementById('feedScroll');
             const countEl = document.getElementById('tradeCount');
-            const positions = Object.values(allPositions || {});
+            // Filter out pending resolution positions — they go to exited tab
+            const positions = Object.values(allPositions || {}).filter(p => !p.pending_resolution);
             countEl.textContent = positions.length;
 
             if (!positions.length) {
                 feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">No active positions</div><div class="empty-sub">Positions will appear here as the bot trades</div></div>`;
                 return;
             }
+
+            // Sort: live first, then by time remaining (closest match first)
+            positions.sort((a, b) => {
+                const aLive = a.event_live || false;
+                const bLive = b.event_live || false;
+                if (aLive && !bLive) return -1;
+                if (!aLive && bLive) return 1;
+                const aTime = a.match_start_iso || a.end_date_iso || '';
+                const bTime = b.match_start_iso || b.end_date_iso || '';
+                if (!aTime && !bTime) return 0;
+                if (!aTime) return 1;
+                if (!bTime) return -1;
+                return new Date(aTime) - new Date(bTime);
+            });
 
             feedScroll.innerHTML = positions.map(p => {
                 const slug = p.slug || '';
@@ -1782,12 +1800,22 @@
                 const scouted = p.scouted || false;
                 const entryTime = p.entry_timestamp ? new Date(p.entry_timestamp).toLocaleString() : '--';
                 let countdown = '';
-                if (p.end_date_iso) {
-                    const end = new Date(p.end_date_iso);
+                const _timeIso = p.match_start_iso || p.end_date_iso;
+                if (p.pending_resolution) {
+                    countdown = 'Resolving...';
+                } else if (p.event_live || p.match_live) {
+                    countdown = 'LIVE';
+                } else if (_timeIso) {
+                    const end = new Date(_timeIso);
                     const now = new Date();
                     const diffMs = end - now;
                     if (diffMs <= 0) {
-                        countdown = 'Resolving...';
+                        // match_start_iso is in the past but not pending → match is LIVE
+                        countdown = 'LIVE';
+                    } else if (diffMs <= 1800000) {
+                        // Within 30 min → show "Starting soon"
+                        const m = Math.floor(diffMs / 60000);
+                        countdown = `${m}m`;
                     } else {
                         const h = Math.floor(diffMs / 3600000);
                         const m = Math.floor((diffMs % 3600000) / 60000);
@@ -1853,7 +1881,7 @@
                     </div>
                     <div class="feed-time" style="display:flex;justify-content:space-between">
                         <span>${entryTime}</span>
-                        ${countdown ? `<span style="color:${countdown === 'Resolving...' ? COLORS.amber : COLORS.accent};font-weight:600">&#9202; ${countdown}</span>` : ''}
+                        ${countdown ? `<span style="color:${countdown === 'LIVE' ? COLORS.red : countdown === 'Resolving...' ? COLORS.amber : COLORS.accent};font-weight:600">${countdown === 'LIVE' ? '&#128308;' : '&#9202;'} ${countdown}</span>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -1863,9 +1891,29 @@
             const feedScroll = document.getElementById('feedScroll');
             const countEl = document.getElementById('tradeCount');
             const exited = trades.filter(t => t.action === 'EXIT' || t.action === 'REMOVED');
-            countEl.textContent = exited.length;
 
-            if (!exited.length) {
+            // Add pending_resolution positions as pseudo-exited entries
+            const pendingPositions = Object.values(allPositions || {}).filter(p => p.pending_resolution);
+            const pendingEntries = pendingPositions.map(p => ({
+                _isPending: true,
+                action: 'RESOLVING',
+                market: p.slug || '',
+                question: p.question || '',
+                timestamp: new Date().toISOString(),
+                pnl: p.unrealized_pnl_usdc || 0,
+                size: p.size_usdc || 0,
+                price: p.entry_price || 0,
+                direction: p.direction || '',
+                confidence: p.confidence || '',
+                ai_probability: p.ai_probability || 0,
+                edge: 0,
+                reason: 'pending_resolution'
+            }));
+
+            const allExited = [...pendingEntries, ...exited];
+            countEl.textContent = allExited.length;
+
+            if (!allExited.length) {
                 feedScroll.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9678;</div><div class="empty-title">No closed positions yet</div><div class="empty-sub">Stop-loss, take-profit or resolved bets appear here</div></div>`;
                 return;
             }
@@ -1893,7 +1941,7 @@
             }
 
             // Cycle-based opacity: group exits within 10min of each other as same cycle
-            const sorted = exited.slice(-30).reverse();
+            const sorted = allExited.slice(-30).reverse();
             const cycleGap = 10 * 60 * 1000; // 10 minutes
             let currentCycleTs = sorted.length ? new Date(sorted[0].timestamp || 0).getTime() : 0;
             const cycleMap = new Map();
@@ -1905,43 +1953,44 @@
             });
 
             feedScroll.innerHTML = sorted.map(t => {
+                const isPending = t._isPending || false;
                 const slug = t.market || '';
-                const buy = buyMap[slug] || {};
-                const rawQ2 = buy.question || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
+                const buy = isPending ? t : (buyMap[slug] || {});
+                const rawQ2 = (isPending ? t.question : buy.question) || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
                 const title = escapeHtml(cleanMatchTitle(rawQ2));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const pnl = t.pnl || 0;
-                const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
+                const pnlColor = isPending ? COLORS.amber : (Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red));
                 const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
                 const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;
                 const reason = t.reason || 'manual';
-                const isWin = reason.includes('win');
-                const isLoss = reason.includes('loss');
-                const resultIcon = isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
-                const resultColor = isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
-                const resultLabel = isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
-                const resultBg = isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+                const isWin = !isPending && reason.includes('win');
+                const isLoss = !isPending && reason.includes('loss');
+                const resultIcon = isPending ? '&#9202;' : isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
+                const resultColor = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+                const resultLabel = isPending ? 'RESOLVING' : isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
+                const resultBg = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
 
-                // Enrichment from BUY entry
-                const direction = buy.action || '';
-                const isYes = direction.includes('YES');
-                const dirLabel = direction ? getDirectionLabel(buy.question, direction, slug) : '';
+                // Enrichment from BUY entry or pending position
+                const direction = isPending ? (t.direction || '') : (buy.action || '');
+                const isYes = isPending ? direction.includes('YES') || direction === 'BUY_YES' : direction.includes('YES');
+                const dirLabel = isPending ? (isYes ? 'YES' : 'NO') : (direction ? getDirectionLabel(buy.question, direction, slug) : '');
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
-                const rawBuyPrice = buy.price || 0;
+                const rawBuyPrice = isPending ? (t.price || 0) : (buy.price || 0);
                 const entryPrice = isYes ? rawBuyPrice : (1 - rawBuyPrice);
-                const size = buy.size || 0;
-                const confidence = buy.confidence || '';
+                const size = isPending ? (t.size || 0) : (buy.size || 0);
+                const confidence = isPending ? (t.confidence || '') : (buy.confidence || '');
                 const confLabel = confidence || '';
                 const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
-                const rawAiProb2 = buy.ai_probability || 0;
+                const rawAiProb2 = isPending ? (t.ai_probability || 0) : (buy.ai_probability || 0);
                 const aiProb = isYes ? rawAiProb2 : (1 - rawAiProb2);
                 const edge = buy.edge || 0;
                 const impactW = Math.min(Math.abs(pnl) * 3, 120);
                 const relTime = relativeTime(t.timestamp);
                 const pnlPct = size > 0 ? (pnl / size * 100).toFixed(1) : '0.0';
 
-                // Opacity: latest cycle = 1.0, older cycles = 0.45
-                const opacity = cycleMap.get(t) === 0 ? 1 : 0.45;
+                // Opacity: pending = always full, latest cycle = 1.0, older cycles = 0.45
+                const opacity = isPending ? 1 : (cycleMap.get(t) === 0 ? 1 : 0.45);
 
                 return `<div class="feed-item" style="opacity:${opacity.toFixed(2)};min-height:90px">
                     <div class="feed-top">
@@ -2195,6 +2244,14 @@
                 text.textContent = 'Offline';
             }
         }
+
+        /* ── Close dropdowns on outside click ── */
+        window.onclick = function(e) {
+            if (!e.target.closest('#slotHelpWrap')) {
+                var d = document.getElementById('slotHelpDrop');
+                if (d) d.style.display = 'none';
+            }
+        };
 
         /* ── Init ── */
         fetchData();
