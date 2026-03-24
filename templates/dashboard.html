@@ -1655,7 +1655,9 @@
             const legendEl = document.getElementById('positionLegend');
             const totalEl = document.getElementById('totalPositions');
             const pos = allPositions ? Object.values(allPositions) : [];
-            const maxPos = 15; // max_positions from config
+            // Total max = sum of all slot types (NRM + VS + FAR + LD + FAV can all be open simultaneously)
+            const s = window._lastSlots || {};
+            const maxPos = (s.normal?.max || 10) + (s.vs?.max || 5) + (s.far?.max || 4) + (s.live_dip?.max || 2) + (s.fav?.max || 5);
             const count = pos.length;
             const pct = maxPos > 0 ? count / maxPos : 0;
 
@@ -2220,6 +2222,7 @@
 
         function updateSlots(s) {
             if (!s) return;
+            window._lastSlots = s; // Save for total position count
             const tags = [
                 {id: 'slotNormalInline', label: 'NRM', data: s.normal},
                 {id: 'slotVsInline', label: 'VS', data: s.vs},

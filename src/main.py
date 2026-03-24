@@ -1257,6 +1257,22 @@ class Agent:
                     "question": market.question,
                     "data_sources": mkt_sources,
                 })
+                # If rejected due to full slots, save to stock for instant fill later
+                if "max_positions" in decision.reason or "slot" in decision.reason.lower():
+                    rank_score = edge * ({"A": 1.3, "B+": 1.1, "B-": 0.9}.get(estimate.confidence, 0.8))
+                    self._candidate_stock.append({
+                        "market": market, "estimate": estimate, "direction": direction,
+                        "edge": edge, "manip_check": manip_check, "mkt_sources": mkt_sources,
+                        "adjusted_size": decision.size_usdc or 25.0,
+                        "score": rank_score, "stocked_at": time.time(),
+                        "stocked_price": market.yes_price,
+                    })
+                    if len(self._candidate_stock) > 10:
+                        self._candidate_stock.sort(key=lambda c: c["score"], reverse=True)
+                        self._candidate_stock = self._candidate_stock[:10]
+                    self._save_stock_to_disk()
+                    logger.info("Slot-rejected → STOCKED: %s | edge=%.1f%% conf=%s",
+                                market.slug[:40], edge * 100, estimate.confidence)
                 continue
 
             # Adjust position size (medium_low capped at 1.5% of bankroll)
@@ -1909,7 +1925,9 @@ class Agent:
                 if price_move > 0.05:
                     stale.append(c)
                     self._candidate_stock.remove(c)
-                    logger.info("Stock STALE: %s | price moved %.1f%% (%.3f→%.3f)",
+                    # Remove from analyzed cache so AI re-evaluates next cycle
+                    self._analyzed_market_ids.pop(market.condition_id, None)
+                    logger.info("Stock STALE → re-queue: %s | price moved %.1f%% (%.3f→%.3f)",
                                 market.slug[:40], price_move * 100,
                                 c["stocked_price"], current_price)
                     continue
