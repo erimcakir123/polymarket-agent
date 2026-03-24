@@ -3762,12 +3762,54 @@ class Agent:
         logger.info("Agent stopped")
 
 
+def _reset_simulation() -> None:
+    """Wipe all simulation state for a clean $1000 start.
+
+    Deletes positions, trades, portfolio logs, predictions cache,
+    blacklist, reentry pool, scout queue, and price history.
+    Trade reasoning and AI lessons are preserved for analysis.
+    """
+    import glob
+    reset_files = [
+        "logs/positions.json",
+        "logs/portfolio.jsonl",
+        "logs/trades.jsonl",
+        "logs/performance.jsonl",
+        "logs/predictions.jsonl",
+        "logs/bot_status.json",
+        "logs/candidate_stock.json",
+        "logs/portfolio_state.json",
+        "logs/realized_pnl.json",
+        "logs/blacklist.json",
+        "logs/reentry_pool.json",
+        "logs/scout_queue.json",
+        "logs/exited_markets.json",
+        "logs/agent.pid",
+    ]
+    deleted = 0
+    for f in reset_files:
+        p = Path(f)
+        if p.exists():
+            p.unlink()
+            deleted += 1
+    # Clear price history
+    for f in glob.glob("logs/price_history/*.json"):
+        Path(f).unlink()
+        deleted += 1
+    print(f"[RESET] Deleted {deleted} files. Clean $1000 start.")
+
+
 def main() -> None:
     load_dotenv()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+
+    # Handle --reset flag
+    if "--reset" in sys.argv:
+        _reset_simulation()
+        sys.argv.remove("--reset")
 
     # Prevent multiple instances from running simultaneously
     acquire_lock()
