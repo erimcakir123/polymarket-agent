@@ -1039,6 +1039,29 @@ class Agent:
             # Log ALL AI predictions for calibration
             self._log_prediction(market, estimate)
 
+            # ESPN verification gate: confirm match status before entry
+            # Polymarket endDate/event_live can be wrong — ESPN is ground truth
+            _espn_info = self.sports.get_upcoming_match_info(
+                market.question, market.slug, market.tags)
+            if _espn_info:
+                _espn_status = _espn_info.get("status", "")
+                if _espn_status in ("in_progress", "completed"):
+                    logger.info("ESPN says %s for %s — skipping entry",
+                                _espn_status.upper(), market.slug[:40])
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": abs(estimate.ai_probability - market.yes_price),
+                        "mode": self.config.mode.value,
+                        "rejected": f"ESPN_{_espn_status.upper()}: match already {_espn_status} per ESPN",
+                    })
+                    continue
+                # Backfill match_start_iso from ESPN if we got a better time
+                if _espn_info.get("match_start_iso"):
+                    if not getattr(market, 'match_start_iso', ''):
+                        market.match_start_iso = _espn_info["match_start_iso"]
+
             # Skip live matches — our edge is pre-match analysis, not real-time reaction
             if (market.event_live if hasattr(market, 'event_live') else self._estimate_match_live(market.slug, market.question, market.end_date_iso)):
                 logger.info("Skipping LIVE match (no pre-match edge): %s", market.slug[:40])
