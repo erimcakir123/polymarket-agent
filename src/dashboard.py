@@ -37,7 +37,8 @@ def create_app(
 
     @app.route("/api/trades")
     def api_trades():
-        return jsonify(trade_log.read_recent(100))
+        # Read all trades so EXIT entries are never buried under HOLDs
+        return jsonify(trade_log.read_all())
 
     @app.route("/api/portfolio")
     def api_portfolio():
