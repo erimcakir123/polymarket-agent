@@ -1011,10 +1011,46 @@ class Agent:
         if esports_contexts:
             logger.info("Sports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
 
-        # 10. Analyze ALL markets with AI (scout only pre-fetches sports data, not AI)
+        # 9d. Data gate: skip AI for markets with NO data (saves budget)
+        # When news APIs are down, AI gets only "Question: X vs Y" → always returns C/0.50
+        _no_data_markets = []
+        _has_data_markets = []
+        for m in prioritized:
+            has_sports = m.condition_id in esports_contexts
+            has_news = bool(news_context_by_market.get(m.condition_id))
+            if has_sports or has_news:
+                _has_data_markets.append(m)
+            else:
+                _no_data_markets.append(m)
+                # Mark as analyzed so we don't retry next cycle
+                self._analyzed_market_ids[m.condition_id] = time.time()
+
+        if _no_data_markets:
+            logger.info("Data gate: skipped %d markets with no data (saved AI calls)", len(_no_data_markets))
+        _skipped_no_data = len(_no_data_markets)
+
+        # Track which APIs are down for cycle report
+        _dead_apis = []
+        if not self.odds_api.available:
+            _dead_apis.append("Odds API (quota exhausted)")
+        try:
+            if hasattr(self, 'news') and hasattr(self.news, 'newsapi_key'):
+                # Check if news APIs returned anything this cycle
+                _news_worked = any(news_context_by_market.values())
+                if not _news_worked and news_context_by_market:
+                    _dead_apis.append("NewsAPI/GNews (rate limited)")
+        except Exception:
+            pass
+
+        # 10. Analyze markets WITH data only
+        prioritized = _has_data_markets
         self._set_status("running", f"Warren analyzing {len(prioritized)} markets")
-        estimates = self.ai.analyze_batch(prioritized, "", esports_contexts,
-                                          news_by_market=news_context_by_market)
+        if prioritized:
+            estimates = self.ai.analyze_batch(prioritized, "", esports_contexts,
+                                              news_by_market=news_context_by_market)
+        else:
+            estimates = {}
+            logger.info("No markets with data — skipping AI entirely")
 
         # 10a. Mark as analyzed (don't re-send to AI next cycle)
         for m in prioritized:
@@ -1905,6 +1941,16 @@ class Agent:
         invested = sum(p.size_usdc for p in self.portfolio.positions.values())
         unrealized = self.portfolio.total_unrealized_pnl()
         pnl_sign = "+" if unrealized >= 0 else ""
+        # Build dead API / data gate line for cycle report
+        _data_gate_line = ""
+        if _skipped_no_data > 0 or _dead_apis:
+            parts = []
+            if _skipped_no_data > 0:
+                parts.append(f"Skipped `{_skipped_no_data}` markets (no data)")
+            if _dead_apis:
+                parts.append("Down: " + ", ".join(_dead_apis))
+            _data_gate_line = "\n\u26a0\ufe0f " + " | ".join(parts) + "\n"
+
         self.notifier.send(
             f"\U0001f4ca *CYCLE #{self.cycle_count} REPORT*\n\n"
             f"Scanned: `{len(markets)}` markets\n"
@@ -1913,6 +1959,7 @@ class Agent:
             f"Stock: `{stock_count}` (N:{len(self._candidate_stock)} FAV:{len(self._fav_stock)} FAR:{len(self._far_stock)})\n"
             f"\n\U0001f4b0 Invested: `${invested:.2f}` | PnL: `{pnl_sign}${unrealized:.2f}`\n"
             f"\U0001f4b8 AI: `${self.ai._sprint_cost_usd - self._cycle_ai_cost_start:.4f}` cycle | `${self.ai._sprint_cost_usd:.2f}` / `${self.ai.config.sprint_budget_usd:.2f}` sprint"
+            f"{_data_gate_line}"
         )
 
         # Check if enough data for self-improvement
