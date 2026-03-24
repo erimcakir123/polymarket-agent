@@ -1005,6 +1005,7 @@
                                 <div style="margin-bottom:3px"><b style="color:rgba(255,255,255,0.45)">NRM</b> <span style="color:var(--text-muted)">Normal</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--green)">VS</b> <span style="color:var(--text-muted)">Volatility Swing</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--amber)">FAR</b> <span style="color:var(--text-muted)">Uzak mac (6h+)</span></div>
+                                <div style="margin-bottom:3px"><b style="color:#2dd4a8">RE</b> <span style="color:var(--text-muted)">Re-entry (aktif/bekleyen)</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--red)">LD</b> <span style="color:var(--text-muted)">Live Dip</span></div>
                                 <div><b style="color:var(--green)">FAV</b> <span style="color:var(--text-muted)">Favori</span></div>
                             </div>
@@ -1025,6 +1026,7 @@
                             <span class="entry-tag tag-far" id="slotFarInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAR 0/4</span>
                             <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">LD 0/2</span>
                             <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAV 0/5</span>
+                            <span class="entry-tag" id="slotReInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(45,212,168,0.15);color:#2dd4a8">RE 0 (0)</span>
                         </div>
                     </div>
                     <div id="positionLegend" style="display:none"></div>
@@ -2250,6 +2252,14 @@
                 const el = document.getElementById(t.id);
                 if (!el || !t.data) continue;
                 el.textContent = `${t.label} ${t.data.current || 0}/${t.data.max || 0}`;
+            }
+            // Reentry slot: "RE active (waiting)"
+            const reEl = document.getElementById('slotReInline');
+            if (reEl && s.reentry) {
+                const active = s.reentry.active || 0;
+                const waiting = s.reentry.waiting || 0;
+                reEl.textContent = `RE ${active} (${waiting})`;
+                reEl.title = `${active} active re-entry positions, ${waiting} waiting in pool`;
             }
         }
 

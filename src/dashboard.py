@@ -13,6 +13,7 @@ BUDGET_FILE = Path("logs/ai_budget.json")
 POSITIONS_FILE = Path("logs/positions.json")
 STATUS_FILE = Path("logs/bot_status.json")
 STOCK_FILE = Path("logs/candidate_stock.json")
+REENTRY_POOL_FILE = Path("logs/reentry_pool.json")
 
 
 def create_app(
@@ -83,6 +84,7 @@ def create_app(
         fav_count = 0
         live_dip_count = 0
         far_count = 0
+        reentry_count = 0
         normal_count = 0
         pending_count = 0
 
@@ -90,16 +92,31 @@ def create_app(
             if pos.get("pending_resolution"):
                 pending_count += 1
                 continue
+            entry_reason = pos.get("entry_reason", "")
             if pos.get("volatility_swing"):
                 vs_count += 1
-            elif pos.get("entry_reason") == "fav_time_gate":
+            elif entry_reason.startswith("re_entry"):
+                reentry_count += 1
+            elif entry_reason == "fav_time_gate":
                 fav_count += 1
-            elif pos.get("entry_reason") == "live_dip":
+            elif entry_reason == "live_dip":
                 live_dip_count += 1
-            elif pos.get("entry_reason") == "far":
+            elif entry_reason == "far":
                 far_count += 1
             else:
                 normal_count += 1
+
+        # Count waiting reentry pool candidates
+        reentry_pool_waiting = 0
+        if REENTRY_POOL_FILE.exists():
+            try:
+                pool_data = json.loads(REENTRY_POOL_FILE.read_text(encoding="utf-8"))
+                # Only count candidates NOT already in active positions
+                for cid in pool_data:
+                    if cid not in positions:
+                        reentry_pool_waiting += 1
+            except (json.JSONDecodeError, OSError):
+                pass
 
         # Load config for max values
         import yaml
@@ -124,8 +141,9 @@ def create_app(
             "fav": {"current": fav_count, "max": 5},
             "live_dip": {"current": live_dip_count, "max": 2},
             "far": {"current": far_count, "max": far_max},
+            "reentry": {"active": reentry_count, "waiting": reentry_pool_waiting},
             "pending": pending_count,
-            "total": normal_count + vs_count + fav_count + live_dip_count + far_count,
+            "total": normal_count + vs_count + fav_count + live_dip_count + far_count + reentry_count,
         })
 
     @app.route("/api/stock")
