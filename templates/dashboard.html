@@ -891,10 +891,22 @@
                 </div>
             </div>
             <div class="topbar-right">
-                <span id="botStatus" style="display:inline-flex;align-items:center;gap:5px">
-                    <span id="botStatusDot" style="width:7px;height:7px;border-radius:50%;background:#888;display:inline-block"></span>
-                    <img src="/images/Warren.webp" alt="Warren" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border)">
-                    <span id="botStatusText" style="color:var(--text-muted)">Connecting...</span>
+                <span id="botStatus" style="display:inline-flex;align-items:center;gap:10px">
+                    <!-- Online indicator -->
+                    <span style="display:inline-flex;align-items:center;gap:4px">
+                        <span id="botStatusDot" style="width:7px;height:7px;border-radius:50%;background:#888;display:inline-block"></span>
+                        <img src="/images/Warren.webp" alt="Warren" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border)">
+                    </span>
+                    <!-- Hard cycle status -->
+                    <span id="hardCycleStatus" style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+                        <span id="hardDot" style="width:5px;height:5px;border-radius:50%;background:#888;display:inline-block"></span>
+                        <span id="hardText" style="color:#666">--</span>
+                    </span>
+                    <!-- Light cycle status -->
+                    <span id="lightCycleStatus" style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+                        <span id="lightDot" style="width:5px;height:5px;border-radius:50%;background:#888;display:inline-block"></span>
+                        <span id="lightText" style="color:#666">--</span>
+                    </span>
                 </span>
                 <span id="lastCycle">--</span>
                 <span id="refreshTimer">--</span>
@@ -2279,43 +2291,91 @@
             renderBotStatus();
         }
         function renderBotStatus() {
-            const dot = document.getElementById('botStatusDot');
-            const text = document.getElementById('botStatusText');
+            const onlineDot = document.getElementById('botStatusDot');
+            const hardDot = document.getElementById('hardDot');
+            const hardText = document.getElementById('hardText');
+            const lightDot = document.getElementById('lightDot');
+            const lightText = document.getElementById('lightText');
             const data = _botStatusData;
+
+            const BLUE = '#58a6ff';
+            const TEAL = '#2dd4a8';
+            const GRAY = '#666';
+            const OFF = '#888';
+
             if (!data) {
-                dot.style.background = '#888'; dot.style.animation = 'none';
-                text.textContent = 'Offline'; return;
+                onlineDot.style.background = OFF; onlineDot.style.animation = 'none';
+                hardDot.style.background = OFF; hardText.style.color = GRAY; hardText.textContent = 'Hard Offline';
+                lightDot.style.background = OFF; lightText.style.color = GRAY; lightText.textContent = 'Light Offline';
+                return;
             }
+
+            // Online dot — green when running or waiting
+            if (data.state === 'running' || data.state === 'waiting') {
+                onlineDot.style.background = TEAL;
+                onlineDot.style.animation = 'pulse 2s ease-in-out infinite';
+            } else {
+                onlineDot.style.background = OFF; onlineDot.style.animation = 'none';
+            }
+
+            // Hard cycle
             if (data.state === 'running') {
-                dot.style.background = '#2dd4a8';
-                dot.style.animation = 'pulse 2s ease-in-out infinite';
-                text.textContent = (data.step || 'Processing...').replace(/\bAI\b/gi, 'Warren');
+                hardDot.style.background = BLUE;
+                hardText.style.color = BLUE;
+                hardText.textContent = (data.step || 'Processing...').replace(/\bAI\b/gi, 'Warren');
             } else if (data.state === 'waiting') {
-                dot.style.background = '#4fc3f7';
-                dot.style.animation = 'pulse 3s ease-in-out infinite';
                 const minMatch = (data.step || '').match(/(\d+)min/);
-                let statusParts = [];
                 if (minMatch && data.ts) {
                     const intervalSec = parseInt(minMatch[1]) * 60;
                     const elapsed = (Date.now() - new Date(data.ts).getTime()) / 1000;
                     const remaining = Math.max(0, Math.round(intervalSec - elapsed));
-                    const m = Math.floor(remaining / 60);
-                    const s = remaining % 60;
-                    statusParts.push(remaining > 0
-                        ? `<span style="color:#4fc3f7">Hard</span> ${m}m ${s.toString().padStart(2,'0')}s`
-                        : 'Starting cycle...');
+                    if (remaining > 0) {
+                        const m = Math.floor(remaining / 60);
+                        const s = remaining % 60;
+                        hardDot.style.background = BLUE;
+                        hardText.style.color = BLUE;
+                        hardText.textContent = `Hard ${m}m ${s.toString().padStart(2,'0')}s`;
+                    } else {
+                        hardDot.style.background = BLUE;
+                        hardText.style.color = BLUE;
+                        hardText.textContent = 'Hard Starting...';
+                    }
+                } else {
+                    hardDot.style.background = OFF;
+                    hardText.style.color = GRAY;
+                    hardText.textContent = 'Hard Waiting';
                 }
-                // Light cycle countdown (every 60s when positions open)
-                if (data.light_ts && data.has_positions) {
-                    const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
-                    const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
-                    const ls = lightRemaining % 60;
-                    statusParts.push(`<span style="color:#2dd4a8">Light</span> ${ls}s`);
-                }
-                text.innerHTML = statusParts.length > 0 ? statusParts.join(' · ') : (data.step || 'Idle');
             } else {
-                dot.style.background = '#888'; dot.style.animation = 'none';
-                text.textContent = 'Offline';
+                hardDot.style.background = OFF;
+                hardText.style.color = GRAY;
+                hardText.textContent = 'Hard Offline';
+            }
+
+            // Light cycle
+            if (data.state === 'running' && (data.step || '').toLowerCase().includes('light')) {
+                lightDot.style.background = TEAL;
+                lightText.style.color = TEAL;
+                lightText.textContent = 'Light Running';
+            } else if (data.light_ts && data.has_positions && (data.state === 'running' || data.state === 'waiting')) {
+                const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
+                const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
+                if (lightRemaining > 0) {
+                    lightDot.style.background = TEAL;
+                    lightText.style.color = TEAL;
+                    lightText.textContent = `Light ${lightRemaining}s`;
+                } else {
+                    lightDot.style.background = TEAL;
+                    lightText.style.color = TEAL;
+                    lightText.textContent = 'Light Starting...';
+                }
+            } else if (data.state === 'running' || data.state === 'waiting') {
+                lightDot.style.background = OFF;
+                lightText.style.color = GRAY;
+                lightText.textContent = 'Light Waiting';
+            } else {
+                lightDot.style.background = OFF;
+                lightText.style.color = GRAY;
+                lightText.textContent = 'Light Offline';
             }
         }
 
