@@ -86,6 +86,13 @@ class Portfolio:
                         pos.slug[:35], pos.direction, slug[:35], direction, event_id,
                     )
                     return
+        # Duplicate guard — never overwrite an existing position (would lose tracking)
+        if condition_id in self.positions:
+            logger.warning(
+                "BLOCKED duplicate add_position: %s already held (size=$%.2f)",
+                slug[:35], self.positions[condition_id].size_usdc,
+            )
+            return
         self.positions[condition_id] = Position(
             condition_id=condition_id,
             token_id=token_id,

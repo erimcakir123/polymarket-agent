@@ -1592,15 +1592,17 @@
             document.getElementById('lockedAmount').innerHTML = dimDollars(locked);
             document.getElementById('lockedSub').textContent = allPos.length + ' position' + (allPos.length !== 1 ? 's' : '');
 
+            // Use live positions data for Open PnL (more accurate than portfolio log snapshot)
+            const livePnl = allPos.reduce((sum, p) => sum + (p.unrealized_pnl_usdc || 0), 0);
             const pnlEl = document.getElementById('pnl');
-            if (Math.abs(pnl) < 0.005) {
+            if (Math.abs(livePnl) < 0.005) {
                 pnlEl.innerHTML = dimDollars(0);
                 pnlEl.className = 'card-value up-blue';
             } else {
-                pnlEl.innerHTML = dimDollars(pnl, pnl >= 0 ? '+$' : '-$');
-                pnlEl.className = 'card-value ' + (pnl >= 0 ? 'up-blue' : 'down');
+                pnlEl.innerHTML = dimDollars(livePnl, livePnl >= 0 ? '+$' : '-$');
+                pnlEl.className = 'card-value ' + (livePnl >= 0 ? 'up-blue' : 'down');
             }
-            document.getElementById('pnlPct').textContent = bankroll > 0 ? (pnl / bankroll * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('pnlPct').textContent = bankroll > 0 ? (livePnl / bankroll * 100).toFixed(1) + '%' : '0%';
 
             // Realized P&L
             const realizedPnl = latest.realized_pnl || 0;
