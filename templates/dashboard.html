@@ -2259,7 +2259,7 @@
                 const current = s.reentry.current || 0;
                 const max = s.reentry.max || 3;
                 const waiting = s.reentry.waiting || 0;
-                reEl.textContent = `RE ${current}/${max} (${waiting})`;
+                reEl.innerHTML = `RE ${current}/${max} <span style="opacity:0.5">(${waiting})</span>`;
                 reEl.title = `${current}/${max} active re-entry slots, ${waiting} waiting in pool`;
             }
         }
