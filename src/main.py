@@ -3654,6 +3654,22 @@ class Agent:
             except Exception:
                 pass
 
+            # Auto-calibration check (every 50 resolved outcomes)
+            try:
+                from src.self_improve import auto_calibrate
+                cal_result = auto_calibrate(logger=logger)
+                if cal_result:
+                    weaknesses = cal_result.get("weaknesses", [])
+                    self.notifier.send(
+                        f"\U0001f4ca *AUTO-CALIBRATION* — {cal_result['resolved_count']} resolved\n\n"
+                        f"Win rate: `{cal_result['overall_win_rate']:.0%}`\n"
+                        f"Brier: `{cal_result['overall_brier']:.3f}`\n"
+                        + (f"Weaknesses: {len(weaknesses)}\n" if weaknesses else "No weaknesses found\n")
+                        + (f"Top: {weaknesses[0]}" if weaknesses else "")
+                    )
+            except Exception as e:
+                logger.debug("Auto-calibration skipped: %s", e)
+
             # Notify
             side = "WIN" if outcome["our_side_won"] else "LOSS"
             left = outcome.get("pnl_left_on_table", 0)

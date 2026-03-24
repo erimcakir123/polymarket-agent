@@ -1083,12 +1083,13 @@
                 </div>
             </div>
 
-            <!-- Prediction Accuracy -->
+            <!-- AI vs Bookmaker Agreement -->
             <div class="panel" style="position:relative">
                 <div class="panel-header">
-                    <span class="panel-title"><span class="card-icon">&#127919;</span> Prediction vs Reality</span>
+                    <span class="panel-title"><span class="card-icon">&#127919;</span> AI vs Bookmaker</span>
+                    <span id="divAvgLabel" style="font-size:11px;opacity:0.5;margin-left:auto"></span>
                 </div>
-                <div class="chart-fixed"><canvas id="scatterChart"></canvas></div>
+                <div class="chart-fixed"><canvas id="divergenceChart"></canvas></div>
             </div>
         </main>
 
@@ -1401,7 +1402,7 @@
 
         const POSITION_COLORS = [COLORS.accent, COLORS.blue, COLORS.purple, COLORS.amber, '#f778ba', '#79c0ff'];
 
-        let bankrollChart, waterfallChart, positionChart, scatterChart, budgetGauge, drawdownGauge;
+        let bankrollChart, waterfallChart, positionChart, divergenceChart, budgetGauge, drawdownGauge;
         let allPortfolioData = [];
         let allTrades = [];
 
@@ -1490,41 +1491,108 @@
             }
         });
 
-        /* ── Scatter Chart (Calibration) ── */
-        scatterChart = new Chart(document.getElementById('scatterChart'), {
-            type: 'scatter',
+        /* ── AI vs Bookmaker Agreement Chart ── */
+        // Color by agreement: teal(high) → yellow(mid) → red(low)
+        function agreementColor(val) {
+            if (val === null || val === undefined) return COLORS.accent;
+            const v = Math.max(0, Math.min(100, val));
+            if (v >= 75) {
+                const t = (v - 75) / 25; // 1=teal, 0=yellow
+                return `rgb(${Math.round(255*(1-t))},${Math.round(200+(55*t))},${Math.round(50+(100*t))})`;
+            } else if (v >= 40) {
+                const t = (v - 40) / 35;
+                return `rgb(255,${Math.round(200*t)},50)`;
+            } else {
+                return 'rgb(220,50,40)';
+            }
+        }
+        divergenceChart = new Chart(document.getElementById('divergenceChart'), {
+            type: 'line',
             data: {
-                datasets: [{
-                    data: [],
-                    backgroundColor: COLORS.accentDim,
-                    borderColor: COLORS.accent,
-                    borderWidth: 1,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                }, {
-                    type: 'line',
-                    data: [{x:0,y:0},{x:1,y:1}],
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    borderDash: [4, 4],
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    fill: false,
-                }]
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Agreement',
+                        data: [],
+                        borderColor: COLORS.accent,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: 'rgba(0,0,0,0.2)',
+                        pointBorderWidth: 1,
+                        segment: {
+                            borderColor: ctx => agreementColor(ctx.p1.parsed.y),
+                        },
+                    },
+                ]
             },
+            plugins: [{
+                id: 'coloredDots',
+                afterDatasetDraw(chart) {
+                    const ds = chart.data.datasets[0];
+                    const meta = chart.getDatasetMeta(0);
+                    const c = chart.ctx;
+                    meta.data.forEach((pt, i) => {
+                        const val = ds.data[i];
+                        if (val === null || val === undefined) return;
+                        c.save();
+                        c.beginPath();
+                        c.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+                        c.fillStyle = agreementColor(val);
+                        c.fill();
+                        c.restore();
+                    });
+                }
+            }],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false }, tooltip: {
-                    callbacks: {
-                        label: ctx => `Edge: ${(ctx.raw.x*100).toFixed(1)}%, Outcome: ${ctx.raw.y ? 'Win' : 'Loss'}`
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: ctx => {
+                                const idx = ctx[0]?.dataIndex;
+                                if (idx === undefined || !divergenceChart._calMeta) return '';
+                                const m = divergenceChart._calMeta[idx];
+                                return m ? m.slug : ctx[0]?.label || '';
+                            },
+                            label: ctx => {
+                                if (ctx.raw === null || ctx.raw === undefined) return null;
+                                return '\u{1F91D} Agreement: ' + ctx.raw.toFixed(0) + '%';
+                            },
+                            afterBody: ctx => {
+                                const idx = ctx[0]?.dataIndex;
+                                if (idx === undefined || !divergenceChart._calMeta) return '';
+                                const m = divergenceChart._calMeta[idx];
+                                if (!m) return '';
+                                const lines = [];
+                                lines.push('\u{1F916} AI: ' + (m.aiProb*100).toFixed(0) + '%  |  \u{1F3B0} Book: ' + (m.hasBook ? (m.bookProb*100).toFixed(0)+'%' : 'N/A'));
+                                const result = m.won ? '\u2705 YES won' : '\u274C NO won';
+                                const correct = m.ai_correct === true ? ' | AI correct' : m.ai_correct === false ? ' | AI wrong' : '';
+                                lines.push(result + correct + '  |  PnL: $' + m.pnl.toFixed(2));
+                                return lines;
+                            }
+                        }
                     }
-                }},
+                },
                 scales: {
-                    x: { title: { display: true, text: 'Predicted Edge', font: { size: 10 } }, min: 0, max: 0.5, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { callback: v => (v*100)+'%' } },
-                    y: { title: { display: true, text: 'Outcome', font: { size: 10 } }, min: -0.1, max: 1.1, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { callback: v => v === 1 ? 'Win' : v === 0 ? 'Loss' : '' } },
+                    x: { grid: { display: false }, ticks: { display: false } },
+                    y: {
+                        title: { display: true, text: 'Agreement %', font: { size: 9 }, color: 'rgba(255,255,255,0.4)' },
+                        min: 0, max: 100,
+                        grid: { color: 'rgba(255,255,255,0.03)' },
+                        ticks: { callback: v => v + '%', font: { size: 9 } },
+                    },
                 },
             }
         });
+        divergenceChart._calMeta = [];
 
         let allPositions = {};
         let allStockData = [];
@@ -1539,7 +1607,7 @@
         async function fetchData() {
             try {
                 const ts = Date.now();
-                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp, apiUsageResp] = await Promise.all([
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp, apiUsageResp, calResp] = await Promise.all([
                     fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
@@ -1547,7 +1615,8 @@
                     fetch('/api/positions?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/slots?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/stock?_=' + ts, {cache: 'no-store'}),
-                    fetch('/api/api-usage?_=' + ts, {cache: 'no-store'})
+                    fetch('/api/api-usage?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/calibration?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
@@ -1557,13 +1626,14 @@
                 const slotsData = await slotsResp.json();
                 allStockData = await stockResp.json();
                 const apiUsageData = await apiUsageResp.json();
+                const calData = await calResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
                 updateWaterfall(allTrades);
                 updatePositions();
                 updatePerformance(perfData, allTrades);
-                updateScatter(allTrades);
+                updateDivergence(calData);
                 updateTradeFeed(allTrades);
                 updateBudget(budgetData);
                 updateSlots(slotsData);
@@ -1767,16 +1837,66 @@
             }
         }
 
-        function updateScatter(trades) {
-            // Match BUY entries with EXIT outcomes for scatter plot
-            const buyMap = {};
-            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => { buyMap[t.market] = t; });
-            const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.pnl !== undefined);
-            const calibration = exits
-                .filter(t => buyMap[t.market] && buyMap[t.market].edge !== undefined)
-                .map(t => ({ x: buyMap[t.market].edge, y: t.pnl > 0 ? 1 : 0 }));
-            scatterChart.data.datasets[0].data = calibration;
-            scatterChart.update();
+        function updateDivergence(calData) {
+            // AI vs Bookmaker agreement chart — single line, higher = more aligned
+            // Each entry: { ts, slug, ai_prob, book_prob (null if N/A), yes_won, sport, confidence, pnl, ai_correct }
+            if (!calData || !calData.length) {
+                divergenceChart._calMeta = [];
+                document.getElementById('divAvgLabel').textContent = 'Waiting for resolved bets...';
+                divergenceChart.update();
+                return;
+            }
+
+            // Sort by timestamp (oldest first)
+            calData.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+
+            const labels = [];
+            const agreements = [];
+            const meta = [];
+
+            calData.forEach((d, i) => {
+                const aiP = d.ai_prob || 0;
+                const bookP = d.book_prob;
+                const hasBook = bookP !== null && bookP !== undefined && bookP > 0;
+                // Agreement = 100% - |AI - Bookmaker| as percentage
+                // e.g. AI=67%, Book=68% → agreement = 99%
+                // AI=30%, Book=50% → agreement = 80%
+                const agreement = hasBook ? 100 - Math.abs(aiP - bookP) * 100 : null;
+
+                labels.push(`#${i + 1}`);
+                agreements.push(agreement);
+                meta.push({
+                    slug: d.slug, won: d.yes_won, pnl: d.pnl || 0,
+                    sport: d.sport, ai_correct: d.ai_correct, hasBook,
+                    aiProb: aiP, bookProb: hasBook ? bookP : 0,
+                });
+            });
+
+            // Stats
+            const valid = agreements.filter(v => v !== null);
+            const avgAgreement = valid.length ? (valid.reduce((a, b) => a + b, 0) / valid.length) : 0;
+            const withBook = valid.length;
+            const total = calData.length;
+
+            // Trend
+            let trendText = '';
+            if (valid.length >= 6) {
+                const mid = Math.floor(valid.length / 2);
+                const firstHalf = valid.slice(0, mid).reduce((a, b) => a + b, 0) / mid;
+                const secondHalf = valid.slice(mid).reduce((a, b) => a + b, 0) / (valid.length - mid);
+                const delta = secondHalf - firstHalf;
+                trendText = delta > 1 ? ' improving' : delta < -1 ? ' diverging' : ' stable';
+            }
+
+            const label = withBook > 0
+                ? `${total} resolved | avg ${avgAgreement.toFixed(0)}% agreement${trendText}`
+                : `${total} resolved | no bookmaker data yet`;
+            document.getElementById('divAvgLabel').textContent = label;
+
+            divergenceChart.data.labels = labels;
+            divergenceChart.data.datasets[0].data = agreements;
+            divergenceChart._calMeta = meta;
+            divergenceChart.update();
         }
 
         let currentFeedTab = 'active';

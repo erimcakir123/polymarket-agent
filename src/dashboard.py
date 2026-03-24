@@ -163,6 +163,41 @@ def create_app(
         from src.api_usage import get_usage
         return jsonify(get_usage())
 
+    @app.route("/api/calibration")
+    def api_calibration():
+        """Return AI vs Bookmaker calibration data from match_outcomes.jsonl."""
+        outcomes_file = Path("logs/match_outcomes.jsonl")
+        if not outcomes_file.exists():
+            return jsonify([])
+        records = []
+        for line in outcomes_file.read_text(encoding="utf-8").strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+                # Only include resolved outcomes that have both AI and bookmaker probs
+                if not r.get("resolved"):
+                    continue
+                ai_prob = r.get("ai_probability", 0)
+                book_prob = r.get("bookmaker_prob", 0)
+                yes_won = r.get("yes_won")
+                if yes_won is None:
+                    continue
+                records.append({
+                    "ts": r.get("timestamp", ""),
+                    "slug": r.get("slug", "")[:40],
+                    "ai_prob": round(ai_prob, 4),
+                    "book_prob": round(book_prob, 4) if book_prob > 0 else None,
+                    "yes_won": yes_won,
+                    "sport": r.get("sport_tag", ""),
+                    "confidence": r.get("confidence", ""),
+                    "pnl": r.get("pnl", 0),
+                    "ai_correct": r.get("ai_correct"),
+                })
+            except json.JSONDecodeError:
+                continue
+        return jsonify(records)
+
     @app.route("/api/status")
     def api_status():
         if STATUS_FILE.exists():
