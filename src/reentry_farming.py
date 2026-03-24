@@ -286,6 +286,25 @@ def check_reentry(
 
     # --- HARD BLOCKS ---
 
+    # Match timing: don't re-enter if match is too far along
+    # Rule: block if >66% of match elapsed (past first 1/3 of second half)
+    if c.match_start_iso and c.end_date_iso:
+        try:
+            _ms = datetime.fromisoformat(c.match_start_iso.replace("Z", "+00:00"))
+            _ed = datetime.fromisoformat(c.end_date_iso.replace("Z", "+00:00"))
+            _now = datetime.now(timezone.utc)
+            _total = (_ed - _ms).total_seconds()
+            if _total > 0:
+                elapsed_pct = max(0.0, min(1.0, (_now - _ms).total_seconds() / _total))
+                if elapsed_pct >= 0.66:
+                    return _block(f"Match too far along: {elapsed_pct:.0%} elapsed")
+        except (ValueError, TypeError):
+            pass
+
+    # AI says losing side (prob < 50%) — don't re-enter a likely loser
+    if eff_ai < 0.50:
+        return _block(f"AI says losing side: {eff_ai:.0%}")
+
     # Already in portfolio
     if c.condition_id in portfolio_positions:
         return _block("Already in portfolio")

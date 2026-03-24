@@ -54,6 +54,10 @@ logger = logging.getLogger(__name__)
 PAUSE_FILE = Path("logs/AWAITING_APPROVAL")
 STATUS_FILE = Path("logs/bot_status.json")
 BETS_PER_APPROVAL = 10
+
+# Exit reasons that can NEVER go back to stock (market closed or no spread)
+_NEVER_STOCK_EXITS = frozenset({"far_penny"})
+_NEVER_STOCK_PREFIXES = ("resolved_", "far_penny_")
 def _load_test_start_date() -> date:
     """Load test start date from file, or default to today."""
     p = Path("logs/test_start_date.txt")
@@ -704,10 +708,12 @@ class Agent:
             cid: ts for cid, ts in self._analyzed_market_ids.items()
             if now_ts - ts < 4 * 3600
         }
-        already_analyzed = sum(1 for m in markets if m.condition_id in self._analyzed_market_ids)
-        markets = [m for m in markets if m.condition_id not in self._analyzed_market_ids]
+        # Also skip markets already in candidate stock (already analyzed, waiting for slot)
+        _stock_ids = {c["market"].condition_id for c in self._candidate_stock}
+        already_analyzed = sum(1 for m in markets if m.condition_id in self._analyzed_market_ids or m.condition_id in _stock_ids)
+        markets = [m for m in markets if m.condition_id not in self._analyzed_market_ids and m.condition_id not in _stock_ids]
         if already_analyzed:
-            logger.info("Skipped %d already analyzed (saved AI calls)", already_analyzed)
+            logger.info("Skipped %d already analyzed/in stock (saved AI calls)", already_analyzed)
 
         # 7c. Filter non-moneyline bet types (spread, totals, props — AI has no edge)
         _ALT_BET_KEYWORDS = {
@@ -773,6 +779,9 @@ class Agent:
                            if time.time() - c.get("stocked_at", 0) < 3600])
         stock_max = 5
         stock_empty = max(0, stock_max - stock_viable)
+        # When slots are full, don't aggressively fill stock — save AI budget
+        if open_slots == 0:
+            stock_empty = min(stock_empty, 2)
         total_need = open_slots + stock_empty  # positions to fill + stock to fill
 
         if total_need == 0:
@@ -2029,6 +2038,86 @@ class Agent:
                         len(used), len(stale), len(expired),
                         len(self._candidate_stock), self._stock_stats)
 
+    def _try_demote_to_stock(self, pos, reason: str) -> bool:
+        """Demote an exited position back to candidate stock if its score beats the worst stock item.
+
+        Returns True if demoted, False if discarded.
+        Only called for exits that are NOT resolved_* or far_penny*.
+        """
+        # Mutex: don't stock if already in re-entry pool
+        if pos.condition_id in self.reentry_pool:
+            logger.info("Exit skip stock (already in re-entry pool): %s", pos.slug[:40])
+            return False
+
+        # Mutex: don't stock if already in stock
+        if any(c["market"].condition_id == pos.condition_id for c in self._candidate_stock):
+            return False
+
+        # Compute score the same way as slot-rejected candidates
+        edge = abs(pos.ai_probability - pos.current_price)
+        conf_score = {"A": 1.3, "B+": 1.1, "B-": 0.9}.get(pos.confidence, 0.8)
+        score = edge * conf_score
+
+        # Build minimal MarketData from position fields
+        is_yes = pos.direction == "BUY_YES"
+        market = MarketData(
+            condition_id=pos.condition_id,
+            question=getattr(pos, "question", ""),
+            yes_price=pos.current_price if is_yes else 1 - pos.current_price,
+            no_price=1 - pos.current_price if is_yes else pos.current_price,
+            yes_token_id=pos.token_id if is_yes else "",
+            no_token_id=pos.token_id if not is_yes else "",
+            slug=pos.slug,
+            tags=[pos.category] if pos.category else [],
+            end_date_iso=getattr(pos, "end_date_iso", ""),
+            event_id=getattr(pos, "event_id", "") or "",
+            sport_tag=getattr(pos, "sport_tag", ""),
+            match_start_iso=getattr(pos, "match_start_iso", ""),
+        )
+
+        estimate = AIEstimate(
+            ai_probability=pos.ai_probability,
+            confidence=pos.confidence,
+            reasoning_pro="demoted_from_position",
+            reasoning_con="",
+        )
+
+        direction = Direction.BUY_YES if is_yes else Direction.BUY_NO
+
+        # Stub manipulation check (already validated at entry)
+        from src.manipulation_guard import ManipulationCheck
+        manip_stub = ManipulationCheck(safe=True, risk_level="low", flags=[], recommendation="ok")
+
+        stock_item = {
+            "market": market, "estimate": estimate, "direction": direction,
+            "edge": edge, "manip_check": manip_stub, "mkt_sources": [],
+            "adjusted_size": min(25.0, self.portfolio.bankroll * 0.02),
+            "score": score, "stocked_at": time.time(),
+            "stocked_price": market.yes_price,
+        }
+
+        # Stock not full → just add
+        if len(self._candidate_stock) < 10:
+            self._candidate_stock.append(stock_item)
+            self._save_stock_to_disk()
+            logger.info("Exit DEMOTED to stock: %s | score=%.3f reason=%s",
+                        pos.slug[:40], score, reason)
+            return True
+
+        # Stock full → compare with worst
+        worst = min(self._candidate_stock, key=lambda c: c["score"])
+        if score > worst["score"]:
+            self._candidate_stock.remove(worst)
+            self._candidate_stock.append(stock_item)
+            self._save_stock_to_disk()
+            logger.info("Exit DEMOTED to stock (replaced %s): %s | score=%.3f > %.3f",
+                        worst["market"].slug[:30], pos.slug[:30], score, worst["score"])
+            return True
+
+        logger.info("Exit DISCARDED (score too low for stock): %s | score=%.3f < worst=%.3f",
+                    pos.slug[:40], score, worst["score"])
+        return False
+
     def _fill_from_fav_stock(self) -> None:
         """Execute FAV stok candidates into their dedicated slots (no AI cost)."""
         if not self._fav_stock:
@@ -2665,50 +2754,54 @@ class Agent:
                 realized_pnl=realized_pnl,
             )
         else:
-            # Non-profitable exit → tiered blacklist
-            exit_data = {
-                "ai_probability": pos.ai_probability,
-                "confidence": pos.confidence,
-                "direction": pos.direction,
-                "entry_price": pos.entry_price,
-                "exit_price": pos.current_price,
-                "slug": pos.slug,
-                "token_id": pos.token_id,
-            }
-            # Compute elapsed_pct for graduated_sl cooldown scaling
-            _exit_elapsed = 0.0
-            _mstart = getattr(pos, "match_start_iso", "")
-            _edate = getattr(pos, "end_date_iso", "")
-            if _mstart and _edate:
-                try:
-                    from datetime import datetime, timezone
-                    _ms = datetime.fromisoformat(_mstart.replace("Z", "+00:00"))
-                    _ed = datetime.fromisoformat(_edate.replace("Z", "+00:00"))
-                    _now = datetime.now(timezone.utc)
-                    _total = (_ed - _ms).total_seconds()
-                    if _total > 0:
-                        _exit_elapsed = min(1.0, max(0.0, (_now - _ms).total_seconds() / _total))
-                except (ValueError, TypeError):
-                    pass
-            # Normalize reason for blacklist lookup:
-            # match_exit_graduated_sl → graduated_sl, far_penny_5x_target → far_penny
-            bl_reason = reason
-            if bl_reason.startswith("match_exit_"):
-                bl_reason = bl_reason[len("match_exit_"):]
-            elif bl_reason.startswith("far_penny_"):
-                bl_reason = "far_penny"
-            elif bl_reason.startswith("SLOT_UPGRADE"):
-                bl_reason = "slot_upgrade"
-            elif bl_reason.startswith("election_reeval"):
-                bl_reason = "election_reeval"
-            btype, duration = get_blacklist_rule(bl_reason, elapsed_pct=_exit_elapsed)
-            if btype == "permanent":
-                self.blacklist.add(condition_id, reason, "permanent", None, exit_data)
-            elif btype == "timed":
-                self.blacklist.add(condition_id, reason, "timed", self.cycle_count + duration, exit_data)
-            elif btype == "reentry":
-                self.blacklist.add(condition_id, reason, "reentry", self.cycle_count + duration, exit_data)
-            self._save_exited_market(condition_id)
+            # Non-profitable exit → try demotion to stock, else blacklist
+            _is_never_stock = reason in _NEVER_STOCK_EXITS or reason.startswith(_NEVER_STOCK_PREFIXES)
+            demoted = False
+            if not _is_never_stock:
+                demoted = self._try_demote_to_stock(pos, reason)
+
+            if not demoted:
+                # Blacklist as before
+                exit_data = {
+                    "ai_probability": pos.ai_probability,
+                    "confidence": pos.confidence,
+                    "direction": pos.direction,
+                    "entry_price": pos.entry_price,
+                    "exit_price": pos.current_price,
+                    "slug": pos.slug,
+                    "token_id": pos.token_id,
+                }
+                _exit_elapsed = 0.0
+                _mstart = getattr(pos, "match_start_iso", "")
+                _edate = getattr(pos, "end_date_iso", "")
+                if _mstart and _edate:
+                    try:
+                        from datetime import datetime, timezone
+                        _ms = datetime.fromisoformat(_mstart.replace("Z", "+00:00"))
+                        _ed = datetime.fromisoformat(_edate.replace("Z", "+00:00"))
+                        _now = datetime.now(timezone.utc)
+                        _total = (_ed - _ms).total_seconds()
+                        if _total > 0:
+                            _exit_elapsed = min(1.0, max(0.0, (_now - _ms).total_seconds() / _total))
+                    except (ValueError, TypeError):
+                        pass
+                bl_reason = reason
+                if bl_reason.startswith("match_exit_"):
+                    bl_reason = bl_reason[len("match_exit_"):]
+                elif bl_reason.startswith("far_penny_"):
+                    bl_reason = "far_penny"
+                elif bl_reason.startswith("SLOT_UPGRADE"):
+                    bl_reason = "slot_upgrade"
+                elif bl_reason.startswith("election_reeval"):
+                    bl_reason = "election_reeval"
+                btype, duration = get_blacklist_rule(bl_reason, elapsed_pct=_exit_elapsed)
+                if btype == "permanent":
+                    self.blacklist.add(condition_id, reason, "permanent", None, exit_data)
+                elif btype == "timed":
+                    self.blacklist.add(condition_id, reason, "timed", self.cycle_count + duration, exit_data)
+                elif btype == "reentry":
+                    self.blacklist.add(condition_id, reason, "reentry", self.cycle_count + duration, exit_data)
+                self._save_exited_market(condition_id)
 
         # V2: Check exit liquidity before selling
         liq = check_exit_liquidity(pos.token_id, pos.shares)
