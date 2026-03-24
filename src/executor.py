@@ -4,9 +4,26 @@ import logging
 import uuid
 from typing import Any, Optional
 
+import requests
+
 from src.config import Mode
 
 logger = logging.getLogger(__name__)
+
+
+def fetch_order_book(token_id: str) -> dict:
+    """Fetch CLOB order book from Polymarket. Returns {bids: [...], asks: [...]}."""
+    try:
+        resp = requests.get(
+            "https://clob.polymarket.com/book",
+            params={"token_id": token_id},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.warning("Order book fetch failed for %s: %s", token_id[:16], e)
+        return {"bids": [], "asks": []}
 
 
 class Executor:

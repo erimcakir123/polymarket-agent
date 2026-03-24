@@ -1,6 +1,7 @@
 """Multi-source news scanner with article content extraction.
 
-Fallback chain: NewsAPI → GNews → RSS (unlimited).
+Fallback chain: Tavily → NewsAPI → GNews → RSS (unlimited).
+Tavily is an LLM-optimized search API (1000 credits/month free).
 Full article content extracted via trafilatura for deeper AI analysis.
 """
 from __future__ import annotations
@@ -47,16 +48,20 @@ class NewsScanner:
         self,
         newsapi_key: Optional[str] = None,
         gnews_key: Optional[str] = None,
+        tavily_key: Optional[str] = None,
         rss_feeds: Optional[List[str]] = None,
         cache_ttl: float = 2700,  # 45 min
     ) -> None:
+        self.tavily_key = tavily_key or os.getenv("TAVILY_API_KEY", "")
         self.newsapi_key = newsapi_key or os.getenv("NEWSAPI_KEY", "")
         self.gnews_key = gnews_key or os.getenv("GNEWS_KEY", "")
         self.rss_feeds = rss_feeds or RSS_FEEDS
 
         self.cache_ttl = cache_ttl
         self._cache: Dict[str, Tuple[float, List[dict]]] = {}
-        self._daily_usage: Dict[str, int] = {"newsapi": 0, "gnews": 0}
+        self._daily_usage: Dict[str, int] = {"newsapi": 0, "gnews": 0, "tavily": 0}
+        self._monthly_tavily: int = 0
+        self._tavily_month: str = ""
         self._usage_reset_day: str = ""
 
     # ------------------------------------------------------------------
@@ -79,8 +84,11 @@ class NewsScanner:
                 logger.debug("Cache hit for query: %s", query)
                 return cached
 
-        # Fallback chain
+        # Fallback chain: Tavily → NewsAPI → GNews → RSS
         articles: List[dict] = []
+
+        if not articles and self.tavily_key and self._monthly_tavily < 950:
+            articles = self._fetch_tavily(query, max_results)
 
         if not articles and self.newsapi_key and self._daily_usage["newsapi"] < 95:
             articles = self._fetch_newsapi(query, max_results)
@@ -160,6 +168,62 @@ class NewsScanner:
         """Force cache invalidation for a query (e.g., on price movement)."""
         key = _cache_key(query)
         self._cache.pop(key, None)
+
+    # ------------------------------------------------------------------
+    # Tier 0: Tavily (LLM-optimized search, 1000 credits/month free)
+    # ------------------------------------------------------------------
+
+    def _fetch_tavily(self, query: str, max_results: int) -> List[dict]:
+        """Fetch from Tavily Search API (1000 credits/month free)."""
+        self._maybe_reset_tavily_monthly()
+        try:
+            resp = requests.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": self.tavily_key,
+                    "query": query,
+                    "max_results": max_results,
+                    "search_depth": "basic",  # 1 credit per basic search
+                    "include_answer": False,
+                },
+                timeout=15,
+            )
+
+            if resp.status_code == 429:
+                logger.warning("Tavily rate limited, falling back")
+                return []
+            if resp.status_code == 401:
+                logger.warning("Tavily API key invalid — disabling")
+                self.tavily_key = ""
+                return []
+            resp.raise_for_status()
+
+            self._monthly_tavily += 1  # Count only successful API calls
+            data = resp.json()
+            articles = []
+            for item in data.get("results", [])[:max_results]:
+                articles.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("url", ""),
+                    "published": "",
+                    "summary": (item.get("content") or "")[:200],
+                    "source": f"tavily:{item.get('url', '').split('/')[2] if '/' in item.get('url', '') else 'unknown'}",
+                    "content": (item.get("content") or "")[:1500],
+                })
+            logger.info("Tavily returned %d articles for '%s' (monthly usage: %d/1000)",
+                        len(articles), query, self._monthly_tavily)
+            return articles
+
+        except Exception as e:
+            logger.warning("Tavily error: %s", e)
+            return []
+
+    def _maybe_reset_tavily_monthly(self) -> None:
+        """Reset Tavily monthly counter on month change."""
+        month = time.strftime("%Y-%m")
+        if self._tavily_month != month:
+            self._monthly_tavily = 0
+            self._tavily_month = month
 
     # ------------------------------------------------------------------
     # Tier 1: NewsAPI
@@ -344,6 +408,6 @@ class NewsScanner:
         """Reset daily usage counters at midnight."""
         today = time.strftime("%Y-%m-%d")
         if self._usage_reset_day != today:
-            self._daily_usage = {"newsapi": 0, "gnews": 0}
+            self._daily_usage = {"newsapi": 0, "gnews": 0, "tavily": 0}
             self._usage_reset_day = today
 

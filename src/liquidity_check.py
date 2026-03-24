@@ -53,3 +53,57 @@ def check_exit_liquidity(
                     "note": f"Only {fill_ratio:.0%} fillable — split across cycles"}
     except Exception:
         return {"fillable": True, "strategy": "market", "reason": "Book check failed, proceeding anyway"}
+
+
+def check_entry_liquidity(
+    token_id: str,
+    size_usdc: float,
+    min_depth: float = 100.0,
+    mock_book: dict | None = None,
+) -> dict:
+    """Check order book depth before entry. Returns fillability info.
+
+    Rules:
+    - Skip if total ask depth < $min_depth (illiquid market)
+    - If order > 20% of book depth, halve the size
+    - Returns recommended_size (may be smaller than requested)
+    """
+    try:
+        if size_usdc <= 0:
+            return {"ok": True, "recommended_size": size_usdc, "reason": "Nothing to buy"}
+
+        if mock_book is not None:
+            book = mock_book
+        else:
+            from src.executor import fetch_order_book
+            book = fetch_order_book(token_id)
+
+        asks = book.get("asks", [])
+        if not asks:
+            return {"ok": False, "recommended_size": 0, "reason": "No asks — market dead"}
+
+        # Calculate total ask-side depth in USDC
+        total_depth = 0.0
+        for ask in asks:
+            price = float(ask["price"])
+            size = float(ask["size"])
+            total_depth += price * size
+
+        if total_depth < max(min_depth, 1.0):
+            logger.info("Entry blocked: ask depth $%.0f < min $%.0f for %s",
+                        total_depth, min_depth, token_id[:16])
+            return {"ok": False, "recommended_size": 0, "depth": total_depth,
+                    "reason": f"Ask depth ${total_depth:.0f} < ${min_depth:.0f}"}
+
+        # If our order is > 20% of book, halve size to reduce slippage
+        recommended = size_usdc
+        impact_ratio = size_usdc / total_depth  # safe: total_depth >= 1.0
+        if impact_ratio > 0.20:
+            recommended = size_usdc / 2
+            logger.info("Entry size halved: $%.2f → $%.2f (%.0f%% of $%.0f book) for %s",
+                        size_usdc, recommended, impact_ratio * 100, total_depth, token_id[:16])
+
+        return {"ok": True, "recommended_size": recommended, "depth": total_depth,
+                "impact_ratio": impact_ratio}
+    except Exception:
+        return {"ok": True, "recommended_size": size_usdc, "reason": "Book check failed, proceeding anyway"}

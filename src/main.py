@@ -44,7 +44,7 @@ from src.reentry_farming import ReentryPool, check_reentry
 from src.reentry import Blacklist, can_reenter, get_blacklist_rule, is_snowball_banned, qualifies_for_score_reversal_reentry, passes_confidence_momentum, get_reentry_size_multiplier
 from src.edge_decay import get_decayed_ai_target
 from src.correlation import apply_correlation_cap, extract_match_key
-from src.liquidity_check import check_exit_liquidity
+from src.liquidity_check import check_exit_liquidity, check_entry_liquidity
 from src.adaptive_kelly import get_adaptive_kelly_fraction
 from src.outcome_tracker import OutcomeTracker
 
@@ -1041,11 +1041,20 @@ class Agent:
         if not self.odds_api.available:
             _dead_apis.append("Odds API (quota exhausted)")
         try:
-            if hasattr(self, 'news') and hasattr(self.news, 'newsapi_key'):
-                # Check if news APIs returned anything this cycle
-                _news_worked = any(news_context_by_market.values())
-                if not _news_worked and news_context_by_market:
-                    _dead_apis.append("NewsAPI/GNews (rate limited)")
+            _news_worked = any(news_context_by_market.values())
+            if not _news_worked:
+                if not self.news_scanner.tavily_key:
+                    _dead_apis.append("Tavily (no key)")
+                elif self.news_scanner._monthly_tavily >= 950:
+                    _dead_apis.append("Tavily (monthly limit)")
+                if self.news_scanner._daily_usage.get("newsapi", 0) >= 95:
+                    _dead_apis.append("NewsAPI (daily limit)")
+                if self.news_scanner._daily_usage.get("gnews", 0) >= 95:
+                    _dead_apis.append("GNews (daily limit)")
+                if not any([self.news_scanner.tavily_key,
+                           self.news_scanner.newsapi_key,
+                           self.news_scanner.gnews_key]):
+                    _dead_apis.append("All news APIs (no keys)")
         except Exception:
             pass
 
@@ -1677,6 +1686,18 @@ class Agent:
             # Execute
             token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             price = market.yes_price if direction == Direction.BUY_YES else market.no_price
+
+            # CLOB orderbook depth check before entry
+            liq_entry = check_entry_liquidity(token_id, adjusted_size)
+            if not liq_entry["ok"]:
+                logger.info("Entry BLOCKED by liquidity: %s — %s",
+                            market.slug[:40], liq_entry.get("reason", ""))
+                continue
+            if liq_entry["recommended_size"] < adjusted_size:
+                logger.info("Entry size reduced: $%.2f → $%.2f (liquidity impact) for %s",
+                            adjusted_size, liq_entry["recommended_size"], market.slug[:40])
+                adjusted_size = liq_entry["recommended_size"]
+
             result = self.executor.place_order(token_id, "BUY", price, adjusted_size)
 
             # Track
@@ -1703,7 +1724,7 @@ class Agent:
             _num_games = _scout_entry.get("number_of_games", 0) if _scout_entry else 0
             self.portfolio.add_position(
                 market.condition_id, token_id, direction.value,
-                market.yes_price, adjusted_size, shares, market.slug,
+                price, adjusted_size, shares, market.slug,
                 market.tags[0] if market.tags else "",
                 confidence=estimate.confidence,
                 ai_probability=estimate.ai_probability,
