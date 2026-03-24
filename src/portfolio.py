@@ -423,8 +423,10 @@ class Portfolio:
             if pos.scale_out_tier >= 1:
                 from src.vs_spike import should_hold_for_resolution
                 eff_price = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
-                score_behind = False  # TODO: wire score data when available
-                is_won = False  # TODO: wire from match data
+                from src.match_exit import parse_match_score
+                _score = parse_match_score(pos.match_score, pos.number_of_games, pos.direction)
+                score_behind = _score.get("available", False) and _score.get("map_diff", 0) < 0
+                is_won = _score.get("is_already_won", False)
                 hold, hold_reason = should_hold_for_resolution(
                     effective_price=eff_price, effective_ai=effective_ai,
                     scale_out_tier=pos.scale_out_tier, score_behind=score_behind,
@@ -437,19 +439,17 @@ class Portfolio:
             # UNDERDOG: edge trade with decayed AI target (V2: edge decay)
             if pos.ai_probability > 0:
                 from src.edge_decay import get_decayed_ai_target
+                from src.match_exit import get_game_duration
                 from datetime import datetime, timezone
-                # Compute elapsed_pct
+                # Compute elapsed_pct using game-specific duration table
                 elapsed_pct = 0.0
                 if pos.match_start_iso:
                     try:
                         start_dt = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
                         now = datetime.now(timezone.utc)
                         elapsed_sec = max(0, (now - start_dt).total_seconds())
-                        total_sec = 5400  # ~90 min default match
-                        if pos.number_of_games >= 5:
-                            total_sec = 12600  # ~210 min BO5
-                        elif pos.number_of_games >= 3:
-                            total_sec = 9000  # ~150 min BO3
+                        duration_min = get_game_duration(pos.slug, pos.number_of_games, pos.sport_tag)
+                        total_sec = duration_min * 60
                         elapsed_pct = min(1.0, elapsed_sec / total_sec)
                     except (ValueError, TypeError):
                         pass

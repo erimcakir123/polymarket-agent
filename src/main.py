@@ -1993,6 +1993,31 @@ class Agent:
         # Check if enough data for self-improvement
         self._check_self_improve_ready()
 
+    def _is_match_too_far(self, market, max_elapsed: float = 0.30) -> bool:
+        """Return True if match has progressed past max_elapsed (default 30%).
+
+        Stock entries should only happen in the first 30% of a match.
+        Returns False (allow entry) if no match timing data is available.
+        """
+        msi = getattr(market, 'match_start_iso', '')
+        if not msi:
+            return False
+        try:
+            from datetime import datetime, timezone
+            from src.match_exit import get_game_duration
+            start_dt = datetime.fromisoformat(msi.replace("Z", "+00:00"))
+            elapsed_min = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
+            duration = get_game_duration(market.slug, getattr(market, 'number_of_games', 0),
+                                         getattr(market, 'sport_tag', ''))
+            elapsed_pct = elapsed_min / duration if duration > 0 else 0
+            if elapsed_pct > max_elapsed:
+                logger.info("Stock SKIP (match %d%% done > %d%% max): %s",
+                            int(elapsed_pct * 100), int(max_elapsed * 100), market.slug[:40])
+                return True
+        except (ValueError, TypeError):
+            pass
+        return False
+
     def _fill_from_stock(self) -> None:
         """Fill open slots from pre-analyzed candidate stock. No AI call needed."""
         if not self._candidate_stock:
@@ -2033,6 +2058,11 @@ class Agent:
                 self._candidate_stock.remove(c)
                 continue
             if self._exit_cooldowns.get(market.condition_id, 0) > self.cycle_count:
+                self._candidate_stock.remove(c)
+                continue
+
+            # Match progress guard: only enter in first 30% of match
+            if self._is_match_too_far(market, max_elapsed=0.30):
                 self._candidate_stock.remove(c)
                 continue
 
@@ -2225,6 +2255,11 @@ class Agent:
                 self._fav_stock.remove(c)
                 continue
 
+            # Match progress guard: only enter in first 30% of match
+            if self._is_match_too_far(market, max_elapsed=0.30):
+                self._fav_stock.remove(c)
+                continue
+
             # Freshness: check current price hasn't moved too much
             current_price = self._get_current_price(market)
             if current_price is not None:
@@ -2321,6 +2356,11 @@ class Agent:
                 self._far_stock.remove(c)
                 continue
             if self.blacklist.is_blocked(market.condition_id, self.cycle_count):
+                self._far_stock.remove(c)
+                continue
+
+            # Match progress guard: only enter in first 30% of match
+            if self._is_match_too_far(market, max_elapsed=0.30):
                 self._far_stock.remove(c)
                 continue
 
