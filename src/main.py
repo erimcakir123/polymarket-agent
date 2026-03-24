@@ -46,6 +46,7 @@ from src.edge_decay import get_decayed_ai_target
 from src.correlation import apply_correlation_cap, extract_match_key
 from src.liquidity_check import check_exit_liquidity
 from src.adaptive_kelly import get_adaptive_kelly_fraction
+from src.outcome_tracker import OutcomeTracker
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ class Agent:
         self._spike_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
         self._scouted_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
         self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
+        self.outcome_tracker = OutcomeTracker()  # Track match results after exit
         self._daily_reentry_count: int = 0  # Re-entries today (reset each heavy cycle at midnight)
         self._last_reentry_reset_date = datetime.now(timezone.utc).date()
         self._cycle_ai_cost_start: float = 0.0  # Sprint cost at cycle start (for per-cycle tracking)
@@ -189,9 +191,18 @@ class Agent:
                 logger.error("LIVE mode requires POLYGON_PRIVATE_KEY in .env")
         self.executor = Executor(mode=config.mode, clob_client=clob_client)
 
+    STOP_FILE = Path("logs/stop_signal")
+
     def shutdown(self) -> None:
         self.running = False
         logger.info("Shutdown requested — finishing current cycle")
+
+    def _check_stop_file(self) -> None:
+        """Poll for file-based stop signal (Windows-safe shutdown)."""
+        if self.STOP_FILE.exists():
+            logger.info("Stop file detected — shutting down gracefully")
+            self.STOP_FILE.unlink(missing_ok=True)
+            self.shutdown()
 
     def _set_status(self, state: str, step: str = "", light_ts: str = "") -> None:
         """Write current bot status to disk for dashboard polling."""
@@ -2679,7 +2690,18 @@ class Agent:
                         _exit_elapsed = min(1.0, max(0.0, (_now - _ms).total_seconds() / _total))
                 except (ValueError, TypeError):
                     pass
-            btype, duration = get_blacklist_rule(reason, elapsed_pct=_exit_elapsed)
+            # Normalize reason for blacklist lookup:
+            # match_exit_graduated_sl → graduated_sl, far_penny_5x_target → far_penny
+            bl_reason = reason
+            if bl_reason.startswith("match_exit_"):
+                bl_reason = bl_reason[len("match_exit_"):]
+            elif bl_reason.startswith("far_penny_"):
+                bl_reason = "far_penny"
+            elif bl_reason.startswith("SLOT_UPGRADE"):
+                bl_reason = "slot_upgrade"
+            elif bl_reason.startswith("election_reeval"):
+                bl_reason = "election_reeval"
+            btype, duration = get_blacklist_rule(bl_reason, elapsed_pct=_exit_elapsed)
             if btype == "permanent":
                 self.blacklist.add(condition_id, reason, "permanent", None, exit_data)
             elif btype == "timed":
@@ -2764,6 +2786,31 @@ class Agent:
         except Exception as e:
             logger.debug("Match outcome logging skipped: %s", e)
 
+        # Track market for post-exit resolution (what actually happened)
+        try:
+            self.outcome_tracker.track(
+                condition_id=condition_id,
+                token_id=pos.token_id,
+                slug=pos.slug,
+                question=getattr(pos, "question", ""),
+                direction=pos.direction,
+                ai_probability=pos.ai_probability,
+                confidence=pos.confidence,
+                entry_price=pos.entry_price,
+                exit_price=pos.current_price,
+                exit_reason=reason,
+                pnl=realized_pnl,
+                size=pos.size_usdc,
+                sport_tag=getattr(pos, "sport_tag", ""),
+                entry_reason=getattr(pos, "entry_reason", ""),
+                scouted=getattr(pos, "scouted", False),
+                peak_pnl_pct=getattr(pos, "peak_pnl_pct", 0.0),
+                match_score=getattr(pos, "match_score", ""),
+                cycles_held=getattr(pos, "cycles_held", 0),
+            )
+        except Exception as e:
+            logger.debug("Outcome tracking skipped: %s", e)
+
     def _check_far_penny_exits(self) -> None:
         """Check FAR penny positions for multiplier target exits.
         $0.01 entry → hold for 5x ($0.05), then trailing stop
@@ -2833,9 +2880,10 @@ class Agent:
             if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
                 continue
 
-            # Slot check
-            if current_normal >= self.config.risk.max_positions - vs_reserved:
-                break  # No slots available
+            # RE slot check — max 3 concurrent re-entry positions
+            RE_MAX_SLOTS = 3
+            if self.portfolio.reentry_position_count >= RE_MAX_SLOTS:
+                break  # No RE slots available
 
             # Fetch current price from Gamma
             try:
@@ -3318,9 +3366,81 @@ class Agent:
             self._exit_position(cid, reason)
             self.reentry_pool.remove(cid)  # Don't let near-resolved markets re-enter
 
+        # Check outcome tracker — resolve exited markets we're still watching
+        if self.outcome_tracker.tracked_count > 0:
+            self._check_tracked_outcomes()
+
         # Persist updated prices + live status to disk
         self.portfolio.save_prices_to_disk()
         return has_live_clob
+
+    def _check_tracked_outcomes(self) -> None:
+        """Check exited markets for resolution — no AI cost, just Gamma API."""
+        from src.match_outcomes import log_outcome as _log_resolved
+        tracked_cids = self.outcome_tracker.tracked_condition_ids
+        if not tracked_cids:
+            return
+
+        gamma_events: dict[str, dict] = {}
+        for cid in list(tracked_cids):
+            tm = self.outcome_tracker._tracked.get(cid)
+            if not tm:
+                continue
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"slug": tm.slug}, timeout=10,
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                if not data:
+                    continue
+                md = data[0] if isinstance(data, list) else data
+                prices = json.loads(md.get("outcomePrices", '["0.5","0.5"]'))
+                gamma_events[cid] = {
+                    "yes_price": float(prices[0]),
+                    "closed": md.get("closed", False),
+                    "ended": (md.get("events") or [{}])[0].get("ended", False),
+                }
+            except Exception:
+                continue
+
+        resolved = self.outcome_tracker.check_resolutions(gamma_events)
+        for outcome in resolved:
+            # Log resolved outcome to match_outcomes.jsonl
+            try:
+                _log_resolved(
+                    slug=outcome["slug"],
+                    question=outcome.get("question", ""),
+                    direction=outcome["direction"],
+                    ai_probability=outcome["ai_probability"],
+                    confidence=outcome["confidence"],
+                    entry_price=outcome["entry_price"],
+                    exit_price=outcome["exit_price"],
+                    exit_reason=f"post_exit_{outcome['exit_reason']}",
+                    pnl=outcome["hypothetical_pnl"],
+                    size=outcome["size"],
+                    sport_tag=outcome.get("sport_tag", ""),
+                    entry_reason=outcome.get("entry_reason", ""),
+                    scouted=outcome.get("scouted", False),
+                    peak_pnl_pct=outcome.get("peak_pnl_pct", 0.0),
+                    match_score=outcome.get("match_score", ""),
+                    cycles_held=outcome.get("cycles_held", 0),
+                )
+            except Exception:
+                pass
+
+            # Notify
+            side = "WIN" if outcome["our_side_won"] else "LOSS"
+            left = outcome.get("pnl_left_on_table", 0)
+            self.notifier.send(
+                f"\U0001f50d *POST-EXIT* — {outcome['slug'][:40]}\n\n"
+                f"Exited: `{outcome['exit_reason']}` PnL=`${outcome['actual_pnl']:.2f}`\n"
+                f"Match result: `{side}`\n"
+                f"If held: `${outcome['hypothetical_pnl']:.2f}`"
+                + (f" (left `${left:.2f}` on table)" if left > 0.5 else "")
+            )
 
     def _check_price_drift_reanalysis(self) -> None:
         """Invalidate AI cache for positions whose price drifted significantly from entry."""
@@ -3740,6 +3860,9 @@ class Agent:
             for tick in range(interval * 60):
                 if not self.running:
                     break
+                # Check file-based stop signal every 5 seconds (Windows-safe)
+                if tick % 5 == 0:
+                    self._check_stop_file()
                 # Poll Telegram commands every 5 seconds
                 if tick % 5 == 0:
                     self.notifier.handle_commands(self)

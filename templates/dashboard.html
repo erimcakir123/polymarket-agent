@@ -2253,13 +2253,14 @@
                 if (!el || !t.data) continue;
                 el.textContent = `${t.label} ${t.data.current || 0}/${t.data.max || 0}`;
             }
-            // Reentry slot: "RE active (waiting)"
+            // Reentry slot: "RE current/max (waiting)"
             const reEl = document.getElementById('slotReInline');
             if (reEl && s.reentry) {
-                const active = s.reentry.active || 0;
+                const current = s.reentry.current || 0;
+                const max = s.reentry.max || 3;
                 const waiting = s.reentry.waiting || 0;
-                reEl.textContent = `RE ${active} (${waiting})`;
-                reEl.title = `${active} active re-entry positions, ${waiting} waiting in pool`;
+                reEl.textContent = `RE ${current}/${max} (${waiting})`;
+                reEl.title = `${current}/${max} active re-entry slots, ${waiting} waiting in pool`;
             }
         }
 

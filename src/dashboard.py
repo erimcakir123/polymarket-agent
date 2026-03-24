@@ -141,7 +141,7 @@ def create_app(
             "fav": {"current": fav_count, "max": 5},
             "live_dip": {"current": live_dip_count, "max": 2},
             "far": {"current": far_count, "max": far_max},
-            "reentry": {"active": reentry_count, "waiting": reentry_pool_waiting},
+            "reentry": {"current": reentry_count, "max": 3, "waiting": reentry_pool_waiting},
             "pending": pending_count,
             "total": normal_count + vs_count + fav_count + live_dip_count + far_count + reentry_count,
         })

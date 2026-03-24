@@ -171,6 +171,11 @@ BLACKLIST_RULES = {
     "re_entry_resolve_loss": ("timed", 15),
     "vs_take_profit": ("reentry", 5),
     "vs_mandatory_exit": ("timed", 15),
+    "resolved_win": ("none", 0),
+    "resolved_loss": ("timed", 20),
+    "election_reeval": ("timed", 30),
+    "far_penny": ("none", 0),
+    "slot_upgrade": ("timed", 10),
 }
 
 

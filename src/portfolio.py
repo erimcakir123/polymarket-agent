@@ -162,12 +162,22 @@ class Portfolio:
 
     @property
     def normal_position_count(self) -> int:
-        """Count normal positions (excluding VS, live_dip, fav_time_gate, far)."""
+        """Count normal positions (excluding VS, live_dip, fav_time_gate, far, re_entry)."""
         return sum(
             1 for p in self.positions.values()
             if not p.pending_resolution
             and not p.volatility_swing
             and p.entry_reason not in self._SPECIAL_ENTRY_REASONS
+            and not p.entry_reason.startswith("re_entry")
+        )
+
+    @property
+    def reentry_position_count(self) -> int:
+        """Count active re-entry positions."""
+        return sum(
+            1 for p in self.positions.values()
+            if not p.pending_resolution
+            and p.entry_reason.startswith("re_entry")
         )
 
     def count_by_entry_reason(self, reason: str) -> int:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,8 +19,10 @@ def acquire_lock() -> None:
     if LOCK_FILE.exists():
         try:
             old_pid = int(LOCK_FILE.read_text().strip())
-            # Check if the old process is still running
-            if _is_process_alive(old_pid):
+            if old_pid == os.getpid():
+                # Same process re-acquiring (shouldn't happen but safe)
+                return
+            if _is_agent_alive(old_pid):
                 logger.error(
                     "Another agent instance is already running (PID %d). "
                     "Kill it first or delete %s to force start.",
@@ -49,17 +52,21 @@ def _release_lock() -> None:
         pass
 
 
-def _is_process_alive(pid: int) -> bool:
-    """Check if a process with the given PID is still running."""
+def _is_agent_alive(pid: int) -> bool:
+    """Check if a process with the given PID is our agent (not just any process).
+
+    Uses wmic directly to check command line — tasklist can miss python
+    processes on some Windows configurations.
+    """
     if sys.platform == "win32":
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        SYNCHRONIZE = 0x00100000
-        handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
-        if handle:
-            kernel32.CloseHandle(handle)
-            return True
-        return False
+        try:
+            result = subprocess.run(
+                ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return "src.main" in result.stdout
+        except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+            return False
     else:
         try:
             os.kill(pid, 0)
