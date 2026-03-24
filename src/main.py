@@ -698,7 +698,29 @@ class Agent:
         if already_analyzed:
             logger.info("Skipped %d already analyzed (saved AI calls)", already_analyzed)
 
-        # 7c. Pre-filter LIVE matches (don't waste AI calls on in-progress games)
+        # 7c. Filter non-moneyline bet types (spread, totals, props — AI has no edge)
+        _ALT_BET_KEYWORDS = {
+            "spread", "handicap", "over", "under", "total points", "total goals",
+            "total runs", "total maps", "o/u", "player props", "first blood",
+            "first kill", "first to score", "first goal", "first touchdown",
+            "most kills", "most assists", "exact score",
+        }
+        def _is_alt_bet(question: str) -> bool:
+            q = question.lower()
+            for kw in _ALT_BET_KEYWORDS:
+                if kw in q:
+                    return True
+            # Spread pattern: "Team (-1.5)" or "Team (+3.5)"
+            if re.search(r'\([+-]\d+\.?\d*\)', q):
+                return True
+            return False
+
+        alt_skipped = sum(1 for m in markets if _is_alt_bet(m.question))
+        markets = [m for m in markets if not _is_alt_bet(m.question)]
+        if alt_skipped:
+            logger.info("Skipped %d alt bets (spread/totals/props — moneyline only)", alt_skipped)
+
+        # 7d. Pre-filter LIVE matches (don't waste AI calls on in-progress games)
         live_markets = []
         non_live = []
         now_live_check = datetime.now(timezone.utc)
@@ -3203,9 +3225,21 @@ class Agent:
                             reentry_resolve_exits.append((cid, "re_entry_resolve_loss"))
                             continue
 
-                    # Mark as pending resolution when price near extremes
+                    # Mark as pending resolution ONLY when match ended + price at extremes
+                    # Price extreme alone is NOT enough — underdog markets sit at 2-5¢ while live
                     if not pos.pending_resolution and (new_yes_price >= 0.95 or new_yes_price <= 0.05):
-                        self.portfolio.mark_pending_resolution(cid)
+                        match_ended = getattr(pos, 'match_ended', False)
+                        event_ended = False
+                        if events:
+                            event_ended = bool(events[0].get("ended", False))
+                        if match_ended or event_ended:
+                            self.portfolio.mark_pending_resolution(cid)
+                    # Un-mark false pending: if market is open and event not ended, undo pending
+                    if pos.pending_resolution and not is_closed:
+                        event_still_live = events and not events[0].get("ended", False)
+                        if event_still_live or not events:
+                            pos.pending_resolution = False
+                            logger.info("Un-pending: %s — market still open, event not ended", pos.slug[:40])
                     # Pending positions are no longer live
                     if pos.pending_resolution:
                         pos.live_on_clob = False

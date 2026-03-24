@@ -1916,10 +1916,17 @@
             const pendingPositions = Object.values(allPositions || {}).filter(p => p.pending_resolution);
             const pendingEntries = pendingPositions.map(p => {
                 // Pending resolution = match ended, awaiting oracle
-                // Calculate PnL assuming $1.00 resolution (shares - cost)
-                const resolvedPnl = (p.shares || 0) - (p.size_usdc || 0);
+                // Determine win/loss based on current price + direction
+                const yesPrice = p.current_price || 0;
+                const isYes = (p.direction || '').includes('YES');
+                const effPrice = isYes ? yesPrice : (1 - yesPrice);
+                const likelyWin = effPrice >= 0.50;
+                const resolvedPnl = likelyWin
+                    ? (p.shares || 0) - (p.size_usdc || 0)   // WIN: shares pay $1 each
+                    : -(p.size_usdc || 0);                     // LOSS: lose entire cost
                 return {
                     _isPending: true,
+                    _likelyWin: likelyWin,
                     action: 'RESOLVING',
                     market: p.slug || '',
                     question: p.question || '',
@@ -1985,7 +1992,7 @@
                 const title = escapeHtml(cleanMatchTitle(rawQ2));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const pnl = t.pnl || 0;
-                const pnlColor = isPending ? COLORS.amber : (Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red));
+                const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
                 const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
                 const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;
                 const reason = t.reason || 'manual';
