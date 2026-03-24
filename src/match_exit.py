@@ -247,7 +247,7 @@ def check_match_exit(data: dict) -> dict:
     ever_in_profit = data.get("ever_in_profit", False)
     peak_pnl_pct = data.get("peak_pnl_pct", 0.0)
     scouted = data.get("scouted", False)
-    confidence = data.get("confidence", "medium")
+    confidence = data.get("confidence", "B-")
     ai_probability = data.get("ai_probability", 0.5)
     consecutive_down = data.get("consecutive_down_cycles", 0)
     cumulative_drop = data.get("cumulative_drop", 0.0)
@@ -331,7 +331,7 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
     is_hold_candidate = scouted or (
-        ai_probability >= 0.65 and confidence in ("high", "medium_high")
+        ai_probability >= 0.65 and confidence in ("A", "B+")
     )
 
     if is_hold_candidate:

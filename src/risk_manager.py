@@ -82,11 +82,11 @@ class RiskManager:
             market_price=signal.market_price,
             bankroll=bankroll,
             kelly_fraction=get_adaptive_kelly_fraction(
-                confidence=getattr(signal, 'confidence', "medium"),
+                confidence=getattr(signal, 'confidence', "B-"),
                 ai_probability=signal.ai_probability,
                 category=getattr(signal, 'category', ''),
                 is_reentry=False,
-                config_kelly_by_conf={"low": 0.08, "medium_low": 0.10, "medium": 0.15, "medium_high": 0.20, "high": 0.25},
+                config_kelly_by_conf={"C": 0.08, "B-": 0.12, "B+": 0.20, "A": 0.25},
             ),
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,

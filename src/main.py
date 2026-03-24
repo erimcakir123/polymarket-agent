@@ -2623,7 +2623,22 @@ class Agent:
                 "slug": pos.slug,
                 "token_id": pos.token_id,
             }
-            btype, duration = get_blacklist_rule(reason, elapsed_pct=0.0)
+            # Compute elapsed_pct for graduated_sl cooldown scaling
+            _exit_elapsed = 0.0
+            _mstart = getattr(pos, "match_start_iso", "")
+            _edate = getattr(pos, "end_date_iso", "")
+            if _mstart and _edate:
+                try:
+                    from datetime import datetime, timezone
+                    _ms = datetime.fromisoformat(_mstart.replace("Z", "+00:00"))
+                    _ed = datetime.fromisoformat(_edate.replace("Z", "+00:00"))
+                    _now = datetime.now(timezone.utc)
+                    _total = (_ed - _ms).total_seconds()
+                    if _total > 0:
+                        _exit_elapsed = min(1.0, max(0.0, (_now - _ms).total_seconds() / _total))
+                except (ValueError, TypeError):
+                    pass
+            btype, duration = get_blacklist_rule(reason, elapsed_pct=_exit_elapsed)
             if btype == "permanent":
                 self.blacklist.add(condition_id, reason, "permanent", None, exit_data)
             elif btype == "timed":

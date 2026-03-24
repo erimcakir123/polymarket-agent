@@ -169,6 +169,8 @@ BLACKLIST_RULES = {
     "score_terminal_win": ("none", 0),
     "re_entry_resolve_win": ("reentry", 3),
     "re_entry_resolve_loss": ("timed", 15),
+    "vs_take_profit": ("reentry", 5),
+    "vs_mandatory_exit": ("timed", 15),
 }
 
 

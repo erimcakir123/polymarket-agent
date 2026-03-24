@@ -212,10 +212,12 @@ class Portfolio:
                     pos.scouted = False
                     logger.info("FAV DEMOTED: %s | price %.0f%% < 65%% — no longer favorite",
                                 pos.slug[:35], eff_price * 100)
-            # Track consecutive down cycles for momentum alert
-            if pos.previous_cycle_price > 0 and new_price < pos.previous_cycle_price:
+            # Track consecutive down cycles for momentum alert (use effective prices for BUY_NO)
+            eff_new = (1 - new_price) if pos.direction == "BUY_NO" else new_price
+            eff_prev = (1 - pos.previous_cycle_price) if pos.direction == "BUY_NO" else pos.previous_cycle_price
+            if eff_prev > 0 and eff_new < eff_prev:
                 pos.consecutive_down_cycles += 1
-                pos.cumulative_drop += (pos.previous_cycle_price - new_price)
+                pos.cumulative_drop += (eff_prev - eff_new)
             else:
                 pos.consecutive_down_cycles = 0
                 pos.cumulative_drop = 0.0
@@ -442,7 +444,8 @@ class Portfolio:
                 # V2: Decay AI target toward market price as match progresses
                 decayed_target = get_decayed_ai_target(ai_target, current, elapsed_pct)
                 edge_tp_price = decayed_target * 0.85
-                if current >= edge_tp_price and current > pos.entry_price * 1.10:
+                eff_entry = (1 - pos.entry_price) if (pos.direction and 'NO' in pos.direction) else pos.entry_price
+                if current >= edge_tp_price and current > eff_entry * 1.10:
                     triggered.append(cid)
                     logger.info("Edge TP (underdog): %s | price=%.0f¢ → AI target %.0f¢ (85%%=%.0f¢) | +%.1f%%",
                                 pos.slug[:30], current * 100, ai_target * 100,

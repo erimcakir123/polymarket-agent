@@ -249,7 +249,7 @@ class AIAnalyst:
         if self.budget_exhausted:
             logger.warning("HARD STOP: Monthly API budget exhausted ($%.2f/$%.2f). Skipping analysis.",
                            self._month_cost_usd, self.config.monthly_budget_usd)
-            return AIEstimate(ai_probability=0.5, confidence="low",
+            return AIEstimate(ai_probability=0.5, confidence="C",
                               reasoning_pro="BUDGET_EXHAUSTED", reasoning_con="BUDGET_EXHAUSTED")
 
         # Pre-flight: estimate cost of 1 unified call and check remaining
@@ -258,7 +258,7 @@ class AIAnalyst:
         if self.budget_remaining_usd < estimated_cost:
             logger.warning("HARD STOP: Budget too low for analysis ($%.4f remaining, ~$%.4f needed).",
                            self.budget_remaining_usd, estimated_cost)
-            return AIEstimate(ai_probability=0.5, confidence="low",
+            return AIEstimate(ai_probability=0.5, confidence="C",
                               reasoning_pro="BUDGET_EXHAUSTED", reasoning_con="BUDGET_EXHAUSTED")
 
         prompt = self._build_prompt(market, news_context, esports_context)

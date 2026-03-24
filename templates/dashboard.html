@@ -1714,7 +1714,9 @@
             const calibrationPairs = exits.filter(t => buyMap[t.market] && buyMap[t.market].ai_probability)
                 .map(t => {
                     const buy = buyMap[t.market];
-                    const prob = buy.ai_probability;
+                    // For BUY_NO, AI probability is for YES side — invert to get our side's probability
+                    const rawProb = buy.ai_probability;
+                    const prob = (buy.action === 'BUY_NO') ? (1 - rawProb) : rawProb;
                     const outcome = t.pnl > 0 ? 1 : 0;
                     return { prob, outcome };
                 });
@@ -1996,8 +1998,8 @@
                 const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
                 const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;
                 const reason = t.reason || 'manual';
-                const isWin = !isPending && reason.includes('win');
-                const isLoss = !isPending && reason.includes('loss');
+                const isWin = !isPending && pnl > 0;
+                const isLoss = !isPending && pnl < 0;
                 const resultIcon = isPending ? '&#9202;' : isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
                 const resultColor = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
                 const resultLabel = isPending ? 'RESOLVING' : isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
