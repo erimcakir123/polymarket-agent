@@ -2320,8 +2320,13 @@
                 onlineDot.style.background = OFF; onlineDot.style.animation = 'none';
             }
 
+            // Detect which cycle is running
+            const stepLower = (data.step || '').toLowerCase();
+            const isLightRunning = data.state === 'running' && stepLower.includes('light');
+            const isHardRunning = data.state === 'running' && !isLightRunning;
+
             // Hard cycle
-            if (data.state === 'running') {
+            if (isHardRunning) {
                 hardDot.style.background = BLUE;
                 hardText.style.color = BLUE;
                 hardText.textContent = (data.step || 'Processing...').replace(/\bAI\b/gi, 'Warren');
@@ -2347,6 +2352,11 @@
                     hardText.style.color = GRAY;
                     hardText.textContent = 'Hard Waiting';
                 }
+            } else if (isLightRunning) {
+                // Light is running, hard waits
+                hardDot.style.background = OFF;
+                hardText.style.color = GRAY;
+                hardText.textContent = 'Hard Waiting';
             } else {
                 hardDot.style.background = OFF;
                 hardText.style.color = GRAY;
@@ -2354,11 +2364,16 @@
             }
 
             // Light cycle
-            if (data.state === 'running' && (data.step || '').toLowerCase().includes('light')) {
+            if (isLightRunning) {
                 lightDot.style.background = TEAL;
                 lightText.style.color = TEAL;
-                lightText.textContent = 'Light Running';
-            } else if (data.light_ts && data.has_positions && (data.state === 'running' || data.state === 'waiting')) {
+                lightText.textContent = (data.step || 'Light Running').replace(/\bAI\b/gi, 'Warren');
+            } else if (isHardRunning) {
+                // Hard is running, light waits
+                lightDot.style.background = OFF;
+                lightText.style.color = GRAY;
+                lightText.textContent = 'Light Waiting';
+            } else if (data.light_ts && data.has_positions && data.state === 'waiting') {
                 const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
                 const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
                 if (lightRemaining > 0) {
@@ -2370,7 +2385,7 @@
                     lightText.style.color = TEAL;
                     lightText.textContent = 'Light Starting...';
                 }
-            } else if (data.state === 'running' || data.state === 'waiting') {
+            } else if (data.state === 'waiting') {
                 lightDot.style.background = OFF;
                 lightText.style.color = GRAY;
                 lightText.textContent = 'Light Waiting';
