@@ -2325,74 +2325,67 @@
             const isLightRunning = data.state === 'running' && stepLower.includes('light');
             const isHardRunning = data.state === 'running' && !isLightRunning;
 
+            // Helper: strip "Light cycle — " prefix from step text for clean display
+            const cleanStep = (step) => (step || '').replace(/^Light cycle\s*[—–-]\s*/i, '').replace(/\bAI\b/gi, 'Warren') || 'Running';
+
             // Hard cycle
             if (isHardRunning) {
                 hardDot.style.background = BLUE;
                 hardText.style.color = BLUE;
-                hardText.textContent = (data.step || 'Processing...').replace(/\bAI\b/gi, 'Warren');
+                hardText.innerHTML = `<span style="opacity:0.7">Hard:</span> ${cleanStep(data.step)}`;
             } else if (data.state === 'waiting') {
                 const minMatch = (data.step || '').match(/(\d+)min/);
                 if (minMatch && data.ts) {
                     const intervalSec = parseInt(minMatch[1]) * 60;
                     const elapsed = (Date.now() - new Date(data.ts).getTime()) / 1000;
                     const remaining = Math.max(0, Math.round(intervalSec - elapsed));
-                    if (remaining > 0) {
-                        const m = Math.floor(remaining / 60);
-                        const s = remaining % 60;
-                        hardDot.style.background = BLUE;
-                        hardText.style.color = BLUE;
-                        hardText.textContent = `Hard ${m}m ${s.toString().padStart(2,'0')}s`;
-                    } else {
-                        hardDot.style.background = BLUE;
-                        hardText.style.color = BLUE;
-                        hardText.textContent = 'Hard Starting...';
-                    }
+                    const m = Math.floor(remaining / 60);
+                    const s = remaining % 60;
+                    hardDot.style.background = BLUE;
+                    hardText.style.color = BLUE;
+                    hardText.innerHTML = remaining > 0
+                        ? `<span style="opacity:0.7">Hard:</span> ${m}m ${s.toString().padStart(2,'0')}s`
+                        : `<span style="opacity:0.7">Hard:</span> Starting...`;
                 } else {
                     hardDot.style.background = OFF;
                     hardText.style.color = GRAY;
-                    hardText.textContent = 'Hard Waiting';
+                    hardText.innerHTML = `<span style="opacity:0.7">Hard:</span> Waiting`;
                 }
             } else if (isLightRunning) {
-                // Light is running, hard waits
                 hardDot.style.background = OFF;
                 hardText.style.color = GRAY;
-                hardText.textContent = 'Hard Waiting';
+                hardText.innerHTML = `<span style="opacity:0.7">Hard:</span> Waiting`;
             } else {
                 hardDot.style.background = OFF;
                 hardText.style.color = GRAY;
-                hardText.textContent = 'Hard Offline';
+                hardText.innerHTML = `<span style="opacity:0.7">Hard:</span> Offline`;
             }
 
             // Light cycle
             if (isLightRunning) {
                 lightDot.style.background = TEAL;
                 lightText.style.color = TEAL;
-                lightText.textContent = (data.step || 'Light Running').replace(/\bAI\b/gi, 'Warren');
+                lightText.innerHTML = `<span style="opacity:0.7">Light:</span> ${cleanStep(data.step)}`;
             } else if (isHardRunning) {
-                // Hard is running, light waits
                 lightDot.style.background = OFF;
                 lightText.style.color = GRAY;
-                lightText.textContent = 'Light Waiting';
+                lightText.innerHTML = `<span style="opacity:0.7">Light:</span> Waiting`;
             } else if (data.light_ts && data.has_positions && data.state === 'waiting') {
                 const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
                 const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
-                if (lightRemaining > 0) {
-                    lightDot.style.background = TEAL;
-                    lightText.style.color = TEAL;
-                    lightText.textContent = `Light ${lightRemaining}s`;
-                } else {
-                    lightDot.style.background = TEAL;
-                    lightText.style.color = TEAL;
-                    lightText.textContent = 'Light Starting...';
-                }
+                lightDot.style.background = TEAL;
+                lightText.style.color = TEAL;
+                lightText.innerHTML = lightRemaining > 0
+                    ? `<span style="opacity:0.7">Light:</span> ${lightRemaining}s`
+                    : `<span style="opacity:0.7">Light:</span> Starting...`;
             } else if (data.state === 'waiting') {
                 lightDot.style.background = OFF;
                 lightText.style.color = GRAY;
-                lightText.textContent = 'Light Waiting';
+                lightText.innerHTML = `<span style="opacity:0.7">Light:</span> Waiting`;
             } else {
                 lightDot.style.background = OFF;
                 lightText.style.color = GRAY;
-                lightText.textContent = 'Light Offline';
+                lightText.innerHTML = `<span style="opacity:0.7">Light:</span> Offline`;
             }
         }
 
