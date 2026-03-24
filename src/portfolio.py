@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from src.models import Position
 
@@ -541,16 +541,23 @@ class Portfolio:
                 pass
         return triggered
 
-    def check_esports_halftime_exits(self) -> List[str]:
+    def check_esports_halftime_exits(
+        self, match_states: Optional[dict] = None
+    ) -> List[str]:
         """Exit esports positions at halftime if losing.
 
-        BO3: after ~50 min (1 map done) — if losing, cut losses
-        BO5: after ~75 min (2 maps done) — if losing, cut losses
-        If in profit, let it ride.
+        Uses live match state from PandaScore when available, falls back to
+        time-based estimation (BO3: ~62 min, BO5: ~87 min).
+
+        Args:
+            match_states: dict of condition_id → match_state dict from PandaScore
+                          (with keys: map_number, total_maps, team_a_score, team_b_score)
         """
         from datetime import datetime, timezone
         triggered = []
         now = datetime.now(timezone.utc)
+        states = match_states or {}
+
         for cid, pos in self.positions.items():
             if pos.category != "esports":
                 continue
@@ -558,7 +565,33 @@ class Portfolio:
                 continue  # Not live yet
             if pos.unrealized_pnl_pct >= 0:
                 continue  # In profit — let it ride
-            # Need match_start_iso to calculate elapsed time
+
+            ms = states.get(cid)
+            if ms:
+                # --- Live match state available (PandaScore) ---
+                total_maps = ms.get("total_maps", 1)
+                map_num = ms.get("map_number", 1)
+                a_score = ms.get("team_a_score", 0)
+                b_score = ms.get("team_b_score", 0)
+                maps_to_win = (total_maps // 2) + 1
+
+                # BO3: exit after map 1 if losing (map_number >= 2 means map 1 done)
+                # BO5: exit after map 2 if losing (map_number >= 3 means map 2 done)
+                halftime_map = 2 if total_maps >= 5 else 1
+                if map_num > halftime_map:
+                    # Check if our side is losing on maps
+                    # Simplified: if losing on score, trigger exit
+                    losing = (a_score < b_score) if pos.direction == "BUY_YES" else (a_score > b_score)
+                    if losing:
+                        triggered.append(cid)
+                        logger.warning(
+                            "Esports halftime exit (live score): %s | BO%d | Map %d | Score %d-%d | PnL=%.1f%%",
+                            pos.slug[:30], total_maps, map_num, a_score, b_score,
+                            pos.unrealized_pnl_pct * 100,
+                        )
+                continue  # Skip time-based check when live state is available
+
+            # --- Fallback: time-based estimation ---
             start_iso = pos.match_start_iso
             if not start_iso:
                 continue
@@ -575,7 +608,7 @@ class Portfolio:
             if elapsed_min >= halftime_min:
                 triggered.append(cid)
                 logger.warning(
-                    "Esports halftime exit: %s | BO%d | %d min elapsed | PnL=%.1f%% — cutting losses",
+                    "Esports halftime exit (time): %s | BO%d | %d min elapsed | PnL=%.1f%% — cutting losses",
                     pos.slug[:30], pos.number_of_games, int(elapsed_min),
                     pos.unrealized_pnl_pct * 100,
                 )

@@ -41,6 +41,7 @@ from src.dashboard import create_app as create_dashboard
 from src.live_dip_entry import find_live_dip_candidates
 from src.circuit_breaker import CircuitBreaker
 from src.reentry_farming import ReentryPool, check_reentry
+from src.websocket_feed import WebSocketFeed
 from src.reentry import Blacklist, can_reenter, get_blacklist_rule, is_snowball_banned, qualifies_for_score_reversal_reentry, passes_confidence_momentum, get_reentry_size_multiplier
 from src.edge_decay import get_decayed_ai_target
 from src.correlation import apply_correlation_cap, extract_match_key
@@ -121,6 +122,9 @@ class Agent:
         self._scouted_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
         self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
         self.outcome_tracker = OutcomeTracker()  # Track match results after exit
+        self.ws_feed = WebSocketFeed(on_price_update=self._on_ws_price_update)
+        self._match_states: dict[str, dict] = {}  # condition_id → live match state
+        self._last_match_state_fetch: float = 0.0  # Rate limit match state queries
         self._daily_reentry_count: int = 0  # Re-entries today (reset each heavy cycle at midnight)
         self._last_reentry_reset_date = datetime.now(timezone.utc).date()
         self._cycle_ai_cost_start: float = 0.0  # Sprint cost at cycle start (for per-cycle tracking)
@@ -197,8 +201,82 @@ class Agent:
 
     STOP_FILE = Path("logs/stop_signal")
 
+    # ------ WebSocket price callback ------
+
+    def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
+        """Called by WebSocket feed on every price change. Lightweight — no I/O."""
+        # Find position with this token_id and update its current_price
+        for cid, pos in self.portfolio.positions.items():
+            if pos.token_id == token_id:
+                pos.current_price = price
+                break
+
+    # ------ Live match state ------
+
+    def _fetch_match_states(self) -> dict[str, dict]:
+        """Fetch live match states for all esports positions from PandaScore.
+
+        Returns dict of condition_id → match_state dict.
+        Rate-limited to once per 60 seconds.
+        """
+        now = time.time()
+        if now - self._last_match_state_fetch < 60:
+            return self._match_states  # Return cached
+
+        if not self.esports.available:
+            return {}
+
+        states: dict[str, dict] = {}
+        # Group esports positions by game slug
+        esports_positions = [
+            (cid, pos) for cid, pos in self.portfolio.positions.items()
+            if pos.category == "esports" and pos.live_on_clob
+        ]
+        if not esports_positions:
+            self._match_states = {}
+            return {}
+
+        # Also check reentry pool for esports candidates
+        esports_games_checked: set[str] = set()
+
+        for cid, pos in esports_positions:
+            game_slug = self.esports.detect_game(pos.question, [pos.sport_tag])
+            if not game_slug:
+                continue
+
+            team_a, team_b = self.esports._extract_team_names(pos.question)
+            if not team_a or not team_b:
+                continue
+
+            cache_key = f"{game_slug}:{team_a}:{team_b}"
+            if cache_key in esports_games_checked:
+                continue
+            esports_games_checked.add(cache_key)
+
+            try:
+                ms = self.esports.get_live_match_state(game_slug, team_a, team_b)
+                if ms:
+                    states[cid] = ms
+                    # Update position fields
+                    pos.match_score = ms.get("map_score", "")
+                    pos.match_period = f"{ms.get('map_number', '?')}/{ms.get('total_maps', '?')}"
+            except Exception as e:
+                logger.debug("Match state fetch error for %s: %s", pos.slug[:30], e)
+
+        self._match_states = states
+        self._last_match_state_fetch = now
+        if states:
+            logger.info("Fetched %d live match states from PandaScore", len(states))
+        return states
+
+    def _sync_ws_subscriptions(self) -> None:
+        """Sync WebSocket subscriptions with active positions."""
+        token_ids = [pos.token_id for pos in self.portfolio.positions.values()]
+        self.ws_feed.sync_subscriptions(token_ids)
+
     def shutdown(self) -> None:
         self.running = False
+        self.ws_feed.stop()
         logger.info("Shutdown requested — finishing current cycle")
 
     def _check_stop_file(self) -> None:
@@ -417,8 +495,18 @@ class Agent:
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
 
-        # Update position prices from CLOB
+        # Update position prices from CLOB (WebSocket fills gaps between polls)
         self.last_cycle_has_live_clob = self._update_position_prices()
+
+        # Sync WebSocket subscriptions with active positions
+        self._sync_ws_subscriptions()
+
+        # Fetch live match states from PandaScore (rate-limited to 1/min)
+        match_states = self._fetch_match_states()
+
+        # Esports halftime exits — uses live score when available
+        for cid in self.portfolio.check_esports_halftime_exits(match_states=match_states):
+            self._exit_position(cid, "esports_halftime")
 
         # --- Match-aware exit system (4 layers) ---
         match_exit_results = self.portfolio.check_match_aware_exits()
@@ -3122,6 +3210,21 @@ class Agent:
             eff_stab_price = (1.0 - current_yes_price) if candidate.direction == "BUY_NO" else current_yes_price
             self.reentry_pool.update_price(cid, eff_stab_price)
 
+            # Fetch match state for esports re-entry candidates
+            re_match_state = self._match_states.get(cid)
+            if not re_match_state and candidate.sport_tag.lower() in (
+                "cs2", "csgo", "valorant", "lol", "dota2", "val"
+            ):
+                # Try to get live state from PandaScore for this candidate
+                game_slug = self.esports.detect_game(candidate.question, [candidate.sport_tag])
+                if game_slug:
+                    team_a, team_b = self.esports._extract_team_names(candidate.question)
+                    if team_a and team_b:
+                        try:
+                            re_match_state = self.esports.get_live_match_state(game_slug, team_a, team_b)
+                        except Exception:
+                            pass
+
             # Run decision logic
             decision = check_reentry(
                 candidate=candidate,
@@ -3130,6 +3233,7 @@ class Agent:
                 portfolio_positions=self.portfolio.positions,
                 held_event_ids=held_event_ids,
                 daily_reentry_count=self._daily_reentry_count,
+                match_state=re_match_state,
             )
 
             if decision["action"] == "BLOCK":
@@ -3970,6 +4074,12 @@ class Agent:
 
         # Start dashboard in background
         self._start_dashboard()
+
+        # Start WebSocket price feed in background
+        if self.portfolio.positions:
+            self._sync_ws_subscriptions()
+        self.ws_feed.start_background()
+        logger.info("WebSocket price feed started")
 
         pos_count = len(self.portfolio.positions)
         self.notifier.send(

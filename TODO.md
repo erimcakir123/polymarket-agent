@@ -1,26 +1,26 @@
 # Polymarket Agent — TODO
 
 ## Şimdi Yapılacak (Match-Aware Exit System v2)
-- [ ] Layer 1: Catastrophic Floor (entry×50%, underdog <25¢ muaf)
-- [ ] Layer 2: Progress-based graduated stop loss (elapsed_pct bazlı)
-- [ ] Layer 2: Entry-price-adjusted tiers (düşük entry=geniş, yüksek entry=sıkı tolerans)
-- [ ] Layer 3: Never-in-profit guard (70% ilerleme, göreceli eşikler entry×0.90/×0.75)
-- [ ] Layer 4: Hold-to-resolve revocation matrix
-- [ ] Layer 4: Hold-to-resolve restore (geçici iptal, recover ederse geri ver)
-- [ ] Score entegrasyonu — match_score parse et, tüm layer'larda kullan (direction-aware)
-- [ ] Game-specific duration (CS2/Valorant/LoL/Dota2 × BO1/BO3/BO5)
-- [ ] Momentum alert — 3+ consecutive down cycle + min 5¢ delta
-- [ ] Son faz toleransı -15% (eskisi -10%)
-- [ ] Yeni Position field'ları: ever_in_profit, consecutive_down_cycles, previous_cycle_price, hold_revoked_at, hold_was_original, cumulative_drop
-- [ ] Price history toplama (CLOB API, pozisyon kapanınca kaydet)
-- [ ] Ultra-low <9¢ guard — elapsed>90% + price<5¢ ise çık (şu an hiç SL yok)
+- [x] Layer 1: Catastrophic Floor (entry×50%, underdog <25¢ muaf) — match_exit.py
+- [x] Layer 2: Progress-based graduated stop loss (elapsed_pct bazlı) — match_exit.py
+- [x] Layer 2: Entry-price-adjusted tiers (düşük entry=geniş, yüksek entry=sıkı tolerans) — match_exit.py get_entry_price_multiplier()
+- [x] Layer 3: Never-in-profit guard (70% ilerleme, göreceli eşikler entry×0.90/×0.75) — match_exit.py
+- [x] Layer 4: Hold-to-resolve revocation matrix — match_exit.py lines 332-368
+- [x] Layer 4: Hold-to-resolve restore (geçici iptal, recover ederse geri ver) — match_exit.py
+- [x] Score entegrasyonu — match_score parse et, tüm layer'larda kullan (direction-aware) — match_exit.py
+- [x] Game-specific duration (CS2/Valorant/LoL/Dota2 × BO1/BO3/BO5) — match_exit.py _DURATION_TABLE + _SPORT_DURATION
+- [x] Momentum alert — 3+ consecutive down cycle + min 5¢ delta — match_exit.py lines 307-314
+- [x] Son faz toleransı -15% (eskisi -10%) — match_exit.py
+- [x] Yeni Position field'ları: ever_in_profit, consecutive_down_cycles, previous_cycle_price, hold_revoked_at, hold_was_original, cumulative_drop — models.py
+- [x] Price history toplama (CLOB API, pozisyon kapanınca kaydet) — price_history.py
+- [x] Ultra-low <9¢ guard — elapsed>90% + price<5¢ ise çık — match_exit.py line 299-301
 - [ ] Pending resolution fix — pending pozisyonlar exit logic'i atlamamalı (kârdaysa hold, zarardaysa da hold ama bypass değil)
 
 ## Data API Entegrasyonu (Cascade Sistemi)
 ### Şimdi (Free Tier Test)
-- [ ] HLTV scraper (hltv-async-api) — CS2 tier-2/3 takım istatistikleri, pip install, key yok
-- [ ] VLR scraper (vlrdevapi) — Valorant tier-2/3 maç geçmişi, pip install, key yok
-- [ ] Cascade sırası: PandaScore → HLTV/VLR → The Odds API (fallback)
+- [x] HLTV scraper (hltv-async-api) — CS2 tier-2/3 takım istatistikleri — hltv_data.py
+- [x] VLR scraper (vlrdevapi) — Valorant tier-2/3 maç geçmişi — vlr_data.py
+- [x] Cascade sırası: PandaScore → HLTV/VLR → The Odds API (fallback) — esports_data.py
 - [ ] Dashboard API kullanım kartı — Claude API + The Odds API bar'ları
 
 ### API Karşılaştırma & İleride Karar Verilecek
@@ -43,8 +43,12 @@
 - [ ] Dynamic hold-to-resolve promotion — kâr %50+ ve AI certainty >60% ise scouted'a promote et, %50 altına düşünce geri al (30+ sample sonrası kalibre)
 - [ ] Maç sonucu log'lama — pozisyon kapanınca Gamma API'den final sonucu çek, logs/match_outcomes.jsonl'e kaydet (AI tahmin vs gerçek sonuç karşılaştırma)
 - [ ] Pool dolu iken AI skip — slot açık yoksa Claude API çağırma, kredi harcama (şu an 0 slot olsa bile analiz yapıyor)
-- [ ] WebSocket live prices — CLOB WebSocket ile gerçek zamanlı fiyat akışı (polling yerine), anlık SL/TP tetikleme
-- [ ] Price movement tracking — Her cycle fiyat değişimini kaydet, momentum/trend analizi, spike detection, entry/exit kararlarına veri sağla
+- [x] WebSocket live prices — CLOB WebSocket ile gerçek zamanlı fiyat akışı — websocket_feed.py
+- [x] Price movement tracking — Her cycle fiyat değişimini kaydet — price_history.py + websocket_feed.py
+- [x] PandaScore live match state — Canlı maç durumu, skor, map break detection — esports_data.py
+- [x] Map break detection — Harita arası tespit, re-entry pause — reentry_farming.py
+- [x] Score-aware re-entry — Skor farkına göre AI probability ayarlama — reentry_farming.py
+- [x] Halftime exit with live state — Canlı skor ile devre arası çıkış — portfolio.py
 
 ## Test Sürecinde Eklenecek (Live Öncesi)
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
@@ -67,3 +71,17 @@
 - [x] Dashboard: match time, countdown, live status, score
 - [x] Pending positions: Active tab'dan filtrele, live_on_clob=False
 - [x] Stale Gamma event data fallback (elapsed time estimation)
+- [x] Match-aware 4-layer exit system (catastrophic floor, graduated SL, never-in-profit guard, hold-to-resolve)
+- [x] Game-specific duration table (CS2/Val/LoL/Dota2 × BO1/BO3/BO5 + 20 geleneksel spor)
+- [x] Entry-price-adjusted tiers (get_entry_price_multiplier)
+- [x] Momentum tightening (3+/5+ consecutive down cycles)
+- [x] Ultra-low guard (<9¢ entry, >90% elapsed, <5¢ current)
+- [x] Price history collection (CLOB API, position close'da kaydet)
+- [x] Position tracking fields (ever_in_profit, consecutive_down_cycles, cumulative_drop, etc.)
+- [x] Hold-to-resolve revocation & restore
+- [x] WebSocket CLOB price feed (real-time streaming)
+- [x] PandaScore live match state (running matches, score, map break)
+- [x] Score-aware re-entry farming (map break pause, score-adjusted probability)
+- [x] Halftime exit with live state (actual map score vs time-based fallback)
+- [x] HLTV + VLR scrapers (CS2/Valorant tier-2/3 data)
+- [x] Data cascade: PandaScore → HLTV/VLR → The Odds API

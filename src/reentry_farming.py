@@ -273,6 +273,7 @@ def check_reentry(
     portfolio_positions: dict,
     held_event_ids: set,
     daily_reentry_count: int,
+    match_state: Optional[dict] = None,
 ) -> dict:
     """Evaluate whether to re-enter a market from the farming pool.
 
@@ -300,6 +301,31 @@ def check_reentry(
                     return _block(f"Match too far along: {elapsed_pct:.0%} elapsed")
         except (ValueError, TypeError):
             pass
+
+    # --- MAP BREAK / LIVE SCORE CHECKS ---
+    if match_state:
+        # Pause re-entry during map breaks (between maps in esports)
+        if match_state.get("is_break"):
+            return _wait(f"Map break in progress ({match_state.get('break_type', 'break')}): "
+                         f"score {match_state.get('map_score', '?')}")
+
+        # Score-aware probability adjustment for esports
+        # If our team is losing on maps, reduce effective AI probability
+        ms_a = match_state.get("team_a_score", 0)
+        ms_b = match_state.get("team_b_score", 0)
+        total_maps = match_state.get("total_maps", 1)
+        if total_maps >= 3 and (ms_a + ms_b) > 0:
+            # Determine which team we're betting on (simplified: BUY_YES = team_a)
+            # Score deficit reduces confidence, surplus increases it
+            score_diff = ms_a - ms_b  # positive = team_a leading
+            if c.direction == "BUY_NO":
+                score_diff = -score_diff  # flip for BUY_NO
+            # Adjust AI probability based on score: ±5% per map difference
+            score_adjustment = score_diff * 0.05
+            eff_ai = min(0.95, max(0.05, eff_ai + score_adjustment))
+            if score_adjustment != 0:
+                logger.debug("Score-adjusted AI: %.0f%% → %.0f%% (maps: %d-%d)",
+                             c.ai_probability * 100, eff_ai * 100, ms_a, ms_b)
 
     # AI says losing side (prob < 50%) — don't re-enter a likely loser
     if eff_ai < 0.50:
