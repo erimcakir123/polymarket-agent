@@ -63,6 +63,7 @@ class Position(BaseModel):
     pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
     sport_tag: str = ""  # Specific sport (e.g. "cs2", "dota2", "lol", "nba") for correlation
     event_id: str = ""  # Gamma event ID — all outcomes of the same match share this
+    bookmaker_prob: float = 0.0  # Bookmaker implied probability at entry (0 = not available)
 
     # Match-aware exit system fields
     ever_in_profit: bool = False           # True once peak_pnl_pct > 0.01 (never resets)

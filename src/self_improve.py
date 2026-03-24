@@ -494,6 +494,199 @@ def log_experiment(param: str, old_val: Any, new_val: Any, status: str, descript
 
 
 # ---------------------------------------------------------------------------
+# Auto-calibration (triggered every N resolved exits from the bot loop)
+# ---------------------------------------------------------------------------
+MATCH_OUTCOMES_FILE = Path("logs/match_outcomes.jsonl")
+CALIBRATION_EVENTS_FILE = Path("logs/calibration_events.jsonl")
+AUTO_CAL_STATE_FILE = Path("logs/auto_cal_state.json")
+
+# How many resolved outcomes between auto-calibration runs
+AUTO_CAL_INTERVAL = 50
+
+
+def _load_match_outcomes() -> list[dict]:
+    """Load all records from match_outcomes.jsonl."""
+    records: list[dict] = []
+    if not MATCH_OUTCOMES_FILE.exists():
+        return records
+    for line in MATCH_OUTCOMES_FILE.read_text(encoding="utf-8").strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return records
+
+
+def _load_auto_cal_state() -> dict:
+    """Load auto-calibration state (last_resolved_count, last_run timestamp)."""
+    if not AUTO_CAL_STATE_FILE.exists():
+        return {"last_resolved_count": 0, "last_run": ""}
+    try:
+        return json.loads(AUTO_CAL_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"last_resolved_count": 0, "last_run": ""}
+
+
+def _save_auto_cal_state(state: dict) -> None:
+    AUTO_CAL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_CAL_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def auto_calibrate(logger: Any = None) -> dict | None:
+    """Run auto-calibration if enough new resolved outcomes have accumulated.
+
+    Called from the bot's main loop after each resolution batch.
+    Returns calibration report dict if triggered, None otherwise.
+    """
+    import logging
+    log = logger or logging.getLogger(__name__)
+
+    outcomes = _load_match_outcomes()
+    resolved = [r for r in outcomes if r.get("resolved")]
+    resolved_count = len(resolved)
+
+    state = _load_auto_cal_state()
+    last_count = state.get("last_resolved_count", 0)
+
+    # Not enough new resolutions since last calibration
+    if resolved_count - last_count < AUTO_CAL_INTERVAL:
+        return None
+
+    if resolved_count < MIN_RESOLVED:
+        return None
+
+    log.info("Auto-calibration triggered: %d resolved (last run at %d)", resolved_count, last_count)
+
+    # --- Compute metrics from resolved match outcomes ---
+    total_correct = 0
+    total_brier = 0.0
+    by_confidence: dict[str, dict] = {}
+    by_sport: dict[str, dict] = {}
+    by_entry_reason: dict[str, dict] = {}
+    book_vs_ai: list[dict] = []  # entries where bookmaker_prob is available
+
+    for r in resolved:
+        ai_prob = r.get("ai_probability", 0.5)
+        yes_won = r.get("yes_won")
+        ai_correct = r.get("ai_correct")
+        conf = r.get("confidence", "unknown")
+        sport = r.get("sport_tag", "unknown") or "unknown"
+        entry_reason = r.get("entry_reason", "unknown") or "unknown"
+        book_prob = r.get("bookmaker_prob", 0.0)
+
+        outcome_val = 1.0 if yes_won else 0.0
+        brier_err = (ai_prob - outcome_val) ** 2
+        total_brier += brier_err
+        if ai_correct:
+            total_correct += 1
+
+        # Per-confidence breakdown
+        _acc(by_confidence, conf, ai_correct, brier_err)
+        # Per-sport breakdown
+        _acc(by_sport, sport, ai_correct, brier_err)
+        # Per-entry-reason breakdown
+        _acc(by_entry_reason, entry_reason, ai_correct, brier_err)
+
+        # Bookmaker comparison
+        if book_prob > 0:
+            book_brier = (book_prob - outcome_val) ** 2
+            book_vs_ai.append({
+                "ai_brier": round(brier_err, 4),
+                "book_brier": round(book_brier, 4),
+                "ai_better": brier_err < book_brier,
+            })
+
+    n = len(resolved)
+    overall_win_rate = total_correct / n if n else 0.0
+    overall_brier = total_brier / n if n else 1.0
+
+    # AI vs bookmaker comparison
+    ai_better_count = sum(1 for x in book_vs_ai if x["ai_better"])
+    book_compared = len(book_vs_ai)
+    ai_vs_book_pct = ai_better_count / book_compared if book_compared else 0.0
+    avg_ai_brier = statistics.mean(x["ai_brier"] for x in book_vs_ai) if book_vs_ai else 0.0
+    avg_book_brier = statistics.mean(x["book_brier"] for x in book_vs_ai) if book_vs_ai else 0.0
+
+    # Identify weaknesses
+    weaknesses: list[str] = []
+    if overall_win_rate < 0.55:
+        weaknesses.append(f"Win rate {overall_win_rate:.0%} below 55% target")
+    if overall_brier > 0.25:
+        weaknesses.append(f"Brier score {overall_brier:.3f} indicates poor calibration")
+
+    for group_name, breakdown in [("confidence", by_confidence), ("sport", by_sport), ("entry", by_entry_reason)]:
+        for key, stats in breakdown.items():
+            if stats["count"] >= 5 and stats["win_rate"] < 0.40:
+                weaknesses.append(f"{group_name}={key}: {stats['win_rate']:.0%} win rate ({stats['count']} trades)")
+
+    if book_compared >= 10 and ai_vs_book_pct < 0.45:
+        weaknesses.append(
+            f"AI underperforms bookmakers: AI better only {ai_vs_book_pct:.0%} of time "
+            f"(AI Brier={avg_ai_brier:.3f} vs Book={avg_book_brier:.3f})"
+        )
+
+    # Build calibration event
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "resolved_count": resolved_count,
+        "overall_win_rate": round(overall_win_rate, 4),
+        "overall_brier": round(overall_brier, 4),
+        "by_confidence": {k: _round_stats(v) for k, v in by_confidence.items()},
+        "by_sport": {k: _round_stats(v) for k, v in by_sport.items()},
+        "by_entry_reason": {k: _round_stats(v) for k, v in by_entry_reason.items()},
+        "ai_vs_bookmaker": {
+            "compared": book_compared,
+            "ai_better_pct": round(ai_vs_book_pct, 4),
+            "avg_ai_brier": round(avg_ai_brier, 4),
+            "avg_book_brier": round(avg_book_brier, 4),
+        },
+        "weaknesses": weaknesses,
+    }
+
+    # Persist
+    CALIBRATION_EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CALIBRATION_EVENTS_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(event) + "\n")
+
+    # Update state
+    _save_auto_cal_state({
+        "last_resolved_count": resolved_count,
+        "last_run": datetime.now(timezone.utc).isoformat(),
+    })
+
+    log.info(
+        "Auto-calibration complete: win_rate=%.0f%% brier=%.3f weaknesses=%d ai_vs_book=%.0f%%",
+        overall_win_rate * 100, overall_brier, len(weaknesses), ai_vs_book_pct * 100,
+    )
+
+    return event
+
+
+def _acc(breakdown: dict, key: str, ai_correct: bool | None, brier_err: float) -> None:
+    """Accumulate stats into a breakdown dict."""
+    if key not in breakdown:
+        breakdown[key] = {"count": 0, "correct": 0, "total_brier": 0.0}
+    breakdown[key]["count"] += 1
+    if ai_correct:
+        breakdown[key]["correct"] += 1
+    breakdown[key]["total_brier"] += brier_err
+    n = breakdown[key]["count"]
+    breakdown[key]["win_rate"] = breakdown[key]["correct"] / n
+    breakdown[key]["brier"] = breakdown[key]["total_brier"] / n
+
+
+def _round_stats(stats: dict) -> dict:
+    """Round stats for JSON output."""
+    return {
+        "count": stats["count"],
+        "win_rate": round(stats["win_rate"], 4),
+        "brier": round(stats["brier"], 4),
+    }
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 def main() -> None:

@@ -76,6 +76,7 @@ class Portfolio:
         entry_reason: str = "",
         sport_tag: str = "",
         event_id: str = "",
+        bookmaker_prob: float = 0.0,
     ) -> None:
         # Event-level duplicate guard — never bet on two outcomes of the same event
         if event_id:
@@ -114,6 +115,7 @@ class Portfolio:
             entry_reason=entry_reason,
             sport_tag=sport_tag,
             event_id=event_id,
+            bookmaker_prob=bookmaker_prob,
         )
         self.bankroll -= size_usdc
         self._save_positions()

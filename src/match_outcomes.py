@@ -33,6 +33,7 @@ def log_outcome(
     match_score: str = "",
     price_history: list[float] | None = None,
     cycles_held: int = 0,
+    bookmaker_prob: float = 0.0,
 ) -> None:
     """Append one outcome record to the JSONL log."""
     is_resolved = exit_reason.startswith("resolved_")
@@ -77,6 +78,7 @@ def log_outcome(
         "match_score": match_score,
         "cycles_held": cycles_held,
         "price_history": [round(p, 4) for p in (price_history or [])],
+        "bookmaker_prob": round(bookmaker_prob, 4) if bookmaker_prob else 0.0,
     }
 
     try:

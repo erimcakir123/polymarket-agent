@@ -1722,6 +1722,10 @@ class Agent:
             if not _match_start:
                 _match_start = getattr(market, 'match_start_iso', '') or ""
             _num_games = _scout_entry.get("number_of_games", 0) if _scout_entry else 0
+            _book_prob = 0.0
+            _mkt_odds = odds_by_market.get(market.condition_id)
+            if _mkt_odds:
+                _book_prob = _mkt_odds.get("bookmaker_prob_a", 0.0)
             self.portfolio.add_position(
                 market.condition_id, token_id, direction.value,
                 price, adjusted_size, shares, market.slug,
@@ -1735,6 +1739,7 @@ class Agent:
                 number_of_games=_num_games,
                 sport_tag=market.sport_tag or "",
                 event_id=market.event_id or "",
+                bookmaker_prob=_book_prob,
             )
             # Set live_on_clob immediately if match is already in progress
             pos = self.portfolio.positions.get(market.condition_id)
@@ -2990,6 +2995,7 @@ class Agent:
                 match_score=getattr(pos, "match_score", ""),
                 price_history=getattr(pos, "price_history_buffer", []),
                 cycles_held=getattr(pos, "cycles_held", 0),
+                bookmaker_prob=getattr(pos, "bookmaker_prob", 0.0),
             )
         except Exception as e:
             logger.debug("Match outcome logging skipped: %s", e)
@@ -3015,6 +3021,7 @@ class Agent:
                 peak_pnl_pct=getattr(pos, "peak_pnl_pct", 0.0),
                 match_score=getattr(pos, "match_score", ""),
                 cycles_held=getattr(pos, "cycles_held", 0),
+                bookmaker_prob=getattr(pos, "bookmaker_prob", 0.0),
             )
         except Exception as e:
             logger.debug("Outcome tracking skipped: %s", e)
@@ -3642,6 +3649,7 @@ class Agent:
                     peak_pnl_pct=outcome.get("peak_pnl_pct", 0.0),
                     match_score=outcome.get("match_score", ""),
                     cycles_held=outcome.get("cycles_held", 0),
+                    bookmaker_prob=outcome.get("bookmaker_prob", 0.0),
                 )
             except Exception:
                 pass

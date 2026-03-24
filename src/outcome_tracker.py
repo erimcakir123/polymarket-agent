@@ -48,6 +48,7 @@ class TrackedMarket:
     peak_pnl_pct: float
     match_score: str
     cycles_held: int
+    bookmaker_prob: float  # Bookmaker implied probability at entry (0 = not available)
     exit_timestamp: float  # time.time() when exited
 
 
@@ -78,6 +79,7 @@ class OutcomeTracker:
         peak_pnl_pct: float = 0.0,
         match_score: str = "",
         cycles_held: int = 0,
+        bookmaker_prob: float = 0.0,
     ) -> None:
         """Start tracking a market after exit."""
         # Don't track resolved exits — we already know the outcome
@@ -103,6 +105,7 @@ class OutcomeTracker:
             peak_pnl_pct=peak_pnl_pct,
             match_score=match_score,
             cycles_held=cycles_held,
+            bookmaker_prob=bookmaker_prob,
             exit_timestamp=time.time(),
         )
         self._save()
@@ -182,6 +185,7 @@ class OutcomeTracker:
                 "match_score": tm.match_score,
                 "cycles_held": tm.cycles_held,
                 "exit_was_correct": (tm.pnl > 0) or (not our_side_won),
+                "bookmaker_prob": tm.bookmaker_prob,
             }
 
             resolved.append(outcome)
@@ -221,6 +225,7 @@ class OutcomeTracker:
         try:
             data = json.loads(TRACKER_FILE.read_text())
             for cid, d in data.items():
+                d.setdefault("bookmaker_prob", 0.0)  # backward compat
                 self._tracked[cid] = TrackedMarket(**d)
             if self._tracked:
                 logger.info("Outcome tracker: loaded %d markets to watch", len(self._tracked))
