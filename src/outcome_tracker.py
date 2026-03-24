@@ -158,9 +158,19 @@ class OutcomeTracker:
             # Calculate what would have happened if we held
             our_side_won = (tm.direction == "BUY_YES" and yes_won) or \
                            (tm.direction == "BUY_NO" and not yes_won)
-            resolve_price = 1.0 if yes_won else 0.0
-            hypothetical_pnl = (tm.size / tm.entry_price * resolve_price - tm.size) if our_side_won \
-                else -tm.size
+
+            # Hypothetical PnL: what we'd have earned/lost if we held to resolution
+            if tm.direction == "BUY_YES":
+                # BUY_YES: paid entry_price per share, resolves to $1 (win) or $0 (loss)
+                token_resolve = 1.0 if yes_won else 0.0
+                shares = tm.size / tm.entry_price if tm.entry_price > 0 else 0
+                hypothetical_pnl = shares * token_resolve - tm.size
+            else:
+                # BUY_NO: paid (1 - entry_price) per share, NO token resolves to $1 when YES=0
+                no_cost = 1.0 - tm.entry_price
+                token_resolve = 0.0 if yes_won else 1.0  # NO token value
+                shares = tm.size / no_cost if no_cost > 0 else 0
+                hypothetical_pnl = shares * token_resolve - tm.size
 
             outcome = {
                 "condition_id": cid,

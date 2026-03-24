@@ -40,6 +40,7 @@ class CircuitBreaker:
             self.consecutive_losses += 1
         else:
             self.consecutive_losses = 0
+        self.save()
 
     def reset_if_needed(self) -> None:
         now = _now()
@@ -63,15 +64,18 @@ class CircuitBreaker:
             self.breaker_active_until = now + timedelta(minutes=COOLDOWN_AFTER_DAILY)
             logger.warning("Circuit breaker: daily loss %.1f%% hit %.0f%% limit",
                            self.daily_realized_pnl_pct * 100, DAILY_MAX_LOSS_PCT * 100)
+            self.save()
             return True, f"Daily loss {self.daily_realized_pnl_pct:.1%} hit {DAILY_MAX_LOSS_PCT:.0%} limit"
 
         if self.hourly_realized_pnl_pct <= HOURLY_MAX_LOSS_PCT:
             self.breaker_active_until = now + timedelta(minutes=COOLDOWN_AFTER_HOURLY)
+            self.save()
             return True, f"Hourly loss {self.hourly_realized_pnl_pct:.1%} hit {HOURLY_MAX_LOSS_PCT:.0%} limit"
 
         if self.consecutive_losses >= CONSECUTIVE_LOSS_LIMIT:
             self.breaker_active_until = now + timedelta(minutes=COOLDOWN_AFTER_CONSECUTIVE)
             self.consecutive_losses = 0
+            self.save()
             return True, f"{CONSECUTIVE_LOSS_LIMIT} consecutive losses"
 
         if self.daily_realized_pnl_pct <= ENTRY_BLOCK_THRESHOLD:

@@ -218,11 +218,11 @@ class MarketScanner:
         """Check if market is election-related."""
         q_lower = market.question.lower()
         tags_lower = [t.lower() for t in market.tags]
-        if "elections" in tags_lower or "politics" in tags_lower:
-            # Only if question also has election keywords (not all politics = elections)
-            if any(kw in q_lower for kw in self._ELECTION_KEYWORDS):
-                return True
-        return any(kw in q_lower for kw in self._ELECTION_KEYWORDS)
+        has_election_tag = "elections" in tags_lower or "politics" in tags_lower
+        has_election_keyword = any(kw in q_lower for kw in self._ELECTION_KEYWORDS if kw != "party")
+        # "party" alone is too broad (matches esports "LAN party" etc.) — require tag confirmation
+        has_party_with_tag = "party" in q_lower and has_election_tag
+        return has_election_keyword or has_party_with_tag
 
     def _is_live_sport(self, market: MarketData) -> bool:
         """Check if market is a sports event based on question and tags."""

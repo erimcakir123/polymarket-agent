@@ -51,8 +51,9 @@ def check_exit_liquidity(
                     "recommended_price": best_bid, "available_depth": available,
                     "partially_fillable": True,
                     "note": f"Only {fill_ratio:.0%} fillable — split across cycles"}
-    except Exception:
-        return {"fillable": True, "strategy": "market", "reason": "Book check failed, proceeding anyway"}
+    except Exception as e:
+        logger.warning("Exit liquidity check failed: %s — blocking sell to prevent slippage", e)
+        return {"fillable": False, "strategy": "skip", "reason": "Book check failed — skipping to prevent slippage"}
 
 
 def check_entry_liquidity(
@@ -105,5 +106,6 @@ def check_entry_liquidity(
 
         return {"ok": True, "recommended_size": recommended, "depth": total_depth,
                 "impact_ratio": impact_ratio}
-    except Exception:
-        return {"ok": True, "recommended_size": size_usdc, "reason": "Book check failed, proceeding anyway"}
+    except Exception as e:
+        logger.warning("Entry liquidity check failed: %s — blocking entry to prevent slippage", e)
+        return {"ok": False, "recommended_size": 0, "reason": "Book check failed — skipping to prevent slippage"}

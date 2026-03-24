@@ -14,11 +14,12 @@ def kelly_position_size(
     ai_prob: float,
     market_price: float,
     bankroll: float,
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.20,
     max_bet_usdc: float = 75,
     max_bet_pct: float = 0.05,
     direction: str = "BUY_YES",
 ) -> float:
+    # ai_prob is ALWAYS P(YES wins). Kelly needs P(our side wins), so flip for BUY_NO.
     if direction == "BUY_YES":
         p, cost = ai_prob, market_price
     else:
@@ -50,6 +51,7 @@ class RiskManager:
         self.config = config
         self.consecutive_losses: int = 0
         self.cooldown_remaining: int = 0
+        self._cooldown_decremented_this_cycle: bool = False
 
     def evaluate(
         self,
@@ -59,10 +61,13 @@ class RiskManager:
         correlated_exposure: float = 0.0,
         **kwargs,
     ) -> RiskDecision:
-        # Cooldown check (triggered by record_outcome, decremented here)
+        # Cooldown check — decrement once per cycle, not per evaluate() call
         if self.cooldown_remaining > 0:
-            self.cooldown_remaining -= 1
-            return RiskDecision(False, 0, "Cooldown active after consecutive losses")
+            if not self._cooldown_decremented_this_cycle:
+                self.cooldown_remaining -= 1
+                self._cooldown_decremented_this_cycle = True
+            if self.cooldown_remaining > 0:
+                return RiskDecision(False, 0, "Cooldown active after consecutive losses")
 
         # Max positions
         if len(open_positions) >= self.config.max_positions:
@@ -76,7 +81,14 @@ class RiskManager:
         if correlated_exposure >= self.config.correlation_cap_pct:
             return RiskDecision(False, 0, "Correlation cap exceeded")
 
-        # Kelly sizing
+        # Kelly sizing — scale config kelly_fraction by confidence
+        base_kelly = self.config.kelly_fraction  # 0.20 default
+        kelly_by_conf = {
+            "C": base_kelly * 0.40,   # 0.08 at 0.20
+            "B-": base_kelly * 0.60,  # 0.12 at 0.20
+            "B+": base_kelly * 1.00,  # 0.20 at 0.20
+            "A": base_kelly * 1.25,   # 0.25 at 0.20
+        }
         size = kelly_position_size(
             ai_prob=signal.ai_probability,
             market_price=signal.market_price,
@@ -86,7 +98,7 @@ class RiskManager:
                 ai_probability=signal.ai_probability,
                 category=getattr(signal, 'category', ''),
                 is_reentry=False,
-                config_kelly_by_conf={"C": 0.08, "B-": 0.12, "B+": 0.20, "A": 0.25},
+                config_kelly_by_conf=kelly_by_conf,
             ),
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
@@ -97,6 +109,10 @@ class RiskManager:
             return RiskDecision(False, 0, f"Eminlik düşük, bahis çok küçük: ${size:.2f} (min $5)")
 
         return RiskDecision(True, size, f"Onaylandı: ${size:.2f}")
+
+    def new_cycle(self) -> None:
+        """Call once at the start of each cycle to reset per-cycle flags."""
+        self._cooldown_decremented_this_cycle = False
 
     def record_outcome(self, win: bool) -> None:
         if win:

@@ -63,7 +63,7 @@ class TrailingStopTier(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    kelly_fraction: float = 0.25
+    kelly_fraction: float = 0.20  # 20% Kelly (user-confirmed)
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
     max_positions: int = 5
@@ -132,6 +132,49 @@ class FarConfig(BaseModel):
     penny_bet_pct: float = 0.05           # 5% bankroll for penny bets
 
 
+class BondFarmingConfig(BaseModel):
+    enabled: bool = True
+    min_yes_price: float = 0.90
+    max_yes_price: float = 0.97
+    bet_pct: float = 0.15              # 15% bankroll per bond
+    max_total_bond_pct: float = 0.35   # 35% max across all bonds
+    max_concurrent: int = 3
+    min_volume_24h: float = 5_000
+    min_liquidity: float = 5_000
+    max_days_to_resolution: float = 14.0
+
+
+class LiveMomentumConfig(BaseModel):
+    enabled: bool = True
+    min_edge: float = 0.06
+    bet_pct: float = 0.04              # 4% bankroll per momentum trade
+    max_hold_minutes: int = 30
+    max_concurrent: int = 2
+
+
+class TrailingTPConfig(BaseModel):
+    enabled: bool = True
+    activation_pct: float = 0.20       # Activate at +20% profit
+    trail_distance: float = 0.08       # Sell when 8% below peak
+
+
+class PennyAlphaConfig(BaseModel):
+    enabled: bool = True
+    max_price: float = 0.02
+    bet_pct: float = 0.05
+    max_concurrent: int = 3
+    min_volume: float = 500
+    target_1c: float = 5.0             # $0.01 → 5x target
+    target_2c: float = 2.0             # $0.02 → 2x target
+
+
+class ProbabilityEngineConfig(BaseModel):
+    book_weight: float = 0.55
+    ai_weight: float = 0.45
+    shrinkage_factor: float = 0.10
+    high_divergence_threshold: float = 0.15
+
+
 class NotificationConfig(BaseModel):
     telegram_enabled: bool = False
 
@@ -157,6 +200,11 @@ class AppConfig(BaseModel):
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
     far: FarConfig = FarConfig()
+    bond_farming: BondFarmingConfig = BondFarmingConfig()
+    live_momentum: LiveMomentumConfig = LiveMomentumConfig()
+    trailing_tp: TrailingTPConfig = TrailingTPConfig()
+    penny_alpha: PennyAlphaConfig = PennyAlphaConfig()
+    probability_engine: ProbabilityEngineConfig = ProbabilityEngineConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
     logging: LoggingConfig = LoggingConfig()

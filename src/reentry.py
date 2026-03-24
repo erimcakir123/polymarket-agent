@@ -50,6 +50,7 @@ def get_min_reentry_drop(effective_exit_price: float) -> float:
 def get_reentry_size_multiplier(
     ai_prob: float, direction: str, score_info: dict, original_pnl_pct: float
 ) -> float:
+    # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
     effective_ai = ai_prob if direction == "BUY_YES" else (1 - ai_prob)
     base = 0.50
     if effective_ai >= 0.75:
@@ -77,6 +78,7 @@ def can_reenter(
     daily_reentry_count: int,
     market_reentry_count: int,
 ) -> tuple[bool, str]:
+    # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
     effective_ai = ai_prob if direction == "BUY_YES" else (1 - ai_prob)
     effective_exit = exit_price if direction == "BUY_YES" else (1 - exit_price)
     effective_current = current_price if direction == "BUY_YES" else (1 - current_price)

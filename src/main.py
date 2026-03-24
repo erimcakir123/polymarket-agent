@@ -48,6 +48,9 @@ from src.correlation import apply_correlation_cap, extract_match_key
 from src.liquidity_check import check_exit_liquidity, check_entry_liquidity
 from src.adaptive_kelly import get_adaptive_kelly_fraction
 from src.outcome_tracker import OutcomeTracker
+from src.probability_engine import calculate_anchored_probability, get_edge_threshold_adjustment
+from src.trailing_tp import calculate_trailing_tp
+from src.trade_logger import EdgeSourceTracker
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +139,9 @@ class Agent:
         # V2: Circuit breaker and tiered blacklist
         self.circuit_breaker = CircuitBreaker()
         self.blacklist = Blacklist(path="logs/blacklist.json")
+
+        # V3 Maximus: Edge source tracker
+        self.edge_tracker = EdgeSourceTracker()
 
         # Migrate old exited_markets into blacklist
         for cid in self._exited_markets:
@@ -535,15 +541,42 @@ class Agent:
                 self.config.risk.stop_loss_pct, vs_stop_loss_pct=vs_cfg.stop_loss_pct,
                 esports_stop_loss_pct=self.config.risk.esports_stop_loss_pct):
             self._exit_position(cid, "stop_loss")
+
+        # V3 Maximus: Trailing Take-Profit (replaces fixed TP for non-VS positions)
+        ttp_cfg = self.config.trailing_tp
+        if ttp_cfg.enabled:
+            for cid, pos in list(self.portfolio.positions.items()):
+                if pos.volatility_swing:
+                    continue  # VS positions use their own TP logic
+                ttp_result = calculate_trailing_tp(
+                    entry_price=pos.entry_price,
+                    current_price=pos.current_price,
+                    direction=pos.direction,
+                    peak_price=pos.peak_price,
+                    trailing_active=pos.peak_pnl_pct >= ttp_cfg.activation_pct,
+                    activation_pct=ttp_cfg.activation_pct,
+                    trail_distance=ttp_cfg.trail_distance,
+                )
+                # Update peak tracking
+                if ttp_result["peak_price"] > pos.peak_price:
+                    pos.peak_price = ttp_result["peak_price"]
+                if ttp_result["action"] == "EXIT":
+                    logger.info("Trailing TP EXIT: %s — %s (profit %.1f%%)",
+                                pos.slug[:40], ttp_result["reason"], ttp_result["profit_pct"] * 100)
+                    self._exit_position(cid, f"trailing_tp: {ttp_result['reason']}")
+
+        # Fixed TP only for VS positions now
         for cid in self.portfolio.check_take_profits(
                 self.config.risk.take_profit_pct, vs_take_profit_pct=vs_cfg.take_profit_pct,
                 vs_tp_floor=vs_cfg.tp_floor, vs_tp_ceiling=vs_cfg.tp_ceiling):
             pos = self.portfolio.positions.get(cid)
+            if pos and not pos.volatility_swing:
+                continue  # Non-VS uses trailing TP now
             is_vs = pos and pos.volatility_swing
             is_spike = (pos and not is_vs and pos.confidence in ("A", "B+") and
                         max(pos.ai_probability, 1 - pos.ai_probability) > 0.60)
             reason = "vs_take_profit" if is_vs else ("spike_exit" if is_spike else "take_profit")
-            cooldown = 0 if (is_vs or is_spike) else 3  # spike/VS: immediate re-entry eligible
+            cooldown = 0 if (is_vs or is_spike) else 3
             self._exit_position(cid, reason, cooldown_cycles=cooldown)
         trailing_tiers = [{"min_peak": t.min_peak, "drop_pct": t.drop_pct}
                           for t in self.config.risk.trailing_stop_tiers]
@@ -581,6 +614,7 @@ class Agent:
             return
         self.cycle_count += 1
         self._cycle_ai_cost_start = self.ai._sprint_cost_usd  # Track per-cycle AI cost
+        self.risk.new_cycle()  # Reset per-cycle flags (cooldown decrement)
         logger.info("=== Cycle #%d start ===", self.cycle_count)
         self._set_status("running", "Starting cycle")
 
@@ -1310,14 +1344,26 @@ class Agent:
                 mkt_sources.append("news")
             mkt_sources.append("claude_sonnet")
 
-            # Edge calculation
-            direction, edge = calculate_edge(
+            # Bookmaker-anchored probability (V3 Maximus)
+            _mkt_odds_for_anchor = odds_by_market.get(market.condition_id)
+            _anchor_book_prob = _mkt_odds_for_anchor.get("bookmaker_prob_a") if _mkt_odds_for_anchor else None
+            _anchor_num_books = _mkt_odds_for_anchor.get("num_bookmakers", 0) if _mkt_odds_for_anchor else 0
+            anchored = calculate_anchored_probability(
                 ai_prob=estimate.ai_probability,
+                bookmaker_prob=_anchor_book_prob,
+                num_bookmakers=_anchor_num_books,
+            )
+            _edge_threshold_adj = get_edge_threshold_adjustment(anchored)
+
+            # Edge calculation — uses anchored probability + threshold adjustment
+            direction, edge = calculate_edge(
+                ai_prob=anchored.probability,
                 market_yes_price=market.yes_price,
                 min_edge=effective_min_edge,
                 confidence=estimate.confidence,
                 confidence_multipliers=self.config.edge.confidence_multipliers,
                 spread=self.config.edge.default_spread,
+                edge_threshold_adjustment=_edge_threshold_adj,
             )
 
             if direction == Direction.HOLD:
@@ -1771,6 +1817,37 @@ class Agent:
 
             signals_generated = True
 
+            # Devil's Advocate veto check for B- confidence trades (V3 Maximus)
+            if estimate.confidence in ("B-",) and not self.ai.budget_exhausted:
+                da_result = self.ai.devils_advocate(estimate, direction.value, market)
+                if da_result.vetoed:
+                    self.trade_log.log({
+                        "market": market.slug, "action": "DA_VETO",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": edge, "mode": self.config.mode.value,
+                        "rejected": f"DEVILS_ADVOCATE_VETO: {'; '.join(da_result.counter_arguments[:2])}",
+                        "da_cost": da_result.cost_usd,
+                    })
+                    logger.info("DA VETO: %s — %s", market.slug[:40], da_result.counter_arguments[0] if da_result.counter_arguments else "no reason")
+                    continue
+
+            # Determine edge source for tracking (V3 Maximus)
+            _edge_source = "ai_anchored" if anchored.method == "anchored" else "ai_standard"
+            if ulti_used:
+                _edge_source = "ai_ulti_rescue"
+
+            # Check if edge source is killed
+            if self.edge_tracker.is_source_killed(_edge_source):
+                logger.info("Edge source KILLED — skipping: %s (source=%s)", market.slug[:40], _edge_source)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "question": market.question, "edge": edge,
+                    "rejected": f"EDGE_SOURCE_KILLED: {_edge_source}",
+                    "mode": self.config.mode.value,
+                })
+                continue
+
             # Execute
             token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             price = market.yes_price if direction == Direction.BUY_YES else market.no_price
@@ -1852,9 +1929,12 @@ class Agent:
                 "reasoning_con": estimate.reasoning_con[:200],
                 "question": market.question,
                 "ai_probability": estimate.ai_probability,
+                "anchored_probability": anchored.probability,
+                "anchor_method": anchored.method,
                 "market_yes_price": market.yes_price,
                 "end_date": market.end_date_iso,
                 "data_sources": mkt_sources,
+                "edge_source": _edge_source,
                 "rank_score": c["score"],
                 "sport_tag": market.sport_tag or "",
             })

@@ -2,9 +2,24 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import List, NewType, Optional
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
+
+# Semantic type: ALWAYS represents P(YES outcome wins).
+# Never direction-adjusted. For BUY_NO, flip at usage point: (1 - prob).
+YesProbability = NewType("YesProbability", float)
+
+
+def validate_yes_probability(value: float, context: str = "") -> YesProbability:
+    """Runtime guard: ai_probability must be P(YES) in [0.01, 0.99]."""
+    if not (0.01 <= value <= 0.99):
+        raise ValueError(
+            f"ai_probability={value} out of range [0.01, 0.99]. "
+            f"Context: {context}. "
+            f"This value must be P(YES outcome), never direction-adjusted."
+        )
+    return YesProbability(value)
 
 
 class Direction(str, Enum):
@@ -46,7 +61,17 @@ class Position(BaseModel):
     entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
     confidence: str = "B-"
-    ai_probability: float = 0.5
+    ai_probability: float = 0.5  # ALWAYS P(YES outcome). Never direction-adjusted.
+
+    @field_validator("ai_probability")
+    @classmethod
+    def check_yes_probability(cls, v: float) -> float:
+        if not (0.01 <= v <= 0.99):
+            raise ValueError(
+                f"ai_probability={v} outside [0.01, 0.99]. "
+                f"Must be P(YES outcome), never direction-adjusted."
+            )
+        return v
     scouted: bool = False  # True = pre-game scouted entry, hold to resolve (no take-profit)
     volatility_swing: bool = False  # True = bought cheap underdog for in-game spike, tight TP/SL
     question: str = ""  # Market question (human-readable title)
@@ -111,7 +136,17 @@ class Position(BaseModel):
 class Signal(BaseModel):
     condition_id: str
     direction: Direction
-    ai_probability: float
+    ai_probability: float  # ALWAYS P(YES outcome). Never direction-adjusted.
     market_price: float
     edge: float
     confidence: str
+
+    @field_validator("ai_probability")
+    @classmethod
+    def check_yes_probability(cls, v: float) -> float:
+        if not (0.01 <= v <= 0.99):
+            raise ValueError(
+                f"ai_probability={v} outside [0.01, 0.99]. "
+                f"Must be P(YES outcome), never direction-adjusted."
+            )
+        return v

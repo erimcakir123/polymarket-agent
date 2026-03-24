@@ -49,8 +49,8 @@ _SPORT_KEYS = {
     "conference": "soccer_uefa_europa_conference_league",
     "mls": "soccer_usa_mls", "eredivisie": "soccer_netherlands_eredivisie",
     "liga-mx": "soccer_mexico_ligamx", "fa-cup": "soccer_fa_cup",
-    # Tennis
-    "atp": "tennis_atp_miami_open", "wta": "tennis_wta_miami_open",
+    # Tennis — resolved dynamically via _get_active_tennis_keys()
+    # "atp" and "wta" prefixes handled in _detect_sport_key, not here
     # Cricket
     "ipl": "cricket_ipl", "t20": "cricket_international_t20", "psl": "cricket_psl",
     # Rugby
@@ -78,9 +78,13 @@ _QUESTION_SPORT_KEYS = {
     "champions league": "soccer_uefa_champs_league", "europa league": "soccer_uefa_europa_league",
     "mls": "soccer_usa_mls", "fa cup": "soccer_fa_cup",
     "copa libertadores": "soccer_conmebol_copa_libertadores",
-    # Tennis
-    "atp": "tennis_atp_miami_open", "wta": "tennis_wta_miami_open",
-    "miami open": "tennis_atp_miami_open",
+    # Tennis — resolved dynamically, these are fallback markers
+    "atp": "_tennis_atp",
+    "wta": "_tennis_wta",
+    "miami open": "_tennis_atp",
+    "french open": "_tennis_atp", "roland garros": "_tennis_atp",
+    "wimbledon": "_tennis_atp", "us open tennis": "_tennis_atp",
+    "australian open": "_tennis_atp",
     # Cricket
     "ipl": "cricket_ipl", "t20": "cricket_international_t20",
     # Politics
@@ -109,6 +113,33 @@ class OddsAPIClient:
     def available(self) -> bool:
         return bool(self.api_key)
 
+    def _get_active_tennis_keys(self, gender: str = "atp") -> List[str]:
+        """Discover active tennis sport keys from The Odds API /sports endpoint.
+
+        The Odds API has separate keys per tournament (tennis_atp_miami_open, etc.).
+        We query /sports to find which ones are currently active.
+        """
+        cache_key = f"_tennis_sports:{gender}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if time.monotonic() - ts < self._cache_ttl:
+                return data
+
+        prefix = f"tennis_{gender}"
+        try:
+            sports = self._get("/sports", {"all": "false"})
+            if not sports:
+                return []
+            keys = [s["key"] for s in sports if isinstance(s, dict)
+                    and s.get("key", "").startswith(prefix) and s.get("active")]
+            self._cache[cache_key] = (keys, time.monotonic())
+            if keys:
+                logger.info("Active %s tennis keys: %s", gender.upper(), keys)
+            return keys
+        except Exception:
+            return []
+
     def _detect_sport_key(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Detect The Odds API sport key from market data."""
         slug_prefix = slug.split("-")[0].lower() if slug else ""
@@ -118,7 +149,22 @@ class OddsAPIClient:
         q_lower = question.lower()
         for keyword, sport_key in _QUESTION_SPORT_KEYS.items():
             if keyword in q_lower:
+                # Tennis markers → resolve dynamically
+                if sport_key == "_tennis_atp":
+                    keys = self._get_active_tennis_keys("atp")
+                    return keys[0] if keys else None
+                if sport_key == "_tennis_wta":
+                    keys = self._get_active_tennis_keys("wta")
+                    return keys[0] if keys else None
                 return sport_key
+
+        # Also check slug for tennis prefixes (atp/wta)
+        if slug_prefix in ("atp", "tennis"):
+            keys = self._get_active_tennis_keys("atp")
+            return keys[0] if keys else None
+        if slug_prefix == "wta":
+            keys = self._get_active_tennis_keys("wta")
+            return keys[0] if keys else None
 
         return None
 

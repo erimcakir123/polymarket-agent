@@ -245,6 +245,8 @@ class Portfolio:
             pos.cycles_held += 1
             eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
             pos.price_history_buffer.append(eff_price)
+            if len(pos.price_history_buffer) > 500:
+                pos.price_history_buffer = pos.price_history_buffer[-500:]
             if eff_price > pos.peak_price:
                 pos.peak_price = eff_price
 

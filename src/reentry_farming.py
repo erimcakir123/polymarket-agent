@@ -283,6 +283,7 @@ def check_reentry(
     eff_price = _get_effective_price(current_yes_price, c.direction)
     eff_exit = _get_effective_price(c.last_exit_price, c.direction)
     eff_entry = _get_effective_price(c.original_entry_price, c.direction)
+    # ai_probability is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
     eff_ai = c.ai_probability if c.direction == "BUY_YES" else (1.0 - c.ai_probability)
 
     # --- HARD BLOCKS ---

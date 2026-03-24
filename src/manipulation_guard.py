@@ -74,15 +74,15 @@ class ManipulationGuard:
             flags.append("SELF_RESOLVING: subject can influence outcome")
             risk_score += 3
 
-        # 2. Low liquidity = easy to manipulate
-        if 0 < liquidity < self.min_liquidity_usd:
+        # 2. Low liquidity = easy to manipulate (zero is worst case)
+        if liquidity < self.min_liquidity_usd:
             flags.append(f"LOW_LIQUIDITY: ${liquidity:,.0f} (min ${self.min_liquidity_usd:,.0f})")
-            risk_score += 1
+            risk_score += 2 if liquidity <= 0 else 1
 
-        # 3. Single-source news
-        if 0 < news_source_count < self.min_news_sources:
-            flags.append(f"SINGLE_SOURCE_NEWS: only {news_source_count} source(s)")
-            risk_score += 1
+        # 3. Single-source or zero-source news
+        if news_source_count < self.min_news_sources:
+            flags.append(f"LOW_SOURCE_NEWS: only {news_source_count} source(s)")
+            risk_score += 2 if news_source_count <= 0 else 1
 
         # Determine risk level
         if risk_score >= 3:

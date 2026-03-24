@@ -1,14 +1,19 @@
-"""Order execution: dry_run, paper, live modes."""
+"""Order execution: dry_run, paper, live modes with hybrid limit/market orders."""
 from __future__ import annotations
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import requests
 
 from src.config import Mode
 
 logger = logging.getLogger(__name__)
+
+# Liquidity threshold — above this use market order, below use limit
+LIQUID_DEPTH_USDC = 500.0
+# Limit order offset — place limit this many cents better than market
+LIMIT_OFFSET_CENTS = 0.01
 
 
 def fetch_order_book(token_id: str) -> dict:
@@ -26,6 +31,55 @@ def fetch_order_book(token_id: str) -> dict:
         return {"bids": [], "asks": []}
 
 
+def _book_depth_usdc(levels: List[dict]) -> float:
+    """Calculate total USDC depth from order book levels."""
+    total = 0.0
+    for level in levels:
+        price = float(level.get("price", 0))
+        size = float(level.get("size", 0))
+        total += price * size
+    return total
+
+
+def choose_order_strategy(
+    token_id: str,
+    side: str,
+    price: float,
+    size_usdc: float,
+    liquid_threshold: float = LIQUID_DEPTH_USDC,
+) -> dict:
+    """Choose between market order and limit order based on book depth.
+
+    Returns dict with: strategy ("market"|"limit"), price, order_type
+    """
+    book = fetch_order_book(token_id)
+
+    if side == "BUY":
+        asks = book.get("asks", [])
+        depth = _book_depth_usdc(asks)
+        if depth >= liquid_threshold and size_usdc < depth * 0.20:
+            # Liquid market, small order relative to book → market order
+            return {"strategy": "market", "price": price, "order_type": "FOK"}
+        else:
+            # Illiquid → limit order slightly below best ask
+            best_ask = float(asks[0]["price"]) if asks else price
+            limit_price = round(max(0.01, best_ask - LIMIT_OFFSET_CENTS), 2)
+            logger.info("Illiquid book (depth=$%.0f) → limit order @ $%.2f (best ask $%.2f)",
+                        depth, limit_price, best_ask)
+            return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
+    else:
+        bids = book.get("bids", [])
+        depth = _book_depth_usdc(bids)
+        if depth >= liquid_threshold and size_usdc < depth * 0.20:
+            return {"strategy": "market", "price": price, "order_type": "FOK"}
+        else:
+            best_bid = float(bids[0]["price"]) if bids else price
+            limit_price = round(min(0.99, best_bid + LIMIT_OFFSET_CENTS), 2)
+            logger.info("Illiquid book (depth=$%.0f) → limit sell @ $%.2f (best bid $%.2f)",
+                        depth, limit_price, best_bid)
+            return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
+
+
 class Executor:
     def __init__(self, mode: Mode, clob_client: Any = None) -> None:
         self.mode = mode
@@ -40,7 +94,16 @@ class Executor:
         price: float,
         size_usdc: float,
         order_type: str = "GTC",
+        use_hybrid: bool = True,
     ) -> dict:
+        # Hybrid mode: choose strategy based on book depth
+        if use_hybrid and self.mode == Mode.LIVE:
+            strategy = choose_order_strategy(token_id, side, price, size_usdc)
+            price = strategy["price"]
+            order_type = strategy["order_type"]
+            logger.info("Hybrid order: %s strategy, price=$%.2f, type=%s",
+                        strategy["strategy"], price, order_type)
+
         if self.mode in (Mode.DRY_RUN, Mode.PAPER):
             order_id = f"sim_{uuid.uuid4().hex[:8]}"
             logger.info("[%s] Simulated %s %s @ $%.2f, size=$%.2f",
