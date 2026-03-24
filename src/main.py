@@ -779,9 +779,9 @@ class Agent:
                            if time.time() - c.get("stocked_at", 0) < 3600])
         stock_max = 5
         stock_empty = max(0, stock_max - stock_viable)
-        # Don't spend AI just to fill stock when we already have 2+ items.
+        # Don't spend AI on stock when all position slots are full.
         # Stock gets filled naturally from: (1) demoted exits, (2) leftover candidates when slots open.
-        if open_slots == 0 and stock_viable >= 2:
+        if open_slots == 0:
             stock_empty = 0
         total_need = open_slots + stock_empty  # positions to fill + stock to fill
 
@@ -1012,14 +1012,20 @@ class Agent:
         if esports_contexts:
             logger.info("Sports data fetched for %d/%d markets", len(esports_contexts), len(prioritized))
 
-        # 9d. Data gate: skip AI for markets with NO data (saves budget)
-        # When news APIs are down, AI gets only "Question: X vs Y" → always returns C/0.50
+        # 9d. Data gate: skip AI for markets without SUFFICIENT data
+        # Single source (just ESPN stats) rarely produces candidates — need 2+ sources
+        # or at least news/odds which provide stronger signal than stats alone.
         _no_data_markets = []
         _has_data_markets = []
+        _odds_available = self.odds_api.available
+        _news_available = any(news_context_by_market.values())
         for m in prioritized:
             has_sports = m.condition_id in esports_contexts
             has_news = bool(news_context_by_market.get(m.condition_id))
-            if has_sports or has_news:
+            has_odds = _odds_available  # global flag — odds API serves all sports
+            source_count = sum([has_sports, has_news, has_odds])
+            # Need at least 2 data sources, OR news alone (strong signal), OR odds alone (strong signal)
+            if source_count >= 2 or has_news or has_odds:
                 _has_data_markets.append(m)
             else:
                 _no_data_markets.append(m)
@@ -3391,6 +3397,13 @@ class Agent:
                         yes_won = True
                     elif no_price >= 0.95:
                         yes_won = False
+                    elif 0.45 <= new_yes_price <= 0.55 and 0.45 <= no_price <= 0.55:
+                        # Void / draw — both sides refunded at ~50¢
+                        logger.info("VOID/DRAW: %s | prices=[%.2f, %.2f] — exiting as refund",
+                                    pos.slug[:40], new_yes_price, no_price)
+                        self.portfolio.update_price(cid, new_yes_price)
+                        self._exit_position(cid, "resolved_void")
+                        continue
                     elif new_yes_price <= 0.05 and no_price <= 0.05:
                         # Ambiguous [0,0] — check if event says ended
                         if events and events[0].get("ended"):
