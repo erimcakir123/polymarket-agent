@@ -949,7 +949,7 @@
                             </div>
                             <div style="text-align:center;margin-top:6px;line-height:1.5">
                                 <div style="font-size:10px;color:var(--text-secondary);font-weight:600"><span id="budgetSpent">$0.00</span> / <span id="budgetLimit">$0.00</span></div>
-                                <div style="font-size:9px;color:var(--text-muted)">Left: <span id="budgetRemain" style="color:var(--green);font-weight:600">$0.00</span></div>
+                                <div style="font-size:9px"><span id="budgetRemain" style="color:var(--green);font-weight:600">$0.00</span></div>
                             </div>
                             <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener" style="display:block;padding:2px 10px;background:rgba(45,212,168,0.08);border:1px solid rgba(45,212,168,0.2);border-radius:4px;color:var(--accent);text-align:center;font-size:8px;font-weight:600;text-decoration:none;letter-spacing:0.03em;transition:background 0.2s;cursor:pointer;margin-top:2px" onmouseover="this.style.background='rgba(45,212,168,0.18)'" onmouseout="this.style.background='rgba(45,212,168,0.08)'">BILLING &#8599;</a>
                         </div>
@@ -2302,7 +2302,7 @@
                     const m = Math.floor(remaining / 60);
                     const s = remaining % 60;
                     statusParts.push(remaining > 0
-                        ? `Hard ${m}m ${s.toString().padStart(2,'0')}s`
+                        ? `<span style="color:#4fc3f7">Hard</span> ${m}m ${s.toString().padStart(2,'0')}s`
                         : 'Starting cycle...');
                 }
                 // Light cycle countdown (every 60s when positions open)
@@ -2310,9 +2310,9 @@
                     const lightElapsed = (Date.now() - new Date(data.light_ts).getTime()) / 1000;
                     const lightRemaining = Math.max(0, Math.round(60 - lightElapsed));
                     const ls = lightRemaining % 60;
-                    statusParts.push(`Light ${ls}s`);
+                    statusParts.push(`<span style="color:#2dd4a8">Light</span> ${ls}s`);
                 }
-                text.textContent = statusParts.length > 0 ? statusParts.join(' · ') : (data.step || 'Idle');
+                text.innerHTML = statusParts.length > 0 ? statusParts.join(' · ') : (data.step || 'Idle');
             } else {
                 dot.style.background = '#888'; dot.style.animation = 'none';
                 text.textContent = 'Offline';
