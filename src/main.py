@@ -2277,7 +2277,7 @@ class Agent:
                     market.condition_id, token_id, c.direction,
                     market.yes_price, bet_size, shares, market.slug,
                     market.tags[0] if market.tags else "",
-                    confidence=prior_conf if prior_ai_prob > 0 else "live_dip",
+                    confidence=prior_conf if prior_ai_prob > 0 else "C",
                     ai_probability=prior_ai_prob,
                     question=market.question,
                     end_date_iso=market.end_date_iso,
@@ -2845,9 +2845,9 @@ class Agent:
 
             # Calculate position size (Kelly * tier multiplier)
             eff_price = current_yes_price if direction == "BUY_YES" else (1.0 - current_yes_price)
+            # Pass raw YES values — kelly_position_size handles direction internally
             base_size = kelly_position_size(
-                ai_prob if direction == "BUY_YES" else 1 - ai_prob,
-                eff_price, self.portfolio.bankroll,
+                ai_prob, current_yes_price, self.portfolio.bankroll,
                 kelly_fraction=self.config.risk.kelly_fraction,
                 max_bet_usdc=self.config.risk.max_single_bet_usdc,
                 max_bet_pct=self.config.risk.max_bet_pct,

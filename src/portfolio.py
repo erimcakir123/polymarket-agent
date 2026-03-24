@@ -270,16 +270,18 @@ class Portfolio:
             # Volatility swings use their own stop-loss
             # Esports BO series get wider stop-loss due to natural volatility
             # BO5 gets extra +10% room (more games = more comeback potential)
+            # Use effective entry price for BUY_NO (cost = 1 - yes_price)
+            eff_entry_sl = (1 - pos.entry_price) if pos.direction == "BUY_NO" else pos.entry_price
             if pos.volatility_swing:
                 sl = vs_stop_loss_pct
-            elif pos.entry_price < 0.09:
+            elif eff_entry_sl < 0.09:
                 # Ultra-low entry (<9¢): no stop-loss, too volatile
                 # Bet size IS the risk ($25-35 max loss)
                 continue
-            elif pos.entry_price < 0.20:
+            elif eff_entry_sl < 0.20:
                 # Low-entry (9-20¢): graduated stop-loss
                 # Linear scale: 9¢ → 60%, 20¢ → 40%
-                t = (pos.entry_price - 0.09) / (0.20 - 0.09)  # 0..1
+                t = (eff_entry_sl - 0.09) / (0.20 - 0.09)  # 0..1
                 sl = 0.60 - t * 0.20  # 60% → 40%
             elif pos.confidence == "B-":
                 sl = 0.30  # B- tighter stop-loss
@@ -436,10 +438,10 @@ class Portfolio:
                         pass
 
                 ai_target = pos.ai_probability
-                current = pos.current_price or pos.entry_price
+                current = pos.current_price if pos.current_price is not None else pos.entry_price
                 if pos.direction and 'NO' in pos.direction:
                     ai_target = 1 - pos.ai_probability
-                    current = 1 - current if current else pos.entry_price
+                    current = 1 - current
 
                 # V2: Decay AI target toward market price as match progresses
                 decayed_target = get_decayed_ai_target(ai_target, current, elapsed_pct)
