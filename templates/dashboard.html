@@ -1712,7 +1712,7 @@
             // Derive wins/losses from EXIT trades — use PnL to determine win/loss
             const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.pnl !== undefined);
             const wins = exits.filter(t => t.pnl > 0).length;
-            const losses = exits.filter(t => t.pnl <= 0).length;
+            const losses = exits.filter(t => t.pnl < 0).length;
             const total = wins + losses;
 
             document.getElementById('winRate').textContent = total > 0 ? (wins / total * 100).toFixed(0) + '%' : '--%';

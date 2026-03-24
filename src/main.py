@@ -779,9 +779,10 @@ class Agent:
                            if time.time() - c.get("stocked_at", 0) < 3600])
         stock_max = 5
         stock_empty = max(0, stock_max - stock_viable)
-        # When slots are full, don't aggressively fill stock — save AI budget
-        if open_slots == 0:
-            stock_empty = min(stock_empty, 2)
+        # Don't spend AI just to fill stock when we already have 2+ items.
+        # Stock gets filled naturally from: (1) demoted exits, (2) leftover candidates when slots open.
+        if open_slots == 0 and stock_viable >= 2:
+            stock_empty = 0
         total_need = open_slots + stock_empty  # positions to fill + stock to fill
 
         if total_need == 0:
