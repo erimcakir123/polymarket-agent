@@ -1174,23 +1174,24 @@ class Agent:
                         sources.append("pandascore")
                         logger.info("Esports data loaded for: %s", m.question[:50])
 
-                # CASCADE: If PandaScore had no data, try VLR (Valorant) or HLTV (CS2)
-                if not parts:
-                    if self.vlr.available:
-                        vlr_ctx = self.vlr.get_match_context(m.question, m.tags)
-                        if vlr_ctx:
-                            parts.append(vlr_ctx)
-                            sources.append("vlr")
-                            logger.info("VLR fallback data loaded for: %s", m.question[:50])
-                    if self.hltv.available and not parts:
-                        hltv_ctx = self.hltv.get_match_context(m.question, m.tags)
-                        if hltv_ctx:
-                            parts.append(hltv_ctx)
-                            sources.append("hltv")
-                            logger.info("HLTV fallback data loaded for: %s", m.question[:50])
+                # Complementary sources: VLR (Valorant) + HLTV (CS2) run alongside PandaScore
+                # Even if PandaScore returned data, these add ranking/tier info
+                if self.vlr.available:
+                    vlr_ctx = self.vlr.get_match_context(m.question, m.tags)
+                    if vlr_ctx:
+                        parts.append(vlr_ctx)
+                        sources.append("vlr")
+                        logger.info("VLR data loaded for: %s", m.question[:50])
+                if self.hltv.available:
+                    hltv_ctx = self.hltv.get_match_context(m.question, m.tags)
+                    if hltv_ctx:
+                        parts.append(hltv_ctx)
+                        sources.append("hltv")
+                        logger.info("HLTV data loaded for: %s", m.question[:50])
 
             # Add bookmaker odds to AI context (uses quota sparingly — cached 1hr)
-            if self.odds_api.available and (espn_ctx or parts):
+            # Called independently — Odds API covers sports that ESPN/PandaScore don't
+            if self.odds_api.available:
                 odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
                 if odds:
                     parts.append(self.odds_api.build_odds_context(odds))
@@ -1381,17 +1382,17 @@ class Agent:
                 })
                 continue
 
-            # medium_low (B-) experiment: allow but require high edge (≥15%)
+            # medium_low (B-) experiment: allow but require decent edge (≥10%)
             _is_medium_low = estimate.confidence == "B-"
             if _is_medium_low:
                 raw_edge = abs(estimate.ai_probability - market.yes_price)
-                if raw_edge < 0.15:
+                if raw_edge < 0.10:
                     self.trade_log.log({
                         "market": market.slug, "action": "HOLD",
                         "question": market.question,
                         "ai_prob": estimate.ai_probability, "price": market.yes_price,
                         "edge": raw_edge, "mode": self.config.mode.value,
-                        "rejected": f"MEDIUM_LOW_EDGE: {raw_edge:.1%} < 15% min for B- bets",
+                        "rejected": f"MEDIUM_LOW_EDGE: {raw_edge:.1%} < 10% min for B- bets",
                     })
                     continue
 
@@ -2401,7 +2402,7 @@ class Agent:
         Only called for exits that are NOT resolved_* or far_penny*.
         """
         # Mutex: don't stock if already in re-entry pool
-        if pos.condition_id in self.reentry_pool:
+        if pos.condition_id in self.reentry_pool.candidates:
             logger.info("Exit skip stock (already in re-entry pool): %s", pos.slug[:40])
             return False
 

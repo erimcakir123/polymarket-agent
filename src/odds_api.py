@@ -341,6 +341,20 @@ class OddsAPIClient:
     def _extract_teams(self, question: str) -> Tuple[Optional[str], Optional[str]]:
         """Extract team names from question."""
         q = question.strip()
+        # Strip sport/tour prefixes common in Polymarket questions
+        _PREFIXES = [
+            "ATP:", "WTA:", "Counter-Strike:", "CS2:", "CS:GO:",
+            "Valorant:", "VALORANT:", "Dota 2:", "LoL:", "League of Legends:",
+            "MLB:", "NBA:", "NHL:", "NFL:", "MMA:", "UFC:", "Boxing:",
+            "Cricket:", "Rugby:", "Will",
+        ]
+        for pfx in _PREFIXES:
+            if q.startswith(pfx):
+                q = q[len(pfx):].strip()
+                break
+            if q.lower().startswith(pfx.lower()):
+                q = q[len(pfx):].strip()
+                break
         for sep in [" vs. ", " vs ", " versus "]:
             if sep in q.lower():
                 idx = q.lower().index(sep)

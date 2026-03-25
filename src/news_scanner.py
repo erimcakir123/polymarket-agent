@@ -27,12 +27,29 @@ RSS_FEEDS = [
 ]
 
 # Topic templates for grouping related markets
+# Key = shared search query used for the group, value = keywords that trigger grouping
 TOPIC_GROUPS: Dict[str, List[str]] = {
-    "us_politics": ["trump", "biden", "congress", "senate", "house", "republican", "democrat", "election", "president"],
-    "geopolitics": ["ukraine", "russia", "china", "taiwan", "nato", "war", "sanctions", "iran", "israel", "gaza"],
-    "economics": ["fed", "interest rate", "inflation", "gdp", "recession", "tariff", "trade war", "stock market", "s&p"],
-    "crypto": ["bitcoin", "ethereum", "crypto", "sec crypto", "etf"],
-    "tech": ["ai regulation", "openai", "google ai", "meta ai", "tiktok ban", "antitrust"],
+    # Politics & Geopolitics
+    "us politics election 2026": ["trump", "biden", "congress", "senate", "house", "republican", "democrat", "election", "president"],
+    "ukraine russia war nato": ["ukraine", "russia", "china", "taiwan", "nato", "war", "sanctions", "iran", "israel", "gaza"],
+    "economy interest rates inflation": ["fed", "interest rate", "inflation", "gdp", "recession", "tariff", "trade war", "stock market", "s&p"],
+    "bitcoin crypto regulation": ["bitcoin", "ethereum", "crypto", "sec crypto", "etf"],
+    "ai regulation tech antitrust": ["ai regulation", "openai", "google ai", "meta ai", "tiktok ban", "antitrust"],
+    # Sports — batch by sport, not per-market
+    "counter-strike CS2 esports matches results": ["counter-strike", "cs2", "csgo", "cs:go"],
+    "dota 2 esports matches results": ["dota", "dota2", "dota 2"],
+    "valorant esports matches results": ["valorant"],
+    "league of legends esports matches": ["lol", "league of legends"],
+    "MLB baseball scores results": ["mlb", "baseball", "angels", "dodgers", "yankees", "mets", "cubs", "sox"],
+    "NBA basketball scores results": ["nba", "basketball", "lakers", "celtics", "knicks", "warriors", "bucks"],
+    "NHL hockey scores results": ["nhl", "hockey"],
+    "NFL football scores results": ["nfl", "football", "chiefs", "eagles", "cowboys", "49ers"],
+    "ATP WTA tennis matches results": ["atp", "wta", "tennis", "open", "grand slam"],
+    "soccer football matches results": ["soccer", "premier league", "la liga", "serie a", "bundesliga", "champions league", "epl", "mls"],
+    "UFC MMA boxing fights results": ["ufc", "mma", "boxing", "fight"],
+    "cricket T20 matches results": ["cricket", "t20", "ipl", "test match"],
+    "rugby matches results": ["rugby", "nrl", "super rugby"],
+    "CBA Chinese basketball results": ["cba", "chinese basketball", "rockets", "tigers", "loongs", "knights"],
 }
 
 
@@ -76,11 +93,18 @@ class NewsScanner:
         """
         self._maybe_reset_daily_usage()
 
-        # Check cache
+        # Check cache — sports queries use longer TTL (6h) since news is slower-moving
         key = _cache_key(query)
+        _SPORTS_WORDS = {"cs2", "counter-strike", "dota", "valorant", "lol", "mlb",
+                         "nba", "nhl", "nfl", "tennis", "atp", "wta", "soccer",
+                         "ufc", "mma", "boxing", "cricket", "rugby", "esports",
+                         "baseball", "basketball", "hockey", "football", "cba"}
+        q_lower = query.lower()
+        is_sports = any(sw in q_lower for sw in _SPORTS_WORDS)
+        effective_ttl = 21600 if is_sports else self.cache_ttl  # 6h vs 45min
         if key in self._cache:
             ts, cached = self._cache[key]
-            if (time.time() - ts) < self.cache_ttl:
+            if (time.time() - ts) < effective_ttl:
                 logger.debug("Cache hit for query: %s", query)
                 return cached
 
@@ -380,20 +404,21 @@ class NewsScanner:
     def _group_markets_by_topic(
         self, market_keywords: Dict[str, List[str]]
     ) -> Dict[str, List[str]]:
-        """Group markets into topic queries to reduce API calls.
+        """Group markets into shared topic queries to reduce API calls.
 
-        Example: 20 markets → 5-15 unique topic queries.
+        Markets matching the same sport/topic share ONE query instead of
+        each getting its own. Example: 10 CS2 markets → 1 query.
         """
         topic_map: Dict[str, List[str]] = {}
 
         for cid, keywords in market_keywords.items():
+            kw_lower = [kw.lower() for kw in keywords]
             # Try to match to a known topic group
             matched = False
-            for _topic_name, topic_keywords in TOPIC_GROUPS.items():
-                if any(kw.lower() in topic_keywords for kw in keywords):
-                    # Use the first 2-3 market keywords as query
-                    query = " ".join(keywords[:3])
-                    topic_map.setdefault(query, []).append(cid)
+            for topic_query, topic_keywords in TOPIC_GROUPS.items():
+                if any(kw in topic_keywords for kw in kw_lower):
+                    # Use the shared topic query (not per-market keywords)
+                    topic_map.setdefault(topic_query, []).append(cid)
                     matched = True
                     break
 
