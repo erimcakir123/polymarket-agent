@@ -89,8 +89,14 @@ def scan_penny_candidates(
             except (ValueError, TypeError):
                 pass
 
-        # Skip if resolving too soon (< 1 day) or too far (> 60 days)
-        if days_to_res < 1.0 or days_to_res > 60.0:
+        # Skip if already resolved
+        if days_to_res < 0:
+            continue
+
+        # Only head-to-head matchups (X vs Y) — never tournament/season winners
+        q_lower = m.question.lower()
+        has_vs = " vs " in q_lower or " vs. " in q_lower
+        if not has_vs:
             continue
 
         # Check YES side penny

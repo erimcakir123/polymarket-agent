@@ -1045,6 +1045,13 @@ class Agent:
         if len(markets) < pre_live:
             logger.info("Pre-filtered %d live matches (saved API cost)", pre_live - len(markets))
 
+        # Filter out effectively resolved markets — one side >96¢ means match is over
+        pre_resolved = len(markets)
+        markets = [m for m in markets if m.yes_price <= 0.96 and m.no_price <= 0.96]
+        if len(markets) < pre_resolved:
+            logger.info("Pre-filtered %d resolved/near-resolved markets (price >96¢)",
+                        pre_resolved - len(markets))
+
         # Position-aware dynamic batch allocation:
         # Few positions open → explore distant markets (early entry = better odds)
         # Many positions open → focus on near markets (fast turnover = capital velocity)
@@ -1224,10 +1231,12 @@ class Agent:
         for m in prioritized:
             has_sports = m.condition_id in esports_contexts
             has_news = bool(news_context_by_market.get(m.condition_id))
-            has_odds = _odds_available  # global flag — odds API serves all sports
+            has_odds = m.condition_id in odds_by_market  # actual odds found for THIS market
             source_count = sum([has_sports, has_news, has_odds])
-            # Need at least 2 data sources, OR news alone (strong signal), OR odds alone (strong signal)
-            if source_count >= 2 or has_news or has_odds:
+            # Must have odds OR sports data as primary source — news alone is not enough
+            # News is a supporting factor (injuries, roster changes) not a standalone signal
+            has_primary = has_odds or has_sports
+            if has_primary:
                 _has_data_markets.append(m)
             else:
                 _no_data_markets.append(m)
@@ -1973,7 +1982,7 @@ class Agent:
                 _book_prob = _mkt_odds.get("bookmaker_prob_a", 0.0)
             self.portfolio.add_position(
                 market.condition_id, token_id, direction.value,
-                price, adjusted_size, shares, market.slug,
+                market.yes_price, adjusted_size, shares, market.slug,
                 market.tags[0] if market.tags else "",
                 confidence=estimate.confidence,
                 ai_probability=estimate.ai_probability,
@@ -2956,6 +2965,36 @@ class Agent:
                 if self.blacklist.is_blocked(penny.condition_id, self.cycle_count):
                     continue
 
+                # Penny time filter: only enter matches starting within 6 hours
+                _penny_market = next((m for m in markets if m.condition_id == penny.condition_id), None)
+                _penny_start = getattr(_penny_market, 'match_start_iso', '') if _penny_market else ''
+                if _penny_start:
+                    try:
+                        from datetime import datetime as _dt, timezone as _tz
+                        _start_dt = _dt.fromisoformat(_penny_start.replace("Z", "+00:00"))
+                        _hours_until = (_start_dt - _dt.now(_tz.utc)).total_seconds() / 3600
+                        if _hours_until > 6.0:
+                            logger.info("Penny skip: match starts in %.1fh (>6h): %s",
+                                        _hours_until, penny.slug[:40])
+                            continue
+                        if _hours_until < -2.0:
+                            # Match already started >2h ago — skip
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+                elif _penny_market and getattr(_penny_market, 'end_date_iso', ''):
+                    # No match_start_iso — use end_date as fallback, require <12h
+                    try:
+                        from datetime import datetime as _dt, timezone as _tz
+                        _end_dt = _dt.fromisoformat(_penny_market.end_date_iso.replace("Z", "+00:00"))
+                        _hours_to_end = (_end_dt - _dt.now(_tz.utc)).total_seconds() / 3600
+                        if _hours_to_end > 12.0:
+                            logger.info("Penny skip: resolution in %.1fh (>12h, no start time): %s",
+                                        _hours_to_end, penny.slug[:40])
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+
                 bet_size = size_penny_position(
                     bankroll=self.portfolio.bankroll,
                     current_penny_count=penny_count,
@@ -2991,7 +3030,7 @@ class Agent:
 
                 self.portfolio.add_position(
                     market.condition_id, token_id, direction,
-                    price, bet_size, shares, market.slug,
+                    market.yes_price, bet_size, shares, market.slug,
                     market.tags[0] if market.tags else "",
                     confidence="C", ai_probability=price,
                     question=market.question, end_date_iso=market.end_date_iso,
