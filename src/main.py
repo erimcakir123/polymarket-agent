@@ -324,7 +324,7 @@ class Agent:
         Rate-limited to once per 60 seconds.
         """
         now = time.time()
-        if now - self._last_match_state_fetch < 60:
+        if now - self._last_match_state_fetch < 30:
             return self._match_states  # Return cached
 
         if not self.esports.available:
@@ -4792,7 +4792,8 @@ class Agent:
             interval = self.cycle_timer.get_interval()
             logger.info("Next cycle in %d min", interval)
             self._set_status("waiting", f"Next cycle in {interval}min")
-            light_interval_sec = 60  # Light cycle every 60s when positions open
+            light_interval_sec = 30  # Light cycle every 30s when positions open
+            _last_ws_pos_count = len(self.portfolio.positions)  # Track for instant WS sync
             for tick in range(interval * 60):
                 if not self.running:
                     break
@@ -4805,6 +4806,14 @@ class Agent:
                 # Drain WebSocket exit queue every tick (1s) — zero API cost
                 if self._ws_exit_queue:
                     self._drain_ws_exit_queue()
+                # Instant WS sync: new position entered → subscribe within 1s (not 60s)
+                _cur_pos_count = len(self.portfolio.positions)
+                if _cur_pos_count != _last_ws_pos_count:
+                    self._sync_ws_subscriptions()
+                    _last_ws_pos_count = _cur_pos_count
+                # Dashboard price sync: save positions every 10s so dashboard reflects WS prices
+                if tick % 10 == 0 and self.portfolio.positions:
+                    self.portfolio._save_positions()
                 # Light cycle: exit checks + dashboard update every 60s
                 if self.portfolio.positions and tick > 0 and tick % light_interval_sec == 0:
                     try:

@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optimus Claudeus — Bug Review & System Flowchart</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --red: #f85149;
+    --orange: #d29922;
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+    --pink: #f778ba;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    line-height: 1.7;
+  }
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #1a1040 50%, #0d2137 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 40px 50px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--blue), var(--purple), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero p { color: var(--text-dim); font-size: 1.15rem; max-width: 700px; margin: 0 auto; }
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 6px; padding: 10px 20px;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .nav a {
+    color: var(--text-dim); text-decoration: none; font-size: 0.85rem; font-weight: 500;
+    padding: 6px 14px; border-radius: 6px; transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav a:hover { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .nav a.high { border-color: var(--red); color: var(--red); }
+  .nav a.med { border-color: var(--orange); color: var(--orange); }
+  .nav a.low { border-color: var(--green); color: var(--green); }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 40px 30px; }
+
+  /* Flowchart sections */
+  .chart-section {
+    margin-bottom: 50px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .chart-section h2 {
+    padding: 20px 28px;
+    font-size: 1.3rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .chart-section h2 .icon { font-size: 1.5rem; }
+  .chart-body { padding: 24px; overflow-x: auto; }
+  .mermaid { display: flex; justify-content: center; }
+  .mermaid svg { max-width: 100%; height: auto; }
+
+  /* Bug review */
+  .bug-section {
+    margin-bottom: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .bug-header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .bug-header h2 { font-size: 1.25rem; }
+  .bug-body { padding: 28px; }
+
+  .finding {
+    margin-bottom: 28px;
+    padding: 20px 24px;
+    border-radius: 10px;
+    border-left: 4px solid;
+    background: var(--surface2);
+  }
+  .finding.high { border-left-color: var(--red); }
+  .finding.med { border-left-color: var(--orange); }
+  .finding.low { border-left-color: var(--green); }
+  .finding .sev {
+    display: inline-block;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+    padding: 3px 10px; border-radius: 4px;
+    margin-bottom: 10px; text-transform: uppercase;
+  }
+  .finding.high .sev { background: rgba(248,81,73,0.15); color: var(--red); }
+  .finding.med .sev { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .finding.low .sev { background: rgba(63,185,80,0.15); color: var(--green); }
+  .finding h3 { font-size: 1.05rem; margin-bottom: 10px; }
+  .finding p { color: var(--text-dim); font-size: 0.92rem; margin-bottom: 8px; }
+  .finding .fix {
+    margin-top: 12px; padding: 12px 16px;
+    background: rgba(88,166,255,0.06);
+    border: 1px solid rgba(88,166,255,0.15);
+    border-radius: 8px; font-size: 0.88rem;
+  }
+  .finding .fix strong { color: var(--blue); }
+  .finding code {
+    background: rgba(110,118,129,0.15);
+    padding: 2px 6px; border-radius: 4px;
+    font-family: 'Fira Code', monospace; font-size: 0.85em;
+  }
+
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 40px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    text-align: center;
+  }
+  .stat-card .num { font-size: 2.2rem; font-weight: 800; }
+  .stat-card .label { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; }
+  .stat-card.high .num { color: var(--red); }
+  .stat-card.med .num { color: var(--orange); }
+  .stat-card.low .num { color: var(--green); }
+  .stat-card.total .num { color: var(--purple); }
+
+  .divider { height: 1px; background: var(--border); margin: 50px 0; }
+
+  /* Annotations on charts */
+  .annotation {
+    display: inline-block;
+    background: rgba(248,81,73,0.1);
+    border: 1px solid rgba(248,81,73,0.3);
+    color: var(--red);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin: 4px 2px;
+  }
+  .annotation.warn { background: rgba(210,153,34,0.1); border-color: rgba(210,153,34,0.3); color: var(--orange); }
+  .annotation.info { background: rgba(88,166,255,0.1); border-color: rgba(88,166,255,0.3); color: var(--blue); }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.8rem; }
+    .container { padding: 20px 16px; }
+    .finding { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>OPTIMUS CLAUDEUS</h1>
+  <p>Tam Sistem Flowchart & Bug Review — 8 Kritik Kategori, 27 Bulgu</p>
+</div>
+
+<nav class="nav">
+  <a href="#overview">Genel Bakis</a>
+  <a href="#flow-main" class="info">Ana Dongu</a>
+  <a href="#flow-ws" class="info">WebSocket</a>
+  <a href="#flow-scan" class="info">Tarama</a>
+  <a href="#flow-eval" class="info">Degerlendirme</a>
+  <a href="#flow-exit" class="info">Cikis</a>
+  <a href="#flow-reentry" class="info">Re-Entry</a>
+  <a href="#bug1" class="high">1-Mantik Hatalari</a>
+  <a href="#bug2" class="high">2-Race Conditions</a>
+  <a href="#bug3" class="med">3-Edge Cases</a>
+  <a href="#bug4" class="med">4-Cache Sorunlari</a>
+  <a href="#bug5" class="high">5-Duplicate Exit</a>
+  <a href="#bug6" class="med">6-Re-Entry Loop</a>
+  <a href="#bug7" class="med">7-ULTI Double</a>
+  <a href="#bug8" class="high">8-FAV/FAR Stock</a>
+</nav>
+
+<div class="container">
+
+<!-- ============ SUMMARY ============ -->
+<div id="overview">
+  <h2 style="font-size:1.5rem; margin-bottom:24px;">Ozet</h2>
+  <div class="summary-grid">
+    <div class="stat-card total"><div class="num">27</div><div class="label">Toplam Bulgu</div></div>
+    <div class="stat-card high"><div class="num">9</div><div class="label">HIGH Severity</div></div>
+    <div class="stat-card med"><div class="num">12</div><div class="label">MEDIUM Severity</div></div>
+    <div class="stat-card low"><div class="num">6</div><div class="label">LOW Severity</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 1: ANA DONGU                -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-main">
+  <h2><span class="icon">🔁</span> Ana Dongu — Baslangic & Cycle Secimi</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    A([Bot Baslat]):::okNode --> B[Config yukle\nconfig.yaml + .env]:::okNode
+    B --> C[Tum modulleri init et\nPortfolio / RiskManager / AIAnalyst\nMarketScanner / Executor]:::okNode
+    C --> D[State diskten yukle\npositions.json / blacklist.json\nexited_markets.json\npredictions.jsonl]:::okNode
+    D --> D1{LIVE mode?}:::okNode
+    D1 -->|Evet| D2[ClobClient init]:::okNode
+    D1 -->|Hayir| D3[Simulator mode]:::okNode
+    D2 & D3 --> E[Signal Handler\nSIGINT/SIGTERM]:::okNode
+    E --> WS_START[WebSocket Thread Baslat]:::warnNode
+    E --> ML1([Cycle Basi]):::okNode
+
+    ML1 --> ML2{Stop signal?}:::okNode
+    ML2 -->|Evet| ML3([Graceful Shutdown]):::okNode
+    ML2 -->|Hayir| ML4{Pause file?}:::okNode
+    ML4 -->|Evet| ML5[Sleep 60s]:::okNode
+    ML5 --> ML1
+    ML4 -->|Hayir| ML6{Cycle tipi?}:::okNode
+    ML6 -->|~60s light| LIGHT([LIGHT CYCLE]):::okNode
+    ML6 -->|~10dk heavy| HEAVY([HEAVY CYCLE]):::okNode
+
+    WS_START -.- BUG_WS["BUG #2a: WS thread state\nbaslamadan once init\ntamamlanmis mi?"]:::bugNode
+    D -.- BUG_DISK["BUG #8a: FAV/FAR stock\ndiske KAYDEDILMIYOR\nRestart = kayip"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 2: WEBSOCKET                -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-ws">
+  <h2><span class="icon">📡</span> WebSocket Feed — Ayri Thread & Race Conditions</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    WS1[CLOB WebSocket Connect]:::okNode --> WS2[Token ID Subscribe]:::okNode
+    WS2 --> WS3[Fiyat mesaji geldi]:::okNode
+    WS3 --> WS4["pos.current_price = yeni fiyat\n⚠️ SHARED STATE"]:::warnNode
+    WS4 --> WS5{Stop-loss check\npnl ≤ -sl_pct?}:::okNode
+    WS5 -->|Evet| WS6["ws_exit_queue.put(cid, stop_loss)"]:::okNode
+    WS5 -->|Hayir| WS7{Trailing TP\npeak_pnl ≥ activation?\ndrop ≥ trail_distance?}:::okNode
+    WS7 -->|Evet| WS8["ws_exit_queue.put(cid, trailing_tp)"]:::okNode
+    WS7 -->|Hayir| WS3
+
+    WS4 -.- BUG2B["BUG #2b: pos.current_price\nMain thread AYNI ANDA okuyor\nLock yok → stale/torn read"]:::bugNode
+    WS5 -.- BUG5A["BUG #5a: WS stop-loss check\n+ Light cycle stop-loss check\n= AYNI pozisyon 2x exit trigger"]:::bugNode
+    WS7 -.- BUG5B["BUG #5b: WS trailing_tp\n+ Heavy cycle trailing_stop\n= DUPLICATE EXIT RISK"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 3: LIGHT CYCLE              -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-light">
+  <h2><span class="icon">⚡</span> Light Cycle — Fiyat & Exit Kontrolleri</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    LC1["WS exit queue bosalt\npop → _exit_position"]:::warnNode --> LC2[Bankroll guncelle]:::okNode
+    LC2 --> LC3{WS bagli mi?}:::okNode
+    LC3 -->|Evet| LC4[CLOB fetch ATLA]:::okNode
+    LC3 -->|Hayir| LC5[CLOB API fiyat cek]:::okNode
+    LC4 & LC5 --> LC6[WS subscription sync]:::okNode
+    LC6 --> LC7[PandaScore live match\nRate limit 1/dk]:::okNode
+    LC7 --> LC8{Esports halftime?\nSkor: karsi takim +1\nve >30dk gecti}:::okNode
+    LC8 -->|Evet| LC9[EXIT: esports_halftime\nPermanent blacklist]:::okNode
+    LC8 -->|Hayir| LC10[Match-aware exit\n4-layer kontrol]:::okNode
+    LC10 --> LC11{Layer 1: Erken cozum?\nYes>95c veya No>95c}:::okNode
+    LC11 -->|Evet| LC12[EXIT: match_exit_early_resolve]:::okNode
+    LC11 -->|Hayir| LC13{Layer 2: Mac bitti mi?}:::okNode
+    LC13 --> LC15{Layer 3: Hold revoke?}:::okNode
+    LC15 --> LC17{Layer 4: Restore hold?}:::okNode
+    LC17 --> LC19[Stop-loss check\nher pozisyon icin]:::warnNode
+    LC19 --> LC22[Trailing TP check]:::warnNode
+    LC22 --> LC25[Cycle bitti — sleep]:::okNode
+
+    LC1 -.- BUG5C["BUG #5c: Queue pop sirasinda\nLight cycle AYNI pozisyona\nstop-loss check yapabilir"]:::bugNode
+    LC19 -.- BUG5D["BUG #5d: WS zaten queue'ya\neklemis olabilir — cift kontrol\natomik degil"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 4: HEAVY CYCLE              -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-heavy">
+  <h2><span class="icon">🏋️</span> Heavy Cycle — Tam Tarama & Drawdown</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    HC0([Heavy Cycle Basi]):::okNode --> HC0A[risk.new_cycle reset]:::okNode
+    HC0A --> HCS{Scout zamani?\n06:00 / 18:00 UTC}:::okNode
+    HCS -->|Evet| HCS2[ESPN + PandaScore tara\nScout queue'ya ekle]:::okNode
+    HCS -->|Hayir| HC1
+    HCS2 --> HC1[Milestone check]:::okNode
+    HC1 --> HC2[Bankroll guncelle]:::okNode
+    HC2 --> HC3{Drawdown level?}:::okNode
+    HC3 -->|Hard: equity < 35% HWM| HC4["HARD HALT\nTum pozisyonlari kapat"]:::bugNode
+    HC3 -->|Soft: equity < 50% HWM| HC5["SOFT HALT\nYeni entry yok"]:::warnNode
+    HC3 -->|Normal| HC6[Circuit breaker check]:::okNode
+    HC5 --> HC6
+    HC6 --> HC7{Ard arda loss?}:::okNode
+    HC7 -->|Evet| HC8[Entry engelli]:::okNode
+    HC7 -->|Hayir| HC9[Resolved market check\ncalibration.jsonl]:::okNode
+    HC8 --> HC9
+    HC9 --> HC10[Fiyat guncelle]:::okNode
+    HC10 --> HC10B["Price drift reanalysis\n>15% drift → cache invalidate"]:::warnNode
+    HC10B --> HC11[Match-aware exit 4-layer]:::okNode
+    HC11 --> EXIT_CHECKS[Stop-loss / TP / Trailing]:::okNode
+    EXIT_CHECKS --> HC27["Farming re-entry check\nReentryPool tara"]:::okNode
+    HC27 --> HC29[Stock'tan doldur\ncandidate / fav / far]:::warnNode
+    HC29 --> HC32{Tum slotlar dolu mu?}:::okNode
+    HC32 -->|Evet| HC33[Scan ATLA]:::okNode
+    HC32 -->|Hayir| SCAN([MARKET TARAMA]):::okNode
+
+    HC4 -.- BUG1A["BUG #1a: Hard halt pozisyon\nkapatirken fiyat kontrolu\nyapilmiyor — panic sell"]:::bugNode
+    HC10B -.- BUG4A["BUG #4a: Price drift 15%\ncache invalidate AMA\nodds cache 6h'lik →\nstale odds + fresh AI = YANLIS"]:::warnNode
+    HC29 -.- BUG8B["BUG #8b: Stock listeler\nRAM-only. Bot restart =\ntum stock kaybolur"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 5: MARKET TARAMA            -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-scan">
+  <h2><span class="icon">🔍</span> Market Tarama & Filtreleme</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    SC1{Eligible cache\ngecerli mi? < 30dk}:::okNode
+    SC1 -->|Evet| SC2[Cache'den devam\nGamma API ATLA]:::okNode
+    SC1 -->|Hayir| SC3[Gamma API fetch\nactive + sports/esports\nmin volume + liquidity]:::okNode
+    SC3 --> SC4[filter_impossible_markets]:::okNode
+    SC4 --> SC5["Yeni market tespiti\ncurrent - seen\nOncelik: yeniler basa"]:::okNode
+    SC5 --> SC2
+
+    SC2 --> F1["F1: Portfolio'da var mi?"]:::okNode
+    F1 --> F2["F2: Ayni event_id?"]:::okNode
+    F2 --> F3["F3: Blacklist kontrol"]:::okNode
+    F3 --> F4["F4: Exit cooldown"]:::okNode
+    F4 --> F5["F5: Zaten analiz edilmis?\n4h cache"]:::warnNode
+    F5 --> F6["F6: Alt bet tipleri\nspread/handicap/over-under"]:::okNode
+    F6 --> F7["F7: LIVE mac tespiti\nGamma → Scout → Heuristic"]:::warnNode
+    F7 --> F8["F8: Near-resolved\nyes>96c veya no>96c"]:::okNode
+    F8 --> BATCH([Batch Allocation]):::okNode
+
+    BATCH --> BA1[Slot ihtiyaci hesapla\nopen + stock_empty]:::okNode
+    BA1 --> BA2{total_need == 0?}:::okNode
+    BA2 -->|Evet| BA3[AI ATLA]:::okNode
+    BA2 -->|Hayir| BA5["3 gruba ayir\nIMMINENT ≤6h\nMIDRANGE 6-24h\nDISCOVERY >24h"]:::okNode
+    BA5 --> DATA([Veri Toplama]):::okNode
+
+    F5 -.- BUG4B["BUG #4b: 4h analysis cache\nAMA odds cache 6h\nVE news cache 45dk\nFarkli TTL = tutarsiz karar"]:::warnNode
+    F7 -.- BUG3A["BUG #3a: 3-fallback live tespiti\nHepsi basarisizsa mac LIVE\nsanilir pre-match → GIRILIR"]:::warnNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                      FLOWCHART SECTION 6: DATA + AI                -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-data">
+  <h2><span class="icon">📊</span> Veri Toplama & AI Analizi</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    DT1[Scout queue check]:::okNode --> DT2{ESPN verisi?}:::okNode
+    DT2 -->|Bulundu| DT3[ESPN context]:::okNode
+    DT2 -->|Yok| DT4{PandaScore?}:::okNode
+    DT4 -->|Bulundu| DT5[Esports context]:::okNode
+    DT4 -->|Yok| DT6{VLR.gg?}:::okNode
+    DT3 & DT5 --> DT7[Birlesik context]:::okNode
+    DT6 --> DT7
+
+    DT7 --> DT8{Odds API\ncache gecerli mi?}:::okNode
+    DT8 -->|Cached| DT9["Scheduled cache\n4x/gun refresh"]:::warnNode
+    DT8 -->|Stale| DT10[Odds API fetch]:::okNode
+    DT9 & DT10 --> DT12["News tara\nTavily → NewsAPI → GNews\nSports 8h / Genel 45dk"]:::okNode
+    DT12 --> DT15[ManipulationGuard]:::okNode
+    DT15 --> GATE{DATA GATE\nhas_odds OR has_sports?}:::okNode
+    GATE -->|Hayir| SKIP[ATLA — yetersiz sinyal]:::okNode
+    GATE -->|Evet| AI[Claude API analiz]:::okNode
+
+    AI --> AI4["ai_probability 0-1\nconfidence C/B-/B+/A\nreasoning"]:::okNode
+    AI4 --> AI7[predictions.jsonl kaydet]:::okNode
+    AI7 --> EVAL([DEGERLENDIRME]):::okNode
+
+    DT9 -.- BUG4C["BUG #4c: Odds cache 6h eski\nolabilir AMA AI fresh data\nbekliyor → YANLIS anchor"]:::warnNode
+    GATE -.- BUG1B["BUG #1b: Data gate SONRA AI\nSIRA DOGRU ama...\ngate gecerse stale odds\nile AI cagrilir"]:::warnNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                 FLOWCHART SECTION 7: DEGERLENDIRME                 -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-eval">
+  <h2><span class="icon">⚖️</span> Market Degerlendirme — Karar Zinciri</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    EV1[ESPN verification gate]:::okNode --> EV5[LIVE check 2. kez]:::okNode
+    EV5 --> EV8{Bookmaker + AI\nayni yon mu?}:::okNode
+    EV8 -->|Ayni| EV9["Confidence +1 ↑"]:::okNode
+    EV8 -->|Ters| EV10["Confidence -1 ↓"]:::okNode
+    EV9 & EV10 --> EV11{Confidence ≥ B-?}:::okNode
+    EV11 -->|C| SKIP1[SKIP: LOW_CONFIDENCE]:::okNode
+    EV11 -->|B- / B+ / A| EV15[ManipGuard kontrol]:::okNode
+    EV15 --> EV18["Probability Engine\nAI + bookmaker blend\nShrinkage + base rate"]:::okNode
+    EV18 --> EV20["Edge hesapla\nraw - spread - slippage\nmin_edge x conf_mult"]:::okNode
+
+    EV20 --> EV21{Esports mi?}:::warnNode
+    EV21 -->|Evet| EV22{Esports kurallar}:::okNode
+    EV22 -->|"AI>65% + BUY_NO"| EV23["OVERRIDE → BUY_YES\nedge = 1.0 - market.yes"]:::bugNode
+    EV22 -->|"AI<50% + BUY_YES"| EV24[SKIP: UNDERDOG]:::okNode
+    EV21 -->|Hayir| EV25{HOLD?}:::okNode
+    EV23 --> EV25
+
+    EV25 --> EV29{Ignorance edge guard\nconf cap asimi?}:::warnNode
+    EV29 -->|Evet| EV30["ULTI Rescue #1\n0.6×book + 0.4×AI"]:::warnNode
+    EV29 -->|Hayir| EV33[Risk gate]:::okNode
+    EV30 -->|Basarili| EV33
+    EV30 -->|Basarisiz| SKIP2[SKIP: IGNORANCE_EDGE]:::okNode
+
+    EV33 --> EV43["Sanity check\nbet_sanity"]:::okNode
+    EV43 --> EV44{Sanity ok?}:::okNode
+    EV44 -->|Hayir| EV45["ULTI Rescue #2\nOdds blend + re-check"]:::warnNode
+    EV44 -->|Ok| EV51{Resolution < 20dk?}:::okNode
+    EV45 -->|Basarili| EV51
+    EV45 -->|Basarisiz → VS?| EV48[VS candidates]:::okNode
+
+    EV51 --> EV53["Skor hesapla\nedge × conf × bonuslar"]:::okNode
+    EV53 --> EV54{FAV time gate?}:::okNode
+    EV54 -->|FAV uygun| FAV[FAV STOCK]:::okNode
+    EV54 -->|FAR uygun| FAR[FAR STOCK]:::okNode
+    EV54 -->|Normal| EXEC([EXECUTION]):::okNode
+
+    EV23 -.- BUG3B["BUG #3b: Esports override\n+ ULTI rescue CAKISIRSA\nedge 2x override olur\ncap yok"]:::bugNode
+    EV30 -.- BUG7A["BUG #7a: ULTI #1 odds\nblend yapar → EV33'te\nULTI #2 TEKRAR blend\nyapar = DOUBLE BLEND"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                FLOWCHART SECTION 8: EXIT + REENTRY                 -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-exit">
+  <h2><span class="icon">🚪</span> Cikis Sistemi & Re-Entry</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart TD
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    EXT1([Exit Trigger]):::okNode --> EXT2[CLOB'a sat]:::okNode
+    EXT2 --> EXT3["Portfolio sil\nPnL hesapla\nEquity snapshot"]:::okNode
+    EXT3 --> EXT4[Calibration log]:::okNode
+    EXT4 --> EXT5[Telegram alert]:::okNode
+    EXT5 --> EXT6{Cikis sebebi?}:::okNode
+
+    EXT6 -->|stop_loss| EXT7["BL: 48h permanent\nCooldown: 3 cycle\nReentry: YOK"]:::okNode
+    EXT6 -->|vs_tp / spike| EXT10["Cooldown: 0\nFarming pool: EVET\nAninda re-entry ok"]:::warnNode
+    EXT6 -->|take_profit| EXT11["Cooldown: 3 cycle\nNormal bekle"]:::okNode
+    EXT6 -->|trailing| EXT12["Farming pool: EVET\nDip'te geri don"]:::okNode
+    EXT6 -->|hard_halt| EXT15["Permanent — bot durur"]:::okNode
+
+    EXT10 --> REENTRY
+    EXT12 --> REENTRY
+
+    subgraph REENTRY["♻️ Re-Entry Sistemi"]
+        RE1["ReentryPool\nTier 1: Spike/VS → hemen\nTier 2: Farming → dip\nTier 3: Scout → yaklasan"]:::okNode
+        RE1 --> RE3{can_reenter?\nBL temiz + cooldown ok}:::okNode
+        RE3 -->|Evet| RE5{snowball_banned?}:::okNode
+        RE5 -->|Hayir| RE7{Fiyat dondu mu?\nscore_reversal}:::okNode
+        RE7 -->|Evet| RE8{confidence_momentum\nAI hala ayni yonde?}:::warnNode
+        RE8 -->|Evet| RE9["size_mult: 0.5x - 1.2x\nRisk check → execute"]:::okNode
+        RE9 --> RE_EXEC([Normal Pipeline]):::okNode
+    end
+
+    EXT10 -.- BUG6A["BUG #6a: vs_tp cooldown=0\n+ farming pool = ANINDA\nre-entry → tekrar vs_tp\n→ sonsuz dongu mumkun"]:::bugNode
+    RE8 -.- BUG6B["BUG #6b: confidence_momentum\neski AI cache kullanir\n4h gecmemisse = AYNI\nsonuc → hep re-entry"]:::warnNode
+    RE_EXEC -.- BUG6C["BUG #6c: Re-entry execute\nsonrasi TEKRAR farming\npool'a eklenebilir\nmax retry limiti yok"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--            FLOWCHART SECTION: CROSS-SYSTEM INTERACTIONS            -->
+<!-- ================================================================== -->
+<div class="chart-section" id="flow-reentry">
+  <h2><span class="icon">🔗</span> Cross-System Etkilesimler — Tum Buglar Bir Arada</h2>
+  <div class="chart-body">
+    <pre class="mermaid">
+flowchart LR
+    classDef bugNode fill:#3b1219,stroke:#f85149,stroke-width:2px,color:#f85149
+    classDef warnNode fill:#3b2e10,stroke:#d29922,stroke-width:2px,color:#d29922
+    classDef okNode fill:#0d1117,stroke:#30363d,color:#e6edf3
+
+    WS["📡 WebSocket\nThread"]:::okNode
+    LIGHT["⚡ Light\nCycle"]:::okNode
+    HEAVY["🏋️ Heavy\nCycle"]:::okNode
+    EXIT["🚪 Exit\nSystem"]:::okNode
+    POOL["♻️ Reentry\nPool"]:::okNode
+    STOCK["📦 FAV/FAR\nStock"]:::okNode
+    CACHE["🗄️ Cache\nLayer"]:::okNode
+    ULTI["🛟 ULTI\nRescue"]:::okNode
+
+    WS -->|"price write\n⚠️ NO LOCK"| LIGHT
+    WS -->|"exit queue\n⚠️ RACE"| EXIT
+    LIGHT -->|"exit trigger\n⚠️ DUPLICATE"| EXIT
+    HEAVY -->|"exit trigger"| EXIT
+    EXIT -->|"cooldown=0"| POOL
+    POOL -->|"re-entry\n⚠️ LOOP"| HEAVY
+    HEAVY -->|"stock fill"| STOCK
+    STOCK -.-|"⚠️ RAM ONLY\nno persist"| STOCK
+    CACHE -->|"stale odds"| ULTI
+    ULTI -->|"#1 blend"| ULTI
+    ULTI -->|"#2 blend\n⚠️ DOUBLE"| HEAVY
+
+    WS -.- B1["RACE\nCONDITION"]:::bugNode
+    EXIT -.- B2["DUPLICATE\nEXIT"]:::bugNode
+    POOL -.- B3["INFINITE\nLOOP"]:::bugNode
+    STOCK -.- B4["DATA\nLOSS"]:::bugNode
+    ULTI -.- B5["DOUBLE\nBLEND"]:::bugNode
+    </pre>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 1                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug1">
+  <div class="bug-header"><h2>1. Mantik Hatalari</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#1a — Hard Halt Panic Sell: Fiyat Kontrolsuz Toplu Satis</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle → Drawdown Check → HC4</p>
+      <p>Hard halt tetiklendiginde (equity &lt; 35% HWM) tum pozisyonlar TOPLUCA kapatiliyor. Ancak flowchart'ta bu kapatma oncesi herhangi bir fiyat kontrolu, slippage hesabi veya likidite kontrolu gorulmuyor. Eger 5-10 pozisyon ayni anda market order ile satilirsa, ozellikle dusuk likidite pazarlarda buyuk slippage yasanir.</p>
+      <p>Ayrica hard halt sirasinda WebSocket thread hala calisiyor — WS de ayni pozisyonlar icin exit queue'ya ekleyebilir.</p>
+      <div class="fix"><strong>Oneri:</strong> Hard halt'ta pozisyonlari likidite sirasi ile kapat (en likit oncelikli). Her biri icin <code>check_exit_liquidity</code> cagir. WS thread'i once <code>pause</code> et. Batch yerine sequential satis yap ve her adimda slippage kontrol et.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#1b — Data Gate Sirasi Dogru AMA Odds Cache Stale</h3>
+      <p><strong>Bolum:</strong> Data Gate → AI Analysis</p>
+      <p>Data gate kontrolu "has_odds OR has_sports" ile AI cagrisindan ONCE yapiliyor — sira dogru. Ancak gate gecen marketlerin odds'u 6 saatlik scheduled cache'den gelebilir. AI bu stale odds ile prompt'a besleniyor ama "fresh data" varsayiyor. Odds 6h once 1.8x iken simdi 2.5x olabilir — AI yanlis anchor alir.</p>
+      <div class="fix"><strong>Oneri:</strong> AI prompt'una odds cache yasini ekle: <code>odds_age_hours: 4.2</code>. AI'in kendi uncertainty'sini ayarlamasini sagla. Eger odds &gt; 3h eskiyse confidence'i otomatik -1 dusur.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#1c — Esports Override Mantik Celiskisi</h3>
+      <p><strong>Bolum:</strong> Evaluation → EV22-23</p>
+      <p>Esports override'da AI &gt; 65% ve direction BUY_NO veya HOLD ise → BUY_YES'e override ediliyor. Bu demek ki: AI "Bu takimin kazanma olasiligi %65+" diyor AMA market fiyati daha yuksek, dolayisiyla EDGE negatif. Override bu negatif edge'i tamamen ignoring edip <code>edge = 1.0 - market.yes_price</code> kullaniyor. Eger market.yes_price = 0.70 ise, "edge = %30" diyor ama gercek AI edge NEGATIF.</p>
+      <div class="fix"><strong>Oneri:</strong> Override'i tamamen kaldir veya sartlari sikistir: AI &gt; 75% VE market.yes_price &lt; 0.60 VE bookmaker ayni yonde. Edge hesabini da gercek AI probability'den yap, sabit formul degil.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="sev">LOW</div>
+      <h3>#1d — Confidence Boost/Drop Siralamasi</h3>
+      <p><strong>Bolum:</strong> Evaluation → EV8-10</p>
+      <p>Bookmaker-AI yon karsilastirmasi confidence'i degistiriyor (+1/-1). Ancak bu adim edge hesabindan ONCE geliyor. Eger confidence B-'dan C'ye duserse, market zaten Confidence Gate'de elenecek (EV11). Ama eger odds cache stale ise, "ters yon" tespiti hatali olabilir — gercekte ayni yonde olabilirler.</p>
+      <div class="fix"><strong>Oneri:</strong> Confidence boost/drop'u odds cache yasina bagla. Eger odds &gt; 2h eskiyse boost/drop ATLA, sadece AI confidence'ini kullan.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 2                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug2">
+  <div class="bug-header"><h2>2. Race Conditions</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#2a — WebSocket Thread + Main Loop Shared State Yazimi</h3>
+      <p><strong>Bolum:</strong> WebSocket Feed → WS4 + Light Cycle → LC fiyat kullanimi</p>
+      <p>WebSocket thread <code>pos.current_price</code>'i yazarken main thread (light veya heavy cycle) AYNI ANDA okuyor. Python'da GIL basit atamalari korur ama <code>pos.current_price</code> + <code>pos.peak_pnl</code> + <code>pos.pnl_pct</code> gibi birden fazla attribute guncelleniyorsa, main thread arada kalabilir: yeni price ama eski pnl_pct gorebilir.</p>
+      <p>Ornek senaryo: WS price'i 0.45'e guncelledi ama pnl_pct henuz hesaplanmadi. Main thread eski pnl_pct (-5%) ile stop-loss kontrol yapti → gereksiz exit.</p>
+      <div class="fix"><strong>Oneri:</strong> <code>threading.Lock</code> ile position update'leri atomik yap. Veya daha iyi: WS thread sadece <code>_price_queue</code>'ya yazar, main thread cycle basinda toplu process eder (producer-consumer pattern).</div>
+    </div>
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#2b — Exit Queue + Direct Exit Race</h3>
+      <p><strong>Bolum:</strong> WS exit queue pop (LC1) + Light cycle stop-loss check (LC19)</p>
+      <p>Light cycle basinda WS exit queue bosaltiliyor (LC1). Sonra AYNI cycle'da stop-loss check yapiliyor (LC19). Eger WS bir pozisyonu queue'ya eklediyse VE pop edilip <code>_exit_position</code> cagrildiysa, portfolio'dan silinmis OLMALI. Ama silme async ise veya portfolio.remove hemen gerceklesmezse, LC19'da ayni pozisyon hala gorunur → cift exit attempt.</p>
+      <div class="fix"><strong>Oneri:</strong> <code>_exit_position</code> baslangicinda <code>_exiting_set</code>'e condition_id ekle. Tum exit kontrolleri once bu set'i kontrol etsin: <code>if cid in _exiting_set: skip</code>.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#2c — WS Subscription Sync Timing</h3>
+      <p><strong>Bolum:</strong> Light Cycle → LC6 + Execution → EX12</p>
+      <p>Yeni pozisyon execute edildikten sonra (EX12) WS subscription ekleniyor. Ama bir sonraki light cycle'da LC6 tekrar sync yapiyor. Arada kisa bir window var: pozisyon var ama WS subscribe degil. Bu window'da fiyat degisimi kacabilir.</p>
+      <div class="fix"><strong>Oneri:</strong> Execute sonrasi WS subscribe'i sync (blocking) yap. LC6 sync'i sadece "missed subscriptions" catch etmek icin tutulabilir ama primary degil.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 3                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug3">
+  <div class="bug-header"><h2>3. Edge Cases</h2></div>
+  <div class="bug-body">
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#3a — Live Mac Tespiti Uc Fallback Hepsi Basarisiz</h3>
+      <p><strong>Bolum:</strong> Filter 7 → F7</p>
+      <p>LIVE mac tespiti 3 fallback kullaniyor: Gamma.event_live → scout queue start_time → heuristic (endDate - duration). Eger ucü de basarisizsa (Gamma API down, scout'ta yok, endDate eksik), market "pre-match" varsayilir ve AI'a gonderilir. Gercekte mac 2. yari olabilir — edge kalmamis.</p>
+      <div class="fix"><strong>Oneri:</strong> Uc fallback da basarisizsa ve market category "sports" ise, <code>UNKNOWN_LIVE_STATUS</code> flag'i set et → confidence max B- ile sinirla. Veya PandaScore'dan canli skor cekerek dogrula.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#3b — Esports Override + ULTI Rescue Cakismasi</h3>
+      <p><strong>Bolum:</strong> Evaluation → EV23 → EV29 → EV30</p>
+      <p>Esports override <code>edge = 1.0 - market.yes_price</code> yapiyor (ornek: %30). Sonra Ignorance Edge Guard bu edge'in confidence cap'ini asiyor mu diye bakiyor. Override'dan gelen %30 edge, B+ confidence cap'i %40'in altinda — ama B- cap %35'in altinda bile degil. Eger confidence B- ise ve edge %30 ise, guard geciyor. Sonra Sanity Check'e geliyor — ve "edge cok buyuk" diye ULTI #2'yi tetikliyor. ULTI book+AI blend yapiyor — ama esports icin odds API genelde YOK. Sonuc: ULTI basarisiz → VS candidate'e duser veya SKIP olur. Esports override'in amaci kaybolur.</p>
+      <div class="fix"><strong>Oneri:</strong> Esports override sonrasi <code>skip_sanity = True</code> flag'i set et. Veya esports marketler icin ULTI rescue'yu devre disi birak (zaten odds yoksa anlamsiz).</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#3c — VS Mandatory Exit + WS Trailing TP Carpisma</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle HC23-25 + WS WS7-8</p>
+      <p>VS pozisyonu end_date - 30dk icerisinde → mandatory exit. Ama WS thread ayni pozisyonun trailing TP'sini tetikleyebilir (peak_pnl activation'a ulasmissa). Iki farkli exit reason: <code>vs_mandatory_exit</code> (cooldown=0) vs <code>trailing_tp</code> (farming pool). Hangisi once gelirse o kazanir — ama bu non-deterministik.</p>
+      <div class="fix"><strong>Oneri:</strong> VS pozisyonlari icin WS trailing TP'yi devre disi birak (son 30dk'da). Veya <code>vs_mandatory_exit</code>'e oncelik ver: pozisyonun <code>pending_mandatory</code> flag'ini set et, WS bu flag'i kontrol etsin.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="sev">LOW</div>
+      <h3>#3d — Soft Halt + Circuit Breaker Cift Engel</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle HC3-HC8</p>
+      <p>Soft halt (equity &lt; 50% HWM) VE circuit breaker (ard arda loss) ayni anda aktif olabilir. Ikisi de entry engelliyor ama farkli mekanizmalarla. Soft halt kaldiginda circuit breaker hala aktifse entry yine engelli — kullanici "neden girilmiyor?" diye debug edemez.</p>
+      <div class="fix"><strong>Oneri:</strong> Telegram alert'e hangisinin aktif oldugunu belirt. <code>entry_blocked_reason: [soft_halt, circuit_breaker]</code> listesi logla.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 4                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug4">
+  <div class="bug-header"><h2>4. Cache Sorunlari</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#4a — Cache TTL Uyumsuzlugu: 45dk / 4h / 6h / 8h</h3>
+      <p><strong>Bolum:</strong> Tum sistem genelinde</p>
+      <p>Dort farkli cache farkli TTL'lerle calisiyor:</p>
+      <p>• <strong>News cache:</strong> Genel 45dk, Sports 8h<br>
+      • <strong>Analysis cache:</strong> 4h (<code>_analyzed_market_ids</code>)<br>
+      • <strong>Odds cache:</strong> Scheduled — gunde 4x (yaklasik 6h araliklarla)<br>
+      • <strong>Eligible markets cache:</strong> 30dk</p>
+      <p>Senaryo: Market saat 10:00'da analiz edildi (odds: 10:30 cache). Saat 13:00'te news cache yenilendi — breaking news var. <code>cycle_timer.signal_breaking_news</code> AI cache'i invalidate etti. Yeniden analiz → AMA odds hala 10:30 cache'inden. AI fresh news + stale odds ile karar veriyor.</p>
+      <div class="fix"><strong>Oneri:</strong> Breaking news invalidation'da odds cache'i de invalidate et (veya force re-fetch). Tum cache'leri tek bir <code>CacheManager</code> altinda birlestir, cross-invalidation kurallarini tanimla.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#4b — Price Drift Reanalysis + Stale Odds Celiskisi</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle → HC10B</p>
+      <p>Fiyat %15+ drift ederse AI cache invalidate ediliyor ve yeniden analiz yapiliyor. Ama odds cache invalidate EDILMIYOR. Yeni AI analizi eski odds ile blend ediliyor → Probability Engine'in anchored_probability'si yanlis.</p>
+      <div class="fix"><strong>Oneri:</strong> Price drift &gt; 15% ise <code>force_odds_refresh = True</code> flag'i set et. Odds API'dan taze veri cek veya odds kullanma — sadece AI probability.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#4c — Analysis Cache 4h + FAV Stock Celiskisi</h3>
+      <p><strong>Bolum:</strong> Filter 5 + Evaluation EV54</p>
+      <p>FAV stock'a eklenen market <code>_analyzed_market_ids</code>'e de ekleniyor (4h TTL). FAV stock time gate ≤12h veya ≤24h bekliyor. 4h sonra analysis cache expire olunca market TEKRAR taramaya girer, TEKRAR AI'a gonder → gereksiz API maliyeti. Daha kotüsü: ikinci analiz farkli sonuc verebilir ve FAV stock'taki veriyi override edebilir.</p>
+      <div class="fix"><strong>Oneri:</strong> FAV/FAR stock'taki marketleri <code>_analyzed_market_ids</code>'den AYRI tut. <code>_stock_market_ids</code> seti olustur, filtreleme sirasinda kontrol et.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="sev">LOW</div>
+      <h3>#4d — Scout Queue + Analysis Cache Cakismasi</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle HCS2 + Data DT1</p>
+      <p>Scout queue'ya eklenen market 4h sonra analysis cache'den duser ve yeniden scouted data OLMADAN taranabilir. Scout verisi (start_time, takimlar) kaybolur.</p>
+      <div class="fix"><strong>Oneri:</strong> Scout verisini analysis cache'den bagimsiz tut. Scout queue item'lari match end_date'e kadar persist etsin.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 5                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug5">
+  <div class="bug-header"><h2>5. Duplicate Exit</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#5a — WS Stop-Loss + Light Cycle Stop-Loss = Cift Exit</h3>
+      <p><strong>Bolum:</strong> WS WS5-6 + Light Cycle LC19-21</p>
+      <p>WebSocket thread fiyat guncellemesi sirasinda stop-loss tetikler → <code>ws_exit_queue</code>'ya ekler. Light cycle basinda queue bosaltilir (LC1) ve <code>_exit_position</code> cagrilir. SONRA ayni cycle'da LC19'da stop-loss check TEKRAR yapilir. Eger <code>_exit_position</code> henuz portfolio'dan silmediyse (async CLOB call), pozisyon hala gorunur ve ikinci kez exit tetiklenir.</p>
+      <p>Gercek zarar: Polymarket'e 2 ayri sell order gider. Ilki basarili, ikincisi basarisiz olur (pozisyon yok) — ama loglama ve calibration IKISINI de kaydeder. PnL cift hesaplanir.</p>
+      <div class="fix"><strong>Oneri:</strong> <code>_exit_position</code> basinda <code>_exiting_cids: Set[str]</code>'e ekle. Tum exit kontrolleri (WS, light, heavy) once bu set'i kontrol etsin. Set'ten silme sadece exit tamamlandiktan sonra yapilsin. Bunu bir <code>@synchronized</code> decorator veya <code>threading.Lock</code> ile koru.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#5b — WS Trailing TP + Heavy Cycle Trailing Stop = Farkli Reason</h3>
+      <p><strong>Bolum:</strong> WS WS7-8 + Heavy Cycle HC20-22</p>
+      <p>WS thread <code>trailing_tp</code> reason ile exit queue'ya ekler. Heavy cycle <code>trailing_stop</code> reason ile exit yapar. Ikisi farkli post-exit davranis tetikler: trailing_tp → farming pool, trailing_stop → farming pool. Bu durumda sonuc ayni GIBI gorunuyor ama loglama ve calibration'da iki farkli reason kaydedilir → analitik kirlenir.</p>
+      <div class="fix"><strong>Oneri:</strong> Trailing exit reason'larini birlestir: tek bir <code>trailing_exit</code> reason. WS ve Heavy cycle ayni mantigi kullansin. Veya WS'de trailing check'i tamamen kaldir — sadece stop-loss icin kullan.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#5c — Match-Aware Exit + Stop-Loss Ayni Anda</h3>
+      <p><strong>Bolum:</strong> Light Cycle LC9-LC21</p>
+      <p>Match-aware exit (Layer 1-4) ve stop-loss check sirali calisir ama ikisi de ayni pozisyon icin exit tetikleyebilir. Ornek: Layer 1 early_resolve detect etti (yes &gt; 95c) → EXIT. Ama bu pozisyonun PnL'i negatif (yuksekten girmis) → stop-loss da tetiklenir. Iki exit reason log'a girer.</p>
+      <div class="fix"><strong>Oneri:</strong> Match-aware exit sonrasi <code>exited_this_cycle</code> set'ine ekle. Stop-loss check'te bu set'i kontrol et.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 6                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug6">
+  <div class="bug-header"><h2>6. Re-Entry Loop</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#6a — VS Take-Profit → Farming Pool → Aninda Re-Entry → Sonsuz Dongu</h3>
+      <p><strong>Bolum:</strong> Exit EXT10 → ReentryPool → Execution → Exit</p>
+      <p>VS take-profit sonrasi: cooldown = 0, farming pool'a eklenir, aninda re-entry eligible. Sonraki heavy cycle'da farming re-entry check (HC27) bu pozisyonu bulur → fiyat uygunsa tekrar girer → VS yine TP alir → tekrar cikar → tekrar girer...</p>
+      <p>Eger market dar bir range'de hareket ediyorsa (ornek: 0.55-0.65 arasi), bot surekli gir-cik yapar. Her islemde spread + slippage kaybeder. Gunluk 20-30 islem yapabilir — komisyonlar kazancindan fazla olur.</p>
+      <div class="fix"><strong>Oneri:</strong> Re-entry'de <code>reentry_count</code> sayacini tut. Ayni market icin max 3 re-entry limiti koy. Her re-entry sonrasi cooldown'i artir: 0 → 1 → 3 → 5 cycle. Veya spread+slippage toplamini edge'den dus: 3. re-entry'de effective edge cok dusecek → dogal filtre.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#6b — Confidence Momentum Eski AI Cache Kullanir</h3>
+      <p><strong>Bolum:</strong> ReentryPool → RE8</p>
+      <p><code>passes_confidence_momentum</code> guncel AI probability'nin ayni yonde olup olmadigini kontrol ediyor. Ama 4h analysis cache henuz expire olmamissa, yeni AI cagrisi YAPILMIYOR — eski sonuc kullaniliyor. Eski sonuc zaten ayni yonde (o yuzden girilmisti) → her zaman "passes" → re-entry her zaman onaylanir.</p>
+      <div class="fix"><strong>Oneri:</strong> Re-entry confidence check'i icin <code>force_fresh_analysis = True</code> ile yeni AI cagrisi yap. Veya en azindan son 30dk'lik fiyat degisimini kontrol et: fiyat AI prediction'dan %10+ uzaklastiysa momentum "fails".</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#6c — Re-Entry Sonrasi Tekrar Farming Pool'a Eklenme</h3>
+      <p><strong>Bolum:</strong> ReentryPool → Execute → Exit → ReentryPool</p>
+      <p>Re-entry ile girilen pozisyon trailing_stop ile cikarsa TEKRAR farming pool'a eklenir. Max retry limiti gorulmuyor. Teori: sonsuz kez re-entry mumkun (sadece snowball_ban korur ama bu cok kotu performans gerektiriyor).</p>
+      <div class="fix"><strong>Oneri:</strong> <code>ReentryPool</code> item'ina <code>attempt_count</code> ekle. Max 3 attempt sonrasi <code>permanent_exhaust</code> flag'i → bir daha bu market re-entry pool'a girmesin.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 7                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug7">
+  <div class="bug-header"><h2>7. ULTI Rescue Double</h2></div>
+  <div class="bug-body">
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#7a — ULTI #1 + ULTI #2 Art Arda = Double Blend</h3>
+      <p><strong>Bolum:</strong> Evaluation EV30 + EV45</p>
+      <p>Senaryo: Market ignorance edge guard'a takilir (edge &gt; conf_cap). ULTI #1 devreye girer: <code>0.6×book + 0.4×AI</code> blend yapilir, edge duser, devam eder. Sonra sanity check'te "edge cok buyuk" veya "bookmaker ters" algilenir. ULTI #2 devreye girer ve TEKRAR <code>0.6×book + 0.4×AI</code> blend yapar — ama bu sefer giren deger zaten ULTI #1'in ciktisi. Sonuc: <code>0.6×book + 0.4×(0.6×book + 0.4×AI)</code> = <code>0.84×book + 0.16×AI</code>. AI'in agirligi %40'tan %16'ya duser — neredeyse tamamen bookmaker'a bagli olur.</p>
+      <div class="fix"><strong>Oneri:</strong> <code>ulti_applied = True</code> flag'i set et. ULTI #2 kontrolunde eger <code>ulti_applied</code> ise ikinci blend'i ATLA — sadece sanity check'i yeniden yap orijinal ULTI #1 ciktisi ile. Veya: ULTI #1 ve #2'yi birlestir — tek bir "rescue gate" yap.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#7b — ULTI Odds API Yoksa Silent Fail</h3>
+      <p><strong>Bolum:</strong> Evaluation EV30 + EV45</p>
+      <p>ULTI rescue bookmaker odds gerektirir. Esports marketlerde genelde odds API'da karsilik yok. ULTI basarisiz → market SKIP veya VS'e duser. Ama bu "basarisiz" sessiz — log'da sadece "ULTI failed" yazar, NEDEN basarisiz (odds yok mu? blend sonrasi edge hala yuksek mi?) belli degil.</p>
+      <div class="fix"><strong>Oneri:</strong> ULTI failure reason'ini detayli logla: <code>ulti_fail_reason: no_odds | blend_edge_still_high | sanity_still_fails</code>. Esports icin ULTI'yi tamamen devre disi birak — esports_override zaten farkli mantik kullaniyor.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="sev">LOW</div>
+      <h3>#7c — ULTI Blend Orani Sabit</h3>
+      <p><strong>Bolum:</strong> Evaluation EV30</p>
+      <p><code>0.6×book + 0.4×AI</code> orani her zaman sabit. Ama bookmaker'in spread'i cok genisse (ornek: iki farkli bookmaker %40 vs %60 veriyor), bookmaker sinyali guclu degil. Sabit oran bunu yansitmiyor.</p>
+      <div class="fix"><strong>Oneri:</strong> Bookmaker consensus score hesapla: N bookmaker arasindaki standart sapma dusukse → book weight'i artir. Yuksekse → AI weight'i artir. Dinamik oran.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--                     BUG REVIEW: KATEGORI 8                         -->
+<!-- ================================================================== -->
+<div class="bug-section" id="bug8">
+  <div class="bug-header"><h2>8. FAV/FAR Stock Persistence</h2></div>
+  <div class="bug-body">
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#8a — FAV/FAR Stock Diske Kaydedilmiyor</h3>
+      <p><strong>Bolum:</strong> State Load (D) + Evaluation (EV55, EV58)</p>
+      <p>Baslangicta diskten yuklenen state'ler: <code>positions.json</code>, <code>blacklist.json</code>, <code>exited_markets.json</code>, <code>predictions.jsonl</code>, <code>calibration.jsonl</code>. ANCAK <code>_candidate_stock</code>, <code>_fav_stock</code>, <code>_far_stock</code> listelerinde disk persist GORULMUYOR.</p>
+      <p>Bot restart edildiginde (crash, deploy, maintenance): tum stock'lar kaybolur. Eger FAV stock'ta 24h sonra execute edilecek 3 yuksek-conviction market varsa → hepsi kayip. Bir sonraki tarama bunlari tekrar bulabilir ama AI maliyeti tekrar harcanir + timing degisebilir.</p>
+      <div class="fix"><strong>Oneri:</strong> <code>stock.json</code> dosyasi olustur. Her stock degisikliginde diske yaz. Baslangicta yukle. Stale stock kontrolu: yuklemede her item'in timestamp'ini kontrol et, &gt; 24h olanlarni at.</div>
+    </div>
+
+    <div class="finding high">
+      <div class="sev">HIGH</div>
+      <h3>#8b — _candidate_stock Max 10 AMA Scoring Degisebilir</h3>
+      <p><strong>Bolum:</strong> Evaluation EV36 + Heavy Cycle HC29</p>
+      <p><code>_candidate_stock</code> max 10 slot. Yeni gelen market skorla sirali ekleniyor. Ama mevcut stock'taki marketlerin skoru GUNCELLENIYOR MU? Flowchart'ta gorulmuyor. Eger market X saat 10'da score=0.8 ile stock'a girdiyse ve saat 14'te fiyat degisti (edge dustu), stock'taki eski score ile hala yuksek oncelikli kalir.</p>
+      <div class="fix"><strong>Oneri:</strong> Her heavy cycle basinda stock'taki marketlerin edge'ini guncel fiyatla yeniden hesapla. Eger edge &lt; min_threshold'a dustuyse stock'tan cikar. Bu islemi AI cagrisi OLMADAN yap — sadece fiyat degisimi ile.</div>
+    </div>
+
+    <div class="finding med">
+      <div class="sev">MEDIUM</div>
+      <h3>#8c — FAV Stock Time Gate + Mac Baslangici Cakismasi</h3>
+      <p><strong>Bolum:</strong> Evaluation EV54 + Heavy Cycle HC30</p>
+      <p>FAV stock time gate: market ≤12h veya ≤24h uzakta ise execute. AMA mac bu arada BASLAMIS olabilir. FAV stock'a eklendikten sonra LIVE kontrolu yapilmiyor. 12h sonra execute edilecekken mac 2h once basladiysa → canliya giris.</p>
+      <div class="fix"><strong>Oneri:</strong> FAV/FAR stock'tan execute oncesi LIVE check ekle. <code>is_event_live(condition_id)</code> cagrisi. Live ise stock'tan sil.</div>
+    </div>
+
+    <div class="finding low">
+      <div class="sev">LOW</div>
+      <h3>#8d — FAR Stock Penny Execute Limiti</h3>
+      <p><strong>Bolum:</strong> Heavy Cycle HC31</p>
+      <p>FAR stock'tan "penny" (cok kucuk size) execute edilebiliyor. Ama penny size Polymarket minimum $5 sinirinin altina dusebilir. EV41'de <code>adjusted_size &lt; $5</code> kontrolu var ama FAR penny icin bu kontrol yapilip yapilmadigi belli degil.</p>
+      <div class="fix"><strong>Oneri:</strong> FAR penny execute'ta da <code>min_order_size</code> kontrolu ekle. $5 altindaysa execute ATLA.</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ================================================================== -->
+<!--                     ONCELIK MATRISI                                -->
+<!-- ================================================================== -->
+<div class="bug-section">
+  <div class="bug-header"><h2>Oncelik Matrisi — Ilk Ne Fixlenmeli?</h2></div>
+  <div class="bug-body">
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="padding:12px;text-align:left;color:var(--text-dim);">Oncelik</th>
+          <th style="padding:12px;text-align:left;color:var(--text-dim);">Bug #</th>
+          <th style="padding:12px;text-align:left;color:var(--text-dim);">Baslik</th>
+          <th style="padding:12px;text-align:left;color:var(--text-dim);">Etki</th>
+          <th style="padding:12px;text-align:left;color:var(--text-dim);">Effort</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--red);font-weight:700;">P0</td>
+          <td style="padding:10px;">#5a</td>
+          <td style="padding:10px;">Duplicate Exit — WS + Light Cycle</td>
+          <td style="padding:10px;">Cift satis, PnL hatasi</td>
+          <td style="padding:10px;color:var(--green);">2h — set + lock</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--red);font-weight:700;">P0</td>
+          <td style="padding:10px;">#2a</td>
+          <td style="padding:10px;">Race Condition — Shared State</td>
+          <td style="padding:10px;">Yanlis fiyat/PnL okuma</td>
+          <td style="padding:10px;color:var(--green);">3h — lock/queue</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--red);font-weight:700;">P0</td>
+          <td style="padding:10px;">#6a</td>
+          <td style="padding:10px;">VS Re-Entry Sonsuz Dongu</td>
+          <td style="padding:10px;">Komisyon drain</td>
+          <td style="padding:10px;color:var(--green);">1h — counter + cap</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--red);font-weight:700;">P1</td>
+          <td style="padding:10px;">#8a</td>
+          <td style="padding:10px;">FAV/FAR Stock Disk Persist</td>
+          <td style="padding:10px;">Restart veri kaybi</td>
+          <td style="padding:10px;color:var(--orange);">4h — json serialize</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--red);font-weight:700;">P1</td>
+          <td style="padding:10px;">#4a</td>
+          <td style="padding:10px;">Cache TTL Uyumsuzlugu</td>
+          <td style="padding:10px;">Yanlis AI karari</td>
+          <td style="padding:10px;color:var(--orange);">6h — CacheManager</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--orange);font-weight:700;">P1</td>
+          <td style="padding:10px;">#1c</td>
+          <td style="padding:10px;">Esports Override Mantik Celiskisi</td>
+          <td style="padding:10px;">Negatif edge'e giris</td>
+          <td style="padding:10px;color:var(--orange);">3h — sart revize</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--orange);font-weight:700;">P1</td>
+          <td style="padding:10px;">#7a</td>
+          <td style="padding:10px;">ULTI Double Blend</td>
+          <td style="padding:10px;">AI weight %16'ya duser</td>
+          <td style="padding:10px;color:var(--green);">1h — flag</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px;color:var(--orange);font-weight:700;">P2</td>
+          <td style="padding:10px;">#3a-d</td>
+          <td style="padding:10px;">Edge Cases (4 adet)</td>
+          <td style="padding:10px;">Durumsal</td>
+          <td style="padding:10px;color:var(--orange);">4-8h toplam</td>
+        </tr>
+        <tr>
+          <td style="padding:10px;color:var(--green);font-weight:700;">P3</td>
+          <td style="padding:10px;">Diger</td>
+          <td style="padding:10px;">LOW severity bulgular</td>
+          <td style="padding:10px;">Iyilestirme</td>
+          <td style="padding:10px;color:var(--green);">2-4h toplam</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#1c2333',
+    primaryTextColor: '#e6edf3',
+    primaryBorderColor: '#30363d',
+    lineColor: '#58a6ff',
+    secondaryColor: '#161b22',
+    tertiaryColor: '#0d1117',
+    fontFamily: 'Segoe UI, sans-serif',
+    fontSize: '13px'
+  },
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+    padding: 20,
+    nodeSpacing: 40,
+    rankSpacing: 50
+  }
+});
+</script>
+
+</body>
+</html>
