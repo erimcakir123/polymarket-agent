@@ -131,6 +131,7 @@ class Agent:
         self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
         self.outcome_tracker = OutcomeTracker()  # Track match results after exit
         self.ws_feed = WebSocketFeed(on_price_update=self._on_ws_price_update)
+        self._ws_exit_queue: list[tuple[str, str]] = []  # (condition_id, reason) — filled by WS, drained by main
         self._toxic_markets: set = set()  # Markets where favorite is losing badly — block all entries
         self._match_states: dict[str, dict] = {}  # condition_id → live match state
         self._last_match_state_fetch: float = 0.0  # Rate limit match state queries
@@ -218,12 +219,101 @@ class Agent:
     # ------ WebSocket price callback ------
 
     def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
-        """Called by WebSocket feed on every price change. Lightweight — no I/O."""
+        """Called by WebSocket feed on every price change.
+
+        Updates current_price and runs fast exit checks (stop-loss, trailing TP).
+        Exit decisions are queued — main thread drains the queue and executes exits.
+        """
         # Find position with this token_id and update its current_price
+        cid_found = None
+        pos_found = None
         for cid, pos in self.portfolio.positions.items():
             if pos.token_id == token_id:
                 pos.current_price = price
+                cid_found = cid
+                pos_found = pos
                 break
+        if not pos_found or not cid_found:
+            return
+
+        # --- Fast exit checks (no I/O, no API calls) ---
+        try:
+            self._ws_check_exits(cid_found, pos_found)
+        except Exception:
+            pass  # Never crash the WebSocket thread
+
+    def _ws_check_exits(self, cid: str, pos) -> None:
+        """Lightweight exit checks triggered by WebSocket price update.
+
+        Queues exits to _ws_exit_queue — main thread processes them.
+        Only checks stop-loss and trailing TP (pure math, no I/O).
+        """
+        # Skip if already queued for exit
+        if any(q[0] == cid for q in self._ws_exit_queue):
+            return
+
+        direction = pos.direction
+        entry = pos.entry_price
+        current = pos.current_price
+
+        # Calculate effective prices for BUY_NO
+        if direction == "BUY_NO":
+            effective_entry = 1.0 - entry
+            effective_current = 1.0 - current
+        else:
+            effective_entry = entry
+            effective_current = current
+
+        pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
+
+        # 1. Stop-loss check
+        sl_pct = self.config.risk.esports_stop_loss_pct if getattr(pos, "sport_tag", "").startswith(("counter-strike", "dota", "league-of", "valorant")) else self.config.risk.stop_loss_pct
+        if pnl_pct <= -abs(sl_pct):
+            self._ws_exit_queue.append((cid, "stop_loss"))
+            logger.info("WS_EXIT queued [stop_loss]: %s | pnl=%.1f%% <= -%.0f%%",
+                        pos.slug[:35], pnl_pct * 100, abs(sl_pct) * 100)
+            return
+
+        # 2. Trailing TP check
+        ttp_cfg = self.config.trailing_tp
+        if ttp_cfg.enabled and not pos.volatility_swing:
+            # Update peak tracking
+            if direction == "BUY_NO":
+                # For BUY_NO, peak_price tracks the lowest YES price (= highest NO value)
+                if current < pos.peak_price or pos.peak_price == 0:
+                    pos.peak_price = current
+            else:
+                if current > pos.peak_price:
+                    pos.peak_price = current
+
+            peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
+            if direction == "BUY_NO":
+                peak_pnl = ((1 - pos.peak_price) - (1 - entry)) / (1 - entry) if (1 - entry) > 0 else 0
+            pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
+
+            if pos.peak_pnl_pct >= ttp_cfg.activation_pct:
+                ttp_result = calculate_trailing_tp(
+                    entry_price=entry, current_price=current,
+                    direction=direction, peak_price=pos.peak_price,
+                    trailing_active=True,
+                    activation_pct=ttp_cfg.activation_pct,
+                    trail_distance=ttp_cfg.trail_distance,
+                )
+                if ttp_result["action"] == "EXIT":
+                    self._ws_exit_queue.append((cid, f"trailing_tp: {ttp_result['reason']}"))
+                    logger.info("WS_EXIT queued [trailing_tp]: %s | %s",
+                                pos.slug[:35], ttp_result["reason"])
+                    return
+
+        # 3. Esports "losing side" exit — if our side drops below 50%, cut losses
+        _esports_tags = ("counter-strike", "dota-2", "league-of-legends", "valorant")
+        sport_tag = getattr(pos, "sport_tag", "")
+        if sport_tag in _esports_tags:
+            if effective_current < 0.50:
+                self._ws_exit_queue.append((cid, "esports_losing_side"))
+                logger.info("WS_EXIT queued [esports_losing]: %s | eff_price=%.3f pnl=%.1f%%",
+                            pos.slug[:35], effective_current, pnl_pct * 100)
+                return
 
     # ------ Live match state ------
 
@@ -498,10 +588,27 @@ class Agent:
             self._save_last_resolved_count(current)
             logger.info("Self-improve readiness notification sent (%d new resolved)", new_resolved)
 
+    def _drain_ws_exit_queue(self) -> int:
+        """Process exits queued by WebSocket price callbacks. Returns count."""
+        drained = 0
+        while self._ws_exit_queue:
+            cid, reason = self._ws_exit_queue.pop(0)
+            if cid in self.portfolio.positions:
+                logger.info("WS_EXIT executing: %s | reason=%s", self.portfolio.positions[cid].slug[:35], reason)
+                self._exit_position(cid, reason)
+                drained += 1
+        return drained
+
     def run_light_cycle(self) -> None:
         """Price-only cycle: update prices + check exits. No scanning, no AI, no news."""
         if self._is_paused():
             return
+
+        # First: drain any exits queued by WebSocket callbacks
+        ws_exits = self._drain_ws_exit_queue()
+        if ws_exits:
+            logger.info("Drained %d WebSocket-triggered exits before light cycle", ws_exits)
+
         logger.info("=== Light cycle (price check only) ===")
         self._set_status("running", "Light cycle — price check")
 
@@ -1198,8 +1305,11 @@ class Agent:
                 #         logger.info("HLTV data loaded for: %s", m.question[:50])
 
             # Add bookmaker odds to AI context (uses quota sparingly — cached 1hr)
-            # Called independently — Odds API covers sports that ESPN/PandaScore don't
-            if self.odds_api.available:
+            # Skip Odds API for esports — no bookmaker coverage, wastes credits
+            _esports_slugs = ("cs2", "csgo", "val", "valorant", "lol", "dota2", "rl", "cod")
+            _slug_prefix = m.slug.split("-")[0].lower() if m.slug else ""
+            _is_esports = _slug_prefix in _esports_slugs
+            if self.odds_api.available and not _is_esports:
                 odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
                 if odds:
                     parts.append(self.odds_api.build_odds_context(odds))
@@ -1208,12 +1318,7 @@ class Agent:
                     logger.info("Bookmaker odds loaded: %s (%.0f%% vs %.0f%%, %d books)",
                                 m.slug[:30], odds["bookmaker_prob_a"] * 100,
                                 odds["bookmaker_prob_b"] * 100, odds["num_bookmakers"])
-
-                    # Line movement — sharp money signal
-                    lm = self.odds_api.get_line_movement(m.question, m.slug, m.tags)
-                    if lm and lm.get("sharp_signal") != "stable":
-                        parts.append(self.odds_api.build_line_movement_context(lm))
-                        line_movement_by_market[m.condition_id] = lm
+                    # Line movement disabled — costs 10 credits/call, minimal edge value
 
             if parts:
                 esports_contexts[m.condition_id] = "\n".join(parts)
@@ -4649,6 +4754,9 @@ class Agent:
                 # Poll Telegram commands every 5 seconds
                 if tick % 5 == 0:
                     self.notifier.handle_commands(self)
+                # Drain WebSocket exit queue every tick (1s) — zero API cost
+                if self._ws_exit_queue:
+                    self._drain_ws_exit_queue()
                 # Light cycle: price + exit checks every 60s (free, no API cost)
                 if self.portfolio.positions and tick > 0 and tick % light_interval_sec == 0:
                     try:

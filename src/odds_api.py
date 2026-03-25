@@ -251,7 +251,7 @@ class OddsAPIClient:
 
         # Fetch odds for this sport
         events = self._get(f"/sports/{sport_key}/odds", {
-            "regions": "us,eu",
+            "regions": "us",
             "markets": "h2h",
             "oddsFormat": "decimal",
         })
@@ -406,7 +406,7 @@ class OddsAPIClient:
                 return self._match_historical(data, question, date_iso)
 
         data = self._get(f"/historical/sports/{sport_key}/odds", {
-            "regions": "us,eu",
+            "regions": "us",
             "markets": "h2h",
             "oddsFormat": "decimal",
             "date": date_iso,
