@@ -107,8 +107,8 @@ class OddsAPIClient:
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
         self._using_backup = False
         self._cache: Dict[str, Tuple[object, float]] = {}
-        self._cache_ttl = 3600  # 1 hour cache for live odds
-        self._hist_cache_ttl = 21600  # 6 hour cache for historical
+        self._cache_ttl = 28800  # 8 hour cache — fetch ~3x/day, reuse across cycles
+        self._hist_cache_ttl = 28800  # 8 hour cache for historical
         self._requests_used = 0
         self._notified_80 = False
         self._notified_95 = False

@@ -151,10 +151,10 @@ class Agent:
         # V3 Maximus: Edge source tracker
         self.edge_tracker = EdgeSourceTracker()
 
-        # Migrate old exited_markets into blacklist
-        for cid in self._exited_markets:
-            if not self.blacklist.is_blocked(cid, 0):
-                self.blacklist.add(cid, "legacy", "permanent", None)
+        # Legacy migration disabled — exited markets are now managed by
+        # graduated blacklist rules (timed/reentry cooldowns per exit reason).
+        # Old permanent blacklists from exited_markets are NOT re-added on restart,
+        # so previously exited markets can re-enter if price is still good.
 
         # Core modules
         self.scanner = MarketScanner(config.scanner)
@@ -462,9 +462,11 @@ class Agent:
     def _load_recent_analyses(self) -> dict[str, float]:
         """Restore recently analyzed market IDs from predictions.jsonl on restart.
 
-        Only caches HOLD signals (low edge or low confidence).
-        BUY-worthy markets (edge ≥8% + medium_high/high) are NOT cached
-        so they can re-enter the pipeline if not in portfolio.
+        Cache logic:
+        - In portfolio → cache (already held, skip AI)
+        - BUY signal was given (any confidence with edge ≥5%) → DON'T cache,
+          let pipeline re-check current price and re-enter if still good
+        - HOLD/reject (low edge or C confidence) → cache (don't waste AI credits)
         """
         pred_path = Path("logs/predictions.jsonl")
         if not pred_path.exists():
@@ -509,8 +511,9 @@ class Agent:
                 conf = entry.get("confidence", "C")
                 edge = abs(ai_prob - mkt_price)
 
-                if edge >= 0.08 and conf in ("A", "B+"):
-                    # BUY-worthy but not in portfolio → don't cache, let it re-enter
+                if edge >= 0.05 and conf in ("A", "B+", "B-"):
+                    # BUY-worthy (any decent confidence) → don't cache,
+                    # pipeline will re-check current price and re-enter if still viable
                     skipped_buy += 1
                     continue
 
@@ -616,8 +619,12 @@ class Agent:
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
 
-        # Update position prices from CLOB (WebSocket fills gaps between polls)
-        self.last_cycle_has_live_clob = self._update_position_prices()
+        # Update position prices: skip CLOB API when WebSocket is feeding prices
+        if self.ws_feed.connected:
+            logger.debug("WS connected — skipping CLOB price fetch (WS has fresh prices)")
+            self.last_cycle_has_live_clob = bool(self.portfolio.positions)
+        else:
+            self.last_cycle_has_live_clob = self._update_position_prices()
 
         # Sync WebSocket subscriptions with active positions
         self._sync_ws_subscriptions()
@@ -1577,14 +1584,23 @@ class Agent:
                 edge_threshold_adjustment=_edge_threshold_adj,
             )
 
-            # Esports entry filter: only bet on the predicted WINNER
-            # If AI thinks this side loses (prob < 50%), skip — don't value-bet underdogs
+            # Esports entry filter — two rules:
+            # 1. AI > 65% → ALWAYS BUY_YES (override BUY_NO/HOLD). Exit rules protect us.
+            # 2. AI < 50% + BUY_YES → block (don't bet on predicted loser)
             _esports_entry_tags = ("counter-strike", "dota-2", "league-of-legends", "valorant")
             _sport_tag = getattr(market, "sport_tag", "") or ""
             if _sport_tag in _esports_entry_tags:
-                _ai_thinks_yes_wins = anchored.probability > 0.50
-                _betting_yes = direction == Direction.BUY_YES
-                if _betting_yes and not _ai_thinks_yes_wins:
+                # Rule 1: AI confident winner → force BUY_YES regardless of edge direction
+                if anchored.probability > 0.65 and direction in (Direction.BUY_NO, Direction.HOLD):
+                    win_potential = 1.0 - market.yes_price  # profit if team wins
+                    logger.info("ESPORTS_WINNER_OVERRIDE: %s | AI=%.0f%% > 65%% | mkt=%.0f¢ | win_pot=%.0f%% | was %s → BUY_YES",
+                                market.slug[:40], anchored.probability * 100, market.yes_price * 100,
+                                win_potential * 100, direction.value)
+                    direction = Direction.BUY_YES
+                    edge = win_potential  # use win potential as edge for sizing
+
+                # Rule 2: AI says loser → don't buy YES
+                elif direction == Direction.BUY_YES and anchored.probability < 0.50:
                     logger.info("Esports underdog skip: %s | AI=%.0f%% < 50%% — not betting on predicted loser",
                                 market.slug[:40], anchored.probability * 100)
                     self.trade_log.log({
@@ -1592,18 +1608,7 @@ class Agent:
                         "question": market.question,
                         "ai_prob": estimate.ai_probability, "price": market.yes_price,
                         "edge": edge, "mode": self.config.mode.value,
-                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} < 50% — only bet on predicted winner",
-                    })
-                    continue
-                if not _betting_yes and _ai_thinks_yes_wins:
-                    logger.info("Esports underdog skip: %s | AI=%.0f%% > 50%% but BUY_NO — not betting against predicted winner",
-                                market.slug[:40], anchored.probability * 100)
-                    self.trade_log.log({
-                        "market": market.slug, "action": "HOLD",
-                        "question": market.question,
-                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
-                        "edge": edge, "mode": self.config.mode.value,
-                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} > 50% but BUY_NO — only bet on predicted winner",
+                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} < 50% — don't buy underdog YES",
                     })
                     continue
 
@@ -4740,11 +4745,7 @@ class Agent:
                             logger.info("Refill cycle added 0 positions — no more viable markets, stopping")
                             break
                 else:
-                    # Light cycle only when WebSocket is down (fallback)
-                    if not self.ws_feed.connected:
-                        self.run_light_cycle()
-                    else:
-                        logger.debug("WS connected — skipping light cycle (WS handles exits)")
+                    self.run_light_cycle()
                 self.consecutive_api_failures = 0
             except Exception as e:
                 self.consecutive_api_failures += 1
@@ -4804,14 +4805,13 @@ class Agent:
                 # Drain WebSocket exit queue every tick (1s) — zero API cost
                 if self._ws_exit_queue:
                     self._drain_ws_exit_queue()
-                # Light cycle fallback: only when WebSocket is disconnected
+                # Light cycle: exit checks + dashboard update every 60s
                 if self.portfolio.positions and tick > 0 and tick % light_interval_sec == 0:
-                    if not self.ws_feed.connected:
-                        try:
-                            self.run_light_cycle()
-                            self._set_status("waiting", f"Next cycle in {interval}min")
-                        except Exception as e:
-                            logger.debug("Light cycle error: %s", e)
+                    try:
+                        self.run_light_cycle()
+                        self._set_status("waiting", f"Next cycle in {interval}min")
+                    except Exception as e:
+                        logger.debug("Light cycle error: %s", e)
                 time.sleep(1)
 
         self._set_status("offline", "Bot stopped")

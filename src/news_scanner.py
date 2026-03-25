@@ -101,7 +101,7 @@ class NewsScanner:
                          "baseball", "basketball", "hockey", "football", "cba"}
         q_lower = query.lower()
         is_sports = any(sw in q_lower for sw in _SPORTS_WORDS)
-        effective_ttl = 21600 if is_sports else self.cache_ttl  # 6h vs 45min
+        effective_ttl = 28800 if is_sports else self.cache_ttl  # 8h vs 45min — sports news reused across cycles
         if key in self._cache:
             ts, cached = self._cache[key]
             if (time.time() - ts) < effective_ttl:
