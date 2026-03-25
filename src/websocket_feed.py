@@ -54,7 +54,9 @@ class WebSocketFeed:
     def __init__(self, on_price_update: Optional[PriceCallback] = None) -> None:
         self._callback = on_price_update
         self._subscriptions: Set[str] = set()
+        self._sub_lock = threading.Lock()  # Thread-safe subscription access
         self._prices: Dict[str, PriceSnapshot] = {}
+        self._price_lock = threading.Lock()  # Thread-safe price dict access
         self._running = False
         self._connected = False
         self._ws = None
@@ -70,23 +72,28 @@ class WebSocketFeed:
 
     @property
     def prices(self) -> Dict[str, PriceSnapshot]:
-        return self._prices
+        with self._price_lock:
+            return dict(self._prices)  # Return copy for thread safety
 
     @property
     def stats(self) -> dict:
-        return {**self._stats, "subscriptions": len(self._subscriptions),
+        with self._sub_lock:
+            sub_count = len(self._subscriptions)
+        return {**self._stats, "subscriptions": sub_count,
                 "connected": self._connected}
 
     def get_price(self, token_id: str) -> Optional[float]:
         """Get latest price for a token, or None if not available."""
-        snap = self._prices.get(token_id)
+        with self._price_lock:
+            snap = self._prices.get(token_id)
         if snap and (time.time() - snap.timestamp) < STALE_TIMEOUT:
             return snap.yes_price
         return None
 
     def get_spread(self, token_id: str) -> Optional[dict]:
         """Get bid/ask spread for a token."""
-        snap = self._prices.get(token_id)
+        with self._price_lock:
+            snap = self._prices.get(token_id)
         if snap and snap.bid > 0 and snap.ask > 0:
             return {"bid": snap.bid, "ask": snap.ask,
                     "spread": snap.ask - snap.bid, "mid": (snap.bid + snap.ask) / 2}
@@ -94,19 +101,22 @@ class WebSocketFeed:
 
     def subscribe(self, token_ids: List[str]) -> None:
         """Add token_ids to subscription list. If connected, subscribes immediately."""
-        new_ids = set(token_ids) - self._subscriptions
-        self._subscriptions.update(token_ids)
+        with self._sub_lock:
+            new_ids = set(token_ids) - self._subscriptions
+            self._subscriptions.update(token_ids)
         if new_ids and self._ws and self._connected:
-            # Send subscribe messages for new tokens
             asyncio.run_coroutine_threadsafe(
                 self._subscribe_tokens(list(new_ids)), self._loop
             )
 
     def unsubscribe(self, token_ids: List[str]) -> None:
         """Remove token_ids from subscription list."""
-        for tid in token_ids:
-            self._subscriptions.discard(tid)
-            self._prices.pop(tid, None)
+        with self._sub_lock:
+            for tid in token_ids:
+                self._subscriptions.discard(tid)
+        with self._price_lock:
+            for tid in token_ids:
+                self._prices.pop(tid, None)
 
     def start_background(self) -> None:
         """Start WebSocket feed in a background thread."""
@@ -158,12 +168,14 @@ class WebSocketFeed:
                     self._connected = True
                     self._reconnect_count = 0
                     self._last_message_time = time.time()
-                    logger.info("WebSocket connected to CLOB (%d subscriptions)",
-                                len(self._subscriptions))
+                    with self._sub_lock:
+                        sub_count = len(self._subscriptions)
+                        sub_list = list(self._subscriptions) if self._subscriptions else []
+                    logger.info("WebSocket connected to CLOB (%d subscriptions)", sub_count)
 
                     # Subscribe to all tracked tokens
-                    if self._subscriptions:
-                        await self._subscribe_tokens(list(self._subscriptions))
+                    if sub_list:
+                        await self._subscribe_tokens(sub_list)
 
                     # Message loop
                     async for raw_msg in ws:
@@ -206,8 +218,11 @@ class WebSocketFeed:
 
         if msg_type in ("price_change", "price"):
             token_id = data.get("market") or data.get("token_id") or data.get("asset_id", "")
-            if not token_id or token_id not in self._subscriptions:
+            if not token_id:
                 return
+            with self._sub_lock:
+                if token_id not in self._subscriptions:
+                    return
 
             # Extract price — format varies by message type
             price = data.get("price")
@@ -223,9 +238,10 @@ class WebSocketFeed:
             bid = float(data.get("bid", 0) or 0)
             ask = float(data.get("ask", 0) or 0)
 
-            self._prices[token_id] = PriceSnapshot(token_id, price, now, bid, ask)
+            with self._price_lock:
+                self._prices[token_id] = PriceSnapshot(token_id, price, now, bid, ask)
 
-            # Fire callback
+            # Fire callback (outside lock to avoid deadlock)
             if self._callback:
                 try:
                     self._callback(token_id, price, now)
@@ -235,21 +251,25 @@ class WebSocketFeed:
         elif msg_type == "book":
             # Order book snapshot — extract best bid/ask
             token_id = data.get("market", "")
-            if not token_id or token_id not in self._subscriptions:
+            if not token_id:
                 return
+            with self._sub_lock:
+                if token_id not in self._subscriptions:
+                    return
             bids = data.get("bids", [])
             asks = data.get("asks", [])
             best_bid = float(bids[0]["price"]) if bids else 0.0
             best_ask = float(asks[0]["price"]) if asks else 0.0
             mid = (best_bid + best_ask) / 2 if best_bid and best_ask else 0.0
             if mid > 0:
-                snap = self._prices.get(token_id)
-                if snap:
-                    snap.bid = best_bid
-                    snap.ask = best_ask
-                else:
-                    self._prices[token_id] = PriceSnapshot(
-                        token_id, mid, time.time(), best_bid, best_ask)
+                with self._price_lock:
+                    snap = self._prices.get(token_id)
+                    if snap:
+                        snap.bid = best_bid
+                        snap.ask = best_ask
+                    else:
+                        self._prices[token_id] = PriceSnapshot(
+                            token_id, mid, time.time(), best_bid, best_ask)
 
     def sync_subscriptions(self, active_token_ids: List[str]) -> None:
         """Sync subscriptions with currently active positions.
@@ -257,8 +277,9 @@ class WebSocketFeed:
         Adds new token_ids and removes stale ones.
         """
         current = set(active_token_ids)
-        to_add = current - self._subscriptions
-        to_remove = self._subscriptions - current
+        with self._sub_lock:
+            to_add = current - self._subscriptions
+            to_remove = self._subscriptions - current
 
         if to_add:
             self.subscribe(list(to_add))

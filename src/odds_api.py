@@ -16,12 +16,12 @@ from __future__ import annotations
 import logging
 import os
 import time
-from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 import requests
 
 from src.api_usage import record_call
+from src.team_matcher import find_best_event_match, match_team
 
 logger = logging.getLogger(__name__)
 
@@ -229,38 +229,20 @@ class OddsAPIClient:
         if not team_a_name or not team_b_name:
             return None
 
-        # Find matching event
-        best_event = None
-        best_score = 0.0
-        for event in events:
-            home = event.get("home_team", "").lower()
-            away = event.get("away_team", "").lower()
-
-            score_a = max(
-                SequenceMatcher(None, team_a_name.lower(), home).ratio(),
-                SequenceMatcher(None, team_a_name.lower(), away).ratio(),
-            )
-            score_b = max(
-                SequenceMatcher(None, team_b_name.lower(), home).ratio(),
-                SequenceMatcher(None, team_b_name.lower(), away).ratio(),
-            )
-            combined = (score_a + score_b) / 2
-            if combined > best_score:
-                best_score = combined
-                best_event = event
-
-        if best_score < 0.4 or not best_event:
-            logger.debug("No matching event for '%s vs %s' (best=%.2f)",
-                         team_a_name, team_b_name, best_score)
+        # Find matching event using centralized team matcher (threshold 0.80)
+        result = find_best_event_match(team_a_name, team_b_name, events)
+        if not result:
+            logger.debug("No matching event for '%s vs %s'", team_a_name, team_b_name)
             return None
+
+        best_event, match_conf = result
 
         # Calculate average implied probability across bookmakers
         home_team = best_event.get("home_team", "")
         away_team = best_event.get("away_team", "")
 
         # Figure out which Polymarket team maps to home/away
-        home_is_a = SequenceMatcher(None, team_a_name.lower(), home_team.lower()).ratio() > \
-                     SequenceMatcher(None, team_a_name.lower(), away_team.lower()).ratio()
+        home_is_a, _, _ = match_team(team_a_name, home_team)
 
         probs_team_a = []
         probs_team_b = []
@@ -392,32 +374,17 @@ class OddsAPIClient:
         if not team_a_name or not team_b_name:
             return None
 
-        best_event = None
-        best_score = 0.0
-        for event in events:
-            home = event.get("home_team", "").lower()
-            away = event.get("away_team", "").lower()
-            score_a = max(
-                SequenceMatcher(None, team_a_name.lower(), home).ratio(),
-                SequenceMatcher(None, team_a_name.lower(), away).ratio(),
-            )
-            score_b = max(
-                SequenceMatcher(None, team_b_name.lower(), home).ratio(),
-                SequenceMatcher(None, team_b_name.lower(), away).ratio(),
-            )
-            combined = (score_a + score_b) / 2
-            if combined > best_score:
-                best_score = combined
-                best_event = event
-
-        if best_score < 0.4 or not best_event:
+        # Find matching event using centralized team matcher (threshold 0.80)
+        result = find_best_event_match(team_a_name, team_b_name, events)
+        if not result:
             return None
+
+        best_event, match_conf = result
 
         # Extract average prob (same logic as get_bookmaker_odds)
         home_team = best_event.get("home_team", "")
         away_team = best_event.get("away_team", "")
-        home_is_a = SequenceMatcher(None, team_a_name.lower(), home_team.lower()).ratio() > \
-                     SequenceMatcher(None, team_a_name.lower(), away_team.lower()).ratio()
+        home_is_a, _, _ = match_team(team_a_name, home_team)
 
         probs_a, probs_b = [], []
         for bm in best_event.get("bookmakers", []):

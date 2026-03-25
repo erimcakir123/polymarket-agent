@@ -51,6 +51,9 @@ from src.outcome_tracker import OutcomeTracker
 from src.probability_engine import calculate_anchored_probability, get_edge_threshold_adjustment
 from src.trailing_tp import calculate_trailing_tp
 from src.trade_logger import EdgeSourceTracker
+from src.bond_scanner import scan_bond_candidates, size_bond_position
+from src.live_momentum import detect_momentum_opportunity
+from src.penny_alpha import scan_penny_candidates, size_penny_position, check_penny_exit
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +124,8 @@ class Agent:
         self._FAV_MIN_EDGE = 0.15  # Only stok favorites with ≥15% edge
         self._far_stock: list[dict] = []  # FAR candidates (swing trade + penny alpha)
         self._last_live_dip_check: float = 0  # Timestamp of last live-dip scan
+        self._last_bond_scan: float = 0  # Timestamp of last bond scan
+        self._last_penny_scan: float = 0  # Timestamp of last penny alpha scan
         self._spike_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
         self._scouted_reentry: dict[str, dict] = {}  # LEGACY — kept for backward compat, drained to farming pool
         self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
@@ -598,6 +603,19 @@ class Agent:
         if time.time() - self._last_live_dip_check >= 300:
             self._check_live_dips()
             self._last_live_dip_check = time.time()
+
+        # Momentum signal check — log-only, runs with every live dip check
+        self._check_momentum_signals()
+
+        # Bond scan — every 10 min (low-risk near-certain markets)
+        if time.time() - self._last_bond_scan >= 600:
+            self._check_bond_candidates()
+            self._last_bond_scan = time.time()
+
+        # Penny alpha scan — every 15 min (ultra-cheap asymmetric bets)
+        if time.time() - self._last_penny_scan >= 900:
+            self._check_penny_candidates()
+            self._last_penny_scan = time.time()
 
         # Log portfolio snapshot so dashboard picks up realized PnL changes from exits
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
@@ -2689,6 +2707,9 @@ class Agent:
                 price = c.current_price if c.direction == "BUY_YES" else (1 - c.current_price)
 
                 result = self.executor.place_order(token_id, "BUY", price, bet_size)
+                if result.get("status") == "error":
+                    logger.warning("Live dip order failed for %s: %s", market.slug[:40], result.get("reason", ""))
+                    continue
                 shares = bet_size / price if price > 0 else 0
 
                 # Look up pre-match AI prediction from trade log
@@ -2741,7 +2762,199 @@ class Agent:
                             market.slug[:40], c.direction, c.drop_pct * 100, c.score_summary)
 
         except Exception as e:
-            logger.debug("Live dip check error: %s", e)
+            logger.warning("Live dip check error: %s", e, exc_info=True)
+
+    def _check_bond_candidates(self) -> None:
+        """Scan for bond farming opportunities — near-certain markets (rule-based, no AI)."""
+        try:
+            markets = self.scanner.fetch()
+            if not markets:
+                return
+
+            # Count active bond positions
+            bond_count = sum(
+                1 for p in self.portfolio.positions.values()
+                if getattr(p, 'entry_reason', '') == 'bond'
+            )
+            bond_exposure = sum(
+                p.size for p in self.portfolio.positions.values()
+                if getattr(p, 'entry_reason', '') == 'bond'
+            )
+
+            candidates = scan_bond_candidates(markets)
+            for bond in candidates:
+                # Global position limit
+                if len(self.portfolio.positions) >= self.config.risk.max_positions:
+                    break
+                # Skip if already in this market
+                if bond.condition_id in self.portfolio.positions:
+                    continue
+                if self.blacklist.is_blocked(bond.condition_id, self.cycle_count):
+                    continue
+
+                bet_size = size_bond_position(
+                    bankroll=self.portfolio.bankroll,
+                    candidate=bond,
+                    current_bond_exposure=bond_exposure,
+                    current_bond_count=bond_count,
+                )
+                if bet_size < 5:
+                    continue
+
+                # Find market object for token IDs
+                market = next((m for m in markets if m.condition_id == bond.condition_id), None)
+                if not market:
+                    continue
+
+                token_id = market.yes_token_id  # Bonds are always BUY_YES (price near 1.0)
+                price = bond.yes_price
+
+                result = self.executor.place_order(token_id, "BUY", price, bet_size)
+                if result.get("status") == "error":
+                    logger.warning("Bond order failed for %s: %s", market.slug[:40], result.get("reason", ""))
+                    continue
+                shares = bet_size / price if price > 0 else 0
+
+                self.portfolio.add_position(
+                    market.condition_id, token_id, "BUY_YES",
+                    price, bet_size, shares, market.slug,
+                    market.tags[0] if market.tags else "",
+                    confidence="A", ai_probability=bond.yes_price,
+                    question=market.question, end_date_iso=market.end_date_iso,
+                    match_start_iso=getattr(market, 'match_start_iso', '') or "",
+                    entry_reason="bond", sport_tag=market.sport_tag or "",
+                    event_id=market.event_id or "",
+                )
+
+                self.trade_log.log({
+                    "market": market.slug, "action": "BUY_YES",
+                    "size": bet_size, "price": price,
+                    "edge": bond.expected_profit_pct, "confidence": "bond",
+                    "mode": self.config.mode.value, "status": result["status"],
+                    "question": market.question, "bond_type": bond.bond_type,
+                    "sport_tag": market.sport_tag or "",
+                })
+
+                self.notifier.send(
+                    f"\U0001f4b0 *BOND ENTRY* — low-risk farming\n\n"
+                    f"{market.question}\n"
+                    f"`BUY_YES` | `${bet_size:.0f}` @ `{price:.3f}`\n"
+                    f"Type: `{bond.bond_type}` | Expected: `{bond.expected_profit_pct:.1%}`"
+                )
+
+                logger.info("BOND ENTRY: %s | $%.0f @ %.3f | type=%s | exp=%.1f%%",
+                            market.slug[:40], bet_size, price, bond.bond_type,
+                            bond.expected_profit_pct * 100)
+
+                bond_count += 1
+                bond_exposure += bet_size
+
+        except Exception as e:
+            logger.warning("Bond scan error: %s", e, exc_info=True)
+
+    def _check_penny_candidates(self) -> None:
+        """Scan for penny alpha opportunities — ultra-cheap asymmetric bets (rule-based, no AI)."""
+        try:
+            markets = self.scanner.fetch()
+            if not markets:
+                return
+
+            penny_count = sum(
+                1 for p in self.portfolio.positions.values()
+                if getattr(p, 'entry_reason', '') == 'penny'
+            )
+
+            candidates = scan_penny_candidates(markets)
+            for penny in candidates:
+                # Global position limit
+                if len(self.portfolio.positions) >= self.config.risk.max_positions:
+                    break
+                if penny.condition_id in self.portfolio.positions:
+                    continue
+                if self.blacklist.is_blocked(penny.condition_id, self.cycle_count):
+                    continue
+
+                bet_size = size_penny_position(
+                    bankroll=self.portfolio.bankroll,
+                    current_penny_count=penny_count,
+                )
+                if bet_size < 5:
+                    continue
+
+                market = next((m for m in markets if m.condition_id == penny.condition_id), None)
+                if not market:
+                    continue
+
+                # Penny bets buy the cheap side
+                direction = "BUY_YES" if penny.yes_price <= 0.02 else "BUY_NO"
+                token_id = market.yes_token_id if direction == "BUY_YES" else market.no_token_id
+                price = penny.yes_price if direction == "BUY_YES" else penny.no_price
+
+                result = self.executor.place_order(token_id, "BUY", price, bet_size)
+                if result.get("status") == "error":
+                    logger.warning("Penny order failed for %s: %s", market.slug[:40], result.get("reason", ""))
+                    continue
+                shares = bet_size / price if price > 0 else 0
+
+                self.portfolio.add_position(
+                    market.condition_id, token_id, direction,
+                    price, bet_size, shares, market.slug,
+                    market.tags[0] if market.tags else "",
+                    confidence="C", ai_probability=price,
+                    question=market.question, end_date_iso=market.end_date_iso,
+                    match_start_iso=getattr(market, 'match_start_iso', '') or "",
+                    entry_reason="penny", sport_tag=market.sport_tag or "",
+                    event_id=market.event_id or "",
+                )
+
+                self.trade_log.log({
+                    "market": market.slug, "action": direction,
+                    "size": bet_size, "price": price,
+                    "edge": 0, "confidence": "penny",
+                    "mode": self.config.mode.value, "status": result["status"],
+                    "question": market.question,
+                    "sport_tag": market.sport_tag or "",
+                })
+
+                self.notifier.send(
+                    f"\U0001f3b0 *PENNY ENTRY* — asymmetric bet\n\n"
+                    f"{market.question}\n"
+                    f"`{direction}` | `${bet_size:.0f}` @ `{price:.3f}`\n"
+                    f"Target: `{penny.target_multiplier:.0f}x`"
+                )
+
+                logger.info("PENNY ENTRY: %s | %s | $%.0f @ %.3f | target=%dx",
+                            market.slug[:40], direction, bet_size, price,
+                            penny.target_multiplier)
+
+                penny_count += 1
+
+        except Exception as e:
+            logger.warning("Penny scan error: %s", e, exc_info=True)
+
+    def _check_momentum_signals(self) -> None:
+        """Check live positions for momentum edge from score changes (rule-based, no AI)."""
+        try:
+            for cid, pos in list(self.portfolio.positions.items()):
+                match_state = self._match_states.get(cid)
+                if not match_state or match_state.get("team_a_score") is None:
+                    continue
+
+                signal = detect_momentum_opportunity(
+                    condition_id=cid,
+                    pre_match_prob=pos.ai_probability,
+                    market_price=pos.current_price,
+                    match_state=match_state,
+                    sport_tag=getattr(pos, 'sport_tag', ''),
+                    direction=pos.direction,
+                )
+
+                if signal and signal.edge >= 0.06:
+                    logger.info("MOMENTUM SIGNAL: %s | edge=%.1f%% | score_diff=%d | %s",
+                                pos.slug[:40], signal.edge * 100, signal.score_diff, signal.reason)
+
+        except Exception as e:
+            logger.warning("Momentum check error: %s", e, exc_info=True)
 
     def _get_current_price(self, market) -> float | None:
         """Get current CLOB price for freshness check. Returns None if unavailable."""
@@ -3195,17 +3408,20 @@ class Agent:
             logger.debug("Outcome tracking skipped: %s", e)
 
     def _check_far_penny_exits(self) -> None:
-        """Check FAR penny positions for multiplier target exits.
+        """Check FAR and standalone penny positions for multiplier target exits.
         $0.01 entry → hold for 5x ($0.05), then trailing stop
         $0.02 entry → hold for 2x ($0.04), then trailing stop
         Swing FAR uses normal TP/SL (handled by portfolio.check_take_profits)."""
-        if not self.config.far.enabled:
-            return
         far_cfg = self.config.far
         for cid, pos in list(self.portfolio.positions.items()):
-            if pos.entry_reason != "far" or pos.pending_resolution:
+            if pos.pending_resolution:
                 continue
-            if pos.entry_price > far_cfg.penny_max_price:
+            # Include both FAR penny and standalone penny positions
+            is_far_penny = pos.entry_reason == "far" and pos.entry_price <= far_cfg.penny_max_price
+            is_standalone_penny = pos.entry_reason == "penny"
+            if not is_far_penny and not is_standalone_penny:
+                continue
+            if pos.entry_reason == "far" and pos.entry_price > far_cfg.penny_max_price:
                 continue  # Swing FAR — normal TP/SL applies
 
             # Penny position — check multiplier target

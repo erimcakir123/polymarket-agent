@@ -5,10 +5,10 @@ Uses vlrdevapi package (pip install vlrdevapi).
 from __future__ import annotations
 import logging
 import time
-from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 from src.api_usage import record_call
+from src.team_matcher import match_team
 
 logger = logging.getLogger(__name__)
 
@@ -83,21 +83,18 @@ class VLRDataClient:
                 self._team_id_cache[team_name] = None
                 return None
 
-            # Fuzzy match
+            # Fuzzy match via centralized team_matcher
             name_lower = team_name.lower().strip()
             best_match = None
             best_score = 0.0
             for t in results:
                 t_name = (t.name or "").lower()
-                if name_lower == t_name:
-                    best_match = t
-                    break
-                score = SequenceMatcher(None, name_lower, t_name).ratio()
-                if score > best_score:
+                is_match, score, _ = match_team(name_lower, t_name)
+                if is_match and score > best_score:
                     best_score = score
                     best_match = t
 
-            if best_match and (best_score >= 0.5 or name_lower == (best_match.name or "").lower()):
+            if best_match and best_score >= 0.80:
                 tid = best_match.id if hasattr(best_match, 'id') else best_match.team_id
                 self._team_id_cache[team_name] = tid
                 return tid

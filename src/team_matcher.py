@@ -140,8 +140,6 @@ def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
     # Stage 1: Exact / Alias
     if _canonicalize(query) == _canonicalize(candidate):
         return True, 1.0, "exact_alias"
-    if q == c:
-        return True, 1.0, "exact"
 
     # Stage 2: Token-based
     q_tokens = set(q.split())

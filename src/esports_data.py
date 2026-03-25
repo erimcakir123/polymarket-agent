@@ -4,10 +4,11 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 import requests
+
+from src.team_matcher import match_team
 
 from src.api_usage import record_call
 
@@ -28,29 +29,7 @@ _GAME_SLUGS = {
     "valorant": "valorant",
 }
 
-# Common team name aliases for fuzzy matching
-_TEAM_ALIASES = {
-    "navi": "natus vincere",
-    "natus vincere": "natus vincere",
-    "g2": "g2 esports",
-    "faze": "faze clan",
-    "nip": "ninjas in pyjamas",
-    "vitality": "team vitality",
-    "spirit": "team spirit",
-    "liquid": "team liquid",
-    "c9": "cloud9",
-    "cloud9": "cloud9",
-    "col": "complexity",
-    "eg": "evil geniuses",
-    "og": "og",
-    "fnatic": "fnatic",
-    "mouz": "mousesports",
-    "ence": "ence",
-    "heroic": "heroic",
-    "astralis": "astralis",
-    "big": "big",
-    "eternal fire": "eternal fire",
-}
+# Team aliases moved to centralized src/team_matcher.py
 
 
 class EsportsDataClient:
@@ -148,38 +127,25 @@ class EsportsDataClient:
         return None, None
 
     def _fuzzy_match_team(self, name: str, candidates: List[dict]) -> Optional[dict]:
-        """Find best matching team from PandaScore results using fuzzy matching."""
-        name_lower = name.lower().strip()
-
-        # Check aliases first
-        canonical = _TEAM_ALIASES.get(name_lower, name_lower)
-
+        """Find best matching team from PandaScore results using centralized team matcher."""
         best_match = None
         best_score = 0.0
 
         for team in candidates:
-            team_name = team.get("name", "").lower()
-            team_acronym = (team.get("acronym") or "").lower()
-            team_slug = team.get("slug", "").lower()
+            team_name = team.get("name", "")
+            team_acronym = team.get("acronym") or ""
+            team_slug = team.get("slug", "")
 
-            # Exact matches
-            if canonical == team_name or canonical == team_acronym or canonical == team_slug:
-                return team
-
-            # Fuzzy match on name
-            score = SequenceMatcher(None, canonical, team_name).ratio()
-            if score > best_score:
-                best_score = score
-                best_match = team
-
-            # Also try acronym
-            if team_acronym:
-                score2 = SequenceMatcher(None, canonical, team_acronym).ratio()
-                if score2 > best_score:
-                    best_score = score2
+            # Try all candidate fields through centralized matcher
+            for candidate in [team_name, team_acronym, team_slug]:
+                if not candidate:
+                    continue
+                is_match, score, method = match_team(name, candidate)
+                if is_match and score > best_score:
+                    best_score = score
                     best_match = team
 
-        if best_score >= 0.6:
+        if best_score >= 0.80:
             return best_match
         return None
 
@@ -415,15 +381,13 @@ class EsportsDataClient:
 
     def _name_matches(self, query: str, opp_names: List[dict]) -> Optional[int]:
         """Check if query matches any opponent. Returns index or None."""
-        q = query.lower().strip()
-        canonical = _TEAM_ALIASES.get(q, q)
-
         for i, opp in enumerate(opp_names):
-            if canonical == opp["name"].lower() or canonical == opp["acronym"] or canonical == opp["slug"]:
-                return i
-            # Fuzzy match
-            if SequenceMatcher(None, canonical, opp["name"].lower()).ratio() >= 0.65:
-                return i
+            for candidate in [opp.get("name", ""), opp.get("acronym", ""), opp.get("slug", "")]:
+                if not candidate:
+                    continue
+                is_match, score, method = match_team(query, candidate)
+                if is_match:
+                    return i
         return None
 
     def _parse_match_state(self, match: dict, team_a: str, team_b: str) -> Dict:

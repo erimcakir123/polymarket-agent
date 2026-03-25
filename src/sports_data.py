@@ -2,12 +2,12 @@
 from __future__ import annotations
 import logging
 import time
-from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 import requests
 
 from src.api_usage import record_call
+from src.team_matcher import match_team
 
 logger = logging.getLogger(__name__)
 
@@ -146,16 +146,16 @@ class SportsDataClient:
             if name_lower in full_name or full_name in name_lower:
                 return team
 
-            # Fuzzy match
+            # Centralized team matcher (threshold 0.80, 3-stage matching)
             for candidate in [full_name, short_name, nickname, location]:
                 if not candidate:
                     continue
-                score = SequenceMatcher(None, name_lower, candidate).ratio()
-                if score > best_score:
+                is_match, score, method = match_team(name_lower, candidate)
+                if is_match and score > best_score:
                     best_score = score
                     best_match = team
 
-        if best_score >= 0.55:
+        if best_score >= 0.80:
             return best_match
         return None
 

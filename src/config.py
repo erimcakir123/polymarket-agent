@@ -77,9 +77,7 @@ class RiskConfig(BaseModel):
     trailing_stop_tiers: List[TrailingStopTier] = []
 
     # Re-entry (#6, #12)
-    reentry_fresh_ai_call: bool = False
     max_daily_reentries: int = 5
-    max_market_reentries: int = 2
 
     # Correlation (#17)
     max_match_exposure_pct: float = 0.15
