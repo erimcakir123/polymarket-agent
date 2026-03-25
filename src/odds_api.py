@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -102,12 +103,19 @@ class OddsAPIClient:
     - Historical only when edge is borderline (saves ~10 credits/call)
     """
 
+    # Scheduled refresh times (UTC hours). Cache invalidates when a boundary is crossed.
+    # 07:00 UTC = 10:00 TR → morning: full landscape, European football early lines
+    # 15:00 UTC = 18:00 TR → afternoon: European football, early evening lines
+    # 19:00 UTC = 22:00 TR → evening: NBA/NHL pre-game line movement
+    # 21:30 UTC = 00:30 TR → night: final odds right before NBA tip-off (00:00-01:00 TR)
+    _REFRESH_HOURS_UTC = [7, 15, 19, 21]
+
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
         self._using_backup = False
-        self._cache: Dict[str, Tuple[object, float]] = {}
-        self._cache_ttl = 28800  # 8 hour cache — fetch ~3x/day, reuse across cycles
+        self._cache: Dict[str, Tuple[object, float]] = {}  # key → (data, wall_clock_ts)
+        self._cache_ttl = 28800  # 8h fallback TTL (tennis keys, etc.)
         self._hist_cache_ttl = 28800  # 8 hour cache for historical
         self._requests_used = 0
         self._notified_80 = False
@@ -132,7 +140,7 @@ class OddsAPIClient:
         cached = self._cache.get(cache_key)
         if cached:
             data, ts = cached
-            if time.monotonic() - ts < self._cache_ttl:
+            if time.time() - ts < self._cache_ttl:
                 return data
 
         prefix = f"tennis_{gender}"
@@ -142,7 +150,7 @@ class OddsAPIClient:
                 return []
             keys = [s["key"] for s in sports if isinstance(s, dict)
                     and s.get("key", "").startswith(prefix) and s.get("active")]
-            self._cache[cache_key] = (keys, time.monotonic())
+            self._cache[cache_key] = (keys, time.time())
             if keys:
                 logger.info("Active %s tennis keys: %s", gender.upper(), keys)
             return keys
@@ -177,8 +185,27 @@ class OddsAPIClient:
 
         return None
 
+    def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
+        """Check if a scheduled refresh boundary has passed since cached_wall_ts.
+
+        Refresh times are defined in _REFRESH_HOURS_UTC.
+        Returns True if we should re-fetch (a refresh hour passed since last fetch).
+        """
+        now = datetime.now(timezone.utc)
+        cached_dt = datetime.fromtimestamp(cached_wall_ts, tz=timezone.utc)
+
+        # If cached on a different day, always refresh
+        if cached_dt.date() != now.date():
+            return True
+
+        # Check if any refresh hour boundary was crossed
+        for h in self._REFRESH_HOURS_UTC:
+            if cached_dt.hour < h <= now.hour:
+                return True
+        return False
+
     def _get(self, endpoint: str, params: dict) -> Optional[dict | list]:
-        """Make authenticated GET to The Odds API with caching."""
+        """Make authenticated GET to The Odds API with scheduled cache refresh."""
         if not self.available:
             return None
 
@@ -186,7 +213,7 @@ class OddsAPIClient:
         cached = self._cache.get(cache_key)
         if cached:
             data, ts = cached
-            if time.monotonic() - ts < self._cache_ttl:
+            if not self._past_refresh_boundary(ts):
                 return data
 
         params["apiKey"] = self.api_key
@@ -221,7 +248,7 @@ class OddsAPIClient:
                         self._notified_80 = True
 
             data = resp.json()
-            self._cache[cache_key] = (data, time.monotonic())
+            self._cache[cache_key] = (data, time.time())
             return data
         except requests.RequestException as e:
             logger.warning("Odds API error: %s", e)
@@ -402,7 +429,7 @@ class OddsAPIClient:
         cached = self._cache.get(cache_key)
         if cached:
             data, ts = cached
-            if time.monotonic() - ts < self._hist_cache_ttl:
+            if time.time() - ts < self._hist_cache_ttl:
                 return self._match_historical(data, question, date_iso)
 
         data = self._get(f"/historical/sports/{sport_key}/odds", {
@@ -416,7 +443,7 @@ class OddsAPIClient:
 
         # Historical endpoint wraps in {"data": [...], "timestamp": "..."}
         events = data.get("data", []) if isinstance(data, dict) else data
-        self._cache[cache_key] = (events, time.monotonic())
+        self._cache[cache_key] = (events, time.time())
         return self._match_historical(events, question, date_iso)
 
     def _match_historical(self, events: list, question: str, date_iso: str) -> Optional[Dict]:
