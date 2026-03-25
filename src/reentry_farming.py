@@ -35,6 +35,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.sport_rules import get_max_reentries, get_reentry_max_elapsed
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -245,22 +247,6 @@ class ReentryPool:
 # Decision logic
 # ---------------------------------------------------------------------------
 
-def _get_max_reentries(sport_tag: str, number_of_games: int) -> int:
-    """Get max re-entries based on sport/format."""
-    st = sport_tag.lower() if sport_tag else ""
-    if st in ("nhl", "hockey"):
-        return MAX_REENTRIES["nhl"]
-    if st in ("nba", "basketball", "cbb"):
-        return MAX_REENTRIES["nba"]
-    if number_of_games >= 5:
-        return MAX_REENTRIES["bo5"]
-    if number_of_games >= 3:
-        return MAX_REENTRIES["bo3"]
-    if number_of_games == 1:
-        return MAX_REENTRIES["bo1"]
-    return MAX_REENTRIES["default"]
-
-
 def _get_effective_price(price: float, direction: str) -> float:
     """Get the effective price for our side (YES or NO)."""
     return (1.0 - price) if direction == "BUY_NO" else price
@@ -285,6 +271,7 @@ def check_reentry(
     eff_entry = _get_effective_price(c.original_entry_price, c.direction)
     # ai_probability is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
     eff_ai = c.ai_probability if c.direction == "BUY_YES" else (1.0 - c.ai_probability)
+    elapsed_pct = 0.0
 
     # --- HARD BLOCKS ---
 
@@ -298,8 +285,10 @@ def check_reentry(
             _total = (_ed - _ms).total_seconds()
             if _total > 0:
                 elapsed_pct = max(0.0, min(1.0, (_now - _ms).total_seconds() / _total))
-                if elapsed_pct >= 0.66:
-                    return _block(f"Match too far along: {elapsed_pct:.0%} elapsed")
+                _sport_tag = getattr(c, 'sport_tag', '') or ''
+                max_elapsed = get_reentry_max_elapsed(_sport_tag)
+                if elapsed_pct >= max_elapsed:
+                    return _block(f"Match too far along: {elapsed_pct:.0%} elapsed (max {max_elapsed:.0%})")
         except (ValueError, TypeError):
             pass
 
@@ -341,14 +330,17 @@ def check_reentry(
         return _block("Same event already held")
 
     # Max re-entries reached
-    max_re = _get_max_reentries(c.sport_tag, c.number_of_games)
+    sport_tag = getattr(c, 'sport_tag', '') or ''
+    max_re = get_max_reentries(sport_tag, c.number_of_games)
     if c.reentry_count >= max_re:
         return _block(f"Max re-entries ({max_re}) reached")
 
-    # Analysis too old
+    # Analysis too old — live matches use shorter window (1h vs 4h)
     cycles_since_exit = current_cycle - c.last_exit_cycle
-    if cycles_since_exit > MAX_ANALYSIS_AGE_CYCLES:
-        return _block("Analysis too stale (>4h)")
+    is_live = elapsed_pct is not None and elapsed_pct > 0.05
+    max_age = 60 if is_live else MAX_ANALYSIS_AGE_CYCLES  # 1h live, 4h pre-match
+    if cycles_since_exit > max_age:
+        return _block(f"Analysis too stale (>{max_age // 60}h)")
 
     # Price extremes — don't buy at 85¢+ or 15¢-
     if eff_price >= PRICE_EXTREME_HIGH or eff_price <= PRICE_EXTREME_LOW:

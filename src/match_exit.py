@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from src.sport_rules import get_sport_rule, is_losing_badly
+
 logger = logging.getLogger(__name__)
 
 
@@ -255,6 +257,8 @@ def check_match_exit(data: dict) -> dict:
     hold_was_original = data.get("hold_was_original", False)
     volatility_swing = data.get("volatility_swing", False)
     pnl_pct = data.get("unrealized_pnl_pct", 0.0)
+    sport_tag = data.get("sport_tag", "")
+    ht_deficit = get_sport_rule(sport_tag, "halftime_exit_deficit", 15)
 
     # VS positions use their own exit system
     if volatility_swing:
@@ -284,7 +288,7 @@ def check_match_exit(data: dict) -> dict:
         try:
             start_dt = datetime.fromisoformat(match_start_iso.replace("Z", "+00:00"))
             elapsed_min = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
-            duration = get_game_duration(slug, number_of_games)
+            duration = get_game_duration(slug, number_of_games, sport_tag)
             elapsed_pct = elapsed_min / duration if duration > 0 else 0
         except (ValueError, TypeError):
             pass
@@ -316,6 +320,12 @@ def check_match_exit(data: dict) -> dict:
     if pnl_pct < -max_loss:
         return {**result, "exit": True, "layer": "graduated_sl",
                 "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
+
+    # PRIORITY CHAIN (higher = wins):
+    # 1. Stop-Loss — ALWAYS fires, never overridden (portfolio.py)
+    # 2. Scale-Out — only at spike (>50% profit) for hold-to-resolve
+    # 3. Hold-to-Resolve — skips normal TP, not SL
+    # 4. Never-in-Profit Guard — can trigger exit, but SL takes precedence
 
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
     if not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
@@ -366,6 +376,21 @@ def check_match_exit(data: dict) -> dict:
                     result["reason"] = f"Hold restored: eff_price recovered to {effective_current:.3f} > eff_entry*85%"
         except (ValueError, TypeError):
             pass
+
+    # --- Step 6: Edge Decay TP (Layer 5) ---
+    # Underdog positions: as match progresses, AI target decays toward market
+    if ai_probability > 0 and not result.get("exit"):
+        effective_ai_side = ai_probability if direction != "BUY_NO" else (1 - ai_probability)
+        if effective_ai_side < 0.65:  # Only underdog/edge positions, not favorites
+            try:
+                from src.edge_decay import get_decayed_ai_target
+                decayed = get_decayed_ai_target(effective_ai_side, effective_current, elapsed_pct)
+                edge_tp = decayed * 0.85
+                if effective_current >= edge_tp and effective_current > effective_entry * 1.10:
+                    return {**result, "exit": True, "layer": "edge_decay",
+                            "reason": f"Edge decay TP: price {effective_current:.3f} >= decayed {edge_tp:.3f}"}
+            except ImportError:
+                pass  # edge_decay module not available
 
     result["elapsed_pct"] = elapsed_pct
     return result

@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from src.sport_rules import is_losing_badly
+
 logger = logging.getLogger(__name__)
 
 ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports"
@@ -135,7 +137,7 @@ def find_live_dip_candidates(
     get_clob_midpoint,
     max_concurrent: int = 2,
     min_drop_pct: float = 0.10,
-) -> list[LiveDipCandidate]:
+) -> dict:
     """Scan markets for live-dip entry opportunities.
 
     Args:
@@ -147,7 +149,7 @@ def find_live_dip_candidates(
         min_drop_pct: Minimum price drop to trigger entry (default 10%)
 
     Returns:
-        List of LiveDipCandidate objects ready for entry
+        Dict with "candidates" (list of LiveDipCandidate) and "toxic_markets" (set of condition_ids)
     """
     # Count existing live-dip positions
     current_dips = sum(
@@ -155,9 +157,10 @@ def find_live_dip_candidates(
         if getattr(p, "entry_reason", "") == "live_dip"
     )
     if current_dips >= max_concurrent:
-        return []
+        return {"candidates": [], "toxic_markets": set()}
 
     candidates = []
+    toxic_condition_ids: set[str] = set()
 
     for m in markets:
         # Skip if already in portfolio or exited
@@ -225,9 +228,11 @@ def find_live_dip_candidates(
                     fav_behind = s1 < s0
                     deficit = s0 - s1
                 # Skip if favorite is losing by significant margin AND price dropped a lot
-                if fav_behind and deficit >= 7 and drop_pct >= 0.20:
+                sport_tag = getattr(m, 'sport_tag', '') or ''
+                if fav_behind and is_losing_badly(sport_tag, deficit) and drop_pct >= 0.20:
                     logger.info("Live dip skip (losing badly): %s | deficit=%d drop=%.0f%%",
                                 m.slug[:40], deficit, drop_pct * 100)
+                    toxic_condition_ids.add(m.condition_id)
                     continue
         except (ValueError, TypeError, IndexError):
             pass  # Can't parse scores — proceed anyway
@@ -251,4 +256,4 @@ def find_live_dip_candidates(
 
     # Limit to available slots
     available = max_concurrent - current_dips
-    return candidates[:available]
+    return {"candidates": candidates[:available], "toxic_markets": toxic_condition_ids}

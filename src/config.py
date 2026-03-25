@@ -134,12 +134,12 @@ class BondFarmingConfig(BaseModel):
     enabled: bool = True
     min_yes_price: float = 0.90
     max_yes_price: float = 0.97
-    bet_pct: float = 0.15              # 15% bankroll per bond
-    max_total_bond_pct: float = 0.35   # 35% max across all bonds
+    bet_pct: float = 0.08              # 8% bankroll per bond
+    max_total_bond_pct: float = 0.20   # 20% max across all bonds
     max_concurrent: int = 3
     min_volume_24h: float = 5_000
     min_liquidity: float = 5_000
-    max_days_to_resolution: float = 14.0
+    max_days_to_resolution: float = 0.25  # ~6 hours — only near-resolution bonds
 
 
 class LiveMomentumConfig(BaseModel):

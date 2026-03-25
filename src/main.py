@@ -131,6 +131,7 @@ class Agent:
         self.reentry_pool = ReentryPool()  # Unified farming re-entry pool
         self.outcome_tracker = OutcomeTracker()  # Track match results after exit
         self.ws_feed = WebSocketFeed(on_price_update=self._on_ws_price_update)
+        self._toxic_markets: set = set()  # Markets where favorite is losing badly — block all entries
         self._match_states: dict[str, dict] = {}  # condition_id → live match state
         self._last_match_state_fetch: float = 0.0  # Rate limit match state queries
         self._daily_reentry_count: int = 0  # Re-entries today (reset each heavy cycle at midnight)
@@ -144,6 +145,7 @@ class Agent:
         # V2: Circuit breaker and tiered blacklist
         self.circuit_breaker = CircuitBreaker()
         self.blacklist = Blacklist(path="logs/blacklist.json")
+        self._soft_halt_active = False
 
         # V3 Maximus: Edge source tracker
         self.edge_tracker = EdgeSourceTracker()
@@ -181,6 +183,7 @@ class Agent:
             chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
             enabled=config.notifications.telegram_enabled,
         )
+        self.odds_api.set_notifier(self.notifier)
 
         # Wallet & executor (initialized for live mode only)
         self.wallet = None
@@ -570,6 +573,39 @@ class Agent:
                                 pos.slug[:40], ttp_result["reason"], ttp_result["profit_pct"] * 100)
                     self._exit_position(cid, f"trailing_tp: {ttp_result['reason']}")
 
+        # VS positions: tighten trailing near resolution (30min → trail 4% instead of 8%)
+        if ttp_cfg.enabled:
+            for cid, pos in list(self.portfolio.positions.items()):
+                if not pos.volatility_swing:
+                    continue
+                if pos.peak_pnl_pct < ttp_cfg.activation_pct:
+                    continue  # Not yet activated
+                # Calculate hours to resolution
+                hours_left = 99.0
+                if pos.end_date_iso:
+                    try:
+                        from datetime import datetime, timezone
+                        end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
+                        hours_left = max(0, (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600)
+                    except (ValueError, TypeError):
+                        pass
+                trail_dist = 0.04 if hours_left <= 0.5 else ttp_cfg.trail_distance
+                ttp_result = calculate_trailing_tp(
+                    entry_price=pos.entry_price,
+                    current_price=pos.current_price,
+                    direction=pos.direction,
+                    peak_price=pos.peak_price,
+                    trailing_active=True,
+                    activation_pct=ttp_cfg.activation_pct,
+                    trail_distance=trail_dist,
+                )
+                if ttp_result["peak_price"] > pos.peak_price:
+                    pos.peak_price = ttp_result["peak_price"]
+                if ttp_result["action"] == "EXIT":
+                    logger.info("VS trailing TP EXIT: %s — trail=%.0f%% hours_left=%.1f",
+                                pos.slug[:40], trail_dist * 100, hours_left)
+                    self._exit_position(cid, f"vs_trailing_tp: trail={trail_dist:.0%}")
+
         # Fixed TP only for VS positions now
         for cid in self.portfolio.check_take_profits(
                 self.config.risk.take_profit_pct, vs_take_profit_pct=vs_cfg.take_profit_pct,
@@ -637,7 +673,7 @@ class Agent:
         self._set_status("running", "Starting cycle")
 
         # 0. Daily milestone reminder + self-reflection
-        self._maybe_send_milestone_reminder()
+        # self._maybe_send_milestone_reminder()  # Disabled in V3
         self._maybe_run_reflection()
 
         # 0b. Scout run (twice daily: 06:00 + 18:00 UTC)
@@ -656,13 +692,25 @@ class Agent:
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
 
-        # Drawdown check
-        if self.portfolio.is_drawdown_breaker_active(self.config.risk.drawdown_halt_pct):
+        # Drawdown check — soft (no new entries) / hard (close all + halt)
+        dd_level = self.portfolio.get_drawdown_level()
+        if dd_level == "hard":
             msg = self.notifier.alert_drawdown(bankroll, self.portfolio.high_water_mark)
             self.notifier.send(msg)
-            logger.critical("DRAWDOWN BREAKER — halting")
+            logger.critical("HARD HALT: equity < 35%% HWM — closing all positions")
+            for cid in list(self.portfolio.positions.keys()):
+                self._exit_position(cid, "hard_halt_drawdown")
             self.running = False
             return
+        elif dd_level == "soft":
+            if not getattr(self, '_soft_halt_active', False):
+                self.notifier.send("⚠️ SOFT HALT: equity < 50% HWM — yeni entry durduruldu")
+                self._soft_halt_active = True
+            logger.warning("SOFT HALT active: no new entries until equity recovers")
+        else:
+            if getattr(self, '_soft_halt_active', False):
+                self.notifier.send("✅ Drawdown recovered — entries resumed")
+                self._soft_halt_active = False
 
         # V2: Circuit breaker check
         halt, halt_reason = self.circuit_breaker.should_halt_entries()
@@ -674,6 +722,11 @@ class Agent:
         elif not halt and getattr(self, '_cb_was_active', False):
             self.notifier.send("\u2705 Circuit breaker deactivated \u2014 entries resumed")
             self._cb_was_active = False
+
+        # Soft halt also blocks new entries
+        if getattr(self, '_soft_halt_active', False):
+            halt = True
+            halt_reason = "Soft drawdown halt (equity < 50% HWM)"
 
         # 2. Check resolved markets for calibration
         self._set_status("running", "Checking resolved markets")
@@ -1097,6 +1150,7 @@ class Agent:
         # 9c. Fetch sports/esports data for non-scouted markets
         data_sources_by_market: dict[str, list[str]] = {}  # condition_id -> list of source names
         odds_by_market: dict[str, dict] = {}  # condition_id -> odds dict (bookmaker_prob_a, etc.)
+        line_movement_by_market: dict = {}
         for cid in scouted_markets:
             data_sources_by_market[cid] = ["scout", "espn"]
 
@@ -1145,6 +1199,12 @@ class Agent:
                     logger.info("Bookmaker odds loaded: %s (%.0f%% vs %.0f%%, %d books)",
                                 m.slug[:30], odds["bookmaker_prob_a"] * 100,
                                 odds["bookmaker_prob_b"] * 100, odds["num_bookmakers"])
+
+                    # Line movement — sharp money signal
+                    lm = self.odds_api.get_line_movement(m.question, m.slug, m.tags)
+                    if lm and lm.get("sharp_signal") != "stable":
+                        parts.append(self.odds_api.build_line_movement_context(lm))
+                        line_movement_by_market[m.condition_id] = lm
 
             if parts:
                 esports_contexts[m.condition_id] = "\n".join(parts)
@@ -1438,7 +1498,7 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "B+"
+                        estimate.confidence = "B-"  # ULTI rescue = kurtarma, promotion değil
                         ulti_used = True
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
@@ -1579,7 +1639,7 @@ class Agent:
                             "data_sources": mkt_sources,
                         })
                         estimate.ai_probability = round(blended, 3)
-                        estimate.confidence = "B+"
+                        estimate.confidence = "B-"  # ULTI rescue = kurtarma, promotion değil
                         ulti_used = True
                         direction, edge = calculate_edge(
                             ai_prob=estimate.ai_probability,
@@ -2678,7 +2738,7 @@ class Agent:
             if not markets:
                 return
 
-            candidates = find_live_dip_candidates(
+            result = find_live_dip_candidates(
                 markets=markets,
                 portfolio_positions=self.portfolio.positions,
                 exited_markets=self._exited_markets,
@@ -2686,6 +2746,8 @@ class Agent:
                 max_concurrent=2,
                 min_drop_pct=0.10,
             )
+            candidates = result["candidates"]
+            self._toxic_markets = result.get("toxic_markets", set())
 
             for c in candidates:
                 # Fixed bet size — no Kelly (no AI probability)
@@ -2777,11 +2839,15 @@ class Agent:
                 if getattr(p, 'entry_reason', '') == 'bond'
             )
             bond_exposure = sum(
-                p.size for p in self.portfolio.positions.values()
+                p.size_usdc for p in self.portfolio.positions.values()
                 if getattr(p, 'entry_reason', '') == 'bond'
             )
 
-            candidates = scan_bond_candidates(markets)
+            bf = self.config.bond_farming
+            candidates = scan_bond_candidates(
+                markets,
+                max_resolution_days=bf.max_days_to_resolution,
+            )
             for bond in candidates:
                 # Global position limit
                 if len(self.portfolio.positions) >= self.config.risk.max_positions:
@@ -2797,9 +2863,23 @@ class Agent:
                     candidate=bond,
                     current_bond_exposure=bond_exposure,
                     current_bond_count=bond_count,
+                    bet_pct=bf.bet_pct,
+                    max_total_pct=bf.max_total_bond_pct,
                 )
                 if bet_size < 5:
                     continue
+
+                # Correlation cap — bond dahil (strateji-agnostik)
+                _stag = getattr(bond, 'sport_tag', '') or ''
+                if not _stag:
+                    # Try to find sport_tag from market list
+                    _m = next((m for m in markets if m.condition_id == bond.condition_id), None)
+                    _stag = getattr(_m, 'sport_tag', '') or '' if _m else ''
+                if _stag:
+                    corr_exp = self.portfolio.correlated_exposure("", sport_tag=_stag)
+                    if corr_exp >= self.config.risk.correlation_cap_pct:
+                        logger.info("Bond skip: correlation cap for %s (%.0f%%)", _stag, corr_exp * 100)
+                        continue
 
                 # Find market object for token IDs
                 market = next((m for m in markets if m.condition_id == bond.condition_id), None)
@@ -2881,6 +2961,17 @@ class Agent:
                 if bet_size < 5:
                     continue
 
+                # Correlation cap — penny dahil (strateji-agnostik)
+                _stag = getattr(penny, 'sport_tag', '') or ''
+                if not _stag:
+                    _m = next((m for m in markets if m.condition_id == penny.condition_id), None)
+                    _stag = getattr(_m, 'sport_tag', '') or '' if _m else ''
+                if _stag:
+                    corr_exp = self.portfolio.correlated_exposure("", sport_tag=_stag)
+                    if corr_exp >= self.config.risk.correlation_cap_pct:
+                        logger.info("Penny skip: correlation cap for %s (%.0f%%)", _stag, corr_exp * 100)
+                        continue
+
                 market = next((m for m in markets if m.condition_id == penny.condition_id), None)
                 if not market:
                     continue
@@ -2936,6 +3027,8 @@ class Agent:
         """Check live positions for momentum edge from score changes (rule-based, no AI)."""
         try:
             for cid, pos in list(self.portfolio.positions.items()):
+                if cid in self._toxic_markets:
+                    continue  # match_is_toxic — momentum entry blocked
                 match_state = self._match_states.get(cid)
                 if not match_state or match_state.get("team_a_score") is None:
                     continue

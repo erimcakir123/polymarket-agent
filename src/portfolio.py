@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from src.models import Position
+from src.sport_rules import get_stop_loss
 
 logger = logging.getLogger(__name__)
 
@@ -296,9 +297,12 @@ class Portfolio:
             if pos.volatility_swing:
                 sl = vs_stop_loss_pct
             elif eff_entry_sl < 0.09:
-                # Ultra-low entry (<9¢): no stop-loss, too volatile
-                # Bet size IS the risk ($25-35 max loss)
-                continue
+                # Ultra-low: only Penny Alpha skips SL (bet size IS the risk)
+                # FAR swing trades and other strategies still get their SL
+                if getattr(pos, 'entry_reason', '') == 'penny':
+                    continue  # Penny alpha — no stop-loss
+                else:
+                    sl = 0.50  # Other ultra-low entries: wide 50% SL
             elif eff_entry_sl < 0.20:
                 # Low-entry (9-20¢): graduated stop-loss
                 # Linear scale: 9¢ → 60%, 20¢ → 40%
@@ -306,10 +310,12 @@ class Portfolio:
                 sl = 0.60 - t * 0.20  # 60% → 40%
             elif pos.confidence == "B-":
                 sl = 0.30  # B- tighter stop-loss
-            elif pos.category == "esports":
-                sl = esports_stop_loss_pct + (0.10 if pos.number_of_games >= 5 else 0.0)
             else:
-                sl = stop_loss_pct
+                sport_tag = getattr(pos, 'sport_tag', '') or ''
+                sl = get_stop_loss(sport_tag)
+                # BO5+ esports bonus — extra room for comeback in long series
+                if pos.category == "esports" and pos.number_of_games >= 5:
+                    sl += 0.10
             if pos.unrealized_pnl_pct < -sl:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"
@@ -672,6 +678,27 @@ class Portfolio:
         )
         equity = self.bankroll + total_value
         return equity < self.high_water_mark * (1 - halt_pct)
+
+    def get_drawdown_level(self, soft_pct: float = 0.50, hard_pct: float = 0.65) -> str:
+        """Two-level drawdown check.
+
+        Returns: 'none' | 'soft' | 'hard'
+        - soft: equity < (1 - soft_pct) * HWM → no new entries
+        - hard: equity < (1 - hard_pct) * HWM → close everything
+        """
+        if self.high_water_mark <= 0:
+            return "none"
+        total_value = sum(
+            getattr(p, 'current_value', p.size_usdc) or p.size_usdc
+            for p in self.positions.values()
+        )
+        equity = self.bankroll + total_value
+        drawdown = 1 - (equity / self.high_water_mark)
+        if drawdown >= hard_pct:
+            return "hard"  # Equity < 35% of HWM → close everything
+        elif drawdown >= soft_pct:
+            return "soft"  # Equity < 50% of HWM → no new entries
+        return "none"
 
     def total_unrealized_pnl(self) -> float:
         return sum(p.unrealized_pnl_usdc for p in self.positions.values())

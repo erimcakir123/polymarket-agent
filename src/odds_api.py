@@ -104,14 +104,23 @@ class OddsAPIClient:
 
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
+        self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
+        self._using_backup = False
         self._cache: Dict[str, Tuple[object, float]] = {}
         self._cache_ttl = 3600  # 1 hour cache for live odds
         self._hist_cache_ttl = 21600  # 6 hour cache for historical
         self._requests_used = 0
+        self._notified_80 = False
+        self._notified_95 = False
+        self._notifier = None
 
     @property
     def available(self) -> bool:
         return bool(self.api_key)
+
+    def set_notifier(self, notifier):
+        """Set Telegram notifier for quota alerts."""
+        self._notifier = notifier
 
     def _get_active_tennis_keys(self, gender: str = "atp") -> List[str]:
         """Discover active tennis sport keys from The Odds API /sports endpoint.
@@ -186,18 +195,43 @@ class OddsAPIClient:
             resp.raise_for_status()
 
             # Track remaining quota from headers
-            remaining = resp.headers.get("x-requests-remaining", "?")
+            remaining_str = resp.headers.get("x-requests-remaining", "?")
             used = resp.headers.get("x-requests-used", "?")
-            logger.info("Odds API quota: %s used, %s remaining", used, remaining)
+            logger.info("Odds API quota: %s used, %s remaining", used, remaining_str)
             self._requests_used += 1
             record_call("odds_api")
+
+            # Quota threshold notifications
+            remaining = int(remaining_str) if remaining_str != "?" else -1
+            if remaining >= 0:
+                total = remaining + self._requests_used
+                if total > 0:
+                    usage_pct = self._requests_used / total
+                    if usage_pct >= 0.95 and not self._notified_95:
+                        msg = "\u26a0\ufe0f Odds API %95 kullan\u0131ld\u0131 \u2014 backup key'e ge\u00e7i\u015f yak\u0131n"
+                        logger.warning(msg)
+                        if self._notifier:
+                            self._notifier.send(msg)
+                        self._notified_95 = True
+                    elif usage_pct >= 0.80 and not self._notified_80:
+                        msg = "\ud83d\udcca Odds API %80 kullan\u0131ld\u0131"
+                        logger.warning(msg)
+                        if self._notifier:
+                            self._notifier.send(msg)
+                        self._notified_80 = True
 
             data = resp.json()
             self._cache[cache_key] = (data, time.monotonic())
             return data
         except requests.RequestException as e:
             logger.warning("Odds API error: %s", e)
-            if "401" in str(e):
+            if "401" in str(e) or "429" in str(e):
+                if not self._using_backup and self._backup_key:
+                    logger.warning("ODDS_API: Primary key exhausted, switching to backup")
+                    self.api_key = self._backup_key
+                    self._using_backup = True
+                    # Retry with backup key
+                    return self._get(endpoint, {k: v for k, v in params.items() if k != "apiKey"})
                 logger.warning("Odds API key invalid/expired — disabling for this session")
                 self.api_key = ""
             return None
