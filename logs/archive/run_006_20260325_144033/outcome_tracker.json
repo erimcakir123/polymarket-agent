@@ -1,0 +1,24 @@
+{
+  "0x3620c6c08db752d25d2ba4a94d455cbb38434f306f347f6db7970f589ebe54d9": {
+    "condition_id": "0x3620c6c08db752d25d2ba4a94d455cbb38434f306f347f6db7970f589ebe54d9",
+    "token_id": "106481629156952618202895219970705755539587882700341403572013317727702267130497",
+    "slug": "cs2-bca-heroa-2026-03-25",
+    "question": "Counter-Strike: Betclic Apogee Esports vs HEROIC Academy (BO3) - Journey Group C",
+    "direction": "BUY_NO",
+    "ai_probability": 0.72,
+    "confidence": "B+",
+    "entry_price": 0.215,
+    "exit_price": 0.84,
+    "exit_reason": "match_exit_catastrophic_floor",
+    "pnl": -5.2953488372093,
+    "size": 20.7,
+    "sport_tag": "counter-strike",
+    "entry_reason": "",
+    "scouted": false,
+    "peak_pnl_pct": 0.0,
+    "match_score": "000-000|0-0|Bo3",
+    "cycles_held": 1,
+    "bookmaker_prob": 0.0,
+    "exit_timestamp": 1774436829.3292341
+  }
+}

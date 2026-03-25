@@ -38,8 +38,8 @@ class AIConfig(BaseModel):
     cache_ttl_min: int = 15
     cache_invalidate_price_move_pct: float = 0.05
     batch_size: int = 5
-    monthly_budget_usd: float = 48.0
-    sprint_budget_usd: float = 24.0  # Per 2-week sprint (2 sprints/month)
+    monthly_budget_usd: float = 0.0   # 0 = unlimited (TODO: set limit before going live)
+    sprint_budget_usd: float = 0.0   # 0 = unlimited (TODO: set limit before going live)
     input_cost_per_mtok: float = 3.0
     output_cost_per_mtok: float = 15.0
 

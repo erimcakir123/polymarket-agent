@@ -221,12 +221,17 @@ class AIAnalyst:
     @property
     def budget_remaining_usd(self) -> float:
         self._reset_if_new_period()
-        monthly_left = max(0.0, self.config.monthly_budget_usd - self._month_cost_usd)
-        sprint_left = max(0.0, self.config.sprint_budget_usd - self._sprint_cost_usd)
+        # 0 = unlimited (no budget cap)
+        if self.config.monthly_budget_usd <= 0 and self.config.sprint_budget_usd <= 0:
+            return 999.0
+        monthly_left = max(0.0, self.config.monthly_budget_usd - self._month_cost_usd) if self.config.monthly_budget_usd > 0 else 999.0
+        sprint_left = max(0.0, self.config.sprint_budget_usd - self._sprint_cost_usd) if self.config.sprint_budget_usd > 0 else 999.0
         return min(monthly_left, sprint_left)
 
     @property
     def budget_exhausted(self) -> bool:
+        if self.config.monthly_budget_usd <= 0 and self.config.sprint_budget_usd <= 0:
+            return False  # Unlimited mode
         return self.budget_remaining_usd <= 0.0
 
     def _rate_limit(self) -> None:

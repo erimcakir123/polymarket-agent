@@ -90,15 +90,35 @@ class HLTVDataClient:
         return None, None
 
     async def _get_team_info_async(self, team_name: str) -> Optional[Dict]:
-        """Search HLTV for team info and recent results."""
+        """Search HLTV for team info via recent results (get_team_info needs team_id)."""
         hltv = self._get_hltv()
         try:
-            # Search for team
-            results = await hltv.get_team_info(team_name)
+            # get_team_info(team_id, title) requires numeric ID we don't have.
+            # Instead, fetch recent results and filter for this team.
+            results = await hltv.get_results(days=3, min_rating=1, max=30)
             record_call("hltv")
             if not results:
                 return None
-            return results
+
+            # Filter matches involving this team
+            team_lower = team_name.lower()
+            team_matches = []
+            for match in results:
+                t1 = (match.get("team1") or "").lower()
+                t2 = (match.get("team2") or "").lower()
+                if team_lower in t1 or team_lower in t2 or t1 in team_lower or t2 in team_lower:
+                    team_matches.append(match)
+
+            if not team_matches:
+                return None
+
+            return {
+                "team_name": team_name,
+                "recent_results": [
+                    f"{m.get('team1', '?')} {m.get('score1', '?')}-{m.get('score2', '?')} {m.get('team2', '?')}"
+                    for m in team_matches[:5]
+                ],
+            }
         except Exception as e:
             logger.warning("HLTV team search error for '%s': %s", team_name, e)
             if "403" in str(e) or "Connection failed" in str(e):

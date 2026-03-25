@@ -266,7 +266,10 @@ class OddsAPIClient:
         # Find matching event using centralized team matcher (threshold 0.80)
         result = find_best_event_match(team_a_name, team_b_name, events)
         if not result:
-            logger.debug("No matching event for '%s vs %s'", team_a_name, team_b_name)
+            # Log available events for debugging match failures
+            event_names = [(e.get("home_team", "?"), e.get("away_team", "?")) for e in events[:5]]
+            logger.info("No Odds API match for '%s vs %s' in %d events. Sample: %s",
+                        team_a_name, team_b_name, len(events), event_names)
             return None
 
         best_event, match_conf = result

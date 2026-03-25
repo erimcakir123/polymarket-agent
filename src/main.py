@@ -1182,12 +1182,13 @@ class Agent:
                         parts.append(vlr_ctx)
                         sources.append("vlr")
                         logger.info("VLR data loaded for: %s", m.question[:50])
-                if self.hltv.available:
-                    hltv_ctx = self.hltv.get_match_context(m.question, m.tags)
-                    if hltv_ctx:
-                        parts.append(hltv_ctx)
-                        sources.append("hltv")
-                        logger.info("HLTV data loaded for: %s", m.question[:50])
+                # HLTV disabled — Cloudflare blocks without proxy, PandaScore covers CS2
+                # if self.hltv.available:
+                #     hltv_ctx = self.hltv.get_match_context(m.question, m.tags)
+                #     if hltv_ctx:
+                #         parts.append(hltv_ctx)
+                #         sources.append("hltv")
+                #         logger.info("HLTV data loaded for: %s", m.question[:50])
 
             # Add bookmaker odds to AI context (uses quota sparingly — cached 1hr)
             # Called independently — Odds API covers sports that ESPN/PandaScore don't

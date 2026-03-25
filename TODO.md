@@ -51,6 +51,7 @@
 - [x] Halftime exit with live state — Canlı skor ile devre arası çıkış — portfolio.py
 
 ## Test Sürecinde Eklenecek (Live Öncesi)
+- [ ] **Claude API spend limit ayarla** — config.yaml'da monthly_budget_usd + sprint_budget_usd (şu an 0=unlimited), Anthropic console'da da spend limit koy. Simulation bitmeden önce MUTLAKA ayarla!
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
 - [ ] Kelly rebalance — maç sırasında pozisyon boyutu güncelleme
 - [ ] Liquidity check — order book derinliği kontrol, slippage önleme (entry + exit)
