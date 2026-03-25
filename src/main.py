@@ -733,6 +733,19 @@ class Agent:
         for cid in self.portfolio.check_volatility_swing_exits():
             self._exit_position(cid, "vs_mandatory_exit", cooldown_cycles=0)
 
+        # Esports losing side exit — if our side drops below 50%, cut losses
+        _esports_tags_lc = ("counter-strike", "dota-2", "league-of-legends", "valorant")
+        for cid, pos in list(self.portfolio.positions.items()):
+            if getattr(pos, "sport_tag", "") not in _esports_tags_lc:
+                continue
+            if pos.direction == "BUY_NO":
+                eff = 1.0 - pos.current_price
+            else:
+                eff = pos.current_price
+            if eff < 0.50:
+                logger.info("Esports losing side exit: %s | eff=%.3f", pos.slug[:35], eff)
+                self._exit_position(cid, "esports_losing_side")
+
         # FAR penny exits — multiplier targets ($0.01→5x, $0.02→2x)
         self._check_far_penny_exits()
 
@@ -1563,6 +1576,36 @@ class Agent:
                 spread=self.config.edge.default_spread,
                 edge_threshold_adjustment=_edge_threshold_adj,
             )
+
+            # Esports entry filter: only bet on the predicted WINNER
+            # If AI thinks this side loses (prob < 50%), skip — don't value-bet underdogs
+            _esports_entry_tags = ("counter-strike", "dota-2", "league-of-legends", "valorant")
+            _sport_tag = getattr(market, "sport_tag", "") or ""
+            if _sport_tag in _esports_entry_tags:
+                _ai_thinks_yes_wins = anchored.probability > 0.50
+                _betting_yes = direction == Direction.BUY_YES
+                if _betting_yes and not _ai_thinks_yes_wins:
+                    logger.info("Esports underdog skip: %s | AI=%.0f%% < 50%% — not betting on predicted loser",
+                                market.slug[:40], anchored.probability * 100)
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": edge, "mode": self.config.mode.value,
+                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} < 50% — only bet on predicted winner",
+                    })
+                    continue
+                if not _betting_yes and _ai_thinks_yes_wins:
+                    logger.info("Esports underdog skip: %s | AI=%.0f%% > 50%% but BUY_NO — not betting against predicted winner",
+                                market.slug[:40], anchored.probability * 100)
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "question": market.question,
+                        "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                        "edge": edge, "mode": self.config.mode.value,
+                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} > 50% but BUY_NO — only bet on predicted winner",
+                    })
+                    continue
 
             if direction == Direction.HOLD:
                 self.trade_log.log({
@@ -4697,7 +4740,11 @@ class Agent:
                             logger.info("Refill cycle added 0 positions — no more viable markets, stopping")
                             break
                 else:
-                    self.run_light_cycle()
+                    # Light cycle only when WebSocket is down (fallback)
+                    if not self.ws_feed.connected:
+                        self.run_light_cycle()
+                    else:
+                        logger.debug("WS connected — skipping light cycle (WS handles exits)")
                 self.consecutive_api_failures = 0
             except Exception as e:
                 self.consecutive_api_failures += 1
@@ -4757,13 +4804,14 @@ class Agent:
                 # Drain WebSocket exit queue every tick (1s) — zero API cost
                 if self._ws_exit_queue:
                     self._drain_ws_exit_queue()
-                # Light cycle: price + exit checks every 60s (free, no API cost)
+                # Light cycle fallback: only when WebSocket is disconnected
                 if self.portfolio.positions and tick > 0 and tick % light_interval_sec == 0:
-                    try:
-                        self.run_light_cycle()
-                        self._set_status("waiting", f"Next cycle in {interval}min")
-                    except Exception as e:
-                        logger.debug("Light cycle error: %s", e)
+                    if not self.ws_feed.connected:
+                        try:
+                            self.run_light_cycle()
+                            self._set_status("waiting", f"Next cycle in {interval}min")
+                        except Exception as e:
+                            logger.debug("Light cycle error: %s", e)
                 time.sleep(1)
 
         self._set_status("offline", "Bot stopped")
