@@ -63,8 +63,8 @@ STATUS_FILE = Path("logs/bot_status.json")
 BETS_PER_APPROVAL = 10
 
 # Exit reasons that can NEVER go back to stock (market closed or no spread)
-_NEVER_STOCK_EXITS = frozenset({"far_penny"})
-_NEVER_STOCK_PREFIXES = ("resolved_", "far_penny_")
+_NEVER_STOCK_EXITS = frozenset({"far_penny", "stop_loss", "esports_halftime"})
+_NEVER_STOCK_PREFIXES = ("resolved_", "far_penny_", "match_exit_")
 def _load_test_start_date() -> date:
     """Load test start date from file, or default to today."""
     p = Path("logs/test_start_date.txt")
@@ -1442,6 +1442,10 @@ class Agent:
                 bookmaker_prob=_anchor_book_prob,
                 num_bookmakers=_anchor_num_books,
             )
+            logger.info("ANCHOR_DEBUG: %s | ai_prob=%.3f book_prob=%s n_books=%d → anchored=%.3f method=%s",
+                        market.slug[:35], estimate.ai_probability,
+                        f"{_anchor_book_prob:.3f}" if _anchor_book_prob else "None",
+                        _anchor_num_books, anchored.probability, anchored.method)
             _edge_threshold_adj = get_edge_threshold_adjustment(anchored)
 
             # Edge calculation — uses anchored probability + threshold adjustment

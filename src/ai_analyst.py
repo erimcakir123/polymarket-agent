@@ -106,6 +106,13 @@ You will see a "Data Sources" section listing what was queried for this market.
   when sample size is 8+ matches per team with recent data (<14 days old).
 - News supports but does not drive confidence alone.
 
+CRITICAL — PROBABILITY DEFINITION:
+"probability" MUST be the probability that the YES outcome occurs.
+- For "Will X win?" → probability = P(X wins)
+- For "Team A vs Team B" → YES = Team A wins → probability = P(Team A wins)
+- If you think Team B wins, probability should be LOW (e.g. 0.25), not high.
+- NEVER return P(Team B wins) as the probability. Always P(YES / first team / subject of the question).
+
 Respond with ONLY JSON:
 {{"probability": 0.XX, "confidence": "C|B-|B+|A",
 "reasoning_pro": "why YES...", "reasoning_con": "why NO...",

@@ -99,9 +99,9 @@ def calculate_anchored_probability(
         shrunk = ai_prob * (1 - shrinkage) + SHRINKAGE_TARGET * shrinkage
         shrunk = max(0.05, min(0.95, shrunk))
 
-        logger.debug(
-            "No bookmaker data — shrinkage applied: AI=%.3f → shrunk=%.3f",
-            ai_prob, shrunk,
+        logger.info(
+            "SHRINK_DEBUG: AI=%.3f → shrunk=%.3f (formula: %.3f * %.2f + %.2f * %.2f)",
+            ai_prob, shrunk, ai_prob, 1 - shrinkage, SHRINKAGE_TARGET, shrinkage,
         )
 
         return AnchoredProbability(

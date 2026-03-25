@@ -379,9 +379,11 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 6: Edge Decay TP (Layer 5) ---
     # Underdog positions: as match progresses, AI target decays toward market
+    # EXCEPTION: late in match (≥60%) and in profit (≥10%) → let it ride, resolution close
     if ai_probability > 0 and not result.get("exit"):
         effective_ai_side = ai_probability if direction != "BUY_NO" else (1 - ai_probability)
-        if effective_ai_side < 0.65:  # Only underdog/edge positions, not favorites
+        late_and_winning = elapsed_pct >= 0.60 and effective_current > effective_entry * 1.10
+        if effective_ai_side < 0.65 and not late_and_winning:
             try:
                 from src.edge_decay import get_decayed_ai_target
                 decayed = get_decayed_ai_target(effective_ai_side, effective_current, elapsed_pct)
