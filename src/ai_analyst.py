@@ -97,16 +97,31 @@ RULES:
 {category_rules}
 {slug_guide}
 
+DATA CALIBRATION:
+You will see a "Data Sources" section listing what was queried for this market.
+- If bookmaker odds are present → strong external anchor, supports higher confidence.
+- If only match stats are present → calibrate based on sample size and recency of matches.
+- Missing bookmaker odds is NOT a reason to lower confidence if match data is adequate.
+  For esports, match history + recent form from a stats provider IS sufficient for B+ or A
+  when sample size is 8+ matches per team with recent data (<14 days old).
+- News supports but does not drive confidence alone.
+
 Respond with ONLY JSON:
 {{"probability": 0.XX, "confidence": "C|B-|B+|A",
 "reasoning_pro": "why YES...", "reasoning_con": "why NO...",
 "key_evidence_for": [...], "key_evidence_against": [...]}}
 
 Confidence grades:
-- "A" = strong data, high conviction (multiple corroborating sources, clear edge)
-- "B+" = good data, solid conviction (reasonable certainty with minor gaps)
-- "B-" = decent data, moderate conviction (some uncertainty but reasonable estimate)
-- "C" = weak/no data, low conviction (guessing, unreliable — will be skipped)"""
+- "A" = high conviction — sufficient evidence for a well-supported estimate.
+        Clear form differential, adequate sample (8+ recent matches per team),
+        strong trend or corroborating signals. Does NOT require multiple API sources.
+- "B+" = solid conviction — good evidence with minor gaps.
+         Reasonable sample (5-8 matches), clear but not dominant trend,
+         one unknown factor (e.g., missing H2H, roster uncertainty).
+- "B-" = moderate conviction — usable evidence but notable uncertainty.
+         Small sample (<5 matches), conflicting signals, stale data (>14 days),
+         or genuinely unclear matchup.
+- "C" = low conviction — insufficient evidence, essentially guessing. Will be skipped."""
 
 
 DEVILS_ADVOCATE_PROMPT = """You are a skeptical risk analyst. Your ONLY job is to find reasons
@@ -410,7 +425,47 @@ class AIAnalyst:
             # Market price intentionally excluded — prevents anchoring bias
             f"Resolution date: {market.end_date_iso}" if market.end_date_iso else "",
         ]
-        # Esports/sports match data (from PandaScore)
+
+        # Data Sources section — tell AI exactly what data it has
+        sport = (market.sport_tag or "").lower()
+        slug_lower = (market.slug or "").lower()
+        q_lower = market.question.lower()
+        is_esport = sport in ("cs2", "csgo", "valorant", "val", "lol", "dota2") or \
+                    any(kw in slug_lower for kw in ("cs2", "csgo", "val", "lol", "dota"))
+
+        sources_section = ["\n=== DATA SOURCES ==="]
+        has_odds = "bookmaker" in (esports_context or "").lower() or \
+                   "odds" in (esports_context or "").lower()
+        has_stats = bool(esports_context) and ("win" in esports_context.lower() or
+                                                "recent" in esports_context.lower() or
+                                                "match" in esports_context.lower())
+
+        if has_stats:
+            sources_section.append("✓ Match Stats: Available (see data below)")
+        else:
+            sources_section.append("✗ Match Stats: Not available")
+
+        if has_odds:
+            sources_section.append("✓ Bookmaker Odds: Available (see data below)")
+        elif is_esport:
+            sources_section.append("✗ Bookmaker Odds: Not available (normal for esports — do NOT penalize confidence)")
+        else:
+            sources_section.append("✗ Bookmaker Odds: Not available")
+
+        if news_context:
+            sources_section.append("✓ News: Available (see below)")
+        else:
+            sources_section.append("✗ News: No relevant articles found")
+
+        if is_esport:
+            sport_label = sport.upper() if sport else "ESPORTS"
+            sources_section.append(f"\nSport: {sport_label} — match stats from PandaScore are the primary data source. "
+                                   f"Bookmaker odds are rarely available for esports markets. "
+                                   f"8+ recent matches per team = good data quality for B+ or A confidence.")
+
+        parts.append("\n".join(sources_section))
+
+        # Esports/sports match data
         if esports_context:
             parts.append(f"\n{esports_context}")
         if news_context:
