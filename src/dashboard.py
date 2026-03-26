@@ -2,9 +2,11 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+from typing import Optional
 
 from flask import Flask, jsonify, send_from_directory
 
+from src.config import AppConfig, load_config
 from src.trade_logger import TradeLogger
 
 DASHBOARD_HTML = Path(__file__).parent.parent / "templates" / "dashboard.html"
@@ -20,7 +22,10 @@ def create_app(
     trades_file: str = "logs/trades.jsonl",
     portfolio_file: str = "logs/portfolio.jsonl",
     performance_file: str = "logs/performance.jsonl",
+    config: Optional[AppConfig] = None,
 ) -> Flask:
+    if config is None:
+        config = load_config()
     app = Flask(__name__)
     trade_log = TradeLogger(trades_file)
     portfolio_log = TradeLogger(portfolio_file)
@@ -119,27 +124,20 @@ def create_app(
                 pass
 
         # Load config for max values
-        import yaml
-        config_path = Path("config.yaml")
-        max_positions = 15
-        vs_reserved = 3
-        far_max = 2
-        try:
-            if config_path.exists():
-                cfg = yaml.safe_load(config_path.read_text()) or {}
-                max_positions = cfg.get("risk", {}).get("max_positions", 15)
-                vs_reserved = cfg.get("volatility_swing", {}).get("reserved_slots", 3)
-                far_max = cfg.get("far", {}).get("max_slots", 2)
-        except Exception:
-            pass
+        _cfg = config
+        max_positions = _cfg.risk.max_positions
+        vs_reserved = _cfg.volatility_swing.reserved_slots
+        far_max = _cfg.far.max_slots
+        fav_max = _cfg.consensus_entry.max_slots
+        live_dip_max = _cfg.live_momentum.max_concurrent
 
         normal_max = max_positions - vs_reserved
 
         return jsonify({
             "normal": {"current": normal_count, "max": normal_max},
             "vs": {"current": vs_count, "max": vs_reserved},
-            "fav": {"current": fav_count, "max": 5},
-            "live_dip": {"current": live_dip_count, "max": 2},
+            "fav": {"current": fav_count, "max": fav_max},
+            "live_dip": {"current": live_dip_count, "max": live_dip_max},
             "far": {"current": far_count, "max": far_max},
             "reentry": {"current": reentry_count, "max": 3, "waiting": reentry_pool_waiting},
             "pending": pending_count,
