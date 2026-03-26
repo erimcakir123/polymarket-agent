@@ -203,11 +203,14 @@ def create_app(
         bot_alive = False
         if pid_file.exists():
             try:
-                import os, signal
+                import subprocess
                 pid = int(pid_file.read_text().strip())
-                os.kill(pid, 0)  # signal 0 = just check if process exists
-                bot_alive = True
-            except (OSError, ValueError):
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                    capture_output=True, text=True
+                )
+                bot_alive = str(pid) in result.stdout
+            except (ValueError, Exception):
                 pass
 
         if bot_alive and STATUS_FILE.exists():

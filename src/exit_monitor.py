@@ -93,7 +93,6 @@ class ExitMonitor:
         Only checks stop-loss and trailing TP (pure math, no I/O).
         Queues (cid, reason) into _ws_exit_queue for drain() to return.
         """
-        from src.sport_rules import is_esports
         from src.trailing_tp import calculate_trailing_tp
 
         direction = pos.direction
@@ -110,13 +109,8 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
-        # 1. Stop-loss check
-        sport_tag = getattr(pos, "sport_tag", "") or ""
-        sl_pct = (
-            self.config.risk.esports_stop_loss_pct
-            if is_esports(sport_tag)
-            else self.config.risk.stop_loss_pct
-        )
+        # 1. Stop-loss check — same for all sports
+        sl_pct = self.config.risk.stop_loss_pct
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
             self._ws_exit_queued_set.add(cid)
@@ -162,16 +156,6 @@ class ExitMonitor:
                         pos.slug[:35], ttp_result["reason"],
                     )
                     return
-
-        # 3. Esports "losing side" exit — if our side drops below 50%, cut losses
-        if is_esports(sport_tag):
-            if effective_current < 0.50:
-                self._ws_exit_queue.append((cid, "esports_losing_side"))
-                self._ws_exit_queued_set.add(cid)
-                logger.info(
-                    "WS_EXIT queued [esports_losing]: %s | eff_price=%.3f pnl=%.1f%%",
-                    pos.slug[:35], effective_current, pnl_pct * 100,
-                )
 
     def drain(self) -> list[tuple[str, str]]:
         """Pop all WS-triggered exits and return them.
@@ -223,7 +207,6 @@ class ExitMonitor:
         for cid in self.portfolio.check_stop_losses(
             cfg.risk.stop_loss_pct,
             vs_stop_loss_pct=vs_cfg.stop_loss_pct,
-            esports_stop_loss_pct=cfg.risk.esports_stop_loss_pct,
         ):
             _add(cid, "stop_loss")
 
@@ -273,11 +256,7 @@ class ExitMonitor:
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
 
-        # 5. Esports halftime exits
-        for cid in self.portfolio.check_esports_halftime_exits(match_states=match_states):
-            _add(cid, "esports_halftime")
-
-        # 6. Pre-match exits (mandatory exit before match starts)
+        # 5. Pre-match exits (mandatory exit before match starts)
         for cid in self.portfolio.check_pre_match_exits(minutes_before=30):
             _add(cid, "pre_match_exit")
 
@@ -311,7 +290,6 @@ class ExitMonitor:
         for cid in self.portfolio.check_stop_losses(
             cfg.risk.stop_loss_pct,
             vs_stop_loss_pct=vs_cfg.stop_loss_pct,
-            esports_stop_loss_pct=cfg.risk.esports_stop_loss_pct,
         ):
             _add(cid, "stop_loss")
 
@@ -334,10 +312,6 @@ class ExitMonitor:
                     pos.peak_price = ttp_result["peak_price"]
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
-
-        # Esports halftime
-        for cid in self.portfolio.check_esports_halftime_exits(match_states=match_states):
-            _add(cid, "esports_halftime")
 
         return result
 

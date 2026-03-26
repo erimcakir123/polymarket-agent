@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 
 # Confidence score for ranking (A=4, B+=3, B-=2, C=1)
 _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
-_SKIP_CONFIDENCE: set[str] = {"C", "", "?"}
 
 
 class EntryGate:
@@ -394,24 +393,15 @@ class EntryGate:
         fresh_scan: bool,
     ) -> list[dict]:
         """Evaluate each market using three-mode strategy. Return ranked candidate list."""
-        from src.edge_calculator import scale_min_edge
-        from src.probability_engine import calculate_anchored_probability, get_edge_threshold_adjustment
-        from src.sanity_check import check_bet_sanity
+        from src.probability_engine import calculate_anchored_probability
         from src.models import Direction
 
         cfg = self.config
         candidates: list[dict] = []
-        _CONF_SKIP = {"C", "", "?"}
-        _WINNER_UNDERDOG_CONF = {"A", "B+"}  # B- not allowed in winner/underdog modes
-
-        # Fill-ratio edge scaling
-        fill_ratio = self.portfolio.active_position_count / max(1, cfg.risk.max_positions)
-        effective_min_edge = cfg.edge.min_edge
-        if cfg.edge.fill_ratio_scaling:
-            effective_min_edge = scale_min_edge(cfg.edge.min_edge, fill_ratio)
+        _CONF_SKIP = {"C", "", "?"}  # C = veri yetersiz, skip
 
         # Mode priority constant (defined once, not per-iteration)
-        _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "UNDERDOG": 2, "HOLD": 1}
+        _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "HOLD": 1}
 
         for market in markets:
             cid = market.condition_id
@@ -444,125 +434,46 @@ class EntryGate:
                 bookmaker_prob=_anchor_book_prob,
                 num_bookmakers=_anchor_num_books,
             )
-            _edge_threshold_adj = get_edge_threshold_adjustment(anchored)
-            threshold = effective_min_edge + _edge_threshold_adj
-
-            # ── Three-mode classifier ─────────────────────────────────────────
+            # ── Winner classifier — always back the predicted winner ─────────
+            # Edge is NOT a blocker. We enter whoever AI thinks will win (>50%).
+            # Edge is only used for ranking (higher edge = higher priority).
             ai_p = anchored.probability          # P(YES)
             ai_n = 1.0 - ai_p                   # P(NO)
             mkt_p = market.yes_price             # market P(YES)
             mkt_n = 1.0 - mkt_p
 
-            edge_yes = ai_p - mkt_p             # positive → YES has value
-            edge_no = ai_n - mkt_n              # positive → NO has value
+            edge_yes = ai_p - mkt_p
+            edge_no = ai_n - mkt_n
 
-            def _classify_side(direction_prob: float, direction_edge: float) -> str:
-                if direction_prob >= 0.65:
-                    return "WINNER"
-                if direction_prob >= 0.50 and direction_edge >= threshold:
-                    return "DEADZONE"
-                if direction_prob < 0.50 and direction_edge >= threshold:
-                    return "UNDERDOG"
-                return "HOLD"
-
-            yes_mode = _classify_side(ai_p, edge_yes)
-            no_mode = _classify_side(ai_n, edge_no)
-
-            # Pick direction: higher mode priority wins; ties broken by edge size
-            if _MODE_PRIORITY[yes_mode] > _MODE_PRIORITY[no_mode]:
+            # Pick the winner side (whoever AI gives >50% to)
+            if ai_p >= ai_n:
                 direction = Direction.BUY_YES
-                mode = yes_mode
-                edge = edge_yes
                 direction_prob = ai_p
-            elif _MODE_PRIORITY[no_mode] > _MODE_PRIORITY[yes_mode]:
-                direction = Direction.BUY_NO
-                mode = no_mode
-                edge = edge_no
-                direction_prob = ai_n
+                edge = edge_yes
             else:
-                # Equal mode: pick direction with larger edge
-                if edge_yes >= edge_no:
-                    direction = Direction.BUY_YES
-                    mode = yes_mode
-                    edge = edge_yes
-                    direction_prob = ai_p
-                else:
-                    direction = Direction.BUY_NO
-                    mode = no_mode
-                    edge = edge_no
-                    direction_prob = ai_n
+                direction = Direction.BUY_NO
+                direction_prob = ai_n
+                edge = edge_no
 
-            if mode == "HOLD":
-                self.trade_log.log({
-                    "market": market.slug, "action": "HOLD",
-                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
-                    "edge_yes": round(edge_yes, 4), "edge_no": round(edge_no, 4),
-                })
-                self._analyzed_market_ids[cid] = time.time()
-                continue
-
-            # ── Sanity check (after direction is known) ──────────────────────
-            sanity_result = check_bet_sanity(
-                question=getattr(market, "question", ""),
-                direction=direction.value,
-                ai_probability=estimate.ai_probability,
-                market_price=market.yes_price,
-                edge=0.0,
-                confidence=estimate.confidence,
-            )
-            if not sanity_result.ok:
-                self.trade_log.log({
-                    "market": market.slug, "action": "BLOCKED",
-                    "question": market.question,
-                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
-                    "rejected": f"SANITY: {sanity_result.reason}",
-                })
-                continue
-
-            # ── Confidence gate (mode-specific) ──────────────────────────────
-            if mode in ("WINNER", "UNDERDOG") and estimate.confidence not in _WINNER_UNDERDOG_CONF:
-                logger.info("%s mode requires A/B+, got %s: %s",
-                            mode, estimate.confidence, market.slug[:40])
-                self.trade_log.log({
-                    "market": market.slug, "action": "HOLD",
-                    "rejected": f"{mode}_CONF_GATE: conf={estimate.confidence} (need A/B+)",
-                })
-                continue
-
-            # ── Esports underdog guard ────────────────────────────────────────
-            if is_esports(getattr(market, "sport_tag", "") or ""):
-                if direction == Direction.BUY_YES and ai_p < 0.50 and mode != "UNDERDOG":
-                    self.trade_log.log({
-                        "market": market.slug, "action": "HOLD",
-                        "rejected": f"ESPORTS_UNDERDOG_NO_EDGE: AI={ai_p:.0%}",
-                    })
-                    continue
-
-            # ── FAR market: require minimum edge ─────────────────────────────
-            if cid in self._far_market_ids and mode != "WINNER" and edge < 0.08:
-                logger.info("FAR market edge too low (%.1f%% < 8%%): %s",
-                            edge * 100, market.slug[:40])
-                self.trade_log.log({
-                    "market": market.slug, "action": "HOLD",
-                    "rejected": f"FAR_LOW_EDGE: {edge*100:.1f}% < 8%",
-                })
-                continue
+            # Classify mode by probability only — no edge threshold
+            if direction_prob >= 0.65:
+                mode = "WINNER"
+            else:
+                mode = "DEADZONE"
 
             # ── Position sizing ───────────────────────────────────────────────
-            # Winner mode: use floor edge (0.05) so Kelly stays positive
-            sizing_edge = edge if mode != "WINNER" else max(edge, 0.05)
+            # Always floor edge at 0.05 so Kelly sizing stays positive
+            sizing_edge = max(edge, 0.05)
             manip_check = self.manip_guard.check_market(market, estimate)
             adjusted_size = self.risk.calculate_position_size(
                 edge=sizing_edge, bankroll=bankroll, confidence=estimate.confidence,
             )
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
-            # ── Rank score ────────────────────────────────────────────────────
+            # ── Rank score — edge + prob + confidence ─────────────────────────
+            # Higher edge = higher priority. Edge can be negative but prob pulls it up.
             conf_score = _CONF_SCORE.get(estimate.confidence, 1)
-            if mode == "WINNER":
-                rank_score = direction_prob * conf_score
-            else:
-                rank_score = edge * direction_prob * conf_score
+            rank_score = (direction_prob + max(edge, 0.0)) * conf_score
 
             logger.info(
                 "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
@@ -581,7 +492,6 @@ class EntryGate:
                 "edge": edge,
                 "direction_prob": direction_prob,
                 "adjusted_size": adjusted_size,
-                "sanity": sanity_result,
                 "manip_check": manip_check,
                 "is_consensus": False,
                 "entry_reason": mode.lower(),

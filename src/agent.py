@@ -230,7 +230,7 @@ class Agent:
                     self.consecutive_api_failures = 0
                 except Exception as exc:
                     self.consecutive_api_failures += 1
-                    logger.error("Cycle error (%d): %s", self.consecutive_api_failures, exc)
+                    logger.error("Cycle error (%d): %s", self.consecutive_api_failures, exc, exc_info=True)
                     if self.consecutive_api_failures >= 3:
                         logger.warning("3 consecutive failures — pausing 5 min")
                         time.sleep(300)

@@ -57,9 +57,14 @@ def _reset_simulation() -> None:
 
 def main() -> None:
     load_dotenv()
+    _log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    _file_handler = logging.FileHandler("logs/bot.log", encoding="utf-8")
+    _file_handler.setFormatter(logging.Formatter(_log_fmt))
+    _console_handler = logging.StreamHandler()
+    _console_handler.setFormatter(logging.Formatter(_log_fmt))
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[_file_handler, _console_handler],
     )
 
     # Handle --reset flag
