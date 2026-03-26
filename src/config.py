@@ -23,11 +23,11 @@ class CycleConfig(BaseModel):
 
 
 class ScannerConfig(BaseModel):
-    min_volume_24h: float = 1_000   # Low threshold — volume spikes near match time, early entry is the strategy
+    min_volume_24h: float = 5_000
     min_liquidity: float = 1_000
     tags: List[str] = []
     prefer_short_duration: bool = True
-    max_markets_per_cycle: int = 20
+    max_markets_per_cycle: int = 300
     max_duration_days: int = 14  # Skip markets resolving more than N days out
     allowed_categories: List[str] = []  # Empty = allow all; e.g. ["sports", "esports"]
 
@@ -37,9 +37,9 @@ class AIConfig(BaseModel):
     max_tokens: int = 1024
     cache_ttl_min: int = 15
     cache_invalidate_price_move_pct: float = 0.05
-    batch_size: int = 5
-    monthly_budget_usd: float = 0.0   # 0 = unlimited (TODO: set limit before going live)
-    sprint_budget_usd: float = 0.0   # 0 = unlimited (TODO: set limit before going live)
+    batch_size: int = 20
+    monthly_budget_usd: float = 48.0
+    sprint_budget_usd: float = 24.0
     input_cost_per_mtok: float = 3.0
     output_cost_per_mtok: float = 15.0
 
@@ -66,7 +66,7 @@ class RiskConfig(BaseModel):
     kelly_fraction: float = 0.20  # 20% Kelly (user-confirmed)
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
-    max_positions: int = 5
+    max_positions: int = 20
     correlation_cap_pct: float = 0.30
     stop_loss_pct: float = 0.30
     take_profit_pct: float = 0.40
@@ -150,6 +150,13 @@ class LiveMomentumConfig(BaseModel):
     max_concurrent: int = 2
 
 
+class ConsensusEntryConfig(BaseModel):
+    enabled: bool = True
+    min_price: float = 0.65            # AI and market both ≥65% same direction
+    bet_pct: float = 0.05              # Fixed 5% bankroll (no Kelly — edge≈0)
+    max_slots: int = 5                 # Max concurrent consensus positions
+
+
 class TrailingTPConfig(BaseModel):
     enabled: bool = True
     activation_pct: float = 0.20       # Activate at +20% profit
@@ -200,6 +207,7 @@ class AppConfig(BaseModel):
     far: FarConfig = FarConfig()
     bond_farming: BondFarmingConfig = BondFarmingConfig()
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
+    consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()
     penny_alpha: PennyAlphaConfig = PennyAlphaConfig()
     probability_engine: ProbabilityEngineConfig = ProbabilityEngineConfig()

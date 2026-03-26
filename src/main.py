@@ -520,6 +520,15 @@ class Agent:
                     skipped_buy += 1
                     continue
 
+                # Consensus candidates: AI and market both ≥65% same direction
+                # Don't cache — price may shift and they deserve fresh re-evaluation
+                _ce_min = 0.65
+                _is_cyes = ai_prob >= _ce_min and mkt_price >= _ce_min
+                _is_cno = (1 - ai_prob) >= _ce_min and (1 - mkt_price) >= _ce_min
+                if (_is_cyes or _is_cno) and conf in ("A", "B+"):
+                    skipped_buy += 1
+                    continue
+
                 restored[cid] = ts
         except Exception as e:
             logger.warning("Could not restore analyzed markets: %s", e)
@@ -1619,6 +1628,31 @@ class Agent:
                     })
                     continue
 
+            # Consensus Entry: override HOLD if AI + market both ≥min_price same direction
+            # Stop-loss asymmetry makes this EV+ even without market edge
+            is_consensus = False
+            entry_reason = ""
+            if direction == Direction.HOLD:
+                _ce = self.config.consensus_entry
+                if _ce.enabled and estimate.confidence in ("A", "B+"):
+                    _ai = estimate.ai_probability
+                    _mp = market.yes_price
+                    _cyes = _ai >= _ce.min_price and _mp >= _ce.min_price
+                    _cno = (1 - _ai) >= _ce.min_price and (1 - _mp) >= _ce.min_price
+                    _is_far_mkt = market.condition_id in self._far_market_ids
+                    if (_cyes or _cno) and not _is_far_mkt:
+                        _consensus_count = self.portfolio.count_by_entry_reason("consensus")
+                        if _consensus_count < _ce.max_slots:
+                            direction = Direction.BUY_YES if _cyes else Direction.BUY_NO
+                            is_consensus = True
+                            entry_reason = "consensus"
+                            logger.info(
+                                "CONSENSUS_OVERRIDE: %s | AI=%.0f%% mkt=%.0f%% conf=%s → %s (%d/%d slots)",
+                                market.slug[:40], _ai * 100, _mp * 100,
+                                estimate.confidence, direction.value,
+                                _consensus_count + 1, _ce.max_slots,
+                            )
+
             if direction == Direction.HOLD:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
@@ -1763,6 +1797,10 @@ class Agent:
             )
             if _is_medium_low:
                 adjusted_size = min(adjusted_size, self.portfolio.bankroll * 0.015)
+            # Consensus: Kelly≈0 (no market edge), use fixed bet_pct instead
+            if is_consensus:
+                _ce = self.config.consensus_entry
+                adjusted_size = min(_ce.bet_pct * bankroll, self.config.risk.max_single_bet_usdc)
             if adjusted_size < 5.0:
                 self.trade_log.log({
                     "market": market.slug, "action": direction.value,
@@ -1980,7 +2018,9 @@ class Agent:
                     })
                     continue
 
-            rank_score = edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus + freshness_bonus + price_uncertainty_bonus)
+            # Consensus: score by resolution edge (1 - entry_price) — lower price = higher upside
+            _effective_edge = (1 - entry_price) if is_consensus else edge
+            rank_score = _effective_edge * _CONF_SCORE.get(estimate.confidence, 1) * (1 + time_bonus + freshness_bonus + price_uncertainty_bonus)
 
             # FAR slot detection: far markets (>6h) with qualifying edge go to far_stock
             _is_far_market = market.condition_id in self._far_market_ids
@@ -2040,6 +2080,8 @@ class Agent:
                 "decision": decision,
                 "adjusted_size": adjusted_size,
                 "sanity": sanity,
+                "entry_reason": entry_reason,
+                "is_consensus": is_consensus,
             })
             logger.info("Candidate: %s | edge=%.1f%% conf=%s hours=%.0f tbonus=+%.0f%% score=%.4f",
                         market.slug[:40], edge * 100, estimate.confidence, remaining_hours, time_bonus * 100, rank_score)
@@ -2158,6 +2200,7 @@ class Agent:
                 sport_tag=market.sport_tag or "",
                 event_id=market.event_id or "",
                 bookmaker_prob=_book_prob,
+                entry_reason=c.get("entry_reason", ""),
             )
             # Set live_on_clob immediately if match is already in progress
             pos = self.portfolio.positions.get(market.condition_id)
@@ -2190,6 +2233,7 @@ class Agent:
                 "edge_source": _edge_source,
                 "rank_score": c["score"],
                 "sport_tag": market.sport_tag or "",
+                "entry_reason": c.get("entry_reason", ""),
             })
             self._log_reasoning(
                 market.question, direction.value, adjusted_size, price,
