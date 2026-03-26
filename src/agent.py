@@ -1,0 +1,1341 @@
+"""agent.py — Thin agent loop. Coordinates EntryGate and ExitMonitor.
+
+Responsibilities:
+  - Initialize all modules (entry_gate, exit_monitor, portfolio, executor, etc.)
+  - run_cycle(): heavy cycle — entry + exit
+  - run_light_cycle(): price-only cycle
+  - _exit_position(): execute position exit (reentry pool, blacklist, logging)
+  - _check_farming_reentry(): reentry pool check (no AI cost)
+  - run(): main loop
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import time
+from datetime import datetime, timezone, date
+from pathlib import Path
+from typing import Optional
+
+import requests
+from dotenv import load_dotenv
+
+from src.config import AppConfig, load_config, Mode
+from src.portfolio import Portfolio
+from src.executor import Executor
+from src.ai_analyst import AIAnalyst
+from src.market_scanner import MarketScanner
+from src.risk_manager import RiskManager, kelly_position_size
+from src.odds_api import OddsAPIClient
+from src.esports_data import EsportsDataClient
+from src.sports_data import SportsDataClient
+from src.news_scanner import NewsScanner
+from src.manipulation_guard import ManipulationGuard
+from src.trade_logger import TradeLogger, EdgeSourceTracker
+from src.notifier import TelegramNotifier
+from src.websocket_feed import WebSocketFeed
+from src.circuit_breaker import CircuitBreaker
+from src.reentry_farming import ReentryPool, check_reentry
+from src.reentry import Blacklist, get_blacklist_rule
+from src.outcome_tracker import OutcomeTracker
+from src.cycle_timer import CycleTimer
+from src.scout_scheduler import ScoutScheduler
+from src.vlr_data import VLRDataClient
+from src.hltv_data import HLTVDataClient
+from src.models import Direction
+from src.process_lock import acquire_lock
+from src.entry_gate import EntryGate
+from src.exit_monitor import ExitMonitor
+
+logger = logging.getLogger(__name__)
+
+# Exits that should never be demoted to stock (permanent skip)
+_NEVER_STOCK_EXITS = frozenset({
+    "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
+    "pre_match_exit", "resolved", "near_resolve",
+})
+_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "far_penny_")
+
+
+class Agent:
+    """Thin orchestrator. Delegates entry to EntryGate, exit detection to ExitMonitor."""
+
+    STOP_FILE = Path("logs/stop_signal")
+
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        self.running = True
+        self.cycle_count = 0
+        self._soft_halt_active = False
+        self._cb_was_active = False
+
+        # Exit infrastructure (owned by agent — _exit_position needs these)
+        self._exit_cooldowns: dict[str, int] = {}
+        self._exited_markets: set[str] = self._load_exited_markets()
+        self._match_states: dict[str, dict] = {}
+        self._last_match_state_fetch: float = 0.0
+        self._daily_reentry_count: int = 0
+        self._last_reentry_reset_date: date = datetime.now(timezone.utc).date()
+        self.bets_since_approval: int = 0
+
+        # Core modules
+        self.portfolio = Portfolio(initial_bankroll=config.initial_bankroll)
+        self.circuit_breaker = CircuitBreaker()
+        self.blacklist = Blacklist(path="logs/blacklist.json")
+        self.reentry_pool = ReentryPool()
+        self.outcome_tracker = OutcomeTracker()
+        self.cycle_timer = CycleTimer(config.cycle)
+
+        # Signal enhancers
+        self.esports = EsportsDataClient()
+        sports = SportsDataClient()
+        odds_api = OddsAPIClient()
+        vlr = VLRDataClient()
+        hltv = HLTVDataClient()
+        news_scanner = NewsScanner()
+        manip_guard = ManipulationGuard()
+        scanner = MarketScanner(config.scanner)
+        self.ai = AIAnalyst(config.ai)
+        risk = RiskManager(config.risk)
+        self.scout = ScoutScheduler(sports, self.esports)
+        self.edge_tracker = EdgeSourceTracker()
+        self.risk = risk
+
+        # Loggers & notifications
+        self.trade_log = TradeLogger(config.logging.trades_file)
+        self.portfolio_log = TradeLogger(config.logging.portfolio_file)
+        self.perf_log = TradeLogger(config.logging.performance_file)
+        self.notifier = TelegramNotifier(
+            bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+            chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
+            enabled=config.notifications.telegram_enabled,
+        )
+        odds_api.set_notifier(self.notifier)
+
+        # Wallet & executor
+        self.wallet = None
+        clob_client = None
+        if config.mode == Mode.LIVE:
+            from src.wallet import Wallet
+            pk = os.getenv("POLYGON_PRIVATE_KEY", "")
+            if pk:
+                self.wallet = Wallet(private_key=pk)
+                try:
+                    from py_clob_client.client import ClobClient
+                    clob_client = ClobClient(
+                        "https://clob.polymarket.com", key=pk, chain_id=137,
+                        signature_type=int(os.getenv("SIGNATURE_TYPE", "0")),
+                        funder=os.getenv("PROXY_WALLET_ADDRESS", "") or None,
+                    )
+                    clob_client.set_api_creds(clob_client.create_or_derive_api_creds())
+                except Exception as exc:
+                    logger.error("CLOB init failed: %s", exc)
+        self.executor = Executor(mode=config.mode, clob_client=clob_client)
+
+        # WebSocket feed (exit_monitor registers callback below)
+        ws_feed = WebSocketFeed(on_price_update=None)  # callback set by ExitMonitor
+
+        # Composed modules
+        self.exit_monitor = ExitMonitor(self.portfolio, ws_feed, config)
+        self.entry_gate = EntryGate(
+            config=config,
+            portfolio=self.portfolio,
+            executor=self.executor,
+            ai=self.ai,
+            scanner=scanner,
+            risk=risk,
+            odds_api=odds_api,
+            esports=self.esports,
+            news_scanner=news_scanner,
+            manip_guard=manip_guard,
+            trade_log=self.trade_log,
+            notifier=self.notifier,
+        )
+        self.ws_feed = ws_feed
+        self.scanner = scanner
+
+    # ── Main loop ──────────────────────────────────────────────────────────
+
+    def run(self) -> None:
+        """Main agent loop. Alternates heavy and light cycles."""
+        logger.info("Agent starting — mode=%s", self.config.mode.value)
+        try:
+            while self.running:
+                self._check_stop_file()
+                if not self.running:
+                    break
+                if self.cycle_timer.should_run_heavy():
+                    self.run_cycle()
+                else:
+                    self.run_light_cycle()
+                self.cycle_timer.sleep_until_next()
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+        finally:
+            self.ws_feed.stop()
+            logger.info("Agent stopped")
+
+    def run_light_cycle(self) -> None:
+        """Price-only cycle: update prices + check exits. No scan, no AI."""
+        if self._is_paused():
+            return
+        logger.info("=== Light cycle ===")
+
+        # Process WS ticks first (main thread)
+        self.exit_monitor.process_ws_ticks()
+
+        # Drain WS exits
+        for cid, reason in self.exit_monitor.drain():
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self._exit_position(cid, reason)
+
+        # Update prices
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+        self.portfolio.update_bankroll(bankroll)
+        if not self.ws_feed.connected:
+            self._update_position_prices()
+        self._sync_ws_subscriptions()
+
+        # Fetch live match states
+        match_states = self._fetch_match_states()
+
+        # Light exit checks
+        for cid, reason in self.exit_monitor.check_exits_light(match_states):
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self._exit_position(cid, reason)
+
+        # Handle hold-revoke/restore (match_exit meta — mutates pos directly)
+        self._handle_hold_revokes()
+
+    def run_cycle(self) -> None:
+        """Heavy cycle: exit checks + market scan + AI + entry decisions."""
+        if self._is_paused():
+            return
+        self.cycle_count += 1
+        self.risk.new_cycle()
+        logger.info("=== Cycle #%d start ===", self.cycle_count)
+
+        # Self-reflection + scout
+        self._maybe_run_reflection()
+        if self.scout.should_run_scout():
+            new_scouted = self.scout.run_scout()
+            if new_scouted:
+                self.notifier.send(f"🔍 SCOUT: {new_scouted} new matches")
+
+        # Bankroll + drawdown
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+        self.portfolio.update_bankroll(bankroll)
+        dd_level = self.portfolio.get_drawdown_level()
+        if dd_level == "hard":
+            self.notifier.send("🚨 HARD HALT: equity < 35% HWM — closing all positions")
+            for cid in list(self.portfolio.positions.keys()):
+                if not self.exit_monitor.is_exiting(cid):
+                    self._exit_position(cid, "hard_halt_drawdown")
+            self.running = False
+            return
+        elif dd_level == "soft":
+            if not self._soft_halt_active:
+                self.notifier.send("⚠️ SOFT HALT: equity < 50% HWM — yeni entry durduruldu")
+                self._soft_halt_active = True
+        else:
+            if self._soft_halt_active:
+                self.notifier.send("✅ Drawdown recovered — entries resumed")
+                self._soft_halt_active = False
+
+        # Circuit breaker
+        halt, halt_reason = self.circuit_breaker.should_halt_entries()
+        if halt and not self._cb_was_active:
+            self.notifier.send(f"⚠️ Circuit breaker ACTIVATED: {halt_reason}")
+            self._cb_was_active = True
+        elif not halt and self._cb_was_active:
+            self.notifier.send("✅ Circuit breaker deactivated — entries resumed")
+            self._cb_was_active = False
+        if self._soft_halt_active:
+            halt = True
+
+        entries_allowed = not halt
+
+        # Check resolved markets
+        self._check_resolved_markets()
+
+        # Update prices
+        self._update_position_prices()
+        self._check_price_drift_reanalysis()
+
+        # Process WS ticks first (main thread)
+        self.exit_monitor.process_ws_ticks()
+
+        # Exit detection + execution
+        for cid, reason in self.exit_monitor.drain():
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self._exit_position(cid, reason)
+
+        match_states = self._fetch_match_states()
+        for cid, reason in self.exit_monitor.check_exits(match_states, self.cycle_count):
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self._exit_position(cid, reason)
+        self._handle_hold_revokes()
+        self._sync_ws_subscriptions()
+
+        # Entry: fresh scan (analyze=True)
+        fresh_markets = self.scanner.get_markets()
+        self.entry_gate.run(
+            fresh_markets, entries_allowed=entries_allowed, analyze=True,
+            bankroll=bankroll, cycle_count=self.cycle_count,
+            blacklist=self.blacklist, exited_markets=self._exited_markets,
+        )
+
+        # Entry: stock queue drain (analyze=False — no AI cost)
+        self.entry_gate.drain_stock(
+            entries_allowed=entries_allowed, bankroll=bankroll,
+            cycle_count=self.cycle_count, blacklist=self.blacklist,
+            exited_markets=self._exited_markets,
+        )
+
+        # Farming re-entry (no AI, uses saved probability)
+        self._check_farming_reentry()
+
+        # Check outcomes + log
+        self._check_tracked_outcomes()
+        self._log_cycle_summary(bankroll, "ok")
+
+    # ── Exit execution ─────────────────────────────────────────────────────
+
+    def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 3) -> None:
+        """Execute exit: remove from portfolio, add to reentry pool or blacklist, log.
+
+        This is the ONLY place that calls executor.exit(). ExitMonitor detects,
+        Agent executes.
+        """
+        self.exit_monitor.mark_exiting(condition_id)
+        try:
+            pos = self.portfolio.remove_position(condition_id)
+        finally:
+            self.exit_monitor.unmark_exiting(condition_id)
+        if not pos:
+            return
+
+        self._exit_cooldowns[condition_id] = self.cycle_count + cooldown_cycles
+
+        # Execute via executor
+        self.executor.exit_position(pos, reason=reason, mode=self.config.mode)
+
+        # Record realized PnL
+        realized_pnl = pos.unrealized_pnl_usdc
+        self.portfolio.record_realized(realized_pnl)
+
+        # Profitable exit → add to farming re-entry pool
+        profitable_reasons = {
+            "take_profit", "trailing_stop", "spike_exit",
+            "edge_tp", "scale_out_final", "vs_take_profit",
+        }
+        if reason in profitable_reasons and realized_pnl > 0:
+            existing_pool = self.reentry_pool.get(condition_id)
+            original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
+            self.reentry_pool.add(
+                condition_id=condition_id,
+                event_id=getattr(pos, "event_id", "") or "",
+                slug=pos.slug,
+                question=getattr(pos, "question", ""),
+                direction=pos.direction,
+                token_id=pos.token_id,
+                ai_probability=pos.ai_probability,
+                confidence=pos.confidence,
+                original_entry_price=original_entry,
+                exit_price=pos.current_price,
+                exit_cycle=self.cycle_count,
+                end_date_iso=getattr(pos, "end_date_iso", ""),
+                match_start_iso=getattr(pos, "match_start_iso", ""),
+                sport_tag=getattr(pos, "sport_tag", ""),
+                number_of_games=getattr(pos, "number_of_games", 0),
+                was_scouted=getattr(pos, "scouted", False),
+                realized_pnl=realized_pnl,
+            )
+        else:
+            # Non-profitable → demote to stock or blacklist
+            _is_never_stock = (
+                reason in _NEVER_STOCK_EXITS
+                or any(reason.startswith(p) for p in _NEVER_STOCK_PREFIXES)
+            )
+            demoted = False
+            if not _is_never_stock:
+                demoted = self._try_demote_to_stock(pos, reason)
+            if not demoted:
+                # Blacklist
+                bl_reason = reason
+                for prefix in ("match_exit_", "far_penny_", "SLOT_UPGRADE", "election_reeval"):
+                    if bl_reason.startswith(prefix):
+                        bl_reason = prefix.rstrip("_")
+                        break
+                btype, duration = get_blacklist_rule(bl_reason)
+                if btype and duration:
+                    self.blacklist.add_rule(
+                        condition_id, btype=btype, duration_cycles=duration,
+                        slug=pos.slug, reason=reason,
+                    )
+
+        # Log exit
+        self.trade_log.log({
+            "market": pos.slug, "action": "EXIT",
+            "reason": reason, "pnl_usdc": realized_pnl,
+            "entry_price": pos.entry_price, "exit_price": pos.current_price,
+            "direction": pos.direction,
+        })
+        logger.info(
+            "EXIT: %s | reason=%s | pnl=$%.2f | entry=%.2f exit=%.2f",
+            pos.slug[:40], reason, realized_pnl, pos.entry_price, pos.current_price,
+        )
+        self.notifier.send(
+            f"📉 *EXIT*: {pos.slug[:40]}\n"
+            f"reason={reason} pnl=${realized_pnl:.2f}"
+        )
+
+        # Mark permanently exited if resolved
+        if reason in ("resolved", "near_resolve"):
+            self._save_exited_market(condition_id)
+
+    def _try_demote_to_stock(self, pos, reason: str) -> bool:
+        """Attempt to demote exited position back to candidate stock queue.
+        Returns True if demoted successfully.
+        """
+        candidate = {
+            "condition_id": pos.condition_id if hasattr(pos, "condition_id") else "",
+            "market": None,
+            "estimate": None,
+            "direction": pos.direction,
+            "edge": 0.0,
+            "adjusted_size": 0.0,
+            "entry_reason": "demoted",
+            "is_consensus": False,
+        }
+        return False  # simplified — full demotion logic can be ported in follow-up
+
+    # ── Farming re-entry ──────────────────────────────────────────────────
+
+    def _check_farming_reentry(self) -> None:
+        """Unified farming re-entry — check pool for dip opportunities (no AI cost).
+
+        Replaces old spike_reentry and scouted_reentry with a 3-tier system.
+        """
+        self.reentry_pool.cleanup_expired(self.cycle_count)
+
+        # Reset daily reentry count at midnight (UTC)
+        now_utc = datetime.now(timezone.utc)
+        if self._last_reentry_reset_date != now_utc.date():
+            self._daily_reentry_count = 0
+            self._last_reentry_reset_date = now_utc.date()
+
+        if not self.reentry_pool.candidates:
+            return
+
+        held_event_ids = {
+            p.event_id for p in self.portfolio.positions.values()
+            if p.event_id
+        }
+
+        # Check slot availability
+        vs_reserved = self.config.volatility_swing.reserved_slots
+        current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+        current_normal = self.portfolio.active_position_count - current_vs
+
+        for cid, candidate in list(self.reentry_pool.candidates.items()):
+            # Cooldown check
+            if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
+                continue
+
+            # RE slot check — max 3 concurrent re-entry positions
+            RE_MAX_SLOTS = 3
+            if self.portfolio.reentry_position_count >= RE_MAX_SLOTS:
+                break  # No RE slots available
+
+            # Fetch current price from Gamma
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"conditionId": cid}, timeout=10,
+                )
+                if resp.status_code != 200:
+                    continue
+                mkt_data = resp.json()
+                if not mkt_data:
+                    self.reentry_pool.remove(cid)
+                    continue
+                mkt = mkt_data[0] if isinstance(mkt_data, list) else mkt_data
+                prices = json.loads(mkt.get("outcomePrices", '["0.5","0.5"]'))
+                current_yes_price = float(prices[0])
+            except (requests.RequestException, ValueError, IndexError, json.JSONDecodeError):
+                continue
+
+            # Update price history for stabilization tracking (use effective price for direction)
+            eff_stab_price = (1.0 - current_yes_price) if candidate.direction == "BUY_NO" else current_yes_price
+            self.reentry_pool.update_price(cid, eff_stab_price)
+
+            # Fetch match state for esports re-entry candidates
+            re_match_state = self._match_states.get(cid)
+            if not re_match_state and candidate.sport_tag.lower() in (
+                "cs2", "csgo", "valorant", "lol", "dota2", "val"
+            ):
+                # Try to get live state from PandaScore for this candidate
+                game_slug = self.esports.detect_game(candidate.question, [candidate.sport_tag])
+                if game_slug:
+                    team_a, team_b = self.esports._extract_team_names(candidate.question)
+                    if team_a and team_b:
+                        try:
+                            re_match_state = self.esports.get_live_match_state(game_slug, team_a, team_b)
+                        except Exception:
+                            pass
+
+            # Run decision logic
+            decision = check_reentry(
+                candidate=candidate,
+                current_yes_price=current_yes_price,
+                current_cycle=self.cycle_count,
+                portfolio_positions=self.portfolio.positions,
+                held_event_ids=held_event_ids,
+                daily_reentry_count=self._daily_reentry_count,
+                match_state=re_match_state,
+            )
+
+            if decision["action"] == "BLOCK":
+                logger.debug("Farming re-entry BLOCK: %s | %s", candidate.slug[:35], decision["reason"])
+                # Permanent blocks → remove from pool
+                if "Max re-entries" in decision["reason"] or "Thesis broken" in decision["reason"]:
+                    self.reentry_pool.remove(cid)
+                continue
+
+            if decision["action"] == "WAIT":
+                continue
+
+            # --- ENTER ---
+            direction = candidate.direction
+            ai_prob = candidate.ai_probability
+            size_mult = decision["size_mult"]
+
+            # Calculate position size (Kelly * tier multiplier)
+            eff_price = current_yes_price if direction == "BUY_YES" else (1.0 - current_yes_price)
+            # Pass raw YES values — kelly_position_size handles direction internally
+            base_size = kelly_position_size(
+                ai_prob, current_yes_price, self.portfolio.bankroll,
+                kelly_fraction=self.config.risk.kelly_fraction,
+                max_bet_usdc=self.config.risk.max_single_bet_usdc,
+                max_bet_pct=self.config.risk.max_bet_pct,
+                direction=direction,
+            )
+            size = base_size * size_mult
+
+            if size < 5.0:
+                continue  # Polymarket minimum
+
+            # Profit protection cap
+            if candidate.total_realized_profit > 0:
+                max_risk = candidate.total_realized_profit * 0.50
+                remaining_risk = max_risk - candidate.total_reentry_risk
+                if remaining_risk <= 0:
+                    logger.info("Farming skip (profit cap): %s", candidate.slug[:35])
+                    continue
+                size = min(size, remaining_risk)
+                if size < 5.0:
+                    continue
+
+            token_id = candidate.token_id
+            result = self.executor.place_order(token_id, "BUY", eff_price, size)
+            shares = size / eff_price if eff_price > 0 else 0
+            yes_price_entry = current_yes_price
+
+            tier_num = decision["tier"]
+            reentry_num = candidate.reentry_count + 1
+            entry_reason = f"re_entry_t{tier_num}"
+
+            self.portfolio.add_position(
+                cid, token_id, direction,
+                yes_price_entry, size, shares, candidate.slug,
+                "", confidence=candidate.confidence,
+                ai_probability=ai_prob,
+                question=candidate.question,
+                end_date_iso=candidate.end_date_iso,
+                match_start_iso=candidate.match_start_iso,
+                scouted=candidate.was_scouted,
+                sport_tag=candidate.sport_tag,
+                event_id=candidate.event_id,
+                entry_reason=entry_reason,
+                number_of_games=candidate.number_of_games,
+            )
+
+            # Record in pool
+            self.reentry_pool.record_reentry(cid, size)
+            self._daily_reentry_count += 1
+            current_normal += 1
+
+            self.trade_log.log({
+                "market": candidate.slug, "action": f"FARMING_REENTRY_{direction}",
+                "size": size, "price": eff_price,
+                "edge": decision["edge"],
+                "confidence": candidate.confidence,
+                "mode": self.config.mode.value,
+                "status": result.get("status", ""),
+                "ai_probability": ai_prob,
+                "reentry_tier": tier_num,
+                "reentry_count": reentry_num,
+            })
+
+            logger.info(
+                "FARMING RE-ENTRY T%d (#%d): %s | %s @ %.0fc | edge=%.1f%% | size=$%.0f (%.0f%%) | no AI",
+                tier_num, reentry_num, candidate.slug[:35], direction,
+                eff_price * 100, decision["edge"] * 100, size, size_mult * 100,
+            )
+            self.notifier.send(
+                f"\U0001f504 *FARMING RE-ENTRY* T{tier_num} (#{reentry_num}) — Cycle #{self.cycle_count}\n\n"
+                f"{candidate.question}\n"
+                f"Exit: `{candidate.last_exit_price:.3f}` → Re-entry: `{eff_price:.3f}`\n"
+                f"Edge: `{decision['edge']:.1%}` | Size: `${size:.0f}` ({size_mult:.0%})\n"
+                f"Profit so far: `${candidate.total_realized_profit:.2f}`\n"
+                f"_No AI call — using saved analysis_"
+            )
+            self.bets_since_approval += 1
+
+    # ── Utilities ─────────────────────────────────────────────────────────
+
+    def _handle_hold_revokes(self) -> None:
+        """Apply match_exit hold-revoke and hold-restore mutations to positions."""
+        for mexr in self.exit_monitor.match_exit_hold_revokes():
+            cid = mexr["condition_id"]
+            if mexr.get("revoke_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                if pos.scouted:
+                    pos.hold_was_original = True
+                    pos.scouted = False
+                    pos.hold_revoked_at = datetime.now(timezone.utc)
+                    logger.info("Hold REVOKED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+            if mexr.get("restore_hold") and cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                pos.scouted = True
+                pos.hold_revoked_at = None
+                logger.info("Hold RESTORED: %s", pos.slug[:40])
+
+    def _check_stop_file(self) -> None:
+        if self.STOP_FILE.exists():
+            logger.info("Stop signal received")
+            self.STOP_FILE.unlink(missing_ok=True)
+            self.running = False
+
+    def _is_paused(self) -> bool:
+        return Path("logs/pause_signal").exists()
+
+    def _load_exited_markets(self) -> set:
+        try:
+            path = Path("logs/exited_markets.json")
+            if path.exists():
+                return set(json.loads(path.read_text()))
+        except Exception:
+            pass
+        return set()
+
+    def _save_exited_market(self, cid: str) -> None:
+        self._exited_markets.add(cid)
+        try:
+            Path("logs/exited_markets.json").write_text(json.dumps(list(self._exited_markets)))
+        except Exception:
+            pass
+
+    def _fetch_match_states(self) -> dict[str, dict]:
+        """Fetch live match states for all esports positions from PandaScore.
+
+        Returns dict of condition_id → match_state dict.
+        Rate-limited to once per 60 seconds.
+        """
+        now = time.time()
+        if now - self._last_match_state_fetch < 30:
+            return self._match_states  # Return cached
+
+        if not self.esports.available:
+            return {}
+
+        states: dict[str, dict] = {}
+        # Group esports positions by game slug
+        esports_positions = [
+            (cid, pos) for cid, pos in self.portfolio.positions.items()
+            if pos.category == "esports" and pos.live_on_clob
+        ]
+        if not esports_positions:
+            self._match_states = {}
+            return {}
+
+        # Also check reentry pool for esports candidates
+        esports_games_checked: set[str] = set()
+
+        for cid, pos in esports_positions:
+            game_slug = self.esports.detect_game(pos.question, [pos.sport_tag])
+            if not game_slug:
+                continue
+
+            team_a, team_b = self.esports._extract_team_names(pos.question)
+            if not team_a or not team_b:
+                continue
+
+            cache_key = f"{game_slug}:{team_a}:{team_b}"
+            if cache_key in esports_games_checked:
+                continue
+            esports_games_checked.add(cache_key)
+
+            try:
+                ms = self.esports.get_live_match_state(game_slug, team_a, team_b)
+                if ms:
+                    states[cid] = ms
+                    # Update position fields
+                    pos.match_score = ms.get("map_score", "")
+                    pos.match_period = f"{ms.get('map_number', '?')}/{ms.get('total_maps', '?')}"
+            except Exception as e:
+                logger.debug("Match state fetch error for %s: %s", pos.slug[:30], e)
+
+        self._match_states = states
+        self._last_match_state_fetch = now
+        if states:
+            logger.info("Fetched %d live match states from PandaScore", len(states))
+        return states
+
+    def _update_position_prices(self) -> bool:
+        """Fetch current YES prices for all open positions via slug query.
+
+        Uses slug-based Gamma query which returns correct prices AND event data
+        (startTime, live, score, period). conditionId queries return stale/wrong data.
+        Returns True if any live positions found.
+        """
+        if not self.portfolio.positions:
+            return False
+        stale_cids = []
+        reentry_resolve_exits = []
+        has_live_clob = False
+        for cid, pos in list(self.portfolio.positions.items()):
+            try:
+                # Query by slug — conditionId queries return wrong market data
+                if not pos.slug:
+                    logger.debug("No slug for position %s, skipping price update", cid[:16])
+                    continue
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"slug": pos.slug}, timeout=10,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not data:
+                    logger.warning("Market not found on Gamma: %s (%s..)", pos.slug, cid[:16])
+                    stale_cids.append(cid)
+                    continue
+
+                market_data = data[0] if isinstance(data, list) else data
+                prices = json.loads(market_data.get("outcomePrices", '["0.5","0.5"]'))
+                new_yes_price = float(prices[0])
+                no_price = float(prices[1]) if len(prices) > 1 else 1 - new_yes_price
+                is_closed = market_data.get("closed", False)
+
+                # Extract event data (startTime, live, score, period)
+                events = market_data.get("events", [])
+                if events:
+                    ev = events[0]
+                    ev_start = ev.get("startTime")
+                    ev_live = ev.get("live")
+                    ev_ended = ev.get("ended")
+                    ev_score = ev.get("score") or ""
+                    ev_period = ev.get("period") or ""
+
+                    # Populate match_start_iso from event.startTime
+                    if ev_start and not pos.match_start_iso:
+                        pos.match_start_iso = ev_start
+                        logger.info("Match start from Gamma event: %s → %s",
+                                    pos.slug[:35], ev_start)
+
+                    # Update live/ended status directly from Gamma
+                    if ev_live is not None:
+                        pos.match_live = bool(ev_live)
+                        pos.live_on_clob = bool(ev_live)
+                        if ev_live:
+                            has_live_clob = True
+                    if ev_ended is not None:
+                        pos.match_ended = bool(ev_ended)
+                    if ev_score:
+                        pos.match_score = ev_score
+                    if ev_period:
+                        pos.match_period = ev_period
+
+                if is_closed:
+                    # Market resolved — determine outcome
+                    if new_yes_price >= 0.95:
+                        yes_won = True
+                    elif no_price >= 0.95:
+                        yes_won = False
+                    elif 0.45 <= new_yes_price <= 0.55 and 0.45 <= no_price <= 0.55:
+                        # Void / draw — both sides refunded at ~50¢
+                        logger.info("VOID/DRAW: %s | prices=[%.2f, %.2f] — exiting as refund",
+                                    pos.slug[:40], new_yes_price, no_price)
+                        self.portfolio.update_price(cid, new_yes_price)
+                        self._exit_position(cid, "resolved_void")
+                        continue
+                    elif new_yes_price <= 0.05 and no_price <= 0.05:
+                        # Ambiguous [0,0] — check if event says ended
+                        if events and events[0].get("ended"):
+                            # Event ended but prices ambiguous — check CLOB as tiebreaker
+                            clob_price = self._get_clob_midpoint(pos.token_id)
+                            if clob_price is not None and clob_price > 0.01:
+                                # CLOB still active despite event "ended"
+                                if pos.direction == "BUY_NO":
+                                    self.portfolio.update_price(cid, 1.0 - clob_price)
+                                else:
+                                    self.portfolio.update_price(cid, clob_price)
+                                has_live_clob = True
+                                continue
+                        # Truly ambiguous — awaiting oracle
+                        if not pos.pending_resolution:
+                            self.portfolio.mark_pending_resolution(cid)
+                        logger.info("Closed and awaiting resolution: %s (prices=[%.2f, %.2f])",
+                                    pos.slug, new_yes_price, no_price)
+                        continue
+                    else:
+                        # Prices not at extremes but market closed
+                        # Check if match likely ended (start time + estimated duration passed)
+                        match_likely_ended = False
+                        if pos.match_start_iso:
+                            try:
+                                start_dt = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
+                                elapsed = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
+                                bo = pos.number_of_games or 0
+                                est_duration = 180 if bo >= 5 else 120 if bo >= 3 else 90
+                                if elapsed > est_duration:
+                                    match_likely_ended = True
+                            except (ValueError, TypeError):
+                                pass
+
+                        if match_likely_ended:
+                            # Match likely over — mark pending, awaiting oracle
+                            self.portfolio.update_price(cid, new_yes_price)
+                            if not pos.pending_resolution:
+                                self.portfolio.mark_pending_resolution(cid)
+                                logger.info("Match likely ended (elapsed > est duration): %s — marking pending",
+                                            pos.slug[:40])
+                        else:
+                            # Match not started or in progress — treat as active
+                            self.portfolio.update_price(cid, new_yes_price)
+                        continue
+
+                    won = (pos.direction == "BUY_YES" and yes_won) or \
+                          (pos.direction == "BUY_NO" and not yes_won)
+                    resolution_price = 1.0 if yes_won else 0.0
+                    self.portfolio.update_price(cid, resolution_price)
+                    pnl = pos.shares - pos.size_usdc if won else -pos.size_usdc
+                    logger.info("RESOLVED: %s | %s | %s | PnL=$%.2f",
+                                pos.slug, pos.direction, "WIN" if won else "LOSS", pnl)
+                    self._exit_position(cid, f"resolved_{'win' if won else 'loss'}")
+                else:
+                    # Market still open — update price
+                    self.portfolio.update_price(cid, new_yes_price)
+                    # Fallback live detection if event data missing
+                    if not events or events[0].get("live") is None:
+                        pos.live_on_clob = self._estimate_match_live(
+                            pos.slug, pos.question, pos.end_date_iso,
+                            match_start_iso=pos.match_start_iso)
+                        if pos.live_on_clob:
+                            has_live_clob = True
+                    # Re-entry resolve guard: exit re-entry positions before they hit resolve
+                    # to avoid 1¢/99¢ losses. Exit at 90¢ (winning) or 10¢ (losing side).
+                    if getattr(pos, "entry_reason", "").startswith("re_entry"):
+                        eff_p = (1.0 - new_yes_price) if pos.direction == "BUY_NO" else new_yes_price
+                        if eff_p >= 0.90:
+                            logger.info("RE-ENTRY RESOLVE GUARD (WIN): %s @ %.0f%% — exiting before resolve",
+                                        pos.slug[:35], eff_p * 100)
+                            reentry_resolve_exits.append((cid, "re_entry_resolve_win"))
+                            continue
+                        elif eff_p <= 0.10:
+                            logger.info("RE-ENTRY RESOLVE GUARD (LOSS): %s @ %.0f%% — exiting before resolve",
+                                        pos.slug[:35], eff_p * 100)
+                            reentry_resolve_exits.append((cid, "re_entry_resolve_loss"))
+                            continue
+
+                    # Mark as pending resolution ONLY when match ended + price at extremes
+                    # Price extreme alone is NOT enough — underdog markets sit at 2-5¢ while live
+                    if not pos.pending_resolution and (new_yes_price >= 0.95 or new_yes_price <= 0.05):
+                        match_ended = getattr(pos, 'match_ended', False)
+                        event_ended = False
+                        if events:
+                            event_ended = bool(events[0].get("ended", False))
+                        if match_ended or event_ended:
+                            self.portfolio.mark_pending_resolution(cid)
+                    # Un-mark false pending: if market is open and event not ended, undo pending
+                    if pos.pending_resolution and not is_closed:
+                        event_still_live = events and not events[0].get("ended", False)
+                        if event_still_live or not events:
+                            pos.pending_resolution = False
+                            logger.info("Un-pending: %s — market still open, event not ended", pos.slug[:40])
+                    # Pending positions are no longer live
+                    if pos.pending_resolution:
+                        pos.live_on_clob = False
+                        pos.match_live = False
+            except Exception as e:
+                logger.debug("Price update failed for %s: %s", pos.slug[:30], e)
+
+        # Auto-remove positions whose markets no longer exist (stale/test data)
+        for cid in stale_cids:
+            pos = self.portfolio.remove_position(cid)
+            if pos:
+                logger.warning("Removed stale position: %s (not on Polymarket)", pos.slug)
+                self.trade_log.log({
+                    "market": pos.slug, "action": "REMOVED",
+                    "reason": "stale: market not found on Gamma API",
+                    "mode": self.config.mode.value,
+                })
+        # Process re-entry resolve guard exits (outside iteration loop)
+        for cid, reason in reentry_resolve_exits:
+            self._exit_position(cid, reason)
+            self.reentry_pool.remove(cid)  # Don't let near-resolved markets re-enter
+
+        # Check outcome tracker — resolve exited markets we're still watching
+        if self.outcome_tracker.tracked_count > 0:
+            self._check_tracked_outcomes()
+
+        # Persist updated prices + live status to disk
+        self.portfolio.save_prices_to_disk()
+        return has_live_clob
+
+    def _sync_ws_subscriptions(self) -> None:
+        """Sync WebSocket subscriptions with active positions."""
+        token_ids = [pos.token_id for pos in self.portfolio.positions.values()]
+        self.ws_feed.sync_subscriptions(token_ids)
+
+    def _check_price_drift_reanalysis(self) -> None:
+        """Invalidate AI cache for positions whose price drifted significantly from entry."""
+        threshold = self.config.risk.price_drift_reanalysis_pct
+        for cid, pos in self.portfolio.positions.items():
+            if pos.current_price <= 0.001:
+                continue
+            drift = abs(pos.current_price - pos.entry_price) / max(pos.entry_price, 0.01)
+            if drift >= threshold:
+                self.entry_gate.invalidate_cache(cid)
+                logger.info(
+                    "Price drift detected: %s | entry=%.0f¢ now=%.0f¢ drift=%.1f%%",
+                    pos.slug, pos.entry_price * 100, pos.current_price * 100, drift * 100,
+                )
+
+    def _check_resolved_markets(self) -> None:
+        """Check if any past predictions have resolved. Log outcome for calibration."""
+        cal_path = Path("logs/calibration.jsonl")
+        cal_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Read existing predictions that haven't been resolved yet
+        pred_path = Path("logs/predictions.jsonl")
+        if not pred_path.exists():
+            return
+
+        unresolved = []
+        try:
+            lines = pred_path.read_text(encoding="utf-8").strip().split("\n")
+        except Exception:
+            return
+
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                pred = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            cid = pred.get("condition_id", "")
+            if not cid:
+                continue
+
+            # Check if market is resolved
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"conditionId": cid}, timeout=10,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not data:
+                    unresolved.append(line)
+                    continue
+
+                market = data[0]
+                # Must be truly resolved (not just closed for trading)
+                # Gamma sets resolved=true only when outcome is final
+                if not market.get("resolved", False):
+                    unresolved.append(line)
+                    continue
+
+                # Market resolved — log calibration result
+                outcome_prices = json.loads(market.get("outcomePrices", '["0.5","0.5"]'))
+                yes_price = float(outcome_prices[0])
+                # Resolved markets have prices at exactly 1.0 or 0.0 (or very close)
+                if 0.02 < yes_price < 0.98:
+                    # Not truly resolved — prices still mid-range
+                    unresolved.append(line)
+                    continue
+                resolved_yes = yes_price > 0.50  # YES won
+                ai_prob = pred.get("ai_probability", 0.5)
+                ai_was_right = (ai_prob > 0.5 and resolved_yes) or (ai_prob <= 0.5 and not resolved_yes)
+                error = abs(ai_prob - (1.0 if resolved_yes else 0.0))
+
+                result = {
+                    "condition_id": cid,
+                    "question": pred.get("question", ""),
+                    "ai_probability": ai_prob,
+                    "market_price_at_trade": pred.get("market_price", 0),
+                    "direction": pred.get("direction", ""),
+                    "resolved_yes": resolved_yes,
+                    "ai_correct": ai_was_right,
+                    "prediction_error": round(error, 3),
+                    "category": pred.get("category", ""),
+                    "resolved_at": datetime.now(timezone.utc).isoformat(),
+                }
+                with open(cal_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(result) + "\n")
+                logger.info(
+                    "Calibration: %s | AI=%.0f%% | Result=%s | %s",
+                    pred.get("question", "")[:40],
+                    ai_prob * 100,
+                    "YES" if resolved_yes else "NO",
+                    "CORRECT" if ai_was_right else "WRONG",
+                )
+            except Exception as e:
+                logger.debug("Calibration check failed for %s: %s", cid[:20], e)
+                unresolved.append(line)
+
+        # Rewrite predictions file atomically (write to temp, then rename)
+        if len(unresolved) < len(lines):
+            tmp_path = pred_path.with_suffix(".tmp")
+            tmp_path.write_text(
+                "\n".join(unresolved) + "\n" if unresolved else "",
+                encoding="utf-8",
+            )
+            tmp_path.replace(pred_path)
+
+    def _check_tracked_outcomes(self) -> None:
+        """Check exited markets for resolution — no AI cost, just Gamma API."""
+        from src.match_outcomes import log_outcome as _log_resolved
+        tracked_cids = self.outcome_tracker.tracked_condition_ids
+        if not tracked_cids:
+            return
+
+        gamma_events: dict[str, dict] = {}
+        for cid in list(tracked_cids):
+            tm = self.outcome_tracker._tracked.get(cid)
+            if not tm:
+                continue
+            try:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"slug": tm.slug}, timeout=10,
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                if not data:
+                    continue
+                md = data[0] if isinstance(data, list) else data
+                prices = json.loads(md.get("outcomePrices", '["0.5","0.5"]'))
+                gamma_events[cid] = {
+                    "yes_price": float(prices[0]),
+                    "closed": md.get("closed", False),
+                    "ended": (md.get("events") or [{}])[0].get("ended", False),
+                }
+            except Exception:
+                continue
+
+        resolved = self.outcome_tracker.check_resolutions(gamma_events)
+        for outcome in resolved:
+            # Log resolved outcome to match_outcomes.jsonl
+            try:
+                _log_resolved(
+                    slug=outcome["slug"],
+                    question=outcome.get("question", ""),
+                    direction=outcome["direction"],
+                    ai_probability=outcome["ai_probability"],
+                    confidence=outcome["confidence"],
+                    entry_price=outcome["entry_price"],
+                    exit_price=outcome["exit_price"],
+                    exit_reason=f"post_exit_{outcome['exit_reason']}",
+                    pnl=outcome["hypothetical_pnl"],
+                    size=outcome["size"],
+                    sport_tag=outcome.get("sport_tag", ""),
+                    entry_reason=outcome.get("entry_reason", ""),
+                    scouted=outcome.get("scouted", False),
+                    peak_pnl_pct=outcome.get("peak_pnl_pct", 0.0),
+                    match_score=outcome.get("match_score", ""),
+                    cycles_held=outcome.get("cycles_held", 0),
+                    bookmaker_prob=outcome.get("bookmaker_prob", 0.0),
+                )
+            except Exception:
+                pass
+
+            # Auto-calibration check (every 50 resolved outcomes)
+            try:
+                from src.self_improve import auto_calibrate
+                cal_result = auto_calibrate(logger=logger)
+                if cal_result:
+                    weaknesses = cal_result.get("weaknesses", [])
+                    self.notifier.send(
+                        f"\U0001f4ca *AUTO-CALIBRATION* — {cal_result['resolved_count']} resolved\n\n"
+                        f"Win rate: `{cal_result['overall_win_rate']:.0%}`\n"
+                        f"Brier: `{cal_result['overall_brier']:.3f}`\n"
+                        + (f"Weaknesses: {len(weaknesses)}\n" if weaknesses else "No weaknesses found\n")
+                        + (f"Top: {weaknesses[0]}" if weaknesses else "")
+                    )
+            except Exception as e:
+                logger.debug("Auto-calibration skipped: %s", e)
+
+            # Notify
+            side = "WIN" if outcome["our_side_won"] else "LOSS"
+            left = outcome.get("pnl_left_on_table", 0)
+            self.notifier.send(
+                f"\U0001f50d *POST-EXIT* — {outcome['slug'][:40]}\n\n"
+                f"Exited: `{outcome['exit_reason']}` PnL=`${outcome['actual_pnl']:.2f}`\n"
+                f"Match result: `{side}`\n"
+                f"If held: `${outcome['hypothetical_pnl']:.2f}`"
+                + (f" (left `${left:.2f}` on table)" if left > 0.5 else "")
+            )
+
+    def _log_cycle_summary(self, bankroll: float, status: str) -> None:
+        invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+        unrealized = self.portfolio.total_unrealized_pnl()
+        # Equity = initial + realized + unrealized (always correct, no tracking drift)
+        equity = self.portfolio._initial_bankroll + self.portfolio.realized_pnl + unrealized
+        self.portfolio_log.log({
+            "bankroll": self.portfolio.bankroll,
+            "positions": len(self.portfolio.positions),
+            "invested": round(invested, 2),
+            "unrealized_pnl": unrealized,
+            "realized_pnl": self.portfolio.realized_pnl,
+            "realized_wins": self.portfolio.realized_wins,
+            "realized_losses": self.portfolio.realized_losses,
+            "hwm": self.portfolio.high_water_mark,
+            "initial_bankroll": self.portfolio._initial_bankroll,
+            "equity": round(equity, 2),
+            "status": status,
+        })
+        self._log_performance()
+
+    def _log_performance(self) -> None:
+        """Write performance stats to performance.jsonl for the dashboard."""
+        cal = Path("logs/calibration.jsonl")
+        if not cal.exists():
+            return
+        try:
+            lines = [json.loads(l) for l in cal.read_text(encoding="utf-8").strip().split("\n") if l.strip()]
+        except Exception:
+            return
+        if not lines:
+            return
+        # Calibration uses ai_correct (bool) and ai_probability fields
+        wins = sum(1 for l in lines if l.get("ai_correct", False))
+        losses = sum(1 for l in lines if not l.get("ai_correct", False))
+        total = wins + losses
+        if total == 0:
+            return
+        # Brier score: (predicted_prob - actual_outcome)^2
+        brier_pairs = []
+        for l in lines:
+            prob = l.get("ai_probability", 0.5)
+            outcome = 1 if l.get("resolved_yes", False) else 0
+            brier_pairs.append((prob - outcome) ** 2)
+        brier = sum(brier_pairs) / len(brier_pairs) if brier_pairs else 0.5
+        # Best category by win rate
+        cat_wins: dict[str, int] = {}
+        cat_total: dict[str, int] = {}
+        for l in lines:
+            q = l.get("question", "")
+            slug = l.get("condition_id", "")
+            # Try category field first, then detect from question text
+            cat = l.get("category", "")
+            if not cat:
+                cat_match = re.search(r"\b(NBA|NHL|CBB|NFL|MLB|CS2|CS:GO|LoL|EPL|UCL|UEL|Dota|Valorant)\b", q, re.IGNORECASE)
+                cat = cat_match.group(1).upper() if cat_match else "Other"
+            cat_total[cat] = cat_total.get(cat, 0) + 1
+            if l.get("ai_correct", False):
+                cat_wins[cat] = cat_wins.get(cat, 0) + 1
+        best_cat = max(cat_total, key=lambda c: (cat_wins.get(c, 0) / cat_total[c], cat_total[c])) if cat_total else None
+        self.perf_log.log({
+            "win_rate": round(wins / total, 4),
+            "wins": wins,
+            "losses": losses,
+            "resolved": total,
+            "brier_score": round(brier, 4),
+            "best_category": best_cat,
+            "best_category_rate": round(cat_wins.get(best_cat, 0) / cat_total.get(best_cat, 1), 4) if best_cat else None,
+        })
+
+    def _maybe_run_reflection(self) -> None:
+        """Every 3 days, analyze calibration results and generate lessons."""
+        lessons_path = Path("logs/ai_lessons.md")
+        cal_path = Path("logs/calibration.jsonl")
+
+        # Check if it's time (every 3 days)
+        marker_path = Path("logs/.last_reflection")
+        if marker_path.exists():
+            try:
+                last = datetime.fromisoformat(marker_path.read_text().strip())
+                if (datetime.now(timezone.utc) - last).days < 3:
+                    return
+            except (ValueError, OSError):
+                pass
+
+        if not cal_path.exists():
+            return
+
+        # Need at least 5 resolved predictions
+        try:
+            lines = [l for l in cal_path.read_text(encoding="utf-8").strip().split("\n") if l.strip()]
+        except Exception:
+            return
+        if len(lines) < 5:
+            return
+
+        # Build reflection prompt from calibration data
+        results = []
+        for line in lines[-20:]:  # Last 20 results max
+            try:
+                r = json.loads(line)
+                results.append(
+                    f"- Q: {r.get('question', '')[:80]} | "
+                    f"AI: {r.get('ai_probability', 0):.0%} | "
+                    f"Result: {'YES' if r.get('resolved_yes') else 'NO'} | "
+                    f"{'CORRECT' if r.get('ai_correct') else 'WRONG'} | "
+                    f"Error: {r.get('prediction_error', 0):.0%} | "
+                    f"Category: {r.get('category', 'unknown')}"
+                )
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        if not results:
+            return
+
+        correct = 0
+        for l in lines:
+            try:
+                correct += 1 if json.loads(l).get("ai_correct") else 0
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        total = len(lines)
+        accuracy = correct / total if total > 0 else 0
+
+        reflection_prompt = (
+            f"You are reviewing your past prediction performance.\n"
+            f"Overall accuracy: {correct}/{total} ({accuracy:.0%})\n\n"
+            f"Recent results:\n" + "\n".join(results) + "\n\n"
+            f"Analyze your mistakes. Write 3-5 SHORT, SPECIFIC rules for yourself. "
+            f"Focus on: What reasoning patterns led to wrong predictions? "
+            f"What should you do differently? Which categories are you weak in?\n"
+            f"Keep it under 400 characters total. Be brutally honest."
+        )
+
+        try:
+            # Estimate cost (~$0.01)
+            if self.ai.budget_remaining_usd < 0.05:
+                return
+
+            result = self.ai._call_claude(
+                "You are a prediction analyst reviewing your own performance. "
+                "Output ONLY plain text rules, no JSON.",
+                reflection_prompt,
+                parse_json=False,
+            )
+            if not result or not isinstance(result, str):
+                return
+            lessons_text = result
+
+            # Save lessons
+            lessons_path.write_text(
+                f"# AI Self-Reflection (updated {datetime.now(timezone.utc).strftime('%Y-%m-%d')})\n"
+                f"Accuracy: {correct}/{total} ({accuracy:.0%})\n\n"
+                f"{lessons_text}\n",
+                encoding="utf-8",
+            )
+            marker_path.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+            logger.info("Self-reflection complete: %d/%d correct (%.0f%%)", correct, total, accuracy * 100)
+        except Exception as e:
+            logger.debug("Reflection failed: %s", e)
+
+    # ── Internal helpers ───────────────────────────────────────────────────
+
+    def _get_clob_midpoint(self, token_id: str) -> float | None:
+        """Fetch midpoint price from CLOB API for a token. Returns None on failure."""
+        try:
+            resp = requests.get(
+                "https://clob.polymarket.com/midpoint",
+                params={"token_id": token_id}, timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            mid = float(data.get("mid", 0))
+            return mid if mid > 0 else None
+        except Exception as e:
+            logger.debug("CLOB midpoint failed for %s: %s", token_id[:16], e)
+            return None
+
+    @staticmethod
+    def _match_duration(slug: str, question: str) -> float:
+        """Estimated match duration in hours based on sport/format."""
+        text = (slug + " " + question).lower()
+        if "bo5" in text or "best of 5" in text:
+            if "dota" in text:
+                return 3.25
+            return 2.75
+        if "bo1" in text:
+            return 0.75
+        if "bo3" in text or "best of 3" in text:
+            if "dota" in text:
+                return 2.0
+            if any(k in text for k in ("lol:", "league")):
+                return 1.5
+            return 1.75
+        if any(k in text for k in ("cs2", "cs:", "csgo", "counter-strike", "valorant")):
+            return 1.75
+        if any(k in text for k in ("lol:", "league")):
+            return 1.5
+        if "dota" in text:
+            return 2.0
+        if any(k in text for k in ("nba", "cbb", "ncaa basket")):
+            return 2.25
+        if any(k in text for k in ("nfl", "football")):
+            return 3.25
+        if any(k in text for k in ("nhl", "hockey")):
+            return 2.33
+        if any(k in text for k in ("epl", "ucl", "uel", "soccer", "fc ", "united")):
+            return 2.0
+        if any(k in text for k in ("mlb", "baseball")):
+            return 2.75
+        return 2.0
+
+    @staticmethod
+    def _estimate_match_live(slug: str, question: str, end_date_iso: str,
+                             match_start_iso: str = "") -> bool:
+        """Estimate if a match is currently in progress."""
+        now = datetime.now(timezone.utc)
+
+        # Best source: actual match start time
+        if match_start_iso:
+            try:
+                start_dt = datetime.fromisoformat(
+                    match_start_iso.replace("Z", "+00:00")
+                    .replace(" ", "T")
+                )
+                if now < start_dt:
+                    return False
+                minutes_since_start = (now - start_dt).total_seconds() / 60
+                if minutes_since_start <= 5:
+                    return False
+                return True
+            except (ValueError, TypeError):
+                pass
+
+        # Fallback: estimate from endDate
+        if not end_date_iso:
+            return False
+        try:
+            end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
+            hours_to_end = (end_dt - now).total_seconds() / 3600
+        except (ValueError, TypeError):
+            return False
+        if hours_to_end <= 0:
+            return True
+        duration_h = Agent._match_duration(slug, question)
+        return hours_to_end <= duration_h
