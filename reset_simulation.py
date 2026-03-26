@@ -38,7 +38,6 @@ ARCHIVE_FILES = [
     "positions.json",
     "trades.jsonl",
     "portfolio.jsonl",
-    "predictions.jsonl",
     "realized_pnl.json",
     "reentry_pool.json",
     "blacklist.json",
@@ -47,6 +46,11 @@ ARCHIVE_FILES = [
     "exited_markets.json",
     "ai_budget.json",
     "outcome_tracker.json",
+]
+
+# Files to ARCHIVE but KEEP (analysis cache — survives reset so we don't re-spend AI credits)
+ARCHIVE_KEEP = [
+    "predictions.jsonl",  # _load_recent_analyses() reads this; BUY-worthy uncached, HOLD cached
 ]
 
 # Files to DELETE only (not worth archiving)
@@ -138,9 +142,16 @@ def archive_data() -> Path | None:
     run_dir = ARCHIVE_DIR / f"run_{run_num:03d}_{ts}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Archive simulation files
+    # Archive simulation files (will be deleted by wipe_data)
     archived = 0
     for fname in ARCHIVE_FILES:
+        src = LOGS_DIR / fname
+        if src.exists():
+            shutil.copy2(src, run_dir / fname)
+            archived += 1
+
+    # Archive analysis cache files (copied but NOT deleted — survives reset)
+    for fname in ARCHIVE_KEEP:
         src = LOGS_DIR / fname
         if src.exists():
             shutil.copy2(src, run_dir / fname)
@@ -211,18 +222,17 @@ def reset_test_date() -> None:
 def start_bot() -> int:
     """Start a single bot instance. Returns PID."""
     project_dir = Path(__file__).parent
-    result = subprocess.run(
-        ["powershell", "-Command",
-         f"Start-Process -FilePath 'python' -ArgumentList '-m','src.main' "
-         f"-WorkingDirectory '{project_dir}' "
-         f"-RedirectStandardOutput '{LOGS_DIR / 'bot_stdout.log'}' "
-         f"-RedirectStandardError '{LOGS_DIR / 'bot_stderr.log'}' "
-         f"-WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id"],
-        capture_output=True, text=True, timeout=30,
+    stdout_log = open(LOGS_DIR / "bot_stdout.log", "w")
+    stderr_log = open(LOGS_DIR / "bot_stderr.log", "w")
+    proc = subprocess.Popen(
+        ["python", "-m", "src.main"],
+        cwd=str(project_dir),
+        stdout=stdout_log,
+        stderr=stderr_log,
+        creationflags=0x08000000 if sys.platform == "win32" else 0,  # CREATE_NO_WINDOW
     )
-    pid = int(result.stdout.strip())
-    print(f"  Bot started: PID {pid}")
-    return pid
+    print(f"  Bot started: PID {proc.pid}")
+    return proc.pid
 
 
 def verify_single_instance() -> bool:

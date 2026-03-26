@@ -13,10 +13,12 @@ Budget strategy (20K credits/month ≈ 650/day):
 - Only use historical when edge is close to threshold (save credits)
 """
 from __future__ import annotations
+import json
 import logging
 import os
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -110,6 +112,8 @@ class OddsAPIClient:
     # 21:30 UTC = 00:30 TR → night: final odds right before NBA tip-off (00:00-01:00 TR)
     _REFRESH_HOURS_UTC = [7, 15, 19, 21]
 
+    _CACHE_FILE = Path("logs/odds_cache.json")
+
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
@@ -121,6 +125,7 @@ class OddsAPIClient:
         self._notified_80 = False
         self._notified_95 = False
         self._notifier = None
+        self._load_cache()  # Persist across restarts — no cold start on cycle 1
 
     @property
     def available(self) -> bool:
@@ -129,6 +134,29 @@ class OddsAPIClient:
     def set_notifier(self, notifier):
         """Set Telegram notifier for quota alerts."""
         self._notifier = notifier
+
+    def _load_cache(self) -> None:
+        """Load persisted odds cache from disk — no cold start on bot restart."""
+        try:
+            if not self._CACHE_FILE.exists():
+                return
+            raw = json.loads(self._CACHE_FILE.read_text(encoding="utf-8"))
+            self._cache = {k: (v[0], v[1]) for k, v in raw.items()}
+            logger.info("Odds cache loaded: %d entries from disk", len(self._cache))
+        except Exception as e:
+            logger.debug("Could not load odds cache: %s", e)
+            self._cache = {}
+
+    def _save_cache(self) -> None:
+        """Persist odds cache to disk so it survives bot restarts and resets."""
+        try:
+            self._CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            serializable = {k: [v[0], v[1]] for k, v in self._cache.items()}
+            tmp = self._CACHE_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(serializable, default=str), encoding="utf-8")
+            tmp.replace(self._CACHE_FILE)
+        except Exception as e:
+            logger.debug("Could not save odds cache: %s", e)
 
     def _get_active_tennis_keys(self, gender: str = "atp") -> List[str]:
         """Discover active tennis sport keys from The Odds API /sports endpoint.
@@ -249,6 +277,7 @@ class OddsAPIClient:
 
             data = resp.json()
             self._cache[cache_key] = (data, time.time())
+            self._save_cache()  # Persist so next restart has data on cycle 1
             return data
         except requests.RequestException as e:
             logger.warning("Odds API error: %s", e)
