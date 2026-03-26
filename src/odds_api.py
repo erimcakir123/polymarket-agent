@@ -109,8 +109,9 @@ class OddsAPIClient:
     # 07:00 UTC = 10:00 TR → morning: full landscape, European football early lines
     # 15:00 UTC = 18:00 TR → afternoon: European football, early evening lines
     # 19:00 UTC = 22:00 TR → evening: NBA/NHL pre-game line movement
-    # 21:30 UTC = 00:30 TR → night: final odds right before NBA tip-off (00:00-01:00 TR)
-    _REFRESH_HOURS_UTC = [7, 15, 19, 21]
+    # 21:00 UTC = 00:00 TR → pre-NBA batch: 3.5h before early tip-offs (~00:30 UTC)
+    # 02:00 UTC = 05:00 TR → late NBA / West Coast games (23:00 ET tip-offs = 02:00 UTC)
+    _REFRESH_HOURS_UTC = [7, 15, 19, 21, 2]
 
     _CACHE_FILE = Path("logs/odds_cache.json")
 

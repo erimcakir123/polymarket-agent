@@ -292,7 +292,14 @@ class EntryGate:
                     getattr(_m, "question", ""), _m.slug or ""
                 )
                 if _scout_entry and _m.condition_id not in esports_contexts:
-                    esports_contexts[_m.condition_id] = _scout_entry
+                    # Extract pre-fetched string; dict would crash ai_analyst .lower() calls
+                    _ctx_str = _scout_entry.get("sports_context") or (
+                        f"=== SCOUTED MATCH ===\n"
+                        f"{_scout_entry.get('team_a', '?')} vs {_scout_entry.get('team_b', '?')}\n"
+                        f"League: {_scout_entry.get('league_name', '?')}\n"
+                        f"Match time: {_scout_entry.get('match_time', '?')[:16]}"
+                    )
+                    esports_contexts[_m.condition_id] = _ctx_str
                     logger.info("Scout context injected: %s", _m.slug[:40])
 
         # Traditional sports context: ESPN + TheSportsDB fallback for non-esports markets
@@ -347,21 +354,14 @@ class EntryGate:
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
-        # Filter: only markets with any data (esports OR odds OR news)
+        # Filter: only markets with any data (sports context OR news)
+        # Odds API is NOT used here — it's an anchor, not a data gate check.
+        # esports_contexts holds ALL sports context (esports + scout + ESPN + TheSportsDB).
         _has_data: list = []
         for m in prioritized:
-            _slug_prefix = (m.slug or "")[:8].lower()
-            _is_esports_mkt = is_esports_slug(m.slug or "")
-            has_odds = False
-            if self.odds_api.available and not _is_esports_mkt:
-                try:
-                    _odds = self.odds_api.get_market_odds(m)
-                    has_odds = bool(_odds)
-                except Exception:
-                    pass
-            has_esports = bool(esports_contexts.get(m.condition_id))
+            has_sports_ctx = bool(esports_contexts.get(m.condition_id))
             has_news = bool(news_context_by_market.get(m.condition_id))
-            if has_odds or has_esports or has_news:
+            if has_sports_ctx or has_news:
                 _has_data.append(m)
 
         if not _has_data:
@@ -422,15 +422,20 @@ class EntryGate:
             if estimate.confidence in _CONF_SKIP:
                 continue
 
-            # ── Bookmaker anchor (read-only, no new API calls if unavailable) ─
+            # ── Bookmaker anchor (cached — batch refresh 4x/day via OddsAPIClient) ─
+            # get_bookmaker_odds() fetches all events for a sport in 1 call and caches.
+            # Cache only invalidates at scheduled refresh hours (7,15,19,21 UTC).
             _is_esports_mkt = is_esports(getattr(market, "sport_tag", "") or "")
             _anchor_book_prob = None
             _anchor_num_books = 0
             if not _is_esports_mkt and self.odds_api.available:
                 try:
-                    _mkt_odds = self.odds_api.get_market_odds(market)
+                    _mkt_odds = self.odds_api.get_bookmaker_odds(
+                        market.question, market.slug or "", market.tags or []
+                    )
                     if _mkt_odds:
-                        _anchor_book_prob = _mkt_odds.get("probability")
+                        # P(YES) = bookmaker_prob_a if question is about team A winning
+                        _anchor_book_prob = _mkt_odds.get("bookmaker_prob_a")
                         _anchor_num_books = _mkt_odds.get("num_bookmakers", 0)
                 except Exception:
                     pass
