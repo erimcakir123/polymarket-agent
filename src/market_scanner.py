@@ -287,10 +287,15 @@ class MarketScanner:
         if self.config.tags and market.tags:
             if not any(t in self.config.tags for t in market.tags):
                 return False
-        # Block sub-markets (Game X, Map X) — we don't watch matches, can't predict individual games
-        # Only allow main match outcome and Over/Under (O/U is statistical, testable)
+        # Block alt bets: total/spread/props — moneyline (vs) only
         q_lower = market.question.lower()
         slug_lower = market.slug.lower()
+        _ALT_SLUG = ("-total-", "-spread-", "-handicap-", "-over-", "-under-")
+        _ALT_Q = ("o/u", "over/under", "point spread", "handicap:", "set handicap")
+        if any(t in slug_lower for t in _ALT_SLUG) or any(t in q_lower for t in _ALT_Q):
+            logger.debug("Blocked alt bet (total/spread): %s", market.slug[:60])
+            return False
+        # Block esports sub-markets (Map X, Game X, specific in-game events)
         _SUB_PATTERNS = [
             "map 1", "map 2", "map 3", "map 4", "map 5",
             "game 1", "game 2", "game 3", "game 4", "game 5",
@@ -300,9 +305,7 @@ class MarketScanner:
         ]
         is_sub = any(p in q_lower for p in _SUB_PATTERNS)
         is_sub = is_sub or any(s in slug_lower for s in ["-game", "-map-"])
-        # Allow Over/Under through (statistical, not match-watching dependent)
-        is_over_under = any(p in q_lower for p in ["over", "under", "o/u", "total"])
-        if is_sub and not is_over_under:
+        if is_sub:
             logger.debug("Blocked sub-market: %s", market.question[:60])
             return False
 

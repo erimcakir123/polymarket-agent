@@ -43,7 +43,14 @@ Kullanıcı mimari konularda diğer AI'lara (Gemini, ChatGPT) danışmak istiyor
 3. Kullanıcı tavsiyeleri getirir → birlikte değerlendir → en iyi yaklaşımı seç
 4. Onaylanan yaklaşımı implement et
 
-### 5. Task Management
+### 5. Bot Process Kuralları (KESİN KURAL)
+
+- **SADECE 1 BOT çalışabilir** — birden fazla instance yasak
+- Bot başlatmadan ÖNCE: `tasklist | grep python` → tüm src.main process'lerini bul → hepsini kill et → sonra başlat
+- Bot başlatma iznini kullanıcıdan al — izinsiz başlatma yasak
+- Restart = önce kill, sonra izin al, sonra başlat
+
+### 6. Task Management
 
 - **TodoWrite tool'u KULLAN** her zaman — task'leri sadece text olarak listeleme
 - TODO comment'leri kodda bırakıyorsan → aynısını TodoWrite'a da ekle

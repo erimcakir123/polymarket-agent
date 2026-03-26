@@ -198,7 +198,19 @@ def create_app(
 
     @app.route("/api/status")
     def api_status():
-        if STATUS_FILE.exists():
+        # Check if bot process is actually running
+        pid_file = Path("logs/agent.pid")
+        bot_alive = False
+        if pid_file.exists():
+            try:
+                import os, signal
+                pid = int(pid_file.read_text().strip())
+                os.kill(pid, 0)  # signal 0 = just check if process exists
+                bot_alive = True
+            except (OSError, ValueError):
+                pass
+
+        if bot_alive and STATUS_FILE.exists():
             try:
                 data = json.loads(STATUS_FILE.read_text(encoding="utf-8"))
                 return jsonify(data)

@@ -551,7 +551,7 @@ class EntryGate:
             # ── Position sizing ───────────────────────────────────────────────
             # Winner mode: use floor edge (0.05) so Kelly stays positive
             sizing_edge = edge if mode != "WINNER" else max(edge, 0.05)
-            manip_check = self.manip_guard.check(market, estimate)
+            manip_check = self.manip_guard.check_market(market, estimate)
             adjusted_size = self.risk.calculate_position_size(
                 edge=sizing_edge, bankroll=bankroll, confidence=estimate.confidence,
             )
