@@ -365,8 +365,8 @@ class EntryGate:
         cycle_count: int,
         fresh_scan: bool,
     ) -> list[dict]:
-        """Evaluate each market, return ranked candidate list."""
-        from src.edge_calculator import calculate_edge, scale_min_edge
+        """Evaluate each market using three-mode strategy. Return ranked candidate list."""
+        from src.edge_calculator import scale_min_edge
         from src.probability_engine import calculate_anchored_probability, get_edge_threshold_adjustment
         from src.sanity_check import check_bet_sanity
         from src.models import Direction
@@ -374,32 +374,30 @@ class EntryGate:
         cfg = self.config
         candidates: list[dict] = []
         _CONF_SKIP = {"C", "", "?"}
+        _WINNER_UNDERDOG_CONF = {"A", "B+"}  # B- not allowed in winner/underdog modes
 
         # Fill-ratio edge scaling
         fill_ratio = self.portfolio.active_position_count / max(1, cfg.risk.max_positions)
         effective_min_edge = cfg.edge.min_edge
         if cfg.edge.fill_ratio_scaling:
-            effective_min_edge = scale_min_edge(
-                cfg.edge.min_edge, fill_ratio,
-            )
+            effective_min_edge = scale_min_edge(cfg.edge.min_edge, fill_ratio)
 
         for market in markets:
             cid = market.condition_id
 
-            # Get estimate (fresh scan → from estimates dict; stock → from candidate)
             estimate = estimates.get(cid)
             if estimate is None:
                 continue
             if estimate.confidence in _CONF_SKIP:
                 continue
 
-            # ── Sanity check (ALL markets including FAR — no bypass) ────────
+            # ── Sanity check ────────────────────────────────────────────────
             sanity_result = check_bet_sanity(
                 question=getattr(market, "question", ""),
-                direction="BUY_YES",  # conservative check before direction is determined
+                direction="BUY_YES",
                 ai_probability=estimate.ai_probability,
                 market_price=market.yes_price,
-                edge=0.0,  # edge not yet calculated — catches extreme AI probs only
+                edge=0.0,
                 confidence=estimate.confidence,
             )
             if not sanity_result.ok:
@@ -411,7 +409,7 @@ class EntryGate:
                 })
                 continue
 
-            # ── Anchored probability (odds_api bookmaker anchor) ───────────
+            # ── Bookmaker anchor (read-only, no new API calls if unavailable) ─
             _is_esports_mkt = is_esports(getattr(market, "sport_tag", "") or "")
             _anchor_book_prob = None
             _anchor_num_books = 0
@@ -429,70 +427,73 @@ class EntryGate:
                 num_bookmakers=_anchor_num_books,
             )
             _edge_threshold_adj = get_edge_threshold_adjustment(anchored)
+            threshold = effective_min_edge + _edge_threshold_adj
 
-            # ── Edge calculation ───────────────────────────────────────────
-            direction, edge = calculate_edge(
-                ai_prob=anchored.probability,
-                market_yes_price=market.yes_price,
-                min_edge=effective_min_edge,
-                confidence=estimate.confidence,
-                confidence_multipliers=cfg.edge.confidence_multipliers,
-                spread=cfg.edge.default_spread,
-                edge_threshold_adjustment=_edge_threshold_adj,
-            )
+            # ── Three-mode classifier ─────────────────────────────────────────
+            ai_p = anchored.probability          # P(YES)
+            ai_n = 1.0 - ai_p                   # P(NO)
+            mkt_p = market.yes_price             # market P(YES)
+            mkt_n = 1.0 - mkt_p
 
-            # ── Esports-specific entry rules ───────────────────────────────
-            _sport_tag = getattr(market, "sport_tag", "") or ""
-            if is_esports(_sport_tag):
-                # AI < 50% + BUY_YES → skip (don't bet on predicted loser in esports)
-                if direction == Direction.BUY_YES and anchored.probability < 0.50:
-                    logger.info("Esports underdog skip: %s | AI=%.0f%% < 50%%",
-                                market.slug[:40], anchored.probability * 100)
-                    self.trade_log.log({
-                        "market": market.slug, "action": "HOLD",
-                        "rejected": f"ESPORTS_UNDERDOG: AI={anchored.probability:.0%} < 50%",
-                    })
-                    continue
+            edge_yes = ai_p - mkt_p             # positive → YES has value
+            edge_no = ai_n - mkt_n              # positive → NO has value
 
-            # ── Consensus entry override (HOLD → BUY if AI + market ≥65%) ─
-            is_consensus = False
-            entry_reason = ""
-            if direction == Direction.HOLD:
-                _ce = cfg.consensus_entry
-                if _ce.enabled and estimate.confidence in ("A", "B+"):
-                    _ai = estimate.ai_probability
-                    _mp = market.yes_price
-                    _cyes = _ai >= _ce.min_price and _mp >= _ce.min_price
-                    _cno = (1 - _ai) >= _ce.min_price and (1 - _mp) >= _ce.min_price
-                    _is_far_mkt = cid in self._far_market_ids
-                    if (_cyes or _cno) and not _is_far_mkt:
-                        _consensus_count = self.portfolio.count_by_entry_reason("consensus")
-                        if _consensus_count < _ce.max_slots:
-                            direction = Direction.BUY_YES if _cyes else Direction.BUY_NO
-                            is_consensus = True
-                            entry_reason = "consensus"
-                            logger.info(
-                                "CONSENSUS_OVERRIDE: %s | AI=%.0f%% mkt=%.0f%% conf=%s → %s (%d/%d slots)",
-                                market.slug[:40], _ai * 100, _mp * 100,
-                                estimate.confidence, direction.value,
-                                _consensus_count + 1, _ce.max_slots,
-                            )
+            def _classify_side(direction_prob: float, direction_edge: float) -> str:
+                if direction_prob >= 0.65:
+                    return "WINNER"
+                if direction_prob >= 0.50 and direction_edge >= threshold:
+                    return "DEADZONE"
+                if direction_prob < 0.50 and direction_edge >= threshold:
+                    return "UNDERDOG"
+                return "HOLD"
 
-            if direction == Direction.HOLD:
+            yes_mode = _classify_side(ai_p, edge_yes)
+            no_mode = _classify_side(ai_n, edge_no)
+
+            # Pick direction: Winner > DeadZone > Underdog > Hold
+            _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "UNDERDOG": 2, "HOLD": 1}
+            if _MODE_PRIORITY[yes_mode] >= _MODE_PRIORITY[no_mode]:
+                direction = Direction.BUY_YES
+                mode = yes_mode
+                edge = edge_yes
+                direction_prob = ai_p
+            else:
+                direction = Direction.BUY_NO
+                mode = no_mode
+                edge = edge_no
+                direction_prob = ai_n
+
+            if mode == "HOLD":
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "ai_prob": estimate.ai_probability, "price": market.yes_price,
-                    "edge": edge,
+                    "edge_yes": round(edge_yes, 4), "edge_no": round(edge_no, 4),
                 })
-                # Cache this HOLD to avoid re-analyzing next cycle
-                # (but NOT for consensus candidates — they may qualify next cycle)
-                if not is_consensus:
-                    self._analyzed_market_ids[cid] = time.time()
+                self._analyzed_market_ids[cid] = time.time()
                 continue
 
-            # ── FAR market: require higher edge ────────────────────────────
-            if cid in self._far_market_ids and not is_consensus and edge < 0.08:
-                logger.info("Far market edge too low (%.1f%% < 8%%): %s",
+            # ── Confidence gate (mode-specific) ──────────────────────────────
+            if mode in ("WINNER", "UNDERDOG") and estimate.confidence not in _WINNER_UNDERDOG_CONF:
+                logger.info("%s mode requires A/B+, got %s: %s",
+                            mode, estimate.confidence, market.slug[:40])
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"{mode}_CONF_GATE: conf={estimate.confidence} (need A/B+)",
+                })
+                continue
+
+            # ── Esports underdog guard ────────────────────────────────────────
+            if is_esports(getattr(market, "sport_tag", "") or ""):
+                if direction == Direction.BUY_YES and ai_p < 0.50 and mode != "UNDERDOG":
+                    self.trade_log.log({
+                        "market": market.slug, "action": "HOLD",
+                        "rejected": f"ESPORTS_UNDERDOG_NO_EDGE: AI={ai_p:.0%}",
+                    })
+                    continue
+
+            # ── FAR market: require minimum edge ─────────────────────────────
+            if cid in self._far_market_ids and mode != "WINNER" and edge < 0.08:
+                logger.info("FAR market edge too low (%.1f%% < 8%%): %s",
                             edge * 100, market.slug[:40])
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
@@ -500,41 +501,43 @@ class EntryGate:
                 })
                 continue
 
-            # ── Manipulation guard + position sizing ───────────────────────
+            # ── Position sizing ───────────────────────────────────────────────
+            # Winner mode: use floor edge (0.05) so Kelly stays positive
+            sizing_edge = edge if mode != "WINNER" else max(edge, 0.05)
             manip_check = self.manip_guard.check(market, estimate)
             adjusted_size = self.risk.calculate_position_size(
-                edge=edge, bankroll=bankroll, confidence=estimate.confidence,
+                edge=sizing_edge, bankroll=bankroll, confidence=estimate.confidence,
             )
-            adjusted_size = self.manip_guard.adjust_position_size(
-                adjusted_size, manip_check,
-            )
+            adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
-            # Consensus: fixed bet_pct (no Kelly — edge≈0)
-            if is_consensus:
-                _ce = cfg.consensus_entry
-                adjusted_size = min(
-                    _ce.bet_pct * bankroll, cfg.risk.max_single_bet_usdc,
-                )
+            # ── Rank score ────────────────────────────────────────────────────
+            conf_score = _CONF_SCORE.get(estimate.confidence, 1)
+            if mode == "WINNER":
+                rank_score = direction_prob * conf_score
+            else:
+                rank_score = edge * direction_prob * conf_score
 
-            # ── Rank score ─────────────────────────────────────────────────
-            entry_price = market.yes_price if direction == Direction.BUY_YES else (1 - market.yes_price)
-            _effective_edge = (1 - entry_price) if is_consensus else edge
-            rank_score = (
-                _effective_edge
-                * _CONF_SCORE.get(estimate.confidence, 1)
+            logger.info(
+                "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
+                mode, market.slug[:35],
+                direction_prob * 100,
+                mkt_p * 100 if direction == Direction.BUY_YES else mkt_n * 100,
+                edge * 100, estimate.confidence, rank_score,
             )
 
             candidates.append({
                 "score": rank_score,
+                "mode": mode,
                 "market": market,
                 "estimate": estimate,
                 "direction": direction,
                 "edge": edge,
+                "direction_prob": direction_prob,
                 "adjusted_size": adjusted_size,
                 "sanity": sanity_result,
                 "manip_check": manip_check,
-                "is_consensus": is_consensus,
-                "entry_reason": entry_reason,
+                "is_consensus": False,
+                "entry_reason": mode.lower(),
                 "is_far": cid in self._far_market_ids,
             })
 
