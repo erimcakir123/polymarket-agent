@@ -464,10 +464,26 @@ class EntryGate:
             # ── Position sizing ───────────────────────────────────────────────
             # Always floor edge at 0.05 so Kelly sizing stays positive
             sizing_edge = max(edge, 0.05)
-            manip_check = self.manip_guard.check_market(market, estimate)
-            adjusted_size = self.risk.calculate_position_size(
-                edge=sizing_edge, bankroll=bankroll, confidence=estimate.confidence,
+            manip_check = self.manip_guard.check_market(
+                question=market.question,
+                description=getattr(market, 'description', ''),
+                liquidity=getattr(market, 'liquidity', 0),
             )
+            from src.models import Signal
+            signal = Signal(
+                condition_id=cid,
+                direction=direction,
+                ai_probability=ai_p,
+                market_price=mkt_p,
+                edge=edge,
+                confidence=estimate.confidence,
+            )
+            risk_decision = self.risk.evaluate(
+                signal=signal,
+                bankroll=bankroll,
+                open_positions=self.portfolio.positions,
+            )
+            adjusted_size = risk_decision.size_usdc
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
             # ── Rank score — edge + prob + confidence ─────────────────────────
@@ -507,6 +523,7 @@ class EntryGate:
         self, candidates: list[dict], bankroll: float, cycle_count: int,
     ) -> list[str]:
         """Execute top candidates. Return list of entered condition_ids."""
+        from src.models import Direction
         entered: list[str] = []
         cfg = self.config
 
@@ -523,15 +540,17 @@ class EntryGate:
                 break
 
             # Min bet check
-            if size < cfg.risk.min_bet_usdc:
+            if size < 5.0:  # Polymarket minimum order size
                 continue
 
             # Execute
+            _token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
+            _order_price = market.yes_price if direction == Direction.BUY_YES else (1 - market.yes_price)
             result = self.executor.place_order(
-                market=market,
-                direction=direction,
+                token_id=_token_id,
+                side="BUY",
+                price=_order_price,
                 size_usdc=size,
-                mode=cfg.mode,
             )
             if not result or not result.get("success"):
                 logger.warning("Order failed: %s — %s", market.slug[:40], result)
