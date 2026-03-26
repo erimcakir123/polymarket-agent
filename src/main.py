@@ -132,6 +132,7 @@ class Agent:
         self.outcome_tracker = OutcomeTracker()  # Track match results after exit
         self.ws_feed = WebSocketFeed(on_price_update=self._on_ws_price_update)
         self._ws_exit_queue: list[tuple[str, str]] = []  # (condition_id, reason) — filled by WS, drained by main
+        self._exiting_set: set[str] = set()  # condition_ids currently being exited — prevents double-exit (#1a, #2a)
         self._toxic_markets: set = set()  # Markets where favorite is losing badly — block all entries
         self._match_states: dict[str, dict] = {}  # condition_id → live match state
         self._last_match_state_fetch: float = 0.0  # Rate limit match state queries
@@ -248,7 +249,9 @@ class Agent:
         Queues exits to _ws_exit_queue — main thread processes them.
         Only checks stop-loss and trailing TP (pure math, no I/O).
         """
-        # Skip if already queued for exit
+        # Skip if already queued or actively being exited
+        if cid in self._exiting_set:
+            return
         if any(q[0] == cid for q in self._ws_exit_queue):
             return
 
@@ -596,6 +599,8 @@ class Agent:
         drained = 0
         while self._ws_exit_queue:
             cid, reason = self._ws_exit_queue.pop(0)
+            if cid in self._exiting_set:
+                continue  # Already being exited (#2a double-exit guard)
             if cid in self.portfolio.positions:
                 logger.info("WS_EXIT executing: %s | reason=%s", self.portfolio.positions[cid].slug[:35], reason)
                 self._exit_position(cid, reason)
@@ -825,8 +830,10 @@ class Agent:
             msg = self.notifier.alert_drawdown(bankroll, self.portfolio.high_water_mark)
             self.notifier.send(msg)
             logger.critical("HARD HALT: equity < 35%% HWM — closing all positions")
+            self._ws_exit_queue.clear()  # Stop WS from interfering during panic sell (#1a)
             for cid in list(self.portfolio.positions.keys()):
-                self._exit_position(cid, "hard_halt_drawdown")
+                if cid not in self._exiting_set:
+                    self._exit_position(cid, "hard_halt_drawdown")
             self.running = False
             return
         elif dd_level == "soft":
@@ -2502,6 +2509,20 @@ class Agent:
                 market.yes_price = current_price
                 market.no_price = 1 - current_price
 
+                # Recalculate raw edge with current price (#8b)
+                _ai_prob = c["estimate"].ai_probability
+                _dir = c["direction"]
+                _new_edge = _ai_prob - current_price if _dir == Direction.BUY_YES else current_price - _ai_prob
+                _min_edge = self.config.risk.min_edge
+                if _new_edge < _min_edge * 0.5:
+                    stale.append(c)
+                    self._candidate_stock.remove(c)
+                    self._analyzed_market_ids.pop(market.condition_id, None)
+                    logger.info("Stock edge degraded → removed: %s | edge=%.1f%% min=%.1f%%",
+                                market.slug[:40], _new_edge * 100, _min_edge * 100)
+                    continue
+                c["edge"] = _new_edge  # Keep score current
+
             # Execute from stock
             direction = c["direction"]
             estimate = c["estimate"]
@@ -3512,7 +3533,11 @@ class Agent:
         return True
 
     def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 3) -> None:
-        pos = self.portfolio.remove_position(condition_id)
+        self._exiting_set.add(condition_id)  # Guard against double-exit (#1a, #2a)
+        try:
+            pos = self.portfolio.remove_position(condition_id)
+        finally:
+            self._exiting_set.discard(condition_id)
         if not pos:
             return
         # Set cooldown — don't re-enter this market for N cycles (let dust settle)
