@@ -54,6 +54,7 @@ class ScoutScheduler:
         self.sports = sports
         self.esports = esports
         self._queue: Dict[str, dict] = {}
+        self._last_run_ts: float = 0.0          # in-memory cooldown timestamp
         self._load_queue()
 
     def _load_queue(self) -> None:
@@ -113,6 +114,13 @@ class ScoutScheduler:
         AI analysis is deferred until a matching Polymarket bet appears (saves budget).
         Returns number of new matches scouted.
         """
+        # In-memory cooldown: never run twice within 4 hours
+        _COOLDOWN_SECS = 4 * 3600
+        if time.time() - self._last_run_ts < _COOLDOWN_SECS:
+            logger.debug("Scout cooldown active — skipping (%.1fh since last run)",
+                         (time.time() - self._last_run_ts) / 3600)
+            return 0
+
         logger.info("=== SCOUT RUN START ===")
         now = datetime.now(timezone.utc)
         new_count = 0
@@ -182,6 +190,7 @@ class ScoutScheduler:
         SCOUT_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
         SCOUT_MARKER_FILE.write_text(now.isoformat(), encoding="utf-8")
 
+        self._last_run_ts = time.time()   # update cooldown timestamp
         logger.info("=== SCOUT COMPLETE: %d new, %d total in queue ===", new_count, len(self._queue))
         return new_count
 
