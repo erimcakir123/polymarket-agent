@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from src.trade_logger import TradeLogger
     from src.notifier import TelegramNotifier
     from src.scout_scheduler import ScoutScheduler
+    from src.sports_data import SportsDataClient
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ class EntryGate:
         manip_guard: "ManipulationGuard",
         trade_log: "TradeLogger",
         notifier: "TelegramNotifier",
+        sports: "SportsDataClient | None" = None,
         scout: "ScoutScheduler | None" = None,
     ) -> None:
         self.config = config
@@ -86,7 +88,10 @@ class EntryGate:
         self.manip_guard = manip_guard
         self.trade_log = trade_log
         self.notifier = notifier
+        self.sports = sports
         self.scout = scout
+        from src.thesportsdb import TheSportsDBClient
+        self.tsdb = TheSportsDBClient()
 
         # Per-session state (survives across cycles)
         self._far_market_ids: set[str] = set()
@@ -289,6 +294,29 @@ class EntryGate:
                 if _scout_entry and _m.condition_id not in esports_contexts:
                     esports_contexts[_m.condition_id] = _scout_entry
                     logger.info("Scout context injected: %s", _m.slug[:40])
+
+        # Traditional sports context: ESPN + TheSportsDB fallback for non-esports markets
+        if self.sports:
+            for _m in prioritized:
+                if _m.condition_id in esports_contexts:
+                    continue  # Already covered by esports/scout
+                _is_esports_mkt = is_esports_slug(_m.slug or "")
+                if _is_esports_mkt:
+                    continue  # Skip esports (handled above)
+                try:
+                    _ctx = self.sports.get_match_context(
+                        getattr(_m, "question", ""), _m.slug or "", []
+                    )
+                    if not _ctx:
+                        # Fallback: TheSportsDB (international teams, qualifiers)
+                        _ctx = self.tsdb.get_match_context(getattr(_m, "question", ""))
+                    if _ctx:
+                        esports_contexts[_m.condition_id] = _ctx
+                        logger.info("Sports context fetched (%s): %s",
+                                    "ESPN" if "ESPN" in _ctx else "TheSportsDB",
+                                    _m.slug[:40])
+                except Exception as _exc:
+                    logger.debug("Sports context fetch error for %s: %s", _m.slug[:40], _exc)
 
         # Fetch news contexts (stop-word filtered keywords → topic grouping works correctly)
         news_context_by_market: dict[str, str] = {}

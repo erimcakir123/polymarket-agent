@@ -155,6 +155,7 @@ class Agent:
             manip_guard=manip_guard,
             trade_log=self.trade_log,
             notifier=self.notifier,
+            sports=sports,
             scout=self.scout,
         )
         self.ws_feed = ws_feed
