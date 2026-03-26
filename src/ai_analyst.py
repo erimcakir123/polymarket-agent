@@ -118,17 +118,19 @@ Respond with ONLY JSON:
 "reasoning_pro": "why YES...", "reasoning_con": "why NO...",
 "key_evidence_for": [...], "key_evidence_against": [...]}}
 
-Confidence grades:
-- "A" = high conviction — sufficient evidence for a well-supported estimate.
-        Clear form differential, adequate sample (8+ recent matches per team),
-        strong trend or corroborating signals. Does NOT require multiple API sources.
-- "B+" = solid conviction — good evidence with minor gaps.
-         Reasonable sample (5-8 matches), clear but not dominant trend,
-         one unknown factor (e.g., missing H2H, roster uncertainty).
-- "B-" = moderate conviction — usable evidence but notable uncertainty.
-         Small sample (<5 matches), conflicting signals, stale data (>14 days),
-         or genuinely unclear matchup.
-- "C" = low conviction — insufficient evidence, essentially guessing. Will be skipped."""
+Confidence grades — rate DATA AVAILABILITY, not your uncertainty about the result:
+- "A"  = strong data — 2+ independent sources agree (e.g., bookmaker odds + match stats,
+         or match stats + news). High-quality stats with 8+ recent matches per team (<14 days).
+         Use A even if the result feels uncertain — if data is rich, grade is A.
+- "B+" = good data — at least one solid source (bookmaker odds alone, OR match stats with
+         5+ recent games, OR detailed news context). One unknown factor (e.g., no H2H data,
+         roster change rumor) is fine — still B+ if core data is present.
+- "B-" = minimal data — only one weak source (news only with no stats, or <5 match samples,
+         or data older than 14 days). You can still form an estimate, but data is thin.
+- "C"  = no data — no source provided meaningful information. Return C ONLY when you have
+         literally no data to work with: empty stats, no news, no odds, no context.
+         Do NOT return C because the outcome is uncertain — return C only for missing data.
+         Will be SKIPPED (no trade opened)."""
 
 
 DEVILS_ADVOCATE_PROMPT = """You are a skeptical risk analyst. Your ONLY job is to find reasons
