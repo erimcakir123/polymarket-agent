@@ -100,11 +100,12 @@ RULES:
 DATA CALIBRATION:
 You will see a "Data Sources" section listing what was queried for this market.
 - If bookmaker odds are present → strong external anchor, supports higher confidence.
-- If only match stats are present → calibrate based on sample size and recency of matches.
-- Missing bookmaker odds is NOT a reason to lower confidence if match data is adequate.
-  For esports, match history + recent form from a stats provider IS sufficient for B+ or A
-  when sample size is 8+ matches per team with recent data (<14 days old).
-- News supports but does not drive confidence alone.
+- If match stats are present (ESPN, PandaScore, TheSportsDB) → primary confidence signal.
+  8+ recent matches per team → A. 5-7 matches → B+. 1-4 matches → B-.
+- Missing bookmaker odds is NOT a reason to lower confidence if match stats are adequate.
+- News alone (injuries, form reports, previews) WITHOUT any match statistics → C.
+  News is supplementary — it can raise B- to B+ but cannot substitute for match data.
+- If no data sources returned meaningful content → C.
 
 CRITICAL — PROBABILITY DEFINITION:
 "probability" MUST be the probability that the YES outcome occurs.
@@ -119,17 +120,18 @@ Respond with ONLY JSON:
 "key_evidence_for": [...], "key_evidence_against": [...]}}
 
 Confidence grades — rate DATA AVAILABILITY, not your uncertainty about the result:
-- "A"  = strong data — 2+ independent sources agree (e.g., bookmaker odds + match stats,
-         or match stats + news). High-quality stats with 8+ recent matches per team (<14 days).
-         Use A even if the result feels uncertain — if data is rich, grade is A.
-- "B+" = good data — at least one solid source (bookmaker odds alone, OR match stats with
-         5+ recent games, OR detailed news context). One unknown factor (e.g., no H2H data,
-         roster change rumor) is fine — still B+ if core data is present.
-- "B-" = minimal data — only one weak source (news only with no stats, or <5 match samples,
-         or data older than 14 days). You can still form an estimate, but data is thin.
-- "C"  = no data — no source provided meaningful information. Return C ONLY when you have
-         literally no data to work with: empty stats, no news, no odds, no context.
-         Do NOT return C because the outcome is uncertain — return C only for missing data.
+- "A"  = strong statistical data — 2+ independent sources agree (bookmaker odds + match stats,
+         or match stats + news with 8+ recent games per team <14 days old).
+         Use A when you have rich quantitative data even if the outcome feels uncertain.
+- "B+" = solid statistical data — at least one strong source: bookmaker odds alone,
+         OR match history with 5+ recent games (ESPN, PandaScore, TheSportsDB),
+         OR detailed news PLUS any stats. One unknown factor is fine at B+.
+- "B-" = minimal statistical data — 1-4 recent match results available but thin sample,
+         OR data older than 14 days, OR conflicting signals.
+         REQUIRES at least some match history — news alone is NOT enough for B-.
+- "C"  = no statistical data — no match history, no bookmaker odds, no sports stats.
+         News articles alone (injuries, transfers, previews) without match data = C.
+         Return C only for missing statistics, NOT for uncertain outcomes.
          Will be SKIPPED (no trade opened)."""
 
 
