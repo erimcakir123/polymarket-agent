@@ -584,6 +584,10 @@ class EntryGate:
                     except json.JSONDecodeError:
                         continue
                     ts = rec.get("timestamp", 0)
+                    try:
+                        ts = float(ts)
+                    except (TypeError, ValueError):
+                        continue
                     if ts < cutoff:
                         continue
                     cid = rec.get("condition_id", "")

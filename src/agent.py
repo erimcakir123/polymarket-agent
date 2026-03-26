@@ -70,6 +70,9 @@ class Agent:
         self.cycle_count = 0
         self._soft_halt_active = False
         self._cb_was_active = False
+        self.consecutive_api_failures = 0
+        self.last_cycle_has_live_clob = False
+        self._last_candidate_count = 0
 
         # Exit infrastructure (owned by agent — _exit_position needs these)
         self._exit_cooldowns: dict[str, int] = {}
@@ -160,17 +163,105 @@ class Agent:
 
     def run(self) -> None:
         """Main agent loop. Alternates heavy and light cycles."""
+        import signal as _signal
         logger.info("Agent starting — mode=%s", self.config.mode.value)
+        self.consecutive_api_failures = 0
+        last_full_cycle_time = 0.0
         try:
+            try:
+                _signal.signal(_signal.SIGTERM, lambda signum, frame: setattr(self, 'running', False))
+            except (OSError, AttributeError):
+                pass
+
             while self.running:
                 self._check_stop_file()
                 if not self.running:
                     break
-                if self.cycle_timer.should_run_heavy():
-                    self.run_cycle()
-                else:
-                    self.run_light_cycle()
-                self.cycle_timer.sleep_until_next()
+
+                has_positions = len(self.portfolio.positions) > 0
+                vs_near_match = False
+                if has_positions:
+                    vs_positions = [p for p in self.portfolio.positions.values() if p.volatility_swing]
+                    if vs_positions:
+                        now = datetime.now(timezone.utc)
+                        for vp in vs_positions:
+                            _vp_time = vp.match_start_iso or vp.end_date_iso
+                            if _vp_time:
+                                try:
+                                    end_dt = datetime.fromisoformat(_vp_time.replace("Z", "+00:00"))
+                                    hours_left = (end_dt - now).total_seconds() / 3600
+                                    if hours_left <= 4.0:
+                                        vs_near_match = True
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
+
+                time_since_full = time.time() - last_full_cycle_time
+                dynamic_interval = self.cycle_timer.get_interval()
+                full_interval_sec = dynamic_interval * 60
+                run_full = not has_positions or time_since_full >= full_interval_sec
+
+                try:
+                    if run_full:
+                        self.run_cycle()
+                        last_full_cycle_time = time.time()
+                        # Auto-refill: keep running cycles until pool is full
+                        vs_reserved = self.config.volatility_swing.reserved_slots
+                        _refill_round = 0
+                        while True:
+                            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+                            current_normal = self.portfolio.active_position_count - current_vs
+                            open_slots = self.config.risk.max_positions - vs_reserved - current_normal
+                            if open_slots <= 0:
+                                break
+                            _refill_round += 1
+                            positions_before = len(self.portfolio.positions)
+                            logger.info("Pool not full (%d open slots) — refill cycle %d", open_slots, _refill_round)
+                            self.run_cycle()
+                            last_full_cycle_time = time.time()
+                            positions_after = len(self.portfolio.positions)
+                            if positions_after <= positions_before:
+                                logger.info("Refill cycle added 0 positions — no viable markets")
+                                break
+                    else:
+                        self.run_light_cycle()
+                    self.consecutive_api_failures = 0
+                except Exception as exc:
+                    self.consecutive_api_failures += 1
+                    logger.error("Cycle error (%d): %s", self.consecutive_api_failures, exc)
+                    if self.consecutive_api_failures >= 3:
+                        logger.warning("3 consecutive failures — pausing 5 min")
+                        time.sleep(300)
+                        self.consecutive_api_failures = 0
+
+                self.cycle_timer.tick()
+
+                if not (self.cycle_timer._override and self.cycle_timer._override_cycles > 0):
+                    active_count = getattr(self, '_last_candidate_count', 0)
+                    self.cycle_timer.signal_market_aware(active_count, len(self.portfolio.positions))
+
+                for pos in self.portfolio.positions.values():
+                    if pos.unrealized_pnl_pct < -(self.config.risk.stop_loss_pct * 0.83):
+                        self.cycle_timer.signal_near_stop_loss()
+                        break
+
+                if getattr(self, 'last_cycle_has_live_clob', False):
+                    self.cycle_timer.signal_live_positions()
+
+                if vs_near_match:
+                    self.cycle_timer.signal_volatility_swing(
+                        polling_min=self.config.volatility_swing.polling_interval_min)
+
+                upcoming = self.scout.get_upcoming_match_times()
+                if upcoming:
+                    now_utc = datetime.now(timezone.utc)
+                    for mt in upcoming:
+                        hours_until = (mt - now_utc).total_seconds() / 3600
+                        if 0 < hours_until < 3:
+                            self.cycle_timer.signal_scout_approaching()
+                            logger.info("Scouted match in %.1fh — polling every 5 min", hours_until)
+                            break
+
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
         finally:
