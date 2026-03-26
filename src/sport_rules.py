@@ -300,6 +300,9 @@ def is_esports(sport_tag: str) -> bool:
     Replaces 4 inline definitions in main.py (lines 273/312/758/1606).
     NOTE: line 273 used .startswith() with truncated strings — this exact-match
     version is correct.
+    Includes rocket-league, overwatch, and apex-legends beyond the 4 originally
+    in main.py — these were not in any old inline tuple but are legitimate
+    esports titles.
     """
     return (sport_tag or "").lower() in ESPORTS_TAGS
 
@@ -310,7 +313,7 @@ def is_esports_slug(slug: str) -> bool:
     Used during market prioritization to skip odds_api lookups (esports not
     covered by major bookmakers).
     """
-    prefix = (slug or "").lower()[:8].split("-")[0]
+    prefix = (slug or "").lower().split("-")[0]
     return prefix in ESPORTS_SLUGS
 
 
@@ -352,7 +355,7 @@ def get_sport_rules(sport_tag: str) -> dict:
     return merged
 
 
-def get_stop_loss(sport_tag: str, is_esports: bool = False) -> float:
+def get_stop_loss(sport_tag: str, is_esports_market: bool = False) -> float:
     """Sport-aware stop-loss oranı."""
     return get_sport_rule(sport_tag, "stop_loss_pct", 0.30)
 
