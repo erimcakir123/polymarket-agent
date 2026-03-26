@@ -66,6 +66,10 @@ class WebSocketFeed:
         self._last_message_time = 0.0
         self._stats = {"messages_received": 0, "reconnects": 0, "errors": 0}
 
+    def set_on_price_update(self, callback) -> None:
+        """Set or replace the price-update callback. Used by ExitMonitor."""
+        self._callback = callback
+
     @property
     def connected(self) -> bool:
         return self._connected
