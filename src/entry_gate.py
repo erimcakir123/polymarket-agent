@@ -131,7 +131,7 @@ class EntryGate:
 
         # Filter out blacklisted and permanently exited markets
         if blacklist:
-            markets = [m for m in markets if not blacklist.is_blocked(m.condition_id)]
+            markets = [m for m in markets if not blacklist.is_blocked(m.condition_id, cycle_count)]
         markets = [m for m in markets if m.condition_id not in exited_markets]
 
         estimates: dict = {}
@@ -242,14 +242,26 @@ class EntryGate:
         # Fetch esports contexts
         esports_contexts: dict = {}
         try:
-            esports_contexts = self.esports.get_contexts_batch(prioritized) if prioritized else {}
+            _esports_tmp: dict = {}
+            for _m in prioritized:
+                _ctx = self.esports.get_match_context(
+                    getattr(_m, "question", ""),
+                    [getattr(_m, "sport_tag", "") or ""],
+                )
+                if _ctx is not None:
+                    _esports_tmp[_m.condition_id] = _ctx
+            esports_contexts = _esports_tmp
         except Exception as exc:
             logger.warning("Esports context fetch failed: %s", exc)
 
         # Fetch news contexts
         news_context_by_market: dict = {}
         try:
-            news_context_by_market = self.news_scanner.fetch_for_batch(prioritized) if prioritized else {}
+            market_keywords = {
+                m.condition_id: [getattr(m, "question", m.slug or "")]
+                for m in prioritized
+            }
+            news_context_by_market = self.news_scanner.search_for_markets(market_keywords) if prioritized else {}
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
@@ -296,14 +308,12 @@ class EntryGate:
         fresh_scan: bool,
     ) -> list[dict]:
         """Evaluate each market, return ranked candidate list."""
-        from src.edge_calculator import calculate_edge, calculate_anchored_probability
-        from src.edge_calculator import get_edge_threshold_adjustment
-        from src.sanity_check import SanityChecker
+        from src.edge_calculator import calculate_edge, scale_min_edge
+        from src.probability_engine import calculate_anchored_probability, get_edge_threshold_adjustment
+        from src.sanity_check import check_bet_sanity
         from src.models import Direction
-        from src.scale_out import fill_ratio_scaling as scale_min_edge
 
         cfg = self.config
-        sanity = SanityChecker(cfg.sanity)
         candidates: list[dict] = []
         _CONF_SKIP = {"C", "", "?"}
 
@@ -313,8 +323,6 @@ class EntryGate:
         if cfg.edge.fill_ratio_scaling:
             effective_min_edge = scale_min_edge(
                 cfg.edge.min_edge, fill_ratio,
-                cfg.edge.fill_ratio_aggressive,
-                cfg.edge.fill_ratio_selective,
             )
 
         for market in markets:
@@ -328,8 +336,15 @@ class EntryGate:
                 continue
 
             # ── Sanity check (ALL markets including FAR — no bypass) ────────
-            sanity_result = sanity.check(market, estimate)
-            if not sanity_result.passed:
+            sanity_result = check_bet_sanity(
+                question=getattr(market, "question", ""),
+                direction="BUY_YES",  # conservative check before direction is determined
+                ai_probability=estimate.ai_probability,
+                market_price=market.yes_price,
+                edge=0.0,  # edge not yet calculated — catches extreme AI probs only
+                confidence=estimate.confidence,
+            )
+            if not sanity_result.ok:
                 self.trade_log.log({
                     "market": market.slug, "action": "BLOCKED",
                     "question": market.question,

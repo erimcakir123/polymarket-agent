@@ -371,7 +371,7 @@ class Agent:
         self._sync_ws_subscriptions()
 
         # Entry: fresh scan (analyze=True)
-        fresh_markets = self.scanner.get_markets()
+        fresh_markets = self.scanner.fetch()
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,
             bankroll=bankroll, cycle_count=self.cycle_count,
