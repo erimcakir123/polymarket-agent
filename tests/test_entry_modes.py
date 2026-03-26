@@ -167,3 +167,45 @@ def test_winner_score_higher_than_edge_score():
                 )
     assert len(candidates) == 2
     assert candidates[0]["market"].condition_id == "win-001", "Winner should rank first"
+
+
+def test_tie_break_picks_larger_edge():
+    """When both sides classify as DEADZONE, pick the side with larger edge."""
+    gate2 = _make_gate()
+    market = _make_market(yes_price=0.40)
+    estimate = _make_estimate(ai_prob=0.55, confidence="A")
+    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
+        mock_sanity.return_value = MagicMock(ok=True)
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            mock_anchor.return_value = MagicMock(probability=0.55)
+            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
+                candidates = gate2._evaluate_candidates(
+                    [market], {market.condition_id: estimate},
+                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
+                )
+    # YES edge = 0.55 - 0.40 = 0.15 (DEADZONE), NO edge = 0.45 - 0.60 = -0.15 (HOLD)
+    # Should pick DEADZONE YES
+    assert len(candidates) == 1
+    from src.models import Direction
+    assert candidates[0]["direction"] == Direction.BUY_YES
+    assert candidates[0]["mode"] == "DEADZONE"
+
+
+def test_no_direction_winner():
+    """AI 20% → NO side has 80% → WINNER BUY_NO."""
+    gate = _make_gate()
+    market = _make_market(yes_price=0.75)
+    estimate = _make_estimate(ai_prob=0.20, confidence="A")
+    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
+        mock_sanity.return_value = MagicMock(ok=True)
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            mock_anchor.return_value = MagicMock(probability=0.20)
+            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
+                candidates = gate._evaluate_candidates(
+                    [market], {market.condition_id: estimate},
+                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
+                )
+    assert len(candidates) == 1
+    assert candidates[0]["mode"] == "WINNER"
+    from src.models import Direction
+    assert candidates[0]["direction"] == Direction.BUY_NO

@@ -382,6 +382,9 @@ class EntryGate:
         if cfg.edge.fill_ratio_scaling:
             effective_min_edge = scale_min_edge(cfg.edge.min_edge, fill_ratio)
 
+        # Mode priority constant (defined once, not per-iteration)
+        _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "UNDERDOG": 2, "HOLD": 1}
+
         for market in markets:
             cid = market.condition_id
 
@@ -389,24 +392,6 @@ class EntryGate:
             if estimate is None:
                 continue
             if estimate.confidence in _CONF_SKIP:
-                continue
-
-            # ── Sanity check ────────────────────────────────────────────────
-            sanity_result = check_bet_sanity(
-                question=getattr(market, "question", ""),
-                direction="BUY_YES",
-                ai_probability=estimate.ai_probability,
-                market_price=market.yes_price,
-                edge=0.0,
-                confidence=estimate.confidence,
-            )
-            if not sanity_result.ok:
-                self.trade_log.log({
-                    "market": market.slug, "action": "BLOCKED",
-                    "question": market.question,
-                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
-                    "rejected": f"SANITY: {sanity_result.reason}",
-                })
                 continue
 
             # ── Bookmaker anchor (read-only, no new API calls if unavailable) ─
@@ -450,18 +435,29 @@ class EntryGate:
             yes_mode = _classify_side(ai_p, edge_yes)
             no_mode = _classify_side(ai_n, edge_no)
 
-            # Pick direction: Winner > DeadZone > Underdog > Hold
-            _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "UNDERDOG": 2, "HOLD": 1}
-            if _MODE_PRIORITY[yes_mode] >= _MODE_PRIORITY[no_mode]:
+            # Pick direction: higher mode priority wins; ties broken by edge size
+            if _MODE_PRIORITY[yes_mode] > _MODE_PRIORITY[no_mode]:
                 direction = Direction.BUY_YES
                 mode = yes_mode
                 edge = edge_yes
                 direction_prob = ai_p
-            else:
+            elif _MODE_PRIORITY[no_mode] > _MODE_PRIORITY[yes_mode]:
                 direction = Direction.BUY_NO
                 mode = no_mode
                 edge = edge_no
                 direction_prob = ai_n
+            else:
+                # Equal mode: pick direction with larger edge
+                if edge_yes >= edge_no:
+                    direction = Direction.BUY_YES
+                    mode = yes_mode
+                    edge = edge_yes
+                    direction_prob = ai_p
+                else:
+                    direction = Direction.BUY_NO
+                    mode = no_mode
+                    edge = edge_no
+                    direction_prob = ai_n
 
             if mode == "HOLD":
                 self.trade_log.log({
@@ -470,6 +466,24 @@ class EntryGate:
                     "edge_yes": round(edge_yes, 4), "edge_no": round(edge_no, 4),
                 })
                 self._analyzed_market_ids[cid] = time.time()
+                continue
+
+            # ── Sanity check (after direction is known) ──────────────────────
+            sanity_result = check_bet_sanity(
+                question=getattr(market, "question", ""),
+                direction=direction.value,
+                ai_probability=estimate.ai_probability,
+                market_price=market.yes_price,
+                edge=0.0,
+                confidence=estimate.confidence,
+            )
+            if not sanity_result.ok:
+                self.trade_log.log({
+                    "market": market.slug, "action": "BLOCKED",
+                    "question": market.question,
+                    "ai_prob": estimate.ai_probability, "price": market.yes_price,
+                    "rejected": f"SANITY: {sanity_result.reason}",
+                })
                 continue
 
             # ── Confidence gate (mode-specific) ──────────────────────────────
