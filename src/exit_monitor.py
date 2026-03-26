@@ -10,13 +10,15 @@ Does NOT call executor or modify portfolio directly.
 Does NOT execute exits — detection only.
 
 Data flow:
-   WS price tick → _on_ws_price_update() → _ws_exit_queue
+   WS price tick → _on_ws_price_update() → _ws_tick_queue (SimpleQueue, thread-safe)
+   agent.process_ws_ticks() ← drains tick queue on main thread, fills _ws_exit_queue
    agent.drain()  ← returns list of (cid, reason) to execute
    agent.check_exits() ← calls portfolio.check_*() methods, returns list
 """
 from __future__ import annotations
 
 import logging
+import queue
 from collections import deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
@@ -41,6 +43,7 @@ class ExitMonitor:
     ) -> None:
         self.portfolio = portfolio
         self.config = config
+        self._ws_tick_queue: queue.SimpleQueue[tuple[str, float, float]] = queue.SimpleQueue()
         self._ws_exit_queue: deque[tuple[str, str]] = deque()
         self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
@@ -51,31 +54,38 @@ class ExitMonitor:
     # ── WebSocket ──────────────────────────────────────────────────────────
 
     def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
-        """Called by WebSocketFeed on every price tick. Update price + queue exits."""
-        # Find matching position by token_id
-        cid_found: str | None = None
-        pos_found = None
-        for cid, pos in self.portfolio.positions.items():
-            if pos.token_id == token_id:
-                pos.current_price = price
-                cid_found = cid
-                pos_found = pos
+        """Called from WS thread — only enqueues, never mutates shared state."""
+        self._ws_tick_queue.put_nowait((token_id, price, ts))
+
+    def process_ws_ticks(self) -> None:
+        """Process all pending WS price ticks. Must be called from the main thread."""
+        while not self._ws_tick_queue.empty():
+            try:
+                token_id, price, ts = self._ws_tick_queue.get_nowait()
+            except queue.Empty:
                 break
-        if cid_found is None or pos_found is None:
-            return
 
-        cid: str = cast(str, cid_found)  # guarded by None-check above
+            # Find matching position by token_id
+            cid_found: str | None = None
+            pos_found = None
+            for cid, pos in self.portfolio.positions.items():
+                if pos.token_id == token_id:
+                    pos.current_price = price
+                    cid_found = cid
+                    pos_found = pos
+                    break
+            if cid_found is None or pos_found is None:
+                continue
 
-        # Skip if already in exit queue or actively exiting
-        if cid in self._exiting_set:
-            return
-        if cid in self._ws_exit_queued_set:
-            return
+            cid: str = cast(str, cid_found)  # guarded by None-check above
 
-        try:
+            # Skip if already in exit queue or actively exiting
+            if cid in self._exiting_set:
+                continue
+            if cid in self._ws_exit_queued_set:
+                continue
+
             self._ws_check_exits(cid, pos_found)
-        except Exception as exc:
-            logger.warning("WS exit check failed for token %s: %s", token_id, exc)
 
     def _ws_check_exits(self, cid: str, pos: "Position") -> None:
         """Lightweight exit checks triggered by WebSocket price update.
