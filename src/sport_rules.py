@@ -273,6 +273,48 @@ SPORT_RULES: dict[str, dict] = {
 }
 
 # ═══════════════════════════════════════════════════════
+# ESPORTS DETECTION — single source of truth
+# ═══════════════════════════════════════════════════════
+
+# sport_tag values (from MarketData.sport_tag) for esports titles
+ESPORTS_TAGS: frozenset[str] = frozenset({
+    "counter-strike",
+    "dota-2",
+    "league-of-legends",
+    "valorant",
+    "rocket-league",
+    "overwatch",
+    "apex-legends",
+})
+
+# Slug prefixes used in Polymarket market slugs for esports
+ESPORTS_SLUGS: frozenset[str] = frozenset({
+    "cs2", "csgo", "val", "valorant", "lol", "dota2", "rl", "cod", "ow",
+})
+
+
+def is_esports(sport_tag: str) -> bool:
+    """Return True if sport_tag identifies an esports title.
+
+    Use this everywhere instead of inline tuple checks.
+    Replaces 4 inline definitions in main.py (lines 273/312/758/1606).
+    NOTE: line 273 used .startswith() with truncated strings — this exact-match
+    version is correct.
+    """
+    return (sport_tag or "").lower() in ESPORTS_TAGS
+
+
+def is_esports_slug(slug: str) -> bool:
+    """Return True if the market slug prefix indicates an esports market.
+
+    Used during market prioritization to skip odds_api lookups (esports not
+    covered by major bookmakers).
+    """
+    prefix = (slug or "").lower()[:8].split("-")[0]
+    return prefix in ESPORTS_SLUGS
+
+
+# ═══════════════════════════════════════════════════════
 # DEFAULT — bilinmeyen sporlar için
 # ═══════════════════════════════════════════════════════
 
