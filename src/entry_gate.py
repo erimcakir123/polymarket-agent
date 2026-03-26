@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from src.manipulation_guard import ManipulationGuard
     from src.trade_logger import TradeLogger
     from src.notifier import TelegramNotifier
+    from src.scout_scheduler import ScoutScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,7 @@ class EntryGate:
         manip_guard: "ManipulationGuard",
         trade_log: "TradeLogger",
         notifier: "TelegramNotifier",
+        scout: "ScoutScheduler | None" = None,
     ) -> None:
         self.config = config
         self.portfolio = portfolio
@@ -83,6 +86,7 @@ class EntryGate:
         self.manip_guard = manip_guard
         self.trade_log = trade_log
         self.notifier = notifier
+        self.scout = scout
 
         # Per-session state (survives across cycles)
         self._far_market_ids: set[str] = set()
@@ -91,6 +95,7 @@ class EntryGate:
         self._eligible_pointer: int = 0
         self._eligible_cache_ts: float = 0.0
         self._seen_market_ids: set[str] = set()
+        self._breaking_news_detected: bool = False
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
@@ -140,15 +145,18 @@ class EntryGate:
             # Prioritize + fetch external data + run AI batch
             markets, estimates = self._analyze_batch(markets, cycle_count)
         else:
-            # Stock queue: use cached AI estimates (no AI cost)
-            for m in markets:
-                cid = m.condition_id
-                if cid in self._analyzed_market_ids:
-                    # Estimate was already stored when market was analyzed;
-                    # for stock queue, the candidate dict carries the estimate.
-                    pass
-            # estimates already in candidate dicts — handled in _evaluate_candidates
-            estimates = {}  # signal to evaluator to use candidate.get("estimate")
+            # Stock queue: pull estimates from candidate dicts (no AI cost)
+            stock_by_cid: dict[str, dict] = {}
+            for c in self._candidate_stock:
+                mkt = c.get("market")
+                cid_key = mkt.condition_id if mkt else c.get("condition_id", "")
+                if cid_key:
+                    stock_by_cid[cid_key] = c
+            estimates = {
+                cid_key: c["estimate"]
+                for cid_key, c in stock_by_cid.items()
+                if c.get("estimate")
+            }
 
         # Collect + rank candidates
         candidates = self._evaluate_candidates(markets, estimates, bankroll, cycle_count, analyze)
@@ -239,6 +247,24 @@ class EntryGate:
         # Update FAR market ids (>6h to start = FAR, needs higher edge)
         self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
 
+        # Stop-words for keyword extraction (match old main.py behaviour)
+        _STOP_WORDS = frozenset({
+            "will", "the", "a", "an", "in", "at", "to", "of", "or", "and", "for",
+            "be", "is", "are", "was", "were", "on", "by", "with", "it", "its",
+            "this", "that", "have", "has", "had", "do", "did", "not", "but",
+            "if", "as", "from", "up", "out", "no", "yes", "so", "what", "which",
+            "who", "when", "their", "they", "we", "he", "she", "more", "most",
+            "than", "then", "win", "beat", "vs", "versus", "match", "game",
+            "series", "championship", "cup", "league", "tournament", "over",
+            "under", "top", "next", "first", "last", "best", "team", "player",
+            "season", "week", "day", "month", "year", "time", "get", "go", "make",
+            "take", "come", "see", "know", "think", "how", "any", "all", "been",
+            "would", "could", "should", "about", "after", "before", "during",
+            "between", "through", "become", "finish", "place", "round", "stage",
+            "group", "qualify", "advance", "reach", "lose", "winner", "final",
+            "semi", "quarter", "into", "also", "each", "other", "these",
+        })
+
         # Fetch esports contexts
         esports_contexts: dict = {}
         try:
@@ -254,14 +280,42 @@ class EntryGate:
         except Exception as exc:
             logger.warning("Esports context fetch failed: %s", exc)
 
-        # Fetch news contexts
-        news_context_by_market: dict = {}
+        # Scout inject: match scouted events → inject sports_context into esports_contexts
+        if self.scout:
+            for _m in prioritized:
+                _scout_entry = self.scout.match_market(
+                    getattr(_m, "question", ""), _m.slug or ""
+                )
+                if _scout_entry and _m.condition_id not in esports_contexts:
+                    esports_contexts[_m.condition_id] = _scout_entry
+                    logger.info("Scout context injected: %s", _m.slug[:40])
+
+        # Fetch news contexts (stop-word filtered keywords → topic grouping works correctly)
+        news_context_by_market: dict[str, str] = {}
+        self._breaking_news_detected = False
         try:
-            market_keywords = {
-                m.condition_id: [getattr(m, "question", m.slug or "")]
-                for m in prioritized
+            market_keywords: dict[str, list[str]] = {}
+            for m in prioritized:
+                q = getattr(m, "question", "") or m.slug or ""
+                words = re.sub(r"[^\w\s]", " ", q.lower()).split()
+                kws = [w for w in words if w not in _STOP_WORDS and len(w) > 2][:5]
+                market_keywords[m.condition_id] = kws if kws else [(m.slug or q)[:20]]
+
+            raw_news: dict[str, list] = (
+                self.news_scanner.search_for_markets(market_keywords) if prioritized else {}
+            )
+
+            # Detect breaking news for cycle_timer signal (checked by agent after run())
+            self._breaking_news_detected = any(
+                any(a.get("is_breaking") for a in arts)
+                for arts in raw_news.values()
+            )
+
+            # Convert raw article lists → AI-ready text strings
+            news_context_by_market = {
+                cid: self.news_scanner.build_news_context(arts)
+                for cid, arts in raw_news.items()
             }
-            news_context_by_market = self.news_scanner.search_for_markets(market_keywords) if prioritized else {}
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
@@ -386,17 +440,8 @@ class EntryGate:
             # ── Esports-specific entry rules ───────────────────────────────
             _sport_tag = getattr(market, "sport_tag", "") or ""
             if is_esports(_sport_tag):
-                # Rule 1: AI > 65% → force BUY_YES (winner override)
-                if anchored.probability > 0.65 and direction in (Direction.BUY_NO, Direction.HOLD):
-                    win_potential = 1.0 - market.yes_price
-                    logger.info(
-                        "ESPORTS_WINNER_OVERRIDE: %s | AI=%.0f%% > 65%% | was %s → BUY_YES",
-                        market.slug[:40], anchored.probability * 100, direction.value,
-                    )
-                    direction = Direction.BUY_YES
-                    edge = win_potential
-                # Rule 2: AI < 50% + BUY_YES → skip (don't bet on predicted loser)
-                elif direction == Direction.BUY_YES and anchored.probability < 0.50:
+                # AI < 50% + BUY_YES → skip (don't bet on predicted loser in esports)
+                if direction == Direction.BUY_YES and anchored.probability < 0.50:
                     logger.info("Esports underdog skip: %s | AI=%.0f%% < 50%%",
                                 market.slug[:40], anchored.probability * 100)
                     self.trade_log.log({

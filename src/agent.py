@@ -155,6 +155,7 @@ class Agent:
             manip_guard=manip_guard,
             trade_log=self.trade_log,
             notifier=self.notifier,
+            scout=self.scout,
         )
         self.ws_feed = ws_feed
         self.scanner = scanner
@@ -378,6 +379,12 @@ class Agent:
             blacklist=self.blacklist, exited_markets=self._exited_markets,
         )
 
+        # Breaking news detected → shorten cycle interval
+        if self.entry_gate._breaking_news_detected:
+            self.entry_gate._breaking_news_detected = False
+            self.cycle_timer.signal_breaking_news()
+            logger.info("Breaking news detected — cycle shortened to %d min", self.config.cycle.breaking_news_interval_min)
+
         # Entry: stock queue drain (analyze=False — no AI cost)
         self.entry_gate.drain_stock(
             entries_allowed=entries_allowed, bankroll=bankroll,
@@ -488,20 +495,85 @@ class Agent:
             self._save_exited_market(condition_id)
 
     def _try_demote_to_stock(self, pos, reason: str) -> bool:
-        """Attempt to demote exited position back to candidate stock queue.
-        Returns True if demoted successfully.
+        """Demote exited position back to candidate stock queue for re-entry.
+
+        Accepts if stock has room (< 10) OR score beats the worst existing entry.
+        Returns True if demoted, False if rejected (→ caller will blacklist instead).
         """
+        from src.models import MarketData
+        from src.ai_analyst import AIEstimate
+
+        _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
+        STOCK_MAX = 10
+
+        # Calculate ranking score from saved position data
+        pos_edge = max(0.0, abs(pos.ai_probability - pos.current_price))
+        pos_score = pos_edge * _CONF_SCORE.get(getattr(pos, "confidence", "C"), 1)
+
+        stock = self.entry_gate._candidate_stock
+
+        # Decide whether to accept
+        if len(stock) < STOCK_MAX:
+            accept = True
+        else:
+            worst_score = min((c.get("score", 0.0) for c in stock), default=0.0)
+            accept = pos_score > worst_score
+            if accept:
+                # Evict worst entry to make room
+                worst_idx = min(range(len(stock)), key=lambda i: stock[i].get("score", 0.0))
+                stock.pop(worst_idx)
+
+        if not accept:
+            return False
+
+        # Reconstruct MarketData from position fields
+        is_buy_yes = pos.direction == "BUY_YES"
+        try:
+            market = MarketData(
+                condition_id=pos.condition_id,
+                question=getattr(pos, "question", ""),
+                yes_price=pos.current_price,
+                no_price=round(1.0 - pos.current_price, 4),
+                yes_token_id=pos.token_id if is_buy_yes else "",
+                no_token_id=pos.token_id if not is_buy_yes else "",
+                slug=pos.slug,
+                sport_tag=getattr(pos, "sport_tag", "") or "",
+                event_id=getattr(pos, "event_id", "") or "",
+                end_date_iso=getattr(pos, "end_date_iso", "") or "",
+                match_start_iso=getattr(pos, "match_start_iso", "") or "",
+            )
+        except Exception as exc:
+            logger.warning("Could not reconstruct MarketData for stock demotion: %s", exc)
+            return False
+
+        estimate = AIEstimate(
+            ai_probability=pos.ai_probability,
+            confidence=getattr(pos, "confidence", "B-"),
+            reasoning_pro="(demoted — re-evaluate at entry)",
+            reasoning_con="",
+        )
+
         candidate = {
-            "condition_id": pos.condition_id if hasattr(pos, "condition_id") else "",
-            "market": None,
-            "estimate": None,
+            "score": pos_score,
+            "condition_id": pos.condition_id,
+            "market": market,
+            "estimate": estimate,
             "direction": pos.direction,
-            "edge": 0.0,
-            "adjusted_size": 0.0,
+            "edge": pos_edge,
+            "adjusted_size": 0.0,  # recalculated at execution time
             "entry_reason": "demoted",
             "is_consensus": False,
+            "is_far": False,
+            "sanity": None,
+            "manip_check": None,
         }
-        return False  # simplified — full demotion logic can be ported in follow-up
+
+        self.entry_gate.push_to_stock(candidate)
+        logger.info(
+            "DEMOTED to stock: %s | score=%.3f | reason=%s | stock_size=%d",
+            pos.slug[:35], pos_score, reason, len(self.entry_gate._candidate_stock),
+        )
+        return True
 
     # ── Farming re-entry ──────────────────────────────────────────────────
 
