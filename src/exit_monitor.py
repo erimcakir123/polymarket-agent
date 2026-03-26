@@ -17,13 +17,15 @@ Data flow:
 from __future__ import annotations
 
 import logging
+from collections import deque
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from src.portfolio import Portfolio
     from src.websocket_feed import WebSocketFeed
     from src.config import AppConfig
+    from src.models import Position
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,8 @@ class ExitMonitor:
     ) -> None:
         self.portfolio = portfolio
         self.config = config
-        self._ws_exit_queue: list[tuple[str, str]] = []
+        self._ws_exit_queue: deque[tuple[str, str]] = deque()
+        self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
 
         # Register our callback with the WS feed
@@ -50,7 +53,7 @@ class ExitMonitor:
     def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
         """Called by WebSocketFeed on every price tick. Update price + queue exits."""
         # Find matching position by token_id
-        cid_found = None
+        cid_found: str | None = None
         pos_found = None
         for cid, pos in self.portfolio.positions.items():
             if pos.token_id == token_id:
@@ -58,21 +61,23 @@ class ExitMonitor:
                 cid_found = cid
                 pos_found = pos
                 break
-        if not pos_found or not cid_found:
+        if cid_found is None or pos_found is None:
             return
 
+        cid: str = cast(str, cid_found)  # guarded by None-check above
+
         # Skip if already in exit queue or actively exiting
-        if cid_found in self._exiting_set:
+        if cid in self._exiting_set:
             return
-        if any(q[0] == cid_found for q in self._ws_exit_queue):
+        if cid in self._ws_exit_queued_set:
             return
 
         try:
-            self._ws_check_exits(cid_found, pos_found)
-        except Exception:
-            pass  # Never crash the WebSocket thread
+            self._ws_check_exits(cid, pos_found)
+        except Exception as exc:
+            logger.warning("WS exit check failed for token %s: %s", token_id, exc)
 
-    def _ws_check_exits(self, cid: str, pos) -> None:
+    def _ws_check_exits(self, cid: str, pos: "Position") -> None:
         """Lightweight exit checks triggered by WebSocket price update.
 
         Only checks stop-loss and trailing TP (pure math, no I/O).
@@ -104,6 +109,7 @@ class ExitMonitor:
         )
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
+            self._ws_exit_queued_set.add(cid)
             logger.info(
                 "WS_EXIT queued [stop_loss]: %s | pnl=%.1f%% <= -%.0f%%",
                 pos.slug[:35], pnl_pct * 100, abs(sl_pct) * 100,
@@ -140,6 +146,7 @@ class ExitMonitor:
                 )
                 if ttp_result["action"] == "EXIT":
                     self._ws_exit_queue.append((cid, f"trailing_tp: {ttp_result['reason']}"))
+                    self._ws_exit_queued_set.add(cid)
                     logger.info(
                         "WS_EXIT queued [trailing_tp]: %s | %s",
                         pos.slug[:35], ttp_result["reason"],
@@ -150,6 +157,7 @@ class ExitMonitor:
         if is_esports(sport_tag):
             if effective_current < 0.50:
                 self._ws_exit_queue.append((cid, "esports_losing_side"))
+                self._ws_exit_queued_set.add(cid)
                 logger.info(
                     "WS_EXIT queued [esports_losing]: %s | eff_price=%.3f pnl=%.1f%%",
                     pos.slug[:35], effective_current, pnl_pct * 100,
@@ -163,10 +171,11 @@ class ExitMonitor:
         """
         exits: list[tuple[str, str]] = []
         while self._ws_exit_queue:
-            cid, reason = self._ws_exit_queue.pop(0)
+            cid, reason = self._ws_exit_queue.popleft()
             if cid in self._exiting_set:
                 continue  # Already being exited — double-exit guard
             exits.append((cid, reason))
+        self._ws_exit_queued_set.clear()
         return exits
 
     # ── Cycle exit checks ─────────────────────────────────────────────────

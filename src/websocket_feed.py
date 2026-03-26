@@ -67,7 +67,7 @@ class WebSocketFeed:
         self._stats = {"messages_received": 0, "reconnects": 0, "errors": 0}
 
     def set_on_price_update(self, callback) -> None:
-        """Set or replace the price-update callback. Used by ExitMonitor."""
+        """Set or replace the price-update callback. Used by ExitMonitor. Must be called before start_background() — not safe to call after the feed is running."""
         self._callback = callback
 
     @property
