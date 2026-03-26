@@ -46,12 +46,11 @@ ARCHIVE_FILES = [
     "exited_markets.json",
     "ai_budget.json",
     "outcome_tracker.json",
+    "predictions.jsonl",  # Delete on reset — all markets re-analyzed fresh after reset
 ]
 
-# Files to ARCHIVE but KEEP (analysis cache — survives reset so we don't re-spend AI credits)
-ARCHIVE_KEEP = [
-    "predictions.jsonl",  # _load_recent_analyses() reads this; BUY-worthy uncached, HOLD cached
-]
+# Files to ARCHIVE but KEEP (survives reset)
+ARCHIVE_KEEP = []
 
 # Files to DELETE only (not worth archiving)
 DELETE_ONLY = [
