@@ -340,10 +340,14 @@ class EntryGate:
             logger.info("No markets with data — skipping AI batch")
             return [], {}
 
-        # Run AI batch
-        estimates = self.ai.analyze_batch(
+        # Run AI batch — returns List[AIEstimate] in same order as _has_data
+        _estimates_list = self.ai.analyze_batch(
             _has_data, "", esports_contexts, news_by_market=news_context_by_market
         )
+        estimates: dict = {
+            m.condition_id: est
+            for m, est in zip(_has_data, _estimates_list)
+        }
 
         # Mark as analyzed (suppress re-analysis next cycle)
         for m in _has_data:
