@@ -316,6 +316,7 @@ class Agent:
         logger.info("=== Cycle #%d start ===", self.cycle_count)
 
         # Self-reflection + scout
+        self._write_status("running", "Scouting matches")
         self._maybe_run_reflection()
         if self.scout.should_run_scout():
             new_scouted = self.scout.run_scout()
@@ -361,6 +362,7 @@ class Agent:
         entries_allowed = not halt
 
         # Check resolved markets
+        self._write_status("running", "Checking exits")
         self._check_resolved_markets()
 
         # Update prices
@@ -383,6 +385,7 @@ class Agent:
         self._sync_ws_subscriptions()
 
         # Entry: fresh scan (analyze=True)
+        self._write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,
@@ -396,6 +399,7 @@ class Agent:
             self.cycle_timer.signal_breaking_news()
             logger.info("Breaking news detected — cycle shortened to %d min", self.config.cycle.breaking_news_interval_min)
 
+        self._write_status("running", "Evaluating entries")
         # Entry: stock queue drain (analyze=False — no AI cost)
         self.entry_gate.drain_stock(
             entries_allowed=entries_allowed, bankroll=bankroll,
