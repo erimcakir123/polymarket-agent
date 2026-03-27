@@ -406,6 +406,11 @@ class OddsAPIClient:
         if not events:
             return None
 
+        # Side-effect: populate bridge cache with this sport's events (free — same data)
+        if isinstance(events, list):
+            bridge_key = f"bridge:{sport_key}"
+            self._cache[bridge_key] = (events, time.time())
+
         # Extract team names from question
         team_a_name, team_b_name = self._extract_teams(question)
         if not team_a_name or not team_b_name:

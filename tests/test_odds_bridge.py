@@ -367,3 +367,33 @@ class TestBridgeMatch:
         assert "basketball_nba" in sport_keys
         assert "baseball_mlb" in sport_keys
         assert len(results) == 2
+
+
+class TestCrossPopulate:
+    @patch("src.odds_api.requests.get")
+    def test_get_bookmaker_odds_populates_bridge_cache(self, mock_get):
+        """get_bookmaker_odds should side-effect populate bridge cache."""
+        events = [
+            {"id": "e1", "home_team": "Los Angeles Lakers", "away_team": "Boston Celtics",
+             "bookmakers": [{"title": "DraftKings", "markets": [
+                 {"key": "h2h", "outcomes": [
+                     {"name": "Los Angeles Lakers", "price": 2.10},
+                     {"name": "Boston Celtics", "price": 1.80},
+                 ]}
+             ]}]},
+        ]
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = events
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+        client.get_bookmaker_odds("NBA: Lakers vs Celtics", "nba-lakers-celtics", [])
+
+        # Bridge cache should now have NBA events
+        bridge_key = "bridge:basketball_nba"
+        assert bridge_key in client._cache
+        bridge_data, _ = client._cache[bridge_key]
+        assert len(bridge_data) == 1
+        assert bridge_data[0]["home_team"] == "Los Angeles Lakers"
