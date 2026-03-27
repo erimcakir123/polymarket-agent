@@ -90,3 +90,44 @@ class TestWTARouting:
             []
         )
         assert key == "tennis_atp_miami_open", f"Expected ATP key, got {key}"
+
+
+class TestDetectAllSportKeys:
+    def test_non_tennis_returns_single_key(self):
+        """NBA slug should return single-element list."""
+        client = _make_client()
+        keys = client._detect_all_sport_keys("NBA: Knicks vs Hornets", "nba-knicks-hornets", [])
+        assert keys == ["basketball_nba"]
+
+    def test_tennis_returns_all_active_keys(self):
+        """Tennis should return ALL active tournament keys, not just first."""
+        client = _make_client()
+        client._cache["_tennis_sports:atp"] = (
+            ["tennis_atp_miami_open", "tennis_atp_french_open", "tennis_atp_wimbledon"],
+            time.time()
+        )
+        keys = client._detect_all_sport_keys(
+            "ATP: Sinner vs Alcaraz", "atp-sinner-alcaraz", []
+        )
+        assert len(keys) == 3
+        assert "tennis_atp_miami_open" in keys
+        assert "tennis_atp_french_open" in keys
+
+    def test_wta_tennis_returns_wta_keys(self):
+        """WTA question should return WTA keys, not ATP."""
+        client = _make_client()
+        client._cache["_tennis_sports:wta"] = (
+            ["tennis_wta_miami_open", "tennis_wta_french_open"],
+            time.time()
+        )
+        client._cache["_tennis_sports:atp"] = (
+            ["tennis_atp_miami_open"],
+            time.time()
+        )
+        keys = client._detect_all_sport_keys(
+            "Miami Open: Sabalenka vs Baptiste",
+            "wta-miami-sabalenka",
+            []
+        )
+        assert len(keys) == 2
+        assert all(k.startswith("tennis_wta") for k in keys)

@@ -225,6 +225,33 @@ class OddsAPIClient:
 
         return None
 
+    def _detect_all_sport_keys(self, question: str, slug: str, tags: List[str]) -> List[str]:
+        """Like _detect_sport_key but returns ALL matching keys (esp. for tennis).
+
+        For tennis, returns all active tournament keys for the detected gender.
+        For other sports, returns a single-element list.
+        """
+        slug_prefix = slug.split("-")[0].lower() if slug else ""
+        if slug_prefix in _SPORT_KEYS:
+            return [_SPORT_KEYS[slug_prefix]]
+
+        q_lower = question.lower()
+        for keyword, sport_key in _QUESTION_SPORT_KEYS.items():
+            if keyword in q_lower:
+                if sport_key == "_tennis_atp":
+                    gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
+                    return self._get_active_tennis_keys(gender)
+                if sport_key == "_tennis_wta":
+                    return self._get_active_tennis_keys("wta")
+                return [sport_key]
+
+        if slug_prefix in ("atp", "tennis"):
+            return self._get_active_tennis_keys("atp")
+        if slug_prefix == "wta":
+            return self._get_active_tennis_keys("wta")
+
+        return []
+
     def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
         """Check if a scheduled refresh boundary has passed since cached_wall_ts.
 
