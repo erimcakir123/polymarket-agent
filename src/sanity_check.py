@@ -37,7 +37,9 @@ def check_bet_sanity(
       - ok=False → block the bet entirely
     """
     # 1. Absurd edge — likely AI hallucination or data error
-    if edge > 0.40:
+    #    Consensus mode allows up to 50% edge (99¢ - entry_price)
+    absurd_edge = 0.50 if is_consensus else 0.40
+    if edge > absurd_edge:
         return SanityResult(
             ok=False, suspicious=True,
             reason=f"Edge too high ({edge:.0%}) — likely AI error or stale data",
@@ -50,8 +52,7 @@ def check_bet_sanity(
             reason=f"AI probability extreme ({ai_probability:.0%}) — overconfidence likely",
         )
 
-    # 3. Large edge (20-40%) — very likely data error regardless of confidence
-    #    Exception: consensus mode allows up to 50% edge (99¢ - entry_price)
+    # 3. Large edge (20-40%) — suspicious for non-consensus trades
     edge_block = 0.50 if is_consensus else 0.25
     if edge > edge_block:
         return SanityResult(
