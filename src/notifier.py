@@ -19,7 +19,25 @@ class TelegramNotifier:
         self.enabled = enabled and bool(bot_token and chat_id)
         self._last_update_id: int = 0
         if self.enabled:
+            self._validate_token()
+        if self.enabled:
             self._flush_old_updates()
+
+    def _validate_token(self) -> None:
+        """Validate bot token at startup using getMe API call."""
+        try:
+            url = TELEGRAM_API.format(token=self.bot_token, method="getMe")
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json().get("result", {})
+                bot_name = data.get("username", "unknown")
+                logger.info("Telegram connected: @%s (chat_id: %s)", bot_name, self.chat_id)
+            else:
+                logger.error("Telegram FAILED: HTTP %d — %s", resp.status_code, resp.text[:200])
+                self.enabled = False
+        except Exception as e:
+            logger.error("Telegram FAILED: %s", e)
+            self.enabled = False
 
     def _flush_old_updates(self) -> None:
         """Discard all pending Telegram updates so old /stop commands don't fire."""
@@ -49,6 +67,9 @@ class TelegramNotifier:
                 "text": message,
                 "parse_mode": parse_mode,
             }, timeout=10)
+            if resp.status_code != 200:
+                logger.warning("Telegram send non-200: HTTP %d — %s",
+                               resp.status_code, resp.text[:200])
             return resp.status_code == 200
         except Exception as e:
             logger.error("Telegram send failed: %s", e)
