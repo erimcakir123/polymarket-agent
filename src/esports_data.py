@@ -40,6 +40,7 @@ class EsportsDataClient:
         self._last_call: float = 0.0
         self._cache: Dict[str, Tuple[object, float]] = {}  # key -> (data, timestamp)
         self._cache_ttl = 1800  # 30 min cache
+        self._session = requests.Session()
 
     @property
     def available(self) -> bool:
@@ -54,7 +55,7 @@ class EsportsDataClient:
         self._last_call = time.monotonic()
 
     def _get(self, endpoint: str, params: dict = None) -> Optional[list]:
-        """Make authenticated GET request to PandaScore."""
+        """Make authenticated GET request to PandaScore with retry on 500/timeout."""
         if not self.available:
             return None
         cache_key = f"{endpoint}:{params}"
@@ -66,21 +67,30 @@ class EsportsDataClient:
 
         self._rate_limit()
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        try:
-            resp = requests.get(
-                f"{PANDASCORE_BASE}{endpoint}",
-                headers=headers,
-                params=params or {},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            record_call("pandascore")
-            data = resp.json()
-            self._cache[cache_key] = (data, time.monotonic())
-            return data
-        except requests.RequestException as e:
-            logger.warning("PandaScore API error: %s", e)
-            return None
+
+        last_err = None
+        for attempt in range(2):  # 1 try + 1 retry
+            try:
+                resp = self._session.get(
+                    f"{PANDASCORE_BASE}{endpoint}",
+                    headers=headers,
+                    params=params or {},
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                record_call("pandascore")
+                data = resp.json()
+                self._cache[cache_key] = (data, time.monotonic())
+                return data
+            except requests.RequestException as e:
+                last_err = e
+                if attempt == 0:
+                    logger.info("PandaScore retry after error: %s", e)
+                    time.sleep(2)
+                    continue
+
+        logger.warning("PandaScore API error (after retry): %s", last_err)
+        return None
 
     def detect_game(self, question: str, tags: List[str]) -> Optional[str]:
         """Detect which esports game a market is about. Returns PandaScore slug."""
@@ -302,21 +312,30 @@ class EsportsDataClient:
 
         self._rate_limit()
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        try:
-            resp = requests.get(
-                f"{PANDASCORE_BASE}{endpoint}",
-                headers=headers,
-                params=params or {},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            record_call("pandascore")
-            data = resp.json()
-            self._cache[cache_key] = (data, time.monotonic())
-            return data
-        except requests.RequestException as e:
-            logger.warning("PandaScore live API error: %s", e)
-            return None
+
+        last_err = None
+        for attempt in range(2):  # 1 try + 1 retry
+            try:
+                resp = self._session.get(
+                    f"{PANDASCORE_BASE}{endpoint}",
+                    headers=headers,
+                    params=params or {},
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                record_call("pandascore")
+                data = resp.json()
+                self._cache[cache_key] = (data, time.monotonic())
+                return data
+            except requests.RequestException as e:
+                last_err = e
+                if attempt == 0:
+                    logger.info("PandaScore live retry after error: %s", e)
+                    time.sleep(2)
+                    continue
+
+        logger.warning("PandaScore live API error (after retry): %s", last_err)
+        return None
 
     def get_running_matches(self, game_slug: str) -> Optional[List[dict]]:
         """Fetch currently running matches for a game.
