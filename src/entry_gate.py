@@ -527,6 +527,18 @@ class EntryGate:
             else:
                 mode = "DEADZONE"
 
+            # ── Liquidity gate (confidence-aware) ────────────────────────────
+            # High-confidence entries (prob≥65%, conf B+/A) hold to resolution
+            # so orderbook depth doesn't matter. Lower confidence needs $1K+.
+            _high_conf = estimate.confidence in {"A", "B+"}
+            _high_prob = direction_prob >= 0.65
+            _liq_val = getattr(market, 'liquidity', 0) or 0
+            _low_liq = isinstance(_liq_val, (int, float)) and _liq_val < 1_000
+            if _low_liq and not (_high_conf and _high_prob):
+                logger.debug("SKIP low liquidity ($%.0f) without high confidence: %s",
+                             getattr(market, 'liquidity', 0), market.slug[:35])
+                continue
+
             # ── Position sizing ───────────────────────────────────────────────
             # Always floor edge at 0.05 so Kelly sizing stays positive
             sizing_edge = max(edge, 0.05)

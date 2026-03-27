@@ -38,6 +38,11 @@ _SCOUT_LEAGUES = [
     ("soccer", "ita.1", "Serie A"),
     ("soccer", "ger.1", "Bundesliga"),
     ("soccer", "uefa.champions", "Champions League"),
+    ("soccer", "fra.1", "Ligue 1"),
+    ("soccer", "usa.1", "MLS"),
+    ("mma", "ufc", "UFC"),
+    ("tennis", "atp", "ATP Tennis"),
+    ("tennis", "wta", "WTA Tennis"),
 ]
 
 # PandaScore games to scout

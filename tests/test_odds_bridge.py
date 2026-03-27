@@ -24,14 +24,12 @@ def _make_client():
 
 
 class TestRefreshSchedule:
-    def test_8_refresh_boundaries(self):
-        """Refresh schedule must have 8 boundaries covering NBA prime time."""
+    def test_4_refresh_boundaries(self):
+        """Refresh schedule must have 4 boundaries (credit-optimized)."""
         from src.odds_api import OddsAPIClient
         hours = OddsAPIClient._REFRESH_HOURS_UTC
-        assert len(hours) == 8
-        # Must cover NBA prime time gap: hours 23 and 5 must be present
+        assert len(hours) == 4
         assert 23 in hours, "23 UTC missing — NBA tip-off wave 1 uncovered"
-        assert 5 in hours, "05 UTC missing — overnight wrap uncovered"
         assert 12 in hours, "12 UTC missing — European midday uncovered"
 
     def test_boundary_crossed_at_23_utc(self):
@@ -99,8 +97,8 @@ class TestDetectAllSportKeys:
         keys = client._detect_all_sport_keys("NBA: Knicks vs Hornets", "nba-knicks-hornets", [])
         assert keys == ["basketball_nba"]
 
-    def test_tennis_returns_all_active_keys(self):
-        """Tennis should return ALL active tournament keys, not just first."""
+    def test_tennis_returns_single_key(self):
+        """Tennis should return SINGLE key (credit-optimized, not all tournaments)."""
         client = _make_client()
         client._cache["_tennis_sports:atp"] = (
             ["tennis_atp_miami_open", "tennis_atp_french_open", "tennis_atp_wimbledon"],
@@ -109,12 +107,11 @@ class TestDetectAllSportKeys:
         keys = client._detect_all_sport_keys(
             "ATP: Sinner vs Alcaraz", "atp-sinner-alcaraz", []
         )
-        assert len(keys) == 3
-        assert "tennis_atp_miami_open" in keys
-        assert "tennis_atp_french_open" in keys
+        assert len(keys) == 1
+        assert keys[0].startswith("tennis_atp")
 
-    def test_wta_tennis_returns_wta_keys(self):
-        """WTA question should return WTA keys, not ATP."""
+    def test_wta_tennis_returns_single_wta_key(self):
+        """WTA question should return single WTA key, not ATP."""
         client = _make_client()
         client._cache["_tennis_sports:wta"] = (
             ["tennis_wta_miami_open", "tennis_wta_french_open"],
@@ -129,8 +126,8 @@ class TestDetectAllSportKeys:
             "wta-miami-sabalenka",
             []
         )
-        assert len(keys) == 2
-        assert all(k.startswith("tennis_wta") for k in keys)
+        assert len(keys) == 1
+        assert keys[0].startswith("tennis_wta")
 
 
 class TestApiRequestRefactor:
@@ -182,7 +179,7 @@ class TestGetFresh:
         """Bridge cache TTL constant must exist."""
         from src.odds_api import OddsAPIClient
         assert hasattr(OddsAPIClient, "_BRIDGE_CACHE_MAX_AGE")
-        assert OddsAPIClient._BRIDGE_CACHE_MAX_AGE == 10800  # 3 hours
+        assert OddsAPIClient._BRIDGE_CACHE_MAX_AGE == 28800  # 8 hours
 
     @patch("src.odds_api.requests.get")
     def test_get_fresh_bypasses_boundary_cache(self, mock_get):
@@ -223,7 +220,7 @@ class TestGetFresh:
         for k in list(client._cache.keys()):
             if k.startswith("bridge_raw:"):
                 data, ts = client._cache[k]
-                client._cache[k] = (data, ts - 11000)  # 11000s ago > 10800 TTL
+                client._cache[k] = (data, ts - 29000)  # 29000s ago > 28800 TTL
 
         # Second call — should re-fetch
         client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})

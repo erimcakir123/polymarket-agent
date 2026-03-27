@@ -114,10 +114,10 @@ class OddsAPIClient:
     # 19:00 UTC = 22:00 TR → evening: NBA/NHL pre-game line movement
     # 21:00 UTC = 00:00 TR → pre-NBA batch: 3.5h before early tip-offs (~00:30 UTC)
     # 23:00 UTC = 02:00 TR → NBA tip-off wave 1 (19:00 ET = 00:00 UTC)
-    _REFRESH_HOURS_UTC = [2, 5, 7, 12, 15, 19, 21, 23]
+    _REFRESH_HOURS_UTC = [7, 12, 19, 23]  # 4x/day (was 8x — credit savings)
 
     _CACHE_FILE = Path("logs/odds_cache.json")
-    _BRIDGE_CACHE_MAX_AGE = 10800  # 3h — bridge events refresh independently of boundaries
+    _BRIDGE_CACHE_MAX_AGE = 28800  # 8h — same as regular cache (was 3h, burned credits)
 
     # All sport keys to scan when building the bridge event pool.
     _BRIDGE_SPORT_KEYS_ALWAYS = [
@@ -229,49 +229,72 @@ class OddsAPIClient:
                 # Tennis markers → resolve dynamically
                 if sport_key == "_tennis_atp":
                     gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
-                    keys = self._get_active_tennis_keys(gender)
-                    return keys[0] if keys else None
+                    return self._match_tennis_key(gender, q_lower, slug)
                 if sport_key == "_tennis_wta":
-                    keys = self._get_active_tennis_keys("wta")
-                    return keys[0] if keys else None
+                    return self._match_tennis_key("wta", q_lower, slug)
                 return sport_key
 
         # Also check slug for tennis prefixes (atp/wta)
         if slug_prefix in ("atp", "tennis"):
-            keys = self._get_active_tennis_keys("atp")
-            return keys[0] if keys else None
+            return self._match_tennis_key("atp", q_lower, slug)
         if slug_prefix == "wta":
-            keys = self._get_active_tennis_keys("wta")
-            return keys[0] if keys else None
+            return self._match_tennis_key("wta", q_lower, slug)
 
         return None
 
-    def _detect_all_sport_keys(self, question: str, slug: str, tags: List[str]) -> List[str]:
-        """Like _detect_sport_key but returns ALL matching keys (esp. for tennis).
+    def _match_tennis_key(self, gender: str, q_lower: str, slug: str) -> Optional[str]:
+        """Match the best tennis tournament key from slug/question context.
 
-        For tennis, returns all active tournament keys for the detected gender.
-        For other sports, returns a single-element list.
+        Instead of blindly returning keys[0], tries to match tournament name
+        from the slug/question against active keys. Saves 5 credits vs fetching all.
+        E.g. slug 'atp-miami-sinner' → matches 'tennis_atp_miami_open'.
         """
-        slug_prefix = slug.split("-")[0].lower() if slug else ""
-        if slug_prefix in _SPORT_KEYS:
-            return [_SPORT_KEYS[slug_prefix]]
+        keys = self._get_active_tennis_keys(gender)
+        if not keys:
+            return None
+        if len(keys) == 1:
+            return keys[0]
 
-        q_lower = question.lower()
-        for keyword, sport_key in _QUESTION_SPORT_KEYS.items():
-            if keyword in q_lower:
-                if sport_key == "_tennis_atp":
-                    gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
-                    return self._get_active_tennis_keys(gender)
-                if sport_key == "_tennis_wta":
-                    return self._get_active_tennis_keys("wta")
-                return [sport_key]
+        # Try to match tournament name from slug or question
+        slug_lower = slug.lower() if slug else ""
+        combined = f"{q_lower} {slug_lower}"
 
-        if slug_prefix in ("atp", "tennis"):
-            return self._get_active_tennis_keys("atp")
-        if slug_prefix == "wta":
-            return self._get_active_tennis_keys("wta")
+        # Generic words that appear in many tournament names — skip these
+        _GENERIC = {"open", "grand", "prix", "cup", "championship", "masters", "series"}
 
-        return []
+        # Score each key by how many SPECIFIC parts match the combined text
+        best_key = None
+        best_score = 0
+        for key in keys:
+            # key format: tennis_atp_miami_open → extract ["miami", "open"]
+            parts = key.split("_")[2:]
+            specific = [p for p in parts if len(p) > 2 and p not in _GENERIC]
+            score = sum(1 for p in specific if p in combined)
+            if score > best_score:
+                best_score = score
+                best_key = key
+
+        if best_key:
+            return best_key
+
+        # No specific match → try full tournament name (e.g. "french open" in text)
+        for key in keys:
+            tourney = " ".join(key.split("_")[2:])  # "miami open", "french open"
+            if tourney and tourney in combined:
+                return key
+
+        # Fallback: return first key
+        return keys[0]
+
+    def _detect_all_sport_keys(self, question: str, slug: str, tags: List[str]) -> List[str]:
+        """Detect sport key(s) for a market. Returns single-element list.
+
+        For tennis, returns only the FIRST active tournament key (not all).
+        This saves ~5 credits per tennis market vs returning all keys.
+        """
+        # Try single-key detection first (covers all non-tennis sports)
+        key = self._detect_sport_key(question, slug, tags)
+        return [key] if key else []
 
     def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
         """Check if a scheduled refresh boundary has passed since cached_wall_ts.

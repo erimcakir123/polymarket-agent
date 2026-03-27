@@ -23,8 +23,8 @@ class CycleConfig(BaseModel):
 
 
 class ScannerConfig(BaseModel):
-    min_volume_24h: float = 5_000
-    min_liquidity: float = 1_000
+    min_volume_24h: float = 5_000  # Not used — volume filter removed
+    min_liquidity: float = 100  # Floor: ensures orderbook has some orders
     tags: List[str] = []
     prefer_short_duration: bool = True
     max_markets_per_cycle: int = 300

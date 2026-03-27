@@ -275,11 +275,8 @@ class MarketScanner:
                 if not (tags_lower & allowed):
                     logger.debug("Skipped category mismatch: %s", market.question[:60])
                     return False
-        # Esports markets: volume spikes only in last ~2h before match,
-        # so skip volume filter — only require liquidity
-        is_esport = self._is_esport(market)
-        if not is_esport and market.volume_24h < self.config.min_volume_24h:
-            return False
+        # Liquidity filter — ensures orderbook has enough depth to fill our entry
+        # Volume filter removed: we hold to resolution, so trading activity doesn't matter
         if market.liquidity < self.config.min_liquidity:
             return False
         # Only filter by tags if the market actually has tags
@@ -326,9 +323,25 @@ class MarketScanner:
                     return False
             except (ValueError, TypeError):
                 pass
-        # Skip live/ended matches — Gamma API provides definitive live & ended status
-        if (market.event_live or market.event_ended) and self._is_live_sport(market):
-            status = "ENDED" if market.event_ended else "LIVE"
-            logger.info("Skipped %s event (Gamma): %s", status, market.question[:60])
+        # Skip ended matches — no point entering a resolved event
+        if market.event_ended and self._is_live_sport(market):
+            logger.info("Skipped ENDED event (Gamma): %s", market.question[:60])
             return False
+        # Skip late-match entries — not enough time for meaningful edge
+        # Uses sport-specific duration table (soccer=95min, NBA=150min, etc.)
+        if market.event_live and market.match_start_iso:
+            try:
+                from src.match_exit import get_game_duration
+                start_dt = datetime.fromisoformat(market.match_start_iso.replace("Z", "+00:00"))
+                elapsed_min = (datetime.now(timezone.utc) - start_dt).total_seconds() / 60
+                duration = get_game_duration(market.slug, 0, market.sport_tag)
+                if duration > 0:
+                    elapsed_pct = elapsed_min / duration
+                    if elapsed_pct >= 0.75:
+                        logger.info("Skipped late-match (%.0f%% elapsed, %s): %s",
+                                    elapsed_pct * 100, market.sport_tag, market.question[:60])
+                        return False
+            except (ValueError, TypeError, ImportError):
+                pass
+        # Live matches in early/mid phase pass through — we bet on winners mid-match
         return True
