@@ -24,6 +24,27 @@
 - Aynı mantık 2+ yerde varsa → ortak fonksiyona çıkar
 - Yeni modül oluştururken mevcut modüllerle interface'i düşün
 
+### 2.5. "Önce Neyi Bozar?" Kuralı (KESİN KURAL — İSTİSNASIZ)
+
+**Herhangi bir dosyaya herhangi bir değişiklik yapmadan ÖNCE:**
+
+1. **Dosyanın TAMAMINI oku** — sadece değişecek satırları değil, dosyanın tüm mantığını anla
+2. **Grep ile tüm projeyi tara** — değişen değişken/fonksiyon/threshold/sabit kim tarafından kullanılıyor?
+3. **Kırılma analizi yap** — bu değişiklik:
+   - Bu dosyadaki başka bir fonksiyonu bozar mı?
+   - Başka dosyalardaki tüketicileri bozar mı?
+   - Test assertion'larını kırar mı?
+   - Disk'teki cache/log formatıyla çakışır mı?
+   - Validation/sanity check katmanlarını tetikler mi?
+4. **Kırılma bulursan → ÖNCE kullanıcıya sor:** "Bu değişiklik şurayı bozacak, önce onu fix'leyelim mi?"
+5. **Kullanıcı onayladıktan sonra** → önce kırılmayı fix'le, sonra asıl değişikliği yap
+
+**Bu kural istisnasızdır:**
+- 1 satır değişiklik bile olsa uygula
+- "Basit threshold" bile olsa uygula
+- "Sadece log ekliyorum" bile olsa uygula
+- Kısacası: **kod dokunacaksan, önce neyi bozacağını bil ve sor**
+
 ### 3. Integration Protocol
 
 - Yeni kodu entegre etmeden ÖNCE: çevresindeki kodu oku, uyum sağla
