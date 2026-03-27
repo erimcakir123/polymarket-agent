@@ -130,6 +130,33 @@ class Executor:
             }
         return self._execute_live_exit(token_id, shares)
 
+    def exit_position(self, pos, reason: str = "", mode: "Mode | None" = None) -> dict:
+        """Execute a position exit. Called by agent._exit_position().
+
+        Args:
+            pos: Position object with token_id, shares, slug attributes.
+            reason: Exit reason string for audit trail.
+            mode: Override mode (uses self.mode if None).
+        """
+        _mode = mode or self.mode
+        logger.info("EXIT_POSITION: %s | reason=%s | mode=%s | shares=%.2f",
+                     pos.slug[:40] if hasattr(pos, 'slug') else pos.token_id[:16],
+                     reason, _mode.value, pos.shares)
+
+        if _mode in (Mode.DRY_RUN, Mode.PAPER):
+            order_id = f"sim_exit_{uuid.uuid4().hex[:8]}"
+            logger.info("[%s] Simulated exit: %s | reason=%s",
+                        _mode.value, pos.slug[:40] if hasattr(pos, 'slug') else "?", reason)
+            return {
+                "order_id": order_id,
+                "status": "simulated",
+                "mode": _mode.value,
+                "reason": reason,
+            }
+
+        # Live mode — delegate to existing exit logic
+        return self._execute_live_exit(pos.token_id, pos.shares)
+
     def _execute_live(
         self, token_id: str, side: str, price: float, size_usdc: float, order_type: str
     ) -> dict:
