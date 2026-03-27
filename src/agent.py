@@ -348,6 +348,11 @@ class Agent:
         if self._soft_halt_active:
             halt = True
 
+        # Manual entry pause — drop logs/no_new_entries to skip market scanning
+        if Path("logs/no_new_entries").exists():
+            halt = True
+            logger.info("Entry pause active (logs/no_new_entries exists)")
+
         entries_allowed = not halt
 
         # Check resolved markets

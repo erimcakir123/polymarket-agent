@@ -552,20 +552,23 @@ class EntryGate:
                 price=_order_price,
                 size_usdc=size,
             )
-            if not result or not result.get("success"):
+            if not result or result.get("status") == "error":
                 logger.warning("Order failed: %s — %s", market.slug[:40], result)
                 continue
 
             # Record position
-            entry_price = result.get("fill_price", market.yes_price)
+            entry_price = result.get("fill_price") or result.get("price") or market.yes_price
+            shares = size / entry_price if entry_price > 0 else 0
+            _token_id_for_pos = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             self.portfolio.add_position(
                 condition_id=cid,
                 slug=market.slug,
                 question=getattr(market, "question", ""),
-                token_id=market.yes_token_id if direction == "BUY_YES" else market.no_token_id,
+                token_id=_token_id_for_pos,
                 direction=direction.value if hasattr(direction, "value") else direction,
                 entry_price=entry_price,
                 size_usdc=size,
+                shares=shares,
                 ai_probability=estimate.ai_probability,
                 confidence=estimate.confidence,
                 sport_tag=getattr(market, "sport_tag", "") or "",
