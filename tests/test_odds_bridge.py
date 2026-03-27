@@ -397,3 +397,52 @@ class TestCrossPopulate:
         bridge_data, _ = client._cache[bridge_key]
         assert len(bridge_data) == 1
         assert bridge_data[0]["home_team"] == "Los Angeles Lakers"
+
+
+class TestBridgeIntegration:
+    """End-to-end smoke tests: bridge_match -> clean names -> correct result."""
+
+    def test_nba_knicks_vs_hornets(self):
+        """The exact failure case from production logs."""
+        client = _make_client()
+        client._cache["bridge:basketball_nba"] = ([
+            {"id": "e1", "home_team": "New York Knicks", "away_team": "Charlotte Hornets",
+             "bookmakers": []},
+            {"id": "e2", "home_team": "Houston Rockets", "away_team": "Memphis Grizzlies",
+             "bookmakers": []},
+        ], time.time())
+
+        r = client.bridge_match("NBA: Knicks vs Hornets", "nba-knicks-hornets", [])
+        assert r is not None
+        assert r["home_team"] == "New York Knicks"
+        assert r["away_team"] == "Charlotte Hornets"
+
+    def test_wta_miami_open_sabalenka(self):
+        """WTA Miami Open — was routing to ATP, now should match WTA."""
+        client = _make_client()
+        client._cache["_tennis_sports:wta"] = (["tennis_wta_miami_open"], time.time())
+        client._cache["bridge:tennis_wta_miami_open"] = ([
+            {"id": "t1", "home_team": "Aryna Sabalenka", "away_team": "Hailey Baptiste",
+             "bookmakers": []},
+        ], time.time())
+
+        r = client.bridge_match(
+            "Miami Open: Aryna Sabalenka vs Hailey Baptiste",
+            "wta-miami-sabalenka-baptiste", []
+        )
+        assert r is not None
+        assert r["home_team"] == "Aryna Sabalenka"
+        assert r["sport_key"] == "tennis_wta_miami_open"
+
+    def test_rockets_vs_grizzlies(self):
+        """Another production failure case — stale cache."""
+        client = _make_client()
+        client._cache["bridge:basketball_nba"] = ([
+            {"id": "e1", "home_team": "Houston Rockets", "away_team": "Memphis Grizzlies",
+             "bookmakers": []},
+        ], time.time())
+
+        r = client.bridge_match("NBA: Rockets vs Grizzlies", "nba-rockets-grizzlies", [])
+        assert r is not None
+        assert r["home_team"] == "Houston Rockets"
+        assert r["away_team"] == "Memphis Grizzlies"
