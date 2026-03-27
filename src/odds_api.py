@@ -189,6 +189,13 @@ class OddsAPIClient:
         except Exception:
             return []
 
+    @staticmethod
+    def _is_wta_market(q_lower: str, slug: str) -> bool:
+        """Detect if a tennis market is WTA (women's) based on question/slug cues."""
+        _WTA_SIGNALS = ("wta", "women", "ladies")
+        slug_lower = slug.lower() if slug else ""
+        return any(s in q_lower or s in slug_lower for s in _WTA_SIGNALS)
+
     def _detect_sport_key(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Detect The Odds API sport key from market data."""
         slug_prefix = slug.split("-")[0].lower() if slug else ""
@@ -200,7 +207,8 @@ class OddsAPIClient:
             if keyword in q_lower:
                 # Tennis markers → resolve dynamically
                 if sport_key == "_tennis_atp":
-                    keys = self._get_active_tennis_keys("atp")
+                    gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
+                    keys = self._get_active_tennis_keys(gender)
                     return keys[0] if keys else None
                 if sport_key == "_tennis_wta":
                     keys = self._get_active_tennis_keys("wta")

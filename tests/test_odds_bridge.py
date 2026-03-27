@@ -47,3 +47,46 @@ class TestRefreshSchedule:
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             result = client._past_refresh_boundary(cached_ts)
         assert result is True, "21:30→23:01 should cross boundary 23"
+
+
+class TestWTARouting:
+    def test_wta_slug_detected(self):
+        """Slug with 'wta' prefix should route to WTA keys."""
+        from src.odds_api import OddsAPIClient
+        assert OddsAPIClient._is_wta_market("miami open: sabalenka vs baptiste", "wta-miami-open-sabalenka-baptiste") is True
+
+    def test_wta_keyword_in_question(self):
+        """Question containing 'wta' should route to WTA."""
+        from src.odds_api import OddsAPIClient
+        assert OddsAPIClient._is_wta_market("wta miami open: sabalenka vs baptiste", "tennis-sabalenka") is True
+
+    def test_atp_not_detected_as_wta(self):
+        """ATP match should NOT be detected as WTA."""
+        from src.odds_api import OddsAPIClient
+        assert OddsAPIClient._is_wta_market("miami open: sinner vs alcaraz", "atp-miami-sinner") is False
+
+    def test_detect_sport_key_routes_wta_correctly(self):
+        """'miami open' question with WTA slug must NOT go to ATP keys."""
+        client = _make_client()
+        client._cache["_tennis_sports:wta"] = (["tennis_wta_miami_open"], time.time())
+        client._cache["_tennis_sports:atp"] = (["tennis_atp_miami_open"], time.time())
+
+        key = client._detect_sport_key(
+            "Miami Open: Aryna Sabalenka vs Hailey Baptiste",
+            "wta-miami-open-sabalenka-baptiste",
+            []
+        )
+        assert key == "tennis_wta_miami_open", f"Expected WTA key, got {key}"
+
+    def test_detect_sport_key_atp_default(self):
+        """'miami open' without WTA signals should go to ATP."""
+        client = _make_client()
+        client._cache["_tennis_sports:atp"] = (["tennis_atp_miami_open"], time.time())
+        client._cache["_tennis_sports:wta"] = (["tennis_wta_miami_open"], time.time())
+
+        key = client._detect_sport_key(
+            "Miami Open: Jannik Sinner vs Carlos Alcaraz",
+            "atp-miami-sinner-alcaraz",
+            []
+        )
+        assert key == "tennis_atp_miami_open", f"Expected ATP key, got {key}"
