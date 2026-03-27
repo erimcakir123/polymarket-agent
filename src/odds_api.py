@@ -117,6 +117,7 @@ class OddsAPIClient:
     _REFRESH_HOURS_UTC = [2, 5, 7, 12, 15, 19, 21, 23]
 
     _CACHE_FILE = Path("logs/odds_cache.json")
+    _BRIDGE_CACHE_MAX_AGE = 10800  # 3h — bridge events refresh independently of boundaries
 
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
@@ -340,6 +341,27 @@ class OddsAPIClient:
         if data is not None:
             self._cache[cache_key] = (data, time.time())
             self._save_cache()
+        return data
+
+    def _get_fresh(self, endpoint: str, params: dict) -> Optional[dict | list]:
+        """Make API call with TTL-based caching — bypasses refresh-boundary.
+
+        Used by bridge to ensure fresh events. Uses _api_request() for the
+        actual HTTP call (shared auth, quota tracking, backup key logic).
+        """
+        if not self.available:
+            return None
+
+        cache_key = f"bridge_raw:{endpoint}:{sorted(params.items())}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
+                return data
+
+        data = self._api_request(endpoint, params)
+        if data is not None:
+            self._cache[cache_key] = (data, time.time())
         return data
 
     def get_bookmaker_odds(

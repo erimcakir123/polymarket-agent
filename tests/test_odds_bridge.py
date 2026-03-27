@@ -175,3 +175,56 @@ class TestApiRequestRefactor:
         r2 = client._get("/sports/basketball_nba/odds", {"regions": "us"})
         assert r2 is not None
         assert mock_get.call_count == 1  # No new API call
+
+
+class TestGetFresh:
+    def test_bridge_cache_max_age_exists(self):
+        """Bridge cache TTL constant must exist."""
+        from src.odds_api import OddsAPIClient
+        assert hasattr(OddsAPIClient, "_BRIDGE_CACHE_MAX_AGE")
+        assert OddsAPIClient._BRIDGE_CACHE_MAX_AGE == 10800  # 3 hours
+
+    @patch("src.odds_api.requests.get")
+    def test_get_fresh_bypasses_boundary_cache(self, mock_get):
+        """_get_fresh should use TTL, not refresh boundaries."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{"id": "e1"}]
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+
+        # First call
+        r1 = client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})
+        assert r1 is not None
+        assert mock_get.call_count == 1
+
+        # Second call within TTL — should use cache
+        r2 = client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})
+        assert r2 == r1
+        assert mock_get.call_count == 1  # Still 1 — cached
+
+    @patch("src.odds_api.requests.get")
+    def test_get_fresh_refetches_after_ttl(self, mock_get):
+        """_get_fresh should re-fetch when TTL expires."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{"id": "e1"}]
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+
+        # First call
+        client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})
+
+        # Expire the cache manually
+        for k in list(client._cache.keys()):
+            if k.startswith("bridge_raw:"):
+                data, ts = client._cache[k]
+                client._cache[k] = (data, ts - 11000)  # 11000s ago > 10800 TTL
+
+        # Second call — should re-fetch
+        client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})
+        assert mock_get.call_count == 2
