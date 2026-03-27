@@ -9,7 +9,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
-PAUSE_FILE = Path("logs/AWAITING_APPROVAL")
+PAUSE_FILE = Path("logs/pause_signal")
 
 
 class TelegramNotifier:

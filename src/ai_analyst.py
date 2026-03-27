@@ -221,10 +221,10 @@ class AIAnalyst:
         })
         # Write main + backup atomically
         tmp = BUDGET_FILE.with_suffix(".tmp")
-        tmp.write_text(data)
+        tmp.write_text(data, encoding="utf-8")
         tmp.replace(BUDGET_FILE)
         backup = BUDGET_FILE.with_suffix(".backup.json")
-        backup.write_text(data)
+        backup.write_text(data, encoding="utf-8")
 
     def _reset_if_new_period(self) -> None:
         now = datetime.now(timezone.utc)

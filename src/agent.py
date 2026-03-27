@@ -809,7 +809,7 @@ class Agent:
     def _save_exited_market(self, cid: str) -> None:
         self._exited_markets.add(cid)
         try:
-            Path("logs/exited_markets.json").write_text(json.dumps(list(self._exited_markets)))
+            Path("logs/exited_markets.json").write_text(json.dumps(list(self._exited_markets)), encoding="utf-8")
         except Exception:
             pass
 

@@ -207,7 +207,7 @@ def create_app(
                 pid = int(pid_file.read_text().strip())
                 result = subprocess.run(
                     ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
-                    capture_output=True, text=True
+                    capture_output=True, text=True, timeout=5
                 )
                 bot_alive = str(pid) in result.stdout
             except (ValueError, Exception):

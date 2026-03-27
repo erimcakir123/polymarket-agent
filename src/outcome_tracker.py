@@ -227,7 +227,7 @@ class OutcomeTracker:
     def _save(self) -> None:
         TRACKER_FILE.parent.mkdir(parents=True, exist_ok=True)
         data = {cid: asdict(tm) for cid, tm in self._tracked.items()}
-        TRACKER_FILE.write_text(json.dumps(data, indent=2))
+        TRACKER_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def _load(self) -> None:
         if not TRACKER_FILE.exists():

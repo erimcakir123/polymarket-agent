@@ -298,7 +298,7 @@ class Blacklist:
     def save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         data = {cid: asdict(e) for cid, e in self._entries.items()}
-        self._path.write_text(json.dumps(data, indent=2))
+        self._path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def load(self) -> None:
         if self._path.exists():

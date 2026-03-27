@@ -107,7 +107,7 @@ class CircuitBreaker:
 
     def save(self) -> None:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(json.dumps(self.to_dict(), indent=2))
+        STATE_FILE.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls) -> CircuitBreaker:

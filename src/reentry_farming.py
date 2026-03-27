@@ -201,7 +201,7 @@ class ReentryPool:
         for cid, c in self._pool.items():
             d = asdict(c)
             data[cid] = d
-        self._path.write_text(json.dumps(data, indent=2))
+        self._path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def _load(self) -> None:
         if not self._path.exists():
