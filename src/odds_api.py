@@ -730,6 +730,78 @@ class OddsAPIClient:
         logger.info("Bridge event pool: %d total events across %d sport keys", total, len(sport_keys))
         return total
 
+    def _get_bridge_events(self) -> List[Tuple[str, list]]:
+        """Return all cached bridge events as (sport_key, events) pairs."""
+        results = []
+        for cache_key, (data, ts) in self._cache.items():
+            if not cache_key.startswith("bridge:"):
+                continue
+            sport_key = cache_key[len("bridge:"):]
+            if isinstance(data, list) and data:
+                results.append((sport_key, data))
+        return results
+
+    def bridge_match(
+        self, question: str, slug: str, tags: List[str],
+    ) -> Optional[Dict]:
+        """Match a Polymarket market against cached Odds API events.
+
+        Returns dict with home_team, away_team, sport_key, confidence, event_id
+        or None if no match found.
+        """
+        team_a, team_b = self._extract_teams(question)
+        if not team_a or not team_b:
+            return None
+
+        # Strategy 1: Targeted — detect sport key, search only that sport
+        sport_keys = self._detect_all_sport_keys(question, slug, tags)
+        if sport_keys:
+            for sk in sport_keys:
+                cache_key = f"bridge:{sk}"
+                cached = self._cache.get(cache_key)
+                if not cached:
+                    # Try regular odds cache (populated by get_bookmaker_odds)
+                    odds_key = f"/sports/{sk}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
+                    cached = self._cache.get(odds_key)
+                if not cached:
+                    continue
+                events = cached[0]
+                if not isinstance(events, list):
+                    continue
+                result = find_best_event_match(team_a, team_b, events, min_confidence=0.80)
+                if result:
+                    event, conf = result
+                    return {
+                        "home_team": event.get("home_team", ""),
+                        "away_team": event.get("away_team", ""),
+                        "sport_key": sk,
+                        "confidence": conf,
+                        "event_id": event.get("id", ""),
+                    }
+
+        # Strategy 2: Exhaustive — scan ALL bridge cache entries
+        best_result = None
+        best_conf = 0.0
+        for sport_key, events in self._get_bridge_events():
+            result = find_best_event_match(team_a, team_b, events, min_confidence=0.80)
+            if result:
+                event, conf = result
+                if conf > best_conf:
+                    best_conf = conf
+                    best_result = {
+                        "home_team": event.get("home_team", ""),
+                        "away_team": event.get("away_team", ""),
+                        "sport_key": sport_key,
+                        "confidence": conf,
+                        "event_id": event.get("id", ""),
+                    }
+
+        if best_result:
+            logger.info("Bridge match (exhaustive): '%s' -> %s vs %s [%.0f%%]",
+                        question[:50], best_result["home_team"],
+                        best_result["away_team"], best_result["confidence"] * 100)
+        return best_result
+
     # ------------------------------------------------------------------
     # Scores (live match data — free with paid plan)
     # ------------------------------------------------------------------

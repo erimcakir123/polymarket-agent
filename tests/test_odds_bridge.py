@@ -296,3 +296,74 @@ class TestRefreshBridgeEvents:
         regular_keys = [k for k in client._cache
                         if k.startswith("/sports/") and "basketball_nba" in k]
         assert len(regular_keys) > 0, "Bridge refresh should cross-populate regular cache"
+
+
+class TestBridgeMatch:
+    def test_bridge_match_targeted(self):
+        """Bridge should match using targeted sport key detection."""
+        client = _make_client()
+        events = [
+            {"id": "e1", "home_team": "New York Knicks", "away_team": "Charlotte Hornets",
+             "bookmakers": []},
+            {"id": "e2", "home_team": "Houston Rockets", "away_team": "Memphis Grizzlies",
+             "bookmakers": []},
+        ]
+        client._cache["bridge:basketball_nba"] = (events, time.time())
+
+        result = client.bridge_match(
+            "NBA: Knicks vs Hornets", "nba-knicks-hornets", []
+        )
+        assert result is not None
+        assert result["home_team"] == "New York Knicks"
+        assert result["away_team"] == "Charlotte Hornets"
+        assert result["sport_key"] == "basketball_nba"
+        assert result["confidence"] >= 0.80
+
+    def test_bridge_match_exhaustive_scan(self):
+        """When sport detection fails, bridge should scan ALL cached events."""
+        client = _make_client()
+        events = [
+            {"id": "e1", "home_team": "New York Yankees", "away_team": "Boston Red Sox",
+             "bookmakers": []},
+        ]
+        client._cache["bridge:baseball_mlb"] = (events, time.time())
+
+        result = client.bridge_match(
+            "Yankees vs Red Sox", "unknown-slug-yankees-redsox", []
+        )
+        assert result is not None
+        assert result["home_team"] == "New York Yankees"
+        assert result["sport_key"] == "baseball_mlb"
+
+    def test_bridge_match_no_vs_returns_none(self):
+        """Question without 'vs' separator should return None."""
+        client = _make_client()
+        result = client.bridge_match(
+            "Will the Knicks win the championship?", "nba-knicks-champ", []
+        )
+        assert result is None
+
+    def test_bridge_match_no_match_returns_none(self):
+        """When no event matches, return None (don't crash)."""
+        client = _make_client()
+        client._cache["bridge:basketball_nba"] = (
+            [{"id": "e1", "home_team": "Lakers", "away_team": "Celtics", "bookmakers": []}],
+            time.time()
+        )
+        result = client.bridge_match(
+            "NBA: Knicks vs Hornets", "nba-knicks-hornets", []
+        )
+        assert result is None
+
+    def test_get_bridge_events_returns_cached(self):
+        """_get_bridge_events should return all bridge cache entries."""
+        client = _make_client()
+        client._cache["bridge:basketball_nba"] = ([{"id": "e1"}], time.time())
+        client._cache["bridge:baseball_mlb"] = ([{"id": "e2"}], time.time())
+        client._cache["other:key"] = ({"x": 1}, time.time())
+
+        results = client._get_bridge_events()
+        sport_keys = [sk for sk, _ in results]
+        assert "basketball_nba" in sport_keys
+        assert "baseball_mlb" in sport_keys
+        assert len(results) == 2
