@@ -45,13 +45,24 @@ _SPORT_KEYS = {
     # MMA / Boxing
     "ufc": "mma_mixed_martial_arts", "mma": "mma_mixed_martial_arts",
     "boxing": "boxing_boxing",
-    # Soccer
-    "epl": "soccer_epl", "laliga": "soccer_spain_la_liga", "seriea": "soccer_italy_serie_a",
+    # Soccer — Europe
+    "epl": "soccer_epl", "championship": "soccer_efl_champ",
+    "laliga": "soccer_spain_la_liga", "seriea": "soccer_italy_serie_a",
     "bundesliga": "soccer_germany_bundesliga", "ligue1": "soccer_france_ligue_one",
+    "eredivisie": "soccer_netherlands_eredivisie",
+    "primeira": "soccer_portugal_primeira_liga", "superlig": "soccer_turkey_super_league",
+    "scottish": "soccer_spl",
+    # Soccer — UEFA
     "ucl": "soccer_uefa_champs_league", "europa": "soccer_uefa_europa_league",
     "conference": "soccer_uefa_europa_conference_league",
-    "mls": "soccer_usa_mls", "eredivisie": "soccer_netherlands_eredivisie",
-    "liga-mx": "soccer_mexico_ligamx", "fa-cup": "soccer_fa_cup",
+    # Soccer — Americas
+    "mls": "soccer_usa_mls", "liga-mx": "soccer_mexico_ligamx",
+    "brasileirao": "soccer_brazil_campeonato", "argentina": "soccer_argentina_primera_division",
+    # Soccer — Asia
+    "jleague": "soccer_japan_j_league", "kleague": "soccer_korea_kleague1",
+    "csl": "soccer_china_superleague", "saudi": "soccer_saudi_professional_league",
+    # Soccer — Other
+    "fa-cup": "soccer_fa_cup",
     # Tennis — resolved dynamically via _get_active_tennis_keys()
     # "atp" and "wta" prefixes handled in _detect_sport_key, not here
     # Cricket
@@ -75,12 +86,28 @@ _QUESTION_SPORT_KEYS = {
     "nhl": "icehockey_nhl", "stanley cup": "icehockey_nhl_championship_winner",
     # MMA / Boxing
     "ufc": "mma_mixed_martial_arts", "boxing": "boxing_boxing",
-    # Soccer
-    "premier league": "soccer_epl", "la liga": "soccer_spain_la_liga",
-    "serie a": "soccer_italy_serie_a", "bundesliga": "soccer_germany_bundesliga",
+    # Soccer — Europe
+    "premier league": "soccer_epl", "efl championship": "soccer_efl_champ",
+    "championship": "soccer_efl_champ",
+    "la liga": "soccer_spain_la_liga", "serie a": "soccer_italy_serie_a",
+    "bundesliga": "soccer_germany_bundesliga", "ligue 1": "soccer_france_ligue_one",
+    "eredivisie": "soccer_netherlands_eredivisie",
+    "primeira liga": "soccer_portugal_primeira_liga",
+    "super lig": "soccer_turkey_super_league",
+    "scottish premiership": "soccer_spl",
+    # Soccer — UEFA
     "champions league": "soccer_uefa_champs_league", "europa league": "soccer_uefa_europa_league",
+    # Soccer — Americas
     "mls": "soccer_usa_mls", "fa cup": "soccer_fa_cup",
+    "liga mx": "soccer_mexico_ligamx",
+    "brasileirao": "soccer_brazil_campeonato", "serie a brazil": "soccer_brazil_campeonato",
+    "liga argentina": "soccer_argentina_primera_division",
     "copa libertadores": "soccer_conmebol_copa_libertadores",
+    # Soccer — Asia
+    "j-league": "soccer_japan_j_league", "j league": "soccer_japan_j_league",
+    "k league": "soccer_korea_kleague1", "k-league": "soccer_korea_kleague1",
+    "chinese super league": "soccer_china_superleague",
+    "saudi pro league": "soccer_saudi_professional_league",
     # Tennis — resolved dynamically, these are fallback markers
     "atp": "_tennis_atp",
     "wta": "_tennis_wta",

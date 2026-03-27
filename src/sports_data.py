@@ -16,39 +16,88 @@ ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 # Map Polymarket slug prefixes and keywords to ESPN sport/league paths
 _SPORT_LEAGUES = {
     # slug prefix -> (sport, league, display_name)
+    # Basketball
     "cbb": ("basketball", "mens-college-basketball", "NCAA Basketball"),
     "ncaab": ("basketball", "mens-college-basketball", "NCAA Basketball"),
     "nba": ("basketball", "nba", "NBA"),
+    # American Football
     "nfl": ("football", "nfl", "NFL"),
     "cfb": ("football", "college-football", "College Football"),
     "ncaaf": ("football", "college-football", "College Football"),
+    # Baseball
     "mlb": ("baseball", "mlb", "MLB"),
+    # Ice Hockey
     "nhl": ("hockey", "nhl", "NHL"),
+    # Combat Sports
     "ufc": ("mma", "ufc", "UFC"),
     "mma": ("mma", "ufc", "UFC"),
+    # European Soccer
     "epl": ("soccer", "eng.1", "Premier League"),
+    "championship": ("soccer", "eng.2", "EFL Championship"),
     "laliga": ("soccer", "esp.1", "La Liga"),
     "seriea": ("soccer", "ita.1", "Serie A"),
     "bundesliga": ("soccer", "ger.1", "Bundesliga"),
     "ligue1": ("soccer", "fra.1", "Ligue 1"),
+    "eredivisie": ("soccer", "ned.1", "Eredivisie"),
+    "primeira": ("soccer", "por.1", "Primeira Liga"),
+    "superlig": ("soccer", "tur.1", "Super Lig"),
+    "scottish": ("soccer", "sco.1", "Scottish Premiership"),
+    # UEFA
     "ucl": ("soccer", "uefa.champions", "Champions League"),
+    "europa": ("soccer", "uefa.europa", "Europa League"),
+    # Americas Soccer
+    "mls": ("soccer", "usa.1", "MLS"),
+    "ligamx": ("soccer", "mex.1", "Liga MX"),
+    "brasileirao": ("soccer", "bra.1", "Brasileirao"),
+    "argentina": ("soccer", "arg.1", "Liga Argentina"),
+    # Asia Soccer
+    "jleague": ("soccer", "jpn.1", "J-League"),
+    "csl": ("soccer", "chn.1", "Chinese Super League"),
+    # Tennis
+    "atp": ("tennis", "atp", "ATP Tennis"),
+    "wta": ("tennis", "wta", "WTA Tennis"),
 }
 
 # Keywords in question text -> (sport, league)
 _QUESTION_KEYWORDS = {
+    # Basketball
     "ncaa": ("basketball", "mens-college-basketball"),
     "march madness": ("basketball", "mens-college-basketball"),
     "college basketball": ("basketball", "mens-college-basketball"),
     "nba": ("basketball", "nba"),
+    # American Football
     "nfl": ("football", "nfl"),
     "super bowl": ("football", "nfl"),
+    # Baseball
     "mlb": ("baseball", "mlb"),
+    # Ice Hockey
     "nhl": ("hockey", "nhl"),
+    # European Soccer
     "premier league": ("soccer", "eng.1"),
+    "championship": ("soccer", "eng.2"),
+    "efl championship": ("soccer", "eng.2"),
     "la liga": ("soccer", "esp.1"),
     "serie a": ("soccer", "ita.1"),
     "bundesliga": ("soccer", "ger.1"),
+    "ligue 1": ("soccer", "fra.1"),
+    "eredivisie": ("soccer", "ned.1"),
+    "primeira liga": ("soccer", "por.1"),
+    "super lig": ("soccer", "tur.1"),
+    "scottish premiership": ("soccer", "sco.1"),
+    # UEFA
     "champions league": ("soccer", "uefa.champions"),
+    "europa league": ("soccer", "uefa.europa"),
+    # Americas Soccer
+    "mls": ("soccer", "usa.1"),
+    "liga mx": ("soccer", "mex.1"),
+    "brasileirao": ("soccer", "bra.1"),
+    "serie a brazil": ("soccer", "bra.1"),
+    "liga argentina": ("soccer", "arg.1"),
+    # Asia Soccer
+    "j-league": ("soccer", "jpn.1"),
+    "j league": ("soccer", "jpn.1"),
+    "chinese super league": ("soccer", "chn.1"),
+    # Combat Sports
     "ufc": ("mma", "ufc"),
 }
 

@@ -28,19 +28,38 @@ ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports"
 
 # Leagues to scout (sport, league, display_name)
 _SCOUT_LEAGUES = [
+    # North America
     ("basketball", "nba", "NBA"),
     ("basketball", "mens-college-basketball", "NCAA Basketball"),
     ("football", "nfl", "NFL"),
     ("baseball", "mlb", "MLB"),
     ("hockey", "nhl", "NHL"),
+    ("soccer", "usa.1", "MLS"),
+    # European Soccer
     ("soccer", "eng.1", "Premier League"),
+    ("soccer", "eng.2", "EFL Championship"),
     ("soccer", "esp.1", "La Liga"),
     ("soccer", "ita.1", "Serie A"),
     ("soccer", "ger.1", "Bundesliga"),
-    ("soccer", "uefa.champions", "Champions League"),
     ("soccer", "fra.1", "Ligue 1"),
-    ("soccer", "usa.1", "MLS"),
+    ("soccer", "ned.1", "Eredivisie"),
+    ("soccer", "por.1", "Primeira Liga"),
+    ("soccer", "tur.1", "Super Lig"),
+    ("soccer", "sco.1", "Scottish Premiership"),
+    # UEFA Competitions
+    ("soccer", "uefa.champions", "Champions League"),
+    ("soccer", "uefa.europa", "Europa League"),
+    # South America
+    ("soccer", "bra.1", "Brasileirao"),
+    ("soccer", "arg.1", "Liga Argentina"),
+    # Mexico
+    ("soccer", "mex.1", "Liga MX"),
+    # Asia
+    ("soccer", "jpn.1", "J-League"),
+    ("soccer", "chn.1", "Chinese Super League"),
+    # Combat Sports
     ("mma", "ufc", "UFC"),
+    # Tennis
     ("tennis", "atp", "ATP Tennis"),
     ("tennis", "wta", "WTA Tennis"),
 ]
