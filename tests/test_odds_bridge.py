@@ -131,3 +131,47 @@ class TestDetectAllSportKeys:
         )
         assert len(keys) == 2
         assert all(k.startswith("tennis_wta") for k in keys)
+
+
+class TestApiRequestRefactor:
+    def test_api_request_exists(self):
+        """_api_request must exist as the shared HTTP layer."""
+        client = _make_client()
+        assert hasattr(client, "_api_request")
+
+    @patch("src.odds_api.requests.get")
+    def test_api_request_returns_data(self, mock_get):
+        """_api_request should make HTTP call and return parsed JSON."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{"id": "event1", "home_team": "Lakers"}]
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+        result = client._api_request("/sports/basketball_nba/odds", {"regions": "us"})
+
+        assert result is not None
+        assert result[0]["home_team"] == "Lakers"
+        mock_get.assert_called_once()
+
+    @patch("src.odds_api.requests.get")
+    def test_get_still_works_with_boundary_cache(self, mock_get):
+        """_get must still use refresh-boundary caching after refactor."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{"id": "e1"}]
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+
+        # First call — should hit API
+        r1 = client._get("/sports/basketball_nba/odds", {"regions": "us"})
+        assert r1 is not None
+        assert mock_get.call_count == 1
+
+        # Second call — should use cache (no boundary crossed)
+        r2 = client._get("/sports/basketball_nba/odds", {"regions": "us"})
+        assert r2 is not None
+        assert mock_get.call_count == 1  # No new API call

@@ -271,21 +271,18 @@ class OddsAPIClient:
                 return True
         return False
 
-    def _get(self, endpoint: str, params: dict) -> Optional[dict | list]:
-        """Make authenticated GET to The Odds API with scheduled cache refresh."""
+    def _api_request(self, endpoint: str, params: dict) -> Optional[dict | list]:
+        """Shared HTTP layer — makes authenticated GET to The Odds API.
+
+        Handles: auth, quota tracking, notifications, backup key switch.
+        Does NOT handle caching — callers (_get, _get_fresh) own their cache strategy.
+        """
         if not self.available:
             return None
 
-        cache_key = f"{endpoint}:{sorted(params.items())}"
-        cached = self._cache.get(cache_key)
-        if cached:
-            data, ts = cached
-            if not self._past_refresh_boundary(ts):
-                return data
-
-        params["apiKey"] = self.api_key
+        params_with_key = {**params, "apiKey": self.api_key}
         try:
-            resp = requests.get(f"{ODDS_API_BASE}{endpoint}", params=params, timeout=10)
+            resp = requests.get(f"{ODDS_API_BASE}{endpoint}", params=params_with_key, timeout=10)
             resp.raise_for_status()
 
             # Track remaining quota from headers
@@ -314,10 +311,7 @@ class OddsAPIClient:
                             self._notifier.send(msg)
                         self._notified_80 = True
 
-            data = resp.json()
-            self._cache[cache_key] = (data, time.time())
-            self._save_cache()  # Persist so next restart has data on cycle 1
-            return data
+            return resp.json()
         except requests.RequestException as e:
             logger.warning("Odds API error: %s", e)
             if "401" in str(e) or "429" in str(e):
@@ -325,11 +319,28 @@ class OddsAPIClient:
                     logger.warning("ODDS_API: Primary key exhausted, switching to backup")
                     self.api_key = self._backup_key
                     self._using_backup = True
-                    # Retry with backup key
-                    return self._get(endpoint, {k: v for k, v in params.items() if k != "apiKey"})
+                    return self._api_request(endpoint, params)
                 logger.warning("Odds API key invalid/expired — disabling for this session")
                 self.api_key = ""
             return None
+
+    def _get(self, endpoint: str, params: dict) -> Optional[dict | list]:
+        """Make authenticated GET with scheduled refresh-boundary caching."""
+        if not self.available:
+            return None
+
+        cache_key = f"{endpoint}:{sorted(params.items())}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if not self._past_refresh_boundary(ts):
+                return data
+
+        data = self._api_request(endpoint, params)
+        if data is not None:
+            self._cache[cache_key] = (data, time.time())
+            self._save_cache()
+        return data
 
     def get_bookmaker_odds(
         self, question: str, slug: str, tags: List[str]
