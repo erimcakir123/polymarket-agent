@@ -303,7 +303,7 @@ class Blacklist:
     def load(self) -> None:
         if self._path.exists():
             try:
-                data = json.loads(self._path.read_text())
+                data = json.loads(self._path.read_text(encoding="utf-8"))
                 self._entries = {
                     cid: BlacklistEntry(**vals) for cid, vals in data.items()
                 }

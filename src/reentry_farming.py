@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from src.sport_rules import get_max_reentries, get_reentry_max_elapsed
+from src.sport_rules import get_max_reentries, get_reentry_max_elapsed, is_esports
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ class ReentryPool:
         if not self._path.exists():
             return
         try:
-            data = json.loads(self._path.read_text())
+            data = json.loads(self._path.read_text(encoding="utf-8"))
             for cid, d in data.items():
                 # Handle missing fields for backward compat
                 d.setdefault("price_history", [])
@@ -359,8 +359,8 @@ def check_reentry(
         return _block(f"Profit cap: risked ${c.total_reentry_risk:.2f} >= 50% of ${c.total_realized_profit:.2f}")
 
     # Freefall detection
-    is_esports = c.sport_tag.lower() in ("cs2", "csgo", "valorant", "lol", "dota2", "val")
-    ff = FREEFALL_ESPORTS if is_esports else FREEFALL_SPORTS
+    _is_esports = is_esports(c.sport_tag)
+    ff = FREEFALL_ESPORTS if _is_esports else FREEFALL_SPORTS
     actual_drop = eff_exit - eff_price
     if actual_drop > ff["drop"] and cycles_since_exit < ff["cycles"]:
         return _block(f"Freefall: {actual_drop:.0%} drop in {cycles_since_exit} cycles")

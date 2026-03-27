@@ -113,7 +113,7 @@ class CircuitBreaker:
     def load(cls) -> CircuitBreaker:
         if STATE_FILE.exists():
             try:
-                return cls.from_dict(json.loads(STATE_FILE.read_text()))
+                return cls.from_dict(json.loads(STATE_FILE.read_text(encoding="utf-8")))
             except Exception:
                 pass
         return cls()

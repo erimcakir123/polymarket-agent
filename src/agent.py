@@ -17,7 +17,6 @@ import re
 import time
 from datetime import datetime, timezone, date
 from pathlib import Path
-from typing import Optional
 
 import requests
 from dotenv import load_dotenv
@@ -42,10 +41,6 @@ from src.reentry import Blacklist, get_blacklist_rule
 from src.outcome_tracker import OutcomeTracker
 from src.cycle_timer import CycleTimer
 from src.scout_scheduler import ScoutScheduler
-from src.vlr_data import VLRDataClient
-from src.hltv_data import HLTVDataClient
-from src.models import Direction
-from src.process_lock import acquire_lock
 from src.entry_gate import EntryGate
 from src.exit_monitor import ExitMonitor
 
@@ -82,6 +77,7 @@ class Agent:
         self._daily_reentry_count: int = 0
         self._last_reentry_reset_date: date = datetime.now(timezone.utc).date()
         self.bets_since_approval: int = 0
+        self._pre_match_prices: dict[str, float] = {}  # Cache first-seen YES price per market
 
         # Core modules
         self.portfolio = Portfolio(initial_bankroll=config.initial_bankroll)
@@ -95,8 +91,6 @@ class Agent:
         self.esports = EsportsDataClient()
         sports = SportsDataClient()
         odds_api = OddsAPIClient()
-        vlr = VLRDataClient()
-        hltv = HLTVDataClient()
         news_scanner = NewsScanner()
         manip_guard = ManipulationGuard()
         scanner = MarketScanner(config.scanner)
@@ -410,6 +404,18 @@ class Agent:
         # Farming re-entry (no AI, uses saved probability)
         self._check_farming_reentry()
 
+        # Bond farming scan (no AI, rule-based)
+        self._check_bond_farming(fresh_markets, bankroll)
+
+        # Penny alpha scan (no AI, price-based)
+        self._check_penny_alpha(fresh_markets, bankroll)
+
+        # Live dip entry (price-based, no AI)
+        self._check_live_dip(fresh_markets, bankroll)
+
+        # Live momentum (score-based re-estimation)
+        self._check_live_momentum(fresh_markets, bankroll, match_states)
+
         # Check outcomes + log
         self._check_tracked_outcomes()
         self._log_cycle_summary(bankroll, "ok")
@@ -508,6 +514,22 @@ class Agent:
         # Mark permanently exited if resolved
         if reason in ("resolved", "near_resolve"):
             self._save_exited_market(condition_id)
+
+        # Post-exit: save CLOB price history for calibration
+        try:
+            from src.price_history import save_price_history
+            save_price_history(
+                slug=pos.slug, token_id=pos.token_id,
+                entry_price=pos.entry_price, exit_price=pos.current_price,
+                exit_reason=reason, exit_layer="agent",
+                match_start_iso=getattr(pos, "match_start_iso", ""),
+                number_of_games=getattr(pos, "number_of_games", 0),
+                ever_in_profit=pos.peak_pnl_pct > 0,
+                peak_pnl_pct=pos.peak_pnl_pct,
+                match_score=getattr(pos, "match_score", ""),
+            )
+        except Exception:
+            pass
 
     def _try_demote_to_stock(self, pos, reason: str) -> bool:
         """Demote exited position back to candidate stock queue for re-entry.
@@ -771,6 +793,409 @@ class Agent:
                 f"_No AI call — using saved analysis_"
             )
             self.bets_since_approval += 1
+
+    # ── Live dip & momentum ─────────────────────────────────────────────
+
+    def _check_live_dip(self, fresh_markets: list, bankroll: float) -> None:
+        """Enter when favorite's market price drops 10%+ (no ESPN, pure price)."""
+        if not fresh_markets:
+            return
+
+        cfg = self.config.live_momentum  # Uses live_momentum config for max_concurrent
+        min_drop_pct = 0.10
+
+        # Cache pre-match prices (first-seen only)
+        for m in fresh_markets:
+            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
+                self._pre_match_prices[m.condition_id] = m.yes_price
+
+        # Count current live_dip positions
+        dip_count = sum(1 for p in self.portfolio.positions.values()
+                        if getattr(p, "entry_reason", "") == "live_dip")
+        if dip_count >= cfg.max_concurrent:
+            return
+
+        for m in fresh_markets:
+            if self.portfolio.active_position_count >= self.config.risk.max_positions:
+                break
+            if m.condition_id in self.portfolio.positions:
+                continue
+            if self.blacklist.is_blocked(m.condition_id, self.cycle_count):
+                continue
+            if m.condition_id in self._exited_markets:
+                continue
+
+            pre_match = self._pre_match_prices.get(m.condition_id)
+            if not pre_match:
+                continue
+
+            current_yes = m.yes_price
+            if current_yes <= 0:
+                continue
+
+            # Check if favorite dropped 10%+
+            direction = None
+            drop_pct = 0.0
+
+            if pre_match > 0.65:
+                # YES was favorite, check if YES dropped
+                drop = pre_match - current_yes
+                drop_pct = drop / pre_match
+                if drop_pct >= min_drop_pct:
+                    direction = "BUY_YES"
+            elif pre_match < 0.35:
+                # NO was favorite, check if NO dropped (YES rose)
+                no_pre = 1 - pre_match
+                no_current = 1 - current_yes
+                drop = no_pre - no_current
+                drop_pct = drop / no_pre if no_pre > 0 else 0
+                if drop_pct >= min_drop_pct:
+                    direction = "BUY_NO"
+
+            if not direction:
+                continue
+
+            # Size using confidence-based system
+            from src.risk_manager import confidence_position_size
+            size = confidence_position_size(
+                confidence="B-", bankroll=bankroll,
+                max_bet_usdc=self.config.risk.max_single_bet_usdc,
+                max_bet_pct=self.config.risk.max_bet_pct,
+            )
+            if size < 5.0:
+                continue
+
+            # Get token_id
+            if direction == "BUY_YES":
+                token_id = m.yes_token_id
+                price = current_yes
+            else:
+                token_id = m.no_token_id
+                price = 1 - current_yes
+
+            if not token_id:
+                continue
+
+            result = self.executor.place_order(token_id, "BUY", price, size)
+            if not result or result.get("status") == "error":
+                continue
+
+            shares = size / price if price > 0 else 0
+            self.portfolio.add_position(
+                m.condition_id, token_id, direction,
+                m.yes_price, size, shares, m.slug,
+                "", confidence="B-",
+                ai_probability=pre_match,
+                entry_reason="live_dip",
+                sport_tag=getattr(m, "sport_tag", ""),
+                event_id=getattr(m, "event_id", ""),
+                end_date_iso=getattr(m, "end_date_iso", ""),
+            )
+            dip_count += 1
+
+            self.trade_log.log({
+                "market": m.slug, "action": f"LIVE_DIP_{direction}",
+                "size": size, "price": price,
+                "pre_match_price": pre_match,
+                "drop_pct": round(drop_pct, 3),
+                "mode": self.config.mode.value,
+            })
+            logger.info(
+                "LIVE DIP: %s | %s | pre=%.2f now=%.2f drop=%.0f%% | size=$%.0f",
+                m.slug[:40], direction, pre_match, current_yes, drop_pct * 100, size,
+            )
+            self.notifier.send(
+                f"\U0001f4c9 *LIVE DIP*: {m.slug[:40]}\n"
+                f"{direction} | pre={pre_match:.2f} \u2192 now={current_yes:.2f} (drop {drop_pct:.0%}) | size=${size:.0f}"
+            )
+
+    def _check_live_momentum(self, fresh_markets: list, bankroll: float, match_states: dict) -> None:
+        """Score-based probability re-estimation for live matches."""
+        if not match_states:
+            return
+        from src.live_momentum import detect_momentum_opportunity, calculate_score_adjusted_probability
+
+        cfg = self.config.live_momentum
+        if not cfg.enabled:
+            return
+
+        momentum_count = sum(1 for p in self.portfolio.positions.values()
+                             if getattr(p, "entry_reason", "") == "momentum")
+
+        for cid, state in match_states.items():
+            if not state:
+                continue
+
+            sport_tag = state.get("sport_tag", "")
+
+            # Mode B: Update existing positions with score-adjusted probability
+            if cid in self.portfolio.positions:
+                pos = self.portfolio.positions[cid]
+                adjusted = calculate_score_adjusted_probability(
+                    pos.ai_probability, state, sport_tag, pos.direction,
+                )
+                if adjusted is not None:
+                    pos.ai_probability = adjusted
+                continue
+
+            # Mode A: New entry if edge >= 6%
+            if self.portfolio.active_position_count >= self.config.risk.max_positions:
+                continue
+            if momentum_count >= cfg.max_concurrent:
+                continue
+            if self.blacklist.is_blocked(cid, self.cycle_count):
+                continue
+            if cid in self._exited_markets:
+                continue
+
+            # Need pre-match price as probability baseline
+            pre_match = self._pre_match_prices.get(cid)
+            if not pre_match:
+                continue
+
+            # Find market in fresh_markets
+            market = None
+            for m in fresh_markets:
+                if m.condition_id == cid:
+                    market = m
+                    break
+            if not market:
+                continue
+
+            # Try both directions
+            for direction in ("BUY_YES", "BUY_NO"):
+                signal = detect_momentum_opportunity(
+                    cid, pre_match, market.yes_price,
+                    state, sport_tag, direction, min_edge=cfg.min_edge,
+                )
+                if not signal:
+                    continue
+
+                from src.risk_manager import confidence_position_size
+                size = confidence_position_size(
+                    confidence="B-", bankroll=bankroll,
+                    max_bet_usdc=self.config.risk.max_single_bet_usdc,
+                    max_bet_pct=cfg.bet_pct,
+                )
+                if size < 5.0:
+                    continue
+
+                if direction == "BUY_YES":
+                    token_id = market.yes_token_id
+                    price = market.yes_price
+                else:
+                    token_id = market.no_token_id
+                    price = 1 - market.yes_price
+
+                if not token_id:
+                    continue
+
+                result = self.executor.place_order(token_id, "BUY", price, size)
+                if not result or result.get("status") == "error":
+                    continue
+
+                shares = size / price if price > 0 else 0
+                self.portfolio.add_position(
+                    cid, token_id, direction,
+                    market.yes_price, size, shares, market.slug,
+                    "", confidence="B-",
+                    ai_probability=signal.adjusted_prob,
+                    entry_reason="momentum",
+                    sport_tag=sport_tag,
+                    event_id=getattr(market, "event_id", ""),
+                    end_date_iso=getattr(market, "end_date_iso", ""),
+                )
+                momentum_count += 1
+
+                self.trade_log.log({
+                    "market": market.slug, "action": f"MOMENTUM_{direction}",
+                    "size": size, "price": price,
+                    "adjusted_prob": signal.adjusted_prob,
+                    "edge": signal.edge,
+                    "score_diff": signal.score_diff,
+                    "mode": self.config.mode.value,
+                })
+                logger.info(
+                    "MOMENTUM: %s | %s | edge=%.1f%% | adj_prob=%.1f%% | size=$%.0f",
+                    market.slug[:40], direction, signal.edge * 100, signal.adjusted_prob * 100, size,
+                )
+                self.notifier.send(
+                    f"\u26a1 *MOMENTUM*: {market.slug[:40]}\n"
+                    f"{direction} | edge={signal.edge:.1%} | score={signal.score_diff} | size=${size:.0f}"
+                )
+                break  # Only one direction per market
+
+    # ── Bond & Penny scanners ──────────────────────────────────────────────
+
+    def _check_bond_farming(self, fresh_markets: list, bankroll: float) -> None:
+        """Scan for bond farming opportunities — near-certain YES tokens $0.90-0.97."""
+        if not fresh_markets:
+            return
+        from src.bond_scanner import scan_bond_candidates, size_bond_position
+
+        # Count current bond positions
+        bond_count = sum(1 for p in self.portfolio.positions.values()
+                         if getattr(p, "entry_reason", "") == "bond")
+        bond_exposure = sum(p.size_usdc for p in self.portfolio.positions.values()
+                            if getattr(p, "entry_reason", "") == "bond")
+
+        cfg = self.config.bond_farming
+        candidates = scan_bond_candidates(
+            fresh_markets,
+            max_resolution_days=cfg.max_days_to_resolution * 4,  # config is in fraction of days
+            min_yes_price=cfg.min_yes_price,
+            max_yes_price=cfg.max_yes_price,
+            min_volume=self.config.scanner.min_volume_24h,
+            min_liquidity=self.config.scanner.min_liquidity,
+        )
+
+        for c in candidates:
+            if self.portfolio.active_position_count >= self.config.risk.max_positions:
+                break
+            if c.condition_id in self.portfolio.positions:
+                continue
+            if self.blacklist.is_blocked(c.condition_id, self.cycle_count):
+                continue
+            if c.condition_id in self._exited_markets:
+                continue
+
+            size = size_bond_position(
+                bankroll, c, bond_exposure, bond_count,
+                bet_pct=cfg.bet_pct,
+                max_total_pct=cfg.max_total_bond_pct,
+                max_concurrent=cfg.max_concurrent,
+            )
+            if size < 5.0:
+                continue
+
+            # Execute
+            token_id = getattr(c, "yes_token_id", "") or ""
+            # Need to get token_id from market data
+            for m in fresh_markets:
+                if m.condition_id == c.condition_id:
+                    token_id = m.yes_token_id
+                    break
+            if not token_id:
+                continue
+
+            result = self.executor.place_order(token_id, "BUY", c.yes_price, size)
+            if not result or result.get("status") == "error":
+                continue
+
+            shares = size / c.yes_price if c.yes_price > 0 else 0
+            self.portfolio.add_position(
+                c.condition_id, token_id, "BUY_YES",
+                c.yes_price, size, shares, c.slug,
+                "", confidence="A",  # Bond = high confidence by nature
+                ai_probability=c.yes_price,  # Market price IS the probability
+                entry_reason="bond",
+                end_date_iso="",
+            )
+            bond_count += 1
+            bond_exposure += size
+
+            self.trade_log.log({
+                "market": c.slug, "action": "BOND_ENTRY",
+                "size": size, "price": c.yes_price,
+                "bond_type": c.bond_type,
+                "expected_profit_pct": c.expected_profit_pct,
+                "mode": self.config.mode.value,
+            })
+            logger.info(
+                "BOND ENTRY: %s | type=%s | price=%.2f | profit=%.1f%% | size=$%.0f",
+                c.slug[:40], c.bond_type, c.yes_price, c.expected_profit_pct * 100, size,
+            )
+            self.notifier.send(
+                f"\U0001f3e6 *BOND ENTRY*: {c.slug[:40]}\n"
+                f"type={c.bond_type} price={c.yes_price:.2f} profit={c.expected_profit_pct:.1%} size=${size:.0f}"
+            )
+
+    def _check_penny_alpha(self, fresh_markets: list, bankroll: float) -> None:
+        """Scan for penny alpha — $0.01-0.02 tokens with 5-10x upside."""
+        if not fresh_markets:
+            return
+        from src.penny_alpha import scan_penny_candidates, size_penny_position
+
+        cfg = self.config.penny_alpha
+        if not cfg.enabled:
+            return
+
+        penny_count = sum(1 for p in self.portfolio.positions.values()
+                          if getattr(p, "entry_reason", "") == "penny")
+
+        candidates = scan_penny_candidates(
+            fresh_markets,
+            max_candidates=10,
+            min_volume=cfg.min_volume,
+            max_price=cfg.max_price,
+        )
+
+        for c in candidates:
+            if self.portfolio.active_position_count >= self.config.risk.max_positions:
+                break
+            if c.condition_id in self.portfolio.positions:
+                continue
+            if self.blacklist.is_blocked(c.condition_id, self.cycle_count):
+                continue
+            if c.condition_id in self._exited_markets:
+                continue
+
+            size = size_penny_position(bankroll, cfg.bet_pct, cfg.max_concurrent, penny_count)
+            if size < 5.0:
+                continue
+
+            # Determine token and direction
+            if c.token_side == "YES":
+                direction = "BUY_YES"
+                token_id = ""
+                price = c.yes_price
+                for m in fresh_markets:
+                    if m.condition_id == c.condition_id:
+                        token_id = m.yes_token_id
+                        break
+            else:
+                direction = "BUY_NO"
+                token_id = ""
+                price = c.no_price
+                for m in fresh_markets:
+                    if m.condition_id == c.condition_id:
+                        token_id = m.no_token_id
+                        break
+
+            if not token_id:
+                continue
+
+            result = self.executor.place_order(token_id, "BUY", price, size)
+            if not result or result.get("status") == "error":
+                continue
+
+            shares = size / price if price > 0 else 0
+            self.portfolio.add_position(
+                c.condition_id, token_id, direction,
+                c.yes_price, size, shares, c.slug,
+                "", confidence="B-",
+                ai_probability=price,
+                entry_reason="penny",
+                end_date_iso="",
+            )
+            penny_count += 1
+
+            self.trade_log.log({
+                "market": c.slug, "action": f"PENNY_ENTRY_{direction}",
+                "size": size, "price": price,
+                "target": c.target_price,
+                "multiplier": c.target_multiplier,
+                "token_side": c.token_side,
+                "mode": self.config.mode.value,
+            })
+            logger.info(
+                "PENNY ENTRY: %s | %s @ $%.2f | target=$%.2f (%dx) | size=$%.0f",
+                c.slug[:40], c.token_side, price, c.target_price, int(c.target_multiplier), size,
+            )
+            self.notifier.send(
+                f"\U0001f3b0 *PENNY ENTRY*: {c.slug[:40]}\n"
+                f"{c.token_side} @ ${price:.2f} \u2192 target ${c.target_price:.2f} ({c.target_multiplier:.0f}x) | size=${size:.0f}"
+            )
 
     # ── Utilities ─────────────────────────────────────────────────────────
 
