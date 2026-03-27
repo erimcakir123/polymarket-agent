@@ -91,6 +91,10 @@ class EntryGate:
         self.scout = scout
         from src.thesportsdb import TheSportsDBClient
         self.tsdb = TheSportsDBClient()
+        from src.football_data import FootballDataClient
+        self.football_data = FootballDataClient()
+        from src.cricket_data import CricketDataClient
+        self.cricket_data = CricketDataClient()
 
         # Per-session state (survives across cycles)
         self._far_market_ids: set[str] = set()
@@ -322,7 +326,7 @@ class EntryGate:
             except Exception as exc:
                 logger.warning("Bridge match failed: %s", exc)
 
-        # Traditional sports context: Bridge->ESPN -> Original->ESPN -> TheSportsDB
+        # Traditional sports context: Bridge->ESPN -> ESPN -> football-data.org -> CricketData -> TheSportsDB
         if self.sports:
             for _m in prioritized:
                 if _m.condition_id in esports_contexts:
@@ -334,35 +338,52 @@ class EntryGate:
                     _ctx = None
                     _source = ""
                     _bridge_info = _bridge_names.get(_m.condition_id)
+                    _question = getattr(_m, "question", "")
+                    _slug = _m.slug or ""
+                    _tags = getattr(_m, "tags", [])
 
                     # Kademe 1: Bridge clean names -> ESPN
                     if _bridge_info:
                         _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
-                        _ctx = self.sports.get_match_context(_clean_q, _m.slug or "", [])
+                        _ctx = self.sports.get_match_context(_clean_q, _slug, [])
                         if _ctx:
                             _source = "Bridge->ESPN"
 
                     # Kademe 2: Original question -> ESPN
                     if not _ctx:
-                        _ctx = self.sports.get_match_context(
-                            getattr(_m, "question", ""), _m.slug or "", []
-                        )
+                        _ctx = self.sports.get_match_context(_question, _slug, [])
                         if _ctx:
                             _source = "ESPN"
 
-                    # Kademe 3: TheSportsDB fallback (try bridge names first, then original)
+                    # Kademe 3: football-data.org (soccer fallback + Copa Libertadores)
+                    if not _ctx and self.football_data.available:
+                        if _bridge_info:
+                            _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
+                            _ctx = self.football_data.get_match_context(_clean_q, _slug, _tags)
+                        if not _ctx:
+                            _ctx = self.football_data.get_match_context(_question, _slug, _tags)
+                        if _ctx:
+                            _source = "football-data.org"
+
+                    # Kademe 4: CricketData (IPL, PSL, T20)
+                    if not _ctx and self.cricket_data.available:
+                        _ctx = self.cricket_data.get_match_context(_question, _slug, _tags)
+                        if _ctx:
+                            _source = "CricketData"
+
+                    # Kademe 5: TheSportsDB fallback (try bridge names first, then original)
                     if not _ctx:
                         if _bridge_info:
                             _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
                             _ctx = self.tsdb.get_match_context(_clean_q)
                         if not _ctx:
-                            _ctx = self.tsdb.get_match_context(getattr(_m, "question", ""))
+                            _ctx = self.tsdb.get_match_context(_question)
                         if _ctx:
                             _source = "TheSportsDB"
 
                     if _ctx:
                         esports_contexts[_m.condition_id] = _ctx
-                        logger.info("Sports context fetched (%s): %s", _source, _m.slug[:40])
+                        logger.info("Sports context fetched (%s): %s", _source, _slug[:40])
                 except Exception as _exc:
                     logger.debug("Sports context fetch error for %s: %s", _m.slug[:40], _exc)
 

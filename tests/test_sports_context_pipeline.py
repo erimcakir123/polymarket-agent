@@ -37,6 +37,10 @@ def _make_gate(sports=None):
     gate._eligible_cache_ts = 0.0
     from src.thesportsdb import TheSportsDBClient
     gate.tsdb = TheSportsDBClient()
+    from src.football_data import FootballDataClient
+    gate.football_data = FootballDataClient()
+    from src.cricket_data import CricketDataClient
+    gate.cricket_data = CricketDataClient()
     return gate
 
 
