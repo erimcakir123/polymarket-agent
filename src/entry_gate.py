@@ -194,6 +194,10 @@ class EntryGate:
         """Add a candidate to the stock queue (called by agent for demoted positions)."""
         self._candidate_stock.append(candidate)
 
+    def reset_seen_markets(self) -> None:
+        """Reset seen market tracking. Call at start of each fresh heavy cycle (not refill)."""
+        self._seen_market_ids.clear()
+
     def invalidate_cache(self, condition_id: str) -> None:
         """Remove a market from the AI analysis cache (e.g., after price drift reanalysis)."""
         self._analyzed_market_ids.pop(condition_id, None)
@@ -207,10 +211,11 @@ class EntryGate:
         # Stock IDs (don't re-analyze markets already in candidate stock)
         _stock_ids = {c.get("condition_id", "") for c in self._candidate_stock}
 
-        # Skip only stock-queued markets (no HOLD cache — fresh analysis every cycle)
+        # Skip stock-queued AND already-analyzed markets (prevents refill re-analyzing same batch)
         markets = [
             m for m in markets
             if m.condition_id not in _stock_ids
+            and m.condition_id not in self._seen_market_ids
         ]
 
         if not markets:
@@ -243,6 +248,9 @@ class EntryGate:
         if len(prioritized) < batch_size:
             remaining = [m for m in markets if m not in prioritized]
             prioritized += remaining[:batch_size - len(prioritized)]
+
+        # Track analyzed markets so refill cycles move to next batch
+        self._seen_market_ids.update(m.condition_id for m in prioritized)
 
         # Update FAR market ids (>6h to start = FAR, needs higher edge)
         self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
@@ -319,9 +327,12 @@ class EntryGate:
                 logger.warning("Bridge match failed: %s", exc)
 
         # Traditional sports context: Bridge->ESPN -> ESPN -> football-data.org -> CricketData -> TheSportsDB
+        # Track which source provided data — only reliable sources qualify for AI analysis
+        _reliable_source_cids: set[str] = set()  # Markets with ESPN/Bridge/football-data/Cricket/PandaScore
         if self.sports:
             for _m in prioritized:
                 if _m.condition_id in esports_contexts:
+                    _reliable_source_cids.add(_m.condition_id)  # PandaScore/Scout = reliable
                     continue
                 _is_esports_mkt = is_esports_slug(_m.slug or "")
                 if _is_esports_mkt:
@@ -363,7 +374,7 @@ class EntryGate:
                         if _ctx:
                             _source = "CricketData"
 
-                    # Kademe 5: TheSportsDB fallback (try bridge names first, then original)
+                    # Kademe 5: TheSportsDB fallback (supplementary only — NOT enough alone)
                     if not _ctx:
                         if _bridge_info:
                             _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
@@ -376,6 +387,9 @@ class EntryGate:
                     if _ctx:
                         esports_contexts[_m.condition_id] = _ctx
                         logger.info("Sports context fetched (%s): %s", _source, _slug[:40])
+                        # Only mark as reliable if from a primary source (not TheSportsDB alone)
+                        if _source != "TheSportsDB":
+                            _reliable_source_cids.add(_m.condition_id)
                 except Exception as _exc:
                     logger.debug("Sports context fetch error for %s: %s", _m.slug[:40], _exc)
 
@@ -408,15 +422,19 @@ class EntryGate:
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
-        # Filter: only markets with any data (sports context OR news)
-        # Odds API is NOT used here — it's an anchor, not a data gate check.
-        # esports_contexts holds ALL sports context (esports + scout + ESPN + TheSportsDB).
+        # Filter: only markets with RELIABLE sports data qualify for AI analysis.
+        # TheSportsDB alone is NOT enough (weak data → confidence C → wasted tokens).
+        # News alone is NOT enough either (no team stats → AI can't assess winner).
+        # Reliable = ESPN, Bridge->ESPN, football-data.org, CricketData, PandaScore, Scout.
         _has_data: list = []
+        _no_reliable_skipped = 0
         for m in prioritized:
-            has_sports_ctx = bool(esports_contexts.get(m.condition_id))
-            has_news = bool(news_context_by_market.get(m.condition_id))
-            if has_sports_ctx or has_news:
+            if m.condition_id in _reliable_source_cids:
                 _has_data.append(m)
+            else:
+                _no_reliable_skipped += 1
+        if _no_reliable_skipped:
+            logger.info("Skipped %d markets without reliable sports data (saves AI tokens)", _no_reliable_skipped)
 
         if not _has_data:
             logger.info("No markets with data — skipping AI batch")
