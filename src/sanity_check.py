@@ -27,6 +27,7 @@ def check_bet_sanity(
     confidence: str,
     bookmaker_count: int = 0,
     bookmaker_agrees_with_market: bool = False,
+    is_consensus: bool = False,
 ) -> SanityResult:
     """Validate that a bet makes basic sense.
 
@@ -50,7 +51,9 @@ def check_bet_sanity(
         )
 
     # 3. Large edge (20-40%) — very likely data error regardless of confidence
-    if edge > 0.25:
+    #    Exception: consensus mode allows up to 50% edge (99¢ - entry_price)
+    edge_block = 0.50 if is_consensus else 0.25
+    if edge > edge_block:
         return SanityResult(
             ok=False, suspicious=True,
             reason=f"Edge too high ({edge:.0%}) — likely data error or stale odds",

@@ -1,4 +1,4 @@
-"""Tests for three-mode entry strategy."""
+"""Tests for two-mode entry strategy (WINNER / DEADZONE / SKIP)."""
 from unittest.mock import MagicMock, patch
 import pytest
 
@@ -17,6 +17,9 @@ def _make_market(yes_price, cid="cid-001", slug="test-market", question="Will X 
     m.slug = slug
     m.question = question
     m.sport_tag = ""
+    m.tags = []
+    m.yes_token_id = "tok_yes"
+    m.no_token_id = "tok_no"
     return m
 
 
@@ -38,174 +41,161 @@ def _make_gate():
     gate.odds_api = MagicMock()
     gate.odds_api.available = False
     gate.manip_guard = MagicMock()
-    gate.manip_guard.check.return_value = MagicMock(ok=True)
+    gate.manip_guard.check_market = MagicMock(return_value=MagicMock(ok=True))
     gate.manip_guard.adjust_position_size = lambda size, _: size
     gate.risk = MagicMock()
-    gate.risk.calculate_position_size = MagicMock(return_value=10.0)
+    risk_decision = MagicMock()
+    risk_decision.size_usdc = 10.0
+    gate.risk.evaluate = MagicMock(return_value=risk_decision)
     gate.trade_log = MagicMock()
     gate._far_market_ids = set()
     gate._analyzed_market_ids = {}
     return gate
 
 
-def test_winner_mode_enters_without_edge():
-    """AI >= 65% should enter even if market price equals AI probability (no edge)."""
-    gate = _make_gate()
-    # AI says 80%, market says 80% -> zero edge, but should WINNER-enter
-    market = _make_market(yes_price=0.80)
-    estimate = _make_estimate(ai_prob=0.80, confidence="B+")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+class TestCaseA_Consensus:
+    """When AI and market agree on the same favorite, enter that side."""
+
+    def test_consensus_winner_high_prob(self):
+        """AI=80% YES, market=70% YES -> both favor YES -> WINNER mode, BUY_YES."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.70)
+        estimate = _make_estimate(ai_prob=0.80, confidence="B+")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.80)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 1
-    assert candidates[0]["mode"] == "WINNER"
-    from src.models import Direction
-    assert candidates[0]["direction"] == Direction.BUY_YES
+            mock_anchor.return_value = MagicMock(probability=0.80, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        assert candidates[0]["mode"] == "WINNER"
+        from src.models import Direction
+        assert candidates[0]["direction"] == Direction.BUY_YES
+        assert abs(candidates[0]["edge"] - 0.29) < 0.02
 
-
-def test_winner_mode_b_minus_rejected():
-    """Winner mode should reject B- confidence."""
-    gate = _make_gate()
-    market = _make_market(yes_price=0.50)
-    estimate = _make_estimate(ai_prob=0.80, confidence="B-")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+    def test_consensus_deadzone_marginal(self):
+        """AI=58% YES, market=55% YES -> agree on YES -> DEADZONE (58% < 65%)."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.55)
+        estimate = _make_estimate(ai_prob=0.58, confidence="B+")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.80)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 0
+            mock_anchor.return_value = MagicMock(probability=0.58, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        assert candidates[0]["mode"] == "DEADZONE"
 
-
-def test_underdog_enters_with_edge_a_plus():
-    """AI 40%, market 12% -> underdog YES — enters if A/B+ confidence."""
-    gate = _make_gate()
-    market = _make_market(yes_price=0.12)
-    estimate = _make_estimate(ai_prob=0.40, confidence="A")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+    def test_consensus_skip_too_uncertain(self):
+        """AI=52% YES, market=55% YES -> agree but AI < 55% -> SKIP (no entry)."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.55)
+        estimate = _make_estimate(ai_prob=0.52, confidence="B+")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.40)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 1
-    assert candidates[0]["mode"] == "UNDERDOG"
+            mock_anchor.return_value = MagicMock(probability=0.52, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 0
 
-
-def test_underdog_rejects_b_minus():
-    """Underdog mode must reject B- confidence."""
-    gate = _make_gate()
-    market = _make_market(yes_price=0.12)
-    estimate = _make_estimate(ai_prob=0.40, confidence="B-")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+    def test_consensus_no_side(self):
+        """AI=30% YES (=70% NO), market=25% YES (=75% NO) -> agree on NO -> BUY_NO."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.25)
+        estimate = _make_estimate(ai_prob=0.30, confidence="A")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.40)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 0
+            mock_anchor.return_value = MagicMock(probability=0.30, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        from src.models import Direction
+        assert candidates[0]["direction"] == Direction.BUY_NO
+        assert candidates[0]["mode"] == "WINNER"
 
 
-def test_deadzone_allows_b_minus():
-    """Dead zone (55% AI, 40% market) allows B- confidence."""
-    gate = _make_gate()
-    market = _make_market(yes_price=0.40)
-    estimate = _make_estimate(ai_prob=0.55, confidence="B-")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+class TestCaseB_Disagree:
+    """When AI and market disagree on the favorite, use standard shrinkage+edge."""
+
+    def test_disagree_ai_no_market_yes(self):
+        """AI=42% YES (NO fav), market=70% YES (YES fav) -> disagree -> standard logic."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.70)
+        estimate = _make_estimate(ai_prob=0.42, confidence="A")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.55)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 1
-    assert candidates[0]["mode"] == "DEADZONE"
+            mock_anchor.return_value = MagicMock(probability=0.428, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        assert candidates[0]["mode"] == "DEADZONE"
+        from src.models import Direction
+        assert candidates[0]["direction"] == Direction.BUY_NO
 
 
-def test_winner_score_higher_than_edge_score():
-    """Winner candidate (95% AI, B+) should outrank edge candidate (20% edge, A)."""
-    from src.models import Direction
-    gate = _make_gate()
+class TestBoundaries:
+    """Test exact boundary values for mode classification."""
 
-    m_winner = _make_market(yes_price=0.70, cid="win-001", slug="winner", question="Team A wins?")
-    est_winner = _make_estimate(ai_prob=0.95, confidence="B+")
-
-    m_edge = _make_market(yes_price=0.30, cid="edge-001", slug="edger", question="Team B wins?")
-    est_edge = _make_estimate(ai_prob=0.50, confidence="A")  # dead zone, 20% edge
-
-    estimates = {
-        "win-001": est_winner,
-        "edge-001": est_edge,
-    }
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
+    def test_boundary_55_enters_deadzone(self):
+        """Exactly 55% should enter DEADZONE (not SKIP)."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.60)
+        estimate = _make_estimate(ai_prob=0.55, confidence="B+")
         with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            def anchor(ai_prob, **kwargs):
-                return MagicMock(probability=ai_prob)
+            mock_anchor.return_value = MagicMock(probability=0.55, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        assert candidates[0]["mode"] == "DEADZONE"
+
+    def test_boundary_54_skips(self):
+        """54% should SKIP (below 55% threshold)."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.60)
+        estimate = _make_estimate(ai_prob=0.54, confidence="A")
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            mock_anchor.return_value = MagicMock(probability=0.54, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 0
+
+    def test_boundary_65_enters_winner(self):
+        """Exactly 65% should enter WINNER mode."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.70)
+        estimate = _make_estimate(ai_prob=0.65, confidence="B+")
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            mock_anchor.return_value = MagicMock(probability=0.65, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 1
+        assert candidates[0]["mode"] == "WINNER"
+
+    def test_ranking_winner_beats_deadzone(self):
+        """WINNER (95% AI, B+) should outrank DEADZONE (58% AI, B+)."""
+        gate = _make_gate()
+        m1 = _make_market(yes_price=0.70, cid="win-1", slug="winner")
+        est1 = _make_estimate(ai_prob=0.95, confidence="B+")
+        m2 = _make_market(yes_price=0.55, cid="dz-1", slug="deadzone")
+        est2 = _make_estimate(ai_prob=0.58, confidence="B+")
+        estimates = {"win-1": est1, "dz-1": est2}
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            def anchor(ai_prob, **kw):
+                return MagicMock(probability=ai_prob, method="shrunk_no_bookmaker")
             mock_anchor.side_effect = anchor
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [m_winner, m_edge], estimates,
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 2
-    assert candidates[0]["market"].condition_id == "win-001", "Winner should rank first"
-
-
-def test_tie_break_picks_larger_edge():
-    """When both sides classify as DEADZONE, pick the side with larger edge."""
-    gate2 = _make_gate()
-    market = _make_market(yes_price=0.40)
-    estimate = _make_estimate(ai_prob=0.55, confidence="A")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
-        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.55)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate2._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    # YES edge = 0.55 - 0.40 = 0.15 (DEADZONE), NO edge = 0.45 - 0.60 = -0.15 (HOLD)
-    # Should pick DEADZONE YES
-    assert len(candidates) == 1
-    from src.models import Direction
-    assert candidates[0]["direction"] == Direction.BUY_YES
-    assert candidates[0]["mode"] == "DEADZONE"
-
-
-def test_no_direction_winner():
-    """AI 20% → NO side has 80% → WINNER BUY_NO."""
-    gate = _make_gate()
-    market = _make_market(yes_price=0.75)
-    estimate = _make_estimate(ai_prob=0.20, confidence="A")
-    with patch("src.sanity_check.check_bet_sanity") as mock_sanity:
-        mock_sanity.return_value = MagicMock(ok=True)
-        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
-            mock_anchor.return_value = MagicMock(probability=0.20)
-            with patch("src.probability_engine.get_edge_threshold_adjustment", return_value=0.0):
-                candidates = gate._evaluate_candidates(
-                    [market], {market.condition_id: estimate},
-                    bankroll=1000.0, cycle_count=1, fresh_scan=True,
-                )
-    assert len(candidates) == 1
-    assert candidates[0]["mode"] == "WINNER"
-    from src.models import Direction
-    assert candidates[0]["direction"] == Direction.BUY_NO
+            candidates = gate._evaluate_candidates(
+                [m1, m2], estimates,
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
+        assert len(candidates) == 2
+        assert candidates[0]["market"].condition_id == "win-1"

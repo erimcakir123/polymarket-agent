@@ -478,29 +478,53 @@ class EntryGate:
                 bookmaker_prob=_anchor_book_prob,
                 num_bookmakers=_anchor_num_books,
             )
-            # ── Winner classifier — always back the predicted winner ─────────
-            # Edge is NOT a blocker. We enter whoever AI thinks will win (>50%).
-            # Edge is only used for ranking (higher edge = higher priority).
-            ai_p = anchored.probability          # P(YES)
-            ai_n = 1.0 - ai_p                   # P(NO)
-            mkt_p = market.yes_price             # market P(YES)
-            mkt_n = 1.0 - mkt_p
+            # ── Two-case strategy: consensus vs disagree ─────────────────
+            ai_p = estimate.ai_probability     # Raw AI P(YES) — before anchoring
+            ai_n = 1.0 - ai_p                  # Raw AI P(NO)
+            mkt_p = market.yes_price            # Market P(YES)
+            mkt_n = 1.0 - mkt_p                # Market P(NO)
 
-            edge_yes = ai_p - mkt_p
-            edge_no = ai_n - mkt_n
+            # Determine favorites
+            ai_favors_yes = ai_p >= 0.50
+            mkt_favors_yes = mkt_p >= 0.50
+            is_consensus = ai_favors_yes == mkt_favors_yes
 
-            # Pick the winner side (whoever AI gives >50% to)
-            if ai_p >= ai_n:
-                direction = Direction.BUY_YES
-                direction_prob = ai_p
-                edge = edge_yes
+            if is_consensus:
+                # CASE A: AI and market agree on favorite
+                # Direction = favorite side. Edge = payout potential (99¢ - entry).
+                # Use raw AI probability (skip shrinkage — market already confirms).
+                if ai_favors_yes:
+                    direction = Direction.BUY_YES
+                    direction_prob = ai_p
+                    entry_price = mkt_p
+                else:
+                    direction = Direction.BUY_NO
+                    direction_prob = ai_n
+                    entry_price = mkt_n
+                edge = 0.99 - entry_price
             else:
-                direction = Direction.BUY_NO
-                direction_prob = ai_n
-                edge = edge_no
+                # CASE B: AI and market disagree on favorite
+                # Use anchored (shrunk) probability. Standard edge calculation.
+                ai_p_anchored = anchored.probability
+                ai_n_anchored = 1.0 - ai_p_anchored
+                edge_yes = ai_p_anchored - mkt_p
+                edge_no = ai_n_anchored - mkt_n
 
-            # Classify mode by probability only — no edge threshold
-            if direction_prob >= 0.65:
+                if ai_p_anchored >= ai_n_anchored:
+                    direction = Direction.BUY_YES
+                    direction_prob = ai_p_anchored
+                    edge = edge_yes
+                else:
+                    direction = Direction.BUY_NO
+                    direction_prob = ai_n_anchored
+                    edge = edge_no
+
+            # Mode classification by direction probability
+            if direction_prob < 0.55:
+                # SKIP — too uncertain, don't trade
+                logger.debug("SKIP: %s | prob=%.0f%% < 55%%", market.slug[:35], direction_prob * 100)
+                continue
+            elif direction_prob >= 0.65:
                 mode = "WINNER"
             else:
                 mode = "DEADZONE"
@@ -553,7 +577,7 @@ class EntryGate:
                 "direction_prob": direction_prob,
                 "adjusted_size": adjusted_size,
                 "manip_check": manip_check,
-                "is_consensus": False,
+                "is_consensus": is_consensus,
                 "entry_reason": mode.lower(),
                 "is_far": cid in self._far_market_ids,
             })
