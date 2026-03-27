@@ -305,24 +305,22 @@ class EntryGate:
         _bridge_names: dict[str, dict] = {}
         if self.odds_api and self.odds_api.available:
             try:
-                pool_size = self.odds_api.refresh_bridge_events()
-                if pool_size > 0:
-                    for _m in prioritized:
-                        if _m.condition_id in esports_contexts:
-                            continue
-                        if is_esports_slug(_m.slug or ""):
-                            continue
-                        _br = self.odds_api.bridge_match(
-                            getattr(_m, "question", ""), _m.slug or "",
-                            getattr(_m, "tags", []),
-                        )
-                        if _br:
-                            _bridge_names[_m.condition_id] = _br
-                    if _bridge_names:
-                        logger.info("Bridge matched %d/%d non-esports markets",
-                                    len(_bridge_names), len(prioritized))
+                for _m in prioritized:
+                    if _m.condition_id in esports_contexts:
+                        continue
+                    if is_esports_slug(_m.slug or ""):
+                        continue
+                    _br = self.odds_api.bridge_match(
+                        getattr(_m, "question", ""), _m.slug or "",
+                        getattr(_m, "tags", []),
+                    )
+                    if _br:
+                        _bridge_names[_m.condition_id] = _br
+                if _bridge_names:
+                    logger.info("Bridge matched %d/%d non-esports markets",
+                                len(_bridge_names), len(prioritized))
             except Exception as exc:
-                logger.warning("Bridge refresh failed: %s", exc)
+                logger.warning("Bridge match failed: %s", exc)
 
         # Traditional sports context: Bridge->ESPN -> Original->ESPN -> TheSportsDB
         if self.sports:

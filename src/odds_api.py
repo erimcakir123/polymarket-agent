@@ -685,56 +685,6 @@ class OddsAPIClient:
     # to extract clean standardized team names for ESPN/PandaScore lookups
     # ------------------------------------------------------------------
 
-    def refresh_bridge_events(self, force: bool = False) -> int:
-        """Fetch events for all sports + active tennis into bridge cache.
-
-        Called once per entry_gate analysis cycle. Uses _get_fresh() to bypass
-        refresh-boundary caching so bridge always has current events.
-
-        Returns total number of events in the bridge pool.
-        """
-        if not self.available:
-            return 0
-
-        total = 0
-        sport_keys = list(self._BRIDGE_SPORT_KEYS_ALWAYS)
-
-        current_month = datetime.now(timezone.utc).month
-        for sk, active_months in self._BRIDGE_SPORT_KEYS_SEASONAL.items():
-            if current_month in active_months:
-                sport_keys.append(sk)
-
-        for gender in ("atp", "wta"):
-            sport_keys.extend(self._get_active_tennis_keys(gender))
-
-        for sport_key in sport_keys:
-            cache_key = f"bridge:{sport_key}"
-            cached = self._cache.get(cache_key)
-            if cached and not force:
-                data, ts = cached
-                if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
-                    total += len(data) if isinstance(data, list) else 0
-                    continue
-
-            events = self._get_fresh(f"/sports/{sport_key}/odds", {
-                "regions": "us",
-                "markets": "h2h",
-                "oddsFormat": "decimal",
-            })
-            if events and isinstance(events, list):
-                self._cache[cache_key] = (events, time.time())
-                # Cross-populate regular cache so get_bookmaker_odds benefits
-                regular_key = f"/sports/{sport_key}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
-                self._cache[regular_key] = (events, time.time())
-                total += len(events)
-                logger.debug("Bridge cache refreshed: %s -> %d events", sport_key, len(events))
-            elif events is None and cached:
-                total += len(cached[0]) if isinstance(cached[0], list) else 0
-
-        self._save_cache()
-        logger.info("Bridge event pool: %d total events across %d sport keys", total, len(sport_keys))
-        return total
-
     def _get_bridge_events(self) -> List[Tuple[str, list]]:
         """Return all cached bridge events as (sport_key, events) pairs."""
         results = []
@@ -749,23 +699,43 @@ class OddsAPIClient:
     def bridge_match(
         self, question: str, slug: str, tags: List[str],
     ) -> Optional[Dict]:
-        """Match a Polymarket market against cached Odds API events.
+        """Match a Polymarket market against Odds API events.
 
-        Returns dict with home_team, away_team, sport_key, confidence, event_id
-        or None if no match found.
+        Lazy fetch: detects sport from slug → fetches that sport key on-demand
+        → caches as bridge:{sport_key} with 3h TTL.
         """
         team_a, team_b = self._extract_teams(question)
         if not team_a or not team_b:
             return None
 
-        # Strategy 1: Targeted — detect sport key, search only that sport
+        # Lazy fetch: ensure bridge cache has events for detected sport(s)
         sport_keys = self._detect_all_sport_keys(question, slug, tags)
+        for sk in sport_keys:
+            cache_key = f"bridge:{sk}"
+            cached = self._cache.get(cache_key)
+            if cached:
+                _, ts = cached
+                if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
+                    continue  # Fresh cache — skip fetch
+            # Fetch on-demand
+            events = self._get_fresh(f"/sports/{sk}/odds", {
+                "regions": "us",
+                "markets": "h2h",
+                "oddsFormat": "decimal",
+            })
+            if events and isinstance(events, list):
+                self._cache[cache_key] = (events, time.time())
+                # Cross-populate regular cache
+                regular_key = f"/sports/{sk}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
+                self._cache[regular_key] = (events, time.time())
+                logger.debug("Bridge lazy-fetched: %s -> %d events", sk, len(events))
+
+        # Strategy 1: Targeted — detect sport key, search only that sport
         if sport_keys:
             for sk in sport_keys:
                 cache_key = f"bridge:{sk}"
                 cached = self._cache.get(cache_key)
                 if not cached:
-                    # Try regular odds cache (populated by get_bookmaker_odds)
                     odds_key = f"/sports/{sk}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
                     cached = self._cache.get(odds_key)
                 if not cached:
