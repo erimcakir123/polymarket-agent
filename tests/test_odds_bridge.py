@@ -228,3 +228,71 @@ class TestGetFresh:
         # Second call — should re-fetch
         client._get_fresh("/sports/basketball_nba/odds", {"regions": "us"})
         assert mock_get.call_count == 2
+
+
+class TestRefreshBridgeEvents:
+    @patch("src.odds_api.requests.get")
+    def test_refresh_populates_bridge_cache(self, mock_get):
+        """refresh_bridge_events must populate bridge:{sport_key} cache entries."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {"id": "e1", "home_team": "Lakers", "away_team": "Celtics"},
+            {"id": "e2", "home_team": "Knicks", "away_team": "Nets"},
+        ]
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+        total = client.refresh_bridge_events()
+        assert total > 0
+        # Check that bridge cache entries exist
+        bridge_keys = [k for k in client._cache if k.startswith("bridge:")]
+        assert len(bridge_keys) > 0
+
+    @patch("src.odds_api.requests.get")
+    def test_refresh_skips_offseason_sports(self, mock_get):
+        """NFL should be skipped in March (offseason)."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = []
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+
+        with patch("src.odds_api.datetime") as mock_dt:
+            mock_now = MagicMock()
+            mock_now.month = 3
+            mock_dt.now.return_value = mock_now
+            mock_dt.fromtimestamp = datetime.fromtimestamp
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            client.refresh_bridge_events()
+
+        # NFL key should NOT be in bridge cache
+        nfl_keys = [k for k in client._cache if "americanfootball_nfl" in k and k.startswith("bridge:")]
+        assert len(nfl_keys) == 0, "NFL should be skipped in March"
+
+    def test_refresh_returns_zero_without_api_key(self):
+        """No API key -> return 0, don't crash."""
+        client = _make_client()
+        client.api_key = ""
+        assert client.refresh_bridge_events() == 0
+
+    @patch("src.odds_api.requests.get")
+    def test_refresh_cross_populates_regular_cache(self, mock_get):
+        """Bridge refresh should also update the regular _get() cache."""
+        events = [{"id": "e1", "home_team": "Lakers", "away_team": "Celtics"}]
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = events
+        mock_resp.headers = {"x-requests-remaining": "19000", "x-requests-used": "50"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = _make_client()
+        client.refresh_bridge_events()
+
+        # Regular cache key should also have the data
+        regular_keys = [k for k in client._cache
+                        if k.startswith("/sports/") and "basketball_nba" in k]
+        assert len(regular_keys) > 0, "Bridge refresh should cross-populate regular cache"

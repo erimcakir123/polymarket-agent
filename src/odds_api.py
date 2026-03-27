@@ -119,6 +119,26 @@ class OddsAPIClient:
     _CACHE_FILE = Path("logs/odds_cache.json")
     _BRIDGE_CACHE_MAX_AGE = 10800  # 3h — bridge events refresh independently of boundaries
 
+    # All sport keys to scan when building the bridge event pool.
+    _BRIDGE_SPORT_KEYS_ALWAYS = [
+        "basketball_nba",
+        "baseball_mlb",
+        "icehockey_nhl",
+        "mma_mixed_martial_arts", "boxing_boxing",
+        "soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
+        "soccer_germany_bundesliga", "soccer_france_ligue_one",
+        "soccer_uefa_champs_league", "soccer_uefa_europa_league",
+        "soccer_usa_mls",
+        "cricket_ipl", "cricket_international_t20",
+        "rugbyleague_nrl",
+    ]
+    _BRIDGE_SPORT_KEYS_SEASONAL = {
+        "americanfootball_nfl": (8, 9, 10, 11, 12, 1, 2),
+        "americanfootball_ncaaf": (8, 9, 10, 11, 12, 1),
+        "basketball_ncaab": (11, 12, 1, 2, 3, 4),
+        "basketball_wncaab": (11, 12, 1, 2, 3, 4),
+    }
+
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
@@ -654,6 +674,61 @@ class OddsAPIClient:
             f"  Signal: {signal_label}\n"
             f"  NOTE: Sharp line movement = professional bettors acting on information."
         )
+
+    # ------------------------------------------------------------------
+    # Odds API Bridge — match Polymarket markets against Odds API events
+    # to extract clean standardized team names for ESPN/PandaScore lookups
+    # ------------------------------------------------------------------
+
+    def refresh_bridge_events(self, force: bool = False) -> int:
+        """Fetch events for all sports + active tennis into bridge cache.
+
+        Called once per entry_gate analysis cycle. Uses _get_fresh() to bypass
+        refresh-boundary caching so bridge always has current events.
+
+        Returns total number of events in the bridge pool.
+        """
+        if not self.available:
+            return 0
+
+        total = 0
+        sport_keys = list(self._BRIDGE_SPORT_KEYS_ALWAYS)
+
+        current_month = datetime.now(timezone.utc).month
+        for sk, active_months in self._BRIDGE_SPORT_KEYS_SEASONAL.items():
+            if current_month in active_months:
+                sport_keys.append(sk)
+
+        for gender in ("atp", "wta"):
+            sport_keys.extend(self._get_active_tennis_keys(gender))
+
+        for sport_key in sport_keys:
+            cache_key = f"bridge:{sport_key}"
+            cached = self._cache.get(cache_key)
+            if cached and not force:
+                data, ts = cached
+                if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
+                    total += len(data) if isinstance(data, list) else 0
+                    continue
+
+            events = self._get_fresh(f"/sports/{sport_key}/odds", {
+                "regions": "us",
+                "markets": "h2h",
+                "oddsFormat": "decimal",
+            })
+            if events and isinstance(events, list):
+                self._cache[cache_key] = (events, time.time())
+                # Cross-populate regular cache so get_bookmaker_odds benefits
+                regular_key = f"/sports/{sport_key}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
+                self._cache[regular_key] = (events, time.time())
+                total += len(events)
+                logger.debug("Bridge cache refreshed: %s -> %d events", sport_key, len(events))
+            elif events is None and cached:
+                total += len(cached[0]) if isinstance(cached[0], list) else 0
+
+        self._save_cache()
+        logger.info("Bridge event pool: %d total events across %d sport keys", total, len(sport_keys))
+        return total
 
     # ------------------------------------------------------------------
     # Scores (live match data — free with paid plan)
