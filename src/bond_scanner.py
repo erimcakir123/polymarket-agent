@@ -74,7 +74,11 @@ def scan_bond_candidates(
     """
     candidates = []
 
+    _ALT_SLUG = ("-draw", "-1h-", "-first-half-", "-total-", "-spread-", "-btts")
     for m in markets:
+        # Block alt/draw markets — moneyline only
+        if any(t in m.slug.lower() for t in _ALT_SLUG):
+            continue
         # Basic filters
         if m.yes_price < min_yes_price or m.yes_price > max_yes_price:
             continue

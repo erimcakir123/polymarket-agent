@@ -263,22 +263,6 @@ class ExitMonitor:
         for cid in self.portfolio.check_pre_match_exits(minutes_before=30):
             _add(cid, "pre_match_exit")
 
-        # 6. Penny alpha exits (target multiplier reached)
-        from src.penny_alpha import check_penny_exit
-        for cid, pos in list(self.portfolio.positions.items()):
-            if cid in seen_cids:
-                continue
-            if getattr(pos, "entry_reason", "") != "penny":
-                continue
-            # Determine target multiplier from entry price
-            entry_p = pos.entry_price if pos.direction == "BUY_YES" else (1 - pos.entry_price)
-            current_p = pos.current_price if pos.direction == "BUY_YES" else (1 - pos.current_price)
-            key = round(entry_p, 2)
-            multiplier = {0.01: 5.0, 0.02: 2.0}.get(key, 2.0)
-            penny_result = check_penny_exit(entry_p, current_p, multiplier)
-            if penny_result.get("exit"):
-                _add(cid, penny_result["reason"])
-
         return result
 
     def check_exits_light(self, match_states: dict) -> list[tuple[str, str]]:

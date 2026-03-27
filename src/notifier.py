@@ -67,6 +67,13 @@ class TelegramNotifier:
                 "text": message,
                 "parse_mode": parse_mode,
             }, timeout=10)
+            if resp.status_code == 400 and "can't parse entities" in resp.text:
+                # Markdown parse failed — retry as plain text
+                plain = message.replace("*", "").replace("`", "").replace("_", "")
+                resp = requests.post(url, json={
+                    "chat_id": self.chat_id,
+                    "text": plain,
+                }, timeout=10)
             if resp.status_code != 200:
                 logger.warning("Telegram send non-200: HTTP %d — %s",
                                resp.status_code, resp.text[:200])

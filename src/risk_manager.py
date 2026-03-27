@@ -27,9 +27,14 @@ def confidence_position_size(
     max_bet_pct: float = 0.05,
     is_esports: bool = False,
     is_reentry: bool = False,
+    market_price: float = 0.0,
 ) -> float:
     """Size position by confidence grade. Simple, no Kelly formula."""
     bet_pct = CONF_BET_PCT.get(confidence, 0.03)
+
+    # Heavy favorite boost: 90%+ markets pay little per share, size up 50%
+    if market_price >= 0.90:
+        bet_pct *= 1.50
 
     # Esports: 10% smaller (higher variance)
     if is_esports:
@@ -89,12 +94,14 @@ class RiskManager:
         # Confidence-based sizing — no Kelly formula, confidence drives bet size
         confidence = getattr(signal, 'confidence', "B-")
         category = getattr(signal, 'category', '')
+        mkt_price = getattr(signal, 'market_price', 0.0)
         size = confidence_position_size(
             confidence=confidence,
             bankroll=bankroll,
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
             is_esports=(category == "esports"),
+            market_price=mkt_price,
         )
 
         if size < 5.0:  # Polymarket min order

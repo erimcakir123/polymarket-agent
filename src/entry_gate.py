@@ -463,6 +463,13 @@ class EntryGate:
             if estimate.confidence in _CONF_SKIP:
                 logger.info("SKIP confidence: %s | conf=%s (insufficient data)",
                             market.slug[:35], estimate.confidence)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"Insufficient data (conf={estimate.confidence})",
+                    "ai_prob": estimate.ai_probability,
+                    "price": market.yes_price,
+                    "question": getattr(market, "question", ""),
+                })
                 continue
 
             # ── Bookmaker anchor (cached — batch refresh 4x/day via OddsAPIClient) ─
@@ -532,6 +539,14 @@ class EntryGate:
             if direction_prob < 0.55:
                 logger.info("SKIP prob: %s | prob=%.0f%% conf=%s (< 55%%)",
                             market.slug[:35], direction_prob * 100, estimate.confidence)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"Low probability ({direction_prob*100:.0f}% < 55%)",
+                    "ai_prob": estimate.ai_probability,
+                    "edge": edge if 'edge' in dir() else 0,
+                    "price": market.yes_price,
+                    "question": getattr(market, "question", ""),
+                })
                 continue
             elif direction_prob >= 0.65:
                 mode = "WINNER"
@@ -549,6 +564,14 @@ class EntryGate:
                 logger.info("SKIP liquidity: %s | liq=$%.0f conf=%s prob=%.0f%%",
                             market.slug[:35], getattr(market, 'liquidity', 0),
                             estimate.confidence, direction_prob * 100)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"Low liquidity (${getattr(market, 'liquidity', 0):.0f})",
+                    "ai_prob": estimate.ai_probability,
+                    "edge": edge,
+                    "price": market.yes_price,
+                    "question": getattr(market, "question", ""),
+                })
                 continue
 
             # ── Position sizing (confidence-based, no edge dependency) ────────
@@ -644,9 +667,10 @@ class EntryGate:
                 logger.warning("Order failed: %s — %s", market.slug[:40], result)
                 continue
 
-            # Record position
-            entry_price = result.get("fill_price") or result.get("price") or market.yes_price
-            shares = size / entry_price if entry_price > 0 else 0
+            # Record position — entry_price is always YES-side for storage consistency
+            entry_price = market.yes_price
+            eff_price = (1 - entry_price) if direction == Direction.BUY_NO else entry_price
+            shares = size / eff_price if eff_price > 0 else 0
             _token_id_for_pos = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             self.portfolio.add_position(
                 condition_id=cid,

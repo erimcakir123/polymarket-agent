@@ -201,10 +201,11 @@ class Agent:
                     if run_full:
                         self.run_cycle()
                         last_full_cycle_time = time.time()
-                        # Auto-refill: keep running cycles until pool is full
+                        # Auto-refill: keep running hard cycles until slots full
                         vs_reserved = self.config.volatility_swing.reserved_slots
                         _refill_round = 0
-                        while True:
+                        _consecutive_empty = 0
+                        while _consecutive_empty < 3:
                             current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
                             current_normal = self.portfolio.active_position_count - current_vs
                             open_slots = self.config.risk.max_positions - vs_reserved - current_normal
@@ -217,8 +218,10 @@ class Agent:
                             last_full_cycle_time = time.time()
                             positions_after = len(self.portfolio.positions)
                             if positions_after <= positions_before:
-                                logger.info("Refill cycle added 0 positions — no viable markets")
-                                break
+                                _consecutive_empty += 1
+                                logger.info("Refill cycle added 0 positions (%d/3 empty)", _consecutive_empty)
+                            else:
+                                _consecutive_empty = 0
                     else:
                         self.run_light_cycle()
                     self.consecutive_api_failures = 0
@@ -259,6 +262,11 @@ class Agent:
                             break
 
                 self._write_status("waiting", "Waiting")
+
+                # Sleep between iterations
+                # Light cycles: 5s (fast exit detection via WS prices)
+                # After full cycle: 60s (next full gated by cycle_timer anyway)
+                time.sleep(5 if has_positions and not run_full else 60)
 
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
@@ -406,9 +414,6 @@ class Agent:
 
         # Bond farming scan (no AI, rule-based)
         self._check_bond_farming(fresh_markets, bankroll)
-
-        # Penny alpha scan (no AI, price-based)
-        self._check_penny_alpha(fresh_markets, bankroll)
 
         # Live dip entry (price-based, no AI)
         self._check_live_dip(fresh_markets, bankroll)

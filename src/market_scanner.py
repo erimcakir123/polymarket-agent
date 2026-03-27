@@ -287,8 +287,8 @@ class MarketScanner:
         # Block alt bets: total/spread/props — moneyline (vs) only
         q_lower = market.question.lower()
         slug_lower = market.slug.lower()
-        _ALT_SLUG = ("-total-", "-spread-", "-handicap-", "-over-", "-under-")
-        _ALT_Q = ("o/u", "over/under", "point spread", "handicap:", "set handicap")
+        _ALT_SLUG = ("-total-", "-spread-", "-handicap-", "-over-", "-under-", "-1h-", "-first-half-", "-draw", "-btts")
+        _ALT_Q = ("o/u", "over/under", "point spread", "handicap:", "set handicap", "1h moneyline", "first half", "end in a draw", "both teams to score")
         if any(t in slug_lower for t in _ALT_SLUG) or any(t in q_lower for t in _ALT_Q):
             logger.debug("Blocked alt bet (total/spread): %s", market.slug[:60])
             return False
