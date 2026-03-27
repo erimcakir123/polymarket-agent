@@ -1,6 +1,6 @@
 """CricketData.org (cricapi.com) client — cricket match data for IPL, PSL, T20.
 
-Free tier: 100 requests/day.
+Free tier: 500 requests/day.
 Covers: IPL, PSL, T20 Internationals, ODI, Test matches.
 """
 from __future__ import annotations

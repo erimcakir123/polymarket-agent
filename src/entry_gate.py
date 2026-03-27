@@ -204,21 +204,13 @@ class EntryGate:
         """Prioritize markets, fetch external data, run AI batch. Return (markets, estimates)."""
         cfg = self.config
 
-        # Prune stale analysis cache (>24h old entries)
-        _24h = 86400
-        self._analyzed_market_ids = {
-            cid: ts for cid, ts in self._analyzed_market_ids.items()
-            if time.time() - ts < _24h
-        }
-
-        # Stock IDs (don't re-analyze)
+        # Stock IDs (don't re-analyze markets already in candidate stock)
         _stock_ids = {c.get("condition_id", "") for c in self._candidate_stock}
 
-        # Skip already-analyzed markets (HOLD cache)
+        # Skip only stock-queued markets (no HOLD cache — fresh analysis every cycle)
         markets = [
             m for m in markets
-            if m.condition_id not in self._analyzed_market_ids
-            and m.condition_id not in _stock_ids
+            if m.condition_id not in _stock_ids
         ]
 
         if not markets:
@@ -439,10 +431,6 @@ class EntryGate:
             for m, est in zip(_has_data, _estimates_list)
         }
 
-        # Mark as analyzed (suppress re-analysis next cycle)
-        for m in _has_data:
-            self._analyzed_market_ids[m.condition_id] = time.time()
-
         return _has_data, estimates
 
     # ── Evaluation phase ───────────────────────────────────────────────────
@@ -540,8 +528,8 @@ class EntryGate:
 
             # Mode classification by direction probability
             if direction_prob < 0.55:
-                # SKIP — too uncertain, don't trade
-                logger.debug("SKIP: %s | prob=%.0f%% < 55%%", market.slug[:35], direction_prob * 100)
+                logger.info("SKIP prob: %s | prob=%.0f%% conf=%s (< 55%%)",
+                            market.slug[:35], direction_prob * 100, estimate.confidence)
                 continue
             elif direction_prob >= 0.65:
                 mode = "WINNER"
@@ -556,8 +544,9 @@ class EntryGate:
             _liq_val = getattr(market, 'liquidity', 0) or 0
             _low_liq = isinstance(_liq_val, (int, float)) and _liq_val < 1_000
             if _low_liq and not (_high_conf and _high_prob):
-                logger.debug("SKIP low liquidity ($%.0f) without high confidence: %s",
-                             getattr(market, 'liquidity', 0), market.slug[:35])
+                logger.info("SKIP liquidity: %s | liq=$%.0f conf=%s prob=%.0f%%",
+                            market.slug[:35], getattr(market, 'liquidity', 0),
+                            estimate.confidence, direction_prob * 100)
                 continue
 
             # ── Position sizing ───────────────────────────────────────────────

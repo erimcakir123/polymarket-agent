@@ -19,7 +19,10 @@ _SPORT_LEAGUES = {
     # Basketball
     "cbb": ("basketball", "mens-college-basketball", "NCAA Basketball"),
     "ncaab": ("basketball", "mens-college-basketball", "NCAA Basketball"),
+    "cwbb": ("basketball", "womens-college-basketball", "NCAA Women's Basketball"),
     "nba": ("basketball", "nba", "NBA"),
+    "wnba": ("basketball", "wnba", "WNBA"),
+    "euroleague": ("basketball", "mens-olympic-basketball", "Euroleague"),
     # American Football
     "nfl": ("football", "nfl", "NFL"),
     "cfb": ("football", "college-football", "College Football"),
@@ -28,31 +31,55 @@ _SPORT_LEAGUES = {
     "mlb": ("baseball", "mlb", "MLB"),
     # Ice Hockey
     "nhl": ("hockey", "nhl", "NHL"),
+    "ahl": ("hockey", "ahl", "AHL"),
+    "dehl": ("hockey", "ger.1", "DEL (German Hockey)"),
+    "snhl": ("hockey", "swiss", "Swiss National League"),
     # Combat Sports
     "ufc": ("mma", "ufc", "UFC"),
     "mma": ("mma", "ufc", "UFC"),
     # European Soccer
     "epl": ("soccer", "eng.1", "Premier League"),
     "championship": ("soccer", "eng.2", "EFL Championship"),
+    "elc": ("soccer", "eng.2", "EFL Championship"),
     "laliga": ("soccer", "esp.1", "La Liga"),
     "seriea": ("soccer", "ita.1", "Serie A"),
     "bundesliga": ("soccer", "ger.1", "Bundesliga"),
     "ligue1": ("soccer", "fra.1", "Ligue 1"),
     "eredivisie": ("soccer", "ned.1", "Eredivisie"),
+    "ere": ("soccer", "ned.1", "Eredivisie"),
     "primeira": ("soccer", "por.1", "Primeira Liga"),
     "superlig": ("soccer", "tur.1", "Super Lig"),
     "scottish": ("soccer", "sco.1", "Scottish Premiership"),
+    "nor": ("soccer", "nor.1", "Norwegian Eliteserien"),
+    "den": ("soccer", "den.1", "Danish Superliga"),
+    "cze1": ("soccer", "cze.1", "Czech First League"),
     # UEFA
     "ucl": ("soccer", "uefa.champions", "Champions League"),
     "europa": ("soccer", "uefa.europa", "Europa League"),
+    "uwcl": ("soccer", "uefa.champions.women", "UEFA Women's Champions League"),
+    # International Soccer
+    "fif": ("soccer", "fifa.friendly", "FIFA International"),
     # Americas Soccer
     "mls": ("soccer", "usa.1", "MLS"),
     "ligamx": ("soccer", "mex.1", "Liga MX"),
+    "mex": ("soccer", "mex.1", "Liga MX"),
     "brasileirao": ("soccer", "bra.1", "Brasileirao"),
+    "bra2": ("soccer", "bra.2", "Brasileirao Serie B"),
+    "col1": ("soccer", "col.1", "Colombian Primera A"),
     "argentina": ("soccer", "arg.1", "Liga Argentina"),
-    # Asia Soccer
+    # Asia / Oceania Soccer
     "jleague": ("soccer", "jpn.1", "J-League"),
+    "j1100": ("soccer", "jpn.1", "J1 League"),
+    "j2100": ("soccer", "jpn.2", "J2 League"),
     "csl": ("soccer", "chn.1", "Chinese Super League"),
+    "chi": ("soccer", "chn.1", "Chinese Super League"),
+    "kor": ("soccer", "kor.1", "K League 1"),
+    "isp": ("soccer", "ind.1", "Indian Super League"),
+    "aus": ("soccer", "aus.1", "A-League"),
+    "spl": ("soccer", "sau.1", "Saudi Pro League"),
+    # Russia
+    "rusrp": ("soccer", "rus.1", "Russian Premier League"),
+    "ruprem": ("soccer", "rus.1", "Russian Premier League"),
     # Tennis
     "atp": ("tennis", "atp", "ATP Tennis"),
     "wta": ("tennis", "wta", "WTA Tennis"),
@@ -93,10 +120,24 @@ _QUESTION_KEYWORDS = {
     "brasileirao": ("soccer", "bra.1"),
     "serie a brazil": ("soccer", "bra.1"),
     "liga argentina": ("soccer", "arg.1"),
-    # Asia Soccer
+    "primera a": ("soccer", "col.1"),
+    # Asia / Oceania Soccer
     "j-league": ("soccer", "jpn.1"),
     "j league": ("soccer", "jpn.1"),
+    "j2 league": ("soccer", "jpn.2"),
     "chinese super league": ("soccer", "chn.1"),
+    "k league": ("soccer", "kor.1"),
+    "indian super league": ("soccer", "ind.1"),
+    "a-league": ("soccer", "aus.1"),
+    "saudi pro league": ("soccer", "sau.1"),
+    "eliteserien": ("soccer", "nor.1"),
+    "superliga": ("soccer", "den.1"),
+    # Ice Hockey (non-NHL)
+    "ahl": ("hockey", "ahl"),
+    "del": ("hockey", "ger.1"),
+    "swiss hockey": ("hockey", "swiss"),
+    # Basketball (non-NBA)
+    "euroleague": ("basketball", "mens-olympic-basketball"),
     # Combat Sports
     "ufc": ("mma", "ufc"),
 }
