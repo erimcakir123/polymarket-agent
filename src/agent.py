@@ -264,14 +264,18 @@ class Agent:
                             logger.info("Scouted match in %.1fh — polling every 5 min", hours_until)
                             break
 
+                self._write_status("waiting", "Waiting")
+
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
         finally:
+            self._write_status("offline", "Stopped")
             self.ws_feed.stop()
             logger.info("Agent stopped")
 
     def run_light_cycle(self) -> None:
         """Price-only cycle: update prices + check exits. No scan, no AI."""
+        self._write_status("running", "Light cycle")
         if self._is_paused():
             return
         logger.info("=== Light cycle ===")
@@ -304,6 +308,7 @@ class Agent:
 
     def run_cycle(self) -> None:
         """Heavy cycle: exit checks + market scan + AI + entry decisions."""
+        self._write_status("running", "Hard cycle")
         if self._is_paused():
             return
         self.cycle_count += 1
@@ -1282,6 +1287,25 @@ class Agent:
             "status": status,
         })
         self._log_performance()
+
+    def _write_status(self, state: str, step: str, **kwargs) -> None:
+        """Write bot status to logs/bot_status.json for dashboard consumption."""
+        from datetime import datetime, timezone
+        status = {
+            "state": state,
+            "step": step,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "has_positions": self.portfolio.active_position_count > 0,
+            **kwargs,
+        }
+        try:
+            status_path = Path("logs/bot_status.json")
+            status_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = status_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(status), encoding="utf-8")
+            tmp.replace(status_path)
+        except Exception as e:
+            logger.debug("Status file write error: %s", e)
 
     def _log_performance(self) -> None:
         """Write performance stats to performance.jsonl for the dashboard."""
