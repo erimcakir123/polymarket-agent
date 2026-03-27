@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from src.sport_rules import get_sport_rule, is_losing_badly
+from src.sport_rules import get_sport_rule
 
 logger = logging.getLogger(__name__)
 

@@ -34,6 +34,7 @@ ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 _SPORT_KEYS = {
     # Basketball
     "cbb": "basketball_ncaab", "ncaab": "basketball_ncaab", "wncaab": "basketball_wncaab",
+    "cwbb": "basketball_wncaab",
     "nba": "basketball_nba", "euroleague": "basketball_euroleague",
     # American Football
     "nfl": "americanfootball_nfl", "cfb": "americanfootball_ncaaf", "ncaaf": "americanfootball_ncaaf",
@@ -46,27 +47,49 @@ _SPORT_KEYS = {
     "ufc": "mma_mixed_martial_arts", "mma": "mma_mixed_martial_arts",
     "boxing": "boxing_boxing",
     # Soccer — Europe
-    "epl": "soccer_epl", "championship": "soccer_efl_champ",
+    "epl": "soccer_epl", "championship": "soccer_efl_champ", "elc": "soccer_efl_champ",
     "laliga": "soccer_spain_la_liga", "seriea": "soccer_italy_serie_a",
     "bundesliga": "soccer_germany_bundesliga", "ligue1": "soccer_france_ligue_one",
-    "eredivisie": "soccer_netherlands_eredivisie",
-    "primeira": "soccer_portugal_primeira_liga", "superlig": "soccer_turkey_super_league",
-    "scottish": "soccer_spl",
+    "eredivisie": "soccer_netherlands_eredivisie", "ere": "soccer_netherlands_eredivisie",
+    "primeira": "soccer_portugal_primeira_liga",
+    "superlig": "soccer_turkey_super_league", "tur": "soccer_turkey_super_league",
+    "scottish": "soccer_spl", "spl": "soccer_spl",
+    "fr2": "soccer_france_ligue_two",
+    "es2": "soccer_spain_segunda_division",
+    "den": "soccer_denmark_superliga",
+    # cze1 (Czech First League) — no Odds API key, intentionally unmapped
+    # itsb (Italy Serie B) — no Odds API key, intentionally unmapped
     # Soccer — UEFA
     "ucl": "soccer_uefa_champs_league", "europa": "soccer_uefa_europa_league",
     "conference": "soccer_uefa_europa_conference_league",
+    "uwcl": "soccer_uefa_champs_league_women",
+    # rueuchamp (Rugby European Champions Cup) — NOT soccer, intentionally unmapped
     # Soccer — Americas
-    "mls": "soccer_usa_mls", "liga-mx": "soccer_mexico_ligamx",
-    "brasileirao": "soccer_brazil_campeonato", "argentina": "soccer_argentina_primera_division",
-    # Soccer — Asia
-    "jleague": "soccer_japan_j_league", "kleague": "soccer_korea_kleague1",
-    "csl": "soccer_china_superleague", "saudi": "soccer_saudi_professional_league",
+    "mls": "soccer_usa_mls", "liga-mx": "soccer_mexico_ligamx", "mex": "soccer_mexico_ligamx",
+    "brasileirao": "soccer_brazil_campeonato", "bra": "soccer_brazil_campeonato",
+    "bra2": "soccer_brazil_serie_b",
+    "argentina": "soccer_argentina_primera_division", "arg": "soccer_argentina_primera_division",
+    # col1 (Colombia Primera Division) — no Odds API key, intentionally unmapped
+    # Soccer — Asia / Middle East / Africa
+    "jleague": "soccer_japan_j_league", "j1100": "soccer_japan_j_league",
+    "kleague": "soccer_korea_kleague1", "kor": "soccer_korea_kleague1",
+    "csl": "soccer_china_superleague", "chi": "soccer_china_superleague",
+    "chi1": "soccer_china_superleague",
+    "saudi": "soccer_saudi_professional_league",
+    # mar1 (Morocco Botola) — no Odds API key, intentionally unmapped
+    # Soccer — Oceania
+    "aus": "soccer_australia_aleague",
+    # Soccer — Scandinavia
+    "nor": "soccer_norway_eliteserien",
+    # Soccer — FIFA internationals
+    "fif": "soccer_fifa_world_cup_qualifiers_europe",
     # Soccer — Other
     "fa-cup": "soccer_fa_cup",
     # Tennis — resolved dynamically via _get_active_tennis_keys()
     # "atp" and "wta" prefixes handled in _detect_sport_key, not here
     # Cricket
     "ipl": "cricket_ipl", "t20": "cricket_international_t20", "psl": "cricket_psl",
+    "crint": "cricket_international_t20", "cricpakt20cup": "cricket_psl",
     # Rugby
     "nrl": "rugbyleague_nrl",
     # Politics
@@ -103,11 +126,23 @@ _QUESTION_SPORT_KEYS = {
     "brasileirao": "soccer_brazil_campeonato", "serie a brazil": "soccer_brazil_campeonato",
     "liga argentina": "soccer_argentina_primera_division",
     "copa libertadores": "soccer_conmebol_copa_libertadores",
+    # "colombia" — Colombia Primera has no Odds API key; Copa Libertadores mapped separately
+    # Soccer — UEFA extra
+    "conference league": "soccer_uefa_europa_conference_league",
+    # Soccer — Scandinavia / other Europe
+    "eliteserien": "soccer_norway_eliteserien",
+    "superliga": "soccer_denmark_superliga",
+    "a-league": "soccer_australia_aleague",
+    "ligue 2": "soccer_france_ligue_two",
+    "segunda": "soccer_spain_segunda_division",
     # Soccer — Asia
     "j-league": "soccer_japan_j_league", "j league": "soccer_japan_j_league",
     "k league": "soccer_korea_kleague1", "k-league": "soccer_korea_kleague1",
     "chinese super league": "soccer_china_superleague",
     "saudi pro league": "soccer_saudi_professional_league",
+    # Cricket
+    "ipl": "cricket_ipl", "t20": "cricket_international_t20",
+    "psl": "cricket_psl", "pakistan": "cricket_psl",
     # Tennis — resolved dynamically, these are fallback markers
     "atp": "_tennis_atp",
     "wta": "_tennis_wta",
@@ -115,8 +150,6 @@ _QUESTION_SPORT_KEYS = {
     "french open": "_tennis_atp", "roland garros": "_tennis_atp",
     "wimbledon": "_tennis_atp", "us open tennis": "_tennis_atp",
     "australian open": "_tennis_atp",
-    # Cricket
-    "ipl": "cricket_ipl", "t20": "cricket_international_t20",
     # Politics
     "presidential": "politics_us_presidential_election_winner",
     "president": "politics_us_presidential_election_winner",
@@ -752,7 +785,7 @@ class OddsAPIClient:
         """Match a Polymarket market against Odds API events.
 
         Lazy fetch: detects sport from slug → fetches that sport key on-demand
-        → caches as bridge:{sport_key} with 3h TTL.
+        → caches as bridge:{sport_key} with 8h TTL.
         """
         team_a, team_b = self._extract_teams(question)
         if not team_a or not team_b:
