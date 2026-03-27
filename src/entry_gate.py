@@ -461,6 +461,8 @@ class EntryGate:
             if estimate is None:
                 continue
             if estimate.confidence in _CONF_SKIP:
+                logger.info("SKIP confidence: %s | conf=%s (insufficient data)",
+                            market.slug[:35], estimate.confidence)
                 continue
 
             # ── Bookmaker anchor (cached — batch refresh 4x/day via OddsAPIClient) ─
@@ -549,9 +551,7 @@ class EntryGate:
                             estimate.confidence, direction_prob * 100)
                 continue
 
-            # ── Position sizing ───────────────────────────────────────────────
-            # Always floor edge at 0.05 so Kelly sizing stays positive
-            sizing_edge = max(edge, 0.05)
+            # ── Position sizing (confidence-based, no edge dependency) ────────
             manip_check = self.manip_guard.check_market(
                 question=market.question,
                 description=getattr(market, 'description', ''),

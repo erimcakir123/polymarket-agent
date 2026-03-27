@@ -1,42 +1,47 @@
-"""Quarter-Kelly position sizing and risk gatekeeper."""
+"""Confidence-based position sizing and risk gatekeeper.
+
+Sizing is driven by AI confidence grade, not edge.
+Higher confidence = larger bet as % of bankroll.
+"""
 from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
 from src.config import RiskConfig
 from src.models import Signal
-from src.adaptive_kelly import get_adaptive_kelly_fraction
 
 logger = logging.getLogger(__name__)
 
+# Confidence → bankroll percentage (the ONLY sizing table)
+CONF_BET_PCT: dict[str, float] = {
+    "A":  0.05,   # 5% → $50 on $1000
+    "B+": 0.04,   # 4% → $40
+    "B-": 0.03,   # 3% → $30
+}
 
-def kelly_position_size(
-    ai_prob: float,
-    market_price: float,
+
+def confidence_position_size(
+    confidence: str,
     bankroll: float,
-    kelly_fraction: float = 0.20,
     max_bet_usdc: float = 75,
     max_bet_pct: float = 0.05,
-    direction: str = "BUY_YES",
+    is_esports: bool = False,
+    is_reentry: bool = False,
 ) -> float:
-    # ai_prob is ALWAYS P(YES wins). Kelly needs P(our side wins), so flip for BUY_NO.
-    if direction == "BUY_YES":
-        p, cost = ai_prob, market_price
-    else:
-        p, cost = 1 - ai_prob, 1 - market_price
+    """Size position by confidence grade. Simple, no Kelly formula."""
+    bet_pct = CONF_BET_PCT.get(confidence, 0.03)
 
-    if cost <= 0 or cost >= 1:
-        return 0.0
+    # Esports: 10% smaller (higher variance)
+    if is_esports:
+        bet_pct *= 0.90
 
-    q = 1 - p
-    b = (1 - cost) / cost
-    if b <= 0:
-        return 0.0
+    # Reentry: 20% smaller (already lost once)
+    if is_reentry:
+        bet_pct *= 0.80
 
-    full_kelly = max(0, (p * b - q) / b)
-    actual = full_kelly * kelly_fraction
-    bet = min(bankroll * actual, max_bet_usdc, bankroll * max_bet_pct, bankroll)
-    return max(0, round(bet, 2))
+    size = bankroll * bet_pct
+    size = min(size, max_bet_usdc, bankroll * max_bet_pct, bankroll)
+    return max(0, round(size, 2))
 
 
 @dataclass
@@ -81,34 +86,21 @@ class RiskManager:
         if correlated_exposure >= self.config.correlation_cap_pct:
             return RiskDecision(False, 0, "Correlation cap exceeded")
 
-        # Kelly sizing — scale config kelly_fraction by confidence
-        base_kelly = self.config.kelly_fraction  # 0.20 default
-        kelly_by_conf = {
-            "C": base_kelly * 0.40,   # 0.08 at 0.20
-            "B-": base_kelly * 0.60,  # 0.12 at 0.20
-            "B+": base_kelly * 1.00,  # 0.20 at 0.20
-            "A": base_kelly * 1.25,   # 0.25 at 0.20
-        }
-        size = kelly_position_size(
-            ai_prob=signal.ai_probability,
-            market_price=signal.market_price,
+        # Confidence-based sizing — no Kelly formula, confidence drives bet size
+        confidence = getattr(signal, 'confidence', "B-")
+        category = getattr(signal, 'category', '')
+        size = confidence_position_size(
+            confidence=confidence,
             bankroll=bankroll,
-            kelly_fraction=get_adaptive_kelly_fraction(
-                confidence=getattr(signal, 'confidence', "B-"),
-                ai_probability=signal.ai_probability,
-                category=getattr(signal, 'category', ''),
-                is_reentry=False,
-                config_kelly_by_conf=kelly_by_conf,
-            ),
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
-            direction=signal.direction.value,
+            is_esports=(category == "esports"),
         )
 
         if size < 5.0:  # Polymarket min order
-            return RiskDecision(False, 0, f"Eminlik düşük, bahis çok küçük: ${size:.2f} (min $5)")
+            return RiskDecision(False, 0, f"Bet too small: ${size:.2f} (min $5, conf={confidence})")
 
-        return RiskDecision(True, size, f"Onaylandı: ${size:.2f}")
+        return RiskDecision(True, size, f"Onaylandı: ${size:.2f} (conf={confidence})")
 
     def new_cycle(self) -> None:
         """Call once at the start of each cycle to reset per-cycle flags."""

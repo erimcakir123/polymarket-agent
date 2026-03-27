@@ -27,7 +27,7 @@ from src.portfolio import Portfolio
 from src.executor import Executor
 from src.ai_analyst import AIAnalyst
 from src.market_scanner import MarketScanner
-from src.risk_manager import RiskManager, kelly_position_size
+from src.risk_manager import RiskManager, confidence_position_size
 from src.odds_api import OddsAPIClient
 from src.esports_data import EsportsDataClient
 from src.sports_data import SportsDataClient
@@ -691,15 +691,14 @@ class Agent:
             ai_prob = candidate.ai_probability
             size_mult = decision["size_mult"]
 
-            # Calculate position size (Kelly * tier multiplier)
+            # Calculate position size (confidence-based * tier multiplier)
             eff_price = current_yes_price if direction == "BUY_YES" else (1.0 - current_yes_price)
-            # Pass raw YES values — kelly_position_size handles direction internally
-            base_size = kelly_position_size(
-                ai_prob, current_yes_price, self.portfolio.bankroll,
-                kelly_fraction=self.config.risk.kelly_fraction,
+            base_size = confidence_position_size(
+                confidence=getattr(candidate, 'confidence', "B-"),
+                bankroll=self.portfolio.bankroll,
                 max_bet_usdc=self.config.risk.max_single_bet_usdc,
                 max_bet_pct=self.config.risk.max_bet_pct,
-                direction=direction,
+                is_reentry=True,
             )
             size = base_size * size_mult
 

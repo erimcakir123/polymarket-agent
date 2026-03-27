@@ -277,7 +277,7 @@ class Portfolio:
         return any(k in q or k in slug for k in ("o/u", "total", "spread"))
 
     def check_stop_losses(self, stop_loss_pct: float = 0.40,
-                          vs_stop_loss_pct: float = 0.50,
+                          vs_stop_loss_pct: float = 0.20,
                           esports_stop_loss_pct: float = 0.40) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():

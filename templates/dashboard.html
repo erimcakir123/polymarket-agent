@@ -1002,12 +1002,9 @@
                         <div style="position:relative;display:inline-block" id="slotHelpWrap">
                             <button onclick="event.stopPropagation();var d=document.getElementById('slotHelpDrop');d.style.display=d.style.display==='block'?'none':'block'" style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.35);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.15)'">?</button>
                             <div id="slotHelpDrop" style="display:none;position:absolute;right:0;top:24px;width:200px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.6);font-size:9px;line-height:1.6;backdrop-filter:blur(8px)">
-                                <div style="margin-bottom:3px"><b style="color:rgba(255,255,255,0.45)">NRM</b> <span style="color:var(--text-muted)">Normal</span></div>
+                                <div style="margin-bottom:3px"><b style="color:rgba(255,255,255,0.45)">NRM</b> <span style="color:var(--text-muted)">Normal (tüm modlar)</span></div>
                                 <div style="margin-bottom:3px"><b style="color:var(--green)">VS</b> <span style="color:var(--text-muted)">Volatility Swing</span></div>
-                                <div style="margin-bottom:3px"><b style="color:var(--amber)">FAR</b> <span style="color:var(--text-muted)">Uzak mac (6h+)</span></div>
-                                <div style="margin-bottom:3px"><b style="color:#2dd4a8">RE</b> <span style="color:var(--text-muted)">Re-entry (aktif/bekleyen)</span></div>
-                                <div style="margin-bottom:3px"><b style="color:var(--red)">LD</b> <span style="color:var(--text-muted)">Live Dip</span></div>
-                                <div><b style="color:var(--green)">FAV</b> <span style="color:var(--text-muted)">Favori</span></div>
+                                <div><b style="color:#2dd4a8">RE</b> <span style="color:var(--text-muted)">Re-entry (aktif/bekleyen)</span></div>
                             </div>
                         </div>
                     </div>
@@ -1020,12 +1017,9 @@
                             </div>
                         </div>
                         <div style="width:1px;align-self:stretch;background:var(--border);margin:0 4px"></div>
-                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;align-content:center">
-                            <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/10</span>
+                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;align-content:center">
+                            <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/15</span>
                             <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">VS 0/5</span>
-                            <span class="entry-tag tag-far" id="slotFarInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAR 0/4</span>
-                            <span class="entry-tag tag-ld" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">LD 0/2</span>
-                            <span class="entry-tag tag-fav" id="slotFavInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">FAV 0/5</span>
                             <span class="entry-tag" id="slotReInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(45,212,168,0.15);color:#2dd4a8">RE 0 (0)</span>
                         </div>
                     </div>
@@ -1743,9 +1737,9 @@
             const legendEl = document.getElementById('positionLegend');
             const totalEl = document.getElementById('totalPositions');
             const pos = allPositions ? Object.values(allPositions) : [];
-            // Total max = sum of all slot types (NRM + VS + FAR + LD + FAV can all be open simultaneously)
+            // Unified pipeline: NRM + VS
             const s = window._lastSlots || {};
-            const maxPos = (s.normal?.max || 10) + (s.vs?.max || 5) + (s.far?.max || 4) + (s.live_dip?.max || 2) + (s.fav?.max || 5);
+            const maxPos = s.max_total || ((s.normal?.max || 15) + (s.vs?.max || 5));
             const count = pos.length;
             const pct = maxPos > 0 ? count / maxPos : 0;
 
@@ -2360,13 +2354,10 @@
 
         function updateSlots(s) {
             if (!s) return;
-            window._lastSlots = s; // Save for total position count
+            window._lastSlots = s;
             const tags = [
                 {id: 'slotNormalInline', label: 'NRM', data: s.normal},
                 {id: 'slotVsInline', label: 'VS', data: s.vs},
-                {id: 'slotFarInline', label: 'FAR', data: s.far},
-                {id: 'slotLdInline', label: 'LD', data: s.live_dip},
-                {id: 'slotFavInline', label: 'FAV', data: s.fav},
             ];
             for (const t of tags) {
                 const el = document.getElementById(t.id);

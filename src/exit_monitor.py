@@ -123,17 +123,20 @@ class ExitMonitor:
         # 2. Trailing TP check (non-VS positions only)
         ttp_cfg = self.config.trailing_tp
         if ttp_cfg.enabled and not pos.volatility_swing:
-            # Update peak tracking
+            # Update peak tracking — always in effective space
+            # BUY_YES: effective = YES price (higher = better)
+            # BUY_NO:  effective = NO value = 1 - YES price (higher = better)
             if direction == "BUY_NO":
-                if current < pos.peak_price or pos.peak_price == 0:
-                    pos.peak_price = current
+                eff_current = 1.0 - current
             else:
-                if current > pos.peak_price:
-                    pos.peak_price = current
+                eff_current = current
+            if eff_current > pos.peak_price or pos.peak_price == 0:
+                pos.peak_price = eff_current
 
-            # Calculate peak P&L
+            # Calculate peak P&L (peak_price is in effective space)
             if direction == "BUY_NO":
-                peak_pnl = ((1 - pos.peak_price) - (1 - entry)) / (1 - entry) if (1 - entry) > 0 else 0
+                no_cost = 1.0 - entry
+                peak_pnl = (pos.peak_price - no_cost) / no_cost if no_cost > 0 else 0
             else:
                 peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)

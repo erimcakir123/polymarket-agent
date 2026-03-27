@@ -17,6 +17,7 @@ import requests
 
 from src.sports_data import SportsDataClient, _SPORT_LEAGUES
 from src.esports_data import EsportsDataClient
+from src.api_usage import record_call
 from src.football_data import FootballDataClient
 from src.cricket_data import CricketDataClient
 
@@ -389,10 +390,11 @@ class ScoutScheduler:
                 url = f"https://api.pandascore.co/{game}/matches/upcoming"
                 resp = requests.get(
                     url,
-                    params={"per_page": 20, "sort": "begin_at"},
+                    params={"per_page": 100, "sort": "begin_at"},
                     headers={"Authorization": f"Bearer {api_key}"},
                     timeout=10,
                 )
+                record_call("pandascore")
                 if resp.status_code != 200:
                     continue
 

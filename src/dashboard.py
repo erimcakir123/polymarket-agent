@@ -84,64 +84,54 @@ def create_app(
             except (json.JSONDecodeError, OSError):
                 pass
 
-        # Count by category
+        # Count by category — unified pipeline (Normal + VS)
         vs_count = 0
-        fav_count = 0
-        live_dip_count = 0
-        far_count = 0
         reentry_count = 0
         normal_count = 0
         pending_count = 0
+        # Track entry_reason breakdown for info (not enforced)
+        reason_breakdown: dict[str, int] = {}
 
         for pos in (positions.values() if isinstance(positions, dict) else []):
             if pos.get("pending_resolution"):
                 pending_count += 1
                 continue
-            entry_reason = pos.get("entry_reason", "")
+            entry_reason = pos.get("entry_reason", "normal")
             if pos.get("volatility_swing"):
                 vs_count += 1
             elif entry_reason.startswith("re_entry"):
                 reentry_count += 1
-            elif entry_reason == "fav_time_gate":
-                fav_count += 1
-            elif entry_reason == "live_dip":
-                live_dip_count += 1
-            elif entry_reason == "far":
-                far_count += 1
             else:
                 normal_count += 1
+            # Track all entry reasons for breakdown display
+            reason_breakdown[entry_reason] = reason_breakdown.get(entry_reason, 0) + 1
 
         # Count waiting reentry pool candidates
         reentry_pool_waiting = 0
         if REENTRY_POOL_FILE.exists():
             try:
                 pool_data = json.loads(REENTRY_POOL_FILE.read_text(encoding="utf-8"))
-                # Only count candidates NOT already in active positions
                 for cid in pool_data:
                     if cid not in positions:
                         reentry_pool_waiting += 1
             except (json.JSONDecodeError, OSError):
                 pass
 
-        # Load config for max values
+        # Unified pipeline: Normal + VS slots
         _cfg = config
         max_positions = _cfg.risk.max_positions
         vs_reserved = _cfg.volatility_swing.reserved_slots
-        far_max = _cfg.far.max_slots
-        fav_max = _cfg.consensus_entry.max_slots
-        live_dip_max = _cfg.live_momentum.max_concurrent
-
         normal_max = max_positions - vs_reserved
+        active_count = normal_count + vs_count + reentry_count
 
         return jsonify({
             "normal": {"current": normal_count, "max": normal_max},
             "vs": {"current": vs_count, "max": vs_reserved},
-            "fav": {"current": fav_count, "max": fav_max},
-            "live_dip": {"current": live_dip_count, "max": live_dip_max},
-            "far": {"current": far_count, "max": far_max},
             "reentry": {"current": reentry_count, "max": 3, "waiting": reentry_pool_waiting},
             "pending": pending_count,
-            "total": normal_count + vs_count + fav_count + live_dip_count + far_count + reentry_count,
+            "total": active_count,
+            "max_total": max_positions,
+            "entry_reasons": reason_breakdown,
         })
 
     @app.route("/api/stock")

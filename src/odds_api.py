@@ -179,25 +179,9 @@ class OddsAPIClient:
     _CACHE_FILE = Path("logs/odds_cache.json")
     _BRIDGE_CACHE_MAX_AGE = 28800  # 8h — same as regular cache (was 3h, burned credits)
 
-    # All sport keys to scan when building the bridge event pool.
-    _BRIDGE_SPORT_KEYS_ALWAYS = [
-        "basketball_nba",
-        "baseball_mlb",
-        "icehockey_nhl",
-        "mma_mixed_martial_arts", "boxing_boxing",
-        "soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
-        "soccer_germany_bundesliga", "soccer_france_ligue_one",
-        "soccer_uefa_champs_league", "soccer_uefa_europa_league",
-        "soccer_usa_mls",
-        "cricket_ipl", "cricket_international_t20",
-        "rugbyleague_nrl",
-    ]
-    _BRIDGE_SPORT_KEYS_SEASONAL = {
-        "americanfootball_nfl": (8, 9, 10, 11, 12, 1, 2),
-        "americanfootball_ncaaf": (8, 9, 10, 11, 12, 1),
-        "basketball_ncaab": (11, 12, 1, 2, 3, 4),
-        "basketball_wncaab": (11, 12, 1, 2, 3, 4),
-    }
+    # Dynamic sport discovery replaces hardcoded lists.
+    # /v4/sports/?all=false returns only active/in-season sports (FREE, 0 quota).
+    _ACTIVE_SPORTS_CACHE_TTL = 3600  # Re-discover every 1h
 
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
@@ -242,6 +226,31 @@ class OddsAPIClient:
             tmp.replace(self._CACHE_FILE)
         except Exception as e:
             logger.debug("Could not save odds cache: %s", e)
+
+    def _get_active_sport_keys(self) -> List[str]:
+        """Discover ALL active/in-season sport keys from /v4/sports/ (FREE, 0 quota).
+
+        Replaces hardcoded _BRIDGE_SPORT_KEYS_ALWAYS + _BRIDGE_SPORT_KEYS_SEASONAL.
+        Cached for 1h — re-discovers automatically when sports go in/out of season.
+        """
+        cache_key = "_active_sports_all"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if time.time() - ts < self._ACTIVE_SPORTS_CACHE_TTL:
+                return data
+
+        try:
+            sports = self._get("/sports", {"all": "false"})
+            if not sports:
+                return []
+            keys = [s["key"] for s in sports if isinstance(s, dict)
+                    and s.get("active") and not s.get("key", "").startswith("politics")]
+            self._cache[cache_key] = (keys, time.time())
+            logger.info("Active sport keys discovered: %d sports in-season", len(keys))
+            return keys
+        except Exception:
+            return []
 
     def _get_active_tennis_keys(self, gender: str = "atp") -> List[str]:
         """Discover active tennis sport keys from The Odds API /sports endpoint.

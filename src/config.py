@@ -45,16 +45,10 @@ class AIConfig(BaseModel):
 
 
 class EdgeConfig(BaseModel):
+    """Legacy — kept for YAML compatibility. Sizing is confidence-based now."""
     min_edge: float = 0.06
-    confidence_multipliers: Dict[str, float] = {
-        "C": 1.5, "B-": 1.0, "B+": 0.85, "A": 0.75
-    }
-    fill_ratio_scaling: bool = False
-    fill_ratio_aggressive: float = 0.3
-    fill_ratio_selective: float = 0.7
-    bookmaker_confidence_boost: bool = False
+    confidence_multipliers: Dict[str, float] = {}
     default_spread: float = 0.02
-    min_edge_swap: float = 0.085
 
 
 class TrailingStopTier(BaseModel):
@@ -63,7 +57,7 @@ class TrailingStopTier(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    kelly_fraction: float = 0.20  # 20% Kelly (user-confirmed)
+    kelly_fraction: float = 0.20  # Legacy — sizing is confidence-based now
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
     max_positions: int = 20
