@@ -904,9 +904,9 @@ class Agent:
                 "", confidence="B-",
                 ai_probability=pre_match,
                 entry_reason="live_dip",
-                sport_tag=getattr(m, "sport_tag", ""),
-                event_id=getattr(m, "event_id", ""),
-                end_date_iso=getattr(m, "end_date_iso", ""),
+                sport_tag=getattr(m, "sport_tag", "") or "",
+                event_id=getattr(m, "event_id", "") or "",
+                end_date_iso=getattr(m, "end_date_iso", "") or "",
             )
             dip_count += 1
 

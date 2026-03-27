@@ -173,7 +173,7 @@ def _classify_bond(m: MarketData, days_left: float) -> tuple:
         bond_type = "resolved_pending"
 
     # Signal: Live blowout (match in progress, dominant lead)
-    if m.event_live and m.match_score:
+    if m.event_live and getattr(m, 'match_score', ''):
         blowout = _detect_blowout(m.match_score, m.sport_tag)
         if blowout:
             signals.append(f"Live blowout: {m.match_score}")
