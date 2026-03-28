@@ -305,7 +305,7 @@ class OddsAPIClient:
         """Shared HTTP layer — makes authenticated GET to The Odds API.
 
         Handles: auth, quota tracking, notifications, backup key switch.
-        Does NOT handle caching — callers (_get, _get_fresh) own their cache strategy.
+        Does NOT handle caching — callers (_get) own their cache strategy.
         """
         if not self.available:
             return None
