@@ -327,6 +327,13 @@ class Agent:
         # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self._handle_hold_revokes()
 
+        # Farming re-entry in light cycle too (no AI cost, fast re-entry)
+        self._check_farming_reentry()
+
+        # Persist portfolio snapshot so dashboard sees real-time PnL
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+        self._log_cycle_summary(bankroll, "light")
+
     def run_cycle(self) -> None:
         """Heavy cycle: exit checks + market scan + AI + entry decisions."""
         self._write_status("running", "Hard cycle")
@@ -444,7 +451,7 @@ class Agent:
 
     # ── Exit execution ─────────────────────────────────────────────────────
 
-    def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 3) -> None:
+    def _exit_position(self, condition_id: str, reason: str, cooldown_cycles: int = 1) -> None:
         """Execute exit: remove from portfolio, add to reentry pool or blacklist, log.
 
         This is the ONLY place that calls executor.exit(). ExitMonitor detects,
@@ -1363,6 +1370,7 @@ class Agent:
             return False
         stale_cids = []
         reentry_resolve_exits = []
+        pending_resolve_exits = []
         has_live_clob = False
         for cid, pos in list(self.portfolio.positions.items()):
             try:
@@ -1527,6 +1535,18 @@ class Agent:
                     if pos.pending_resolution:
                         pos.live_on_clob = False
                         pos.match_live = False
+                        # Immediately resolve pending positions with clear outcome
+                        if new_yes_price >= 0.97 or new_yes_price <= 0.03:
+                            _yes_won = new_yes_price >= 0.97
+                            _won = (pos.direction == "BUY_YES" and _yes_won) or \
+                                   (pos.direction == "BUY_NO" and not _yes_won)
+                            _res_price = 1.0 if _yes_won else 0.0
+                            self.portfolio.update_price(cid, _res_price)
+                            _pnl = pos.shares - pos.size_usdc if _won else -pos.size_usdc
+                            logger.info("RESOLVED (pending): %s | %s | %s | PnL=$%.2f",
+                                        pos.slug[:40], pos.direction, "WIN" if _won else "LOSS", _pnl)
+                            pending_resolve_exits.append((cid, f"resolved_{'win' if _won else 'loss'}"))
+                            continue
             except Exception as e:
                 logger.debug("Price update failed for %s: %s", pos.slug[:30], e)
 
@@ -1544,6 +1564,9 @@ class Agent:
         for cid, reason in reentry_resolve_exits:
             self._exit_position(cid, reason)
             self.reentry_pool.remove(cid)  # Don't let near-resolved markets re-enter
+        # Process pending resolution exits (clear outcome, immediate realize)
+        for cid, reason in pending_resolve_exits:
+            self._exit_position(cid, reason)
 
         # Check outcome tracker -- resolve exited markets we're still watching
         if self.outcome_tracker.tracked_count > 0:

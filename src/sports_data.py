@@ -13,9 +13,26 @@ logger = logging.getLogger(__name__)
 
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 
-# Dynamic discovery replaces hardcoded mappings.
-# ESPN search endpoint finds sport/league for any team name.
-_SPORT_LEAGUES: dict = {}
+# Slug prefix → (sport, league, label) for fast sport detection.
+# ESPN search is fallback; this prevents Hurricanes→college-football bugs.
+_SPORT_LEAGUES: dict = {
+    "nba": ("basketball", "nba", "NBA"),
+    "nhl": ("hockey", "nhl", "NHL"),
+    "nfl": ("football", "nfl", "NFL"),
+    "mlb": ("baseball", "mlb", "MLB"),
+    "cbb": ("basketball", "mens-college-basketball", "CBB"),
+    "cwbb": ("basketball", "womens-college-basketball", "WCBB"),
+    "cfb": ("football", "college-football", "CFB"),
+    "mls": ("soccer", "usa.1", "MLS"),
+    "epl": ("soccer", "eng.1", "EPL"),
+    "lal": ("soccer", "esp.1", "La Liga"),
+    "ser": ("soccer", "ita.1", "Serie A"),
+    "bun": ("soccer", "ger.1", "Bundesliga"),
+    "lig": ("soccer", "fra.1", "Ligue 1"),
+    "atp": ("tennis", "atp", "ATP"),
+    "wta": ("tennis", "wta", "WTA"),
+    "ufc": ("mma", "ufc", "UFC"),
+}
 
 # Dynamic discovery replaces hardcoded keyword mappings.
 _QUESTION_KEYWORDS: dict = {}

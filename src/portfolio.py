@@ -204,6 +204,7 @@ class Portfolio:
     def remove_position(self, condition_id: str) -> Position | None:
         pos = self.positions.pop(condition_id, None)
         if pos is not None:
+            self.bankroll += pos.size_usdc  # Return invested capital to bankroll
             self._save_positions()
         return pos
 

@@ -686,6 +686,16 @@ class EntryGate:
             if size < 5.0:  # Polymarket minimum order size
                 continue
 
+            # Extreme price guard -- don't enter markets already at 0% or 100%
+            _yes_p = market.yes_price
+            _eff_entry = (1 - _yes_p) if direction == Direction.BUY_NO else _yes_p
+            if _eff_entry <= 0.02 or _eff_entry >= 0.98:
+                logger.info(
+                    "SKIP extreme price: %s | eff_price=%.0f%% -- market already resolved/extreme",
+                    market.slug[:40], _eff_entry * 100,
+                )
+                continue
+
             # Execute
             _token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             _order_price = market.yes_price if direction == Direction.BUY_YES else (1 - market.yes_price)

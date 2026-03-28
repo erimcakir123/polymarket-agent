@@ -266,12 +266,13 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 0: Parse score ---
     score_info = parse_match_score(match_score, number_of_games, direction)
+    category = data.get("category", "")
 
-    # --- Step 0a: Score terminal checks ---
-    if score_info.get("is_already_lost"):
+    # --- Step 0a: Score terminal checks (esports BO series only) ---
+    if category == "esports" and score_info.get("is_already_lost"):
         return {**result, "exit": True, "layer": "score_terminal_loss",
                 "reason": f"Match already lost (score: {match_score})"}
-    if score_info.get("is_already_won"):
+    if category == "esports" and score_info.get("is_already_won"):
         return {**result, "exit": False, "layer": "score_terminal_win",
                 "reason": f"Match already won -- hold to resolve (score: {match_score})"}
 
