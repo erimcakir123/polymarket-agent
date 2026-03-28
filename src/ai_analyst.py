@@ -351,6 +351,7 @@ class AIAnalyst:
     def analyze_market(
         self, market: MarketData, news_context: str = "",
         esports_context: str = "",
+        upset_mode: bool = False,
     ) -> AIEstimate:
         # Check cache
         cached = self._cache.get(market.condition_id)
@@ -376,7 +377,7 @@ class AIAnalyst:
             return AIEstimate(ai_probability=0.5, confidence="C",
                               reasoning_pro="BUDGET_EXHAUSTED", reasoning_con="BUDGET_EXHAUSTED")
 
-        prompt = self._build_prompt(market, news_context, esports_context)
+        prompt = self._build_prompt(market, news_context, esports_context, upset_mode=upset_mode)
 
         # Single unified call (PRO + CON in one request)
         system_prompt = self._get_system_prompt(market)
@@ -424,7 +425,8 @@ class AIAnalyst:
         self._cache.pop(condition_id, None)
 
     def _build_prompt(
-        self, market: MarketData, news_context: str, esports_context: str = ""
+        self, market: MarketData, news_context: str, esports_context: str = "",
+        upset_mode: bool = False,
     ) -> str:
         # Format today's date so AI knows when "now" is
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -436,6 +438,23 @@ class AIAnalyst:
             # Market price intentionally excluded -- prevents anchoring bias
             f"Resolution date: {market.end_date_iso}" if market.end_date_iso else "",
         ]
+
+        if upset_mode:
+            parts.append("""
+=== UNDERDOG ANALYSIS MODE ===
+This market has a YES token priced at 5-15¢ (heavy underdog).
+Your task is NOT "will this team win?" but "is this team MORE likely to win than the market implies?"
+
+Focus on:
+- Favorite's vulnerabilities: form drop, injuries, motivation, fatigue, travel schedule
+- Underdog's hidden strengths: recent form trajectory, style/matchup advantage, home court/field
+- Historical upset frequency for this type of matchup
+- Match conditions that favor the underdog (tennis surface, esports map pool, weather)
+
+CALIBRATION NOTE: Markets systematically overprice favorites and underprice underdogs
+(favourite-longshot bias). A team priced at 10¢ often has a true probability of 13-18%.
+For esports BO1 formats, upset frequency is 25-35% -- significantly higher than implied odds suggest.
+Do NOT anchor to the low market price. Form your own estimate independently.""")
 
         # Data Sources section -- tell AI exactly what data it has
         sport = (market.sport_tag or "").lower()

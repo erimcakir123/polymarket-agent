@@ -439,9 +439,9 @@ class Agent:
         # Farming re-entry (no AI, uses saved probability)
         self._check_farming_reentry()
 
-        # Bond farming, live dip, live momentum -- all skip when entries paused
+        # Upset hunter, live dip, live momentum -- all skip when entries paused
         if entries_allowed:
-            self._check_bond_farming(fresh_markets, bankroll)
+            self._check_upset_hunter(fresh_markets, bankroll)
             self._check_live_dip(fresh_markets, bankroll)
             self._check_live_momentum(fresh_markets, bankroll, match_states)
 
@@ -1083,31 +1083,34 @@ class Agent:
                 )
                 break  # Only one direction per market
 
-    # ── Bond & Penny scanners ──────────────────────────────────────────────
+    # ── Upset Hunter & Penny scanners ─────────────────────────────────────
 
-    def _check_bond_farming(self, fresh_markets: list, bankroll: float) -> None:
-        """Scan for bond farming opportunities -- near-certain YES tokens $0.90-0.97."""
+    def _check_upset_hunter(self, fresh_markets: list, bankroll: float) -> None:
+        """Scan for upset hunting opportunities -- underdog YES tokens $0.05-0.15."""
         if not fresh_markets:
             return
-        from src.bond_scanner import scan_bond_candidates, size_bond_position
+        from src.upset_hunter import pre_filter, size_upset_position
 
-        # Count current bond positions
-        bond_count = sum(1 for p in self.portfolio.positions.values()
-                         if getattr(p, "entry_reason", "") == "bond")
-        bond_exposure = sum(p.size_usdc for p in self.portfolio.positions.values()
-                            if getattr(p, "entry_reason", "") == "bond")
+        cfg = self.config.upset_hunter
+        if not cfg.enabled:
+            return
 
-        cfg = self.config.bond_farming
-        candidates = scan_bond_candidates(
+        # Count current upset positions
+        upset_count = sum(1 for p in self.portfolio.positions.values()
+                          if getattr(p, "entry_reason", "") == "upset")
+
+        candidates = pre_filter(
             fresh_markets,
-            max_resolution_days=cfg.max_days_to_resolution * 4,  # config is in fraction of days
-            min_yes_price=cfg.min_yes_price,
-            max_yes_price=cfg.max_yes_price,
-            min_volume=self.config.scanner.min_volume_24h,
-            min_liquidity=self.config.scanner.min_liquidity,
+            min_price=cfg.min_price,
+            max_price=cfg.max_price,
+            min_liquidity=cfg.min_liquidity,
+            min_odds_divergence=cfg.min_odds_divergence,
+            max_hours_before=cfg.max_hours_before_match,
         )
 
         for c in candidates:
+            if upset_count >= cfg.max_concurrent:
+                break
             if self.portfolio.active_position_count >= self.config.risk.max_positions:
                 break
             if c.condition_id in self.portfolio.positions:
@@ -1117,22 +1120,52 @@ class Agent:
             if c.condition_id in self._exited_markets:
                 continue
 
-            size = size_bond_position(
-                bankroll, c, bond_exposure, bond_count,
-                bet_pct=cfg.bet_pct,
-                max_total_pct=cfg.max_total_bond_pct,
+            size = size_upset_position(
+                bankroll, bet_pct=cfg.bet_pct,
+                current_upset_count=upset_count,
                 max_concurrent=cfg.max_concurrent,
             )
             if size < 5.0:
                 continue
 
-            # Execute
-            token_id = getattr(c, "yes_token_id", "") or ""
-            # Need to get token_id from market data
-            for m in fresh_markets:
-                if m.condition_id == c.condition_id:
-                    token_id = m.yes_token_id
-                    break
+            # AI analysis with underdog prompt
+            estimate = None
+            if self.ai_analyst:
+                odds_note = ""
+                if c.divergence is not None:
+                    odds_note = f"Odds API implied: {c.odds_api_implied:.0%}, Polymarket: {c.yes_price:.0%}, divergence: {c.divergence:.0%}"
+                else:
+                    odds_note = "No bookmaker cross-reference available for this market."
+
+                # Find the original MarketData for AI analysis
+                market_data = None
+                for m in fresh_markets:
+                    if m.condition_id == c.condition_id:
+                        market_data = m
+                        break
+                if not market_data:
+                    continue
+
+                estimate = self.ai_analyst.analyze_market(
+                    market_data,
+                    esports_context=odds_note,
+                    upset_mode=True,
+                )
+
+                # Check AI confidence and edge
+                if estimate.confidence in ("C", "D"):
+                    continue
+                ai_edge = estimate.ai_probability - c.yes_price
+                if ai_edge < cfg.min_odds_divergence:
+                    continue
+
+            # Execute order
+            token_id = c.yes_token_id
+            if not token_id:
+                for m in fresh_markets:
+                    if m.condition_id == c.condition_id:
+                        token_id = m.yes_token_id
+                        break
             if not token_id:
                 continue
 
@@ -1141,32 +1174,36 @@ class Agent:
                 continue
 
             shares = size / c.yes_price if c.yes_price > 0 else 0
+            ai_conf = estimate.confidence if estimate else "B-"
+            ai_prob = estimate.ai_probability if estimate else c.yes_price
             self.portfolio.add_position(
                 c.condition_id, token_id, "BUY_YES",
                 c.yes_price, size, shares, c.slug,
-                "", confidence="A",  # Bond = high confidence by nature
-                ai_probability=c.yes_price,  # Market price IS the probability
-                entry_reason="bond",
+                "", confidence=ai_conf,
+                ai_probability=ai_prob,
+                entry_reason="upset",
                 end_date_iso="",
             )
-            bond_count += 1
-            bond_exposure += size
+            upset_count += 1
 
             self.trade_log.log({
-                "market": c.slug, "action": "BOND_ENTRY",
+                "market": c.slug, "action": "UPSET_ENTRY",
                 "size": size, "price": c.yes_price,
-                "bond_type": c.bond_type,
-                "expected_profit_pct": c.expected_profit_pct,
+                "upset_type": c.upset_type,
+                "odds_divergence": c.divergence,
+                "ai_probability": ai_prob,
                 "mode": self.config.mode.value,
             })
             logger.info(
-                "BOND ENTRY: %s | type=%s | price=%.2f | profit=%.1f%% | size=$%.0f",
-                c.slug[:40], c.bond_type, c.yes_price, c.expected_profit_pct * 100, size,
+                "UPSET ENTRY: %s | type=%s | price=%.2f | div=%s | size=$%.0f",
+                c.slug[:40], c.upset_type, c.yes_price,
+                f"{c.divergence:.0%}" if c.divergence else "N/A", size,
             )
+            div_str = f" | Div: {c.divergence:.0%}" if c.divergence else ""
             self.notifier.send(
-                f"🏦 *BOND ENTRY*: {c.slug[:40]}\n\n"
-                f"🏷 Type: {c.bond_type}\n"
-                f"📊 Price: {c.yes_price:.2f} | Profit: {c.expected_profit_pct:.1%}\n"
+                f"🎯 *UPSET ENTRY*: {c.slug[:40]}\n\n"
+                f"🏷 Type: {c.upset_type}\n"
+                f"📊 Price: {c.yes_price:.2f}{div_str}\n"
                 f"💰 Size: ${size:.0f}"
             )
 
