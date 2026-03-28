@@ -1794,7 +1794,7 @@
 
             // Brier score: compute from BUY trades matched with EXIT outcomes
             const buyMap = {};
-            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => { buyMap[t.market] = t; });
+            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO' || t.action === 'BUY').forEach(t => { buyMap[t.market] = t; });
             const calibrationPairs = exits.filter(t => buyMap[t.market] && buyMap[t.market].ai_probability)
                 .map(t => {
                     const buy = buyMap[t.market];
@@ -2088,7 +2088,7 @@
 
             // Build a map of BUY entries by market slug for enrichment
             const buyMap = {};
-            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO').forEach(t => {
+            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO' || t.action === 'BUY').forEach(t => {
                 buyMap[t.market] = t;
             });
 
@@ -2140,18 +2140,18 @@
                 const resultBg = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
 
                 // Enrichment from BUY entry or pending position
-                const direction = isPending ? (t.direction || '') : (buy.action || '');
+                const direction = isPending ? (t.direction || '') : (buy.direction || buy.action || '');
                 const isYes = isPending ? direction.includes('YES') || direction === 'BUY_YES' : direction.includes('YES');
                 const dirLabel = isPending ? (isYes ? 'YES' : 'NO') : (direction ? getDirectionLabel(buy.question, direction, slug) : '');
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
-                const rawBuyPrice = isPending ? (t.price || 0) : (buy.price || 0);
+                const rawBuyPrice = isPending ? (t.price || 0) : (buy.entry_price || buy.price || 0);
                 // rawBuyPrice is execution price (already our side): YES price for BUY_YES, NO price for BUY_NO
                 const entryPrice = rawBuyPrice;
-                const size = isPending ? (t.size || 0) : (buy.size || 0);
+                const size = isPending ? (t.size || 0) : (buy.size_usdc || buy.size || 0);
                 const confidence = isPending ? (t.confidence || '') : (buy.confidence || '');
                 const confLabel = confidence || '';
                 const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
-                const rawAiProb2 = isPending ? (t.ai_probability || 0) : (buy.ai_probability || 0);
+                const rawAiProb2 = isPending ? (t.ai_probability || 0) : (buy.ai_prob || buy.ai_probability || 0);
                 // Show AI probability for OUR side: BUY_YES=X winning%, BUY_NO=Y winning%
                 const aiProb = isYes ? rawAiProb2 : (1 - rawAiProb2);
                 const edge = buy.edge || 0;

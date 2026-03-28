@@ -96,7 +96,7 @@ class ScoutScheduler:
                 expired = [
                     k for k, v in self._queue.items()
                     if v.get("match_time") and
-                    datetime.fromisoformat(v["match_time"]) < now - timedelta(hours=4)
+                    datetime.fromisoformat(v["match_time"]).replace(tzinfo=timezone.utc) < now - timedelta(hours=4)
                 ]
                 for k in expired:
                     del self._queue[k]

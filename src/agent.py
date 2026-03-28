@@ -329,13 +329,8 @@ class Agent:
         self.risk.new_cycle()
         logger.info("=== Cycle #%d start ===", self.cycle_count)
 
-        # Self-reflection + scout
-        self._write_status("running", "Scouting matches")
+        # Self-reflection
         self._maybe_run_reflection()
-        if self.scout.should_run_scout():
-            new_scouted = self.scout.run_scout()
-            if new_scouted:
-                self.notifier.send(f"🔍 SCOUT: {new_scouted} new matches")
 
         # Bankroll + drawdown
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
@@ -398,7 +393,13 @@ class Agent:
         self._handle_hold_revokes()
         self._sync_ws_subscriptions()
 
-        # Entry: fresh scan (analyze=True)
+        # Scout + Entry: fresh scan (analyze=True)
+        if entries_allowed and self.scout.should_run_scout():
+            self._write_status("running", "Scouting matches")
+            new_scouted = self.scout.run_scout()
+            if new_scouted:
+                self.notifier.send(f"🔍 SCOUT: {new_scouted} new matches")
+
         self._write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
         self.entry_gate.run(
@@ -424,14 +425,11 @@ class Agent:
         # Farming re-entry (no AI, uses saved probability)
         self._check_farming_reentry()
 
-        # Bond farming scan (no AI, rule-based)
-        self._check_bond_farming(fresh_markets, bankroll)
-
-        # Live dip entry (price-based, no AI)
-        self._check_live_dip(fresh_markets, bankroll)
-
-        # Live momentum (score-based re-estimation)
-        self._check_live_momentum(fresh_markets, bankroll, match_states)
+        # Bond farming, live dip, live momentum — all skip when entries paused
+        if entries_allowed:
+            self._check_bond_farming(fresh_markets, bankroll)
+            self._check_live_dip(fresh_markets, bankroll)
+            self._check_live_momentum(fresh_markets, bankroll, match_states)
 
         # Check outcomes + log
         self._check_tracked_outcomes()
@@ -507,16 +505,20 @@ class Agent:
                         break
                 btype, duration = get_blacklist_rule(bl_reason)
                 if btype and duration:
-                    self.blacklist.add_rule(
-                        condition_id, btype=btype, duration_cycles=duration,
-                        slug=pos.slug, reason=reason,
+                    self.blacklist.add(
+                        condition_id,
+                        exit_reason=reason,
+                        blacklist_type=btype,
+                        expires_at_cycle=self.cycle_count + duration if duration else None,
+                        exit_data={"slug": pos.slug},
                     )
 
         # Log exit
         self.trade_log.log({
             "market": pos.slug, "action": "EXIT",
-            "reason": reason, "pnl_usdc": realized_pnl,
-            "entry_price": pos.entry_price, "exit_price": pos.current_price,
+            "reason": reason, "pnl": realized_pnl,
+            "price": pos.entry_price, "exit_price": pos.current_price,
+            "size": pos.size_usdc,
             "direction": pos.direction,
         })
         logger.info(
