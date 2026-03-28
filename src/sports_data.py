@@ -94,7 +94,7 @@ class SportsDataClient:
                 if sport and league and item.get("type") == "team":
                     result = (sport, league)
                     self._cache[cache_key] = (result, time.monotonic())
-                    logger.info("ESPN search: '%s' → %s/%s", team_name, sport, league)
+                    logger.info("ESPN search: '%s' -> %s/%s", team_name, sport, league)
                     return result
 
             # No results found
@@ -130,15 +130,22 @@ class SportsDataClient:
 
         # Dynamic discovery via ESPN search
         team_a, team_b = self._extract_teams_from_question(question)
+
+        # Only fall back to slug if question gave us nothing
         if not team_a and not team_b:
             team_a, team_b = self._extract_teams_from_slug(slug)
+            # Slug abbreviations < 4 chars are too ambiguous (e.g. "bri" → NCAA)
+            if team_a and len(team_a) < 4:
+                team_a = None
+            if team_b and len(team_b) < 4:
+                team_b = None
 
-        # Search with first team name
-        for name in [team_a, team_b]:
-            if name:
-                result = self.search_team(name)
-                if result:
-                    return result
+        # Search with team names (prefer longer/more specific first)
+        names = sorted([n for n in [team_a, team_b] if n], key=len, reverse=True)
+        for name in names:
+            result = self.search_team(name)
+            if result:
+                return result
 
         return None
 
@@ -320,7 +327,7 @@ class SportsDataClient:
                 # Remove "Will " prefix
                 if team_a.lower().startswith("will "):
                     team_a = team_a[5:].strip()
-                return team_a, team_b
+                return self._clean_team_name(team_a), self._clean_team_name(team_b)
 
         # Try "beat" / "win against" pattern: "Will Team A beat Team B?"
         beat_match = re.search(
@@ -328,7 +335,7 @@ class SportsDataClient:
             q,
         )
         if beat_match:
-            return beat_match.group(1).strip(), beat_match.group(2).rstrip("?").strip()
+            return self._clean_team_name(beat_match.group(1).strip()), self._clean_team_name(beat_match.group(2).rstrip("?").strip())
 
         # Single-team pattern: "Will Team A win on DATE?" / "Will Team A win?"
         win_match = re.search(
@@ -336,11 +343,19 @@ class SportsDataClient:
             q,
         )
         if win_match:
-            team = win_match.group(1).strip()
+            team = self._clean_team_name(win_match.group(1).strip())
             if len(team) >= 3:
                 return team, None
 
         return None, None
+
+    @staticmethod
+    def _clean_team_name(name: str) -> str:
+        """Strip suffixes that hurt ESPN search (FC, SC, CF, AFC etc.)."""
+        import re
+        # Remove trailing FC/SC/CF/AFC/SFC — ESPN search works better without
+        cleaned = re.sub(r'\s+(?:A?FC|SC|CF|SFC|AC)\s*$', '', name, flags=re.IGNORECASE)
+        return cleaned.strip() or name
 
     def _extract_teams_from_slug(self, slug: str) -> Tuple[Optional[str], Optional[str]]:
         """Extract team abbreviations from slug like 'cbb-missr-mia-2026-03-20'."""
@@ -377,13 +392,15 @@ class SportsDataClient:
         team_a_name, team_b_name = self._extract_teams_from_question(question)
         slug_a, slug_b = self._extract_teams_from_slug(slug)
 
-        # Use slug abbreviations as backup search terms
-        if not team_a_name and slug_a:
+        # Use slug abbreviations as backup ONLY if question gave nothing
+        # and slug parts are long enough (≥4 chars) to avoid ambiguity
+        if not team_a_name and slug_a and len(slug_a) >= 4:
             team_a_name = slug_a
-        if not team_b_name and slug_b:
+        if not team_b_name and slug_b and len(slug_b) >= 4:
             team_b_name = slug_b
 
-        if not team_a_name or not team_b_name:
+        # Single-team markets ("Will X win?") are valid — only need team_a
+        if not team_a_name:
             logger.debug("Could not extract team names from: %s / %s", question[:60], slug)
             return None
 
