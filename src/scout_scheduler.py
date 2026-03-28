@@ -15,11 +15,9 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
-from src.sports_data import SportsDataClient, _SPORT_LEAGUES
+from src.sports_data import SportsDataClient
 from src.esports_data import EsportsDataClient
 from src.api_usage import record_call
-from src.football_data import FootballDataClient
-from src.cricket_data import CricketDataClient
 
 logger = logging.getLogger(__name__)
 
@@ -70,18 +68,12 @@ _SCOUT_LEAGUES = [
 # PandaScore games to scout
 _ESPORT_GAMES = ["cs2", "lol", "dota2", "valorant"]
 
-# Reverse lookup: (sport, league) -> slug prefix for Polymarket matching
-_LEAGUE_TO_PREFIX = {(s, l): prefix for prefix, (s, l, _) in _SPORT_LEAGUES.items()}
-
-
 class ScoutScheduler:
     """Fetches upcoming match schedules and pre-analyzes them for early entry."""
 
     def __init__(self, sports: SportsDataClient, esports: EsportsDataClient) -> None:
         self.sports = sports
         self.esports = esports
-        self.football_data = FootballDataClient()
-        self.cricket_data = CricketDataClient()
         self._queue: Dict[str, dict] = {}
         self._last_run_ts: float = 0.0          # in-memory cooldown timestamp
         self._load_queue()
@@ -162,15 +154,11 @@ class ScoutScheduler:
         esports_matches = self._fetch_esports_upcoming()
         logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
 
-        # 3. Fetch football-data.org matches (Copa Libertadores + ESPN gaps)
-        fd_matches = self._fetch_football_data_upcoming()
-        logger.info("football-data.org: found %d upcoming matches", len(fd_matches))
-
-        # 4. Fetch cricket matches
+        # 3. Fetch cricket matches
         cricket_matches = self._fetch_cricket_upcoming()
         logger.info("CricketData: found %d upcoming matches", len(cricket_matches))
 
-        all_matches = sports_matches + esports_matches + fd_matches + cricket_matches
+        all_matches = sports_matches + esports_matches + cricket_matches
 
         # 3. Save match calendar to queue (NO AI calls — save budget)
         # AI analysis happens later, only when a Polymarket bet actually appears
@@ -189,20 +177,6 @@ class ScoutScheduler:
                 )
                 if espn_ctx:
                     context_parts.append(espn_ctx)
-                # football-data.org fallback (soccer only, covers Copa Libertadores)
-                if not context_parts and self.football_data.available:
-                    fd_ctx = self.football_data.get_match_context(
-                        match["question"], match.get("slug_hint", ""), []
-                    )
-                    if fd_ctx:
-                        context_parts.append(fd_ctx)
-                # CricketData fallback
-                if not context_parts and self.cricket_data.available:
-                    cr_ctx = self.cricket_data.get_match_context(
-                        match["question"], match.get("slug_hint", ""), []
-                    )
-                    if cr_ctx:
-                        context_parts.append(cr_ctx)
             elif match.get("is_esports") and self.esports.available:
                 panda_ctx = self.esports.get_match_context(
                     match["question"], match.get("tags", [])
@@ -350,8 +324,7 @@ class ScoutScheduler:
                             continue
 
                         # Build slug hint for matching
-                        league_prefix = _LEAGUE_TO_PREFIX.get((sport, league), sport[:3])
-                        slug_hint = f"{league_prefix}-{team_a[:4].lower()}-{team_b[:4].lower()}"
+                        slug_hint = f"{sport[:3]}-{team_a[:4].lower()}-{team_b[:4].lower()}"
 
                         scout_key = f"{sport}_{league}_{team_a}_{team_b}_{date_str}"
                         matches.append({
@@ -439,44 +412,6 @@ class ScoutScheduler:
             except requests.RequestException as e:
                 logger.warning("PandaScore upcoming error for %s: %s", game, e)
                 continue
-
-        return matches
-
-    def _fetch_football_data_upcoming(self) -> List[dict]:
-        """Fetch upcoming matches from football-data.org (Copa Libertadores + ESPN gaps)."""
-        if not self.football_data.available:
-            return []
-
-        matches = []
-        # Only fetch competitions NOT already covered by ESPN
-        # Copa Libertadores (CLI) is the unique one — ESPN doesn't have it
-        _FD_ONLY_COMPETITIONS = {
-            "CLI": ("soccer", "copa-libertadores", "Copa Libertadores"),
-        }
-
-        for code, (sport, league, display_name) in _FD_ONLY_COMPETITIONS.items():
-            try:
-                upcoming = self.football_data.get_upcoming_matches(code) or []
-                for m in upcoming[:15]:  # limit per competition
-                    team_a = m["home"]
-                    team_b = m["away"]
-                    date_str = m["date"][:10] if m["date"] else ""
-                    scout_key = f"fd_{code}_{team_a}_{team_b}_{date_str}"
-                    matches.append({
-                        "scout_key": scout_key,
-                        "team_a": team_a,
-                        "team_b": team_b,
-                        "question": f"{team_a} vs {team_b}: Who will win?",
-                        "match_time": m["date"],
-                        "sport": sport,
-                        "league": league,
-                        "league_name": display_name,
-                        "slug_hint": f"libertadores-{team_a[:4].lower()}-{team_b[:4].lower()}",
-                        "tags": ["sports", display_name.lower()],
-                        "is_esports": False,
-                    })
-            except Exception as e:
-                logger.warning("football-data.org scout error for %s: %s", code, e)
 
         return matches
 

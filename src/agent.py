@@ -30,6 +30,7 @@ from src.risk_manager import RiskManager, confidence_position_size
 from src.odds_api import OddsAPIClient
 from src.esports_data import EsportsDataClient
 from src.sports_data import SportsDataClient
+from src.sports_discovery import SportsDiscovery
 from src.news_scanner import NewsScanner
 from src.manipulation_guard import ManipulationGuard
 from src.trade_logger import TradeLogger, EdgeSourceTracker
@@ -91,6 +92,12 @@ class Agent:
         self.esports = EsportsDataClient()
         sports = SportsDataClient()
         odds_api = OddsAPIClient()
+        from src.cricket_data import CricketDataClient
+        cricket = CricketDataClient()
+        discovery = SportsDiscovery(
+            espn=sports, pandascore=self.esports,
+            cricket=cricket, odds_api=odds_api,
+        )
         news_scanner = NewsScanner()
         manip_guard = ManipulationGuard()
         scanner = MarketScanner(config.scanner)
@@ -149,7 +156,7 @@ class Agent:
             manip_guard=manip_guard,
             trade_log=self.trade_log,
             notifier=self.notifier,
-            sports=sports,
+            discovery=discovery,
             scout=self.scout,
         )
         self.ws_feed = ws_feed
