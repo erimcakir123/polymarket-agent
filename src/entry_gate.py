@@ -576,7 +576,33 @@ class EntryGate:
             elif direction_prob >= 0.65:
                 mode = "WINNER"
             else:
-                mode = "DEADZONE"
+                # Deadzone (55-65%) disabled — historically net negative
+                logger.info("SKIP deadzone: %s | prob=%.0f%% (55-65%% zone)",
+                            market.slug[:35], direction_prob * 100)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"Deadzone ({direction_prob*100:.0f}% in 55-65%)",
+                    "ai_prob": estimate.ai_probability,
+                    "edge": edge,
+                    "price": market.yes_price,
+                    "question": getattr(market, "question", ""),
+                })
+                continue
+
+            # ── Negative edge gate ──────────────────────────────────────────
+            # If AI probability < market price, we're buying overpriced — skip
+            if edge < 0:
+                logger.info("SKIP negative edge: %s | edge=%.1f%% (AI < market)",
+                            market.slug[:35], edge * 100)
+                self.trade_log.log({
+                    "market": market.slug, "action": "HOLD",
+                    "rejected": f"Negative edge ({edge*100:.1f}%)",
+                    "ai_prob": estimate.ai_probability,
+                    "edge": edge,
+                    "price": market.yes_price,
+                    "question": getattr(market, "question", ""),
+                })
+                continue
 
             # ── Liquidity gate (confidence-aware) ────────────────────────────
             # High-confidence entries (prob≥65%, conf B+/A) hold to resolution
@@ -663,12 +689,26 @@ class EntryGate:
         entered: list[str] = []
         cfg = self.config
 
+        # Collect event_ids already in portfolio to prevent same-event dual-side
+        entered_event_ids: set[str] = set()
+        for pos in self.portfolio.positions.values():
+            eid = getattr(pos, "event_id", "") or ""
+            if eid:
+                entered_event_ids.add(eid)
+
         for c in candidates:
             market = c["market"]
             cid = market.condition_id
             direction = c["direction"]
             size = c["adjusted_size"]
             estimate = c["estimate"]
+
+            # Same-event dual-side check — never enter both sides of same match
+            market_event_id = getattr(market, "event_id", "") or ""
+            if market_event_id and market_event_id in entered_event_ids:
+                logger.info("SKIP same-event: %s | event_id=%s already in portfolio",
+                            market.slug[:35], market_event_id[:20])
+                continue
 
             # Slot check
             open_slots = cfg.risk.max_positions - self.portfolio.active_position_count
@@ -734,6 +774,10 @@ class EntryGate:
             )
 
             entered.append(cid)
+
+            # Track event_id so we don't enter other side in same cycle
+            if market_event_id:
+                entered_event_ids.add(market_event_id)
 
             # Notify on entry
             self.notifier.send(

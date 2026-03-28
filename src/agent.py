@@ -834,6 +834,9 @@ class Agent:
         if dip_count >= cfg.max_concurrent:
             return
 
+        # Pre-build event_id set for same-event check (once, not per-iteration)
+        _dip_existing_eids = {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+
         for m in fresh_markets:
             if self.portfolio.active_position_count >= self.config.risk.max_positions:
                 break
@@ -842,6 +845,21 @@ class Agent:
             if self.blacklist.is_blocked(m.condition_id, self.cycle_count):
                 continue
             if m.condition_id in self._exited_markets:
+                continue
+
+            # Moneyline filter — skip tournament/advance/qualify props
+            _q = (getattr(m, "question", "") or "").lower()
+            _slug = (m.slug or "").lower()
+            _non_ml = ("advance", "qualify", "championship", "finalist",
+                       "make the playoffs", "win the title", "win the tournament",
+                       "win the cup", "win the league", "win the series",
+                       "relegated", "promoted")
+            if any(kw in _q or kw in _slug for kw in _non_ml):
+                continue
+
+            # Same-event dual-side check for live_dip
+            _dip_eid = getattr(m, "event_id", "") or ""
+            if _dip_eid and _dip_eid in _dip_existing_eids:
                 continue
 
             pre_match = self._pre_match_prices.get(m.condition_id)
