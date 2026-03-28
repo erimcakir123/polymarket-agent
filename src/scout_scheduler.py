@@ -310,6 +310,46 @@ class ScoutScheduler:
                         if status in ("in", "post"):
                             continue
 
+                        # Tennis uses tournament/groupings structure instead of flat competitions
+                        if sport == "tennis":
+                            for grouping in event.get("groupings", []):
+                                group_name = grouping.get("grouping", {}).get("displayName", "")
+                                # Only singles matches (skip doubles/mixed)
+                                if "double" in group_name.lower() or "mixed" in group_name.lower():
+                                    continue
+                                for comp in grouping.get("competitions", []):
+                                    comp_status = comp.get("status", {}).get("type", {}).get("state", "")
+                                    if comp_status in ("in", "post"):
+                                        continue
+                                    competitors = comp.get("competitors", [])
+                                    if len(competitors) != 2:
+                                        continue
+                                    player_a = competitors[0].get("athlete", {}).get("displayName", "")
+                                    player_b = competitors[1].get("athlete", {}).get("displayName", "")
+                                    if not player_a or not player_b:
+                                        continue
+                                    comp_date = comp.get("date", event_date_str)
+                                    try:
+                                        comp_dt = datetime.fromisoformat(comp_date.replace("Z", "+00:00"))
+                                    except (ValueError, TypeError):
+                                        comp_dt = event_dt
+                                    slug_hint = f"ten-{player_a[:4].lower()}-{player_b[:4].lower()}"
+                                    scout_key = f"{sport}_{league}_{player_a}_{player_b}_{date_str}"
+                                    matches.append({
+                                        "scout_key": scout_key,
+                                        "team_a": player_a,
+                                        "team_b": player_b,
+                                        "question": f"{player_a} vs {player_b}: Who will win?",
+                                        "match_time": comp_dt.isoformat(),
+                                        "sport": sport,
+                                        "league": league,
+                                        "league_name": display_name,
+                                        "slug_hint": slug_hint,
+                                        "tags": ["sports", display_name.lower()],
+                                        "is_esports": False,
+                                    })
+                            continue  # Skip the standard parsing below
+
                         competitors = event.get("competitions", [{}])[0].get("competitors", [])
                         if len(competitors) != 2:
                             continue

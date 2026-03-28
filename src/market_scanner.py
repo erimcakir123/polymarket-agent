@@ -329,7 +329,9 @@ class MarketScanner:
             return False
         # Skip late-match entries — not enough time for meaningful edge
         # Uses sport-specific duration table (soccer=95min, NBA=150min, etc.)
-        if market.event_live and market.match_start_iso:
+        # Esports EXCLUDED: Polymarket startTime is unreliable for esports,
+        # causing false elapsed% calculations that reject valid live matches.
+        if market.event_live and market.match_start_iso and not self._is_esport(market):
             try:
                 from src.match_exit import get_game_duration
                 start_dt = datetime.fromisoformat(market.match_start_iso.replace("Z", "+00:00"))
