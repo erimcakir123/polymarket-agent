@@ -29,6 +29,7 @@ class DiscoveryResult:
     context: str      # Sports context string for AI analyst
     source: str       # "ESPN", "PandaScore", "CricketData"
     confidence: str   # Always "A" — all sources are reliable
+    espn_odds: Optional[dict] = None  # ESPN odds data (if available)
 
 
 class SportsDiscovery:
@@ -70,7 +71,13 @@ class SportsDiscovery:
             else:  # espn
                 ctx = self.espn.get_match_context(question, slug, tags)
                 if ctx:
-                    return DiscoveryResult(context=ctx, source="ESPN", confidence="A")
+                    # Fetch ESPN odds (free) — passed to anchoring, NOT to AI
+                    # (avoid double-counting: AI sees stats, anchoring sees odds)
+                    espn_odds = self.espn.get_espn_odds(question, slug, tags)
+                    return DiscoveryResult(
+                        context=ctx, source="ESPN", confidence="A",
+                        espn_odds=espn_odds,
+                    )
 
         except Exception as exc:
             logger.warning("Discovery error (%s) for '%s': %s", route, slug[:40], exc)

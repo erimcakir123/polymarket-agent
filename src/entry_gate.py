@@ -97,6 +97,7 @@ class EntryGate:
         self._eligible_pointer: int = 0
         self._eligible_cache_ts: float = 0.0
         self._seen_market_ids: set[str] = set()
+        self._espn_odds_cache: dict[str, dict] = {}  # cid -> ESPN odds from discovery
         self._confidence_c_cids: set[str] = set()  # Markets that got conf=C — never re-analyze
         self._breaking_news_detected: bool = False
 
@@ -321,6 +322,8 @@ class EntryGate:
                     )
                     if result:
                         esports_contexts[_m.condition_id] = result.context
+                        if result.espn_odds:
+                            self._espn_odds_cache[_m.condition_id] = result.espn_odds
                         logger.info("Sports context (%s): %s", result.source, (_m.slug or "")[:40])
                 except Exception as _exc:
                     logger.debug("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
@@ -417,23 +420,39 @@ class EntryGate:
                 })
                 continue
 
-            # ── Bookmaker anchor (cached — batch refresh 4x/day via OddsAPIClient) ─
-            # get_bookmaker_odds() fetches all events for a sport in 1 call and caches.
-            # Cache only invalidates at scheduled refresh hours (7,15,19,21 UTC).
+            # ── Bookmaker anchor (Odds API + ESPN odds combined) ────────────
             _is_esports_mkt = is_esports(getattr(market, "sport_tag", "") or "")
             _anchor_book_prob = None
             _anchor_num_books = 0
+            _odds_probs: list[tuple[float, int]] = []  # (prob, weight) pairs
+
+            # Source 1: Odds API (paid, multi-bookmaker average)
             if not _is_esports_mkt and self.odds_api.available:
                 try:
                     _mkt_odds = self.odds_api.get_bookmaker_odds(
                         market.question, market.slug or "", market.tags or []
                     )
-                    if _mkt_odds:
-                        # P(YES) = bookmaker_prob_a if question is about team A winning
-                        _anchor_book_prob = _mkt_odds.get("bookmaker_prob_a")
-                        _anchor_num_books = _mkt_odds.get("num_bookmakers", 0)
+                    if _mkt_odds and _mkt_odds.get("bookmaker_prob_a") is not None:
+                        _odds_probs.append((
+                            _mkt_odds["bookmaker_prob_a"],
+                            _mkt_odds.get("num_bookmakers", 1),
+                        ))
                 except Exception:
                     pass
+
+            # Source 2: ESPN odds (free, cached from discovery phase — no extra API call)
+            _espn_odds = self._espn_odds_cache.get(cid)
+            if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
+                _odds_probs.append((
+                    _espn_odds["bookmaker_prob_a"],
+                    _espn_odds.get("num_bookmakers", 1),
+                ))
+
+            # Combine: weighted average by number of bookmakers
+            if _odds_probs:
+                total_weight = sum(w for _, w in _odds_probs)
+                _anchor_book_prob = sum(p * w for p, w in _odds_probs) / total_weight
+                _anchor_num_books = total_weight
             anchored = calculate_anchored_probability(
                 ai_prob=estimate.ai_probability,
                 bookmaker_prob=_anchor_book_prob,

@@ -649,3 +649,202 @@ class SportsDataClient:
                     "status": status,
                     "completed": completed,
                 }
+
+        return None
+
+    # ── ESPN Core API odds ─────────────────────────────────────────────────
+
+    _CORE_API = "https://sports.core.api.espn.com/v2/sports"
+
+    def get_espn_odds(
+        self, question: str, slug: str, tags: List[str]
+    ) -> Optional[Dict]:
+        """Fetch betting odds from ESPN Core API (free, no key needed).
+
+        Finds the matching event on ESPN scoreboard, then queries the Core API
+        odds endpoint. Returns dict compatible with Odds API format:
+            team_a, team_b, bookmaker_prob_a, bookmaker_prob_b,
+            num_bookmakers, bookmakers
+        """
+        sport_league = self.detect_sport(question, slug, tags)
+        if not sport_league:
+            return None
+
+        sport, league = sport_league
+
+        # Extract team names
+        team_a_name, team_b_name = self._extract_teams_from_question(question)
+        slug_a, slug_b = self._extract_teams_from_slug(slug)
+        if not team_a_name and slug_a and len(slug_a) >= 4:
+            team_a_name = slug_a
+        if not team_b_name and slug_b and len(slug_b) >= 4:
+            team_b_name = slug_b
+        if not team_a_name or not team_b_name:
+            return None
+
+        # Find matching event on scoreboard
+        event_id, comp_id, home_team, away_team, team_a_is_home = (
+            self._find_espn_event(sport, league, team_a_name, team_b_name)
+        )
+        if not event_id:
+            return None
+
+        # Fetch odds from Core API
+        odds_url = (
+            f"{self._CORE_API}/{sport}/leagues/{league}"
+            f"/events/{event_id}/competitions/{comp_id}/odds?limit=100"
+        )
+        self._rate_limit()
+        try:
+            resp = requests.get(odds_url, timeout=10)
+            record_call("espn_odds")
+            if resp.status_code != 200:
+                logger.debug("ESPN odds not available for %s/%s event %s", sport, league, event_id)
+                return None
+            odds_data = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            logger.debug("ESPN odds fetch error: %s", e)
+            return None
+
+        # Parse odds from all providers
+        probs_a: list[float] = []
+        probs_b: list[float] = []
+        provider_names: list[str] = []
+
+        for item in odds_data.get("items", []):
+            provider_name = item.get("provider", {}).get("name", "ESPN")
+            home_odds = away_odds = None
+
+            # Try DraftKings-style structure (current.moneyLine.decimal)
+            home_block = item.get("homeTeamOdds", {})
+            away_block = item.get("awayTeamOdds", {})
+
+            current_home = home_block.get("current", {}).get("moneyLine", {})
+            current_away = away_block.get("current", {}).get("moneyLine", {})
+
+            if current_home.get("decimal") and current_away.get("decimal"):
+                home_odds = float(current_home["decimal"])
+                away_odds = float(current_away["decimal"])
+            else:
+                # Bet365-style: odds.value in awayTeamOdds/homeTeamOdds
+                h_odds_block = home_block.get("odds", {})
+                a_odds_block = away_block.get("odds", {})
+                if h_odds_block.get("value") and a_odds_block.get("value"):
+                    home_odds = float(h_odds_block["value"])
+                    away_odds = float(a_odds_block["value"])
+
+            if not home_odds or not away_odds or home_odds <= 1.0 or away_odds <= 1.0:
+                continue
+
+            # Convert decimal odds to implied probability (remove vig)
+            home_prob = 1.0 / home_odds
+            away_prob = 1.0 / away_odds
+            total = home_prob + away_prob
+            home_prob /= total
+            away_prob /= total
+
+            if team_a_is_home:
+                probs_a.append(home_prob)
+                probs_b.append(away_prob)
+            else:
+                probs_a.append(away_prob)
+                probs_b.append(home_prob)
+            provider_names.append(provider_name)
+
+        if not probs_a:
+            return None
+
+        avg_a = sum(probs_a) / len(probs_a)
+        avg_b = sum(probs_b) / len(probs_b)
+
+        logger.info("ESPN odds: %s %.0f%% vs %s %.0f%% (%d providers: %s)",
+                     team_a_name, avg_a * 100, team_b_name, avg_b * 100,
+                     len(probs_a), ", ".join(provider_names))
+
+        return {
+            "team_a": team_a_name,
+            "team_b": team_b_name,
+            "bookmaker_prob_a": round(avg_a, 3),
+            "bookmaker_prob_b": round(avg_b, 3),
+            "num_bookmakers": len(probs_a),
+            "bookmakers": provider_names[:5],
+            "source": "espn",
+        }
+
+    def _find_espn_event(
+        self, sport: str, league: str, team_a: str, team_b: str
+    ) -> tuple:
+        """Find a matching event on ESPN scoreboard.
+
+        Returns (event_id, comp_id, home_team, away_team, team_a_is_home)
+        or (None, None, None, None, None) if not found.
+        """
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        search_lower = [team_a.lower(), team_b.lower()]
+
+        for day_offset in range(2):  # Today + tomorrow
+            date_str = (now + timedelta(days=day_offset)).strftime("%Y%m%d")
+            url = f"{ESPN_BASE}/{sport}/{league}/scoreboard?dates={date_str}"
+            data = self._get(url)
+            if not data:
+                continue
+
+            for event in data.get("events", []):
+                competitions = event.get("competitions", [])
+                if not competitions:
+                    continue
+                comp = competitions[0]
+                competitors = comp.get("competitors", [])
+                if len(competitors) != 2:
+                    continue
+
+                # Match team_a to one competitor, team_b to the other
+                names_0 = self._competitor_names(competitors[0])
+                names_1 = self._competitor_names(competitors[1])
+                ta = team_a.lower()
+                tb = team_b.lower()
+
+                # Try both orderings: (a->0, b->1) and (a->1, b->0)
+                matched = False
+                if (any(ta in n for n in names_0) and any(tb in n for n in names_1)):
+                    matched = True
+                elif (any(ta in n for n in names_1) and any(tb in n for n in names_0)):
+                    matched = True
+
+                if not matched:
+                    continue
+
+                # Determine actual home/away from ESPN homeAway field
+                actual_home = competitors[0] if competitors[0].get("homeAway") == "home" else competitors[1]
+                actual_away = competitors[0] if competitors[0].get("homeAway") == "away" else competitors[1]
+                actual_home_name = actual_home.get("team", {}).get("displayName", "")
+                actual_away_name = actual_away.get("team", {}).get("displayName", "")
+
+                # Is team_a the home team?
+                a_is_home = any(ta in n for n in self._competitor_names(actual_home))
+
+                event_id = event.get("id", "")
+                comp_id = comp.get("id", event_id)
+
+                return event_id, comp_id, actual_home_name, actual_away_name, a_is_home
+
+        return None, None, None, None, None
+
+    @staticmethod
+    def _competitor_names(competitor: dict) -> list[str]:
+        """Extract all searchable name variants from an ESPN competitor."""
+        team = competitor.get("team", {})
+        names = [
+            team.get("displayName", "").lower(),
+            team.get("shortDisplayName", "").lower(),
+            team.get("abbreviation", "").lower(),
+            team.get("nickname", "").lower(),
+            team.get("location", "").lower(),
+        ]
+        # Also check athlete (for tennis/MMA)
+        athlete = competitor.get("athlete", {})
+        if athlete:
+            names.append(athlete.get("displayName", "").lower())
+        return [n for n in names if n]
