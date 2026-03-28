@@ -135,16 +135,60 @@ class EsportsDataClient:
 
         matches = self._get("/matches/upcoming", {
             "search[name]": team_name,
-            "per_page": 5,
+            "filter[status]": "not_started,running",
+            "per_page": 10,
             "sort": "begin_at",
         })
 
-        if matches and isinstance(matches, list) and len(matches) > 0:
-            result = matches[0]
-            self._cache[cache_key] = (result, time.monotonic())
-            return result
+        if matches and isinstance(matches, list):
+            # Client-side tier filter: skip D/C tier (manipulation-prone)
+            for m in matches:
+                tier = (m.get("tournament", {}).get("tier") or "").lower()
+                if tier in ("d", "c"):
+                    continue
+                self._cache[cache_key] = (m, time.monotonic())
+                return m
 
         self._cache[cache_key] = (None, time.monotonic())
+        return None
+
+    def _get_upcoming_match(
+        self, game_slug: str, team_a: str, team_b: str,
+    ) -> Optional[dict]:
+        """Find the upcoming match between two teams. Returns full match dict with
+        tournament, tier, detailed_stats, scheduled_at, status, etc."""
+        matches = self._get(f"/{game_slug}/matches/upcoming", {
+            "search[name]": team_a,
+            "filter[status]": "not_started,running",
+            "per_page": 10,
+            "sort": "begin_at",
+        })
+        if not matches:
+            return None
+
+        # Find the match that also contains team_b (client-side tier filter)
+        b_lower = team_b.lower()
+        for m in matches:
+            # Skip D/C tier tournaments (manipulation-prone)
+            tier = (m.get("tournament", {}).get("tier") or "").lower()
+            if tier in ("d", "c"):
+                continue
+            name = (m.get("name") or "").lower()
+            opponents = m.get("opponents", [])
+            opp_names = [
+                (opp.get("opponent", {}).get("name") or "").lower()
+                for opp in opponents
+            ]
+            if b_lower in name or any(b_lower in n for n in opp_names):
+                return m
+            # Also check acronyms
+            opp_acronyms = [
+                (opp.get("opponent", {}).get("acronym") or "").lower()
+                for opp in opponents
+            ]
+            if any(b_lower in a for a in opp_acronyms if a):
+                return m
+
         return None
 
     def _extract_team_names(self, question: str) -> Tuple[Optional[str], Optional[str]]:
@@ -219,7 +263,8 @@ class EsportsDataClient:
         # Fetch past matches for this team
         matches = self._get(
             f"/{game_slug}/matches/past",
-            {"filter[opponent_id]": team_id, "per_page": limit, "sort": "-scheduled_at"},
+            {"filter[opponent_id]": team_id,
+             "per_page": limit, "sort": "-scheduled_at"},
         )
         if not matches:
             return {"team_name": official_name, "wins": 0, "losses": 0,
@@ -229,6 +274,10 @@ class EsportsDataClient:
         losses = 0
         recent = []
         for m in matches:
+            # Client-side tier filter: skip D/C tier (manipulation-prone)
+            tier = (m.get("tournament", {}).get("tier") or "").lower()
+            if tier in ("d", "c"):
+                continue
             winner = m.get("winner", {})
             won = winner and winner.get("id") == team_id
             if won:
@@ -285,6 +334,9 @@ class EsportsDataClient:
 
         logger.info("Fetching esports data: %s vs %s (%s)", team_a_name, team_b_name, game_slug)
 
+        # Fetch upcoming match metadata (tier, detailed_stats, scheduled_at)
+        upcoming = self._get_upcoming_match(game_slug, team_a_name, team_b_name)
+
         team_a = self.get_team_recent_results(game_slug, team_a_name)
         team_b = self.get_team_recent_results(game_slug, team_b_name)
 
@@ -292,6 +344,30 @@ class EsportsDataClient:
             return None
 
         parts = [f"=== ESPORTS MATCH DATA (PandaScore) ==="]
+
+        # Match metadata from upcoming endpoint
+        if upcoming:
+            tier = (upcoming.get("tournament", {}).get("tier") or "").upper()
+            tourn_name = upcoming.get("tournament", {}).get("name", "")
+            league_name = upcoming.get("league", {}).get("name", "")
+            has_stats = upcoming.get("detailed_stats", False)
+            scheduled = (upcoming.get("scheduled_at") or "")[:16]
+            status = upcoming.get("status", "")
+            match_format = upcoming.get("match_type", "")
+            num_games = upcoming.get("number_of_games", 0)
+
+            meta_line = f"Tournament: {league_name} - {tourn_name}"
+            if tier:
+                meta_line += f" (Tier {tier})"
+            parts.append(meta_line)
+            if match_format and num_games:
+                parts.append(f"Format: {match_format} {num_games}")
+            if scheduled:
+                parts.append(f"Scheduled: {scheduled} UTC")
+            if status and status != "not_started":
+                parts.append(f"Status: {status}")
+            if has_stats:
+                parts.append("Detailed stats: available")
 
         for label, stats in [("TEAM A", team_a), ("TEAM B", team_b)]:
             if not stats:

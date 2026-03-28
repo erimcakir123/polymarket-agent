@@ -329,13 +329,32 @@ class Portfolio:
 
         If we entered because both AI and market agreed on the winner,
         but the market no longer sees this side as favorite, the thesis is broken.
+
+        Only applies after 50% of the match has elapsed -- early swings are normal.
         """
+        from datetime import datetime, timezone
+        from src.match_exit import get_game_duration
+
         triggered = []
+        now = datetime.now(timezone.utc)
         for cid, pos in self.positions.items():
             if not pos.is_consensus:
                 continue
             if pos.volatility_swing:
                 continue
+
+            # Only apply after 2nd half (50%+ elapsed)
+            if pos.match_start_iso:
+                try:
+                    start_dt = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
+                    elapsed_sec = max(0, (now - start_dt).total_seconds())
+                    duration_min = get_game_duration(pos.slug, pos.number_of_games, pos.sport_tag)
+                    elapsed_pct = min(1.0, elapsed_sec / (duration_min * 60))
+                    if elapsed_pct < 0.50:
+                        continue  # Too early -- let the match develop
+                except (ValueError, TypeError):
+                    pass  # No timing data -- fall through to price check
+
             # Effective price = the side we bought
             eff_price = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
             if eff_price < threshold:

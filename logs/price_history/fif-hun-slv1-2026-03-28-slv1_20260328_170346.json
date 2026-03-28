@@ -1,15 +1,15 @@
 {
   "slug": "fif-hun-slv1-2026-03-28-slv1",
-  "entry_price": 0.195,
-  "exit_price": 0.195,
+  "entry_price": 0.185,
+  "exit_price": 0.185,
   "exit_reason": "pre_match_exit",
   "exit_layer": "agent",
   "match_start_iso": "2026-03-28T17:00:00Z",
   "number_of_games": 0,
   "ever_in_profit": false,
   "peak_pnl_pct": 0.0,
-  "match_score": "",
-  "saved_at": "2026-03-28T16:37:42.408914+00:00",
+  "match_score": "0-0",
+  "saved_at": "2026-03-28T17:03:46.177783+00:00",
   "price_history": [
     {
       "t": 1772377240,
@@ -2476,7 +2476,11 @@
       "p": 0.805
     },
     {
-      "t": 1774715853,
+      "t": 1774717239,
+      "p": 0.81
+    },
+    {
+      "t": 1774717410,
       "p": 0.805
     }
   ]

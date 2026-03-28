@@ -357,16 +357,34 @@ class EntryGate:
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
-        # Filter: only markets with sports data qualify for AI analysis
+        # Filter: only markets with sufficient sports data qualify for AI analysis
         _has_data: list = []
         _no_data_skipped = 0
+        _thin_data_skipped = 0
         for m in prioritized:
-            if m.condition_id in esports_contexts:
-                _has_data.append(m)
-            else:
+            ctx = esports_contexts.get(m.condition_id)
+            if not ctx:
                 _no_data_skipped += 1
+                continue
+            # Pre-AI quality gate: count match result lines in context
+            # Lines like "[W]" or "[L]" indicate actual game results
+            result_lines = ctx.count("[W]") + ctx.count("[L]")
+            if result_lines < 5:
+                _thin_data_skipped += 1
+                logger.info("SKIP thin data: %s | only %d match results (need 5+)",
+                            (m.slug or "")[:35], result_lines)
+                self.trade_log.log({
+                    "market": m.slug, "action": "HOLD",
+                    "rejected": f"Thin data ({result_lines} results, need 5+)",
+                    "price": m.yes_price,
+                    "question": getattr(m, "question", ""),
+                })
+                continue
+            _has_data.append(m)
         if _no_data_skipped:
             logger.info("Skipped %d markets without sports data (saves AI tokens)", _no_data_skipped)
+        if _thin_data_skipped:
+            logger.info("Skipped %d markets with thin data (saves AI tokens)", _thin_data_skipped)
 
         if not _has_data:
             logger.info("No markets with data -- skipping AI batch")
@@ -500,27 +518,27 @@ class EntryGate:
                     edge = edge_no
 
             # Mode classification by direction probability
-            if direction_prob < 0.55:
-                logger.info("SKIP prob: %s | prob=%.0f%% conf=%s (< 55%%)",
+            if direction_prob < 0.50:
+                logger.info("SKIP prob: %s | prob=%.0f%% conf=%s (< 50%%)",
                             market.slug[:35], direction_prob * 100, estimate.confidence)
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
-                    "rejected": f"Low probability ({direction_prob*100:.0f}% < 55%)",
+                    "rejected": f"Low probability ({direction_prob*100:.0f}% < 50%)",
                     "ai_prob": estimate.ai_probability,
                     "edge": edge if 'edge' in dir() else 0,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
                 })
                 continue
-            elif direction_prob >= 0.65:
+            elif direction_prob >= 0.60:
                 mode = "WINNER"
             else:
-                # Deadzone (55-65%) disabled -- historically net negative
-                logger.info("SKIP deadzone: %s | prob=%.0f%% (55-65%% zone)",
+                # Deadzone (50-60%) -- too uncertain to trade
+                logger.info("SKIP deadzone: %s | prob=%.0f%% (50-60%% zone)",
                             market.slug[:35], direction_prob * 100)
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
-                    "rejected": f"Deadzone ({direction_prob*100:.0f}% in 55-65%)",
+                    "rejected": f"Deadzone ({direction_prob*100:.0f}% in 50-60%)",
                     "ai_prob": estimate.ai_probability,
                     "edge": edge,
                     "price": market.yes_price,
