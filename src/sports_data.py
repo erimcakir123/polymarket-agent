@@ -295,13 +295,13 @@ class SportsDataClient:
         """Extract team names from various question formats.
 
         Handles: 'NBA: Team A vs Team B', 'Will Team A beat Team B?',
-        'Team A vs Team B: Who will win?', etc.
+        'Team A vs Team B: Who will win?', 'Will Team A win on DATE?', etc.
         """
+        import re
         q = question.strip()
 
-        # Strip common prefixes like "NBA: ", "MLB: ", "Soccer: "
-        import re
-        q = re.sub(r'^[A-Z]{2,10}:\s*', '', q)
+        # Strip common prefixes like "NBA: ", "MLB: ", "KHL: ", "ELH: "
+        q = re.sub(r'^[A-Za-z]{2,10}:\s*', '', q)
 
         # Try "vs" split
         for sep in [" vs. ", " vs ", " versus "]:
@@ -329,6 +329,16 @@ class SportsDataClient:
         )
         if beat_match:
             return beat_match.group(1).strip(), beat_match.group(2).rstrip("?").strip()
+
+        # Single-team pattern: "Will Team A win on DATE?" / "Will Team A win?"
+        win_match = re.search(
+            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+win\b',
+            q,
+        )
+        if win_match:
+            team = win_match.group(1).strip()
+            if len(team) >= 3:
+                return team, None
 
         return None, None
 
