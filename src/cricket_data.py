@@ -18,24 +18,8 @@ logger = logging.getLogger(__name__)
 
 _BASE = "https://api.cricapi.com/v1"
 
-# Map Polymarket slug prefixes → series name keywords for filtering
-_SLUG_TO_SERIES: Dict[str, str] = {
-    "ipl": "indian premier league",
-    "psl": "pakistan super league",
-    "t20": "t20",
-    "crint": "t20",
-    "cricpakt20cup": "pakistan",
-    "criclcl": "legends",
-}
-
-# Question text keywords → series name keywords
-_KEYWORD_TO_SERIES: Dict[str, str] = {
-    "ipl": "indian premier league",
-    "psl": "pakistan super league",
-    "t20": "t20",
-    "pakistan": "pakistan",
-    "india": "india",
-}
+# Dynamic discovery — no hardcoded series mappings needed.
+# get_match_context() fetches all current matches and fuzzy-matches team names.
 
 
 class CricketDataClient:
@@ -136,27 +120,24 @@ class CricketDataClient:
 
         return matches
 
-    def get_match_context(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
-        """Build context string for AI analyst — same interface as other data clients."""
+    def get_match_context(self, question: str, slug: str, tags: list[str]) -> Optional[str]:
+        """Build context string for AI analyst — same interface as other data clients.
+
+        Dynamic discovery: fetches all current matches and fuzzy-matches
+        team names from the question. No hardcoded series mappings.
+        """
         if not self.available:
             return None
 
-        # Check if this is a cricket market
+        # Check if this is a cricket market (by tag, slug, or question)
         slug_prefix = slug.split("-")[0].lower() if slug else ""
-        is_cricket = slug_prefix in _SLUG_TO_SERIES
-
-        if not is_cricket:
-            q_lower = question.lower()
-            for kw in _KEYWORD_TO_SERIES:
-                if kw in q_lower:
-                    is_cricket = True
-                    break
-
-        if not is_cricket:
-            tags_lower = " ".join(t.lower() for t in tags)
-            if "cricket" in tags_lower:
-                is_cricket = True
-
+        _cricket_slugs = {"ipl", "psl", "t20", "crint", "cricpakt20cup", "criclcl"}
+        tags_lower = " ".join(t.lower() for t in tags)
+        is_cricket = (
+            slug_prefix in _cricket_slugs
+            or "cricket" in tags_lower
+            or "cricket" in question.lower()
+        )
         if not is_cricket:
             return None
 
