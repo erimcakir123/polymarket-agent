@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from src.trade_logger import TradeLogger
     from src.notifier import TelegramNotifier
     from src.scout_scheduler import ScoutScheduler
-    from src.sports_data import SportsDataClient
+    from src.sports_discovery import SportsDiscovery
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class EntryGate:
         manip_guard: "ManipulationGuard",
         trade_log: "TradeLogger",
         notifier: "TelegramNotifier",
-        sports: "SportsDataClient | None" = None,
+        discovery: "SportsDiscovery | None" = None,
         scout: "ScoutScheduler | None" = None,
     ) -> None:
         self.config = config
@@ -87,14 +87,8 @@ class EntryGate:
         self.manip_guard = manip_guard
         self.trade_log = trade_log
         self.notifier = notifier
-        self.sports = sports
+        self.discovery = discovery
         self.scout = scout
-        from src.thesportsdb import TheSportsDBClient
-        self.tsdb = TheSportsDBClient()
-        from src.football_data import FootballDataClient
-        self.football_data = FootballDataClient()
-        from src.cricket_data import CricketDataClient
-        self.cricket_data = CricketDataClient()
 
         # Per-session state (survives across cycles)
         self._far_market_ids: set[str] = set()
@@ -311,93 +305,25 @@ class EntryGate:
                     esports_contexts[_m.condition_id] = _ctx_str
                     logger.info("Scout context injected: %s", _m.slug[:40])
 
-        # Odds API Bridge: match Polymarket markets to Odds API events for clean team names
-        _bridge_names: dict[str, dict] = {}
-        if self.odds_api and self.odds_api.available:
-            try:
-                for _m in prioritized:
-                    if _m.condition_id in esports_contexts:
-                        continue
-                    if is_esports_slug(_m.slug or ""):
-                        continue
-                    _br = self.odds_api.bridge_match(
-                        getattr(_m, "question", ""), _m.slug or "",
-                        getattr(_m, "tags", []),
-                    )
-                    if _br:
-                        _bridge_names[_m.condition_id] = _br
-                if _bridge_names:
-                    logger.info("Bridge matched %d/%d non-esports markets",
-                                len(_bridge_names), len(prioritized))
-            except Exception as exc:
-                logger.warning("Bridge match failed: %s", exc)
-
-        # Traditional sports context: Bridge->ESPN -> ESPN -> football-data.org -> CricketData -> TheSportsDB
-        # Track which source provided data — only reliable sources qualify for AI analysis
-        _reliable_source_cids: set[str] = set()  # Markets with ESPN/Bridge/football-data/Cricket/PandaScore
-        if self.sports:
+        # Sports context via unified discovery
+        if self.discovery:
             for _m in prioritized:
                 if _m.condition_id in esports_contexts:
-                    _reliable_source_cids.add(_m.condition_id)  # PandaScore/Scout = reliable
-                    continue
+                    continue  # PandaScore/Scout already has context
                 _is_esports_mkt = is_esports_slug(_m.slug or "")
                 if _is_esports_mkt:
                     continue
                 try:
-                    _ctx = None
-                    _source = ""
-                    _bridge_info = _bridge_names.get(_m.condition_id)
-                    _question = getattr(_m, "question", "")
-                    _slug = _m.slug or ""
-                    _tags = getattr(_m, "tags", [])
-
-                    # Kademe 1: Bridge clean names -> ESPN
-                    if _bridge_info:
-                        _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
-                        _ctx = self.sports.get_match_context(_clean_q, _slug, [])
-                        if _ctx:
-                            _source = "Bridge->ESPN"
-
-                    # Kademe 2: Original question -> ESPN
-                    if not _ctx:
-                        _ctx = self.sports.get_match_context(_question, _slug, [])
-                        if _ctx:
-                            _source = "ESPN"
-
-                    # Kademe 3: football-data.org (soccer fallback + Copa Libertadores)
-                    if not _ctx and self.football_data.available:
-                        if _bridge_info:
-                            _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
-                            _ctx = self.football_data.get_match_context(_clean_q, _slug, _tags)
-                        if not _ctx:
-                            _ctx = self.football_data.get_match_context(_question, _slug, _tags)
-                        if _ctx:
-                            _source = "football-data.org"
-
-                    # Kademe 4: CricketData (IPL, PSL, T20)
-                    if not _ctx and self.cricket_data.available:
-                        _ctx = self.cricket_data.get_match_context(_question, _slug, _tags)
-                        if _ctx:
-                            _source = "CricketData"
-
-                    # Kademe 5: TheSportsDB fallback (supplementary only — NOT enough alone)
-                    if not _ctx:
-                        if _bridge_info:
-                            _clean_q = f"{_bridge_info['home_team']} vs {_bridge_info['away_team']}"
-                            _ctx = self.tsdb.get_match_context(_clean_q)
-                        if not _ctx:
-                            _ctx = self.tsdb.get_match_context(_question)
-                        if _ctx:
-                            _source = "TheSportsDB"
-
-                    if _ctx:
-                        esports_contexts[_m.condition_id] = _ctx
-                        logger.info("Sports context fetched (%s): %s", _source, _slug[:40])
-                        # Only mark as reliable if from a primary source (not TheSportsDB alone)
-                        if _source != "TheSportsDB":
-                            _reliable_source_cids.add(_m.condition_id)
+                    result = self.discovery.resolve(
+                        getattr(_m, "question", ""),
+                        _m.slug or "",
+                        getattr(_m, "tags", []),
+                    )
+                    if result:
+                        esports_contexts[_m.condition_id] = result.context
+                        logger.info("Sports context (%s): %s", result.source, (_m.slug or "")[:40])
                 except Exception as _exc:
-                    logger.debug("Sports context fetch error for %s: %s", _m.slug[:40], _exc)
+                    logger.debug("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
 
         # Fetch news contexts (stop-word filtered keywords → topic grouping works correctly)
         news_context_by_market: dict[str, str] = {}
@@ -428,19 +354,16 @@ class EntryGate:
         except Exception as exc:
             logger.warning("News fetch failed: %s", exc)
 
-        # Filter: only markets with RELIABLE sports data qualify for AI analysis.
-        # TheSportsDB alone is NOT enough (weak data → confidence C → wasted tokens).
-        # News alone is NOT enough either (no team stats → AI can't assess winner).
-        # Reliable = ESPN, Bridge->ESPN, football-data.org, CricketData, PandaScore, Scout.
+        # Filter: only markets with sports data qualify for AI analysis
         _has_data: list = []
-        _no_reliable_skipped = 0
+        _no_data_skipped = 0
         for m in prioritized:
-            if m.condition_id in _reliable_source_cids:
+            if m.condition_id in esports_contexts:
                 _has_data.append(m)
             else:
-                _no_reliable_skipped += 1
-        if _no_reliable_skipped:
-            logger.info("Skipped %d markets without reliable sports data (saves AI tokens)", _no_reliable_skipped)
+                _no_data_skipped += 1
+        if _no_data_skipped:
+            logger.info("Skipped %d markets without sports data (saves AI tokens)", _no_data_skipped)
 
         if not _has_data:
             logger.info("No markets with data — skipping AI batch")
