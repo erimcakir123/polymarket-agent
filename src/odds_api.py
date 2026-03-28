@@ -30,130 +30,13 @@ logger = logging.getLogger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
-# Map Polymarket slug prefixes to Odds API sport keys
-_SPORT_KEYS = {
-    # Basketball
-    "cbb": "basketball_ncaab", "ncaab": "basketball_ncaab", "wncaab": "basketball_wncaab",
-    "cwbb": "basketball_wncaab",
-    "nba": "basketball_nba", "euroleague": "basketball_euroleague",
-    # American Football
-    "nfl": "americanfootball_nfl", "cfb": "americanfootball_ncaaf", "ncaaf": "americanfootball_ncaaf",
-    "ufl": "americanfootball_ufl",
-    # Baseball
-    "mlb": "baseball_mlb",
-    # Ice Hockey
-    "nhl": "icehockey_nhl", "ahl": "icehockey_ahl", "shl": "icehockey_sweden_hockey_league",
-    # MMA / Boxing
-    "ufc": "mma_mixed_martial_arts", "mma": "mma_mixed_martial_arts",
-    "boxing": "boxing_boxing",
-    # Soccer — Europe
-    "epl": "soccer_epl", "championship": "soccer_efl_champ", "elc": "soccer_efl_champ",
-    "laliga": "soccer_spain_la_liga", "seriea": "soccer_italy_serie_a",
-    "bundesliga": "soccer_germany_bundesliga", "ligue1": "soccer_france_ligue_one",
-    "eredivisie": "soccer_netherlands_eredivisie", "ere": "soccer_netherlands_eredivisie",
-    "primeira": "soccer_portugal_primeira_liga",
-    "superlig": "soccer_turkey_super_league", "tur": "soccer_turkey_super_league",
-    "scottish": "soccer_spl", "spl": "soccer_spl",
-    "fr2": "soccer_france_ligue_two",
-    "es2": "soccer_spain_segunda_division",
-    "den": "soccer_denmark_superliga",
-    # cze1 (Czech First League) — no Odds API key, intentionally unmapped
-    # itsb (Italy Serie B) — no Odds API key, intentionally unmapped
-    # Soccer — UEFA
-    "ucl": "soccer_uefa_champs_league", "europa": "soccer_uefa_europa_league",
-    "conference": "soccer_uefa_europa_conference_league",
-    "uwcl": "soccer_uefa_champs_league_women",
-    # rueuchamp (Rugby European Champions Cup) — NOT soccer, intentionally unmapped
-    # Soccer — Americas
-    "mls": "soccer_usa_mls", "liga-mx": "soccer_mexico_ligamx", "mex": "soccer_mexico_ligamx",
-    "brasileirao": "soccer_brazil_campeonato", "bra": "soccer_brazil_campeonato",
-    "bra2": "soccer_brazil_serie_b",
-    "argentina": "soccer_argentina_primera_division", "arg": "soccer_argentina_primera_division",
-    # col1 (Colombia Primera Division) — no Odds API key, intentionally unmapped
-    # Soccer — Asia / Middle East / Africa
-    "jleague": "soccer_japan_j_league", "j1100": "soccer_japan_j_league",
-    "kleague": "soccer_korea_kleague1", "kor": "soccer_korea_kleague1",
-    "csl": "soccer_china_superleague", "chi": "soccer_china_superleague",
-    "chi1": "soccer_china_superleague",
-    "saudi": "soccer_saudi_professional_league",
-    # mar1 (Morocco Botola) — no Odds API key, intentionally unmapped
-    # Soccer — Oceania
-    "aus": "soccer_australia_aleague",
-    # Soccer — Scandinavia
-    "nor": "soccer_norway_eliteserien",
-    # Soccer — FIFA internationals
-    "fif": "soccer_fifa_world_cup_qualifiers_europe",
-    # Soccer — Other
-    "fa-cup": "soccer_fa_cup",
-    # Tennis — resolved dynamically via _get_active_tennis_keys()
-    # "atp" and "wta" prefixes handled in _detect_sport_key, not here
-    # Cricket
-    "ipl": "cricket_ipl", "t20": "cricket_international_t20", "psl": "cricket_psl",
-    "crint": "cricket_international_t20", "cricpakt20cup": "cricket_psl",
-    # Rugby
-    "nrl": "rugbyleague_nrl",
-    # Politics
-    "president": "politics_us_presidential_election_winner",
-}
+# Dynamic sport key discovery replaces hardcoded mappings.
+# _detect_sport_key() uses /v4/sports (FREE) to find active keys,
+# then /v4/sports/{key}/events (FREE) to match teams.
+_SPORT_KEYS: dict = {}
 
-# Keywords in question text -> sport key
-_QUESTION_SPORT_KEYS = {
-    # Basketball
-    "ncaa": "basketball_ncaab", "march madness": "basketball_ncaab",
-    "nba": "basketball_nba", "euroleague": "basketball_euroleague",
-    # American Football
-    "nfl": "americanfootball_nfl", "super bowl": "americanfootball_nfl_super_bowl_winner",
-    # Baseball
-    "mlb": "baseball_mlb", "world series": "baseball_mlb_world_series_winner",
-    # Ice Hockey
-    "nhl": "icehockey_nhl", "stanley cup": "icehockey_nhl_championship_winner",
-    # MMA / Boxing
-    "ufc": "mma_mixed_martial_arts", "boxing": "boxing_boxing",
-    # Soccer — Europe
-    "premier league": "soccer_epl", "efl championship": "soccer_efl_champ",
-    "championship": "soccer_efl_champ",
-    "la liga": "soccer_spain_la_liga", "serie a": "soccer_italy_serie_a",
-    "bundesliga": "soccer_germany_bundesliga", "ligue 1": "soccer_france_ligue_one",
-    "eredivisie": "soccer_netherlands_eredivisie",
-    "primeira liga": "soccer_portugal_primeira_liga",
-    "super lig": "soccer_turkey_super_league",
-    "scottish premiership": "soccer_spl",
-    # Soccer — UEFA
-    "champions league": "soccer_uefa_champs_league", "europa league": "soccer_uefa_europa_league",
-    # Soccer — Americas
-    "mls": "soccer_usa_mls", "fa cup": "soccer_fa_cup",
-    "liga mx": "soccer_mexico_ligamx",
-    "brasileirao": "soccer_brazil_campeonato", "serie a brazil": "soccer_brazil_campeonato",
-    "liga argentina": "soccer_argentina_primera_division",
-    "copa libertadores": "soccer_conmebol_copa_libertadores",
-    # "colombia" — Colombia Primera has no Odds API key; Copa Libertadores mapped separately
-    # Soccer — UEFA extra
-    "conference league": "soccer_uefa_europa_conference_league",
-    # Soccer — Scandinavia / other Europe
-    "eliteserien": "soccer_norway_eliteserien",
-    "superliga": "soccer_denmark_superliga",
-    "a-league": "soccer_australia_aleague",
-    "ligue 2": "soccer_france_ligue_two",
-    "segunda": "soccer_spain_segunda_division",
-    # Soccer — Asia
-    "j-league": "soccer_japan_j_league", "j league": "soccer_japan_j_league",
-    "k league": "soccer_korea_kleague1", "k-league": "soccer_korea_kleague1",
-    "chinese super league": "soccer_china_superleague",
-    "saudi pro league": "soccer_saudi_professional_league",
-    # Cricket
-    "ipl": "cricket_ipl", "t20": "cricket_international_t20",
-    "psl": "cricket_psl", "pakistan": "cricket_psl",
-    # Tennis — resolved dynamically, these are fallback markers
-    "atp": "_tennis_atp",
-    "wta": "_tennis_wta",
-    "miami open": "_tennis_atp",
-    "french open": "_tennis_atp", "roland garros": "_tennis_atp",
-    "wimbledon": "_tennis_atp", "us open tennis": "_tennis_atp",
-    "australian open": "_tennis_atp",
-    # Politics
-    "presidential": "politics_us_presidential_election_winner",
-    "president": "politics_us_presidential_election_winner",
-}
+# Dynamic discovery replaces hardcoded keyword mappings.
+_QUESTION_SPORT_KEYS: dict = {}
 
 
 class OddsAPIClient:
@@ -165,19 +48,9 @@ class OddsAPIClient:
     - Historical only when edge is borderline (saves ~10 credits/call)
     """
 
-    # Scheduled refresh times (UTC hours). Cache invalidates when a boundary is crossed.
-    # 02:00 UTC = 05:00 TR → late NBA / West Coast games (23:00 ET tip-offs = 02:00 UTC)
-    # 05:00 UTC = 08:00 TR → overnight wrap: catch MLB west coast, late NBA results
-    # 07:00 UTC = 10:00 TR → morning: full landscape, European football early lines
-    # 12:00 UTC = 15:00 TR → midday: European football lineups confirmed
-    # 15:00 UTC = 18:00 TR → afternoon: European football, early evening lines
-    # 19:00 UTC = 22:00 TR → evening: NBA/NHL pre-game line movement
-    # 21:00 UTC = 00:00 TR → pre-NBA batch: 3.5h before early tip-offs (~00:30 UTC)
-    # 23:00 UTC = 02:00 TR → NBA tip-off wave 1 (19:00 ET = 00:00 UTC)
-    _REFRESH_HOURS_UTC = [7, 12, 19, 23]  # 4x/day (was 8x — credit savings)
+    _REFRESH_INTERVAL_HOURS = 2  # Every 2h (12x/day). Budget: 10,800/month of 20K.
 
     _CACHE_FILE = Path("logs/odds_cache.json")
-    _BRIDGE_CACHE_MAX_AGE = 28800  # 8h — same as regular cache (was 3h, burned credits)
 
     # Dynamic sport discovery replaces hardcoded lists.
     # /v4/sports/?all=false returns only active/in-season sports (FREE, 0 quota).
@@ -287,7 +160,10 @@ class OddsAPIClient:
         return any(s in q_lower or s in slug_lower for s in _WTA_SIGNALS)
 
     def _detect_sport_key(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
-        """Detect The Odds API sport key from market data."""
+        """Detect The Odds API sport key from market data.
+
+        Priority: hardcoded lookup (fast) → tennis dynamic → full dynamic discovery.
+        """
         slug_prefix = slug.split("-")[0].lower() if slug else ""
         if slug_prefix in _SPORT_KEYS:
             return _SPORT_KEYS[slug_prefix]
@@ -295,7 +171,6 @@ class OddsAPIClient:
         q_lower = question.lower()
         for keyword, sport_key in _QUESTION_SPORT_KEYS.items():
             if keyword in q_lower:
-                # Tennis markers → resolve dynamically
                 if sport_key == "_tennis_atp":
                     gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
                     return self._match_tennis_key(gender, q_lower, slug)
@@ -303,13 +178,15 @@ class OddsAPIClient:
                     return self._match_tennis_key("wta", q_lower, slug)
                 return sport_key
 
-        # Also check slug for tennis prefixes (atp/wta)
+        # Tennis slug prefixes
         if slug_prefix in ("atp", "tennis"):
             return self._match_tennis_key("atp", q_lower, slug)
         if slug_prefix == "wta":
             return self._match_tennis_key("wta", q_lower, slug)
 
-        return None
+        # Dynamic discovery: extract teams, search through active sports
+        team_a, team_b = self._extract_teams(question)
+        return self._discover_sport_key(team_a, team_b)
 
     def _match_tennis_key(self, gender: str, q_lower: str, slug: str) -> Optional[str]:
         """Match the best tennis tournament key from slug/question context.
@@ -355,34 +232,74 @@ class OddsAPIClient:
         # Fallback: return first key
         return keys[0]
 
-    def _detect_all_sport_keys(self, question: str, slug: str, tags: List[str]) -> List[str]:
-        """Detect sport key(s) for a market. Returns single-element list.
+    def _discover_sport_key(self, team_a: str, team_b: str) -> Optional[str]:
+        """Dynamically find the sport key for a team pair using FREE endpoints.
 
-        For tennis, returns only the FIRST active tournament key (not all).
-        This saves ~5 credits per tennis market vs returning all keys.
+        1. GET /v4/sports?all=false → all active sport keys (FREE, 0 credits)
+        2. For each sport key, GET /v4/sports/{key}/events → match team names (FREE)
         """
-        # Try single-key detection first (covers all non-tennis sports)
-        key = self._detect_sport_key(question, slug, tags)
-        return [key] if key else []
+        if not team_a and not team_b:
+            return None
+
+        # Get active sports (cached 1h)
+        cache_key = "_active_sports"
+        cached = self._cache.get(cache_key)
+        active_keys = None
+        if cached:
+            data, ts = cached
+            if time.time() - ts < self._ACTIVE_SPORTS_CACHE_TTL:
+                active_keys = data
+
+        if active_keys is None:
+            sports_data = self._get("/sports", {"all": "false"})
+            if not sports_data:
+                return None
+            active_keys = [s["key"] for s in sports_data
+                          if isinstance(s, dict) and s.get("key") and s.get("active")]
+            self._cache[cache_key] = (active_keys, time.time())
+
+        # Search through cached events for each sport
+        team_a_lower = team_a.lower() if team_a else ""
+        team_b_lower = team_b.lower() if team_b else ""
+
+        for sk in active_keys:
+            events_cache_key = f"events:{sk}"
+            cached_events = self._cache.get(events_cache_key)
+            events = None
+            if cached_events:
+                data, ts = cached_events
+                if time.time() - ts < self._REFRESH_INTERVAL_HOURS * 3600:
+                    events = data
+
+            if events is None:
+                events = self._get(f"/sports/{sk}/events", {})
+                if events and isinstance(events, list):
+                    self._cache[events_cache_key] = (events, time.time())
+                else:
+                    continue
+
+            # Check if any event matches our teams
+            for event in events:
+                home = (event.get("home_team") or "").lower()
+                away = (event.get("away_team") or "").lower()
+                if not home or not away:
+                    continue
+                a_match = (team_a_lower in home or home in team_a_lower or
+                           team_a_lower in away or away in team_a_lower)
+                b_match = (team_b_lower in home or home in team_b_lower or
+                           team_b_lower in away or away in team_b_lower)
+                if a_match or b_match:
+                    logger.info("Odds API discovery: '%s/%s' → %s", team_a, team_b, sk)
+                    return sk
+
+        return None
 
     def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
-        """Check if a scheduled refresh boundary has passed since cached_wall_ts.
+        """Check if enough time has passed since last fetch.
 
-        Refresh times are defined in _REFRESH_HOURS_UTC.
-        Returns True if we should re-fetch (a refresh hour passed since last fetch).
+        Uses a simple interval (every 2h) instead of fixed UTC hours.
         """
-        now = datetime.now(timezone.utc)
-        cached_dt = datetime.fromtimestamp(cached_wall_ts, tz=timezone.utc)
-
-        # If cached on a different day, always refresh
-        if cached_dt.date() != now.date():
-            return True
-
-        # Check if any refresh hour boundary was crossed
-        for h in self._REFRESH_HOURS_UTC:
-            if cached_dt.hour < h <= now.hour:
-                return True
-        return False
+        return (time.time() - cached_wall_ts) >= self._REFRESH_INTERVAL_HOURS * 3600
 
     def _api_request(self, endpoint: str, params: dict) -> Optional[dict | list]:
         """Shared HTTP layer — makes authenticated GET to The Odds API.
@@ -455,27 +372,6 @@ class OddsAPIClient:
             self._save_cache()
         return data
 
-    def _get_fresh(self, endpoint: str, params: dict) -> Optional[dict | list]:
-        """Make API call with TTL-based caching — bypasses refresh-boundary.
-
-        Used by bridge to ensure fresh events. Uses _api_request() for the
-        actual HTTP call (shared auth, quota tracking, backup key logic).
-        """
-        if not self.available:
-            return None
-
-        cache_key = f"bridge_raw:{endpoint}:{sorted(params.items())}"
-        cached = self._cache.get(cache_key)
-        if cached:
-            data, ts = cached
-            if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
-                return data
-
-        data = self._api_request(endpoint, params)
-        if data is not None:
-            self._cache[cache_key] = (data, time.time())
-        return data
-
     def get_bookmaker_odds(
         self, question: str, slug: str, tags: List[str]
     ) -> Optional[Dict]:
@@ -497,11 +393,6 @@ class OddsAPIClient:
         })
         if not events:
             return None
-
-        # Side-effect: populate bridge cache with this sport's events (free — same data)
-        if isinstance(events, list):
-            bridge_key = f"bridge:{sport_key}"
-            self._cache[bridge_key] = (events, time.time())
 
         # Extract team names from question
         team_a_name, team_b_name = self._extract_teams(question)
@@ -771,103 +662,6 @@ class OddsAPIClient:
             f"  Signal: {signal_label}\n"
             f"  NOTE: Sharp line movement = professional bettors acting on information."
         )
-
-    # ------------------------------------------------------------------
-    # Odds API Bridge — match Polymarket markets against Odds API events
-    # to extract clean standardized team names for ESPN/PandaScore lookups
-    # ------------------------------------------------------------------
-
-    def _get_bridge_events(self) -> List[Tuple[str, list]]:
-        """Return all cached bridge events as (sport_key, events) pairs."""
-        results = []
-        for cache_key, (data, ts) in self._cache.items():
-            if not cache_key.startswith("bridge:"):
-                continue
-            sport_key = cache_key[len("bridge:"):]
-            if isinstance(data, list) and data:
-                results.append((sport_key, data))
-        return results
-
-    def bridge_match(
-        self, question: str, slug: str, tags: List[str],
-    ) -> Optional[Dict]:
-        """Match a Polymarket market against Odds API events.
-
-        Lazy fetch: detects sport from slug → fetches that sport key on-demand
-        → caches as bridge:{sport_key} with 8h TTL.
-        """
-        team_a, team_b = self._extract_teams(question)
-        if not team_a or not team_b:
-            return None
-
-        # Lazy fetch: ensure bridge cache has events for detected sport(s)
-        sport_keys = self._detect_all_sport_keys(question, slug, tags)
-        for sk in sport_keys:
-            cache_key = f"bridge:{sk}"
-            cached = self._cache.get(cache_key)
-            if cached:
-                _, ts = cached
-                if time.time() - ts < self._BRIDGE_CACHE_MAX_AGE:
-                    continue  # Fresh cache — skip fetch
-            # Fetch on-demand
-            events = self._get_fresh(f"/sports/{sk}/odds", {
-                "regions": "us",
-                "markets": "h2h",
-                "oddsFormat": "decimal",
-            })
-            if events and isinstance(events, list):
-                self._cache[cache_key] = (events, time.time())
-                # Cross-populate regular cache
-                regular_key = f"/sports/{sk}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
-                self._cache[regular_key] = (events, time.time())
-                logger.debug("Bridge lazy-fetched: %s -> %d events", sk, len(events))
-
-        # Strategy 1: Targeted — detect sport key, search only that sport
-        if sport_keys:
-            for sk in sport_keys:
-                cache_key = f"bridge:{sk}"
-                cached = self._cache.get(cache_key)
-                if not cached:
-                    odds_key = f"/sports/{sk}/odds:{sorted({'regions': 'us', 'markets': 'h2h', 'oddsFormat': 'decimal'}.items())}"
-                    cached = self._cache.get(odds_key)
-                if not cached:
-                    continue
-                events = cached[0]
-                if not isinstance(events, list):
-                    continue
-                result = find_best_event_match(team_a, team_b, events, min_confidence=0.80)
-                if result:
-                    event, conf = result
-                    return {
-                        "home_team": event.get("home_team", ""),
-                        "away_team": event.get("away_team", ""),
-                        "sport_key": sk,
-                        "confidence": conf,
-                        "event_id": event.get("id", ""),
-                    }
-
-        # Strategy 2: Exhaustive — scan ALL bridge cache entries
-        best_result = None
-        best_conf = 0.0
-        for sport_key, events in self._get_bridge_events():
-            result = find_best_event_match(team_a, team_b, events, min_confidence=0.80)
-            if result:
-                event, conf = result
-                if conf > best_conf:
-                    best_conf = conf
-                    best_result = {
-                        "home_team": event.get("home_team", ""),
-                        "away_team": event.get("away_team", ""),
-                        "sport_key": sport_key,
-                        "confidence": conf,
-                        "event_id": event.get("id", ""),
-                    }
-
-        if best_result:
-            logger.info("Bridge match (exhaustive): '%s' -> %s vs %s [%.0f%%]",
-                        question[:50], best_result["home_team"],
-                        best_result["away_team"], best_result["confidence"] * 100)
-        return best_result
 
     # ------------------------------------------------------------------
     # Scores (live match data — free with paid plan)
