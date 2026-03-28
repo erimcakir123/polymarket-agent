@@ -191,7 +191,7 @@ class LoggingConfig(BaseModel):
 
 class AppConfig(BaseModel):
     mode: Mode = Mode.DRY_RUN
-    initial_bankroll: float = 60.0
+    initial_bankroll: float = 1000.0
     cycle: CycleConfig = CycleConfig()
     scanner: ScannerConfig = ScannerConfig()
     ai: AIConfig = AIConfig()
