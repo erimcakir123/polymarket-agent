@@ -13,134 +13,12 @@ logger = logging.getLogger(__name__)
 
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 
-# Map Polymarket slug prefixes and keywords to ESPN sport/league paths
-_SPORT_LEAGUES = {
-    # slug prefix -> (sport, league, display_name)
-    # Basketball
-    "cbb": ("basketball", "mens-college-basketball", "NCAA Basketball"),
-    "ncaab": ("basketball", "mens-college-basketball", "NCAA Basketball"),
-    "cwbb": ("basketball", "womens-college-basketball", "NCAA Women's Basketball"),
-    "nba": ("basketball", "nba", "NBA"),
-    "wnba": ("basketball", "wnba", "WNBA"),
-    "euroleague": ("basketball", "mens-olympic-basketball", "Euroleague"),
-    # American Football
-    "nfl": ("football", "nfl", "NFL"),
-    "cfb": ("football", "college-football", "College Football"),
-    "ncaaf": ("football", "college-football", "College Football"),
-    # Baseball
-    "mlb": ("baseball", "mlb", "MLB"),
-    # Ice Hockey
-    "nhl": ("hockey", "nhl", "NHL"),
-    "ahl": ("hockey", "ahl", "AHL"),
-    "dehl": ("hockey", "ger.1", "DEL (German Hockey)"),
-    "snhl": ("hockey", "swiss", "Swiss National League"),
-    # Combat Sports
-    "ufc": ("mma", "ufc", "UFC"),
-    "mma": ("mma", "ufc", "UFC"),
-    # European Soccer
-    "epl": ("soccer", "eng.1", "Premier League"),
-    "championship": ("soccer", "eng.2", "EFL Championship"),
-    "elc": ("soccer", "eng.2", "EFL Championship"),
-    "laliga": ("soccer", "esp.1", "La Liga"),
-    "seriea": ("soccer", "ita.1", "Serie A"),
-    "bundesliga": ("soccer", "ger.1", "Bundesliga"),
-    "ligue1": ("soccer", "fra.1", "Ligue 1"),
-    "eredivisie": ("soccer", "ned.1", "Eredivisie"),
-    "ere": ("soccer", "ned.1", "Eredivisie"),
-    "primeira": ("soccer", "por.1", "Primeira Liga"),
-    "superlig": ("soccer", "tur.1", "Super Lig"),
-    "scottish": ("soccer", "sco.1", "Scottish Premiership"),
-    "nor": ("soccer", "nor.1", "Norwegian Eliteserien"),
-    "den": ("soccer", "den.1", "Danish Superliga"),
-    "cze1": ("soccer", "cze.1", "Czech First League"),
-    # UEFA
-    "ucl": ("soccer", "uefa.champions", "Champions League"),
-    "europa": ("soccer", "uefa.europa", "Europa League"),
-    "uwcl": ("soccer", "uefa.champions.women", "UEFA Women's Champions League"),
-    # International Soccer
-    "fif": ("soccer", "fifa.friendly", "FIFA International"),
-    # Americas Soccer
-    "mls": ("soccer", "usa.1", "MLS"),
-    "ligamx": ("soccer", "mex.1", "Liga MX"),
-    "mex": ("soccer", "mex.1", "Liga MX"),
-    "brasileirao": ("soccer", "bra.1", "Brasileirao"),
-    "bra2": ("soccer", "bra.2", "Brasileirao Serie B"),
-    "col1": ("soccer", "col.1", "Colombian Primera A"),
-    "argentina": ("soccer", "arg.1", "Liga Argentina"),
-    # Asia / Oceania Soccer
-    "jleague": ("soccer", "jpn.1", "J-League"),
-    "j1100": ("soccer", "jpn.1", "J1 League"),
-    "j2100": ("soccer", "jpn.2", "J2 League"),
-    "csl": ("soccer", "chn.1", "Chinese Super League"),
-    "chi": ("soccer", "chn.1", "Chinese Super League"),
-    "kor": ("soccer", "kor.1", "K League 1"),
-    "isp": ("soccer", "ind.1", "Indian Super League"),
-    "aus": ("soccer", "aus.1", "A-League"),
-    "spl": ("soccer", "sau.1", "Saudi Pro League"),
-    # Russia
-    "rusrp": ("soccer", "rus.1", "Russian Premier League"),
-    "ruprem": ("soccer", "rus.1", "Russian Premier League"),
-    # Tennis
-    "atp": ("tennis", "atp", "ATP Tennis"),
-    "wta": ("tennis", "wta", "WTA Tennis"),
-}
+# Dynamic discovery replaces hardcoded mappings.
+# ESPN search endpoint finds sport/league for any team name.
+_SPORT_LEAGUES: dict = {}
 
-# Keywords in question text -> (sport, league)
-_QUESTION_KEYWORDS = {
-    # Basketball
-    "ncaa": ("basketball", "mens-college-basketball"),
-    "march madness": ("basketball", "mens-college-basketball"),
-    "college basketball": ("basketball", "mens-college-basketball"),
-    "nba": ("basketball", "nba"),
-    # American Football
-    "nfl": ("football", "nfl"),
-    "super bowl": ("football", "nfl"),
-    # Baseball
-    "mlb": ("baseball", "mlb"),
-    # Ice Hockey
-    "nhl": ("hockey", "nhl"),
-    # European Soccer
-    "premier league": ("soccer", "eng.1"),
-    "championship": ("soccer", "eng.2"),
-    "efl championship": ("soccer", "eng.2"),
-    "la liga": ("soccer", "esp.1"),
-    "serie a": ("soccer", "ita.1"),
-    "bundesliga": ("soccer", "ger.1"),
-    "ligue 1": ("soccer", "fra.1"),
-    "eredivisie": ("soccer", "ned.1"),
-    "primeira liga": ("soccer", "por.1"),
-    "super lig": ("soccer", "tur.1"),
-    "scottish premiership": ("soccer", "sco.1"),
-    # UEFA
-    "champions league": ("soccer", "uefa.champions"),
-    "europa league": ("soccer", "uefa.europa"),
-    # Americas Soccer
-    "mls": ("soccer", "usa.1"),
-    "liga mx": ("soccer", "mex.1"),
-    "brasileirao": ("soccer", "bra.1"),
-    "serie a brazil": ("soccer", "bra.1"),
-    "liga argentina": ("soccer", "arg.1"),
-    "primera a": ("soccer", "col.1"),
-    # Asia / Oceania Soccer
-    "j-league": ("soccer", "jpn.1"),
-    "j league": ("soccer", "jpn.1"),
-    "j2 league": ("soccer", "jpn.2"),
-    "chinese super league": ("soccer", "chn.1"),
-    "k league": ("soccer", "kor.1"),
-    "indian super league": ("soccer", "ind.1"),
-    "a-league": ("soccer", "aus.1"),
-    "saudi pro league": ("soccer", "sau.1"),
-    "eliteserien": ("soccer", "nor.1"),
-    "superliga": ("soccer", "den.1"),
-    # Ice Hockey (non-NHL)
-    "ahl": ("hockey", "ahl"),
-    "del": ("hockey", "ger.1"),
-    "swiss hockey": ("hockey", "swiss"),
-    # Basketball (non-NBA)
-    "euroleague": ("basketball", "mens-olympic-basketball"),
-    # Combat Sports
-    "ufc": ("mma", "ufc"),
-}
+# Dynamic discovery replaces hardcoded keyword mappings.
+_QUESTION_KEYWORDS: dict = {}
 
 
 class SportsDataClient:
@@ -179,25 +57,93 @@ class SportsDataClient:
             logger.warning("ESPN API error: %s", e)
             return None
 
+    # ESPN search endpoint — free, no API key needed
+    _SEARCH_URL = "https://site.web.api.espn.com/apis/common/v3/search"
+
+    def search_team(self, team_name: str) -> Optional[Tuple[str, str]]:
+        """Search ESPN for a team by name. Returns (sport, league) or None.
+
+        Uses ESPN's free search endpoint to dynamically discover which
+        sport/league a team belongs to, eliminating hardcoded mappings.
+        """
+        if not team_name or len(team_name) < 2:
+            return None
+
+        cache_key = f"search:{team_name.lower().strip()}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if time.monotonic() - ts < self._cache_ttl:
+                return data
+
+        self._rate_limit()
+        try:
+            resp = requests.get(
+                self._SEARCH_URL,
+                params={"query": team_name, "limit": "5", "type": "team"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            record_call("espn")
+            results = resp.json()
+
+            for item in results.get("results", []):
+                entities = item.get("entities", [])
+                for entity in entities:
+                    link = entity.get("link", "")
+                    # Link format: /sport/league/team/id/name
+                    # e.g. /soccer/eng.3/team/123/team-name
+                    parts = link.strip("/").split("/")
+                    if len(parts) >= 3 and parts[0] != "athlete":
+                        sport = parts[0]
+                        league = parts[1]
+                        result = (sport, league)
+                        self._cache[cache_key] = (result, time.monotonic())
+                        logger.info("ESPN search: '%s' → %s/%s", team_name, sport, league)
+                        return result
+
+            # No results found
+            self._cache[cache_key] = (None, time.monotonic())
+            return None
+
+        except requests.RequestException as e:
+            logger.debug("ESPN search failed for '%s': %s", team_name, e)
+            return None
+
     def detect_sport(self, question: str, slug: str, tags: List[str]) -> Optional[Tuple[str, str]]:
-        """Detect sport/league from market data. Returns (sport, league) or None."""
-        # Check slug prefix first (most reliable)
+        """Detect sport/league from market data. Returns (sport, league) or None.
+
+        Primary: ESPN search endpoint (dynamic discovery).
+        Fallback: slug prefix or question keyword lookup (if any mappings exist).
+        """
+        # Try hardcoded lookups first (fast path — empty by default after refactor)
         slug_prefix = slug.split("-")[0].lower() if slug else ""
         if slug_prefix in _SPORT_LEAGUES:
             sport, league, _ = _SPORT_LEAGUES[slug_prefix]
             return (sport, league)
 
-        # Check question text
         q_lower = question.lower()
         for keyword, (sport, league) in _QUESTION_KEYWORDS.items():
             if keyword in q_lower:
                 return (sport, league)
 
-        # Check tags
+        # Check tags (kept for backwards compatibility)
         tags_lower = " ".join(t.lower() for t in tags)
         for keyword, (sport, league) in _QUESTION_KEYWORDS.items():
             if keyword in tags_lower:
                 return (sport, league)
+
+        # Dynamic discovery via ESPN search
+        team_a, team_b = self._extract_teams_from_question(question)
+        if not team_a and not team_b:
+            team_a, team_b = self._extract_teams_from_slug(slug)
+
+        # Search with first team name
+        for name in [team_a, team_b]:
+            if name:
+                result = self.search_team(name)
+                if result:
+                    return result
 
         return None
 
@@ -400,11 +346,7 @@ class SportsDataClient:
             return None
 
         sport, league = sport_league
-        league_name = ""
-        for prefix, (s, l, name) in _SPORT_LEAGUES.items():
-            if s == sport and l == league:
-                league_name = name
-                break
+        league_name = league  # Use league slug as display name (e.g. "eng.1", "nba")
 
         # Try question first for full team names, fall back to slug abbreviations
         team_a_name, team_b_name = self._extract_teams_from_question(question)
