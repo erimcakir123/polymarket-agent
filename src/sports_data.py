@@ -60,11 +60,20 @@ class SportsDataClient:
     # ESPN search endpoint — free, no API key needed
     _SEARCH_URL = "https://site.web.api.espn.com/apis/common/v3/search"
 
+    # Leagues to skip — women's leagues, cricket, rugby return wrong context
+    _SKIP_LEAGUES = frozenset({
+        "eng.w.fa", "eng.w.1", "eng.w.2",  # English women's
+        "usa.w.1",  # NWSL
+        "fifa.w.worldcup", "uefa.w.euro",   # Women's international
+    })
+    _SKIP_SPORTS = frozenset({"cricket", "rugby"})
+
     def search_team(self, team_name: str) -> Optional[Tuple[str, str]]:
         """Search ESPN for a team by name. Returns (sport, league) or None.
 
         Uses ESPN's free search endpoint to dynamically discover which
         sport/league a team belongs to, eliminating hardcoded mappings.
+        Skips women's leagues, cricket, rugby. Prefers exact name matches.
         """
         if not team_name or len(team_name) < 2:
             return None
@@ -80,18 +89,41 @@ class SportsDataClient:
         try:
             resp = requests.get(
                 self._SEARCH_URL,
-                params={"query": team_name, "limit": "5", "type": "team"},
+                params={"query": team_name, "limit": "10", "type": "team"},
                 timeout=10,
             )
             resp.raise_for_status()
             record_call("espn")
             data = resp.json()
 
-            # ESPN returns items[] with sport/league as direct fields
-            for item in data.get("items", []):
-                sport = item.get("sport", "")
-                league = item.get("league", "") or item.get("defaultLeagueSlug", "")
-                if sport and league and item.get("type") == "team":
+            query_lower = team_name.lower().strip()
+
+            # Two-pass: first exact name matches, then any match
+            # This prevents "York City" matching "New York City FC"
+            for strict in (True, False):
+                for item in data.get("items", []):
+                    if item.get("type") != "team":
+                        continue
+                    sport = item.get("sport", "")
+                    league = item.get("league", "") or item.get("defaultLeagueSlug", "")
+                    if not sport or not league:
+                        continue
+
+                    # Skip women's leagues, cricket, rugby
+                    if league in self._SKIP_LEAGUES:
+                        continue
+                    if sport in self._SKIP_SPORTS:
+                        continue
+
+                    # Strict pass: display name must match query
+                    if strict:
+                        display = item.get("displayName", "").lower()
+                        if query_lower != display and query_lower not in display:
+                            continue
+                        # Reject if display has extra prefix (New York City FC vs York City)
+                        if display != query_lower and not display.startswith(query_lower):
+                            continue
+
                     result = (sport, league)
                     self._cache[cache_key] = (result, time.monotonic())
                     logger.info("ESPN search: '%s' -> %s/%s", team_name, sport, league)
