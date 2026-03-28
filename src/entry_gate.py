@@ -226,7 +226,10 @@ class EntryGate:
         open_slots = max(0, cfg.risk.max_positions - self.portfolio.active_position_count)
         stock_empty = max(0, 5 - len(self._candidate_stock))
         total_need = open_slots + stock_empty
-        batch_size = min(cfg.ai.batch_size, max(5, total_need * 2))
+        ai_batch_size = min(cfg.ai.batch_size, max(5, total_need * 2))
+        # Over-scan 3x: sports data is cheap, AI is expensive.
+        # Fetch data for scan_size markets, filter quality, send best ai_batch_size to AI.
+        scan_size = ai_batch_size * 3
 
         # Bucket markets into imminent / mid / discovery
         imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
@@ -234,24 +237,24 @@ class EntryGate:
         discovery = sorted([m for m in markets if _hours_to_start(m) > 24], key=_hours_to_start)
 
         imm_available = len(imminent)
-        if imm_available >= batch_size:
-            prioritized = imminent[:batch_size]
-        elif imm_available >= batch_size * 6 // 10:
+        if imm_available >= scan_size:
+            prioritized = imminent[:scan_size]
+        elif imm_available >= scan_size * 6 // 10:
             imm_slots = imm_available
-            mid_slots = batch_size - imm_slots
+            mid_slots = scan_size - imm_slots
             prioritized = imminent + midrange[:mid_slots]
         else:
             imm_slots = imm_available
-            mid_slots = min(len(midrange), (batch_size - imm_slots) * 7 // 10)
-            disc_slots = batch_size - imm_slots - mid_slots
+            mid_slots = min(len(midrange), (scan_size - imm_slots) * 7 // 10)
+            disc_slots = scan_size - imm_slots - mid_slots
             prioritized = imminent + midrange[:mid_slots] + discovery[:disc_slots]
 
-        if len(prioritized) < batch_size:
+        if len(prioritized) < scan_size:
             remaining = [m for m in markets if m not in prioritized]
-            prioritized += remaining[:batch_size - len(prioritized)]
+            prioritized += remaining[:scan_size - len(prioritized)]
 
-        # Track analyzed markets so refill cycles move to next batch
-        self._seen_market_ids.update(m.condition_id for m in prioritized)
+        # NOTE: _seen_market_ids is updated AFTER quality filter (below),
+        # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
 
         # Update FAR market ids (>6h to start = FAR, needs higher edge)
         self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
@@ -389,6 +392,28 @@ class EntryGate:
         if not _has_data:
             logger.info("No markets with data -- skipping AI batch")
             return [], {}
+
+        # Cap at AI batch size (over-scanned to find enough quality markets)
+        _qualified_count = len(_has_data)
+        if _qualified_count > ai_batch_size:
+            _has_data = _has_data[:ai_batch_size]
+        logger.info(
+            "Over-scan: scanned %d → no_data=%d thin=%d → qualified %d → AI batch %d",
+            len(prioritized), _no_data_skipped, _thin_data_skipped,
+            _qualified_count, len(_has_data),
+        )
+
+        # Mark seen: AI-analyzed + no-data + thin-data (don't re-scan these).
+        # Qualified markets that didn't fit in AI batch are NOT marked --
+        # they get priority in the next cycle.
+        self._seen_market_ids.update(m.condition_id for m in _has_data)
+        _skipped_cids = {
+            m.condition_id for m in prioritized
+            if m.condition_id not in esports_contexts
+            or (esports_contexts.get(m.condition_id, "").count("[W]")
+                + esports_contexts.get(m.condition_id, "").count("[L]")) < 5
+        }
+        self._seen_market_ids.update(_skipped_cids)
 
         # Run AI batch -- returns List[AIEstimate] in same order as _has_data
         _estimates_list = self.ai.analyze_batch(

@@ -365,13 +365,21 @@ class SportsDataClient:
                     team_a = team_a[5:].strip()
                 return self._clean_team_name(team_a), self._clean_team_name(team_b)
 
-        # Try "beat" / "win against" pattern: "Will Team A beat Team B?"
+        # Try "beat" / "win against" / "over" pattern
         beat_match = re.search(
-            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+(?:beat|defeat|win against)\s+(?:the\s+)?(.+?)[\s?]*$',
+            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+(?:beat|defeat|win against|win over)\s+(?:the\s+)?(.+?)[\s?]*$',
             q,
         )
         if beat_match:
             return self._clean_team_name(beat_match.group(1).strip()), self._clean_team_name(beat_match.group(2).rstrip("?").strip())
+
+        # "Team A to beat/defeat Team B" (no "Will")
+        to_beat_match = re.search(
+            r'(?:the\s+)?(.+?)\s+to\s+(?:beat|defeat|win against|win over)\s+(?:the\s+)?(.+?)[\s?]*$',
+            q,
+        )
+        if to_beat_match:
+            return self._clean_team_name(to_beat_match.group(1).strip()), self._clean_team_name(to_beat_match.group(2).rstrip("?").strip())
 
         # Single-team pattern: "Will Team A win on DATE?" / "Will Team A win?"
         win_match = re.search(
@@ -401,7 +409,11 @@ class SportsDataClient:
         # Skip prefix (cbb, nba, etc.) and date parts at the end
         # Date parts are 4-digit year, 2-digit month/day
         non_date = []
-        _SLUG_STOP = {"total", "over", "under", "spread", "ml", "moneyline", "pt5", "pts"}
+        _SLUG_STOP = {
+            "total", "over", "under", "spread", "ml", "moneyline", "pt5", "pts",
+            "will", "win", "beat", "defeat", "lose", "match", "game", "series",
+            "friendly", "qualifier", "qualifying", "cup", "league",
+        }
         for p in parts[1:]:
             if len(p) == 4 and p.isdigit():
                 break  # hit the date

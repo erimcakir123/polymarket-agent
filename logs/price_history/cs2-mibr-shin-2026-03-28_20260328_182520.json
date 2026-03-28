@@ -1,0 +1,35 @@
+{
+  "slug": "cs2-mibr-shin-2026-03-28",
+  "entry_price": 0.0005,
+  "exit_price": 0.0005,
+  "exit_reason": "match_exit_ultra_low_guard",
+  "exit_layer": "agent",
+  "match_start_iso": "2026-03-28T15:00:00Z",
+  "number_of_games": 0,
+  "ever_in_profit": false,
+  "peak_pnl_pct": 0.0,
+  "match_score": "000-000|1-2|Bo3",
+  "saved_at": "2026-03-28T18:25:20.279435+00:00",
+  "price_history": [
+    {
+      "t": 1774710028,
+      "p": 0.72
+    },
+    {
+      "t": 1774713629,
+      "p": 0.515
+    },
+    {
+      "t": 1774717230,
+      "p": 0.795
+    },
+    {
+      "t": 1774720835,
+      "p": 0.0005
+    },
+    {
+      "t": 1774722267,
+      "p": 0.0005
+    }
+  ]
+}
