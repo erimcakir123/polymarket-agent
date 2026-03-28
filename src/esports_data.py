@@ -16,15 +16,11 @@ logger = logging.getLogger(__name__)
 
 PANDASCORE_BASE = "https://api.pandascore.co"
 
-# Map Polymarket tags/keywords to PandaScore game slugs
+# Minimal categorization for API routing (4 games, no aliases needed).
+# Dynamic search via search_match() handles discovery.
 _GAME_SLUGS = {
-    "counter-strike": "csgo",
-    "cs2": "csgo",
-    "cs:go": "csgo",
-    "csgo": "csgo",
-    "league-of-legends": "lol",
+    "cs2": "csgo", "csgo": "csgo",
     "lol": "lol",
-    "dota": "dota2",
     "dota2": "dota2",
     "valorant": "valorant",
 }
@@ -97,7 +93,7 @@ class EsportsDataClient:
         q_lower = question.lower()
         tags_lower = [t.lower() for t in tags]
 
-        # Check tags first
+        # Check tags first (fast path)
         for tag in tags_lower:
             for keyword, slug in _GAME_SLUGS.items():
                 if keyword in tag:
@@ -108,6 +104,47 @@ class EsportsDataClient:
             if keyword in q_lower:
                 return slug
 
+        # Dynamic: search PandaScore for team name
+        team_a, _ = self._extract_team_names(question)
+        if team_a:
+            match = self.search_match(team_a)
+            if match:
+                videogame = match.get("videogame", {})
+                slug = videogame.get("slug", "")
+                if slug:
+                    logger.info("PandaScore search: '%s' → game=%s", team_a, slug)
+                    return slug
+
+        return None
+
+    def search_match(self, team_name: str) -> Optional[dict]:
+        """Search PandaScore for an upcoming match by team name.
+
+        Uses the search[name] parameter on /matches/upcoming endpoint.
+        Returns the first matching match dict, or None.
+        """
+        if not self.available or not team_name:
+            return None
+
+        cache_key = f"search_match:{team_name.lower().strip()}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            data, ts = cached
+            if time.monotonic() - ts < self._cache_ttl:
+                return data
+
+        matches = self._get("/matches/upcoming", {
+            "search[name]": team_name,
+            "per_page": 5,
+            "sort": "begin_at",
+        })
+
+        if matches and isinstance(matches, list) and len(matches) > 0:
+            result = matches[0]
+            self._cache[cache_key] = (result, time.monotonic())
+            return result
+
+        self._cache[cache_key] = (None, time.monotonic())
         return None
 
     def _extract_team_names(self, question: str) -> Tuple[Optional[str], Optional[str]]:
