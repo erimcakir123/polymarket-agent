@@ -324,7 +324,9 @@ class MarketScanner:
             except (ValueError, TypeError):
                 pass
         # Skip ended matches — no point entering a resolved event
-        if market.event_ended and self._is_live_sport(market):
+        # Esports EXCLUDED: Gamma API 'ended' flag is unreliable for esports,
+        # often marking live matches as ended mid-series.
+        if market.event_ended and self._is_live_sport(market) and not self._is_esport(market):
             logger.info("Skipped ENDED event (Gamma): %s", market.question[:60])
             return False
         # Skip late-match entries — not enough time for meaningful edge

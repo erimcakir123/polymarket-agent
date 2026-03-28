@@ -29,40 +29,72 @@ ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports"
 
 # Leagues to scout (sport, league, display_name)
 _SCOUT_LEAGUES = [
-    # North America
+    # === North America ===
     ("basketball", "nba", "NBA"),
+    ("basketball", "wnba", "WNBA"),
     ("basketball", "mens-college-basketball", "NCAA Basketball"),
     ("football", "nfl", "NFL"),
+    ("football", "college-football", "NCAA Football"),
     ("baseball", "mlb", "MLB"),
     ("hockey", "nhl", "NHL"),
     ("soccer", "usa.1", "MLS"),
-    # European Soccer
+    # === England (all tiers on Polymarket) ===
     ("soccer", "eng.1", "Premier League"),
     ("soccer", "eng.2", "EFL Championship"),
+    ("soccer", "eng.3", "EFL League One"),
+    ("soccer", "eng.4", "EFL League Two"),
+    ("soccer", "eng.5", "National League"),
+    ("soccer", "eng.fa", "FA Cup"),
+    ("soccer", "eng.league_cup", "EFL Cup"),
+    # === Top European Leagues ===
     ("soccer", "esp.1", "La Liga"),
+    ("soccer", "esp.2", "La Liga 2"),
     ("soccer", "ita.1", "Serie A"),
+    ("soccer", "ita.2", "Serie B"),
     ("soccer", "ger.1", "Bundesliga"),
+    ("soccer", "ger.2", "2. Bundesliga"),
     ("soccer", "fra.1", "Ligue 1"),
+    ("soccer", "fra.2", "Ligue 2"),
     ("soccer", "ned.1", "Eredivisie"),
     ("soccer", "por.1", "Primeira Liga"),
     ("soccer", "tur.1", "Super Lig"),
     ("soccer", "sco.1", "Scottish Premiership"),
-    # UEFA Competitions
+    ("soccer", "bel.1", "Belgian Pro League"),
+    ("soccer", "aut.1", "Austrian Bundesliga"),
+    ("soccer", "gre.1", "Greek Super League"),
+    ("soccer", "den.1", "Danish Superliga"),
+    ("soccer", "nor.1", "Norwegian Eliteserien"),
+    ("soccer", "swe.1", "Swedish Allsvenskan"),
+    # === UEFA Competitions ===
     ("soccer", "uefa.champions", "Champions League"),
     ("soccer", "uefa.europa", "Europa League"),
-    # South America
+    ("soccer", "uefa.europa.conf", "Europa Conference League"),
+    # === South America ===
     ("soccer", "bra.1", "Brasileirao"),
+    ("soccer", "bra.2", "Brasileirao Serie B"),
     ("soccer", "arg.1", "Liga Argentina"),
-    # Mexico
+    ("soccer", "col.1", "Colombian Liga"),
+    ("soccer", "chi.1", "Chilean Liga"),
+    ("soccer", "conmebol.libertadores", "Copa Libertadores"),
+    ("soccer", "conmebol.sudamericana", "Copa Sudamericana"),
+    # === Mexico ===
     ("soccer", "mex.1", "Liga MX"),
-    # Asia
+    # === Asia & Middle East ===
     ("soccer", "jpn.1", "J-League"),
     ("soccer", "chn.1", "Chinese Super League"),
-    # Combat Sports
+    ("soccer", "ksa.1", "Saudi Pro League"),
+    ("soccer", "ind.1", "Indian Super League"),
+    ("soccer", "aus.1", "A-League"),
+    # === International ===
+    ("soccer", "fifa.friendly", "International Friendly"),
+    ("soccer", "fifa.worldq", "FIFA World Cup Qualifiers"),
+    ("soccer", "fifa.world", "FIFA World Cup"),
+    # === Combat Sports ===
     ("mma", "ufc", "UFC"),
-    # Tennis
+    # === Tennis ===
     ("tennis", "atp", "ATP Tennis"),
     ("tennis", "wta", "WTA Tennis"),
+    # NOTE: F1/Golf excluded — multi-competitor events, not moneyline head-to-head
 ]
 
 # PandaScore games to scout
@@ -230,6 +262,10 @@ class ScoutScheduler:
             team_a = entry["team_a"].lower()
             team_b = entry["team_b"].lower()
 
+            # Guard: empty names always match ("" in string is True)
+            if not team_a or not team_b:
+                continue
+
             # Check if both team names appear in question or slug
             a_in = team_a in q_lower or team_a in slug_lower
             b_in = team_b in q_lower or team_b in slug_lower
@@ -237,7 +273,7 @@ class ScoutScheduler:
             if a_in and b_in:
                 entry["matched"] = True
                 self._save_queue()
-                logger.info("Scout match found: %s ↔ %s", key, slug[:40])
+                logger.info("Scout match found: %s <-> %s", key, slug[:40])
                 return entry
 
             # Try abbreviated matching (first 3+ chars of each team)
@@ -247,7 +283,7 @@ class ScoutScheduler:
                 if a_short in slug_lower and b_short in slug_lower:
                     entry["matched"] = True
                     self._save_queue()
-                    logger.info("Scout match (abbrev): %s ↔ %s", key, slug[:40])
+                    logger.info("Scout match (abbrev): %s <-> %s", key, slug[:40])
                     return entry
 
         return None
@@ -310,11 +346,13 @@ class ScoutScheduler:
                         if status in ("in", "post"):
                             continue
 
-                        # Tennis uses tournament/groupings structure instead of flat competitions
+                        # --- Sport-specific parsers ---
+                        # Each sport has different ESPN response structures.
+
+                        # TENNIS: tournament/groupings with athlete (not team)
                         if sport == "tennis":
                             for grouping in event.get("groupings", []):
                                 group_name = grouping.get("grouping", {}).get("displayName", "")
-                                # Only singles matches (skip doubles/mixed)
                                 if "double" in group_name.lower() or "mixed" in group_name.lower():
                                     continue
                                 for comp in grouping.get("competitions", []):
@@ -348,8 +386,40 @@ class ScoutScheduler:
                                         "tags": ["sports", display_name.lower()],
                                         "is_esports": False,
                                     })
-                            continue  # Skip the standard parsing below
+                            continue
 
+                        # MMA: flat competitions[], each fight = 1 competition with 2 athlete competitors
+                        if sport == "mma":
+                            for comp in event.get("competitions", []):
+                                comp_status = comp.get("status", {}).get("type", {}).get("state", "")
+                                if comp_status in ("in", "post"):
+                                    continue
+                                competitors = comp.get("competitors", [])
+                                if len(competitors) != 2:
+                                    continue
+                                fighter_a = competitors[0].get("athlete", {}).get("displayName", "")
+                                fighter_b = competitors[1].get("athlete", {}).get("displayName", "")
+                                if not fighter_a or not fighter_b:
+                                    continue
+                                slug_hint = f"mma-{fighter_a[:4].lower()}-{fighter_b[:4].lower()}"
+                                scout_key = f"{sport}_{league}_{fighter_a}_{fighter_b}_{date_str}"
+                                matches.append({
+                                    "scout_key": scout_key,
+                                    "team_a": fighter_a,
+                                    "team_b": fighter_b,
+                                    "question": f"{fighter_a} vs {fighter_b}: Who will win?",
+                                    "match_time": event_dt.isoformat(),
+                                    "sport": sport,
+                                    "league": league,
+                                    "league_name": display_name,
+                                    "slug_hint": slug_hint,
+                                    "tags": ["sports", display_name.lower()],
+                                    "is_esports": False,
+                                })
+                            continue
+
+                        # STANDARD (soccer, basketball, football, baseball, hockey):
+                        # flat competitions[] with team.displayName
                         competitors = event.get("competitions", [{}])[0].get("competitors", [])
                         if len(competitors) != 2:
                             continue
@@ -359,9 +429,7 @@ class ScoutScheduler:
                         if not team_a or not team_b:
                             continue
 
-                        # Build slug hint for matching
                         slug_hint = f"{sport[:3]}-{team_a[:4].lower()}-{team_b[:4].lower()}"
-
                         scout_key = f"{sport}_{league}_{team_a}_{team_b}_{date_str}"
                         matches.append({
                             "scout_key": scout_key,

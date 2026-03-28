@@ -260,18 +260,29 @@ class SportsDataClient:
 
         # Get recent games from schedule
         # Soccer leagues don't support seasontype param — returns 0 events.
-        # Try without seasontype first (works for soccer), then with seasontype=2 (works for NBA etc.)
+        # Try bare URL first (works for soccer); skip seasontype=2 if bare returned data (overlap).
         recent_games = []
         base_schedule = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/schedule"
-        for sched_url in [base_schedule, f"{base_schedule}?seasontype=2", f"{base_schedule}?seasontype=3"]:
-            sched_data = self._get(sched_url)
-            if not sched_data:
-                continue
-            for event in sched_data.get("events", []):
+        bare_data = self._get(base_schedule)
+        bare_found = False
+        if bare_data:
+            for event in bare_data.get("events", []):
                 if event.get("competitions", [{}])[0].get("status", {}).get("type", {}).get("completed", False):
                     game_info = self._parse_game(event, str(team_id))
                     if game_info and game_info not in recent_games:
                         recent_games.append(game_info)
+            bare_found = len(recent_games) > 0
+        # Only try seasontype variants if bare URL returned nothing (non-soccer sports)
+        if not bare_found:
+            for st in [2, 3]:
+                sched_data = self._get(f"{base_schedule}?seasontype={st}")
+                if not sched_data:
+                    continue
+                for event in sched_data.get("events", []):
+                    if event.get("competitions", [{}])[0].get("status", {}).get("type", {}).get("completed", False):
+                        game_info = self._parse_game(event, str(team_id))
+                        if game_info and game_info not in recent_games:
+                            recent_games.append(game_info)
         # Keep only last 10
         recent_games = recent_games[-10:]
 
@@ -401,9 +412,13 @@ class SportsDataClient:
             return non_date[0], non_date[1]
         return None, None
 
+    # Sports where competitors are individual athletes, not teams
+    _ATHLETE_SPORTS = frozenset({"tennis", "mma"})
+
     def get_match_context(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Build structured context string for AI analyst.
 
+        Routes to athlete-based context for tennis/MMA, team-based for others.
         Returns None if not a traditional sport or no data available.
         """
         sport_league = self.detect_sport(question, slug, tags)
@@ -411,20 +426,88 @@ class SportsDataClient:
             return None
 
         sport, league = sport_league
-        league_name = league  # Use league slug as display name (e.g. "eng.1", "nba")
 
-        # Try question first for full team names, fall back to slug abbreviations
+        # Athlete-based sports (tennis, MMA) use different ESPN endpoints
+        if sport in self._ATHLETE_SPORTS:
+            return self._get_athlete_match_context(sport, league, question, slug)
+
+        return self._get_team_match_context(sport, league, question, slug)
+
+    def _get_athlete_match_context(
+        self, sport: str, league: str, question: str, slug: str
+    ) -> Optional[str]:
+        """Build context for athlete-based sports (tennis, MMA).
+
+        Uses ESPN search to confirm athletes and scoreboard for match data.
+        """
         team_a_name, team_b_name = self._extract_teams_from_question(question)
         slug_a, slug_b = self._extract_teams_from_slug(slug)
-
-        # Use slug abbreviations as backup ONLY if question gave nothing
-        # and slug parts are long enough (≥4 chars) to avoid ambiguity
         if not team_a_name and slug_a and len(slug_a) >= 4:
             team_a_name = slug_a
         if not team_b_name and slug_b and len(slug_b) >= 4:
             team_b_name = slug_b
 
-        # Single-team markets ("Will X win?") are valid — only need team_a
+        if not team_a_name:
+            return None
+
+        logger.info("Fetching ESPN athlete data: %s vs %s (%s/%s)",
+                     team_a_name, team_b_name, sport, league)
+
+        parts = [f"=== SPORTS DATA (ESPN) -- {sport}/{league} ==="]
+        found_any = False
+
+        for label, name in [("PLAYER A", team_a_name), ("PLAYER B", team_b_name)]:
+            if not name:
+                parts.append(f"\n{label}: No data available")
+                continue
+
+            # Search ESPN for this athlete
+            params = {"query": name, "limit": 5, "type": "player"}
+            record_call("espn_search")
+            self._rate_limit()
+            try:
+                resp = requests.get(self._SEARCH_URL, params=params, timeout=8)
+                data = resp.json() if resp.status_code == 200 else {}
+            except (requests.RequestException, ValueError):
+                data = {}
+
+            # Find matching athlete in our sport
+            athlete_info = None
+            for item in data.get("items", []):
+                if item.get("sport") == sport:
+                    athlete_info = item
+                    break
+
+            if athlete_info:
+                found_any = True
+                display = athlete_info.get("displayName", name)
+                athlete_league = athlete_info.get("league", league)
+                parts.append(f"\n{label}: {display} ({athlete_league})")
+            else:
+                parts.append(f"\n{label}: {name} (not found on ESPN)")
+
+        if not found_any:
+            return None
+
+        sport_label = "tennis" if sport == "tennis" else "MMA"
+        parts.append(f"\nThis is a {sport_label} match. Use your knowledge of current "
+                     f"rankings, recent form, surface/venue, and head-to-head to estimate.")
+        return "\n".join(parts)
+
+    def _get_team_match_context(
+        self, sport: str, league: str, question: str, slug: str
+    ) -> Optional[str]:
+        """Build context for team-based sports (soccer, NBA, NFL, MLB, NHL, etc.)."""
+        league_name = league
+
+        team_a_name, team_b_name = self._extract_teams_from_question(question)
+        slug_a, slug_b = self._extract_teams_from_slug(slug)
+
+        if not team_a_name and slug_a and len(slug_a) >= 4:
+            team_a_name = slug_a
+        if not team_b_name and slug_b and len(slug_b) >= 4:
+            team_b_name = slug_b
+
         if not team_a_name:
             logger.debug("Could not extract team names from: %s / %s", question[:60], slug)
             return None
@@ -435,7 +518,6 @@ class SportsDataClient:
         team_b = self.get_team_record(sport, league, team_b_name) if team_b_name else None
 
         if not team_a and not team_b:
-            # Try slug abbreviations if question names failed
             if slug_a and len(slug_a) >= 4 and slug_a != team_a_name:
                 team_a = self.get_team_record(sport, league, slug_a)
             if slug_b and len(slug_b) >= 4 and slug_b != team_b_name:
@@ -444,7 +526,7 @@ class SportsDataClient:
         if not team_a and not team_b:
             return None
 
-        parts = [f"=== SPORTS DATA (ESPN) — {league_name} ==="]
+        parts = [f"=== SPORTS DATA (ESPN) -- {league_name} ==="]
 
         for label, stats in [("TEAM A", team_a), ("TEAM B", team_b)]:
             if not stats:
@@ -455,11 +537,10 @@ class SportsDataClient:
             if stats["record"]:
                 header += f" ({stats['record']})"
             if stats["standing"]:
-                header += f" — {stats['standing']}"
+                header += f" -- {stats['standing']}"
             parts.append(header)
 
             if stats["recent_games"]:
-                # Calculate recent form
                 recent_5 = stats["recent_games"][-5:]
                 wins = sum(1 for g in recent_5 if g["won"])
                 parts.append(f"  Last 5: {wins}W-{5-wins}L")
