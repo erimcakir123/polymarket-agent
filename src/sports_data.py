@@ -85,22 +85,17 @@ class SportsDataClient:
             )
             resp.raise_for_status()
             record_call("espn")
-            results = resp.json()
+            data = resp.json()
 
-            for item in results.get("results", []):
-                entities = item.get("entities", [])
-                for entity in entities:
-                    link = entity.get("link", "")
-                    # Link format: /sport/league/team/id/name
-                    # e.g. /soccer/eng.3/team/123/team-name
-                    parts = link.strip("/").split("/")
-                    if len(parts) >= 3 and parts[0] != "athlete":
-                        sport = parts[0]
-                        league = parts[1]
-                        result = (sport, league)
-                        self._cache[cache_key] = (result, time.monotonic())
-                        logger.info("ESPN search: '%s' → %s/%s", team_name, sport, league)
-                        return result
+            # ESPN returns items[] with sport/league as direct fields
+            for item in data.get("items", []):
+                sport = item.get("sport", "")
+                league = item.get("league", "") or item.get("defaultLeagueSlug", "")
+                if sport and league and item.get("type") == "team":
+                    result = (sport, league)
+                    self._cache[cache_key] = (result, time.monotonic())
+                    logger.info("ESPN search: '%s' → %s/%s", team_name, sport, league)
+                    return result
 
             # No results found
             self._cache[cache_key] = (None, time.monotonic())
@@ -297,8 +292,17 @@ class SportsDataClient:
             return None
 
     def _extract_teams_from_question(self, question: str) -> Tuple[Optional[str], Optional[str]]:
-        """Extract team names from 'Team A vs Team B' style question."""
+        """Extract team names from various question formats.
+
+        Handles: 'NBA: Team A vs Team B', 'Will Team A beat Team B?',
+        'Team A vs Team B: Who will win?', etc.
+        """
         q = question.strip()
+
+        # Strip common prefixes like "NBA: ", "MLB: ", "Soccer: "
+        import re
+        q = re.sub(r'^[A-Z]{2,10}:\s*', '', q)
+
         # Try "vs" split
         for sep in [" vs. ", " vs ", " versus "]:
             if sep in q.lower():
@@ -311,10 +315,21 @@ class SportsDataClient:
                         team_a = team_a[:team_a.index(char)].strip()
                     if char in team_b:
                         team_b = team_b[:team_b.index(char)].strip()
+                # Remove question mark
+                team_b = team_b.rstrip("?").strip()
                 # Remove "Will " prefix
                 if team_a.lower().startswith("will "):
                     team_a = team_a[5:].strip()
                 return team_a, team_b
+
+        # Try "beat" / "win against" pattern: "Will Team A beat Team B?"
+        beat_match = re.search(
+            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+(?:beat|defeat|win against)\s+(?:the\s+)?(.+?)[\s?]*$',
+            q,
+        )
+        if beat_match:
+            return beat_match.group(1).strip(), beat_match.group(2).rstrip("?").strip()
+
         return None, None
 
     def _extract_teams_from_slug(self, slug: str) -> Tuple[Optional[str], Optional[str]]:
