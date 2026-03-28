@@ -925,7 +925,7 @@ class Agent:
                 m.condition_id, token_id, direction,
                 m.yes_price, size, shares, m.slug,
                 "", confidence="B-",
-                ai_probability=pre_match,
+                ai_probability=max(0.01, min(0.99, pre_match)),
                 entry_reason="live_dip",
                 sport_tag=getattr(m, "sport_tag", "") or "",
                 event_id=getattr(m, "event_id", "") or "",
