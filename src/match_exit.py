@@ -294,6 +294,19 @@ def check_match_exit(data: dict) -> dict:
         except (ValueError, TypeError):
             pass
 
+    # --- Upset Hunter: forced exit at last 10% of match ---
+    entry_reason = data.get("entry_reason", "")
+    if entry_reason == "upset" and elapsed_pct >= 0.90:
+        return {**result, "exit": True, "layer": "upset_forced_exit",
+                "reason": f"Upset hunter: match {elapsed_pct:.0%} done, forced exit"}
+
+    # --- Upset Hunter: fallback for missing match timing ---
+    if entry_reason == "upset" and elapsed_pct < 0:
+        hold_hours = data.get("hold_hours", 0)
+        if hold_hours >= 3.0 and pnl_pct < 0:
+            return {**result, "exit": True, "layer": "upset_max_hold",
+                    "reason": f"Upset hunter: held {hold_hours:.1f}h with no timing, PnL {pnl_pct:.1%}"}
+
     if elapsed_pct < 0:
         # No match timing -> can't do graduated/never-in-profit checks
         # Return no exit, let existing flat stop loss handle

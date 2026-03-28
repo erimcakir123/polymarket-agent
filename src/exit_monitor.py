@@ -109,8 +109,11 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
-        # 1. Stop-loss check -- same for all sports
-        sl_pct = self.config.risk.stop_loss_pct
+        # 1. Stop-loss check -- upset positions use wider SL
+        if pos.entry_reason == "upset":
+            sl_pct = self.config.upset_hunter.stop_loss_pct  # 50%
+        else:
+            sl_pct = self.config.risk.stop_loss_pct  # 30%
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
             self._ws_exit_queued_set.add(cid)
@@ -141,15 +144,32 @@ class ExitMonitor:
                 peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
-            if pos.peak_pnl_pct >= ttp_cfg.activation_pct:
+            # Upset positions: wider activation (+100%) and trail (25%)
+            if pos.entry_reason == "upset":
+                upset_cfg = self.config.upset_hunter
+                act_pct = upset_cfg.trailing_activation  # 1.00 (+100%)
+                trail_dist = upset_cfg.trailing_distance  # 0.25
+                # Promotion: if price >= 35¢, switch to core params
+                if direction == "BUY_NO":
+                    eff_cur = 1.0 - current
+                else:
+                    eff_cur = current
+                if eff_cur >= upset_cfg.promotion_price:
+                    act_pct = ttp_cfg.activation_pct    # Core: 0.20
+                    trail_dist = ttp_cfg.trail_distance  # Core: 0.08
+            else:
+                act_pct = ttp_cfg.activation_pct
+                trail_dist = ttp_cfg.trail_distance
+
+            if pos.peak_pnl_pct >= act_pct:
                 ttp_result = calculate_trailing_tp(
                     entry_price=entry,
                     current_price=current,
                     direction=direction,
                     peak_price=pos.peak_price,
                     trailing_active=True,
-                    activation_pct=ttp_cfg.activation_pct,
-                    trail_distance=ttp_cfg.trail_distance,
+                    activation_pct=act_pct,
+                    trail_distance=trail_dist,
                 )
                 if ttp_result["action"] == "EXIT":
                     self._ws_exit_queue.append((cid, f"trailing_tp: {ttp_result['reason']}"))
