@@ -124,16 +124,25 @@ class FarConfig(BaseModel):
     penny_bet_pct: float = 0.05           # 5% bankroll for penny bets
 
 
-class BondFarmingConfig(BaseModel):
+class UpsetHunterConfig(BaseModel):
     enabled: bool = True
-    min_yes_price: float = 0.90
-    max_yes_price: float = 0.97
-    bet_pct: float = 0.08              # 8% bankroll per bond
-    max_total_bond_pct: float = 0.20   # 20% max across all bonds
+    min_price: float = 0.05
+    max_price: float = 0.15
+    bet_pct: float = 0.02
     max_concurrent: int = 3
-    min_volume_24h: float = 5_000
+    stop_loss_pct: float = 0.50
     min_liquidity: float = 5_000
-    max_days_to_resolution: float = 0.25  # ~6 hours -- only near-resolution bonds
+    min_odds_divergence: float = 0.05
+    max_hours_before_match: float = 48
+    late_match_exit_pct: float = 0.10
+    promotion_price: float = 0.35
+    scale_out_tier1_price: float = 0.25
+    scale_out_tier1_sell_pct: float = 0.30
+    scale_out_tier2_price: float = 0.35
+    scale_out_tier2_sell_pct: float = 0.30
+    trailing_activation: float = 1.00
+    trailing_distance: float = 0.25
+    max_hold_hours: float = 3.0
 
 
 class LiveMomentumConfig(BaseModel):
@@ -199,7 +208,7 @@ class AppConfig(BaseModel):
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
     far: FarConfig = FarConfig()
-    bond_farming: BondFarmingConfig = BondFarmingConfig()
+    upset_hunter: UpsetHunterConfig = UpsetHunterConfig()
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()
