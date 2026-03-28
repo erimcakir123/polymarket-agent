@@ -11,7 +11,7 @@ import logging
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import requests
 
@@ -154,11 +154,7 @@ class ScoutScheduler:
         esports_matches = self._fetch_esports_upcoming()
         logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
 
-        # 3. Fetch cricket matches
-        cricket_matches = self._fetch_cricket_upcoming()
-        logger.info("CricketData: found %d upcoming matches", len(cricket_matches))
-
-        all_matches = sports_matches + esports_matches + cricket_matches
+        all_matches = sports_matches + esports_matches
 
         # 3. Save match calendar to queue (NO AI calls — save budget)
         # AI analysis happens later, only when a Polymarket bet actually appears
@@ -415,39 +411,3 @@ class ScoutScheduler:
 
         return matches
 
-    def _fetch_cricket_upcoming(self) -> List[dict]:
-        """Fetch upcoming cricket matches from CricketData.org."""
-        if not self.cricket_data.available:
-            return []
-
-        matches = []
-        try:
-            upcoming = self.cricket_data.get_upcoming_matches() or []
-            for m in upcoming:
-                teams = m.get("teams", [])
-                if len(teams) < 2:
-                    continue
-                if not m.get("date"):
-                    continue
-                team_a = teams[0]
-                team_b = teams[1]
-                match_type = m.get("match_type", "t20").upper()
-                date_str = m.get("date", "")[:10]
-                scout_key = f"cricket_{team_a}_{team_b}_{date_str}"
-                matches.append({
-                    "scout_key": scout_key,
-                    "team_a": team_a,
-                    "team_b": team_b,
-                    "question": f"{team_a} vs {team_b}: Who will win? ({match_type})",
-                    "match_time": m.get("date", ""),
-                    "sport": "cricket",
-                    "league": match_type.lower(),
-                    "league_name": f"Cricket {match_type}",
-                    "slug_hint": f"ipl-{team_a[:4].lower()}-{team_b[:4].lower()}",
-                    "tags": ["sports", "cricket"],
-                    "is_esports": False,
-                })
-        except Exception as e:
-            logger.warning("CricketData scout error: %s", e)
-
-        return matches
