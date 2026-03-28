@@ -71,7 +71,7 @@ class TradeLogger:
 class EdgeSourceTracker:
     """Track win/loss per edge source. Kill sources with <52% win rate after 30 samples.
 
-    Edge sources: "ai_standard", "ai_anchored", "bond_farming", "live_momentum",
+    Edge sources: "ai_standard", "ai_anchored", "upset_hunter", "live_momentum",
                   "penny_alpha", "fav_time_gate", "volatility_swing", "farming_reentry"
     """
 

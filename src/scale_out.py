@@ -19,12 +19,38 @@ SCALE_OUT_TIERS = {
 
 
 def check_scale_out(
-    scale_out_tier: int, unrealized_pnl_pct: float, volatility_swing: bool
+    scale_out_tier: int,
+    unrealized_pnl_pct: float,
+    volatility_swing: bool,
+    entry_reason: str = "",
+    current_price: float = 0.0,
 ) -> dict | None:
-    """Check if position qualifies for next scale-out tier. Pure function."""
+    """Check if position qualifies for next scale-out tier. Pure function.
+
+    Upset positions use absolute price thresholds (25¢/35¢) instead of PnL%.
+    """
     if volatility_swing:
         return None
 
+    # --- Upset hunter: price-based tiers ---
+    if entry_reason == "upset":
+        if scale_out_tier == 0 and current_price >= 0.25:
+            return {
+                "action": "scale_out",
+                "tier": "upset_tier1",
+                "sell_pct": 0.30,
+                "reason": f"Upset Tier 1: price {current_price:.0%} >= 25¢, sell 30%",
+            }
+        if scale_out_tier == 1 and current_price >= 0.35:
+            return {
+                "action": "scale_out",
+                "tier": "upset_tier2",
+                "sell_pct": 0.30,
+                "reason": f"Upset Tier 2: price {current_price:.0%} >= 35¢, sell 30% — remaining promoted to core",
+            }
+        return None
+
+    # --- Standard: PnL-based tiers ---
     if scale_out_tier == 0 and unrealized_pnl_pct >= 0.25:
         return {
             "action": "scale_out",

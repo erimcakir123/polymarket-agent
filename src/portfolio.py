@@ -376,6 +376,8 @@ class Portfolio:
                 scale_out_tier=pos.scale_out_tier,
                 unrealized_pnl_pct=pos.unrealized_pnl_pct,
                 volatility_swing=pos.volatility_swing,
+                entry_reason=getattr(pos, "entry_reason", ""),
+                current_price=pos.current_price,
             )
             if result is not None:
                 results.append({"condition_id": cid, **result})

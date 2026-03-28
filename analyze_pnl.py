@@ -72,7 +72,7 @@ for line in open("logs/trades.jsonl"):
     t = json.loads(line)
     action = t.get("action", "")
     market = t.get("market", "")
-    if action in ("BUY", "LIVE_DIP_BUY_YES", "LIVE_DIP_BUY_NO", "BOND_ENTRY"):
+    if action in ("BUY", "LIVE_DIP_BUY_YES", "LIVE_DIP_BUY_NO", "BOND_ENTRY", "UPSET_ENTRY"):
         buys[market] = t
     elif action == "EXIT":
         buys.pop(market, None)
