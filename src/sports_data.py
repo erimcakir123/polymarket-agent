@@ -407,13 +407,13 @@ class SportsDataClient:
         logger.info("Fetching ESPN data: %s vs %s (%s)", team_a_name, team_b_name, league_name)
 
         team_a = self.get_team_record(sport, league, team_a_name)
-        team_b = self.get_team_record(sport, league, team_b_name)
+        team_b = self.get_team_record(sport, league, team_b_name) if team_b_name else None
 
         if not team_a and not team_b:
             # Try slug abbreviations if question names failed
-            if slug_a and slug_a != team_a_name:
+            if slug_a and len(slug_a) >= 4 and slug_a != team_a_name:
                 team_a = self.get_team_record(sport, league, slug_a)
-            if slug_b and slug_b != team_b_name:
+            if slug_b and len(slug_b) >= 4 and slug_b != team_b_name:
                 team_b = self.get_team_record(sport, league, slug_b)
 
         if not team_a and not team_b:
