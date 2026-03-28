@@ -258,29 +258,22 @@ class SportsDataClient:
             if stand_summary:
                 standing = stand_summary
 
-        # Get recent games from schedule (seasontype=2 for regular season)
+        # Get recent games from schedule
+        # Soccer leagues don't support seasontype param — returns 0 events.
+        # Try without seasontype first (works for soccer), then with seasontype=2 (works for NBA etc.)
         recent_games = []
-        schedule_url = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/schedule?seasontype=2"
-        schedule_data = self._get(schedule_url)
-        if schedule_data:
-            events = schedule_data.get("events", [])
-            completed = [
-                e for e in events
-                if e.get("competitions", [{}])[0].get("status", {}).get("type", {}).get("completed", False)
-            ]
-            for event in completed[-10:]:
-                game_info = self._parse_game(event, str(team_id))
-                if game_info:
-                    recent_games.append(game_info)
-        # Also check postseason (seasontype=3) for tournament games
-        post_url = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/schedule?seasontype=3"
-        post_data = self._get(post_url)
-        if post_data:
-            for event in post_data.get("events", []):
+        base_schedule = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/schedule"
+        for sched_url in [base_schedule, f"{base_schedule}?seasontype=2", f"{base_schedule}?seasontype=3"]:
+            sched_data = self._get(sched_url)
+            if not sched_data:
+                continue
+            for event in sched_data.get("events", []):
                 if event.get("competitions", [{}])[0].get("status", {}).get("type", {}).get("completed", False):
                     game_info = self._parse_game(event, str(team_id))
-                    if game_info:
+                    if game_info and game_info not in recent_games:
                         recent_games.append(game_info)
+        # Keep only last 10
+        recent_games = recent_games[-10:]
 
         return {
             "team_name": official_name,
