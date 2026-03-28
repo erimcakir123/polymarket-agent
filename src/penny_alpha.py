@@ -1,7 +1,7 @@
-"""Penny Alpha Scanner — find $0.01-$0.02 tokens with 5-10x upside potential.
+"""Penny Alpha Scanner -- find $0.01-$0.02 tokens with 5-10x upside potential.
 
 Strategy: Buy tokens priced at $0.01-$0.02 (extreme longshots) and hold for
-multiplier exits. No AI analysis needed — pure price + catalyst detection.
+multiplier exits. No AI analysis needed -- pure price + catalyst detection.
 
 Entry criteria:
     - YES token price $0.01-$0.02
@@ -10,9 +10,9 @@ Entry criteria:
     - Not already resolved or expired
 
 Exit targets:
-    - $0.01 entry → 5x target ($0.05)
-    - $0.02 entry → 2x target ($0.04)
-    - Hard stop: price drops to $0.00 (total loss accepted — position is small)
+    - $0.01 entry -> 5x target ($0.05)
+    - $0.02 entry -> 2x target ($0.04)
+    - Hard stop: price drops to $0.00 (total loss accepted -- position is small)
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ MAX_CONCURRENT_PENNIES = 3
 
 # Target multipliers by entry price
 PENNY_TARGETS = {
-    0.01: 5.0,  # $0.01 → target $0.05 (5x)
-    0.02: 2.0,  # $0.02 → target $0.04 (2x)
+    0.01: 5.0,  # $0.01 -> target $0.05 (5x)
+    0.02: 2.0,  # $0.02 -> target $0.04 (2x)
 }
 
 
@@ -48,7 +48,7 @@ class PennyCandidate:
     target_price: float
     target_multiplier: float
     days_to_resolution: float
-    token_side: str  # "YES" or "NO" — whichever is the penny token
+    token_side: str  # "YES" or "NO" -- whichever is the penny token
 
 
 def scan_penny_candidates(
@@ -93,7 +93,7 @@ def scan_penny_candidates(
         if days_to_res < 0:
             continue
 
-        # Only head-to-head matchups (X vs Y) — never tournament/season winners
+        # Only head-to-head matchups (X vs Y) -- never tournament/season winners
         q_lower = m.question.lower()
         has_vs = " vs " in q_lower or " vs. " in q_lower
         if not has_vs:
@@ -118,7 +118,7 @@ def scan_penny_candidates(
                 token_side="YES",
             ))
 
-        # Check NO side penny — use actual no_price from order book when available
+        # Check NO side penny -- use actual no_price from order book when available
         no_price = getattr(m, "no_price", 0.0) or (1.0 - m.yes_price)
         if 0.01 <= no_price <= max_price:
             entry_price = no_price
@@ -180,5 +180,5 @@ def check_penny_exit(
             "profit_pct": round(profit_pct, 3),
         }
 
-    # No stop-loss for pennies — accept total loss as cost of strategy
+    # No stop-loss for pennies -- accept total loss as cost of strategy
     return {"exit": False, "reason": "holding", "profit_pct": round(profit_pct, 3)}

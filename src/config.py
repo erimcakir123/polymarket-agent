@@ -23,7 +23,7 @@ class CycleConfig(BaseModel):
 
 
 class ScannerConfig(BaseModel):
-    min_volume_24h: float = 5_000  # Not used — volume filter removed
+    min_volume_24h: float = 5_000  # Not used -- volume filter removed
     min_liquidity: float = 100  # Floor: ensures orderbook has some orders
     tags: List[str] = []
     prefer_short_duration: bool = True
@@ -45,7 +45,7 @@ class AIConfig(BaseModel):
 
 
 class EdgeConfig(BaseModel):
-    """Legacy — kept for YAML compatibility. Sizing is confidence-based now."""
+    """Legacy -- kept for YAML compatibility. Sizing is confidence-based now."""
     min_edge: float = 0.06
     confidence_multipliers: Dict[str, float] = {}
     default_spread: float = 0.02
@@ -57,7 +57,7 @@ class TrailingStopTier(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    kelly_fraction: float = 0.20  # Legacy — sizing is confidence-based now
+    kelly_fraction: float = 0.20  # Legacy -- sizing is confidence-based now
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
     max_positions: int = 20
@@ -119,8 +119,8 @@ class FarConfig(BaseModel):
     take_profit_pct: float = 0.40         # Swing trade TP (overridden for penny)
     # Penny Alpha thresholds ($0.01-$0.02 tokens)
     penny_max_price: float = 0.02         # Tokens at $0.01-$0.02
-    penny_1c_target_multiplier: float = 5.0  # $0.01 → wait for 5x ($0.05)
-    penny_2c_target_multiplier: float = 2.0  # $0.02 → wait for 2x ($0.04)
+    penny_1c_target_multiplier: float = 5.0  # $0.01 -> wait for 5x ($0.05)
+    penny_2c_target_multiplier: float = 2.0  # $0.02 -> wait for 2x ($0.04)
     penny_bet_pct: float = 0.05           # 5% bankroll for penny bets
 
 
@@ -133,7 +133,7 @@ class BondFarmingConfig(BaseModel):
     max_concurrent: int = 3
     min_volume_24h: float = 5_000
     min_liquidity: float = 5_000
-    max_days_to_resolution: float = 0.25  # ~6 hours — only near-resolution bonds
+    max_days_to_resolution: float = 0.25  # ~6 hours -- only near-resolution bonds
 
 
 class LiveMomentumConfig(BaseModel):
@@ -147,7 +147,7 @@ class LiveMomentumConfig(BaseModel):
 class ConsensusEntryConfig(BaseModel):
     enabled: bool = True
     min_price: float = 0.65            # AI and market both ≥65% same direction
-    bet_pct: float = 0.05              # Fixed 5% bankroll (no Kelly — edge≈0)
+    bet_pct: float = 0.05              # Fixed 5% bankroll (no Kelly -- edge≈0)
     max_slots: int = 5                 # Max concurrent consensus positions
 
 
@@ -163,8 +163,8 @@ class PennyAlphaConfig(BaseModel):
     bet_pct: float = 0.05
     max_concurrent: int = 3
     min_volume: float = 500
-    target_1c: float = 5.0             # $0.01 → 5x target
-    target_2c: float = 2.0             # $0.02 → 2x target
+    target_1c: float = 5.0             # $0.01 -> 5x target
+    target_2c: float = 2.0             # $0.02 -> 2x target
 
 
 class ProbabilityEngineConfig(BaseModel):

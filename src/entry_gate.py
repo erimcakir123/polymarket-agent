@@ -1,7 +1,7 @@
-"""entry_gate.py — Unified market entry pipeline.
+"""entry_gate.py -- Unified market entry pipeline.
 
 ALL entry types (normal, FAR, FAV, consensus) go through this single gate.
-Entry type only changes sizing multiplier and slot count — same sanity check
+Entry type only changes sizing multiplier and slot count -- same sanity check
 for everyone. FAR markets no longer bypass sanity (fixes known bug).
 
 Data flow:
@@ -10,11 +10,11 @@ Data flow:
     entry_gate.run(stock_queue,   entries_allowed=True, analyze=False)  # stock drain
 
   run() flow:
-    if not entries_allowed → return []
-    if analyze → prioritize + fetch data + AI batch
-    for each market → sanity + esports rules + edge/consensus → candidates
+    if not entries_allowed -> return []
+    if analyze -> prioritize + fetch data + AI batch
+    for each market -> sanity + esports rules + edge/consensus -> candidates
     assert entries_allowed or len(candidates) == 0  ← safety guard
-    execute top N → return entered condition_ids
+    execute top N -> return entered condition_ids
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ class EntryGate:
         self._eligible_cache_ts: float = 0.0
         self._seen_market_ids: set[str] = set()
         self._espn_odds_cache: dict[str, dict] = {}  # cid -> ESPN odds from discovery
-        self._confidence_c_cids: set[str] = set()  # Markets that got conf=C — never re-analyze
+        self._confidence_c_cids: set[str] = set()  # Markets that got conf=C -- never re-analyze
         self._breaking_news_detected: bool = False
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
@@ -122,8 +122,8 @@ class EntryGate:
 
         Args:
             markets: MarketData objects to evaluate.
-            entries_allowed: False → skip all entries immediately.
-            analyze: True → run AI batch. False → use cached estimates (stock queue).
+            entries_allowed: False -> skip all entries immediately.
+            analyze: True -> run AI batch. False -> use cached estimates (stock queue).
             bankroll: Current USDC bankroll for sizing.
             cycle_count: Current cycle number (for cooldown checks).
             blacklist: Blacklist object for filtering.
@@ -167,7 +167,7 @@ class EntryGate:
 
         # SAFETY GUARD: if somehow entries aren't allowed, candidates must be empty
         assert entries_allowed or len(candidates) == 0, (
-            "BUG: candidates collected but entries_allowed=False — halt flag not propagated"
+            "BUG: candidates collected but entries_allowed=False -- halt flag not propagated"
         )
 
         # Execute top N
@@ -289,7 +289,7 @@ class EntryGate:
         except Exception as exc:
             logger.warning("Esports context fetch failed: %s", exc)
 
-        # Scout inject: match scouted events → inject sports_context into esports_contexts
+        # Scout inject: match scouted events -> inject sports_context into esports_contexts
         if self.scout:
             for _m in prioritized:
                 _scout_entry = self.scout.match_market(
@@ -328,7 +328,7 @@ class EntryGate:
                 except Exception as _exc:
                     logger.debug("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
 
-        # Fetch news contexts (stop-word filtered keywords → topic grouping works correctly)
+        # Fetch news contexts (stop-word filtered keywords -> topic grouping works correctly)
         news_context_by_market: dict[str, str] = {}
         self._breaking_news_detected = False
         try:
@@ -349,7 +349,7 @@ class EntryGate:
                 for arts in raw_news.values()
             )
 
-            # Convert raw article lists → AI-ready text strings
+            # Convert raw article lists -> AI-ready text strings
             news_context_by_market = {
                 cid: self.news_scanner.build_news_context(arts)
                 for cid, arts in raw_news.items()
@@ -369,10 +369,10 @@ class EntryGate:
             logger.info("Skipped %d markets without sports data (saves AI tokens)", _no_data_skipped)
 
         if not _has_data:
-            logger.info("No markets with data — skipping AI batch")
+            logger.info("No markets with data -- skipping AI batch")
             return [], {}
 
-        # Run AI batch — returns List[AIEstimate] in same order as _has_data
+        # Run AI batch -- returns List[AIEstimate] in same order as _has_data
         _estimates_list = self.ai.analyze_batch(
             _has_data, "", esports_contexts, news_by_market=news_context_by_market
         )
@@ -410,7 +410,7 @@ class EntryGate:
             if estimate.confidence in _CONF_SKIP:
                 logger.info("SKIP confidence: %s | conf=%s (insufficient data)",
                             market.slug[:35], estimate.confidence)
-                self._confidence_c_cids.add(cid)  # Blacklist — don't re-analyze this session
+                self._confidence_c_cids.add(cid)  # Blacklist -- don't re-analyze this session
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Insufficient data (conf={estimate.confidence})",
@@ -440,7 +440,7 @@ class EntryGate:
                 except Exception:
                     pass
 
-            # Source 2: ESPN odds (free, cached from discovery phase — no extra API call)
+            # Source 2: ESPN odds (free, cached from discovery phase -- no extra API call)
             _espn_odds = self._espn_odds_cache.get(cid)
             if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
                 _odds_probs.append((
@@ -459,7 +459,7 @@ class EntryGate:
                 num_bookmakers=_anchor_num_books,
             )
             # ── Two-case strategy: consensus vs disagree ─────────────────
-            ai_p = estimate.ai_probability     # Raw AI P(YES) — before anchoring
+            ai_p = estimate.ai_probability     # Raw AI P(YES) -- before anchoring
             ai_n = 1.0 - ai_p                  # Raw AI P(NO)
             mkt_p = market.yes_price            # Market P(YES)
             mkt_n = 1.0 - mkt_p                # Market P(NO)
@@ -472,7 +472,7 @@ class EntryGate:
             if is_consensus:
                 # CASE A: AI and market agree on favorite
                 # Direction = favorite side. Edge = payout potential (99¢ - entry).
-                # Use raw AI probability (skip shrinkage — market already confirms).
+                # Use raw AI probability (skip shrinkage -- market already confirms).
                 if ai_favors_yes:
                     direction = Direction.BUY_YES
                     direction_prob = ai_p
@@ -515,7 +515,7 @@ class EntryGate:
             elif direction_prob >= 0.65:
                 mode = "WINNER"
             else:
-                # Deadzone (55-65%) disabled — historically net negative
+                # Deadzone (55-65%) disabled -- historically net negative
                 logger.info("SKIP deadzone: %s | prob=%.0f%% (55-65%% zone)",
                             market.slug[:35], direction_prob * 100)
                 self.trade_log.log({
@@ -572,7 +572,7 @@ class EntryGate:
             adjusted_size = risk_decision.size_usdc
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
-            # ── Rank score — edge + prob + confidence ─────────────────────────
+            # ── Rank score -- edge + prob + confidence ─────────────────────────
             # Higher edge = higher priority. Negative edge already filtered above.
             conf_score = _CONF_SCORE.get(estimate.confidence, 1)
             rank_score = (direction_prob + edge) * conf_score
@@ -627,7 +627,7 @@ class EntryGate:
             size = c["adjusted_size"]
             estimate = c["estimate"]
 
-            # Same-event dual-side check — never enter both sides of same match
+            # Same-event dual-side check -- never enter both sides of same match
             market_event_id = getattr(market, "event_id", "") or ""
             if market_event_id and market_event_id in entered_event_ids:
                 logger.info("SKIP same-event: %s | event_id=%s already in portfolio",
@@ -653,10 +653,10 @@ class EntryGate:
                 size_usdc=size,
             )
             if not result or result.get("status") == "error":
-                logger.warning("Order failed: %s — %s", market.slug[:40], result)
+                logger.warning("Order failed: %s -- %s", market.slug[:40], result)
                 continue
 
-            # Record position — entry_price is always YES-side for storage consistency
+            # Record position -- entry_price is always YES-side for storage consistency
             entry_price = market.yes_price
             eff_price = (1 - entry_price) if direction == Direction.BUY_NO else entry_price
             shares = size / eff_price if eff_price > 0 else 0
@@ -765,7 +765,7 @@ class EntryGate:
                     _is_cyes = ai_prob >= _ce_min and mkt_price >= _ce_min
                     _is_cno = (1 - ai_prob) >= _ce_min and (1 - mkt_price) >= _ce_min
                     if (_is_cyes or _is_cno) and conf in ("A", "B+"):
-                        continue  # potential consensus candidate → don't skip
+                        continue  # potential consensus candidate -> don't skip
                     results[cid] = float(ts)
         except Exception as exc:
             logger.warning("Could not load recent analyses: %s", exc)

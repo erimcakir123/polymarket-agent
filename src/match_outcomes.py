@@ -1,4 +1,4 @@
-"""Match outcome logger — records every position exit for AI calibration.
+"""Match outcome logger -- records every position exit for AI calibration.
 
 Writes to logs/match_outcomes.jsonl (append-only, one JSON object per line).
 Used to measure: AI accuracy, confidence calibration, edge vs actual PnL.

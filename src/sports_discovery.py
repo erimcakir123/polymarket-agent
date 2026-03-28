@@ -1,8 +1,8 @@
-"""Unified sports data discovery — routes markets to the correct API dynamically.
+"""Unified sports data discovery -- routes markets to the correct API dynamically.
 
-Replaces the old 5-tier cascade (Bridge→ESPN→football-data→CricketData→TheSportsDB)
-with a simple 3-way router: esports → PandaScore, cricket → CricketData, else → ESPN.
-No hardcoded slug/keyword mappings — each API uses its own search endpoints.
+Replaces the old 5-tier cascade (Bridge->ESPN->football-data->CricketData->TheSportsDB)
+with a simple 3-way router: esports -> PandaScore, cricket -> CricketData, else -> ESPN.
+No hardcoded slug/keyword mappings -- each API uses its own search endpoints.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Lightweight route detection — categorization, not discovery
+# Lightweight route detection -- categorization, not discovery
 _ESPORTS_SLUGS = frozenset({"cs2", "csgo", "lol", "dota2", "valorant"})
 _CRICKET_SLUGS = frozenset({"ipl", "psl", "t20", "crint", "cricpakt20cup", "criclcl"})
 
@@ -28,14 +28,14 @@ class DiscoveryResult:
     """Result from sports data discovery."""
     context: str      # Sports context string for AI analyst
     source: str       # "ESPN", "PandaScore", "CricketData"
-    confidence: str   # Always "A" — all sources are reliable
+    confidence: str   # Always "A" -- all sources are reliable
     espn_odds: Optional[dict] = None  # ESPN odds data (if available)
 
 
 class SportsDiscovery:
     """Single entry point for all sports data resolution.
 
-    Thin orchestrator — routes markets to the correct API based on
+    Thin orchestrator -- routes markets to the correct API based on
     lightweight categorization (esports/cricket/everything else).
     """
 
@@ -71,7 +71,7 @@ class SportsDiscovery:
             else:  # espn
                 ctx = self.espn.get_match_context(question, slug, tags)
                 if ctx:
-                    # Fetch ESPN odds (free) — passed to anchoring, NOT to AI
+                    # Fetch ESPN odds (free) -- passed to anchoring, NOT to AI
                     # (avoid double-counting: AI sees stats, anchoring sees odds)
                     espn_odds = self.espn.get_espn_odds(question, slug, tags)
                     return DiscoveryResult(
@@ -101,5 +101,5 @@ class SportsDiscovery:
         if "cricket" in question.lower():
             return "cricket"
 
-        # Everything else → ESPN
+        # Everything else -> ESPN
         return "espn"

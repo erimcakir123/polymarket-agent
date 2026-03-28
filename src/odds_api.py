@@ -1,4 +1,4 @@
-"""The Odds API client — bookmaker odds + historical line movement.
+"""The Odds API client -- bookmaker odds + historical line movement.
 
 Paid plan: 20K credits/month. Used for:
 1. Live odds as second opinion on uncertain markets
@@ -60,14 +60,14 @@ class OddsAPIClient:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
         self._using_backup = False
-        self._cache: Dict[str, Tuple[object, float]] = {}  # key → (data, wall_clock_ts)
+        self._cache: Dict[str, Tuple[object, float]] = {}  # key -> (data, wall_clock_ts)
         self._cache_ttl = 28800  # 8h fallback TTL (tennis keys, etc.)
         self._hist_cache_ttl = 28800  # 8 hour cache for historical
         self._requests_used = 0
         self._notified_80 = False
         self._notified_95 = False
         self._notifier = None
-        self._load_cache()  # Persist across restarts — no cold start on cycle 1
+        self._load_cache()  # Persist across restarts -- no cold start on cycle 1
 
     @property
     def available(self) -> bool:
@@ -78,7 +78,7 @@ class OddsAPIClient:
         self._notifier = notifier
 
     def _load_cache(self) -> None:
-        """Load persisted odds cache from disk — no cold start on bot restart."""
+        """Load persisted odds cache from disk -- no cold start on bot restart."""
         try:
             if not self._CACHE_FILE.exists():
                 return
@@ -104,7 +104,7 @@ class OddsAPIClient:
         """Discover ALL active/in-season sport keys from /v4/sports/ (FREE, 0 quota).
 
         Replaces hardcoded _BRIDGE_SPORT_KEYS_ALWAYS + _BRIDGE_SPORT_KEYS_SEASONAL.
-        Cached for 1h — re-discovers automatically when sports go in/out of season.
+        Cached for 1h -- re-discovers automatically when sports go in/out of season.
         """
         cache_key = "_active_sports_all"
         cached = self._cache.get(cache_key)
@@ -162,7 +162,7 @@ class OddsAPIClient:
     def _detect_sport_key(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Detect The Odds API sport key from market data.
 
-        Priority: hardcoded lookup (fast) → tennis dynamic → full dynamic discovery.
+        Priority: hardcoded lookup (fast) -> tennis dynamic -> full dynamic discovery.
         """
         slug_prefix = slug.split("-")[0].lower() if slug else ""
         if slug_prefix in _SPORT_KEYS:
@@ -193,7 +193,7 @@ class OddsAPIClient:
 
         Instead of blindly returning keys[0], tries to match tournament name
         from the slug/question against active keys. Saves 5 credits vs fetching all.
-        E.g. slug 'atp-miami-sinner' → matches 'tennis_atp_miami_open'.
+        E.g. slug 'atp-miami-sinner' -> matches 'tennis_atp_miami_open'.
         """
         keys = self._get_active_tennis_keys(gender)
         if not keys:
@@ -205,14 +205,14 @@ class OddsAPIClient:
         slug_lower = slug.lower() if slug else ""
         combined = f"{q_lower} {slug_lower}"
 
-        # Generic words that appear in many tournament names — skip these
+        # Generic words that appear in many tournament names -- skip these
         _GENERIC = {"open", "grand", "prix", "cup", "championship", "masters", "series"}
 
         # Score each key by how many SPECIFIC parts match the combined text
         best_key = None
         best_score = 0
         for key in keys:
-            # key format: tennis_atp_miami_open → extract ["miami", "open"]
+            # key format: tennis_atp_miami_open -> extract ["miami", "open"]
             parts = key.split("_")[2:]
             specific = [p for p in parts if len(p) > 2 and p not in _GENERIC]
             score = sum(1 for p in specific if p in combined)
@@ -223,7 +223,7 @@ class OddsAPIClient:
         if best_key:
             return best_key
 
-        # No specific match → try full tournament name (e.g. "french open" in text)
+        # No specific match -> try full tournament name (e.g. "french open" in text)
         for key in keys:
             tourney = " ".join(key.split("_")[2:])  # "miami open", "french open"
             if tourney and tourney in combined:
@@ -235,8 +235,8 @@ class OddsAPIClient:
     def _discover_sport_key(self, team_a: str, team_b: str) -> Optional[str]:
         """Dynamically find the sport key for a team pair using FREE endpoints.
 
-        1. GET /v4/sports?all=false → all active sport keys (FREE, 0 credits)
-        2. For each sport key, GET /v4/sports/{key}/events → match team names (FREE)
+        1. GET /v4/sports?all=false -> all active sport keys (FREE, 0 credits)
+        2. For each sport key, GET /v4/sports/{key}/events -> match team names (FREE)
         """
         if not team_a and not team_b:
             return None
@@ -289,7 +289,7 @@ class OddsAPIClient:
                 b_match = (team_b_lower in home or home in team_b_lower or
                            team_b_lower in away or away in team_b_lower)
                 if a_match or b_match:
-                    logger.info("Odds API discovery: '%s/%s' → %s", team_a, team_b, sk)
+                    logger.info("Odds API discovery: '%s/%s' -> %s", team_a, team_b, sk)
                     return sk
 
         return None
@@ -302,10 +302,10 @@ class OddsAPIClient:
         return (time.time() - cached_wall_ts) >= self._REFRESH_INTERVAL_HOURS * 3600
 
     def _api_request(self, endpoint: str, params: dict) -> Optional[dict | list]:
-        """Shared HTTP layer — makes authenticated GET to The Odds API.
+        """Shared HTTP layer -- makes authenticated GET to The Odds API.
 
         Handles: auth, quota tracking, notifications, backup key switch.
-        Does NOT handle caching — callers (_get) own their cache strategy.
+        Does NOT handle caching -- callers (_get) own their cache strategy.
         """
         if not self.available:
             return None
@@ -350,7 +350,7 @@ class OddsAPIClient:
                     self.api_key = self._backup_key
                     self._using_backup = True
                     return self._api_request(endpoint, params)
-                logger.warning("Odds API key invalid/expired — disabling for this session")
+                logger.warning("Odds API key invalid/expired -- disabling for this session")
                 self.api_key = ""
             return None
 
@@ -520,7 +520,7 @@ class OddsAPIClient:
         """Fetch historical odds at a specific date (ISO format, e.g. '2026-03-20T12:00:00Z').
 
         If no date given, defaults to 24h ago (opening line proxy).
-        Costs ~10 credits per call — use sparingly.
+        Costs ~10 credits per call -- use sparingly.
 
         Returns same format as get_bookmaker_odds() plus 'timestamp' field.
         """
@@ -664,7 +664,7 @@ class OddsAPIClient:
         )
 
     # ------------------------------------------------------------------
-    # Scores (live match data — free with paid plan)
+    # Scores (live match data -- free with paid plan)
     # ------------------------------------------------------------------
 
     def get_live_scores(self, sport_key: str) -> Optional[List[Dict]]:

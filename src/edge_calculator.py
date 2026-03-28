@@ -57,7 +57,7 @@ def estimate_slippage(
     if best_price > 0 and slippage / best_price > max_slippage_pct:
         capped = best_price * max_slippage_pct
         logger.warning(
-            "Slippage %.4f (%.1f%%) exceeds max %.1f%% — capped to %.4f",
+            "Slippage %.4f (%.1f%%) exceeds max %.1f%% -- capped to %.4f",
             slippage, (slippage / best_price) * 100, max_slippage_pct * 100, capped,
         )
         slippage = capped
@@ -90,7 +90,7 @@ def calculate_edge(
     Returns:
         (Direction, effective_edge) tuple
     """
-    # ai_prob is ALWAYS P(YES wins). raw > 0 → BUY_YES, raw < 0 → BUY_NO.
+    # ai_prob is ALWAYS P(YES wins). raw > 0 -> BUY_YES, raw < 0 -> BUY_NO.
     multipliers = confidence_multipliers or DEFAULT_CONFIDENCE_MULTIPLIERS
     multiplier = multipliers.get(confidence, 1.0)
     threshold = (min_edge + edge_threshold_adjustment) * multiplier

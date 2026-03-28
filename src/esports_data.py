@@ -112,7 +112,7 @@ class EsportsDataClient:
                 videogame = match.get("videogame", {})
                 slug = videogame.get("slug", "")
                 if slug:
-                    logger.info("PandaScore search: '%s' → game=%s", team_a, slug)
+                    logger.info("PandaScore search: '%s' -> game=%s", team_a, slug)
                     return slug
 
         return None
@@ -430,7 +430,7 @@ class EsportsDataClient:
             if a_match is None or b_match is None or a_match == b_match:
                 continue
 
-            # Found our match — parse state
+            # Found our match -- parse state
             return self._parse_match_state(match, opp_names[0]["name"], opp_names[1]["name"])
 
         return None
@@ -492,7 +492,7 @@ class EsportsDataClient:
                         current_map = maps_played
                         current_game_status = "finished"
                     else:
-                        # Between maps — this is a break!
+                        # Between maps -- this is a break!
                         current_map = maps_played + 1
                         current_game_status = "not_started"
                         is_break = True
@@ -500,7 +500,7 @@ class EsportsDataClient:
                     current_map = 1
                     current_game_status = "not_started"
         else:
-            # No games data — infer from results
+            # No games data -- infer from results
             current_map = team_a_score + team_b_score + 1
 
         map_score = f"{team_a_score}-{team_b_score}"

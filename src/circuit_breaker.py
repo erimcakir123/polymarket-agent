@@ -1,4 +1,4 @@
-"""Portfolio-level circuit breaker — halts new entries on excessive losses.
+"""Portfolio-level circuit breaker -- halts new entries on excessive losses.
 Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #14
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ class CircuitBreaker:
             self.last_hourly_reset = now
 
     def should_halt_entries(self) -> tuple[bool, str]:
-        """Returns (halt, reason). Never halts exits — only entry decisions."""
+        """Returns (halt, reason). Never halts exits -- only entry decisions."""
         self.reset_if_needed()
         now = _now()
 

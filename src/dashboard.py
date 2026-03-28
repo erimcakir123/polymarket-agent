@@ -1,4 +1,4 @@
-"""Flask web dashboard — read-only portfolio monitoring."""
+"""Flask web dashboard -- read-only portfolio monitoring."""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -84,7 +84,7 @@ def create_app(
             except (json.JSONDecodeError, OSError):
                 pass
 
-        # Count by category — unified pipeline (Normal + VS)
+        # Count by category -- unified pipeline (Normal + VS)
         vs_count = 0
         reentry_count = 0
         normal_count = 0

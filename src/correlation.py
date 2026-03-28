@@ -1,5 +1,5 @@
 # src/correlation.py
-"""Correlation-aware exposure tracking — limit total USD exposure per match.
+"""Correlation-aware exposure tracking -- limit total USD exposure per match.
 Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #17
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ def apply_correlation_cap(
 ) -> float:
     """Cap proposed_size so total match exposure stays within bankroll limit.
     Returns the capped size (may be 0 if limit already reached).
-    NOTE: Intentionally conservative — treats all new positions as additive
+    NOTE: Intentionally conservative -- treats all new positions as additive
     regardless of direction. A BUY_NO on a BUY_YES-heavy match would technically
     reduce net exposure, but we cap conservatively for a real-money bot.
     Over-capping is safer than under-capping."""

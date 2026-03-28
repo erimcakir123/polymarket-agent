@@ -1,9 +1,9 @@
-"""main.py — Entry point only.
+"""main.py -- Entry point only.
 
 All business logic is in:
-  src/agent.py        — thin Agent loop
-  src/entry_gate.py   — unified entry pipeline
-  src/exit_monitor.py — exit detection
+  src/agent.py        -- thin Agent loop
+  src/entry_gate.py   -- unified entry pipeline
+  src/exit_monitor.py -- exit detection
 """
 from __future__ import annotations
 

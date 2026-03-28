@@ -1,4 +1,4 @@
-"""Match-aware exit system — 4-layer exit logic using match timing, score, and profit history.
+"""Match-aware exit system -- 4-layer exit logic using match timing, score, and profit history.
 
 Spec: docs/superpowers/specs/2026-03-22-match-aware-exit-system-design.md
 """
@@ -22,7 +22,7 @@ def parse_match_score(
     Args:
         score_str: Raw score string from Gamma API (e.g. "2-1|Bo3", "1-0")
         number_of_games: BO format (1, 3, 5). 0 = unknown, treated as BO3.
-        direction: "BUY_YES" or "BUY_NO" — determines which side is "ours"
+        direction: "BUY_YES" or "BUY_NO" -- determines which side is "ours"
 
     Returns:
         dict with keys: available, our_maps, opp_maps, map_diff,
@@ -34,7 +34,7 @@ def parse_match_score(
         return empty
 
     try:
-        # Split format suffix: "2-1|Bo3" → "2-1", "Bo3"
+        # Split format suffix: "2-1|Bo3" -> "2-1", "Bo3"
         parts = score_str.split("|")
         scores = parts[0].strip().split("-")
         if len(scores) != 2:
@@ -68,7 +68,7 @@ def parse_match_score(
 
 
 # Game-specific duration estimates (minutes)
-# Key: (game_prefix, number_of_games) → duration in minutes
+# Key: (game_prefix, number_of_games) -> duration in minutes
 _DURATION_TABLE: dict[tuple[str, int], int] = {
     ("cs2", 1): 40,   ("cs2", 3): 130,  ("cs2", 5): 200,
     ("val", 1): 50,    ("val", 3): 140,  ("val", 5): 220,
@@ -76,7 +76,7 @@ _DURATION_TABLE: dict[tuple[str, int], int] = {
     ("dota2", 1): 45,  ("dota2", 3): 130, ("dota2", 5): 210,
 }
 
-# Sport detection from slug/seriesSlug prefix → duration in minutes
+# Sport detection from slug/seriesSlug prefix -> duration in minutes
 _SPORT_DURATION: dict[str, int] = {
     # Football/Soccer (all leagues)
     "epl": 95, "laliga": 95, "ucl": 95, "seriea": 95, "bundesliga": 95, "ligue1": 95,
@@ -151,8 +151,8 @@ def get_game_duration(slug: str, number_of_games: int, sport_tag: str = "") -> i
 def get_entry_price_multiplier(entry_price: float) -> float:
     """Return stop loss width multiplier based on entry price.
 
-    Low entry (underdog) → wider tolerance (1.50)
-    High entry (favorite) → tighter tolerance (0.70)
+    Low entry (underdog) -> wider tolerance (1.50)
+    High entry (favorite) -> tighter tolerance (0.70)
     """
     if entry_price < 0.20:
         return 1.50
@@ -224,12 +224,12 @@ def check_match_exit(data: dict) -> dict:
 
     Returns:
         dict with keys:
-            exit: bool — should this position be exited?
-            layer: str — which layer triggered (if exit=True)
-            reason: str — human-readable reason
-            revoke_hold: bool — should hold-to-resolve be revoked?
-            restore_hold: bool — should hold-to-resolve be restored?
-            momentum_tighten: bool — should graduated SL be tightened next cycle?
+            exit: bool -- should this position be exited?
+            layer: str -- which layer triggered (if exit=True)
+            reason: str -- human-readable reason
+            revoke_hold: bool -- should hold-to-resolve be revoked?
+            restore_hold: bool -- should hold-to-resolve be restored?
+            momentum_tighten: bool -- should graduated SL be tightened next cycle?
     """
     result = {"exit": False, "layer": "", "reason": "",
               "revoke_hold": False, "restore_hold": False, "momentum_tighten": False,
@@ -273,7 +273,7 @@ def check_match_exit(data: dict) -> dict:
                 "reason": f"Match already lost (score: {match_score})"}
     if score_info.get("is_already_won"):
         return {**result, "exit": False, "layer": "score_terminal_win",
-                "reason": f"Match already won — hold to resolve (score: {match_score})"}
+                "reason": f"Match already won -- hold to resolve (score: {match_score})"}
 
     # --- Step 1: Catastrophic Floor (Layer 1) ---
     is_reentry = data.get("entry_reason", "").startswith("re_entry") or data.get("entry_reason") == "scale_in"
@@ -322,18 +322,18 @@ def check_match_exit(data: dict) -> dict:
                 "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
 
     # PRIORITY CHAIN (higher = wins):
-    # 1. Stop-Loss — ALWAYS fires, never overridden (portfolio.py)
-    # 2. Scale-Out — only at spike (>50% profit) for hold-to-resolve
-    # 3. Hold-to-Resolve — skips normal TP, not SL
-    # 4. Never-in-Profit Guard — can trigger exit, but SL takes precedence
+    # 1. Stop-Loss -- ALWAYS fires, never overridden (portfolio.py)
+    # 2. Scale-Out -- only at spike (>50% profit) for hold-to-resolve
+    # 3. Hold-to-Resolve -- skips normal TP, not SL
+    # 4. Never-in-Profit Guard -- can trigger exit, but SL takes precedence
 
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
     if not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
         score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
         if score_ahead:
-            pass  # Stay — winning despite no profit
+            pass  # Stay -- winning despite no profit
         elif effective_current >= effective_entry * 0.90:
-            pass  # Stay — close to entry, right side
+            pass  # Stay -- close to entry, right side
         elif effective_current < effective_entry * 0.75:
             return {**result, "exit": True, "layer": "never_in_profit",
                     "reason": f"Never profited + 70%+ done + eff_price {effective_current:.3f} < eff_entry*75% ({effective_entry*0.75:.3f})"}
@@ -379,7 +379,7 @@ def check_match_exit(data: dict) -> dict:
 
     # --- Step 6: Edge Decay TP (Layer 5) ---
     # Underdog positions: as match progresses, AI target decays toward market
-    # EXCEPTION: late in match (≥60%) and in profit (≥10%) → let it ride, resolution close
+    # EXCEPTION: late in match (≥60%) and in profit (≥10%) -> let it ride, resolution close
     if ai_probability > 0 and not result.get("exit"):
         effective_ai_side = ai_probability if direction != "BUY_NO" else (1 - ai_probability)
         late_and_winning = elapsed_pct >= 0.60 and effective_current > effective_entry * 1.10

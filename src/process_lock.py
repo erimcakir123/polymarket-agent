@@ -55,7 +55,7 @@ def _release_lock() -> None:
 def _is_agent_alive(pid: int) -> bool:
     """Check if a process with the given PID is our agent (not just any process).
 
-    Uses wmic directly to check command line — tasklist can miss python
+    Uses wmic directly to check command line -- tasklist can miss python
     processes on some Windows configurations.
     """
     if sys.platform == "win32":

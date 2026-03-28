@@ -249,7 +249,7 @@ def passes_confidence_momentum(
         return True, "Saved effective prob too low"
     ratio = current_eff / saved_eff
     if ratio >= threshold:
-        return True, f"Confidence rising: {saved_eff:.0%} → {current_eff:.0%}"
+        return True, f"Confidence rising: {saved_eff:.0%} -> {current_eff:.0%}"
     return False, f"Confidence not rising: ratio {ratio:.2f} < {threshold}"
 
 

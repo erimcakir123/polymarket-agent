@@ -1,4 +1,4 @@
-"""CricketData.org (cricapi.com) client — cricket match data for IPL, PSL, T20.
+"""CricketData.org (cricapi.com) client -- cricket match data for IPL, PSL, T20.
 
 Free tier: 500 requests/day.
 Covers: IPL, PSL, T20 Internationals, ODI, Test matches.
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _BASE = "https://api.cricapi.com/v1"
 
-# Dynamic discovery — no hardcoded series mappings needed.
+# Dynamic discovery -- no hardcoded series mappings needed.
 # get_match_context() fetches all current matches and fuzzy-matches team names.
 
 
@@ -121,7 +121,7 @@ class CricketDataClient:
         return matches
 
     def get_match_context(self, question: str, slug: str, tags: list[str]) -> Optional[str]:
-        """Build context string for AI analyst — same interface as other data clients.
+        """Build context string for AI analyst -- same interface as other data clients.
 
         Dynamic discovery: fetches all current matches and fuzzy-matches
         team names from the question. No hardcoded series mappings.

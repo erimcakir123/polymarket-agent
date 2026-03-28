@@ -50,10 +50,10 @@ def check_exit_liquidity(
             return {"fillable": False, "strategy": "split",
                     "recommended_price": best_bid, "available_depth": available,
                     "partially_fillable": True,
-                    "note": f"Only {fill_ratio:.0%} fillable — split across cycles"}
+                    "note": f"Only {fill_ratio:.0%} fillable -- split across cycles"}
     except Exception as e:
-        logger.warning("Exit liquidity check failed: %s — blocking sell to prevent slippage", e)
-        return {"fillable": False, "strategy": "skip", "reason": "Book check failed — skipping to prevent slippage"}
+        logger.warning("Exit liquidity check failed: %s -- blocking sell to prevent slippage", e)
+        return {"fillable": False, "strategy": "skip", "reason": "Book check failed -- skipping to prevent slippage"}
 
 
 def check_entry_liquidity(
@@ -81,7 +81,7 @@ def check_entry_liquidity(
 
         asks = book.get("asks", [])
         if not asks:
-            return {"ok": False, "recommended_size": 0, "reason": "No asks — market dead"}
+            return {"ok": False, "recommended_size": 0, "reason": "No asks -- market dead"}
 
         # Calculate total ask-side depth in USDC
         total_depth = 0.0
@@ -101,11 +101,11 @@ def check_entry_liquidity(
         impact_ratio = size_usdc / total_depth  # safe: total_depth >= 1.0
         if impact_ratio > 0.20:
             recommended = size_usdc / 2
-            logger.info("Entry size halved: $%.2f → $%.2f (%.0f%% of $%.0f book) for %s",
+            logger.info("Entry size halved: $%.2f -> $%.2f (%.0f%% of $%.0f book) for %s",
                         size_usdc, recommended, impact_ratio * 100, total_depth, token_id[:16])
 
         return {"ok": True, "recommended_size": recommended, "depth": total_depth,
                 "impact_ratio": impact_ratio}
     except Exception as e:
-        logger.warning("Entry liquidity check failed: %s — blocking entry to prevent slippage", e)
-        return {"ok": False, "recommended_size": 0, "reason": "Book check failed — skipping to prevent slippage"}
+        logger.warning("Entry liquidity check failed: %s -- blocking entry to prevent slippage", e)
+        return {"ok": False, "recommended_size": 0, "reason": "Book check failed -- skipping to prevent slippage"}

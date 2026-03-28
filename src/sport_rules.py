@@ -1,5 +1,5 @@
 """
-sport_rules.py — Sport-specific trading rules.
+sport_rules.py -- Sport-specific trading rules.
 
 Tek kaynak: Her sporun SL, TP, re-entry, exit kuralları burada.
 main.py, portfolio.py, match_exit.py, reentry_farming.py buradan okur.
@@ -273,7 +273,7 @@ SPORT_RULES: dict[str, dict] = {
 }
 
 # ═══════════════════════════════════════════════════════
-# ESPORTS DETECTION — single source of truth
+# ESPORTS DETECTION -- single source of truth
 # ═══════════════════════════════════════════════════════
 
 # sport_tag values (from MarketData.sport_tag) for esports titles
@@ -298,10 +298,10 @@ def is_esports(sport_tag: str) -> bool:
 
     Use this everywhere instead of inline tuple checks.
     Replaces 4 inline definitions in main.py (lines 273/312/758/1606).
-    NOTE: line 273 used .startswith() with truncated strings — this exact-match
+    NOTE: line 273 used .startswith() with truncated strings -- this exact-match
     version is correct.
     Includes rocket-league, overwatch, and apex-legends beyond the 4 originally
-    in main.py — these were not in any old inline tuple but are legitimate
+    in main.py -- these were not in any old inline tuple but are legitimate
     esports titles.
     """
     return (sport_tag or "").lower() in ESPORTS_TAGS
@@ -318,7 +318,7 @@ def is_esports_slug(slug: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════
-# DEFAULT — bilinmeyen sporlar için
+# DEFAULT -- bilinmeyen sporlar için
 # ═══════════════════════════════════════════════════════
 
 DEFAULT_RULES: dict = {
@@ -337,7 +337,7 @@ DEFAULT_RULES: dict = {
 }
 
 # ═══════════════════════════════════════════════════════
-# PUBLIC API — diğer modüller bunları çağırır
+# PUBLIC API -- diğer modüller bunları çağırır
 # ═══════════════════════════════════════════════════════
 
 def get_sport_rule(sport_tag: str, key: str, default=None):

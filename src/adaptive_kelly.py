@@ -1,4 +1,4 @@
-"""Adaptive Kelly fraction — enhances config.risk.kelly_by_confidence with dynamic adjustments.
+"""Adaptive Kelly fraction -- enhances config.risk.kelly_by_confidence with dynamic adjustments.
 Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #15
 """
 
@@ -23,6 +23,6 @@ def get_adaptive_kelly_fraction(
         base *= 0.80
 
     if is_far:
-        base *= 0.70  # 30% discount — capital locked longer in FAR slots
+        base *= 0.70  # 30% discount -- capital locked longer in FAR slots
 
     return max(0.05, min(0.30, base))

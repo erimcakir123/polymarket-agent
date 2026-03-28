@@ -22,7 +22,7 @@ PARENT_TAGS: list[tuple[str, int]] = [
 
 EVENTS_PER_PAGE = 200  # Gamma API max per request
 
-# Esport identifiers — includes both short names and seriesSlug values from Gamma
+# Esport identifiers -- includes both short names and seriesSlug values from Gamma
 ESPORT_TAGS: set[str] = {
     # Short names (from /sports endpoint)
     "cs2", "lol", "dota2", "val", "mlbb", "ow", "codmw", "pubg",
@@ -65,7 +65,7 @@ class MarketScanner:
 
     def _fetch_by_tag_ids(self) -> list[dict]:
         """Fetch ALL sports & esports markets using 2 parent tags + pagination.
-        Only filters by end_date_min (now) — max_duration_days handles upper bound."""
+        Only filters by end_date_min (now) -- max_duration_days handles upper bound."""
         seen_ids: set[str] = set()
         all_raw: list[dict] = []
         total_events = 0
@@ -118,7 +118,7 @@ class MarketScanner:
                     logger.error("Gamma /events error (tag_id=%s, %s): %s", tag_id, category, e)
                     break
 
-        logger.info("Parent-tag scan: %d queries → %d events → %d unique markets",
+        logger.info("Parent-tag scan: %d queries -> %d events -> %d unique markets",
                      total_queries, total_events, len(all_raw))
         return all_raw
 
@@ -220,7 +220,7 @@ class MarketScanner:
         tags_lower = [t.lower() for t in market.tags]
         has_election_tag = "elections" in tags_lower or "politics" in tags_lower
         has_election_keyword = any(kw in q_lower for kw in self._ELECTION_KEYWORDS if kw != "party")
-        # "party" alone is too broad (matches esports "LAN party" etc.) — require tag confirmation
+        # "party" alone is too broad (matches esports "LAN party" etc.) -- require tag confirmation
         has_party_with_tag = "party" in q_lower and has_election_tag
         return has_election_keyword or has_party_with_tag
 
@@ -235,7 +235,7 @@ class MarketScanner:
         return any(kw in q for kw in self._SPORT_KEYWORDS)
 
     def _sort_by_end_date(self, markets: List[MarketData]) -> List[MarketData]:
-        """Sort markets so those resolving soonest come first. No end_date → last."""
+        """Sort markets so those resolving soonest come first. No end_date -> last."""
         now = datetime.now(timezone.utc)
         far_future = datetime(2099, 1, 1, tzinfo=timezone.utc)
 
@@ -275,7 +275,7 @@ class MarketScanner:
                 if not (tags_lower & allowed):
                     logger.debug("Skipped category mismatch: %s", market.question[:60])
                     return False
-        # Liquidity filter — ensures orderbook has enough depth to fill our entry
+        # Liquidity filter -- ensures orderbook has enough depth to fill our entry
         # Volume filter removed: we hold to resolution, so trading activity doesn't matter
         if market.liquidity < self.config.min_liquidity:
             return False
@@ -284,7 +284,7 @@ class MarketScanner:
         if self.config.tags and market.tags:
             if not any(t in self.config.tags for t in market.tags):
                 return False
-        # Block alt bets: total/spread/props — moneyline (vs) only
+        # Block alt bets: total/spread/props -- moneyline (vs) only
         q_lower = market.question.lower()
         slug_lower = market.slug.lower()
         _ALT_SLUG = ("-total-", "-spread-", "-handicap-", "-over-", "-under-", "-1h-", "-first-half-", "-draw", "-btts")
@@ -306,12 +306,12 @@ class MarketScanner:
             logger.debug("Blocked sub-market: %s", market.question[:60])
             return False
 
-        # Skip nearly-resolved markets (>95%) — no edge left
-        # Allow low-price tokens (<5%) through — FAR/penny alpha candidates
+        # Skip nearly-resolved markets (>95%) -- no edge left
+        # Allow low-price tokens (<5%) through -- FAR/penny alpha candidates
         if market.yes_price > 0.95:
             logger.debug("Excluded near-resolved (%.1f%%): %s", market.yes_price * 100, market.question[:60])
             return False
-        # Skip markets resolving too far out — elections get a longer window (90 days)
+        # Skip markets resolving too far out -- elections get a longer window (90 days)
         if market.end_date_iso and self.config.max_duration_days > 0:
             try:
                 end_dt = datetime.fromisoformat(market.end_date_iso.replace("Z", "+00:00"))
@@ -323,13 +323,13 @@ class MarketScanner:
                     return False
             except (ValueError, TypeError):
                 pass
-        # Skip ended matches — no point entering a resolved event
+        # Skip ended matches -- no point entering a resolved event
         # Esports EXCLUDED: Gamma API 'ended' flag is unreliable for esports,
         # often marking live matches as ended mid-series.
         if market.event_ended and self._is_live_sport(market) and not self._is_esport(market):
             logger.info("Skipped ENDED event (Gamma): %s", market.question[:60])
             return False
-        # Skip late-match entries — not enough time for meaningful edge
+        # Skip late-match entries -- not enough time for meaningful edge
         # Uses sport-specific duration table (soccer=95min, NBA=150min, etc.)
         # Esports EXCLUDED: Polymarket startTime is unreliable for esports,
         # causing false elapsed% calculations that reject valid live matches.
@@ -347,5 +347,5 @@ class MarketScanner:
                         return False
             except (ValueError, TypeError, ImportError):
                 pass
-        # Live matches in early/mid phase pass through — we bet on winners mid-match
+        # Live matches in early/mid phase pass through -- we bet on winners mid-match
         return True

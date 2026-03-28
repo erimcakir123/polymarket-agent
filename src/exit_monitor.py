@@ -1,13 +1,13 @@
-"""exit_monitor.py — Exit detection for all active positions.
+"""exit_monitor.py -- Exit detection for all active positions.
 
 Responsibilities:
   - Register WebSocket price-update callback (via ws_feed.set_on_price_update)
   - Drain WS exit queue at start of each cycle
   - Run all portfolio.check_*() exit detectors
-  - Return (condition_id, reason) pairs — agent.py calls _exit_position()
+  - Return (condition_id, reason) pairs -- agent.py calls _exit_position()
 
 Does NOT call executor or modify portfolio directly.
-Does NOT execute exits — detection only.
+Does NOT execute exits -- detection only.
 
 Data flow:
    WS price tick → _on_ws_price_update() → _ws_tick_queue (SimpleQueue, thread-safe)
@@ -54,7 +54,7 @@ class ExitMonitor:
     # ── WebSocket ──────────────────────────────────────────────────────────
 
     def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
-        """Called from WS thread — only enqueues, never mutates shared state."""
+        """Called from WS thread -- only enqueues, never mutates shared state."""
         self._ws_tick_queue.put_nowait((token_id, price, ts))
 
     def process_ws_ticks(self) -> None:
@@ -109,7 +109,7 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
-        # 1. Stop-loss check — same for all sports
+        # 1. Stop-loss check -- same for all sports
         sl_pct = self.config.risk.stop_loss_pct
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
@@ -123,7 +123,7 @@ class ExitMonitor:
         # 2. Trailing TP check (non-VS positions only)
         ttp_cfg = self.config.trailing_tp
         if ttp_cfg.enabled and not pos.volatility_swing:
-            # Update peak tracking — always in effective space
+            # Update peak tracking -- always in effective space
             # BUY_YES: effective = YES price (higher = better)
             # BUY_NO:  effective = NO value = 1 - YES price (higher = better)
             if direction == "BUY_NO":
@@ -170,7 +170,7 @@ class ExitMonitor:
         while self._ws_exit_queue:
             cid, reason = self._ws_exit_queue.popleft()
             if cid in self._exiting_set:
-                continue  # Already being exited — double-exit guard
+                continue  # Already being exited -- double-exit guard
             exits.append((cid, reason))
         self._ws_exit_queued_set.clear()
         return exits

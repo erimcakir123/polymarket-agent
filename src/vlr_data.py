@@ -17,7 +17,7 @@ try:
     VLR_AVAILABLE = True
 except ImportError:
     VLR_AVAILABLE = False
-    logger.info("vlrdevapi not installed — VLR fallback disabled")
+    logger.info("vlrdevapi not installed -- VLR fallback disabled")
 
 
 class VLRDataClient:
@@ -34,7 +34,7 @@ class VLRDataClient:
         return VLR_AVAILABLE
 
     def _rate_limit(self) -> None:
-        """VLR.gg scraper — be polite, 1 req/3s."""
+        """VLR.gg scraper -- be polite, 1 req/3s."""
         now = time.monotonic()
         elapsed = now - self._last_call
         if elapsed < 3.0:

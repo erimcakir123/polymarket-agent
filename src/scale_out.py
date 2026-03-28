@@ -120,7 +120,7 @@ def should_scale_in(
     pnl_confirmed = unrealized_pnl_pct >= min_pnl_pct
     if not pnl_confirmed and not score_ahead:
         return False, f"PnL {unrealized_pnl_pct:.1%} < {min_pnl_pct:.0%} and no score advantage"
-    return True, "Position confirmed — scale in"
+    return True, "Position confirmed -- scale in"
 
 
 def get_scale_in_size(

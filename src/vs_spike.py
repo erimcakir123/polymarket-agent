@@ -56,7 +56,7 @@ def should_hold_for_resolution(
     Spec: #2 Resolution-Aware TP.
     ALL prices must be effective (direction-adjusted by caller)."""
     if is_already_won:
-        return True, "Match already won — hold to resolution"
+        return True, "Match already won -- hold to resolution"
     if scale_out_tier < 1:
         return False, f"Scale-out tier {scale_out_tier} < 1"
     if effective_price < 0.80:
@@ -64,5 +64,5 @@ def should_hold_for_resolution(
     if effective_ai < 0.70:
         return False, f"Effective AI {effective_ai:.2f} < 0.70"
     if score_behind:
-        return False, "Score behind — don't hold"
+        return False, "Score behind -- don't hold"
     return True, f"Hold for resolution: eff_price={effective_price:.2f}, eff_ai={effective_ai:.2f}"

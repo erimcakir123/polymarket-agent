@@ -1,8 +1,8 @@
-"""agent.py — Thin agent loop. Coordinates EntryGate and ExitMonitor.
+"""agent.py -- Thin agent loop. Coordinates EntryGate and ExitMonitor.
 
 Responsibilities:
   - Initialize all modules (entry_gate, exit_monitor, portfolio, executor, etc.)
-  - run_cycle(): heavy cycle — entry + exit
+  - run_cycle(): heavy cycle -- entry + exit
   - run_light_cycle(): price-only cycle
   - _exit_position(): execute position exit (reentry pool, blacklist, logging)
   - _check_farming_reentry(): reentry pool check (no AI cost)
@@ -70,7 +70,7 @@ class Agent:
         self.last_cycle_has_live_clob = False
         self._last_candidate_count = 0
 
-        # Exit infrastructure (owned by agent — _exit_position needs these)
+        # Exit infrastructure (owned by agent -- _exit_position needs these)
         self._exit_cooldowns: dict[str, int] = {}
         self._exited_markets: set[str] = self._load_exited_markets()
         self._match_states: dict[str, dict] = {}
@@ -167,7 +167,7 @@ class Agent:
     def run(self) -> None:
         """Main agent loop. Alternates heavy and light cycles."""
         import signal as _signal
-        logger.info("Agent starting — mode=%s", self.config.mode.value)
+        logger.info("Agent starting -- mode=%s", self.config.mode.value)
         self.consecutive_api_failures = 0
         last_full_cycle_time = 0.0
         try:
@@ -206,7 +206,7 @@ class Agent:
 
                 try:
                     if run_full:
-                        self.entry_gate.reset_seen_markets()  # Fresh cycle → scan from top
+                        self.entry_gate.reset_seen_markets()  # Fresh cycle -> scan from top
                         self.run_cycle()
                         last_full_cycle_time = time.time()
                         # Auto-refill: keep running hard cycles until slots full
@@ -219,12 +219,12 @@ class Agent:
                             current_normal = self.portfolio.active_position_count - current_vs
                             open_slots = self.config.risk.max_positions - vs_reserved - current_normal
                             if open_slots <= 0:
-                                logger.info("All slots filled — refill complete")
+                                logger.info("All slots filled -- refill complete")
                                 break
                             _refill_round += 1
                             positions_before = len(self.portfolio.positions)
                             seen_count = len(self.entry_gate._seen_market_ids)
-                            logger.info("Pool not full (%d open slots) — refill cycle %d (seen %d markets)",
+                            logger.info("Pool not full (%d open slots) -- refill cycle %d (seen %d markets)",
                                         open_slots, _refill_round, seen_count)
                             self.run_cycle()
                             last_full_cycle_time = time.time()
@@ -234,11 +234,11 @@ class Agent:
                             if new_entries > 0:
                                 logger.info("Refill cycle %d added %d positions", _refill_round, new_entries)
                             else:
-                                logger.info("Refill cycle %d — no new entries (seen %d markets so far)",
+                                logger.info("Refill cycle %d -- no new entries (seen %d markets so far)",
                                             _refill_round, new_seen)
                             # If no new markets were analyzed, eligible pool is exhausted
                             if new_seen == _prev_seen:
-                                logger.info("Eligible pool exhausted — no unseen markets left. Refill done.")
+                                logger.info("Eligible pool exhausted -- no unseen markets left. Refill done.")
                                 break
                             _prev_seen = new_seen
                     else:
@@ -248,7 +248,7 @@ class Agent:
                     self.consecutive_api_failures += 1
                     logger.error("Cycle error (%d): %s", self.consecutive_api_failures, exc, exc_info=True)
                     if self.consecutive_api_failures >= 3:
-                        logger.warning("3 consecutive failures — pausing 5 min")
+                        logger.warning("3 consecutive failures -- pausing 5 min")
                         time.sleep(300)
                         self.consecutive_api_failures = 0
 
@@ -277,7 +277,7 @@ class Agent:
                         hours_until = (mt - now_utc).total_seconds() / 3600
                         if 0 < hours_until < 3:
                             self.cycle_timer.signal_scout_approaching()
-                            logger.info("Scouted match in %.1fh — polling every 5 min", hours_until)
+                            logger.info("Scouted match in %.1fh -- polling every 5 min", hours_until)
                             break
 
                 self._write_status("waiting", "Waiting")
@@ -324,7 +324,7 @@ class Agent:
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self._exit_position(cid, reason)
 
-        # Handle hold-revoke/restore (match_exit meta — mutates pos directly)
+        # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self._handle_hold_revokes()
 
     def run_cycle(self) -> None:
@@ -344,7 +344,7 @@ class Agent:
         self.portfolio.update_bankroll(bankroll)
         dd_level = self.portfolio.get_drawdown_level()
         if dd_level == "hard":
-            self.notifier.send("🚨 HARD HALT: equity < 35% HWM — closing all positions")
+            self.notifier.send("🚨 HARD HALT: equity < 35% HWM -- closing all positions")
             for cid in list(self.portfolio.positions.keys()):
                 if not self.exit_monitor.is_exiting(cid):
                     self._exit_position(cid, "hard_halt_drawdown")
@@ -352,11 +352,11 @@ class Agent:
             return
         elif dd_level == "soft":
             if not self._soft_halt_active:
-                self.notifier.send("⚠️ SOFT HALT: equity < 50% HWM — yeni entry durduruldu")
+                self.notifier.send("⚠️ SOFT HALT: equity < 50% HWM -- yeni entry durduruldu")
                 self._soft_halt_active = True
         else:
             if self._soft_halt_active:
-                self.notifier.send("✅ Drawdown recovered — entries resumed")
+                self.notifier.send("✅ Drawdown recovered -- entries resumed")
                 self._soft_halt_active = False
 
         # Circuit breaker
@@ -365,12 +365,12 @@ class Agent:
             self.notifier.send(f"⚠️ Circuit breaker ACTIVATED: {halt_reason}")
             self._cb_was_active = True
         elif not halt and self._cb_was_active:
-            self.notifier.send("✅ Circuit breaker deactivated — entries resumed")
+            self.notifier.send("✅ Circuit breaker deactivated -- entries resumed")
             self._cb_was_active = False
         if self._soft_halt_active:
             halt = True
 
-        # Manual entry pause — drop logs/no_new_entries to skip market scanning
+        # Manual entry pause -- drop logs/no_new_entries to skip market scanning
         if Path("logs/no_new_entries").exists():
             halt = True
             logger.info("Entry pause active (logs/no_new_entries exists)")
@@ -415,14 +415,14 @@ class Agent:
             blacklist=self.blacklist, exited_markets=self._exited_markets,
         )
 
-        # Breaking news detected → shorten cycle interval
+        # Breaking news detected -> shorten cycle interval
         if self.entry_gate._breaking_news_detected:
             self.entry_gate._breaking_news_detected = False
             self.cycle_timer.signal_breaking_news()
-            logger.info("Breaking news detected — cycle shortened to %d min", self.config.cycle.breaking_news_interval_min)
+            logger.info("Breaking news detected -- cycle shortened to %d min", self.config.cycle.breaking_news_interval_min)
 
         self._write_status("running", "Evaluating entries")
-        # Entry: stock queue drain (analyze=False — no AI cost)
+        # Entry: stock queue drain (analyze=False -- no AI cost)
         self.entry_gate.drain_stock(
             entries_allowed=entries_allowed, bankroll=bankroll,
             cycle_count=self.cycle_count, blacklist=self.blacklist,
@@ -432,7 +432,7 @@ class Agent:
         # Farming re-entry (no AI, uses saved probability)
         self._check_farming_reentry()
 
-        # Bond farming, live dip, live momentum — all skip when entries paused
+        # Bond farming, live dip, live momentum -- all skip when entries paused
         if entries_allowed:
             self._check_bond_farming(fresh_markets, bankroll)
             self._check_live_dip(fresh_markets, bankroll)
@@ -467,7 +467,7 @@ class Agent:
         realized_pnl = pos.unrealized_pnl_usdc
         self.portfolio.record_realized(realized_pnl)
 
-        # Profitable exit → add to farming re-entry pool
+        # Profitable exit -> add to farming re-entry pool
         profitable_reasons = {
             "take_profit", "trailing_stop", "spike_exit",
             "edge_tp", "scale_out_final", "vs_take_profit",
@@ -495,7 +495,7 @@ class Agent:
                 realized_pnl=realized_pnl,
             )
         else:
-            # Non-profitable → demote to stock or blacklist
+            # Non-profitable -> demote to stock or blacklist
             _is_never_stock = (
                 reason in _NEVER_STOCK_EXITS
                 or any(reason.startswith(p) for p in _NEVER_STOCK_PREFIXES)
@@ -537,7 +537,7 @@ class Agent:
             f"{_pnl_emoji} *EXIT*: {pos.slug[:40]}\n\n"
             f"📋 Reason: {reason}\n"
             f"💵 PnL: ${realized_pnl:+.2f}\n"
-            f"📊 Entry: {pos.entry_price:.2f} → Exit: {pos.current_price:.2f}"
+            f"📊 Entry: {pos.entry_price:.2f} -> Exit: {pos.current_price:.2f}"
         )
 
         # Mark permanently exited if resolved
@@ -564,7 +564,7 @@ class Agent:
         """Demote exited position back to candidate stock queue for re-entry.
 
         Accepts if stock has room (< 10) OR score beats the worst existing entry.
-        Returns True if demoted, False if rejected (→ caller will blacklist instead).
+        Returns True if demoted, False if rejected (-> caller will blacklist instead).
         """
         from src.models import MarketData
         from src.ai_analyst import AIEstimate
@@ -615,7 +615,7 @@ class Agent:
         estimate = AIEstimate(
             ai_probability=pos.ai_probability,
             confidence=getattr(pos, "confidence", "B-"),
-            reasoning_pro="(demoted — re-evaluate at entry)",
+            reasoning_pro="(demoted -- re-evaluate at entry)",
             reasoning_con="",
         )
 
@@ -644,7 +644,7 @@ class Agent:
     # ── Farming re-entry ──────────────────────────────────────────────────
 
     def _check_farming_reentry(self) -> None:
-        """Unified farming re-entry — check pool for dip opportunities (no AI cost).
+        """Unified farming re-entry -- check pool for dip opportunities (no AI cost).
 
         Replaces old spike_reentry and scouted_reentry with a 3-tier system.
         """
@@ -674,7 +674,7 @@ class Agent:
             if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
                 continue
 
-            # RE slot check — max 3 concurrent re-entry positions
+            # RE slot check -- max 3 concurrent re-entry positions
             RE_MAX_SLOTS = 3
             if self.portfolio.reentry_position_count >= RE_MAX_SLOTS:
                 break  # No RE slots available
@@ -729,7 +729,7 @@ class Agent:
 
             if decision["action"] == "BLOCK":
                 logger.debug("Farming re-entry BLOCK: %s | %s", candidate.slug[:35], decision["reason"])
-                # Permanent blocks → remove from pool
+                # Permanent blocks -> remove from pool
                 if "Max re-entries" in decision["reason"] or "Thesis broken" in decision["reason"]:
                     self.reentry_pool.remove(cid)
                 continue
@@ -814,12 +814,12 @@ class Agent:
                 eff_price * 100, decision["edge"] * 100, size, size_mult * 100,
             )
             self.notifier.send(
-                f"\U0001f504 *FARMING RE-ENTRY* T{tier_num} (#{reentry_num}) — Cycle #{self.cycle_count}\n\n"
+                f"\U0001f504 *FARMING RE-ENTRY* T{tier_num} (#{reentry_num}) -- Cycle #{self.cycle_count}\n\n"
                 f"{candidate.question}\n"
-                f"Exit: `{candidate.last_exit_price:.3f}` → Re-entry: `{eff_price:.3f}`\n"
+                f"Exit: `{candidate.last_exit_price:.3f}` -> Re-entry: `{eff_price:.3f}`\n"
                 f"Edge: `{decision['edge']:.1%}` | Size: `${size:.0f}` ({size_mult:.0%})\n"
                 f"Profit so far: `${candidate.total_realized_profit:.2f}`\n"
-                f"_No AI call — using saved analysis_"
+                f"_No AI call -- using saved analysis_"
             )
             self.bets_since_approval += 1
 
@@ -857,7 +857,7 @@ class Agent:
             if m.condition_id in self._exited_markets:
                 continue
 
-            # Moneyline filter — skip tournament/advance/qualify props
+            # Moneyline filter -- skip tournament/advance/qualify props
             _q = (getattr(m, "question", "") or "").lower()
             _slug = (m.slug or "").lower()
             _non_ml = ("advance", "qualify", "championship", "finalist",
@@ -954,7 +954,7 @@ class Agent:
             self.notifier.send(
                 f"📉 *LIVE DIP*: {m.slug[:40]}\n"
                 f"Entry {direction} @ {price:.0%} | LIVE\n\n"
-                f"📊 Pre-match: {pre_match:.0%} → Now: {current_yes:.0%} (drop {drop_pct:.0%})\n"
+                f"📊 Pre-match: {pre_match:.0%} -> Now: {current_yes:.0%} (drop {drop_pct:.0%})\n"
                 f"💰 Size: ${size:.0f}"
             )
 
@@ -1079,7 +1079,7 @@ class Agent:
     # ── Bond & Penny scanners ──────────────────────────────────────────────
 
     def _check_bond_farming(self, fresh_markets: list, bankroll: float) -> None:
-        """Scan for bond farming opportunities — near-certain YES tokens $0.90-0.97."""
+        """Scan for bond farming opportunities -- near-certain YES tokens $0.90-0.97."""
         if not fresh_markets:
             return
         from src.bond_scanner import scan_bond_candidates, size_bond_position
@@ -1164,7 +1164,7 @@ class Agent:
             )
 
     def _check_penny_alpha(self, fresh_markets: list, bankroll: float) -> None:
-        """Scan for penny alpha — $0.01-0.02 tokens with 5-10x upside."""
+        """Scan for penny alpha -- $0.01-0.02 tokens with 5-10x upside."""
         if not fresh_markets:
             return
         from src.penny_alpha import scan_penny_candidates, size_penny_position
@@ -1264,7 +1264,7 @@ class Agent:
                     pos.hold_was_original = True
                     pos.scouted = False
                     pos.hold_revoked_at = datetime.now(timezone.utc)
-                    logger.info("Hold REVOKED: %s — %s", pos.slug[:40], mexr.get("reason", ""))
+                    logger.info("Hold REVOKED: %s -- %s", pos.slug[:40], mexr.get("reason", ""))
             if mexr.get("restore_hold") and cid in self.portfolio.positions:
                 pos = self.portfolio.positions[cid]
                 pos.scouted = True
@@ -1299,7 +1299,7 @@ class Agent:
     def _fetch_match_states(self) -> dict[str, dict]:
         """Fetch live match states for all esports positions from PandaScore.
 
-        Returns dict of condition_id → match_state dict.
+        Returns dict of condition_id -> match_state dict.
         Rate-limited to once per 60 seconds.
         """
         now = time.time()
@@ -1366,7 +1366,7 @@ class Agent:
         has_live_clob = False
         for cid, pos in list(self.portfolio.positions.items()):
             try:
-                # Query by slug — conditionId queries return wrong market data
+                # Query by slug -- conditionId queries return wrong market data
                 if not pos.slug:
                     logger.debug("No slug for position %s, skipping price update", cid[:16])
                     continue
@@ -1400,7 +1400,7 @@ class Agent:
                     # Populate match_start_iso from event.startTime
                     if ev_start and not pos.match_start_iso:
                         pos.match_start_iso = ev_start
-                        logger.info("Match start from Gamma event: %s → %s",
+                        logger.info("Match start from Gamma event: %s -> %s",
                                     pos.slug[:35], ev_start)
 
                     # Update live/ended status directly from Gamma
@@ -1417,22 +1417,22 @@ class Agent:
                         pos.match_period = ev_period
 
                 if is_closed:
-                    # Market resolved — determine outcome
+                    # Market resolved -- determine outcome
                     if new_yes_price >= 0.95:
                         yes_won = True
                     elif no_price >= 0.95:
                         yes_won = False
                     elif 0.45 <= new_yes_price <= 0.55 and 0.45 <= no_price <= 0.55:
-                        # Void / draw — both sides refunded at ~50¢
-                        logger.info("VOID/DRAW: %s | prices=[%.2f, %.2f] — exiting as refund",
+                        # Void / draw -- both sides refunded at ~50¢
+                        logger.info("VOID/DRAW: %s | prices=[%.2f, %.2f] -- exiting as refund",
                                     pos.slug[:40], new_yes_price, no_price)
                         self.portfolio.update_price(cid, new_yes_price)
                         self._exit_position(cid, "resolved_void")
                         continue
                     elif new_yes_price <= 0.05 and no_price <= 0.05:
-                        # Ambiguous [0,0] — check if event says ended
+                        # Ambiguous [0,0] -- check if event says ended
                         if events and events[0].get("ended"):
-                            # Event ended but prices ambiguous — check CLOB as tiebreaker
+                            # Event ended but prices ambiguous -- check CLOB as tiebreaker
                             clob_price = self._get_clob_midpoint(pos.token_id)
                             if clob_price is not None and clob_price > 0.01:
                                 # CLOB still active despite event "ended"
@@ -1442,7 +1442,7 @@ class Agent:
                                     self.portfolio.update_price(cid, clob_price)
                                 has_live_clob = True
                                 continue
-                        # Truly ambiguous — awaiting oracle
+                        # Truly ambiguous -- awaiting oracle
                         if not pos.pending_resolution:
                             self.portfolio.mark_pending_resolution(cid)
                         logger.info("Closed and awaiting resolution: %s (prices=[%.2f, %.2f])",
@@ -1464,14 +1464,14 @@ class Agent:
                                 pass
 
                         if match_likely_ended:
-                            # Match likely over — mark pending, awaiting oracle
+                            # Match likely over -- mark pending, awaiting oracle
                             self.portfolio.update_price(cid, new_yes_price)
                             if not pos.pending_resolution:
                                 self.portfolio.mark_pending_resolution(cid)
-                                logger.info("Match likely ended (elapsed > est duration): %s — marking pending",
+                                logger.info("Match likely ended (elapsed > est duration): %s -- marking pending",
                                             pos.slug[:40])
                         else:
-                            # Match not started or in progress — treat as active
+                            # Match not started or in progress -- treat as active
                             self.portfolio.update_price(cid, new_yes_price)
                         continue
 
@@ -1484,7 +1484,7 @@ class Agent:
                                 pos.slug, pos.direction, "WIN" if won else "LOSS", pnl)
                     self._exit_position(cid, f"resolved_{'win' if won else 'loss'}")
                 else:
-                    # Market still open — update price
+                    # Market still open -- update price
                     self.portfolio.update_price(cid, new_yes_price)
                     # Fallback live detection if event data missing
                     if not events or events[0].get("live") is None:
@@ -1498,18 +1498,18 @@ class Agent:
                     if getattr(pos, "entry_reason", "").startswith("re_entry"):
                         eff_p = (1.0 - new_yes_price) if pos.direction == "BUY_NO" else new_yes_price
                         if eff_p >= 0.90:
-                            logger.info("RE-ENTRY RESOLVE GUARD (WIN): %s @ %.0f%% — exiting before resolve",
+                            logger.info("RE-ENTRY RESOLVE GUARD (WIN): %s @ %.0f%% -- exiting before resolve",
                                         pos.slug[:35], eff_p * 100)
                             reentry_resolve_exits.append((cid, "re_entry_resolve_win"))
                             continue
                         elif eff_p <= 0.10:
-                            logger.info("RE-ENTRY RESOLVE GUARD (LOSS): %s @ %.0f%% — exiting before resolve",
+                            logger.info("RE-ENTRY RESOLVE GUARD (LOSS): %s @ %.0f%% -- exiting before resolve",
                                         pos.slug[:35], eff_p * 100)
                             reentry_resolve_exits.append((cid, "re_entry_resolve_loss"))
                             continue
 
                     # Mark as pending resolution ONLY when match ended + price at extremes
-                    # Price extreme alone is NOT enough — underdog markets sit at 2-5¢ while live
+                    # Price extreme alone is NOT enough -- underdog markets sit at 2-5¢ while live
                     if not pos.pending_resolution and (new_yes_price >= 0.95 or new_yes_price <= 0.05):
                         match_ended = getattr(pos, 'match_ended', False)
                         event_ended = False
@@ -1522,7 +1522,7 @@ class Agent:
                         event_still_live = events and not events[0].get("ended", False)
                         if event_still_live or not events:
                             pos.pending_resolution = False
-                            logger.info("Un-pending: %s — market still open, event not ended", pos.slug[:40])
+                            logger.info("Un-pending: %s -- market still open, event not ended", pos.slug[:40])
                     # Pending positions are no longer live
                     if pos.pending_resolution:
                         pos.live_on_clob = False
@@ -1545,7 +1545,7 @@ class Agent:
             self._exit_position(cid, reason)
             self.reentry_pool.remove(cid)  # Don't let near-resolved markets re-enter
 
-        # Check outcome tracker — resolve exited markets we're still watching
+        # Check outcome tracker -- resolve exited markets we're still watching
         if self.outcome_tracker.tracked_count > 0:
             self._check_tracked_outcomes()
 
@@ -1619,12 +1619,12 @@ class Agent:
                     unresolved.append(line)
                     continue
 
-                # Market resolved — log calibration result
+                # Market resolved -- log calibration result
                 outcome_prices = json.loads(market.get("outcomePrices", '["0.5","0.5"]'))
                 yes_price = float(outcome_prices[0])
                 # Resolved markets have prices at exactly 1.0 or 0.0 (or very close)
                 if 0.02 < yes_price < 0.98:
-                    # Not truly resolved — prices still mid-range
+                    # Not truly resolved -- prices still mid-range
                     unresolved.append(line)
                     continue
                 resolved_yes = yes_price > 0.50  # YES won
@@ -1667,7 +1667,7 @@ class Agent:
             tmp_path.replace(pred_path)
 
     def _check_tracked_outcomes(self) -> None:
-        """Check exited markets for resolution — no AI cost, just Gamma API."""
+        """Check exited markets for resolution -- no AI cost, just Gamma API."""
         from src.match_outcomes import log_outcome as _log_resolved
         tracked_cids = self.outcome_tracker.tracked_condition_ids
         if not tracked_cids:
@@ -1731,7 +1731,7 @@ class Agent:
                 if cal_result:
                     weaknesses = cal_result.get("weaknesses", [])
                     self.notifier.send(
-                        f"\U0001f4ca *AUTO-CALIBRATION* — {cal_result['resolved_count']} resolved\n\n"
+                        f"\U0001f4ca *AUTO-CALIBRATION* -- {cal_result['resolved_count']} resolved\n\n"
                         f"Win rate: `{cal_result['overall_win_rate']:.0%}`\n"
                         f"Brier: `{cal_result['overall_brier']:.3f}`\n"
                         + (f"Weaknesses: {len(weaknesses)}\n" if weaknesses else "No weaknesses found\n")
@@ -1744,7 +1744,7 @@ class Agent:
             side = "WIN" if outcome["our_side_won"] else "LOSS"
             left = outcome.get("pnl_left_on_table", 0)
             self.notifier.send(
-                f"\U0001f50d *POST-EXIT* — {outcome['slug'][:40]}\n\n"
+                f"\U0001f50d *POST-EXIT* -- {outcome['slug'][:40]}\n\n"
                 f"Exited: `{outcome['exit_reason']}` PnL=`${outcome['actual_pnl']:.2f}`\n"
                 f"Match result: `{side}`\n"
                 f"If held: `${outcome['hypothetical_pnl']:.2f}`"

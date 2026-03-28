@@ -10,9 +10,9 @@ from src.config import Mode
 
 logger = logging.getLogger(__name__)
 
-# Liquidity threshold — above this use market order, below use limit
+# Liquidity threshold -- above this use market order, below use limit
 LIQUID_DEPTH_USDC = 500.0
-# Limit order offset — place limit this many cents better than market
+# Limit order offset -- place limit this many cents better than market
 LIMIT_OFFSET_CENTS = 0.01
 
 
@@ -58,13 +58,13 @@ def choose_order_strategy(
         asks = book.get("asks", [])
         depth = _book_depth_usdc(asks)
         if depth >= liquid_threshold and size_usdc < depth * 0.20:
-            # Liquid market, small order relative to book → market order
+            # Liquid market, small order relative to book -> market order
             return {"strategy": "market", "price": price, "order_type": "FOK"}
         else:
-            # Illiquid → limit order slightly below best ask
+            # Illiquid -> limit order slightly below best ask
             best_ask = float(asks[0]["price"]) if asks else price
             limit_price = round(max(0.01, best_ask - LIMIT_OFFSET_CENTS), 2)
-            logger.info("Illiquid book (depth=$%.0f) → limit order @ $%.2f (best ask $%.2f)",
+            logger.info("Illiquid book (depth=$%.0f) -> limit order @ $%.2f (best ask $%.2f)",
                         depth, limit_price, best_ask)
             return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
     else:
@@ -75,7 +75,7 @@ def choose_order_strategy(
         else:
             best_bid = float(bids[0]["price"]) if bids else price
             limit_price = round(min(0.99, best_bid + LIMIT_OFFSET_CENTS), 2)
-            logger.info("Illiquid book (depth=$%.0f) → limit sell @ $%.2f (best bid $%.2f)",
+            logger.info("Illiquid book (depth=$%.0f) -> limit sell @ $%.2f (best bid $%.2f)",
                         depth, limit_price, best_bid)
             return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
 
@@ -154,7 +154,7 @@ class Executor:
                 "reason": reason,
             }
 
-        # Live mode — delegate to existing exit logic
+        # Live mode -- delegate to existing exit logic
         return self._execute_live_exit(pos.token_id, pos.shares)
 
     def _execute_live(

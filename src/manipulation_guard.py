@@ -6,7 +6,7 @@ Guards against:
 3. Single-source news (fake news / planted stories)
 
 Note: Whale trap protection backed up in manipulation_guard_backup_whale.py
-Note: Price spike filter removed — AI probability analysis already handles this
+Note: Price spike filter removed -- AI probability analysis already handles this
 """
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ class ManipulationGuard:
         )
 
         if flags:
-            logger.info("Manipulation check [%s]: %s — %s",
+            logger.info("Manipulation check [%s]: %s -- %s",
                         question[:50], result.risk_level, ", ".join(flags))
 
         return result

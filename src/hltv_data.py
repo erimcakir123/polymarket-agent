@@ -2,7 +2,7 @@
 Fallback when PandaScore has no data for a CS2 market.
 Uses hltv-async-api package (pip install hltv-async-api).
 
-NOTE: HLTV has Cloudflare protection — may need proxy config.
+NOTE: HLTV has Cloudflare protection -- may need proxy config.
 Set HLTV_PROXY env var if needed (e.g., http://user:pass@proxy:port).
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ try:
     HLTV_AVAILABLE = True
 except ImportError:
     HLTV_AVAILABLE = False
-    logger.info("hltv-async-api not installed — HLTV fallback disabled")
+    logger.info("hltv-async-api not installed -- HLTV fallback disabled")
 
 
 class HLTVDataClient:
@@ -123,7 +123,7 @@ class HLTVDataClient:
             logger.warning("HLTV team search error for '%s': %s", team_name, e)
             if "403" in str(e) or "Connection failed" in str(e):
                 self._init_failed = True
-                logger.warning("HLTV blocked by Cloudflare — disabling HLTV fallback")
+                logger.warning("HLTV blocked by Cloudflare -- disabling HLTV fallback")
             return None
         finally:
             try:
@@ -181,7 +181,7 @@ class HLTVDataClient:
             if not stats:
                 parts.append(f"\n{label}: No data available")
                 continue
-            # HLTV returns varying formats — adapt
+            # HLTV returns varying formats -- adapt
             if isinstance(stats, dict):
                 name = stats.get("name") or stats.get("team_name") or team_a_name
                 parts.append(f"\n{label}: {name}")

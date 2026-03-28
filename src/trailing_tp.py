@@ -2,14 +2,14 @@
 
 Replaces fixed TP entirely. Once a position reaches activation threshold,
 a trailing floor tracks the peak price upward. When price drops below
-the floor, the position is closed — locking in profit.
+the floor, the position is closed -- locking in profit.
 
 Logic:
-    1. Position profit < ACTIVATION_PCT → no action (let it run)
-    2. Profit >= ACTIVATION_PCT → trailing ACTIVE, track peak
+    1. Position profit < ACTIVATION_PCT -> no action (let it run)
+    2. Profit >= ACTIVATION_PCT -> trailing ACTIVE, track peak
     3. Peak updates on every price tick (via WebSocket or polling)
     4. Floor = peak × (1 - TRAIL_DISTANCE)
-    5. Current price < floor → EXIT (profit locked)
+    5. Current price < floor -> EXIT (profit locked)
 
 No fixed TP means:
     - A position at +30% won't be sold if it's still climbing
@@ -108,9 +108,9 @@ def calculate_trailing_tp(
             # Not yet profitable enough
             return _hold(profit_pct, False, 0.0, 0.0)
 
-    # Step 2: Trailing is active — update peak and check floor
+    # Step 2: Trailing is active -- update peak and check floor
     if effective_price > peak_price:
-        # New high — update peak and floor
+        # New high -- update peak and floor
         peak_price = effective_price
         floor = peak_price * (1.0 - trail_distance)
         logger.debug(
@@ -126,11 +126,11 @@ def calculate_trailing_tp(
             "reason": f"New peak ${peak_price:.3f}, floor ${floor:.3f}",
         }
 
-    # Price is below peak — check if it hit the floor
+    # Price is below peak -- check if it hit the floor
     floor = peak_price * (1.0 - trail_distance)
 
     if effective_price <= floor:
-        # TRAIL HIT — EXIT
+        # TRAIL HIT -- EXIT
         locked_profit_pct = _calc_locked_profit(entry_price, floor, direction)
         logger.info(
             "Trailing TP EXIT: price=$%.3f hit floor=$%.3f (peak=$%.3f). "
@@ -150,7 +150,7 @@ def calculate_trailing_tp(
             ),
         }
 
-    # Between peak and floor — hold
+    # Between peak and floor -- hold
     distance_to_floor = (effective_price - floor) / effective_price if effective_price > 0 else 0
     return {
         "action": "HOLD",

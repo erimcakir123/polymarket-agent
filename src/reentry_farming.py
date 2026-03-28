@@ -1,12 +1,12 @@
-"""Unified Re-entry Farming — enter/exit/re-enter the same match repeatedly.
+"""Unified Re-entry Farming -- enter/exit/re-enter the same match repeatedly.
 
 After any profitable exit (TP, trailing stop, spike exit, scale_out_final),
 the position is saved to a re-entry pool. On each cycle, the pool is checked
 for dip opportunities using a 3-tier system with escalating requirements.
 
 Key design decisions:
-- NO additional AI cost — uses saved AI probability from original entry
-- Thesis check: if price drops below original entry - 5¢, thesis is broken → block
+- NO additional AI cost -- uses saved AI probability from original entry
+- Thesis check: if price drops below original entry - 5¢, thesis is broken -> block
 - Profit protection: re-entry risk capped at 50% of realized profit from this market
 - Event-level tracking: re-entries per event_id (not just condition_id)
 - Resolve guard: re-entry positions auto-exit if price hits 95¢/5¢ (handled in main loop)
@@ -22,7 +22,7 @@ Max re-entries per market: sport-dependent (BO1:2, BO3:3, BO5:3, NBA:3, NHL:2)
 TODO(live): Add WebSocket price feeds for real-time re-entry checks
 TODO(live): Add orderbook depth check before re-entry (skip if depth < $100)
 TODO(live): Add liquidity impact check (if order > 20% of book, halve size)
-TODO(esports-api): Integrate PandaScore/HLTV for live score → score-based probability adjustment
+TODO(esports-api): Integrate PandaScore/HLTV for live score -> score-based probability adjustment
 TODO(esports-api): Detect map breaks and pause re-entry evaluation during breaks
 """
 from __future__ import annotations
@@ -314,10 +314,10 @@ def check_reentry(
             score_adjustment = score_diff * 0.05
             eff_ai = min(0.95, max(0.05, eff_ai + score_adjustment))
             if score_adjustment != 0:
-                logger.debug("Score-adjusted AI: %.0f%% → %.0f%% (maps: %d-%d)",
+                logger.debug("Score-adjusted AI: %.0f%% -> %.0f%% (maps: %d-%d)",
                              c.ai_probability * 100, eff_ai * 100, ms_a, ms_b)
 
-    # AI says losing side (prob < 50%) — don't re-enter a likely loser
+    # AI says losing side (prob < 50%) -- don't re-enter a likely loser
     if eff_ai < 0.50:
         return _block(f"AI says losing side: {eff_ai:.0%}")
 
@@ -335,18 +335,18 @@ def check_reentry(
     if c.reentry_count >= max_re:
         return _block(f"Max re-entries ({max_re}) reached")
 
-    # Analysis too old — live matches use shorter window (1h vs 4h)
+    # Analysis too old -- live matches use shorter window (1h vs 4h)
     cycles_since_exit = current_cycle - c.last_exit_cycle
     is_live = elapsed_pct is not None and elapsed_pct > 0.05
     max_age = 60 if is_live else MAX_ANALYSIS_AGE_CYCLES  # 1h live, 4h pre-match
     if cycles_since_exit > max_age:
         return _block(f"Analysis too stale (>{max_age // 60}h)")
 
-    # Price extremes — don't buy at 85¢+ or 15¢-
+    # Price extremes -- don't buy at 85¢+ or 15¢-
     if eff_price >= PRICE_EXTREME_HIGH or eff_price <= PRICE_EXTREME_LOW:
         return _block(f"Price extreme: {eff_price:.0%}")
 
-    # Thesis broken — price dropped below original entry - buffer
+    # Thesis broken -- price dropped below original entry - buffer
     if eff_price < eff_entry - THESIS_BROKEN_BUFFER:
         return _block(f"Thesis broken: price {eff_price:.0%} < entry {eff_entry:.0%} - 5¢")
 
@@ -354,7 +354,7 @@ def check_reentry(
     if daily_reentry_count >= 8:
         return _block("Daily re-entry limit (8) reached")
 
-    # Profit protection — don't risk more than 50% of realized profit
+    # Profit protection -- don't risk more than 50% of realized profit
     if c.total_realized_profit > 0 and c.total_reentry_risk >= c.total_realized_profit * PROFIT_RISK_CAP:
         return _block(f"Profit cap: risked ${c.total_reentry_risk:.2f} >= 50% of ${c.total_realized_profit:.2f}")
 
@@ -382,7 +382,7 @@ def check_reentry(
     if edge < tier["min_edge"]:
         return _wait(f"Edge {edge:.1%} < {tier['min_edge']:.1%}")
 
-    # Stabilization check — price must not have dropped for N consecutive cycles
+    # Stabilization check -- price must not have dropped for N consecutive cycles
     history = c.price_history
     required_stable = tier["stabilize_cycles"]
     if len(history) < required_stable:

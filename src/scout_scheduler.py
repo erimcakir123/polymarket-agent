@@ -1,4 +1,4 @@
-"""Pre-game scout scheduler — fetches match calendars and pre-analyzes before bets appear.
+"""Pre-game scout scheduler -- fetches match calendars and pre-analyzes before bets appear.
 
 Runs 4x daily (00, 06, 12, 18 UTC). Looks 24 hours ahead for upcoming matches
 via ESPN (traditional sports) and PandaScore (esports). Runs AI analysis once per
@@ -94,7 +94,7 @@ _SCOUT_LEAGUES = [
     # === Tennis ===
     ("tennis", "atp", "ATP Tennis"),
     ("tennis", "wta", "WTA Tennis"),
-    # NOTE: F1/Golf excluded — multi-competitor events, not moneyline head-to-head
+    # NOTE: F1/Golf excluded -- multi-competitor events, not moneyline head-to-head
 ]
 
 # PandaScore games to scout
@@ -170,7 +170,7 @@ class ScoutScheduler:
         # In-memory cooldown: never run twice within 4 hours
         _COOLDOWN_SECS = 4 * 3600
         if time.time() - self._last_run_ts < _COOLDOWN_SECS:
-            logger.debug("Scout cooldown active — skipping (%.1fh since last run)",
+            logger.debug("Scout cooldown active -- skipping (%.1fh since last run)",
                          (time.time() - self._last_run_ts) / 3600)
             return 0
 
@@ -188,7 +188,7 @@ class ScoutScheduler:
 
         all_matches = sports_matches + esports_matches
 
-        # 3. Save match calendar to queue (NO AI calls — save budget)
+        # 3. Save match calendar to queue (NO AI calls -- save budget)
         # AI analysis happens later, only when a Polymarket bet actually appears
         # Sports data (ESPN/PandaScore) is free, so we pre-fetch that
         for match in all_matches:

@@ -12,11 +12,11 @@ from src.models import Signal
 
 logger = logging.getLogger(__name__)
 
-# Confidence → bankroll percentage (the ONLY sizing table)
+# Confidence -> bankroll percentage (the ONLY sizing table)
 CONF_BET_PCT: dict[str, float] = {
-    "A":  0.05,   # 5% → $50 on $1000
-    "B+": 0.04,   # 4% → $40
-    "B-": 0.03,   # 3% → $30
+    "A":  0.05,   # 5% -> $50 on $1000
+    "B+": 0.04,   # 4% -> $40
+    "B-": 0.03,   # 3% -> $30
 }
 
 
@@ -71,7 +71,7 @@ class RiskManager:
         correlated_exposure: float = 0.0,
         **kwargs,
     ) -> RiskDecision:
-        # Cooldown check — decrement once per cycle, not per evaluate() call
+        # Cooldown check -- decrement once per cycle, not per evaluate() call
         if self.cooldown_remaining > 0:
             if not self._cooldown_decremented_this_cycle:
                 self.cooldown_remaining -= 1
@@ -91,7 +91,7 @@ class RiskManager:
         if correlated_exposure >= self.config.correlation_cap_pct:
             return RiskDecision(False, 0, "Correlation cap exceeded")
 
-        # Confidence-based sizing — no Kelly formula, confidence drives bet size
+        # Confidence-based sizing -- no Kelly formula, confidence drives bet size
         confidence = getattr(signal, 'confidence', "B-")
         category = getattr(signal, 'category', '')
         mkt_price = getattr(signal, 'market_price', 0.0)

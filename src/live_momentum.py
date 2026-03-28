@@ -1,14 +1,14 @@
-"""Live Momentum Trader — score-based probability re-estimation.
+"""Live Momentum Trader -- score-based probability re-estimation.
 
 When a match is live and score changes, Polymarket prices lag 10-60 seconds.
 This module re-estimates probability based on live score and detects
-when market price hasn't caught up yet — creating a momentum edge.
+when market price hasn't caught up yet -- creating a momentum edge.
 
 Flow:
     1. PandaScore provides live match state (score, elapsed)
     2. Calculate score-adjusted probability from pre-match AI estimate
     3. Compare adjusted probability vs current market price
-    4. If edge exists and market is lagging → signal MOMENTUM_ENTRY or MOMENTUM_EXIT
+    4. If edge exists and market is lagging -> signal MOMENTUM_ENTRY or MOMENTUM_EXIT
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Score impact tables — how much each scoring event shifts probability
+# Score impact tables -- how much each scoring event shifts probability
 # Values are ADDITIVE adjustments to pre-match probability
 
 _SCORE_IMPACT: Dict[str, dict] = {
@@ -117,7 +117,7 @@ def calculate_score_adjusted_probability(
 
     # Sport-specific adjustment calculation
     if "per_point" in config:
-        # Basketball, NFL — point differential
+        # Basketball, NFL -- point differential
         per_point = config["per_point"]
         quarter = _estimate_quarter(elapsed_pct, sport_tag)
         weight = config.get("quarter_weights", {}).get(quarter, 1.0)
@@ -128,7 +128,7 @@ def calculate_score_adjusted_probability(
             adjustment *= config.get("blowout_multiplier", 1.0)
 
     elif "per_goal" in config:
-        # Soccer — goals rare but impactful
+        # Soccer -- goals rare but impactful
         per_goal = config["per_goal"]
         adjustment = score_diff * per_goal
         # Late goals matter more
@@ -136,12 +136,12 @@ def calculate_score_adjusted_probability(
             adjustment *= 1.3
 
     elif "per_set" in config:
-        # Tennis — set differential
+        # Tennis -- set differential
         per_set = config["per_set"]
         adjustment = score_diff * per_set
 
     elif "per_map" in config:
-        # Esports — map differential
+        # Esports -- map differential
         per_map = config["per_map"]
         map_score_a = match_state.get("map_score", {}).get("team_a", 0)
         map_score_b = match_state.get("map_score", {}).get("team_b", 0)
@@ -213,7 +213,7 @@ def detect_momentum_opportunity(
         sport=sport_tag,
         reason=(
             f"Score {match_state.get('team_a_score', '?')}-{match_state.get('team_b_score', '?')} "
-            f"→ adjusted prob {adjusted:.1%} vs market {market_price:.1%} "
+            f"-> adjusted prob {adjusted:.1%} vs market {market_price:.1%} "
             f"(edge {edge:.1%}, {elapsed_pct:.0%} elapsed)"
         ),
     )

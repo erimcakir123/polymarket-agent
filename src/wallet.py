@@ -24,7 +24,7 @@ class Wallet:
         except ImportError:
             # Fallback: address must be provided separately
             self.address = ""
-            logger.warning("eth_account not installed — address derivation unavailable")
+            logger.warning("eth_account not installed -- address derivation unavailable")
 
     def get_usdc_balance(self) -> float:
         """Get USDC balance on Polygon via RPC."""

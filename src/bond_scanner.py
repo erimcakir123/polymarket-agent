@@ -1,10 +1,10 @@
-"""Bond Farming Scanner — near-certain events for low-risk profit.
+"""Bond Farming Scanner -- near-certain events for low-risk profit.
 
 Scans Polymarket for events with YES tokens priced $0.90-0.97.
 These are near-certain outcomes where buying YES and waiting for
 resolution at $1.00 yields 3-7% profit with minimal risk.
 
-No AI analysis needed — purely programmatic check:
+No AI analysis needed -- purely programmatic check:
     1. Is the event near resolution? (< 7 days)
     2. Is there high volume? (market efficiency signal)
     3. Is liquidity sufficient for exit?
@@ -23,7 +23,7 @@ from src.models import MarketData
 
 logger = logging.getLogger(__name__)
 
-# Bond criteria — percentage of bankroll, not fixed amounts
+# Bond criteria -- percentage of bankroll, not fixed amounts
 MIN_YES_PRICE = 0.90           # At least 90% implied probability
 MAX_YES_PRICE = 0.97           # Above 97% = not enough edge
 MIN_VOLUME_24H = 50_000        # High volume = market is pricing correctly
@@ -76,7 +76,7 @@ def scan_bond_candidates(
 
     _ALT_SLUG = ("-draw", "-1h-", "-first-half-", "-total-", "-spread-", "-btts")
     for m in markets:
-        # Block alt/draw markets — moneyline only
+        # Block alt/draw markets -- moneyline only
         if any(t in m.slug.lower() for t in _ALT_SLUG):
             continue
         # Basic filters
@@ -169,7 +169,7 @@ def _classify_bond(m: MarketData, days_left: float) -> tuple:
 
     # Signal: Event already happened (match ended, result known)
     if m.event_ended:
-        signals.append("Event already ended — awaiting resolution")
+        signals.append("Event already ended -- awaiting resolution")
         bond_type = "resolved_pending"
 
     # Signal: Live blowout (match in progress, dominant lead)

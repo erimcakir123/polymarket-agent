@@ -1,7 +1,7 @@
 """Bookmaker-Anchored Probability Engine.
 
 Combines AI probability with bookmaker implied probability for more robust estimates.
-AI never decides alone — bookmaker consensus serves as the anchor.
+AI never decides alone -- bookmaker consensus serves as the anchor.
 
 Formula:
     anchored = BOOK_WEIGHT × bookmaker_prob + AI_WEIGHT × ai_prob
@@ -17,7 +17,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Default weights — bookmaker gets majority vote
+# Default weights -- bookmaker gets majority vote
 BOOK_WEIGHT = 0.55
 AI_WEIGHT = 0.45
 
@@ -94,13 +94,13 @@ def calculate_anchored_probability(
         )
 
     else:
-        # No bookmaker data — apply overconfidence shrinkage
+        # No bookmaker data -- apply overconfidence shrinkage
         # Pulls AI estimate toward 50% by shrinkage factor
         shrunk = ai_prob * (1 - shrinkage) + SHRINKAGE_TARGET * shrinkage
         shrunk = max(0.05, min(0.95, shrunk))
 
         logger.info(
-            "SHRINK_DEBUG: AI=%.3f → shrunk=%.3f (formula: %.3f * %.2f + %.2f * %.2f)",
+            "SHRINK_DEBUG: AI=%.3f -> shrunk=%.3f (formula: %.3f * %.2f + %.2f * %.2f)",
             ai_prob, shrunk, ai_prob, 1 - shrinkage, SHRINKAGE_TARGET, shrinkage,
         )
 
@@ -125,9 +125,9 @@ def get_edge_threshold_adjustment(anchored: AnchoredProbability) -> float:
         Additional edge to add to min_edge (0.0 = no adjustment)
     """
     if anchored.high_divergence:
-        # AI and bookmaker strongly disagree — need much higher edge
+        # AI and bookmaker strongly disagree -- need much higher edge
         return 0.04  # +4% additional edge required
     if anchored.method == "shrunk_no_bookmaker":
-        # No bookmaker validation — small penalty
+        # No bookmaker validation -- small penalty
         return 0.02  # +2% additional edge required
     return 0.0

@@ -1,13 +1,13 @@
-"""Post-exit outcome tracker — follows markets after we exit to record final results.
+"""Post-exit outcome tracker -- follows markets after we exit to record final results.
 
 When we exit a position (TP, SL, etc.), we don't know the final match result yet.
 This tracker keeps watching those markets via Gamma API and records the actual
 outcome once the market resolves.
 
 This gives us critical data:
-- "We took profit at 70¢ but the team won (resolved at $1) — left money on table"
-- "We stop-lossed and the team actually won — premature exit"
-- "We stop-lossed and the team lost — good exit"
+- "We took profit at 70¢ but the team won (resolved at $1) -- left money on table"
+- "We stop-lossed and the team actually won -- premature exit"
+- "We stop-lossed and the team lost -- good exit"
 
 Data is written to logs/match_outcomes.jsonl with resolved=True and actual result.
 """
@@ -82,7 +82,7 @@ class OutcomeTracker:
         bookmaker_prob: float = 0.0,
     ) -> None:
         """Start tracking a market after exit."""
-        # Don't track resolved exits — we already know the outcome
+        # Don't track resolved exits -- we already know the outcome
         if exit_reason.startswith("resolved_"):
             return
 

@@ -1,4 +1,4 @@
-"""Self-improvement engine — autoresearch-style experiment loop for betting strategy.
+"""Self-improvement engine -- autoresearch-style experiment loop for betting strategy.
 
 Reads calibration data, analyzes performance, proposes ONE parameter change,
 tracks experiments in logs/experiments.tsv. Designed to be called by Claude Code
@@ -181,7 +181,7 @@ def edge_range_key(e: CalibrationEntry) -> str:
 # Experiment proposal engine
 # ---------------------------------------------------------------------------
 
-# Parameter search space — each entry: (config_path, current_key, candidates, description)
+# Parameter search space -- each entry: (config_path, current_key, candidates, description)
 PARAM_SPACE = [
     ("edge.min_edge", [0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.10, 0.12, 0.15],
      "Minimum edge threshold to place a bet"),
@@ -287,7 +287,7 @@ def propose_experiment(report: AnalysisReport, config: dict) -> AnalysisReport:
                 )
                 return report
 
-    # Priority 3: Check edge ranges — if small-edge bets have low win rate
+    # Priority 3: Check edge ranges -- if small-edge bets have low win rate
     small_edge = report.by_edge_range.get("0-5%", {})
     if small_edge and small_edge.get("count", 0) >= 3 and small_edge.get("win_rate", 1.0) < 0.50:
         current = get_nested(config, "edge.min_edge")
@@ -301,7 +301,7 @@ def propose_experiment(report: AnalysisReport, config: dict) -> AnalysisReport:
             )
             return report
 
-    # Priority 4: Category-based — if a category is consistently bad
+    # Priority 4: Category-based -- if a category is consistently bad
     for cat, stats in report.by_category.items():
         if stats["count"] >= 5 and stats["win_rate"] < 0.40:
             report.proposed_param = f"CATEGORY_FILTER:{cat}"

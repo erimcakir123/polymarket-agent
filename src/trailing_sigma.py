@@ -1,5 +1,5 @@
 # src/trailing_sigma.py
-"""σ-based trailing stop — volatility-adjusted trailing using rolling standard deviation.
+"""σ-based trailing stop -- volatility-adjusted trailing using rolling standard deviation.
 Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #3
 
 ALL price parameters must be effective (direction-adjusted) prices.

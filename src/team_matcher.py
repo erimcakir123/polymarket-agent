@@ -1,11 +1,11 @@
-"""Centralized team name matching — replaces unsafe low-threshold fuzzy matching.
+"""Centralized team name matching -- replaces unsafe low-threshold fuzzy matching.
 
 Three-stage matching:
 1. Exact / Alias lookup (confidence 1.0)
 2. Token-based overlap (confidence 0.85-0.90)
 3. High-threshold fuzzy fallback (confidence >= 0.80)
 
-Old thresholds (0.40-0.60) caused wrong team matches → wrong odds → wrong trades.
+Old thresholds (0.40-0.60) caused wrong team matches -> wrong odds -> wrong trades.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Known aliases — exact match (lowercase key → canonical name)
+# Known aliases -- exact match (lowercase key -> canonical name)
 TEAM_ALIASES: dict[str, str] = {
     # NBA
     "lakers": "los angeles lakers", "la lakers": "los angeles lakers",
@@ -146,20 +146,20 @@ def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
     c_tokens = set(c.split())
     noise = {"team", "the", "of", "de", "fc", "sc", "city"}
 
-    # Single-word query → substring check in candidate tokens
+    # Single-word query -> substring check in candidate tokens
     if len(q_tokens) == 1:
         q_word = list(q_tokens)[0]
         if q_word not in noise and (q_word in c_tokens or any(q_word in ct for ct in c_tokens)):
             return True, 0.90, "token_substring"
 
-    # Multi-word → meaningful overlap
+    # Multi-word -> meaningful overlap
     if len(q_tokens) > 1 and len(c_tokens) > 1:
         overlap = q_tokens & c_tokens
         meaningful = overlap - noise
         if meaningful and len(overlap) / min(len(q_tokens), len(c_tokens)) >= 0.5:
             return True, 0.85, "token_overlap"
 
-    # Stage 3: Fuzzy — HIGH threshold only
+    # Stage 3: Fuzzy -- HIGH threshold only
     score = SequenceMatcher(None, q, c).ratio()
     if score >= 0.80:
         return True, score, "fuzzy"

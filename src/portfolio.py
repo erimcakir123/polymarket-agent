@@ -80,16 +80,16 @@ class Portfolio:
         bookmaker_prob: float = 0.0,
         is_consensus: bool = False,
     ) -> None:
-        # Event-level duplicate guard — never bet on two outcomes of the same event
+        # Event-level duplicate guard -- never bet on two outcomes of the same event
         if event_id:
             for cid, pos in self.positions.items():
                 if pos.event_id and pos.event_id == event_id:
                     logger.warning(
-                        "BLOCKED: same event already held — existing %s (%s), attempted %s (%s), event_id=%s",
+                        "BLOCKED: same event already held -- existing %s (%s), attempted %s (%s), event_id=%s",
                         pos.slug[:35], pos.direction, slug[:35], direction, event_id,
                     )
                     return
-        # Duplicate guard — never overwrite an existing position (would lose tracking)
+        # Duplicate guard -- never overwrite an existing position (would lose tracking)
         if condition_id in self.positions:
             logger.warning(
                 "BLOCKED duplicate add_position: %s already held (size=$%.2f)",
@@ -219,7 +219,7 @@ class Portfolio:
             # Track ever_in_profit (never resets)
             if not pos.ever_in_profit and pos.peak_pnl_pct > 0.01:
                 pos.ever_in_profit = True
-            # Dynamic FAV promotion/demotion — based on current market price
+            # Dynamic FAV promotion/demotion -- based on current market price
             eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
             if not pos.scouted and not pos.volatility_swing:
                 if (eff_price >= 0.65
@@ -232,7 +232,7 @@ class Portfolio:
             elif pos.scouted and not pos.hold_was_original:
                 if eff_price < 0.65:
                     pos.scouted = False
-                    logger.info("FAV DEMOTED: %s | price %.0f%% < 65%% — no longer favorite",
+                    logger.info("FAV DEMOTED: %s | price %.0f%% < 65%% -- no longer favorite",
                                 pos.slug[:35], eff_price * 100)
             # Track consecutive down cycles for momentum alert (use effective prices for BUY_NO)
             eff_new = (1 - new_price) if pos.direction == "BUY_NO" else new_price
@@ -283,7 +283,7 @@ class Portfolio:
                           esports_stop_loss_pct: float = 0.40) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():
-            # Skip if price was never updated (stale 0.0 → fake -100% PnL)
+            # Skip if price was never updated (stale 0.0 -> fake -100% PnL)
             if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
                 logger.debug("Skipping stop-loss for %s: price never updated (%.4f)",
                              pos.slug[:30], pos.current_price)
@@ -302,20 +302,20 @@ class Portfolio:
                 # Ultra-low: only Penny Alpha skips SL (bet size IS the risk)
                 # FAR swing trades and other strategies still get their SL
                 if getattr(pos, 'entry_reason', '') == 'penny':
-                    continue  # Penny alpha — no stop-loss
+                    continue  # Penny alpha -- no stop-loss
                 else:
                     sl = 0.50  # Other ultra-low entries: wide 50% SL
             elif eff_entry_sl < 0.20:
                 # Low-entry (9-20¢): graduated stop-loss
-                # Linear scale: 9¢ → 60%, 20¢ → 40%
+                # Linear scale: 9¢ -> 60%, 20¢ -> 40%
                 t = (eff_entry_sl - 0.09) / (0.20 - 0.09)  # 0..1
-                sl = 0.60 - t * 0.20  # 60% → 40%
+                sl = 0.60 - t * 0.20  # 60% -> 40%
             elif pos.confidence == "B-":
                 sl = 0.30  # B- tighter stop-loss
             else:
                 sport_tag = getattr(pos, 'sport_tag', '') or ''
                 sl = get_stop_loss(sport_tag)
-                # BO5+ esports bonus — extra room for comeback in long series
+                # BO5+ esports bonus -- extra room for comeback in long series
                 if pos.category == "esports" and pos.number_of_games >= 5:
                     sl += 0.10
             if pos.unrealized_pnl_pct < -sl:
@@ -374,7 +374,7 @@ class Portfolio:
                 continue
             if pos.volatility_swing:
                 continue
-            # Scale-out tier > 0 means profit already partially locked — σ-trailing protects remainder
+            # Scale-out tier > 0 means profit already partially locked -- σ-trailing protects remainder
             # Favorite hold-to-resolve logic: skip trailing if σ says inactive (peak too low)
             eff_entry = (1 - pos.entry_price) if pos.direction == "BUY_NO" else pos.entry_price
             eff_current = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
@@ -400,14 +400,14 @@ class Portfolio:
                            vs_tp_ceiling: float = 2.00) -> List[str]:
         # Dynamic take-profit based on confidence + conviction
         confidence_tp = {
-            "C": take_profit_pct,                  # C → take profit early (40%)
-            "B-": take_profit_pct * 2.0,           # B- → 2x patience (80%)
-            "B+": take_profit_pct * 2.0,           # B+ → 2x patience (80%)
-            "A": take_profit_pct * 3.5,            # A → let it ride (140%)
+            "C": take_profit_pct,                  # C -> take profit early (40%)
+            "B-": take_profit_pct * 2.0,           # B- -> 2x patience (80%)
+            "B+": take_profit_pct * 2.0,           # B+ -> 2x patience (80%)
+            "A": take_profit_pct * 3.5,            # A -> let it ride (140%)
         }
         triggered = []
         for cid, pos in self.positions.items():
-            # Skip if price was never updated (API error → 0.0 inflates PnL)
+            # Skip if price was never updated (API error -> 0.0 inflates PnL)
             if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
                 continue
             # O/U and spread markets: hold to resolution
@@ -420,8 +420,8 @@ class Portfolio:
 
             # Volatility swing: dynamic take-profit based on entry price
             if pos.volatility_swing:
-                # Cheap tokens (3-10¢) → high TP, expensive (20-30¢) → lower TP
-                # Linear interpolation: 3¢ → tp_ceiling, 30¢ → tp_floor
+                # Cheap tokens (3-10¢) -> high TP, expensive (20-30¢) -> lower TP
+                # Linear interpolation: 3¢ -> tp_ceiling, 30¢ -> tp_floor
                 tp_floor = vs_tp_floor
                 tp_ceiling = vs_tp_ceiling
                 price_range = max(0.30 - 0.03, 0.01)  # avoid div by zero
@@ -439,11 +439,11 @@ class Portfolio:
             if pos.direction and 'NO' in pos.direction:
                 effective_ai = 1 - pos.ai_probability
 
-            # FAVORITE: AI ≥ 65% for our side AND high/medium_high confidence → hold to resolve
+            # FAVORITE: AI ≥ 65% for our side AND high/medium_high confidence -> hold to resolve
             is_favorite = effective_ai >= 0.65 and pos.confidence in ("A", "B+")
 
             if is_favorite:
-                # Hold to resolve — only emergency exit on massive overshoot (>50% gain)
+                # Hold to resolve -- only emergency exit on massive overshoot (>50% gain)
                 if pos.unrealized_pnl_pct > 0.50:
                     triggered.append(cid)
                     logger.info("Spike exit (favorite overshoot): %s | +%.1f%% > 50%%",
@@ -467,7 +467,7 @@ class Portfolio:
                     is_already_won=is_won,
                 )
                 if hold and eff_price >= 0.65:
-                    logger.debug("Resolution hold (V2): %s — %s", pos.slug[:30], hold_reason)
+                    logger.debug("Resolution hold (V2): %s -- %s", pos.slug[:30], hold_reason)
                     continue  # Skip TP, hold for resolution
 
             # UNDERDOG: edge trade with decayed AI target (V2: edge decay)
@@ -500,7 +500,7 @@ class Portfolio:
                 eff_entry = (1 - pos.entry_price) if (pos.direction and 'NO' in pos.direction) else pos.entry_price
                 if current >= edge_tp_price and current > eff_entry * 1.10:
                     triggered.append(cid)
-                    logger.info("Edge TP (underdog): %s | price=%.0f¢ → AI target %.0f¢ (85%%=%.0f¢) | +%.1f%%",
+                    logger.info("Edge TP (underdog): %s | price=%.0f¢ -> AI target %.0f¢ (85%%=%.0f¢) | +%.1f%%",
                                 pos.slug[:30], current * 100, ai_target * 100,
                                 edge_tp_price * 100, pos.unrealized_pnl_pct * 100)
                     continue
@@ -519,7 +519,7 @@ class Portfolio:
     def check_volatility_swing_exits(self) -> List[str]:
         """Mandatory exit for volatility swings approaching resolution.
 
-        Must exit before match ends — holding to resolve = guaranteed loss for underdogs.
+        Must exit before match ends -- holding to resolve = guaranteed loss for underdogs.
         """
         from datetime import datetime, timezone
         triggered = []
@@ -536,7 +536,7 @@ class Portfolio:
                 if minutes_left <= 15:
                     triggered.append(cid)
                     logger.warning(
-                        "VS mandatory exit: %s | %.0f min to resolve — cannot hold underdog to resolve",
+                        "VS mandatory exit: %s | %.0f min to resolve -- cannot hold underdog to resolve",
                         pos.slug[:30], minutes_left,
                     )
             except (ValueError, TypeError):
@@ -546,7 +546,7 @@ class Portfolio:
     def check_pre_match_exits(self, minutes_before: int = 30) -> List[str]:
         """Mandatory exit N minutes before match end for non-high-confidence positions.
 
-        High confidence (A-tier) positions are exempt — Claudeus Optimus rule.
+        High confidence (A-tier) positions are exempt -- Claudeus Optimus rule.
         """
         from datetime import datetime, timezone
         triggered = []
@@ -555,7 +555,7 @@ class Portfolio:
             if pos.volatility_swing:
                 continue  # VS has its own exit logic
             if pos.confidence in ("A", "B+"):
-                continue  # Favorite confidence exempt — hold to resolve
+                continue  # Favorite confidence exempt -- hold to resolve
             if pos.entry_reason == "live_dip":
                 continue  # Live dip has its own exit logic
             if not pos.end_date_iso:
@@ -566,7 +566,7 @@ class Portfolio:
                 if minutes_left <= minutes_before:
                     triggered.append(cid)
                     logger.warning(
-                        "Pre-match exit: %s | %.0f min left | conf=%s — exiting before resolution",
+                        "Pre-match exit: %s | %.0f min left | conf=%s -- exiting before resolution",
                         pos.slug[:30], minutes_left, pos.confidence,
                     )
             except (ValueError, TypeError):
@@ -582,7 +582,7 @@ class Portfolio:
         time-based estimation (BO3: ~62 min, BO5: ~87 min).
 
         Args:
-            match_states: dict of condition_id → match_state dict from PandaScore
+            match_states: dict of condition_id -> match_state dict from PandaScore
                           (with keys: map_number, total_maps, team_a_score, team_b_score)
         """
         from datetime import datetime, timezone
@@ -596,7 +596,7 @@ class Portfolio:
             if not pos.live_on_clob:
                 continue  # Not live yet
             if pos.unrealized_pnl_pct >= 0:
-                continue  # In profit — let it ride
+                continue  # In profit -- let it ride
 
             ms = states.get(cid)
             if ms:
@@ -640,7 +640,7 @@ class Portfolio:
             if elapsed_min >= halftime_min:
                 triggered.append(cid)
                 logger.warning(
-                    "Esports halftime exit (time): %s | BO%d | %d min elapsed | PnL=%.1f%% — cutting losses",
+                    "Esports halftime exit (time): %s | BO%d | %d min elapsed | PnL=%.1f%% -- cutting losses",
                     pos.slug[:30], pos.number_of_games, int(elapsed_min),
                     pos.unrealized_pnl_pct * 100,
                 )
@@ -707,8 +707,8 @@ class Portfolio:
         """Two-level drawdown check.
 
         Returns: 'none' | 'soft' | 'hard'
-        - soft: equity < (1 - soft_pct) * HWM → no new entries
-        - hard: equity < (1 - hard_pct) * HWM → close everything
+        - soft: equity < (1 - soft_pct) * HWM -> no new entries
+        - hard: equity < (1 - hard_pct) * HWM -> close everything
         """
         if self.high_water_mark <= 0:
             return "none"
@@ -719,9 +719,9 @@ class Portfolio:
         equity = self.bankroll + total_value
         drawdown = 1 - (equity / self.high_water_mark)
         if drawdown >= hard_pct:
-            return "hard"  # Equity < 35% of HWM → close everything
+            return "hard"  # Equity < 35% of HWM -> close everything
         elif drawdown >= soft_pct:
-            return "soft"  # Equity < 50% of HWM → no new entries
+            return "soft"  # Equity < 50% of HWM -> no new entries
         return "none"
 
     def total_unrealized_pnl(self) -> float:

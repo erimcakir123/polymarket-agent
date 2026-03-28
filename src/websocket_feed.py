@@ -67,7 +67,7 @@ class WebSocketFeed:
         self._stats = {"messages_received": 0, "reconnects": 0, "errors": 0}
 
     def set_on_price_update(self, callback) -> None:
-        """Set or replace the price-update callback. Used by ExitMonitor. Must be called before start_background() — not safe to call after the feed is running."""
+        """Set or replace the price-update callback. Used by ExitMonitor. Must be called before start_background() -- not safe to call after the feed is running."""
         self._callback = callback
 
     @property
@@ -200,7 +200,7 @@ class WebSocketFeed:
                 self._connected = False
                 self._ws = None
                 if self._running:
-                    logger.warning("WebSocket disconnected: %s — reconnecting in %.0fs",
+                    logger.warning("WebSocket disconnected: %s -- reconnecting in %.0fs",
                                    e, delay)
                     await asyncio.sleep(delay)
 
@@ -228,7 +228,7 @@ class WebSocketFeed:
                 if token_id not in self._subscriptions:
                     return
 
-            # Extract price — format varies by message type
+            # Extract price -- format varies by message type
             price = data.get("price")
             if price is None:
                 prices = data.get("prices", [])
@@ -253,7 +253,7 @@ class WebSocketFeed:
                     logger.debug("Price callback error: %s", e)
 
         elif msg_type == "book":
-            # Order book snapshot — extract best bid/ask
+            # Order book snapshot -- extract best bid/ask
             token_id = data.get("market", "")
             if not token_id:
                 return

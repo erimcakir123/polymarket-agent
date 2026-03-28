@@ -33,7 +33,7 @@ class TelegramNotifier:
                 bot_name = data.get("username", "unknown")
                 logger.info("Telegram connected: @%s (chat_id: %s)", bot_name, self.chat_id)
             else:
-                logger.error("Telegram FAILED: HTTP %d — %s", resp.status_code, resp.text[:200])
+                logger.error("Telegram FAILED: HTTP %d -- %s", resp.status_code, resp.text[:200])
                 self.enabled = False
         except Exception as e:
             logger.error("Telegram FAILED: %s", e)
@@ -68,14 +68,14 @@ class TelegramNotifier:
                 "parse_mode": parse_mode,
             }, timeout=10)
             if resp.status_code == 400 and "can't parse entities" in resp.text:
-                # Markdown parse failed — retry as plain text
+                # Markdown parse failed -- retry as plain text
                 plain = message.replace("*", "").replace("`", "").replace("_", "")
                 resp = requests.post(url, json={
                     "chat_id": self.chat_id,
                     "text": plain,
                 }, timeout=10)
             if resp.status_code != 200:
-                logger.warning("Telegram send non-200: HTTP %d — %s",
+                logger.warning("Telegram send non-200: HTTP %d -- %s",
                                resp.status_code, resp.text[:200])
             return resp.status_code == 200
         except Exception as e:

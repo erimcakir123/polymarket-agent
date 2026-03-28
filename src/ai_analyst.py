@@ -32,10 +32,10 @@ _SPORTS_RULES = """
 SPORTS-SPECIFIC RULES:
 - You MUST use the match data provided (win rates, recent form, H2H) as your primary signal.
 - Recent form (last 5 matches) matters more than all-time record.
-- Head-to-head record is very important — some teams consistently beat others.
+- Head-to-head record is very important -- some teams consistently beat others.
 - Tournament tier matters: teams play harder in Majors/playoffs vs group stages.
-- BO1 (best-of-1) is more volatile than BO3/BO5 — widen your confidence interval.
-- If you have NO data about a team, set confidence to "C" — do NOT guess.
+- BO1 (best-of-1) is more volatile than BO3/BO5 -- widen your confidence interval.
+- If you have NO data about a team, set confidence to "C" -- do NOT guess.
 - Underdogs win ~20-30% of the time in esports BO1s. Don't overestimate favorites."""
 
 _NBA_RULES = """
@@ -43,11 +43,11 @@ NBA-SPECIFIC RULES:
 - Home court advantage is real (~60% win rate). Factor it in.
 - Back-to-back games: teams playing 2nd night are significantly weaker (fatigue, ~5-8% drop).
 - Rest days matter: 3+ days rest vs B2B = massive edge.
-- Injury reports are CRITICAL — check if key players (top 2-3) are listed OUT/DOUBTFUL.
+- Injury reports are CRITICAL -- check if key players (top 2-3) are listed OUT/DOUBTFUL.
 - Regular season vs Playoffs: teams play harder in playoffs. Seeding matters less late season.
 - Blowout history: if a team lost by 20+ in recent matchup, they often adjust. Don't overweight single blowouts.
 - Late-season tanking: bottom teams rest starters in March/April. Check standings context.
-- Over/under is NOT your domain — focus on moneyline ONLY."""
+- Over/under is NOT your domain -- focus on moneyline ONLY."""
 
 _TENNIS_RULES = """
 TENNIS-SPECIFIC RULES:
@@ -63,8 +63,8 @@ TENNIS-SPECIFIC RULES:
 _CS2_RULES = """
 CS2/ESPORTS-SPECIFIC RULES:
 - Map veto is CRITICAL. Teams have 60%+ win rates on their best maps and <40% on worst.
-- BO1 is extremely volatile — upsets happen 25-35% of the time. Widen confidence intervals.
-- BO3 is more predictable — the better team wins ~70% of the time.
+- BO1 is extremely volatile -- upsets happen 25-35% of the time. Widen confidence intervals.
+- BO3 is more predictable -- the better team wins ~70% of the time.
 - Recent form (last 2 weeks) matters MORE than 3-month stats. Roster changes reset everything.
 - Online vs LAN: some teams perform very differently. Major/LAN experience matters.
 - Economy rounds: pistol round wins cascade into 2-3 round leads. First map pistol = momentum.
@@ -76,41 +76,41 @@ _POLITICS_RULES = """
 POLITICS/ELECTIONS/EVENTS RULES:
 - Consider historical precedent, current conditions, stakeholder incentives.
 - For events resolving within 7 days: focus on what's already in motion, not speculation.
-- Be very conservative on long-shot political events — they almost never happen.
+- Be very conservative on long-shot political events -- they almost never happen.
 - Base rates matter more than narratives.
 - ELECTIONS: Markets often overreact to last-minute news near election day.
-  Voters rarely change their minds in the final week — polls 7 days out are highly predictive.
+  Voters rarely change their minds in the final week -- polls 7 days out are highly predictive.
   Incumbent advantage is real (~55-60% win rate globally). Don't let dramatic headlines move your estimate.
-  If you know the country's political landscape, USE that knowledge — it's your edge over emotional traders."""
+  If you know the country's political landscape, USE that knowledge -- it's your edge over emotional traders."""
 
 UNIFIED_SYSTEM = """You are an expert superforecaster. Analyze BOTH sides of this market.
 
-STEP 1 — Argue FOR: Why this outcome WILL happen. Cite concrete evidence.
-STEP 2 — Argue AGAINST: Why this outcome will NOT happen. Be skeptical, find counterarguments.
-STEP 3 — Synthesize: Weigh both sides and give your final probability estimate.
+STEP 1 -- Argue FOR: Why this outcome WILL happen. Cite concrete evidence.
+STEP 2 -- Argue AGAINST: Why this outcome will NOT happen. Be skeptical, find counterarguments.
+STEP 3 -- Synthesize: Weigh both sides and give your final probability estimate.
 
 RULES:
 - Base your estimate ONLY on the evidence provided (news, description, match data, time remaining).
-- Do NOT anchor to any market price — form your OWN independent estimate.
-- Be specific about your reasoning — cite concrete evidence, not vague intuitions.
+- Do NOT anchor to any market price -- form your OWN independent estimate.
+- Be specific about your reasoning -- cite concrete evidence, not vague intuitions.
 - Account for time remaining until resolution. Use today's date to calculate how far away the event is.
 {category_rules}
 {slug_guide}
 
 DATA CALIBRATION:
 You will see a "Data Sources" section listing what was queried for this market.
-- If bookmaker odds are present → strong external anchor, supports higher confidence.
-- If match stats are present (ESPN, PandaScore, TheSportsDB) → primary confidence signal.
-  8+ recent matches per team → A. 5-7 matches → B+. 1-4 matches → B-.
+- If bookmaker odds are present -> strong external anchor, supports higher confidence.
+- If match stats are present (ESPN, PandaScore, TheSportsDB) -> primary confidence signal.
+  8+ recent matches per team -> A. 5-7 matches -> B+. 1-4 matches -> B-.
 - Missing bookmaker odds is NOT a reason to lower confidence if match stats are adequate.
-- News alone (injuries, form reports, previews) WITHOUT any match statistics → C.
-  News is supplementary — it can raise B- to B+ but cannot substitute for match data.
-- If no data sources returned meaningful content → C.
+- News alone (injuries, form reports, previews) WITHOUT any match statistics -> C.
+  News is supplementary -- it can raise B- to B+ but cannot substitute for match data.
+- If no data sources returned meaningful content -> C.
 
-CRITICAL — PROBABILITY DEFINITION:
+CRITICAL -- PROBABILITY DEFINITION:
 "probability" MUST be the probability that the YES outcome occurs.
-- For "Will X win?" → probability = P(X wins)
-- For "Team A vs Team B" → YES = Team A wins → probability = P(Team A wins)
+- For "Will X win?" -> probability = P(X wins)
+- For "Team A vs Team B" -> YES = Team A wins -> probability = P(Team A wins)
 - If you think Team B wins, probability should be LOW (e.g. 0.25), not high.
 - NEVER return P(Team B wins) as the probability. Always P(YES / first team / subject of the question).
 
@@ -119,17 +119,17 @@ Respond with ONLY JSON:
 "reasoning_pro": "why YES...", "reasoning_con": "why NO...",
 "key_evidence_for": [...], "key_evidence_against": [...]}}
 
-Confidence grades — rate DATA AVAILABILITY, not your uncertainty about the result:
-- "A"  = strong statistical data — 2+ independent sources agree (bookmaker odds + match stats,
+Confidence grades -- rate DATA AVAILABILITY, not your uncertainty about the result:
+- "A"  = strong statistical data -- 2+ independent sources agree (bookmaker odds + match stats,
          or match stats + news with 8+ recent games per team <14 days old).
          Use A when you have rich quantitative data even if the outcome feels uncertain.
-- "B+" = solid statistical data — at least one strong source: bookmaker odds alone,
+- "B+" = solid statistical data -- at least one strong source: bookmaker odds alone,
          OR match history with 5+ recent games (ESPN, PandaScore, TheSportsDB),
          OR detailed news PLUS any stats. One unknown factor is fine at B+.
-- "B-" = minimal statistical data — 1-4 recent match results available but thin sample,
+- "B-" = minimal statistical data -- 1-4 recent match results available but thin sample,
          OR data older than 14 days, OR conflicting signals.
-         REQUIRES at least some match history — news alone is NOT enough for B-.
-- "C"  = no statistical data — no match history, no bookmaker odds, no sports stats.
+         REQUIRES at least some match history -- news alone is NOT enough for B-.
+- "C"  = no statistical data -- no match history, no bookmaker odds, no sports stats.
          News articles alone (injuries, transfers, previews) without match data = C.
          Return C only for missing statistics, NOT for uncertain outcomes.
          Will be SKIPPED (no trade opened)."""
@@ -202,9 +202,9 @@ class AIAnalyst:
                 self._sprint_cost_usd = data.get("sprint_spent", 0.0)
                 return
             except (json.JSONDecodeError, KeyError, ValueError):
-                logger.warning("Budget file corrupted: %s — trying backup", path)
-        # Both files missing or corrupted — start fresh but log loudly
-        logger.error("NO BUDGET FILE FOUND — starting with $0 spent. Check logs/ai_budget.json")
+                logger.warning("Budget file corrupted: %s -- trying backup", path)
+        # Both files missing or corrupted -- start fresh but log loudly
+        logger.error("NO BUDGET FILE FOUND -- starting with $0 spent. Check logs/ai_budget.json")
 
     def _save_budget(self) -> None:
         """Persist budget to disk with backup copy."""
@@ -328,7 +328,7 @@ class AIAnalyst:
         if not self._is_sports_market(market):
             return UNIFIED_SYSTEM.format(category_rules=_POLITICS_RULES, slug_guide=_SLUG_GUIDE)
 
-        # Domain specialization — pick sport-specific rules when available
+        # Domain specialization -- pick sport-specific rules when available
         sport = (market.sport_tag or "").lower()
         slug_lower = (market.slug or "").lower()
         q_lower = market.question.lower()
@@ -383,7 +383,7 @@ class AIAnalyst:
         result = self._call_claude(system_prompt, prompt)
 
         if result is None:
-            logger.warning("AI call failed — returning neutral 0.5 (no trade will trigger)")
+            logger.warning("AI call failed -- returning neutral 0.5 (no trade will trigger)")
             return AIEstimate(ai_probability=0.5, confidence="C",
                               reasoning_pro="API_ERROR", reasoning_con="API_ERROR")
 
@@ -433,11 +433,11 @@ class AIAnalyst:
             f"Question: {market.question}",
             f"Market slug: {market.slug}" if market.slug else "",
             f"Description: {market.description}" if market.description else "",
-            # Market price intentionally excluded — prevents anchoring bias
+            # Market price intentionally excluded -- prevents anchoring bias
             f"Resolution date: {market.end_date_iso}" if market.end_date_iso else "",
         ]
 
-        # Data Sources section — tell AI exactly what data it has
+        # Data Sources section -- tell AI exactly what data it has
         sport = (market.sport_tag or "").lower()
         slug_lower = (market.slug or "").lower()
         q_lower = market.question.lower()
@@ -459,7 +459,7 @@ class AIAnalyst:
         if has_odds:
             sources_section.append("✓ Bookmaker Odds: Available (see data below)")
         elif is_esport:
-            sources_section.append("✗ Bookmaker Odds: Not available (normal for esports — do NOT penalize confidence)")
+            sources_section.append("✗ Bookmaker Odds: Not available (normal for esports -- do NOT penalize confidence)")
         else:
             sources_section.append("✗ Bookmaker Odds: Not available")
 
@@ -470,7 +470,7 @@ class AIAnalyst:
 
         if is_esport:
             sport_label = sport.upper() if sport else "ESPORTS"
-            sources_section.append(f"\nSport: {sport_label} — match stats from PandaScore are the primary data source. "
+            sources_section.append(f"\nSport: {sport_label} -- match stats from PandaScore are the primary data source. "
                                    f"Bookmaker odds are rarely available for esports markets. "
                                    f"8+ recent matches per team = good data quality for B+ or A confidence.")
 
@@ -568,7 +568,7 @@ class AIAnalyst:
             DevilsAdvocateResult with veto decision
         """
         if self.budget_exhausted:
-            logger.debug("DA skipped — budget exhausted")
+            logger.debug("DA skipped -- budget exhausted")
             return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=0.0)
 
         prompt = DEVILS_ADVOCATE_PROMPT.format(
@@ -602,7 +602,7 @@ class AIAnalyst:
             result = self._parse_json_response(text)
 
             if result is None:
-                logger.debug("DA parse failed — defaulting to PASS")
+                logger.debug("DA parse failed -- defaulting to PASS")
                 return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=cost)
 
             vetoed = result.get("decision", "PASS").upper() == "VETO"
@@ -628,7 +628,7 @@ class AIAnalyst:
             )
 
         except Exception as e:
-            logger.warning("DA call failed: %s — defaulting to PASS", e)
+            logger.warning("DA call failed: %s -- defaulting to PASS", e)
             return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=0.0)
 
     @property

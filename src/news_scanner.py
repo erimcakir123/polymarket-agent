@@ -1,6 +1,6 @@
 """Multi-source news scanner with article content extraction.
 
-Fallback chain: Tavily → NewsAPI → GNews → RSS (unlimited).
+Fallback chain: Tavily -> NewsAPI -> GNews -> RSS (unlimited).
 Tavily is an LLM-optimized search API (1000 credits/month free).
 Full article content extracted via trafilatura for deeper AI analysis.
 """
@@ -35,7 +35,7 @@ TOPIC_GROUPS: Dict[str, List[str]] = {
     "economy interest rates inflation": ["fed", "interest rate", "inflation", "gdp", "recession", "tariff", "trade war", "stock market", "s&p"],
     "bitcoin crypto regulation": ["bitcoin", "ethereum", "crypto", "sec crypto", "etf"],
     "ai regulation tech antitrust": ["ai regulation", "openai", "google ai", "meta ai", "tiktok ban", "antitrust"],
-    # Sports — batch by sport, not per-market
+    # Sports -- batch by sport, not per-market
     "counter-strike CS2 esports matches results": ["counter-strike", "cs2", "csgo", "cs:go"],
     "dota 2 esports matches results": ["dota", "dota2", "dota 2"],
     "valorant esports matches results": ["valorant"],
@@ -93,7 +93,7 @@ class NewsScanner:
         """
         self._maybe_reset_daily_usage()
 
-        # Check cache — sports queries use longer TTL (6h) since news is slower-moving
+        # Check cache -- sports queries use longer TTL (6h) since news is slower-moving
         key = _cache_key(query)
         _SPORTS_WORDS = {"cs2", "counter-strike", "dota", "valorant", "lol", "mlb",
                          "nba", "nhl", "nfl", "tennis", "atp", "wta", "soccer",
@@ -101,14 +101,14 @@ class NewsScanner:
                          "baseball", "basketball", "hockey", "football", "cba"}
         q_lower = query.lower()
         is_sports = any(sw in q_lower for sw in _SPORTS_WORDS)
-        effective_ttl = 28800 if is_sports else self.cache_ttl  # 8h vs 45min — sports news reused across cycles
+        effective_ttl = 28800 if is_sports else self.cache_ttl  # 8h vs 45min -- sports news reused across cycles
         if key in self._cache:
             ts, cached = self._cache[key]
             if (time.time() - ts) < effective_ttl:
                 logger.debug("Cache hit for query: %s", query)
                 return cached
 
-        # Fallback chain: Tavily → NewsAPI → GNews → RSS
+        # Fallback chain: Tavily -> NewsAPI -> GNews -> RSS
         articles: List[dict] = []
 
         if not articles and self.tavily_key and self._monthly_tavily < 950:
@@ -217,7 +217,7 @@ class NewsScanner:
                 logger.warning("Tavily rate limited, falling back")
                 return []
             if resp.status_code == 401:
-                logger.warning("Tavily API key invalid — disabling")
+                logger.warning("Tavily API key invalid -- disabling")
                 self.tavily_key = ""
                 return []
             resp.raise_for_status()
@@ -407,7 +407,7 @@ class NewsScanner:
         """Group markets into shared topic queries to reduce API calls.
 
         Markets matching the same sport/topic share ONE query instead of
-        each getting its own. Example: 10 CS2 markets → 1 query.
+        each getting its own. Example: 10 CS2 markets -> 1 query.
         """
         topic_map: Dict[str, List[str]] = {}
 

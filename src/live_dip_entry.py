@@ -1,4 +1,4 @@
-"""Live Dip Entry — rule-based re-entry during live matches (no AI needed).
+"""Live Dip Entry -- rule-based re-entry during live matches (no AI needed).
 
 When a favorite's price drops significantly during a live match (e.g., they fall
 behind early), this module enters a position betting on the favorite to recover.
@@ -10,7 +10,7 @@ Rules:
 - Don't enter if already in this market
 - Don't enter if market is in exited_markets
 - Max 2 concurrent live-dip positions
-- Use fixed bet size (not Kelly — no AI probability available)
+- Use fixed bet size (not Kelly -- no AI probability available)
 """
 from __future__ import annotations
 
@@ -235,7 +235,7 @@ def find_live_dip_candidates(
                     toxic_condition_ids.add(m.condition_id)
                     continue
         except (ValueError, TypeError, IndexError):
-            pass  # Can't parse scores — proceed anyway
+            pass  # Can't parse scores -- proceed anyway
 
         candidates.append(LiveDipCandidate(
             condition_id=m.condition_id,

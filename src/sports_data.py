@@ -57,10 +57,10 @@ class SportsDataClient:
             logger.warning("ESPN API error: %s", e)
             return None
 
-    # ESPN search endpoint — free, no API key needed
+    # ESPN search endpoint -- free, no API key needed
     _SEARCH_URL = "https://site.web.api.espn.com/apis/common/v3/search"
 
-    # Leagues to skip — women's leagues, cricket, rugby return wrong context
+    # Leagues to skip -- women's leagues, cricket, rugby return wrong context
     _SKIP_LEAGUES = frozenset({
         "eng.w.fa", "eng.w.1", "eng.w.2",  # English women's
         "usa.w.1",  # NWSL
@@ -143,7 +143,7 @@ class SportsDataClient:
         Primary: ESPN search endpoint (dynamic discovery).
         Fallback: slug prefix or question keyword lookup (if any mappings exist).
         """
-        # Try hardcoded lookups first (fast path — empty by default after refactor)
+        # Try hardcoded lookups first (fast path -- empty by default after refactor)
         slug_prefix = slug.split("-")[0].lower() if slug else ""
         if slug_prefix in _SPORT_LEAGUES:
             sport, league, _ = _SPORT_LEAGUES[slug_prefix]
@@ -166,7 +166,7 @@ class SportsDataClient:
         # Only fall back to slug if question gave us nothing
         if not team_a and not team_b:
             team_a, team_b = self._extract_teams_from_slug(slug)
-            # Slug abbreviations < 4 chars are too ambiguous (e.g. "bri" → NCAA)
+            # Slug abbreviations < 4 chars are too ambiguous (e.g. "bri" -> NCAA)
             if team_a and len(team_a) < 4:
                 team_a = None
             if team_b and len(team_b) < 4:
@@ -259,7 +259,7 @@ class SportsDataClient:
                 standing = stand_summary
 
         # Get recent games from schedule
-        # Soccer leagues don't support seasontype param — returns 0 events.
+        # Soccer leagues don't support seasontype param -- returns 0 events.
         # Try bare URL first (works for soccer); skip seasontype=2 if bare returned data (overlap).
         recent_games = []
         base_schedule = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/schedule"
@@ -389,7 +389,7 @@ class SportsDataClient:
     def _clean_team_name(name: str) -> str:
         """Strip suffixes that hurt ESPN search (FC, SC, CF, AFC etc.)."""
         import re
-        # Remove trailing FC/SC/CF/AFC/SFC — ESPN search works better without
+        # Remove trailing FC/SC/CF/AFC/SFC -- ESPN search works better without
         cleaned = re.sub(r'\s+(?:A?FC|SC|CF|SFC|AC)\s*$', '', name, flags=re.IGNORECASE)
         return cleaned.strip() or name
 
@@ -562,8 +562,8 @@ class SportsDataClient:
         """Check ESPN scoreboard for match start time and status.
 
         Returns dict with:
-            match_start_iso: str  — actual scheduled start (ISO 8601)
-            status: str           — "scheduled" | "in_progress" | "completed" | "postponed"
+            match_start_iso: str  -- actual scheduled start (ISO 8601)
+            status: str           -- "scheduled" | "in_progress" | "completed" | "postponed"
             completed: bool
         or None if not found.
         """
@@ -622,7 +622,7 @@ class SportsDataClient:
                 if matched < 2:
                     continue
 
-                # Found the match — extract info
+                # Found the match -- extract info
                 competition = event.get("competitions", [{}])[0]
                 status_obj = competition.get("status", {})
                 status_type = status_obj.get("type", {})
@@ -641,7 +641,7 @@ class SportsDataClient:
 
                 start_iso = event.get("date", "")  # ISO 8601
 
-                logger.info("ESPN match info: %s — status=%s, start=%s",
+                logger.info("ESPN match info: %s -- status=%s, start=%s",
                             event.get("shortName", "?"), status, start_iso[:16])
 
                 return {

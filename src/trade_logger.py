@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum samples before judging an edge source
 EDGE_SOURCE_MIN_SAMPLES = 30
-# Win rate below this → kill the source
+# Win rate below this -> kill the source
 EDGE_SOURCE_KILL_THRESHOLD = 0.52
 
 
@@ -30,7 +30,7 @@ class TradeLogger:
     def read_recent(self, n: int = 50) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        # Read from end of file — avoids loading entire file into memory
+        # Read from end of file -- avoids loading entire file into memory
         try:
             with open(self.path, "rb") as f:
                 f.seek(0, 2)
@@ -77,7 +77,7 @@ class EdgeSourceTracker:
 
     def __init__(self, stats_path: str = "logs/edge_source_stats.json") -> None:
         self.stats_path = Path(stats_path)
-        self._stats: dict[str, dict[str, int]] = {}  # source → {"wins": N, "losses": N}
+        self._stats: dict[str, dict[str, int]] = {}  # source -> {"wins": N, "losses": N}
         self._killed_sources: set[str] = set()
         self._load()
 
@@ -89,7 +89,7 @@ class EdgeSourceTracker:
             self._stats = data.get("stats", {})
             self._killed_sources = set(data.get("killed", []))
         except (json.JSONDecodeError, OSError):
-            logger.warning("Could not load edge source stats — starting fresh")
+            logger.warning("Could not load edge source stats -- starting fresh")
 
     def _save(self) -> None:
         self.stats_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,15 +119,15 @@ class EdgeSourceTracker:
                 if source not in self._killed_sources:
                     self._killed_sources.add(source)
                     logger.warning(
-                        "EDGE SOURCE KILLED: %s — win rate %.1f%% (%d/%d) < %.0f%% threshold",
+                        "EDGE SOURCE KILLED: %s -- win rate %.1f%% (%d/%d) < %.0f%% threshold",
                         source, win_rate * 100, s["wins"], total,
                         EDGE_SOURCE_KILL_THRESHOLD * 100,
                     )
             elif source in self._killed_sources:
-                # Rehabilitated — win rate recovered above threshold
+                # Rehabilitated -- win rate recovered above threshold
                 self._killed_sources.discard(source)
                 logger.info(
-                    "EDGE SOURCE REHABILITATED: %s — win rate %.1f%% (%d/%d)",
+                    "EDGE SOURCE REHABILITATED: %s -- win rate %.1f%% (%d/%d)",
                     source, win_rate * 100, s["wins"], total,
                 )
 
