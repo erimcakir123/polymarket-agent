@@ -85,6 +85,7 @@ class Position(BaseModel):
     match_score: str = ""  # Live score (from Gamma event.score, e.g. "2-1|Bo3")
     match_period: str = ""  # Current period (from Gamma event.period, e.g. "2/3")
     entry_reason: str = ""  # How this position was entered (e.g. "ai", "stock", "live_dip")
+    is_consensus: bool = False  # True when AI and market agree on favorite
     pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
     sport_tag: str = ""  # Specific sport (e.g. "cs2", "dota2", "lol", "nba") for correlation
     event_id: str = ""  # Gamma event ID — all outcomes of the same match share this

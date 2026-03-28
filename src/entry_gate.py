@@ -475,9 +475,6 @@ class EntryGate:
         candidates: list[dict] = []
         _CONF_SKIP = {"C", "", "?"}  # C = veri yetersiz, skip
 
-        # Mode priority constant (defined once, not per-iteration)
-        _MODE_PRIORITY = {"WINNER": 4, "DEADZONE": 3, "HOLD": 1}
-
         for market in markets:
             cid = market.condition_id
 
@@ -589,21 +586,6 @@ class EntryGate:
                 })
                 continue
 
-            # ── Negative edge gate ──────────────────────────────────────────
-            # If AI probability < market price, we're buying overpriced — skip
-            if edge < 0:
-                logger.info("SKIP negative edge: %s | edge=%.1f%% (AI < market)",
-                            market.slug[:35], edge * 100)
-                self.trade_log.log({
-                    "market": market.slug, "action": "HOLD",
-                    "rejected": f"Negative edge ({edge*100:.1f}%)",
-                    "ai_prob": estimate.ai_probability,
-                    "edge": edge,
-                    "price": market.yes_price,
-                    "question": getattr(market, "question", ""),
-                })
-                continue
-
             # ── Liquidity gate (confidence-aware) ────────────────────────────
             # High-confidence entries (prob≥65%, conf B+/A) hold to resolution
             # so orderbook depth doesn't matter. Lower confidence needs $1K+.
@@ -649,9 +631,9 @@ class EntryGate:
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
             # ── Rank score — edge + prob + confidence ─────────────────────────
-            # Higher edge = higher priority. Edge can be negative but prob pulls it up.
+            # Higher edge = higher priority. Negative edge already filtered above.
             conf_score = _CONF_SCORE.get(estimate.confidence, 1)
-            rank_score = (direction_prob + max(edge, 0.0)) * conf_score
+            rank_score = (direction_prob + edge) * conf_score
 
             logger.info(
                 "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
@@ -752,6 +734,7 @@ class EntryGate:
                 event_id=getattr(market, "event_id", "") or "",
                 end_date_iso=getattr(market, "end_date_iso", "") or "",
                 entry_reason=c.get("entry_reason", ""),
+                is_consensus=c.get("is_consensus", False),
             )
 
             self.trade_log.log({
@@ -780,10 +763,20 @@ class EntryGate:
                 entered_event_ids.add(market_event_id)
 
             # Notify on entry
+            _eff_p = (1 - entry_price) if direction == Direction.BUY_NO else entry_price
+            _dir_label = "YES" if direction == Direction.BUY_YES else "NO"
+            _hrs = _hours_to_start(market)
+            _time_label = "LIVE" if _hrs <= 0 else f"{_hrs:.0f}h" if _hrs < 24 else f"{_hrs/24:.0f}d"
+            _sport = getattr(market, "sport_tag", "") or "?"
+            _consensus_label = "Consensus" if c.get("is_consensus") else "Disagree"
             self.notifier.send(
                 f"📈 *ENTRY*: {market.slug[:40]}\n"
-                f"dir={direction} size=${size:.2f} price={entry_price:.2f} "
-                f"AI={estimate.ai_probability:.0%} conf={estimate.confidence}"
+                f"Entry {_dir_label} @ {_eff_p:.0%} | AI {estimate.ai_probability:.0%}\n\n"
+                f"🏷 {_sport} | {_consensus_label}\n"
+                f"🎯 Conf: {estimate.confidence}\n"
+                f"📊 Edge: {c['edge']:.1%}\n"
+                f"💰 Size: ${size:.2f}\n"
+                f"⏱ {_time_label}"
             )
 
         return entered

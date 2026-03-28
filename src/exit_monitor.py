@@ -213,6 +213,10 @@ class ExitMonitor:
         ):
             _add(cid, "stop_loss")
 
+        # 2b. Consensus thesis invalidation (eff price < 55% = thesis broken)
+        for cid in self.portfolio.check_consensus_thesis():
+            _add(cid, "consensus_thesis_invalidated")
+
         # 3. Trailing take-profit (non-VS positions)
         ttp_cfg = cfg.trailing_tp
         if ttp_cfg.enabled:
@@ -295,6 +299,10 @@ class ExitMonitor:
             vs_stop_loss_pct=vs_cfg.stop_loss_pct,
         ):
             _add(cid, "stop_loss")
+
+        # Consensus thesis invalidation
+        for cid in self.portfolio.check_consensus_thesis():
+            _add(cid, "consensus_thesis_invalidated")
 
         # Trailing TP (non-VS positions)
         ttp_cfg = cfg.trailing_tp

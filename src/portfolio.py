@@ -78,6 +78,7 @@ class Portfolio:
         sport_tag: str = "",
         event_id: str = "",
         bookmaker_prob: float = 0.0,
+        is_consensus: bool = False,
     ) -> None:
         # Event-level duplicate guard — never bet on two outcomes of the same event
         if event_id:
@@ -117,6 +118,7 @@ class Portfolio:
             sport_tag=sport_tag,
             event_id=event_id,
             bookmaker_prob=bookmaker_prob,
+            is_consensus=is_consensus,
         )
         self.bankroll -= size_usdc
         self._save_positions()
@@ -320,6 +322,28 @@ class Portfolio:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"
                 logger.warning("%s triggered for %s: %.1f%%", label, pos.slug, pos.unrealized_pnl_pct * 100)
+        return triggered
+
+    def check_consensus_thesis(self, threshold: float = 0.55) -> List[str]:
+        """Exit consensus positions when effective price drops below threshold.
+
+        If we entered because both AI and market agreed on the winner,
+        but the market no longer sees this side as favorite, the thesis is broken.
+        """
+        triggered = []
+        for cid, pos in self.positions.items():
+            if not pos.is_consensus:
+                continue
+            if pos.volatility_swing:
+                continue
+            # Effective price = the side we bought
+            eff_price = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+            if eff_price < threshold:
+                triggered.append(cid)
+                logger.warning(
+                    "Consensus thesis invalidated: %s | eff=%.0f%% < %d%%",
+                    pos.slug[:30], eff_price * 100, int(threshold * 100),
+                )
         return triggered
 
     def check_scale_outs(self) -> list[dict]:

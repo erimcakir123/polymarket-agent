@@ -1,4 +1,4 @@
-"""Tests for two-mode entry strategy (WINNER / DEADZONE / SKIP)."""
+"""Tests for entry strategy (WINNER / SKIP — deadzone disabled)."""
 from unittest.mock import MagicMock, patch
 import pytest
 
@@ -73,8 +73,8 @@ class TestCaseA_Consensus:
         assert candidates[0]["direction"] == Direction.BUY_YES
         assert abs(candidates[0]["edge"] - 0.29) < 0.02
 
-    def test_consensus_deadzone_marginal(self):
-        """AI=58% YES, market=55% YES -> agree on YES -> DEADZONE (58% < 65%)."""
+    def test_consensus_deadzone_now_skips(self):
+        """AI=58% YES, market=55% YES -> agree on YES -> SKIP (deadzone disabled)."""
         gate = _make_gate()
         market = _make_market(yes_price=0.55)
         estimate = _make_estimate(ai_prob=0.58, confidence="B+")
@@ -84,8 +84,7 @@ class TestCaseA_Consensus:
                 [market], {market.condition_id: estimate},
                 bankroll=1000.0, cycle_count=1, fresh_scan=True,
             )
-        assert len(candidates) == 1
-        assert candidates[0]["mode"] == "DEADZONE"
+        assert len(candidates) == 0  # Deadzone disabled — no entry
 
     def test_consensus_skip_too_uncertain(self):
         """AI=52% YES, market=55% YES -> agree but AI < 55% -> SKIP (no entry)."""
@@ -120,8 +119,8 @@ class TestCaseA_Consensus:
 class TestCaseB_Disagree:
     """When AI and market disagree on the favorite, use standard shrinkage+edge."""
 
-    def test_disagree_ai_no_market_yes(self):
-        """AI=42% YES (NO fav), market=70% YES (YES fav) -> disagree -> standard logic."""
+    def test_disagree_ai_no_market_yes_deadzone_skips(self):
+        """AI=42% YES (NO fav), market=70% YES -> disagree -> 57.2% in deadzone -> SKIP."""
         gate = _make_gate()
         market = _make_market(yes_price=0.70)
         estimate = _make_estimate(ai_prob=0.42, confidence="A")
@@ -131,8 +130,21 @@ class TestCaseB_Disagree:
                 [market], {market.condition_id: estimate},
                 bankroll=1000.0, cycle_count=1, fresh_scan=True,
             )
+        assert len(candidates) == 0  # 57.2% is in deadzone -> SKIP
+
+    def test_disagree_high_prob_enters_winner(self):
+        """AI=30% YES (NO fav=70%), market=70% YES -> disagree -> anchored 70% >= 65% -> WINNER."""
+        gate = _make_gate()
+        market = _make_market(yes_price=0.70)
+        estimate = _make_estimate(ai_prob=0.30, confidence="A")
+        with patch("src.probability_engine.calculate_anchored_probability") as mock_anchor:
+            mock_anchor.return_value = MagicMock(probability=0.35, method="shrunk_no_bookmaker")
+            candidates = gate._evaluate_candidates(
+                [market], {market.condition_id: estimate},
+                bankroll=1000.0, cycle_count=1, fresh_scan=True,
+            )
         assert len(candidates) == 1
-        assert candidates[0]["mode"] == "DEADZONE"
+        assert candidates[0]["mode"] == "WINNER"
         from src.models import Direction
         assert candidates[0]["direction"] == Direction.BUY_NO
 
@@ -140,8 +152,8 @@ class TestCaseB_Disagree:
 class TestBoundaries:
     """Test exact boundary values for mode classification."""
 
-    def test_boundary_55_enters_deadzone(self):
-        """Exactly 55% should enter DEADZONE (not SKIP)."""
+    def test_boundary_55_skips_deadzone(self):
+        """Exactly 55% now SKIPs (deadzone disabled)."""
         gate = _make_gate()
         market = _make_market(yes_price=0.60)
         estimate = _make_estimate(ai_prob=0.55, confidence="B+")
@@ -151,8 +163,7 @@ class TestBoundaries:
                 [market], {market.condition_id: estimate},
                 bankroll=1000.0, cycle_count=1, fresh_scan=True,
             )
-        assert len(candidates) == 1
-        assert candidates[0]["mode"] == "DEADZONE"
+        assert len(candidates) == 0  # Deadzone disabled
 
     def test_boundary_54_skips(self):
         """54% should SKIP (below 55% threshold)."""
@@ -181,8 +192,8 @@ class TestBoundaries:
         assert len(candidates) == 1
         assert candidates[0]["mode"] == "WINNER"
 
-    def test_ranking_winner_beats_deadzone(self):
-        """WINNER (95% AI, B+) should outrank DEADZONE (58% AI, B+)."""
+    def test_ranking_only_winners(self):
+        """Only WINNER candidates survive — deadzone is filtered out."""
         gate = _make_gate()
         m1 = _make_market(yes_price=0.70, cid="win-1", slug="winner")
         est1 = _make_estimate(ai_prob=0.95, confidence="B+")
@@ -197,5 +208,5 @@ class TestBoundaries:
                 [m1, m2], estimates,
                 bankroll=1000.0, cycle_count=1, fresh_scan=True,
             )
-        assert len(candidates) == 2
+        assert len(candidates) == 1  # Only winner survives
         assert candidates[0]["market"].condition_id == "win-1"

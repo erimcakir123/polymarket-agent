@@ -525,9 +525,12 @@ class Agent:
             "EXIT: %s | reason=%s | pnl=$%.2f | entry=%.2f exit=%.2f",
             pos.slug[:40], reason, realized_pnl, pos.entry_price, pos.current_price,
         )
+        _pnl_emoji = "🟢" if realized_pnl >= 0 else "🔴"
         self.notifier.send(
-            f"📉 *EXIT*: {pos.slug[:40]}\n"
-            f"reason={reason} pnl=${realized_pnl:.2f}"
+            f"{_pnl_emoji} *EXIT*: {pos.slug[:40]}\n\n"
+            f"📋 Reason: {reason}\n"
+            f"💵 PnL: ${realized_pnl:+.2f}\n"
+            f"📊 Entry: {pos.entry_price:.2f} → Exit: {pos.current_price:.2f}"
         )
 
         # Mark permanently exited if resolved
@@ -942,8 +945,10 @@ class Agent:
                 m.slug[:40], direction, pre_match, current_yes, drop_pct * 100, size,
             )
             self.notifier.send(
-                f"\U0001f4c9 *LIVE DIP*: {m.slug[:40]}\n"
-                f"{direction} | pre={pre_match:.2f} \u2192 now={current_yes:.2f} (drop {drop_pct:.0%}) | size=${size:.0f}"
+                f"📉 *LIVE DIP*: {m.slug[:40]}\n"
+                f"Entry {direction} @ {price:.0%} | LIVE\n\n"
+                f"📊 Pre-match: {pre_match:.0%} → Now: {current_yes:.0%} (drop {drop_pct:.0%})\n"
+                f"💰 Size: ${size:.0f}"
             )
 
     def _check_live_momentum(self, fresh_markets: list, bankroll: float, match_states: dict) -> None:
@@ -1057,8 +1062,10 @@ class Agent:
                     market.slug[:40], direction, signal.edge * 100, signal.adjusted_prob * 100, size,
                 )
                 self.notifier.send(
-                    f"\u26a1 *MOMENTUM*: {market.slug[:40]}\n"
-                    f"{direction} | edge={signal.edge:.1%} | score={signal.score_diff} | size=${size:.0f}"
+                    f"⚡ *MOMENTUM*: {market.slug[:40]}\n"
+                    f"Entry {direction} @ {price:.0%} | LIVE\n\n"
+                    f"📊 Edge: {signal.edge:.1%} | Score: {signal.score_diff}\n"
+                    f"💰 Size: ${size:.0f}"
                 )
                 break  # Only one direction per market
 
@@ -1143,8 +1150,10 @@ class Agent:
                 c.slug[:40], c.bond_type, c.yes_price, c.expected_profit_pct * 100, size,
             )
             self.notifier.send(
-                f"\U0001f3e6 *BOND ENTRY*: {c.slug[:40]}\n"
-                f"type={c.bond_type} price={c.yes_price:.2f} profit={c.expected_profit_pct:.1%} size=${size:.0f}"
+                f"🏦 *BOND ENTRY*: {c.slug[:40]}\n\n"
+                f"🏷 Type: {c.bond_type}\n"
+                f"📊 Price: {c.yes_price:.2f} | Profit: {c.expected_profit_pct:.1%}\n"
+                f"💰 Size: ${size:.0f}"
             )
 
     def _check_penny_alpha(self, fresh_markets: list, bankroll: float) -> None:
@@ -1230,8 +1239,10 @@ class Agent:
                 c.slug[:40], c.token_side, price, c.target_price, int(c.target_multiplier), size,
             )
             self.notifier.send(
-                f"\U0001f3b0 *PENNY ENTRY*: {c.slug[:40]}\n"
-                f"{c.token_side} @ ${price:.2f} \u2192 target ${c.target_price:.2f} ({c.target_multiplier:.0f}x) | size=${size:.0f}"
+                f"🎰 *PENNY ENTRY*: {c.slug[:40]}\n\n"
+                f"🏷 {c.token_side} @ ${price:.2f}\n"
+                f"🎯 Target: ${c.target_price:.2f} ({c.target_multiplier:.0f}x)\n"
+                f"💰 Size: ${size:.0f}"
             )
 
     # ── Utilities ─────────────────────────────────────────────────────────
