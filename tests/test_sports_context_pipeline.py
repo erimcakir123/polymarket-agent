@@ -9,6 +9,7 @@ def _make_gate(discovery=None):
     cfg.edge.fill_ratio_scaling = False
     cfg.ai.batch_size = 10
     cfg.risk.max_positions = 10
+    cfg.early.min_hours_to_start = 6.0
     gate = EntryGate.__new__(EntryGate)
     gate.config = cfg
     gate.portfolio = MagicMock()

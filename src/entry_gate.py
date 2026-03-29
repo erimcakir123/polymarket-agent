@@ -257,7 +257,7 @@ class EntryGate:
         # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
 
         # Update early entry market ids (>6h to start = early entry, needs higher edge)
-        self._early_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
+        self._early_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > cfg.early.min_hours_to_start}
 
         # Stop-words for keyword extraction (match old main.py behaviour)
         _STOP_WORDS = frozenset({
