@@ -279,7 +279,7 @@ def check_match_exit(data: dict) -> dict:
     # --- Step 1: Catastrophic Floor (Layer 1) ---
     is_reentry = data.get("entry_reason", "").startswith("re_entry") or data.get("entry_reason") == "scale_in"
     cat_floor_mult = 0.75 if is_reentry else 0.50
-    if effective_entry >= 0.25 and effective_current < effective_entry * cat_floor_mult:
+    if effective_entry >= 0.20 and effective_current < effective_entry * cat_floor_mult:
         return {**result, "exit": True, "layer": "catastrophic_floor",
                 "reason": f"Price eff:{effective_current:.3f} < eff_entry*{cat_floor_mult:.0%} ({effective_entry*cat_floor_mult:.3f})"}
 
@@ -294,11 +294,17 @@ def check_match_exit(data: dict) -> dict:
         except (ValueError, TypeError):
             pass
 
-    # --- Upset Hunter: forced exit at last 10% of match ---
+    # --- Upset Hunter: forced exit at last 10% of match (3-tier price filter) ---
     entry_reason = data.get("entry_reason", "")
-    if entry_reason == "upset" and elapsed_pct >= 0.90:
-        return {**result, "exit": True, "layer": "upset_forced_exit",
-                "reason": f"Upset hunter: match {elapsed_pct:.0%} done, forced exit"}
+    if entry_reason == "upset" and elapsed_pct is not None and elapsed_pct >= 0.90:
+        if effective_current >= 0.60:
+            pass  # HOLD — became favorite, let it resolve
+        elif effective_current >= 0.50:
+            return {**result, "exit": True, "layer": "upset_take_profit",
+                    "reason": f"Upset hunter: match {elapsed_pct:.0%} done, price {effective_current:.2f} in risky zone, take profit"}
+        else:
+            return {**result, "exit": True, "layer": "upset_forced_exit",
+                    "reason": f"Upset hunter: match {elapsed_pct:.0%} done, price {effective_current:.2f} still underdog, forced exit"}
 
     # --- Upset Hunter: fallback for missing match timing ---
     if entry_reason == "upset" and elapsed_pct < 0:
@@ -319,21 +325,24 @@ def check_match_exit(data: dict) -> dict:
                 "reason": f"Ultra-low eff:{effective_entry:.0f}¢ at {elapsed_pct:.0%} done, eff_price {effective_current:.0f}¢ < 5¢"}
 
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
-    max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
+    if entry_reason == "upset":
+        pass  # Skip graduated SL — upsets have their own SL (50%) and forced exit at 90%
+    else:
+        max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
 
-    # Check DEEPER tier first (5+ is subset of 3+, must come first):
-    if consecutive_down >= 5 and cumulative_drop >= 0.10:
-        result["momentum_tighten"] = True
-        result["momentum_multiplier"] = 0.60
-        max_loss = max(0.05, max_loss * 0.60)
-    elif consecutive_down >= 3 and cumulative_drop >= 0.05:
-        result["momentum_tighten"] = True
-        result["momentum_multiplier"] = 0.75
-        max_loss = max(0.05, max_loss * 0.75)
+        # Check DEEPER tier first (5+ is subset of 3+, must come first):
+        if consecutive_down >= 5 and cumulative_drop >= 0.10:
+            result["momentum_tighten"] = True
+            result["momentum_multiplier"] = 0.60
+            max_loss = max(0.05, max_loss * 0.60)
+        elif consecutive_down >= 3 and cumulative_drop >= 0.05:
+            result["momentum_tighten"] = True
+            result["momentum_multiplier"] = 0.75
+            max_loss = max(0.05, max_loss * 0.75)
 
-    if pnl_pct < -max_loss:
-        return {**result, "exit": True, "layer": "graduated_sl",
-                "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
+        if pnl_pct < -max_loss:
+            return {**result, "exit": True, "layer": "graduated_sl",
+                    "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
 
     # PRIORITY CHAIN (higher = wins):
     # 1. Stop-Loss -- ALWAYS fires, never overridden (portfolio.py)
@@ -342,7 +351,9 @@ def check_match_exit(data: dict) -> dict:
     # 4. Never-in-Profit Guard -- can trigger exit, but SL takes precedence
 
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
-    if not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
+    if entry_reason in ("upset", "penny"):
+        pass  # Skip — these are designed to stay out of profit until late
+    elif not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
         score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
         if score_ahead:
             pass  # Stay -- winning despite no profit

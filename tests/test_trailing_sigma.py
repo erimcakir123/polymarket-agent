@@ -3,10 +3,11 @@ import pytest
 
 
 class TestSigmaTrailing:
-    def test_inactive_below_5pct_peak(self):
+    def test_inactive_below_30pct_peak(self):
         from src.trailing_sigma import calculate_sigma_trailing_stop
+        # Activation threshold is now 30% peak PnL
         result = calculate_sigma_trailing_stop(
-            peak_pnl_pct=0.03, price_history=[0.50, 0.51, 0.50, 0.49, 0.50],
+            peak_pnl_pct=0.20, price_history=[0.50, 0.51, 0.50, 0.49, 0.50],
             current_price=0.50, peak_price=0.51, entry_price=0.48,
         )
         assert result["active"] is False
@@ -14,17 +15,17 @@ class TestSigmaTrailing:
     def test_inactive_short_history(self):
         from src.trailing_sigma import calculate_sigma_trailing_stop
         result = calculate_sigma_trailing_stop(
-            peak_pnl_pct=0.20, price_history=[0.50, 0.51],
+            peak_pnl_pct=0.40, price_history=[0.50, 0.51],
             current_price=0.50, peak_price=0.55, entry_price=0.45,
         )
         assert result["active"] is False
 
     def test_wide_stop_low_peak(self):
         from src.trailing_sigma import calculate_sigma_trailing_stop
-        # Low peak (8%) → z=3.0 → wide stop
+        # Low peak (35%, just above 30% threshold) → z=3.0 → wide stop
         history = [0.50, 0.51, 0.52, 0.51, 0.50, 0.52, 0.53, 0.54]
         result = calculate_sigma_trailing_stop(
-            peak_pnl_pct=0.08, price_history=history,
+            peak_pnl_pct=0.35, price_history=history,
             current_price=0.52, peak_price=0.54, entry_price=0.50,
         )
         assert result["active"] is True
@@ -33,10 +34,10 @@ class TestSigmaTrailing:
 
     def test_tight_stop_high_peak(self):
         from src.trailing_sigma import calculate_sigma_trailing_stop
-        # High peak (60%) → z=1.5 → tight stop
+        # High peak (85%) → z=1.5 → tight stop
         history = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.75, 0.70]
         result = calculate_sigma_trailing_stop(
-            peak_pnl_pct=0.60, price_history=history,
+            peak_pnl_pct=0.85, price_history=history,
             current_price=0.65, peak_price=0.80, entry_price=0.50,
         )
         assert result["active"] is True

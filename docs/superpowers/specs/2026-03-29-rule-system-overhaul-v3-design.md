@@ -107,7 +107,7 @@ Expand re-entry pool to accept stop-loss exits:
   - Exit reason is `"stop_loss"` AND
   - Cached AI probability ≥ 65% AND
   - Not already re-entered for this market (SL counter == 0)
-- **Trigger:** Fiyat çıkış fiyatından %40+ toparlanmış: `current_price >= exit_price * 1.40` (effective)
+- **Trigger:** Fiyat, düşüşün %40'ını geri almış olmalı: `effective_current >= exit_price + (original_entry - exit_price) * 0.40`. Örnek: 70¢ giriş, 58¢ SL çıkış → düşüş 12¢ → %40 recovery = 4.8¢ → tetikleme = 62.8¢
 - **Entry sizing:** Same confidence-based sizing as original, but SL is tighter: `original_SL × 0.75`
 - **2nd SL = permanent blacklist:** If position hits SL again after lossy re-entry → permanent blacklist, no further re-entry
 - **Tracking:** Add `sl_reentry_count: int = 0` to reentry pool candidate. Increment on re-entry. If `≥ 1` → reject.

@@ -114,6 +114,9 @@ class ExitMonitor:
             sl_pct = self.config.upset_hunter.stop_loss_pct  # 50%
         else:
             sl_pct = self.config.risk.stop_loss_pct  # 30%
+        # Lossy re-entries use tighter SL (75% of original)
+        if getattr(pos, 'sl_reentry_count', 0) >= 1:
+            sl_pct *= 0.75
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
             self._ws_exit_queued_set.add(cid)
@@ -144,17 +147,20 @@ class ExitMonitor:
                 peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
-            # Upset positions: wider activation (+100%) and trail (25%)
+            # Upset positions: skip trailing TP below promotion price,
+            # use core params above it (promoted to core position)
             if pos.entry_reason == "upset":
                 upset_cfg = self.config.upset_hunter
-                act_pct = upset_cfg.trailing_activation  # 1.00 (+100%)
-                trail_dist = upset_cfg.trailing_distance  # 0.25
-                # Promotion: if price >= 35¢, switch to core params
                 if direction == "BUY_NO":
                     eff_cur = 1.0 - current
                 else:
                     eff_cur = current
-                if eff_cur >= upset_cfg.promotion_price:
+                # Upset below promotion price: skip trailing TP entirely
+                # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                if eff_cur < upset_cfg.promotion_price:
+                    return  # No trailing TP for unpromoted upsets
+                else:
+                    # Promoted to core: use core trailing TP params
                     act_pct = ttp_cfg.activation_pct    # Core: 0.20
                     trail_dist = ttp_cfg.trail_distance  # Core: 0.08
             else:
@@ -212,8 +218,10 @@ class ExitMonitor:
         result: list[tuple[str, str]] = []
         cfg = self.config
         seen_cids: set[str] = set()
+        _all_triggered: dict[str, list[str]] = {}
 
         def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
             if cid not in seen_cids and cid not in self._exiting_set:
                 result.append((cid, reason))
                 seen_cids.add(cid)
@@ -245,15 +253,18 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
-                # Upset positions: wider activation/trail, promotion at 35¢
+                # Upset positions: skip trailing TP below promotion price,
+                # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    act_pct = upset_cfg.trailing_activation
-                    trail_dist = upset_cfg.trailing_distance
                     eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
-                    if eff_cur >= upset_cfg.promotion_price:
-                        act_pct = ttp_cfg.activation_pct
-                        trail_dist = ttp_cfg.trail_distance
+                    # Upset below promotion price: skip trailing TP entirely
+                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                    if eff_cur < upset_cfg.promotion_price:
+                        continue  # No trailing TP for unpromoted upsets
+                    # Promoted to core: use core trailing TP params
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 else:
                     act_pct = ttp_cfg.activation_pct
                     trail_dist = ttp_cfg.trail_distance
@@ -295,9 +306,11 @@ class ExitMonitor:
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
 
-        # 5. Pre-match exits (mandatory exit before match starts)
-        for cid in self.portfolio.check_pre_match_exits(minutes_before=30):
-            _add(cid, "pre_match_exit")
+        for cid, rules in _all_triggered.items():
+            if len(rules) > 1:
+                winner = rules[0]
+                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
+                             cid[:20], winner, rules[1:])
 
         return result
 
@@ -311,8 +324,10 @@ class ExitMonitor:
         result: list[tuple[str, str]] = []
         cfg = self.config
         seen_cids: set[str] = set()
+        _all_triggered: dict[str, list[str]] = {}
 
         def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
             if cid not in seen_cids and cid not in self._exiting_set:
                 result.append((cid, reason))
                 seen_cids.add(cid)
@@ -344,15 +359,18 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
-                # Upset positions: wider activation/trail, promotion at 35¢
+                # Upset positions: skip trailing TP below promotion price,
+                # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    act_pct = upset_cfg.trailing_activation
-                    trail_dist = upset_cfg.trailing_distance
                     eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
-                    if eff_cur >= upset_cfg.promotion_price:
-                        act_pct = ttp_cfg.activation_pct
-                        trail_dist = ttp_cfg.trail_distance
+                    # Upset below promotion price: skip trailing TP entirely
+                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                    if eff_cur < upset_cfg.promotion_price:
+                        continue  # No trailing TP for unpromoted upsets
+                    # Promoted to core: use core trailing TP params
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 else:
                     act_pct = ttp_cfg.activation_pct
                     trail_dist = ttp_cfg.trail_distance
@@ -369,6 +387,12 @@ class ExitMonitor:
                     pos.peak_price = ttp_result["peak_price"]
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
+
+        for cid, rules in _all_triggered.items():
+            if len(rules) > 1:
+                winner = rules[0]
+                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
+                             cid[:20], winner, rules[1:])
 
         return result
 

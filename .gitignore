@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 logs/*.jsonl
 logs/*.json
+logs/**/*.json
 logs/*.log
 logs/*.md
 logs/*.tsv

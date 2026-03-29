@@ -80,6 +80,7 @@ class Portfolio:
         event_id: str = "",
         bookmaker_prob: float = 0.0,
         is_consensus: bool = False,
+        sl_reentry_count: int = 0,
     ) -> None:
         # Event-level duplicate guard -- never bet on two outcomes of the same event
         if event_id:
@@ -120,6 +121,7 @@ class Portfolio:
             event_id=event_id,
             bookmaker_prob=bookmaker_prob,
             is_consensus=is_consensus,
+            sl_reentry_count=sl_reentry_count,
         )
         self.bankroll -= size_usdc
         self._save_positions()
@@ -164,11 +166,11 @@ class Portfolio:
         return sum(1 for p in self.positions.values() if not p.pending_resolution)
 
     # Special entry reasons that get their own slots (don't eat normal slots)
-    _SPECIAL_ENTRY_REASONS = {"live_dip", "fav_time_gate", "far"}
+    _SPECIAL_ENTRY_REASONS = {"live_dip", "fav_time_gate", "early"}
 
     @property
     def normal_position_count(self) -> int:
-        """Count normal positions (excluding VS, live_dip, fav_time_gate, far, re_entry)."""
+        """Count normal positions (excluding VS, live_dip, fav_time_gate, early, re_entry)."""
         return sum(
             1 for p in self.positions.values()
             if not p.pending_resolution
@@ -302,7 +304,7 @@ class Portfolio:
                 sl = vs_stop_loss_pct
             elif eff_entry_sl < 0.09:
                 # Ultra-low: only Penny Alpha skips SL (bet size IS the risk)
-                # FAR swing trades and other strategies still get their SL
+                # Early Entry swing trades and other strategies still get their SL
                 if getattr(pos, 'entry_reason', '') == 'penny':
                     continue  # Penny alpha -- no stop-loss
                 else:
@@ -320,6 +322,9 @@ class Portfolio:
                 # BO5+ esports bonus -- extra room for comeback in long series
                 if pos.category == "esports" and pos.number_of_games >= 5:
                     sl += 0.10
+            # Lossy re-entries use tighter SL (75% of original)
+            if getattr(pos, 'sl_reentry_count', 0) >= 1:
+                sl *= 0.75
             if pos.unrealized_pnl_pct < -sl:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"
@@ -447,8 +452,8 @@ class Portfolio:
             if self._is_totals_or_spread(pos):
                 continue
 
-            # FAR penny positions: handled by _check_far_penny_exits() in main.py
-            if pos.entry_reason == "far" and pos.entry_price <= 0.05:
+            # Early entry penny positions: handled by _check_early_penny_exits() in main.py
+            if pos.entry_reason == "early" and pos.entry_price <= 0.05:
                 continue
 
             # Volatility swing: dynamic take-profit based on entry price
@@ -571,36 +576,6 @@ class Portfolio:
                     logger.warning(
                         "VS mandatory exit: %s | %.0f min to resolve -- cannot hold underdog to resolve",
                         pos.slug[:30], minutes_left,
-                    )
-            except (ValueError, TypeError):
-                pass
-        return triggered
-
-    def check_pre_match_exits(self, minutes_before: int = 30) -> List[str]:
-        """Mandatory exit N minutes before match end for non-high-confidence positions.
-
-        High confidence (A-tier) positions are exempt -- Claudeus Optimus rule.
-        """
-        from datetime import datetime, timezone
-        triggered = []
-        now = datetime.now(timezone.utc)
-        for cid, pos in self.positions.items():
-            if pos.volatility_swing:
-                continue  # VS has its own exit logic
-            if pos.confidence in ("A", "B+"):
-                continue  # Favorite confidence exempt -- hold to resolve
-            if pos.entry_reason == "live_dip":
-                continue  # Live dip has its own exit logic
-            if not pos.end_date_iso:
-                continue
-            try:
-                end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
-                minutes_left = (end_dt - now).total_seconds() / 60
-                if minutes_left <= minutes_before:
-                    triggered.append(cid)
-                    logger.warning(
-                        "Pre-match exit: %s | %.0f min left | conf=%s -- exiting before resolution",
-                        pos.slug[:30], minutes_left, pos.confidence,
                     )
             except (ValueError, TypeError):
                 pass

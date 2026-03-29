@@ -307,7 +307,7 @@ class MarketScanner:
             return False
 
         # Skip nearly-resolved markets (>95%) -- no edge left
-        # Allow low-price tokens (<5%) through -- FAR/penny alpha candidates
+        # Allow low-price tokens (<5%) through -- Early Entry/penny alpha candidates
         if market.yes_price > 0.95:
             logger.debug("Excluded near-resolved (%.1f%%): %s", market.yes_price * 100, market.question[:60])
             return False

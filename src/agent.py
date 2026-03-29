@@ -2,8 +2,9 @@
 
 Responsibilities:
   - Initialize all modules (entry_gate, exit_monitor, portfolio, executor, etc.)
-  - run_cycle(): heavy cycle -- entry + exit
-  - run_light_cycle(): price-only cycle
+  - run_cycle(): heavy cycle -- scanning, AI analysis, upset/early/penny entries
+  - run_light_cycle(): fast cycle (5s) -- exits, live_dip, momentum, farming re-entry,
+    scale-outs (with per-strategy cooldowns to avoid spamming)
   - _exit_position(): execute position exit (reentry pool, blacklist, logging)
   - _check_farming_reentry(): reentry pool check (no AI cost)
   - run(): main loop
@@ -50,9 +51,17 @@ logger = logging.getLogger(__name__)
 # Exits that should never be demoted to stock (permanent skip)
 _NEVER_STOCK_EXITS = frozenset({
     "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
-    "pre_match_exit", "resolved", "near_resolve",
+    "resolved", "near_resolve",
 })
-_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "far_penny_")
+_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "early_penny_")
+
+# Light-cycle cooldowns: strategy_name → ticks before next run (1 tick = 5s)
+_LIGHT_COOLDOWNS = {
+    "live_dip": 60,        # 5 min (60 × 5s)
+    "momentum": 36,        # 3 min (36 × 5s)
+    "farming_reentry": 24, # 2 min (24 × 5s)
+    "scale_out": 12,       # 1 min (12 × 5s)
+}
 
 
 class Agent:
@@ -69,6 +78,8 @@ class Agent:
         self.consecutive_api_failures = 0
         self.last_cycle_has_live_clob = False
         self._last_candidate_count = 0
+        self.light_cycle_count: int = 0
+        self._light_cooldowns: dict[str, int] = {}  # strategy_name → expires_at_light_tick
 
         # Exit infrastructure (owned by agent -- _exit_position needs these)
         self._exit_cooldowns: dict[str, int] = {}
@@ -327,10 +338,45 @@ class Agent:
 
         # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self._handle_hold_revokes()
-        self._process_scale_outs()
 
-        # Farming re-entry in light cycle too (no AI cost, fast re-entry)
-        self._check_farming_reentry()
+        self.light_cycle_count += 1
+
+        # --- Light cycle action strategies (with per-strategy cooldowns) ---
+        held_events = self._get_held_event_ids()
+
+        # Fetch fresh market data once for all strategies that need it
+        _need_markets = (
+            self._light_cooldown_ready("live_dip")
+            or self._light_cooldown_ready("momentum")
+        )
+        light_fresh_markets = self.scanner.fetch() if _need_markets else []
+
+        # Cache pre-match prices from fresh scan (first-seen only).
+        # NOTE: _pre_match_prices is populated by both heavy and light cycles.
+        # All writes are first-seen-only (idempotent). Light cycle strategies
+        # only READ existing entries for dip/momentum detection.
+        for m in light_fresh_markets:
+            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
+                self._pre_match_prices[m.condition_id] = m.yes_price
+
+        if self._light_cooldown_ready("scale_out"):
+            self._process_scale_outs()
+            self._set_light_cooldown("scale_out")
+
+        if self._light_cooldown_ready("farming_reentry"):
+            entered = self._check_farming_reentry()
+            if entered:
+                self._set_light_cooldown("farming_reentry")
+
+        if self._light_cooldown_ready("live_dip"):
+            entered = self._check_live_dip(held_events, light_fresh_markets)
+            if entered:
+                self._set_light_cooldown("live_dip")
+
+        if self._light_cooldown_ready("momentum"):
+            entered = self._check_live_momentum(held_events, light_fresh_markets, match_states)
+            if entered:
+                self._set_light_cooldown("momentum")
 
         # Persist portfolio snapshot so dashboard sees real-time PnL
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
@@ -407,7 +453,7 @@ class Agent:
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self._exit_position(cid, reason)
         self._handle_hold_revokes()
-        self._process_scale_outs()
+        # NOTE: _process_scale_outs() moved to light cycle with cooldown
         self._sync_ws_subscriptions()
 
         # Scout + Entry: fresh scan (analyze=True)
@@ -419,6 +465,12 @@ class Agent:
 
         self._write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
+
+        # Cache pre-match prices (first-seen only) for live_dip/momentum in light cycle
+        for m in fresh_markets:
+            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
+                self._pre_match_prices[m.condition_id] = m.yes_price
+
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,
             bankroll=bankroll, cycle_count=self.cycle_count,
@@ -439,14 +491,10 @@ class Agent:
             exited_markets=self._exited_markets,
         )
 
-        # Farming re-entry (no AI, uses saved probability)
-        self._check_farming_reentry()
-
-        # Upset hunter, live dip, live momentum -- all skip when entries paused
+        # NOTE: farming_reentry, live_dip, live_momentum, scale_outs moved to light cycle
+        # Upset hunter stays in heavy cycle (needs fresh scan data + AI analysis)
         if entries_allowed:
             self._check_upset_hunter(fresh_markets, bankroll)
-            self._check_live_dip(fresh_markets, bankroll)
-            self._check_live_momentum(fresh_markets, bankroll, match_states)
 
         # Check outcomes + log
         self._check_tracked_outcomes()
@@ -504,6 +552,57 @@ class Agent:
                 was_scouted=getattr(pos, "scouted", False),
                 realized_pnl=realized_pnl,
             )
+        elif reason == "stop_loss":
+            # Lossy re-entry: SL exits can rejoin pool under strict conditions
+            _sl_count = getattr(pos, 'sl_reentry_count', 0)
+            if _sl_count >= 1:
+                # 2nd SL after lossy re-entry = permanent blacklist
+                self.blacklist.add(
+                    condition_id,
+                    exit_reason="stop_loss_2nd",
+                    blacklist_type="permanent",
+                    expires_at_cycle=None,
+                    exit_data={"slug": pos.slug},
+                )
+                logger.info("BLACKLIST: 2nd SL after lossy re-entry, permanent ban: %s", pos.slug[:40])
+            elif pos.ai_probability >= 0.65:
+                # AI still believes in the market -- add to pool for potential recovery
+                existing_pool = self.reentry_pool.get(condition_id)
+                original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
+                self.reentry_pool.add(
+                    condition_id=condition_id,
+                    event_id=getattr(pos, "event_id", "") or "",
+                    slug=pos.slug,
+                    question=getattr(pos, "question", ""),
+                    direction=pos.direction,
+                    token_id=pos.token_id,
+                    ai_probability=pos.ai_probability,
+                    confidence=pos.confidence,
+                    original_entry_price=original_entry,
+                    exit_price=pos.current_price,
+                    exit_cycle=self.cycle_count,
+                    end_date_iso=getattr(pos, "end_date_iso", ""),
+                    match_start_iso=getattr(pos, "match_start_iso", ""),
+                    sport_tag=getattr(pos, "sport_tag", ""),
+                    number_of_games=getattr(pos, "number_of_games", 0),
+                    was_scouted=getattr(pos, "scouted", False),
+                    realized_pnl=realized_pnl,
+                    exit_reason="stop_loss",
+                    sl_reentry_count=0,
+                )
+                logger.info("REENTRY_POOL: SL exit added (AI=%.0f%%): %s",
+                            pos.ai_probability * 100, pos.slug[:40])
+            else:
+                # AI prob < 65% -- normal blacklist for SL
+                btype, duration = get_blacklist_rule("stop_loss")
+                if btype and duration:
+                    self.blacklist.add(
+                        condition_id,
+                        exit_reason=reason,
+                        blacklist_type=btype,
+                        expires_at_cycle=self.cycle_count + duration if duration else None,
+                        exit_data={"slug": pos.slug},
+                    )
         else:
             # Non-profitable -> demote to stock or blacklist
             _is_never_stock = (
@@ -516,7 +615,7 @@ class Agent:
             if not demoted:
                 # Blacklist
                 bl_reason = reason
-                for prefix in ("match_exit_", "far_penny_", "SLOT_UPGRADE", "election_reeval"):
+                for prefix in ("match_exit_", "early_penny_", "SLOT_UPGRADE", "election_reeval"):
                     if bl_reason.startswith(prefix):
                         bl_reason = prefix.rstrip("_")
                         break
@@ -716,7 +815,7 @@ class Agent:
             "adjusted_size": 0.0,  # recalculated at execution time
             "entry_reason": "demoted",
             "is_consensus": False,
-            "is_far": False,
+            "is_early": False,
             "sanity": None,
             "manip_check": None,
         }
@@ -728,12 +827,38 @@ class Agent:
         )
         return True
 
+    # ── Light-cycle cooldown helpers ──────────────────────────────────────
+
+    def _light_cooldown_ready(self, strategy: str) -> bool:
+        """Check if strategy is off cooldown in light cycle."""
+        return self.light_cycle_count >= self._light_cooldowns.get(strategy, 0)
+
+    def _set_light_cooldown(self, strategy: str) -> None:
+        """Set cooldown for strategy after action."""
+        ticks = _LIGHT_COOLDOWNS.get(strategy, 0)
+        self._light_cooldowns[strategy] = self.light_cycle_count + ticks
+
+    def _get_held_event_ids(self) -> set[str]:
+        """Get event IDs of all currently held positions. Prevents same-event dual-side."""
+        return {p.event_id for p in self.portfolio.positions.values()}
+
+    # ── Exposure guard ─────────────────────────────────────────────────────
+
+    def _check_exposure_limit(self, candidate_size: float) -> bool:
+        """Return True if adding candidate_size would exceed exposure limit."""
+        total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+        bankroll = self.portfolio.bankroll
+        if bankroll <= 0:
+            return True
+        return (total_invested + candidate_size) / bankroll > self.config.risk.max_exposure_pct
+
     # ── Farming re-entry ──────────────────────────────────────────────────
 
-    def _check_farming_reentry(self) -> None:
+    def _check_farming_reentry(self) -> bool:
         """Unified farming re-entry -- check pool for dip opportunities (no AI cost).
 
         Replaces old spike_reentry and scouted_reentry with a 3-tier system.
+        Returns True if any re-entry was made.
         """
         self.reentry_pool.cleanup_expired(self.cycle_count)
 
@@ -744,7 +869,7 @@ class Agent:
             self._last_reentry_reset_date = now_utc.date()
 
         if not self.reentry_pool.candidates:
-            return
+            return False
 
         held_event_ids = {
             p.event_id for p in self.portfolio.positions.values()
@@ -756,6 +881,7 @@ class Agent:
         current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
         current_normal = self.portfolio.active_position_count - current_vs
 
+        entered = False
         for cid, candidate in list(self.reentry_pool.candidates.items()):
             # Cooldown check
             if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
@@ -855,13 +981,20 @@ class Agent:
                     continue
 
             token_id = candidate.token_id
+
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
             result = self.executor.place_order(token_id, "BUY", eff_price, size)
             shares = size / eff_price if eff_price > 0 else 0
             yes_price_entry = current_yes_price
 
             tier_num = decision["tier"]
             reentry_num = candidate.reentry_count + 1
-            entry_reason = f"re_entry_t{tier_num}"
+            _is_lossy = candidate.exit_reason == "stop_loss"
+            entry_reason = f"re_entry_t{tier_num}_sl" if _is_lossy else f"re_entry_t{tier_num}"
+            _sl_count = (candidate.sl_reentry_count + 1) if _is_lossy else 0
 
             self.portfolio.add_position(
                 cid, token_id, direction,
@@ -876,6 +1009,7 @@ class Agent:
                 event_id=candidate.event_id,
                 entry_reason=entry_reason,
                 number_of_games=candidate.number_of_games,
+                sl_reentry_count=_sl_count,
             )
 
             # Record in pool
@@ -909,31 +1043,41 @@ class Agent:
                 f"_No AI call -- using saved analysis_"
             )
             self.bets_since_approval += 1
+            entered = True
+
+        return entered
 
     # ── Live dip & momentum ─────────────────────────────────────────────
 
-    def _check_live_dip(self, fresh_markets: list, bankroll: float) -> None:
-        """Enter when favorite's market price drops 10%+ (no ESPN, pure price)."""
-        if not fresh_markets:
-            return
+    def _check_live_dip(self, held_events: set[str] | None = None,
+                        fresh_markets: list | None = None) -> bool:
+        """Enter when favorite's market price drops 10%+ (no ESPN, pure price).
 
+        Called from light cycle with cooldown. Uses cached _pre_match_prices.
+        Accepts pre-fetched fresh_markets to avoid redundant scanner calls.
+        Returns True if any entry was made.
+        """
+        if fresh_markets is None:
+            fresh_markets = self.scanner.fetch()
+        if not fresh_markets:
+            return False
+
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         cfg = self.config.live_momentum  # Uses live_momentum config for max_concurrent
         min_drop_pct = 0.10
-
-        # Cache pre-match prices (first-seen only)
-        for m in fresh_markets:
-            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
-                self._pre_match_prices[m.condition_id] = m.yes_price
 
         # Count current live_dip positions
         dip_count = sum(1 for p in self.portfolio.positions.values()
                         if getattr(p, "entry_reason", "") == "live_dip")
         if dip_count >= cfg.max_concurrent:
-            return
+            return False
 
-        # Pre-build event_id set for same-event check (once, not per-iteration)
-        _dip_existing_eids = {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        # Use provided held_events or build from portfolio
+        _dip_existing_eids = held_events if held_events is not None else (
+            {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        )
 
+        entered = False
         for m in fresh_markets:
             if self.portfolio.active_position_count >= self.config.risk.max_positions:
                 break
@@ -954,9 +1098,10 @@ class Agent:
             if any(kw in _q or kw in _slug for kw in _non_ml):
                 continue
 
-            # Same-event dual-side check for live_dip
+            # Same-event dual-side check for live_dip (uses held_events from caller)
             _dip_eid = getattr(m, "event_id", "") or ""
             if _dip_eid and _dip_eid in _dip_existing_eids:
+                logger.info("SKIP same-event dedup: %s", _dip_eid)
                 continue
 
             pre_match = self._pre_match_prices.get(m.condition_id)
@@ -1010,6 +1155,10 @@ class Agent:
             if not token_id:
                 continue
 
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
             result = self.executor.place_order(token_id, "BUY", price, size)
             if not result or result.get("status") == "error":
                 continue
@@ -1026,6 +1175,7 @@ class Agent:
                 end_date_iso=getattr(m, "end_date_iso", "") or "",
             )
             dip_count += 1
+            entered = True
 
             self.trade_log.log({
                 "market": m.slug, "action": f"LIVE_DIP_{direction}",
@@ -1044,20 +1194,39 @@ class Agent:
                 f"📊 Pre-match: {pre_match:.0%} -> Now: {current_yes:.0%} (drop {drop_pct:.0%})\n"
                 f"💰 Size: ${size:.0f}"
             )
+        return entered
 
-    def _check_live_momentum(self, fresh_markets: list, bankroll: float, match_states: dict) -> None:
-        """Score-based probability re-estimation for live matches."""
+    def _check_live_momentum(self, held_events: set[str] | None = None,
+                             fresh_markets: list | None = None,
+                             match_states: dict | None = None) -> bool:
+        """Score-based probability re-estimation for live matches.
+
+        Called from light cycle with cooldown. Accepts pre-fetched fresh_markets
+        to avoid redundant scanner calls.
+        Returns True if any entry was made.
+        """
         if not match_states:
-            return
+            return False
         from src.live_momentum import detect_momentum_opportunity, calculate_score_adjusted_probability
 
         cfg = self.config.live_momentum
         if not cfg.enabled:
-            return
+            return False
+
+        # Use provided fresh_markets or fetch internally
+        if fresh_markets is None:
+            fresh_markets = self.scanner.fetch()
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+
+        # Use provided held_events or build from portfolio
+        _mom_held_eids = held_events if held_events is not None else (
+            {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        )
 
         momentum_count = sum(1 for p in self.portfolio.positions.values()
                              if getattr(p, "entry_reason", "") == "momentum")
 
+        entered = False
         for cid, state in match_states.items():
             if not state:
                 continue
@@ -1091,11 +1260,18 @@ class Agent:
 
             # Find market in fresh_markets
             market = None
-            for m in fresh_markets:
-                if m.condition_id == cid:
-                    market = m
-                    break
+            if fresh_markets:
+                for m in fresh_markets:
+                    if m.condition_id == cid:
+                        market = m
+                        break
             if not market:
+                continue
+
+            # Same-event dual-side dedup
+            _mom_eid = getattr(market, "event_id", "") or ""
+            if _mom_eid and _mom_eid in _mom_held_eids:
+                logger.info("SKIP same-event dedup: %s", _mom_eid)
                 continue
 
             # Try both directions
@@ -1126,6 +1302,10 @@ class Agent:
                 if not token_id:
                     continue
 
+                if self._check_exposure_limit(size):
+                    logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                    continue
+
                 result = self.executor.place_order(token_id, "BUY", price, size)
                 if not result or result.get("status") == "error":
                     continue
@@ -1142,6 +1322,7 @@ class Agent:
                     end_date_iso=getattr(market, "end_date_iso", ""),
                 )
                 momentum_count += 1
+                entered = True
 
                 self.trade_log.log({
                     "market": market.slug, "action": f"MOMENTUM_{direction}",
@@ -1162,6 +1343,7 @@ class Agent:
                     f"💰 Size: ${size:.0f}"
                 )
                 break  # Only one direction per market
+        return entered
 
     # ── Upset Hunter & Penny scanners ─────────────────────────────────────
 
@@ -1183,7 +1365,10 @@ class Agent:
         for m in fresh_markets:
             if m.odds_api_implied_prob is not None:
                 continue  # already enriched
-            if m.yes_price < cfg.min_price or m.yes_price > cfg.max_price:
+            no_price = m.no_price if m.no_price else (1 - m.yes_price)
+            yes_in_zone = cfg.min_price <= m.yes_price <= cfg.max_price
+            no_in_zone = cfg.min_price <= no_price <= cfg.max_price
+            if not yes_in_zone and not no_in_zone:
                 continue  # only enrich candidates in price zone (save API calls)
             try:
                 odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
@@ -1249,27 +1434,41 @@ class Agent:
                 # Check AI confidence and edge
                 if estimate.confidence in ("C", "D"):
                     continue
-                ai_edge = estimate.ai_probability - c.yes_price
+                # ai_probability is P(YES). For BUY_NO, edge = P(NO) - no_price
+                if c.direction == "BUY_NO":
+                    ai_edge = (1 - estimate.ai_probability) - c.no_price
+                else:
+                    ai_edge = estimate.ai_probability - c.yes_price
                 if ai_edge < cfg.min_odds_divergence:
                     continue
 
-            # Execute order
-            token_id = c.yes_token_id
+            # Execute order — use candidate direction (BUY_YES or BUY_NO)
+            direction = c.direction
+            if direction == "BUY_NO":
+                token_id = c.no_token_id
+                order_price = c.no_price
+            else:
+                token_id = c.yes_token_id
+                order_price = c.yes_price
             if not token_id:
                 for m in fresh_markets:
                     if m.condition_id == c.condition_id:
-                        token_id = m.yes_token_id
+                        token_id = m.no_token_id if direction == "BUY_NO" else m.yes_token_id
                         break
             if not token_id:
                 continue
 
-            result = self.executor.place_order(token_id, "BUY", c.yes_price, size)
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
+            result = self.executor.place_order(token_id, "BUY", order_price, size)
             if not result or result.get("status") == "error":
                 continue
 
-            shares = size / c.yes_price if c.yes_price > 0 else 0
+            shares = size / order_price if order_price > 0 else 0
             ai_conf = estimate.confidence if estimate else "B-"
-            ai_prob = estimate.ai_probability if estimate else c.yes_price
+            ai_prob = estimate.ai_probability if estimate else (c.no_price if direction == "BUY_NO" else c.yes_price)
             # market_data may already be fetched for AI; fallback lookup if not
             if not market_data:
                 for m in fresh_markets:
@@ -1277,8 +1476,8 @@ class Agent:
                         market_data = m
                         break
             self.portfolio.add_position(
-                c.condition_id, token_id, "BUY_YES",
-                c.yes_price, size, shares, c.slug,
+                c.condition_id, token_id, direction,
+                order_price, size, shares, c.slug,
                 "", confidence=ai_conf,
                 ai_probability=ai_prob,
                 entry_reason="upset",
@@ -1291,22 +1490,23 @@ class Agent:
 
             self.trade_log.log({
                 "market": c.slug, "action": "UPSET_ENTRY",
-                "size": size, "price": c.yes_price,
+                "direction": direction,
+                "size": size, "price": order_price,
                 "upset_type": c.upset_type,
                 "odds_divergence": c.divergence,
                 "ai_probability": ai_prob,
                 "mode": self.config.mode.value,
             })
             logger.info(
-                "UPSET ENTRY: %s | type=%s | price=%.2f | div=%s | size=$%.0f",
-                c.slug[:40], c.upset_type, c.yes_price,
+                "UPSET ENTRY: %s | dir=%s | type=%s | price=%.2f | div=%s | size=$%.0f",
+                c.slug[:40], direction, c.upset_type, order_price,
                 f"{c.divergence:.0%}" if c.divergence else "N/A", size,
             )
             div_str = f" | Div: {c.divergence:.0%}" if c.divergence else ""
             self.notifier.send(
                 f"🎯 *UPSET ENTRY*: {c.slug[:40]}\n\n"
-                f"🏷 Type: {c.upset_type}\n"
-                f"📊 Price: {c.yes_price:.2f}{div_str}\n"
+                f"🏷 Type: {c.upset_type} | Dir: {direction}\n"
+                f"📊 Price: {order_price:.2f}{div_str}\n"
                 f"💰 Size: ${size:.0f}"
             )
 
@@ -1364,6 +1564,33 @@ class Agent:
 
             if not token_id:
                 continue
+
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
+            # Timing filter: skip penny if match past first half
+            market_match = None
+            for m in fresh_markets:
+                if m.condition_id == c.condition_id:
+                    market_match = m
+                    break
+            if market_match:
+                _ms = getattr(market_match, "match_start_iso", "") or ""
+                _ed = getattr(market_match, "end_date_iso", "") or ""
+                if _ms and _ed:
+                    try:
+                        _start = datetime.fromisoformat(_ms.replace("Z", "+00:00").replace(" ", "T"))
+                        _end = datetime.fromisoformat(_ed.replace("Z", "+00:00").replace(" ", "T"))
+                        _now = datetime.now(timezone.utc)
+                        _total = (_end - _start).total_seconds()
+                        if _total > 0:
+                            _elapsed_pct = (_now - _start).total_seconds() / _total
+                            if _elapsed_pct > 0.50:
+                                logger.info("PENNY skip: match %.0f%% elapsed (>50%%)", _elapsed_pct * 100)
+                                continue
+                    except (ValueError, TypeError):
+                        pass
 
             result = self.executor.place_order(token_id, "BUY", price, size)
             if not result or result.get("status") == "error":

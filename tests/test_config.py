@@ -24,3 +24,9 @@ def test_config_risk_constraints():
     assert 0 < config.risk.kelly_fraction <= 1.0
     assert config.risk.max_bet_pct <= 1.0
     assert config.risk.stop_loss_pct <= 1.0
+
+
+def test_vs_reserved_slots_default_is_3():
+    from src.config import AppConfig
+    cfg = AppConfig()
+    assert cfg.volatility_swing.reserved_slots == 3

@@ -82,6 +82,9 @@ class RiskConfig(BaseModel):
     scale_in_num_tranches: int = 2
     price_drift_reanalysis_pct: float = 0.15
 
+    # Exposure guard (#P0) -- block entries when total invested > X% of bankroll
+    max_exposure_pct: float = 0.35
+
     @field_validator("kelly_fraction")
     @classmethod
     def kelly_in_range(cls, v: float) -> float:
@@ -96,7 +99,7 @@ class VolatilitySwingConfig(BaseModel):
     take_profit_pct: float = 0.60
     tp_floor: float = 0.30
     tp_ceiling: float = 1.00
-    reserved_slots: int = 5
+    reserved_slots: int = 3
     max_concurrent: int = 5
     max_token_price: float = 0.50
     min_token_price: float = 0.10
@@ -105,16 +108,17 @@ class VolatilitySwingConfig(BaseModel):
     polling_interval_min: int = 5
 
 
-class FarConfig(BaseModel):
+class EarlyEntryConfig(BaseModel):
     enabled: bool = True
     max_slots: int = 2
+    max_entry_price: float = 0.70
     min_edge: float = 0.10
     min_ai_probability: float = 0.55
     min_confidence: str = "B-"
     bookmaker_pre_screen_edge: float = 0.08
-    min_hours_to_start: float = 6.0       # Only markets >6h out qualify as FAR
+    min_hours_to_start: float = 6.0       # Only markets >6h out qualify as early entry
     max_hours_to_start: float = 336.0     # 14 days max
-    bet_pct: float = 0.05                 # 5% bankroll per FAR bet
+    bet_pct: float = 0.05                 # 5% bankroll per early entry bet
     stop_loss_pct: float = 0.30
     take_profit_pct: float = 0.40         # Swing trade TP (overridden for penny)
     # Penny Alpha thresholds ($0.01-$0.02 tokens)
@@ -207,7 +211,7 @@ class AppConfig(BaseModel):
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
-    far: FarConfig = FarConfig()
+    early: EarlyEntryConfig = EarlyEntryConfig()
     upset_hunter: UpsetHunterConfig = UpsetHunterConfig()
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()

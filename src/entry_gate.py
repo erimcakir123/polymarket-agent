@@ -1,8 +1,8 @@
 """entry_gate.py -- Unified market entry pipeline.
 
-ALL entry types (normal, FAR, FAV, consensus) go through this single gate.
+ALL entry types (normal, Early Entry, FAV, consensus) go through this single gate.
 Entry type only changes sizing multiplier and slot count -- same sanity check
-for everyone. FAR markets no longer bypass sanity (fixes known bug).
+for everyone. Early Entry markets no longer bypass sanity (fixes known bug).
 
 Data flow:
   agent.py calls:
@@ -55,7 +55,7 @@ class EntryGate:
     """Single unified market entry pipeline.
 
     Instantiate once. Stateful: owns market cache, AI analysis cache,
-    candidate stock queues, and far_market_ids.
+    candidate stock queues, and early_market_ids.
     """
 
     def __init__(
@@ -91,7 +91,7 @@ class EntryGate:
         self.scout = scout
 
         # Per-session state (survives across cycles)
-        self._far_market_ids: set[str] = set()
+        self._early_market_ids: set[str] = set()
         self._analyzed_market_ids: dict[str, float] = self._load_recent_analyses()
         self._eligible_cache: list = []
         self._eligible_pointer: int = 0
@@ -104,7 +104,7 @@ class EntryGate:
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
         self._fav_stock: list[dict] = []
-        self._far_stock: list[dict] = []
+        self._early_stock: list[dict] = []
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -256,8 +256,8 @@ class EntryGate:
         # NOTE: _seen_market_ids is updated AFTER quality filter (below),
         # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
 
-        # Update FAR market ids (>6h to start = FAR, needs higher edge)
-        self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
+        # Update early entry market ids (>6h to start = early entry, needs higher edge)
+        self._early_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
 
         # Stop-words for keyword extraction (match old main.py behaviour)
         _STOP_WORDS = frozenset({
@@ -640,7 +640,7 @@ class EntryGate:
                 "manip_check": manip_check,
                 "is_consensus": is_consensus,
                 "entry_reason": mode.lower(),
-                "is_far": cid in self._far_market_ids,
+                "is_early": cid in self._early_market_ids,
             })
 
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -689,10 +689,22 @@ class EntryGate:
             # Extreme price guard -- don't enter markets already at 0% or 100%
             _yes_p = market.yes_price
             _eff_entry = (1 - _yes_p) if direction == Direction.BUY_NO else _yes_p
-            if _eff_entry <= 0.02 or _eff_entry >= 0.98:
+            if _eff_entry <= 0.05 or _eff_entry >= 0.95:
                 logger.info(
                     "SKIP extreme price: %s | eff_price=%.0f%% -- market already resolved/extreme",
                     market.slug[:40], _eff_entry * 100,
+                )
+                continue
+
+            # Exposure guard -- skip if adding this size would exceed max exposure
+            total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+            _bankroll = self.portfolio.bankroll
+            if _bankroll > 0 and (total_invested + size) / _bankroll > self.config.risk.max_exposure_pct:
+                logger.info(
+                    "SKIP exposure limit: %s | size=$%.1f | invested=$%.1f / bankroll=$%.1f (%.0f%% > %.0f%%)",
+                    market.slug[:35], size, total_invested, _bankroll,
+                    (total_invested + size) / _bankroll * 100,
+                    self.config.risk.max_exposure_pct * 100,
                 )
                 continue
 
@@ -741,7 +753,7 @@ class EntryGate:
                 "edge": c["edge"],
                 "is_consensus": c["is_consensus"],
                 "entry_reason": c.get("entry_reason", ""),
-                "is_far": c["is_far"],
+                "is_early": c["is_early"],
             })
 
             logger.info(
