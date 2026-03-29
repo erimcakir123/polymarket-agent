@@ -99,6 +99,8 @@ class ReentryCandidate:
     total_reentry_risk: float = 0.0     # Sum of all re-entry position sizes
     price_history: list = field(default_factory=list)  # Last N prices for stabilization
     created_at: float = field(default_factory=time.time)
+    sl_reentry_count: int = 0    # How many times we've re-entered after a stop-loss (max 1)
+    exit_reason: str = ""        # Track exit reason (e.g. "stop_loss" for lossy re-entry)
 
 
 class ReentryPool:
@@ -130,8 +132,10 @@ class ReentryPool:
         number_of_games: int,
         was_scouted: bool,
         realized_pnl: float,
+        exit_reason: str = "",
+        sl_reentry_count: int = 0,
     ) -> None:
-        """Add or update a market in the re-entry pool after a profitable exit."""
+        """Add or update a market in the re-entry pool after exit."""
 
         existing = self._pool.get(condition_id)
         if existing:
@@ -140,6 +144,10 @@ class ReentryPool:
             existing.last_exit_cycle = exit_cycle
             existing.total_realized_profit += realized_pnl
             existing.price_history = []
+            if exit_reason:
+                existing.exit_reason = exit_reason
+            if sl_reentry_count:
+                existing.sl_reentry_count = sl_reentry_count
             logger.info("Re-entry pool UPDATE: %s | exits=%d | total_profit=$%.2f",
                         slug[:40], existing.reentry_count, existing.total_realized_profit)
         else:
@@ -161,9 +169,11 @@ class ReentryPool:
                 number_of_games=number_of_games,
                 was_scouted=was_scouted,
                 total_realized_profit=realized_pnl,
+                exit_reason=exit_reason,
+                sl_reentry_count=sl_reentry_count,
             )
-            logger.info("Re-entry pool ADD: %s | profit=$%.2f | AI=%.0f%% | %s",
-                        slug[:40], realized_pnl, ai_probability * 100, direction)
+            logger.info("Re-entry pool ADD: %s | profit=$%.2f | AI=%.0f%% | %s | reason=%s",
+                        slug[:40], realized_pnl, ai_probability * 100, direction, exit_reason or "profitable")
         self._save()
 
     def remove(self, condition_id: str) -> None:
@@ -213,6 +223,8 @@ class ReentryPool:
                 d.setdefault("price_history", [])
                 d.setdefault("created_at", 0)
                 d.setdefault("total_reentry_risk", 0.0)
+                d.setdefault("sl_reentry_count", 0)
+                d.setdefault("exit_reason", "")
                 self._pool[cid] = ReentryCandidate(**d)
             logger.info("Loaded %d re-entry candidates from disk", len(self._pool))
         except Exception as e:
@@ -364,6 +376,15 @@ def check_reentry(
     actual_drop = eff_exit - eff_price
     if actual_drop > ff["drop"] and cycles_since_exit < ff["cycles"]:
         return _block(f"Freefall: {actual_drop:.0%} drop in {cycles_since_exit} cycles")
+
+    # --- LOSSY RE-ENTRY: 40% recovery trigger ---
+    if c.exit_reason == "stop_loss":
+        drop = eff_entry - c.last_exit_price
+        if drop > 0:
+            recovery_needed = drop * 0.40
+            trigger_price = c.last_exit_price + recovery_needed
+            if eff_price < trigger_price:
+                return _wait(f"SL recovery insufficient: {eff_price:.3f} < trigger {trigger_price:.3f}")
 
     # --- TIER EVALUATION ---
     tier_idx = c.reentry_count  # 0-indexed: first re-entry = tier 0 (Tier 1)

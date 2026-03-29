@@ -80,6 +80,7 @@ class Portfolio:
         event_id: str = "",
         bookmaker_prob: float = 0.0,
         is_consensus: bool = False,
+        sl_reentry_count: int = 0,
     ) -> None:
         # Event-level duplicate guard -- never bet on two outcomes of the same event
         if event_id:
@@ -120,6 +121,7 @@ class Portfolio:
             event_id=event_id,
             bookmaker_prob=bookmaker_prob,
             is_consensus=is_consensus,
+            sl_reentry_count=sl_reentry_count,
         )
         self.bankroll -= size_usdc
         self._save_positions()
@@ -320,6 +322,9 @@ class Portfolio:
                 # BO5+ esports bonus -- extra room for comeback in long series
                 if pos.category == "esports" and pos.number_of_games >= 5:
                     sl += 0.10
+            # Lossy re-entries use tighter SL (75% of original)
+            if getattr(pos, 'sl_reentry_count', 0) >= 1:
+                sl *= 0.75
             if pos.unrealized_pnl_pct < -sl:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"

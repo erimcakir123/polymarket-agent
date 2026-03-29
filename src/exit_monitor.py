@@ -114,6 +114,9 @@ class ExitMonitor:
             sl_pct = self.config.upset_hunter.stop_loss_pct  # 50%
         else:
             sl_pct = self.config.risk.stop_loss_pct  # 30%
+        # Lossy re-entries use tighter SL (75% of original)
+        if getattr(pos, 'sl_reentry_count', 0) >= 1:
+            sl_pct *= 0.75
         if pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
             self._ws_exit_queued_set.add(cid)

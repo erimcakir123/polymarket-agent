@@ -504,6 +504,57 @@ class Agent:
                 was_scouted=getattr(pos, "scouted", False),
                 realized_pnl=realized_pnl,
             )
+        elif reason == "stop_loss":
+            # Lossy re-entry: SL exits can rejoin pool under strict conditions
+            _sl_count = getattr(pos, 'sl_reentry_count', 0)
+            if _sl_count >= 1:
+                # 2nd SL after lossy re-entry = permanent blacklist
+                self.blacklist.add(
+                    condition_id,
+                    exit_reason="stop_loss_2nd",
+                    blacklist_type="permanent",
+                    expires_at_cycle=None,
+                    exit_data={"slug": pos.slug},
+                )
+                logger.info("BLACKLIST: 2nd SL after lossy re-entry, permanent ban: %s", pos.slug[:40])
+            elif pos.ai_probability >= 0.65:
+                # AI still believes in the market -- add to pool for potential recovery
+                existing_pool = self.reentry_pool.get(condition_id)
+                original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
+                self.reentry_pool.add(
+                    condition_id=condition_id,
+                    event_id=getattr(pos, "event_id", "") or "",
+                    slug=pos.slug,
+                    question=getattr(pos, "question", ""),
+                    direction=pos.direction,
+                    token_id=pos.token_id,
+                    ai_probability=pos.ai_probability,
+                    confidence=pos.confidence,
+                    original_entry_price=original_entry,
+                    exit_price=pos.current_price,
+                    exit_cycle=self.cycle_count,
+                    end_date_iso=getattr(pos, "end_date_iso", ""),
+                    match_start_iso=getattr(pos, "match_start_iso", ""),
+                    sport_tag=getattr(pos, "sport_tag", ""),
+                    number_of_games=getattr(pos, "number_of_games", 0),
+                    was_scouted=getattr(pos, "scouted", False),
+                    realized_pnl=realized_pnl,
+                    exit_reason="stop_loss",
+                    sl_reentry_count=0,
+                )
+                logger.info("REENTRY_POOL: SL exit added (AI=%.0f%%): %s",
+                            pos.ai_probability * 100, pos.slug[:40])
+            else:
+                # AI prob < 65% -- normal blacklist for SL
+                btype, duration = get_blacklist_rule("stop_loss")
+                if btype and duration:
+                    self.blacklist.add(
+                        condition_id,
+                        exit_reason=reason,
+                        blacklist_type=btype,
+                        expires_at_cycle=self.cycle_count + duration if duration else None,
+                        exit_data={"slug": pos.slug},
+                    )
         else:
             # Non-profitable -> demote to stock or blacklist
             _is_never_stock = (
@@ -876,7 +927,9 @@ class Agent:
 
             tier_num = decision["tier"]
             reentry_num = candidate.reentry_count + 1
-            entry_reason = f"re_entry_t{tier_num}"
+            _is_lossy = candidate.exit_reason == "stop_loss"
+            entry_reason = f"re_entry_t{tier_num}_sl" if _is_lossy else f"re_entry_t{tier_num}"
+            _sl_count = (candidate.sl_reentry_count + 1) if _is_lossy else 0
 
             self.portfolio.add_position(
                 cid, token_id, direction,
@@ -891,6 +944,7 @@ class Agent:
                 event_id=candidate.event_id,
                 entry_reason=entry_reason,
                 number_of_games=candidate.number_of_games,
+                sl_reentry_count=_sl_count,
             )
 
             # Record in pool
