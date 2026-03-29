@@ -1410,6 +1410,29 @@ class Agent:
                 logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
                 continue
 
+            # Timing filter: skip penny if match past first half
+            market_match = None
+            for m in fresh_markets:
+                if m.condition_id == c.condition_id:
+                    market_match = m
+                    break
+            if market_match:
+                _ms = getattr(market_match, "match_start_iso", "") or ""
+                _ed = getattr(market_match, "end_date_iso", "") or ""
+                if _ms and _ed:
+                    try:
+                        _start = datetime.fromisoformat(_ms.replace("Z", "+00:00").replace(" ", "T"))
+                        _end = datetime.fromisoformat(_ed.replace("Z", "+00:00").replace(" ", "T"))
+                        _now = datetime.now(timezone.utc)
+                        _total = (_end - _start).total_seconds()
+                        if _total > 0:
+                            _elapsed_pct = (_now - _start).total_seconds() / _total
+                            if _elapsed_pct > 0.50:
+                                logger.info("PENNY skip: match %.0f%% elapsed (>50%%)", _elapsed_pct * 100)
+                                continue
+                    except (ValueError, TypeError):
+                        pass
+
             result = self.executor.place_order(token_id, "BUY", price, size)
             if not result or result.get("status") == "error":
                 continue
