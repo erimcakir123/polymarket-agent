@@ -330,11 +330,11 @@ class Portfolio:
                 logger.warning("%s triggered for %s: %.1f%%", label, pos.slug, pos.unrealized_pnl_pct * 100)
         return triggered
 
-    def check_consensus_thesis(self, threshold: float = 0.55) -> List[str]:
+    def check_consensus_thesis(self, threshold: float = 0.50) -> List[str]:
         """Exit consensus positions when effective price drops below threshold.
 
-        If we entered because both AI and market agreed on the winner,
-        but the market no longer sees this side as favorite, the thesis is broken.
+        Consensus = both AI and market favor the same side (both >= 50%).
+        Thesis broken = market no longer favors that side (dropped below 50%).
 
         Only applies after 50% of the match has elapsed -- early swings are normal.
         """

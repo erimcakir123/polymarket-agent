@@ -228,9 +228,9 @@ class EntryGate:
         stock_empty = max(0, 5 - len(self._candidate_stock))
         total_need = open_slots + stock_empty
         ai_batch_size = min(cfg.ai.batch_size, max(5, total_need * 2))
-        # Over-scan 3x: sports data is cheap, AI is expensive.
-        # Fetch data for scan_size markets, filter quality, send best ai_batch_size to AI.
-        scan_size = ai_batch_size * 3
+        # Over-scan 6x: sports data is cheap, AI is expensive.
+        # Many markets lack ESPN/PandaScore data -- wider net catches more qualified ones.
+        scan_size = ai_batch_size * 6
 
         # Bucket markets into imminent / mid / discovery
         imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
@@ -369,6 +369,7 @@ class EntryGate:
             ctx = esports_contexts.get(m.condition_id)
             if not ctx:
                 _no_data_skipped += 1
+                logger.info("SKIP no data: %s | tag=%s", (m.slug or "")[:40], getattr(m, "sport_tag", "?"))
                 continue
             # Pre-AI quality gate: count match result lines in context
             # Lines like "[W]" or "[L]" indicate actual game results
