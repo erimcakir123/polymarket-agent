@@ -230,10 +230,25 @@ class TestLayer1CatastrophicFloor:
 
     def test_underdog_exempt(self):
         from src.match_exit import check_match_exit
-        # Entry <25¢ is exempt from catastrophic floor
-        data = _make_pos_data(entry_price=0.20, current_price=0.09)
+        # Entry <20¢ is exempt from catastrophic floor (penny/upset territory)
+        data = _make_pos_data(entry_price=0.19, current_price=0.08)
         result = check_match_exit(data)
         # Should NOT exit via catastrophic (Layer 2 might exit but not Layer 1)
+        assert result.get("layer") != "catastrophic_floor"
+
+    def test_catastrophic_floor_triggers_at_20c_entry(self):
+        """Catastrophic floor should trigger for entries as low as 20¢."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(entry_price=0.20, current_price=0.09)  # Below 50% of 20¢
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "catastrophic_floor"
+
+    def test_catastrophic_floor_skips_below_20c_entry(self):
+        """Catastrophic floor should NOT trigger for entries below 20¢ (penny/upset territory)."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(entry_price=0.19, current_price=0.08)
+        result = check_match_exit(data)
         assert result.get("layer") != "catastrophic_floor"
 
     def test_above_25_not_exempt(self):
@@ -496,9 +511,9 @@ class TestSuccessCriteria:
         assert result.get("layer") != "never_in_profit" or result["exit"] is False
 
     def test_underdog_protection(self):
-        """Entry 20¢, drops to 12¢ → no catastrophic (exempt), graduated handles."""
+        """Entry 19¢ (below threshold), drops to 8¢ → no catastrophic (exempt), graduated handles."""
         from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.20, current_price=0.12)
+        data = _make_pos_data(entry_price=0.19, current_price=0.08)
         result = check_match_exit(data)
         assert result.get("layer") != "catastrophic_floor"
 

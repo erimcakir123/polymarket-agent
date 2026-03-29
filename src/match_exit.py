@@ -279,7 +279,7 @@ def check_match_exit(data: dict) -> dict:
     # --- Step 1: Catastrophic Floor (Layer 1) ---
     is_reentry = data.get("entry_reason", "").startswith("re_entry") or data.get("entry_reason") == "scale_in"
     cat_floor_mult = 0.75 if is_reentry else 0.50
-    if effective_entry >= 0.25 and effective_current < effective_entry * cat_floor_mult:
+    if effective_entry >= 0.20 and effective_current < effective_entry * cat_floor_mult:
         return {**result, "exit": True, "layer": "catastrophic_floor",
                 "reason": f"Price eff:{effective_current:.3f} < eff_entry*{cat_floor_mult:.0%} ({effective_entry*cat_floor_mult:.3f})"}
 
