@@ -83,7 +83,8 @@ class RiskConfig(BaseModel):
     price_drift_reanalysis_pct: float = 0.15
 
     # Exposure guard (#P0) -- block entries when total invested > X% of bankroll
-    max_exposure_pct: float = 0.35
+    # 50% cap supports ~15 positions at 3-5% sizing each, keeps 50% cash buffer
+    max_exposure_pct: float = 0.50
 
     @field_validator("kelly_fraction")
     @classmethod
@@ -139,13 +140,6 @@ class UpsetHunterConfig(BaseModel):
     min_odds_divergence: float = 0.05
     max_hours_before_match: float = 48
     late_match_exit_pct: float = 0.10
-    promotion_price: float = 0.35
-    scale_out_tier1_price: float = 0.25
-    scale_out_tier1_sell_pct: float = 0.30
-    scale_out_tier2_price: float = 0.35
-    scale_out_tier2_sell_pct: float = 0.30
-    trailing_activation: float = 1.00
-    trailing_distance: float = 0.25
     max_hold_hours: float = 3.0
 
 

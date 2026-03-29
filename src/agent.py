@@ -222,6 +222,14 @@ class Agent:
                             if open_slots <= 0:
                                 logger.info("All slots filled -- refill complete")
                                 break
+                            # Also stop refilling if exposure cap reached
+                            from src.risk_manager import exceeds_exposure_limit
+                            if exceeds_exposure_limit(
+                                self.portfolio.positions, 0.0,
+                                self.portfolio.bankroll, self.config.risk.max_exposure_pct,
+                            ):
+                                logger.info("Exposure cap reached -- refill complete")
+                                break
                             _refill_round += 1
                             positions_before = len(self.portfolio.positions)
                             seen_count = len(self.entry_gate._seen_market_ids)
@@ -462,6 +470,17 @@ class Agent:
         for m in fresh_markets:
             if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
                 self._pre_match_prices[m.condition_id] = m.yes_price
+
+        # Skip expensive AI analysis if exposure cap already reached
+        from src.risk_manager import exceeds_exposure_limit
+        _exposure_full = exceeds_exposure_limit(
+            self.portfolio.positions, 0.0,
+            self.portfolio.bankroll, self.config.risk.max_exposure_pct,
+        )
+        if _exposure_full and entries_allowed:
+            logger.info("Exposure cap reached (%.0f%%) -- skipping AI analysis, drain stock only",
+                        self.config.risk.max_exposure_pct * 100)
+            entries_allowed = False
 
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,

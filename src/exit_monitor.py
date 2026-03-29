@@ -139,22 +139,9 @@ class ExitMonitor:
             peak_pnl = (pos.peak_price - eff_entry) / eff_entry if eff_entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
-            # Upset positions: skip trailing TP below promotion price,
-            # use core params above it (promoted to core position)
-            if pos.entry_reason == "upset":
-                upset_cfg = self.config.upset_hunter
-                eff_cur = effective_price(current, direction)
-                # Upset below promotion price: skip trailing TP entirely
-                # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
-                if eff_cur < upset_cfg.promotion_price:
-                    return  # No trailing TP for unpromoted upsets
-                else:
-                    # Promoted to core: use core trailing TP params
-                    act_pct = ttp_cfg.activation_pct    # Core: 0.20
-                    trail_dist = ttp_cfg.trail_distance  # Core: 0.08
-            else:
-                act_pct = ttp_cfg.activation_pct
-                trail_dist = ttp_cfg.trail_distance
+            # All positions (including upset) use the same trailing TP params
+            act_pct = ttp_cfg.activation_pct
+            trail_dist = ttp_cfg.trail_distance
 
             if pos.peak_pnl_pct >= act_pct:
                 ttp_result = calculate_trailing_tp(
@@ -238,13 +225,7 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
-                # Upset positions: skip trailing TP below promotion price,
-                # use core params above it (promoted to core position)
-                if pos.entry_reason == "upset":
-                    upset_cfg = cfg.upset_hunter
-                    eff_cur = effective_price(pos.current_price, pos.direction)
-                    if eff_cur < upset_cfg.promotion_price:
-                        continue  # No trailing TP for unpromoted upsets
+                # All positions (including upset) use the same trailing TP params
                 act_pct = ttp_cfg.activation_pct
                 trail_dist = ttp_cfg.trail_distance
                 ttp_result = calculate_trailing_tp(

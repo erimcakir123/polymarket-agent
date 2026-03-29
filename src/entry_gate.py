@@ -696,18 +696,24 @@ class EntryGate:
                 )
                 continue
 
-            # Exposure guard -- skip if adding this size would exceed max exposure
+            # Exposure guard -- if cap reached, save remaining to stock and stop
             from src.risk_manager import exceeds_exposure_limit
             if exceeds_exposure_limit(
                 self.portfolio.positions, size,
                 self.portfolio.bankroll, self.config.risk.max_exposure_pct,
             ):
                 logger.info(
-                    "SKIP exposure limit: %s | size=$%.1f | %.0f%% cap",
+                    "EXPOSURE CAP: %s | size=$%.1f | %.0f%% cap -- saving remaining to stock",
                     market.slug[:35], size,
                     self.config.risk.max_exposure_pct * 100,
                 )
-                continue
+                # Save this and all remaining candidates to stock queue
+                remaining_idx = candidates.index(c)
+                for rc in candidates[remaining_idx:]:
+                    self._candidate_stock.append(rc)
+                logger.info("Saved %d candidates to stock queue (exposure cap)",
+                            len(candidates) - remaining_idx)
+                break
 
             # Execute
             _token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id

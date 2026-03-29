@@ -199,13 +199,7 @@ class ExitExecutor:
         """Check and execute partial scale-out exits for all positions."""
         from src.scale_out import apply_partial_exit
 
-        upset_cfg = self.ctx.config.upset_hunter
-        scale_outs = self.ctx.portfolio.check_scale_outs(
-            upset_tier1_price=upset_cfg.scale_out_tier1_price,
-            upset_tier1_sell_pct=upset_cfg.scale_out_tier1_sell_pct,
-            upset_tier2_price=upset_cfg.scale_out_tier2_price,
-            upset_tier2_sell_pct=upset_cfg.scale_out_tier2_sell_pct,
-        )
+        scale_outs = self.ctx.portfolio.check_scale_outs()
         for so in scale_outs:
             cid = so["condition_id"]
             pos = self.ctx.portfolio.positions.get(cid)
