@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from src.models import effective_price
 from src.sport_rules import get_sport_rule
 
 logger = logging.getLogger(__name__)
@@ -240,8 +241,8 @@ def check_match_exit(data: dict) -> dict:
     direction = data.get("direction", "BUY_YES")
 
     # Direction-aware effective prices: for BUY_NO, effective = 1 - YES price
-    effective_entry = entry_price if direction == "BUY_YES" else (1 - entry_price)
-    effective_current = current_price if direction == "BUY_YES" else (1 - current_price)
+    effective_entry = effective_price(entry_price, direction)
+    effective_current = effective_price(current_price, direction)
     number_of_games = data.get("number_of_games", 0)
     slug = data.get("slug", "")
     match_score = data.get("match_score", "")
@@ -406,7 +407,7 @@ def check_match_exit(data: dict) -> dict:
     # Underdog positions: as match progresses, AI target decays toward market
     # EXCEPTION: late in match (≥60%) and in profit (≥10%) -> let it ride, resolution close
     if ai_probability > 0 and not result.get("exit"):
-        effective_ai_side = ai_probability if direction != "BUY_NO" else (1 - ai_probability)
+        effective_ai_side = effective_price(ai_probability, direction)
         late_and_winning = elapsed_pct >= 0.60 and effective_current > effective_entry * 1.10
         if effective_ai_side < 0.65 and not late_and_winning:
             try:

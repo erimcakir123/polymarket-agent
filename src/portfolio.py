@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from src.models import Position
+from src.models import Position, effective_price
 from src.sport_rules import get_stop_loss
 
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ class Portfolio:
             if not pos.ever_in_profit and pos.peak_pnl_pct > 0.01:
                 pos.ever_in_profit = True
             # Dynamic FAV promotion/demotion -- based on current market price
-            eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
+            eff_price = effective_price(new_price, pos.direction)
             if not pos.scouted and not pos.volatility_swing:
                 if (eff_price >= 0.65
                         and pos.confidence in ("A", "B+")
@@ -239,8 +239,8 @@ class Portfolio:
                     logger.info("FAV DEMOTED: %s | price %.0f%% < 65%% -- no longer favorite",
                                 pos.slug[:35], eff_price * 100)
             # Track consecutive down cycles for momentum alert (use effective prices for BUY_NO)
-            eff_new = (1 - new_price) if pos.direction == "BUY_NO" else new_price
-            eff_prev = (1 - pos.previous_cycle_price) if pos.direction == "BUY_NO" else pos.previous_cycle_price
+            eff_new = effective_price(new_price, pos.direction)
+            eff_prev = effective_price(pos.previous_cycle_price, pos.direction)
             if eff_prev > 0 and eff_new < eff_prev:
                 pos.consecutive_down_cycles += 1
                 pos.cumulative_drop += (eff_prev - eff_new)
@@ -250,7 +250,7 @@ class Portfolio:
 
             # V2: Track cycles_held, effective price history, peak effective price
             pos.cycles_held += 1
-            eff_price = (1 - new_price) if pos.direction == "BUY_NO" else new_price
+            eff_price = effective_price(new_price, pos.direction)
             pos.price_history_buffer.append(eff_price)
             if len(pos.price_history_buffer) > 500:
                 pos.price_history_buffer = pos.price_history_buffer[-500:]
@@ -299,7 +299,7 @@ class Portfolio:
             # Esports BO series get wider stop-loss due to natural volatility
             # BO5 gets extra +10% room (more games = more comeback potential)
             # Use effective entry price for BUY_NO (cost = 1 - yes_price)
-            eff_entry_sl = (1 - pos.entry_price) if pos.direction == "BUY_NO" else pos.entry_price
+            eff_entry_sl = effective_price(pos.entry_price, pos.direction)
             if pos.volatility_swing:
                 sl = vs_stop_loss_pct
             elif eff_entry_sl < 0.09:
@@ -363,7 +363,7 @@ class Portfolio:
                     pass  # No timing data -- fall through to price check
 
             # Effective price = the side we bought
-            eff_price = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+            eff_price = effective_price(pos.current_price, pos.direction)
             if eff_price < threshold:
                 triggered.append(cid)
                 logger.warning(
@@ -414,8 +414,8 @@ class Portfolio:
                 continue
             # Scale-out tier > 0 means profit already partially locked -- σ-trailing protects remainder
             # Favorite hold-to-resolve logic: skip trailing if σ says inactive (peak too low)
-            eff_entry = (1 - pos.entry_price) if pos.direction == "BUY_NO" else pos.entry_price
-            eff_current = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+            eff_entry = effective_price(pos.entry_price, pos.direction)
+            eff_current = effective_price(pos.current_price, pos.direction)
             result = calculate_sigma_trailing_stop(
                 peak_pnl_pct=pos.peak_pnl_pct,
                 price_history=pos.price_history_buffer,
@@ -494,7 +494,7 @@ class Portfolio:
             # V2: Resolution-aware hold for scaled-out positions
             if pos.scale_out_tier >= 1:
                 from src.vs_spike import should_hold_for_resolution
-                eff_price = (1 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                eff_price = effective_price(pos.current_price, pos.direction)
                 from src.match_exit import parse_match_score
                 _score = parse_match_score(pos.match_score, pos.number_of_games, pos.direction)
                 score_behind = _score.get("available", False) and _score.get("map_diff", 0) < 0

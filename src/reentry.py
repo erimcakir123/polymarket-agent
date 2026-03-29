@@ -8,6 +8,8 @@ import logging
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from src.models import effective_price
+
 logger = logging.getLogger(__name__)
 
 # --- Dynamic elapsed thresholds by game type ---
@@ -51,7 +53,7 @@ def get_reentry_size_multiplier(
     ai_prob: float, direction: str, score_info: dict, original_pnl_pct: float
 ) -> float:
     # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    effective_ai = ai_prob if direction == "BUY_YES" else (1 - ai_prob)
+    effective_ai = effective_price(ai_prob, direction)
     base = 0.50
     if effective_ai >= 0.75:
         base += 0.25
@@ -79,9 +81,9 @@ def can_reenter(
     market_reentry_count: int,
 ) -> tuple[bool, str]:
     # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    effective_ai = ai_prob if direction == "BUY_YES" else (1 - ai_prob)
-    effective_exit = exit_price if direction == "BUY_YES" else (1 - exit_price)
-    effective_current = current_price if direction == "BUY_YES" else (1 - current_price)
+    effective_ai = effective_price(ai_prob, direction)
+    effective_exit = effective_price(exit_price, direction)
+    effective_current = effective_price(current_price, direction)
 
     if exit_reason not in ("take_profit", "trailing_stop", "edge_tp", "spike_exit", "scale_out_final"):
         return False, "Non-profit exit"
@@ -243,8 +245,8 @@ def passes_confidence_momentum(
 ) -> tuple[bool, str]:
     """Check if AI confidence is rising (for re-entry qualification).
     Compares saved effective prob at exit with current effective prob."""
-    saved_eff = saved_ai_prob if direction == "BUY_YES" else (1 - saved_ai_prob)
-    current_eff = current_ai_prob if direction == "BUY_YES" else (1 - current_ai_prob)
+    saved_eff = effective_price(saved_ai_prob, direction)
+    current_eff = effective_price(current_ai_prob, direction)
     if saved_eff < 0.10:
         return True, "Saved effective prob too low"
     ratio = current_eff / saved_eff

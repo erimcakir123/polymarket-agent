@@ -49,6 +49,19 @@ def confidence_position_size(
     return max(0, round(size, 2))
 
 
+def exceeds_exposure_limit(
+    positions: dict,
+    candidate_size: float,
+    bankroll: float,
+    max_exposure_pct: float,
+) -> bool:
+    """Return True if adding candidate_size would breach the portfolio exposure cap."""
+    if bankroll <= 0:
+        return True
+    total_invested = sum(p.size_usdc for p in positions.values())
+    return (total_invested + candidate_size) / bankroll > max_exposure_pct
+
+
 @dataclass
 class RiskDecision:
     approved: bool

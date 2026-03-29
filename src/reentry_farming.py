@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.models import effective_price
 from src.sport_rules import get_max_reentries, get_reentry_max_elapsed, is_esports
 
 logger = logging.getLogger(__name__)
@@ -259,11 +260,6 @@ class ReentryPool:
 # Decision logic
 # ---------------------------------------------------------------------------
 
-def _get_effective_price(price: float, direction: str) -> float:
-    """Get the effective price for our side (YES or NO)."""
-    return (1.0 - price) if direction == "BUY_NO" else price
-
-
 def check_reentry(
     candidate: ReentryCandidate,
     current_yes_price: float,
@@ -278,11 +274,11 @@ def check_reentry(
     Returns {"action": "ENTER"|"WAIT"|"BLOCK", "tier": int, "size_mult": float, "reason": str}
     """
     c = candidate
-    eff_price = _get_effective_price(current_yes_price, c.direction)
-    eff_exit = _get_effective_price(c.last_exit_price, c.direction)
-    eff_entry = _get_effective_price(c.original_entry_price, c.direction)
+    eff_price = effective_price(current_yes_price, c.direction)
+    eff_exit = effective_price(c.last_exit_price, c.direction)
+    eff_entry = effective_price(c.original_entry_price, c.direction)
     # ai_probability is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    eff_ai = c.ai_probability if c.direction == "BUY_YES" else (1.0 - c.ai_probability)
+    eff_ai = effective_price(c.ai_probability, c.direction)
     elapsed_pct = 0.0
 
     # --- HARD BLOCKS ---

@@ -45,6 +45,8 @@ from src.cycle_timer import CycleTimer
 from src.scout_scheduler import ScoutScheduler
 from src.entry_gate import EntryGate
 from src.exit_monitor import ExitMonitor
+from src.models import effective_price
+from src.risk_manager import exceeds_exposure_limit
 
 logger = logging.getLogger(__name__)
 
@@ -752,7 +754,7 @@ class Agent:
         Accepts if stock has room (< 10) OR score beats the worst existing entry.
         Returns True if demoted, False if rejected (-> caller will blacklist instead).
         """
-        from src.models import MarketData
+        from src.models import MarketData, effective_price
         from src.ai_analyst import AIEstimate
 
         _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
@@ -846,11 +848,10 @@ class Agent:
 
     def _check_exposure_limit(self, candidate_size: float) -> bool:
         """Return True if adding candidate_size would exceed exposure limit."""
-        total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
-        bankroll = self.portfolio.bankroll
-        if bankroll <= 0:
-            return True
-        return (total_invested + candidate_size) / bankroll > self.config.risk.max_exposure_pct
+        return exceeds_exposure_limit(
+            self.portfolio.positions, candidate_size,
+            self.portfolio.bankroll, self.config.risk.max_exposure_pct,
+        )
 
     # ── Farming re-entry ──────────────────────────────────────────────────
 
@@ -911,7 +912,7 @@ class Agent:
                 continue
 
             # Update price history for stabilization tracking (use effective price for direction)
-            eff_stab_price = (1.0 - current_yes_price) if candidate.direction == "BUY_NO" else current_yes_price
+            eff_stab_price = effective_price(current_yes_price, candidate.direction)
             self.reentry_pool.update_price(cid, eff_stab_price)
 
             # Fetch match state for esports re-entry candidates
@@ -955,7 +956,7 @@ class Agent:
             size_mult = decision["size_mult"]
 
             # Calculate position size (confidence-based * tier multiplier)
-            eff_price = current_yes_price if direction == "BUY_YES" else (1.0 - current_yes_price)
+            eff_price = effective_price(current_yes_price, direction)
             base_size = confidence_position_size(
                 confidence=getattr(candidate, 'confidence', "B-"),
                 bankroll=self.portfolio.bankroll,
@@ -1435,9 +1436,9 @@ class Agent:
                     continue
                 # ai_probability is P(YES). For BUY_NO, edge = P(NO) - no_price
                 if c.direction == "BUY_NO":
-                    ai_edge = (1 - estimate.ai_probability) - c.no_price
+                    ai_edge = effective_price(estimate.ai_probability, c.direction) - c.no_price
                 else:
-                    ai_edge = estimate.ai_probability - c.yes_price
+                    ai_edge = effective_price(estimate.ai_probability, c.direction) - c.yes_price
                 if ai_edge < cfg.min_odds_divergence:
                     continue
 
@@ -1870,7 +1871,7 @@ class Agent:
                     # Re-entry resolve guard: exit re-entry positions before they hit resolve
                     # to avoid 1¢/99¢ losses. Exit at 90¢ (winning) or 10¢ (losing side).
                     if getattr(pos, "entry_reason", "").startswith("re_entry"):
-                        eff_p = (1.0 - new_yes_price) if pos.direction == "BUY_NO" else new_yes_price
+                        eff_p = effective_price(new_yes_price, pos.direction)
                         if eff_p >= 0.90:
                             logger.info("RE-ENTRY RESOLVE GUARD (WIN): %s @ %.0f%% -- exiting before resolve",
                                         pos.slug[:35], eff_p * 100)

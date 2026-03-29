@@ -438,7 +438,7 @@ class EntryGate:
     ) -> list[dict]:
         """Evaluate each market using three-mode strategy. Return ranked candidate list."""
         from src.probability_engine import calculate_anchored_probability
-        from src.models import Direction
+        from src.models import Direction, effective_price
 
         cfg = self.config
         candidates: list[dict] = []
@@ -652,7 +652,7 @@ class EntryGate:
         self, candidates: list[dict], bankroll: float, cycle_count: int,
     ) -> list[str]:
         """Execute top candidates. Return list of entered condition_ids."""
-        from src.models import Direction
+        from src.models import Direction, effective_price
         entered: list[str] = []
         cfg = self.config
 
@@ -688,7 +688,7 @@ class EntryGate:
 
             # Extreme price guard -- don't enter markets already at 0% or 100%
             _yes_p = market.yes_price
-            _eff_entry = (1 - _yes_p) if direction == Direction.BUY_NO else _yes_p
+            _eff_entry = effective_price(_yes_p, direction)
             if _eff_entry <= 0.05 or _eff_entry >= 0.95:
                 logger.info(
                     "SKIP extreme price: %s | eff_price=%.0f%% -- market already resolved/extreme",
@@ -697,20 +697,21 @@ class EntryGate:
                 continue
 
             # Exposure guard -- skip if adding this size would exceed max exposure
-            total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
-            _bankroll = self.portfolio.bankroll
-            if _bankroll > 0 and (total_invested + size) / _bankroll > self.config.risk.max_exposure_pct:
+            from src.risk_manager import exceeds_exposure_limit
+            if exceeds_exposure_limit(
+                self.portfolio.positions, size,
+                self.portfolio.bankroll, self.config.risk.max_exposure_pct,
+            ):
                 logger.info(
-                    "SKIP exposure limit: %s | size=$%.1f | invested=$%.1f / bankroll=$%.1f (%.0f%% > %.0f%%)",
-                    market.slug[:35], size, total_invested, _bankroll,
-                    (total_invested + size) / _bankroll * 100,
+                    "SKIP exposure limit: %s | size=$%.1f | %.0f%% cap",
+                    market.slug[:35], size,
                     self.config.risk.max_exposure_pct * 100,
                 )
                 continue
 
             # Execute
             _token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
-            _order_price = market.yes_price if direction == Direction.BUY_YES else (1 - market.yes_price)
+            _order_price = effective_price(market.yes_price, direction)
             result = self.executor.place_order(
                 token_id=_token_id,
                 side="BUY",
@@ -723,7 +724,7 @@ class EntryGate:
 
             # Record position -- entry_price is always YES-side for storage consistency
             entry_price = market.yes_price
-            eff_price = (1 - entry_price) if direction == Direction.BUY_NO else entry_price
+            eff_price = effective_price(entry_price, direction)
             shares = size / eff_price if eff_price > 0 else 0
             _token_id_for_pos = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             self.portfolio.add_position(
@@ -770,7 +771,7 @@ class EntryGate:
                 entered_event_ids.add(market_event_id)
 
             # Notify on entry
-            _eff_p = (1 - entry_price) if direction == Direction.BUY_NO else entry_price
+            _eff_p = effective_price(entry_price, direction)
             _dir_label = "YES" if direction == Direction.BUY_YES else "NO"
             _hrs = _hours_to_start(market)
             _time_label = "LIVE" if _hrs <= 0 else f"{_hrs:.0f}h" if _hrs < 24 else f"{_hrs/24:.0f}d"

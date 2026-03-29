@@ -11,6 +11,15 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 YesProbability = NewType("YesProbability", float)
 
 
+def effective_price(yes_price: float, direction: str) -> float:
+    """Convert YES-side price to effective price based on position direction.
+
+    BUY_YES: returns yes_price directly.
+    BUY_NO:  returns (1 - yes_price) = NO price.
+    """
+    return (1.0 - yes_price) if direction == "BUY_NO" else yes_price
+
+
 def validate_yes_probability(value: float, context: str = "") -> YesProbability:
     """Runtime guard: ai_probability must be P(YES) in [0.01, 0.99]."""
     if not (0.01 <= value <= 0.99):
@@ -120,10 +129,7 @@ class Position(BaseModel):
     @computed_field
     @property
     def current_value(self) -> float:
-        # For BUY_NO, value increases when YES price drops (NO price = 1 - YES price)
-        if self.direction == "BUY_NO":
-            return self.shares * (1 - self.current_price)
-        return self.shares * self.current_price
+        return self.shares * effective_price(self.current_price, self.direction)
 
     @computed_field
     @property

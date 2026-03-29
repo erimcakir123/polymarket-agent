@@ -23,6 +23,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
+from src.models import effective_price as eff_price_fn
+
 logger = logging.getLogger(__name__)
 
 # Default parameters (can be overridden via config)
@@ -75,11 +77,11 @@ def calculate_trailing_tp(
     # Calculate profit based on direction
     if direction == "BUY_YES":
         profit_pct = (current_price - entry_price) / entry_price
-        effective_price = current_price
+        effective_price = eff_price_fn(current_price, direction)
     elif direction == "BUY_NO":
         # BUY_NO: cost basis is (1 - entry_yes_price), value is (1 - current_yes_price)
-        no_cost = 1.0 - entry_price
-        no_value = 1.0 - current_price
+        no_cost = eff_price_fn(entry_price, direction)
+        no_value = eff_price_fn(current_price, direction)
         profit_pct = (no_value - no_cost) / no_cost if no_cost > 0 else 0.0
         # For trailing, track the NO token price (higher = better for BUY_NO)
         effective_price = no_value
@@ -175,10 +177,5 @@ def _hold(profit_pct: float, active: bool, peak: float, floor: float) -> dict:
 
 def _calc_locked_profit(entry: float, floor: float, direction: str) -> float:
     """Approximate locked profit percentage at the floor price."""
-    if direction == "BUY_YES":
-        return (floor - entry) / entry if entry > 0 else 0.0
-    else:
-        # BUY_NO: floor is in NO-token space, entry is YES price
-        no_cost = 1.0 - entry
-        # Floor IS the NO-token price floor
-        return (floor - no_cost) / no_cost if no_cost > 0 else 0.0
+    cost = eff_price_fn(entry, direction)
+    return (floor - cost) / cost if cost > 0 else 0.0

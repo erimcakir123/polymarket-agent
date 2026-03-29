@@ -23,6 +23,8 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 
+from src.models import effective_price
+
 if TYPE_CHECKING:
     from src.portfolio import Portfolio
     from src.websocket_feed import WebSocketFeed
@@ -100,12 +102,8 @@ class ExitMonitor:
         current = pos.current_price
 
         # Effective prices for BUY_NO (track NO-side value)
-        if direction == "BUY_NO":
-            effective_entry = 1.0 - entry
-            effective_current = 1.0 - current
-        else:
-            effective_entry = entry
-            effective_current = current
+        effective_entry = effective_price(entry, direction)
+        effective_current = effective_price(current, direction)
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
@@ -132,29 +130,20 @@ class ExitMonitor:
             # Update peak tracking -- always in effective space
             # BUY_YES: effective = YES price (higher = better)
             # BUY_NO:  effective = NO value = 1 - YES price (higher = better)
-            if direction == "BUY_NO":
-                eff_current = 1.0 - current
-            else:
-                eff_current = current
+            eff_current = effective_price(current, direction)
             if eff_current > pos.peak_price or pos.peak_price == 0:
                 pos.peak_price = eff_current
 
             # Calculate peak P&L (peak_price is in effective space)
-            if direction == "BUY_NO":
-                no_cost = 1.0 - entry
-                peak_pnl = (pos.peak_price - no_cost) / no_cost if no_cost > 0 else 0
-            else:
-                peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
+            eff_entry = effective_price(entry, direction)
+            peak_pnl = (pos.peak_price - eff_entry) / eff_entry if eff_entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
             # Upset positions: skip trailing TP below promotion price,
             # use core params above it (promoted to core position)
             if pos.entry_reason == "upset":
                 upset_cfg = self.config.upset_hunter
-                if direction == "BUY_NO":
-                    eff_cur = 1.0 - current
-                else:
-                    eff_cur = current
+                eff_cur = effective_price(current, direction)
                 # Upset below promotion price: skip trailing TP entirely
                 # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
                 if eff_cur < upset_cfg.promotion_price:
@@ -257,7 +246,7 @@ class ExitMonitor:
                 # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                    eff_cur = effective_price(pos.current_price, pos.direction)
                     # Upset below promotion price: skip trailing TP entirely
                     # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
                     if eff_cur < upset_cfg.promotion_price:
@@ -363,7 +352,7 @@ class ExitMonitor:
                 # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                    eff_cur = effective_price(pos.current_price, pos.direction)
                     # Upset below promotion price: skip trailing TP entirely
                     # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
                     if eff_cur < upset_cfg.promotion_price:
