@@ -195,6 +195,7 @@ def _make_pos_data(
     consecutive_down_cycles=0, cumulative_drop=0.0,
     hold_revoked_at=None, hold_was_original=False,
     volatility_swing=False, category="esports",
+    entry_reason="",
 ):
     """Helper to build position-like data dict for check_match_exit()."""
     return {
@@ -216,6 +217,7 @@ def _make_pos_data(
         "hold_was_original": hold_was_original,
         "volatility_swing": volatility_swing,
         "category": category,
+        "entry_reason": entry_reason,
         "unrealized_pnl_pct": (current_price - entry_price) / entry_price if entry_price > 0 else 0,
     }
 
