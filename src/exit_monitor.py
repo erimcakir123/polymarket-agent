@@ -144,17 +144,20 @@ class ExitMonitor:
                 peak_pnl = (pos.peak_price - entry) / entry if entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
-            # Upset positions: wider activation (+100%) and trail (25%)
+            # Upset positions: skip trailing TP below promotion price,
+            # use core params above it (promoted to core position)
             if pos.entry_reason == "upset":
                 upset_cfg = self.config.upset_hunter
-                act_pct = upset_cfg.trailing_activation  # 1.00 (+100%)
-                trail_dist = upset_cfg.trailing_distance  # 0.25
-                # Promotion: if price >= 35¢, switch to core params
                 if direction == "BUY_NO":
                     eff_cur = 1.0 - current
                 else:
                     eff_cur = current
-                if eff_cur >= upset_cfg.promotion_price:
+                # Upset below promotion price: skip trailing TP entirely
+                # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                if eff_cur < upset_cfg.promotion_price:
+                    return  # No trailing TP for unpromoted upsets
+                else:
+                    # Promoted to core: use core trailing TP params
                     act_pct = ttp_cfg.activation_pct    # Core: 0.20
                     trail_dist = ttp_cfg.trail_distance  # Core: 0.08
             else:
@@ -245,15 +248,18 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
-                # Upset positions: wider activation/trail, promotion at 35¢
+                # Upset positions: skip trailing TP below promotion price,
+                # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    act_pct = upset_cfg.trailing_activation
-                    trail_dist = upset_cfg.trailing_distance
                     eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
-                    if eff_cur >= upset_cfg.promotion_price:
-                        act_pct = ttp_cfg.activation_pct
-                        trail_dist = ttp_cfg.trail_distance
+                    # Upset below promotion price: skip trailing TP entirely
+                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                    if eff_cur < upset_cfg.promotion_price:
+                        continue  # No trailing TP for unpromoted upsets
+                    # Promoted to core: use core trailing TP params
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 else:
                     act_pct = ttp_cfg.activation_pct
                     trail_dist = ttp_cfg.trail_distance
@@ -344,15 +350,18 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
-                # Upset positions: wider activation/trail, promotion at 35¢
+                # Upset positions: skip trailing TP below promotion price,
+                # use core params above it (promoted to core position)
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
-                    act_pct = upset_cfg.trailing_activation
-                    trail_dist = upset_cfg.trailing_distance
                     eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
-                    if eff_cur >= upset_cfg.promotion_price:
-                        act_pct = ttp_cfg.activation_pct
-                        trail_dist = ttp_cfg.trail_distance
+                    # Upset below promotion price: skip trailing TP entirely
+                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
+                    if eff_cur < upset_cfg.promotion_price:
+                        continue  # No trailing TP for unpromoted upsets
+                    # Promoted to core: use core trailing TP params
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 else:
                     act_pct = ttp_cfg.activation_pct
                     trail_dist = ttp_cfg.trail_distance
