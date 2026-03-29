@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # Exits that should never be demoted to stock (permanent skip)
 _NEVER_STOCK_EXITS = frozenset({
     "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
-    "pre_match_exit", "resolved", "near_resolve",
+    "resolved", "near_resolve",
 })
 _NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "far_penny_")
 

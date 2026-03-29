@@ -576,36 +576,6 @@ class Portfolio:
                 pass
         return triggered
 
-    def check_pre_match_exits(self, minutes_before: int = 30) -> List[str]:
-        """Mandatory exit N minutes before match end for non-high-confidence positions.
-
-        High confidence (A-tier) positions are exempt -- Claudeus Optimus rule.
-        """
-        from datetime import datetime, timezone
-        triggered = []
-        now = datetime.now(timezone.utc)
-        for cid, pos in self.positions.items():
-            if pos.volatility_swing:
-                continue  # VS has its own exit logic
-            if pos.confidence in ("A", "B+"):
-                continue  # Favorite confidence exempt -- hold to resolve
-            if pos.entry_reason == "live_dip":
-                continue  # Live dip has its own exit logic
-            if not pos.end_date_iso:
-                continue
-            try:
-                end_dt = datetime.fromisoformat(pos.end_date_iso.replace("Z", "+00:00"))
-                minutes_left = (end_dt - now).total_seconds() / 60
-                if minutes_left <= minutes_before:
-                    triggered.append(cid)
-                    logger.warning(
-                        "Pre-match exit: %s | %.0f min left | conf=%s -- exiting before resolution",
-                        pos.slug[:30], minutes_left, pos.confidence,
-                    )
-            except (ValueError, TypeError):
-                pass
-        return triggered
-
     def check_esports_halftime_exits(
         self, match_states: Optional[dict] = None
     ) -> List[str]:

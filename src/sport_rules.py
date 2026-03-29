@@ -29,7 +29,7 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 15,  # points behind at halftime
         "hold_to_resolve_margin": 5,  # within X points = hold
-        "pre_match_mandatory_exit_min": 8,
+
         "match_duration_hours": 2.5,
         "score_volatility_per_event": 0.004,
         "comeback_probability": "high",
@@ -46,7 +46,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 14,
         "hold_to_resolve_margin": 7,
-        "pre_match_mandatory_exit_min": 15,
         "match_duration_hours": 3.25,
         "score_volatility_per_event": 0.006,
         "comeback_probability": "medium",
@@ -64,7 +63,6 @@ SPORT_RULES: dict[str, dict] = {
         "period_exit": True,
         "period_exit_deficit": 3,  # goals behind after P2
         "hold_to_resolve_margin": 1,  # within 1 goal
-        "pre_match_mandatory_exit_min": 10,
         "match_duration_hours": 2.5,
         "score_volatility_per_event": 0.10,
         "comeback_probability": "medium-low",
@@ -83,7 +81,6 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit_deficit": 5,  # runs behind after 6th
         "inning_exit_after": 6,
         "hold_to_resolve_margin": 2,  # within 2 runs after 6th
-        "pre_match_mandatory_exit_min": 20,
         "match_duration_hours": 3.0,
         "score_volatility_per_event": 0.05,
         "comeback_probability": "medium",
@@ -99,7 +96,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 2,  # goals behind
         "hold_to_resolve_margin": 1,  # drawing or losing by 1 in H1
-        "pre_match_mandatory_exit_min": 15,
         "match_duration_hours": 2.0,
         "score_volatility_per_event": 0.15,
         "comeback_probability": "low",
@@ -118,7 +114,6 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_condition_bo3": "lost 1st set 6-1 or worse",
         "set_exit_condition_bo5": "lost 2 sets",
         "hold_to_resolve_margin": 1,  # within 1 set
-        "pre_match_mandatory_exit_min": 0,  # not time-based
         "match_duration_hours_bo3": 1.75,
         "match_duration_hours_bo5": 3.5,
         "match_duration_hours": 2.5,  # default
@@ -141,7 +136,6 @@ SPORT_RULES: dict[str, dict] = {
         "round_exit_condition_3r": "lost 2 rounds dominantly",
         "round_exit_condition_5r": "lost 3 rounds or near-finish",
         "hold_to_resolve_margin": 0,  # winning on cards
-        "pre_match_mandatory_exit_min": 5,
         "match_duration_hours_3r": 0.5,
         "match_duration_hours_5r": 0.75,
         "match_duration_hours": 0.5,
@@ -160,7 +154,6 @@ SPORT_RULES: dict[str, dict] = {
         "round_exit": True,
         "round_exit_condition": "lost 4+ rounds + knockdown",
         "hold_to_resolve_margin": 0,
-        "pre_match_mandatory_exit_min": 10,
         "match_duration_hours": 1.0,
         "score_volatility_per_round": 0.03,
         "score_volatility_knockdown": 0.12,
@@ -176,7 +169,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 0,  # below par score
         "hold_to_resolve_margin": 0,
-        "pre_match_mandatory_exit_min": 15,
         "match_duration_hours": 3.5,
         "score_volatility_per_wicket": 0.06,
         "comeback_probability": "medium",
@@ -192,7 +184,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 18,  # points behind
         "hold_to_resolve_margin": 7,
-        "pre_match_mandatory_exit_min": 10,
         "match_duration_hours": 2.0,
         "score_volatility_per_try": 0.07,
         "comeback_probability": "medium-low",
@@ -208,7 +199,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": True,
         "halftime_exit_deficit": 7,  # rounds behind (4-11)
         "hold_to_resolve_margin": 3,
-        "pre_match_mandatory_exit_min": 0,
         "match_duration_hours": 2.0,
         "score_volatility_per_round": 0.015,
         "score_volatility_per_map": 0.12,
@@ -226,7 +216,6 @@ SPORT_RULES: dict[str, dict] = {
         "map_exit": True,
         "map_exit_deficit": 6,  # rounds behind in map 2
         "hold_to_resolve_margin": 0,
-        "pre_match_mandatory_exit_min": 0,
         "match_duration_hours": 2.0,
         "score_volatility_per_round": 0.015,
         "score_volatility_per_map": 0.12,
@@ -242,7 +231,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": False,
         "objective_exit": True,
         "hold_to_resolve_margin": 0,
-        "pre_match_mandatory_exit_min": 0,
         "match_duration_hours": 1.5,
         "score_volatility_per_tower": 0.02,
         "score_volatility_per_dragon": 0.03,
@@ -261,7 +249,6 @@ SPORT_RULES: dict[str, dict] = {
         "halftime_exit": False,
         "objective_exit": True,
         "hold_to_resolve_margin": 0,
-        "pre_match_mandatory_exit_min": 0,
         "match_duration_hours": 2.5,
         "score_volatility_per_tower": 0.015,
         "score_volatility_per_roshan": 0.04,
@@ -329,7 +316,6 @@ DEFAULT_RULES: dict = {
     "reentry_max_elapsed_pct": 0.65,
     "halftime_exit": False,
     "hold_to_resolve_margin": 0,
-    "pre_match_mandatory_exit_min": 15,
     "match_duration_hours": 2.0,
     "score_volatility_per_event": 0.05,
     "comeback_probability": "medium",

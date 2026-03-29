@@ -215,8 +215,10 @@ class ExitMonitor:
         result: list[tuple[str, str]] = []
         cfg = self.config
         seen_cids: set[str] = set()
+        _all_triggered: dict[str, list[str]] = {}
 
         def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
             if cid not in seen_cids and cid not in self._exiting_set:
                 result.append((cid, reason))
                 seen_cids.add(cid)
@@ -301,9 +303,11 @@ class ExitMonitor:
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
 
-        # 5. Pre-match exits (mandatory exit before match starts)
-        for cid in self.portfolio.check_pre_match_exits(minutes_before=30):
-            _add(cid, "pre_match_exit")
+        for cid, rules in _all_triggered.items():
+            if len(rules) > 1:
+                winner = rules[0]
+                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
+                             cid[:20], winner, rules[1:])
 
         return result
 
@@ -317,8 +321,10 @@ class ExitMonitor:
         result: list[tuple[str, str]] = []
         cfg = self.config
         seen_cids: set[str] = set()
+        _all_triggered: dict[str, list[str]] = {}
 
         def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
             if cid not in seen_cids and cid not in self._exiting_set:
                 result.append((cid, reason))
                 seen_cids.add(cid)
@@ -378,6 +384,12 @@ class ExitMonitor:
                     pos.peak_price = ttp_result["peak_price"]
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
+
+        for cid, rules in _all_triggered.items():
+            if len(rules) > 1:
+                winner = rules[0]
+                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
+                             cid[:20], winner, rules[1:])
 
         return result
 
