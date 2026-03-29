@@ -619,3 +619,97 @@ class TestMomentumTighteningV2:
         result = check_match_exit(data)
         assert result["momentum_tighten"] is True
         assert result["momentum_multiplier"] == 0.75  # Only moderate -- need 5+ cycles for 0.60
+
+
+class TestUpsetExemptions:
+    """Upset positions should be exempt from graduated SL and never-in-profit guard."""
+
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+    def test_upset_exempt_from_graduated_sl(self):
+        """Upset positions should never trigger graduated SL."""
+        from src.match_exit import check_match_exit
+        # 85% elapsed on CS2 BO3 (130 min) = ~110 min
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.10, current_price=0.06,
+            match_start_iso=self._match_started_ago(110),
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=False, peak_pnl_pct=0.0,
+            consecutive_down_cycles=6, cumulative_drop=0.04,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False or "graduated" not in result.get("layer", "")
+
+    def test_upset_forced_exit_holds_above_60c(self):
+        """Upset at 92% elapsed with price >= 60c should HOLD (became favorite)."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.10, current_price=0.65,
+            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=True, peak_pnl_pct=5.50,
+            consecutive_down_cycles=0, cumulative_drop=0.0,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False  # Should HOLD
+
+    def test_upset_forced_exit_takes_profit_50_to_60c(self):
+        """Upset at 92% elapsed with price 50-60c should take profit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.10, current_price=0.55,
+            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=True, peak_pnl_pct=4.50,
+            consecutive_down_cycles=0, cumulative_drop=0.0,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_take_profit"
+
+    def test_upset_forced_exit_below_50c(self):
+        """Upset at 92% elapsed with price below 50c should force exit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.10, current_price=0.12,
+            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=False, peak_pnl_pct=0.20,
+            consecutive_down_cycles=0, cumulative_drop=0.0,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_forced_exit"
+
+    def test_upset_exempt_from_never_in_profit(self):
+        """Upset positions should never trigger never-in-profit guard."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.10, current_price=0.09,
+            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=False, peak_pnl_pct=0.0,
+            consecutive_down_cycles=0, cumulative_drop=0.01,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False or "never_in_profit" not in result.get("layer", "")
+
+    def test_penny_exempt_from_never_in_profit(self):
+        """Penny positions should never trigger never-in-profit guard."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="penny",
+            entry_price=0.02, current_price=0.015,
+            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
+            slug="cs2-test", number_of_games=3,
+            ever_in_profit=False, peak_pnl_pct=0.0,
+            consecutive_down_cycles=0, cumulative_drop=0.005,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False or "never_in_profit" not in result.get("layer", "")
