@@ -96,7 +96,7 @@ class VolatilitySwingConfig(BaseModel):
     take_profit_pct: float = 0.60
     tp_floor: float = 0.30
     tp_ceiling: float = 1.00
-    reserved_slots: int = 5
+    reserved_slots: int = 3
     max_concurrent: int = 5
     max_token_price: float = 0.50
     min_token_price: float = 0.10
