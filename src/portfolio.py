@@ -282,9 +282,8 @@ class Portfolio:
         slug = (pos.slug or "").lower()
         return any(k in q or k in slug for k in ("o/u", "total", "spread"))
 
-    def check_stop_losses(self, stop_loss_pct: float = 0.40,
-                          vs_stop_loss_pct: float = 0.20,
-                          esports_stop_loss_pct: float = 0.40) -> List[str]:
+    def check_stop_losses(self, stop_loss_pct: float = 0.30,
+                          vs_stop_loss_pct: float = 0.20) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():
             # Skip if price was never updated (stale 0.0 -> fake -100% PnL)
@@ -433,9 +432,8 @@ class Portfolio:
         return triggered
 
     def check_take_profits(self, take_profit_pct: float = 0.40,
-                           vs_take_profit_pct: float = 1.0,
-                           vs_tp_floor: float = 0.50,
-                           vs_tp_ceiling: float = 2.00) -> List[str]:
+                           vs_tp_floor: float = 0.30,
+                           vs_tp_ceiling: float = 1.00) -> List[str]:
         # Dynamic take-profit based on confidence + conviction
         confidence_tp = {
             "C": take_profit_pct,                  # C -> take profit early (40%)
@@ -535,7 +533,7 @@ class Portfolio:
                 # V2: Decay AI target toward market price as match progresses
                 decayed_target = get_decayed_ai_target(ai_target, current, elapsed_pct)
                 edge_tp_price = decayed_target * 0.85
-                eff_entry = (1 - pos.entry_price) if (pos.direction and 'NO' in pos.direction) else pos.entry_price
+                eff_entry = effective_price(pos.entry_price, pos.direction)
                 if current >= edge_tp_price and current > eff_entry * 1.10:
                     triggered.append(cid)
                     logger.info("Edge TP (underdog): %s | price=%.0f¢ -> AI target %.0f¢ (85%%=%.0f¢) | +%.1f%%",

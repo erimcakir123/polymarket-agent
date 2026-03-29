@@ -99,7 +99,6 @@ src/
   outcome_tracker.py — Post-exit market tracking
   sanity_check.py    — AI output validation
   price_history.py   — CLOB price history on close
-  live_dip_entry.py  — Live dip buying from stock
 ```
 
 ## Environment

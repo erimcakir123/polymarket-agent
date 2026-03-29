@@ -63,11 +63,11 @@ class RiskConfig(BaseModel):
     max_positions: int = 20
     correlation_cap_pct: float = 0.30
     stop_loss_pct: float = 0.30
+    near_stop_loss_multiplier: float = 0.83  # Shorten cycle when PnL nears SL
     take_profit_pct: float = 0.40
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     drawdown_halt_pct: float = 0.50
-    esports_stop_loss_pct: float = 0.50
     trailing_stop_tiers: List[TrailingStopTier] = []
 
     # Re-entry (#6, #12)

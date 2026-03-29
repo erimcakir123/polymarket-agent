@@ -193,7 +193,7 @@ def get_graduated_max_loss(
         base = 0.40
     else:
         # Find matching tier (sorted descending, first match wins)
-        base = 0.40  # default
+        base = _BASE_TIERS[-1][1]  # fallback to widest tier
         for threshold, loss in _BASE_TIERS:
             if elapsed_pct >= threshold:
                 base = loss

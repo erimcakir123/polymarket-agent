@@ -192,15 +192,11 @@ class ExitMonitor:
 
     # ── Cycle exit checks ─────────────────────────────────────────────────
 
-    def check_exits(
-        self,
-        match_states: dict,
-        cycle_count: int,
-    ) -> list[tuple[str, str]]:
-        """Run all exit detectors. Return (cid, reason) list.
+    def _common_exit_checks(self) -> tuple[list[tuple[str, str]], set[str], dict[str, list[str]]]:
+        """Shared exit logic for both heavy and light cycles.
 
-        Agent calls _exit_position(cid, reason) for each returned pair.
-        Called once per heavy cycle.
+        Returns (result_list, seen_cids, all_triggered) for callers to extend.
+        Runs: match-aware exits, stop-losses, consensus thesis, trailing TP (non-VS).
         """
         from src.trailing_tp import calculate_trailing_tp
 
@@ -247,16 +243,10 @@ class ExitMonitor:
                 if pos.entry_reason == "upset":
                     upset_cfg = cfg.upset_hunter
                     eff_cur = effective_price(pos.current_price, pos.direction)
-                    # Upset below promotion price: skip trailing TP entirely
-                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
                     if eff_cur < upset_cfg.promotion_price:
                         continue  # No trailing TP for unpromoted upsets
-                    # Promoted to core: use core trailing TP params
-                    act_pct = ttp_cfg.activation_pct
-                    trail_dist = ttp_cfg.trail_distance
-                else:
-                    act_pct = ttp_cfg.activation_pct
-                    trail_dist = ttp_cfg.trail_distance
+                act_pct = ttp_cfg.activation_pct
+                trail_dist = ttp_cfg.trail_distance
                 ttp_result = calculate_trailing_tp(
                     entry_price=pos.entry_price,
                     current_price=pos.current_price,
@@ -271,7 +261,38 @@ class ExitMonitor:
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
 
-        # 4. VS trailing stop (tighten near resolution)
+        return result, seen_cids, _all_triggered
+
+    @staticmethod
+    def _log_exit_details(_all_triggered: dict[str, list[str]]) -> None:
+        for cid, rules in _all_triggered.items():
+            if len(rules) > 1:
+                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
+                             cid[:20], rules[0], rules[1:])
+
+    def check_exits(
+        self,
+        match_states: dict,
+        cycle_count: int,
+    ) -> list[tuple[str, str]]:
+        """Run all exit detectors. Return (cid, reason) list.
+
+        Agent calls _exit_position(cid, reason) for each returned pair.
+        Called once per heavy cycle. Includes VS trailing stop (not in light cycle).
+        """
+        from src.trailing_tp import calculate_trailing_tp
+
+        result, seen_cids, _all_triggered = self._common_exit_checks()
+        cfg = self.config
+
+        def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
+            if cid not in seen_cids and cid not in self._exiting_set:
+                result.append((cid, reason))
+                seen_cids.add(cid)
+
+        # 4. VS trailing stop (heavy cycle only — tighten near resolution)
+        ttp_cfg = cfg.trailing_tp
         if ttp_cfg.enabled:
             for cid, pos in list(self.portfolio.positions.items()):
                 if not pos.volatility_swing:
@@ -295,94 +316,16 @@ class ExitMonitor:
                 if ttp_result["action"] == "EXIT":
                     _add(cid, f"trailing_tp: {ttp_result['reason']}")
 
-        for cid, rules in _all_triggered.items():
-            if len(rules) > 1:
-                winner = rules[0]
-                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
-                             cid[:20], winner, rules[1:])
-
+        self._log_exit_details(_all_triggered)
         return result
 
     def check_exits_light(self, match_states: dict) -> list[tuple[str, str]]:
         """Subset of exit checks for light cycles (price-only, no AI).
 
-        Light cycles run every 2 minutes. Runs match-aware, stop-loss, trailing TP.
+        Light cycles run every 2 minutes. Same as heavy minus VS trailing stop.
         """
-        from src.trailing_tp import calculate_trailing_tp
-
-        result: list[tuple[str, str]] = []
-        cfg = self.config
-        seen_cids: set[str] = set()
-        _all_triggered: dict[str, list[str]] = {}
-
-        def _add(cid: str, reason: str) -> None:
-            _all_triggered.setdefault(cid, []).append(reason)
-            if cid not in seen_cids and cid not in self._exiting_set:
-                result.append((cid, reason))
-                seen_cids.add(cid)
-
-        # Match-aware exits
-        match_exit_results = self.portfolio.check_match_aware_exits()
-        for mexr in match_exit_results:
-            cid = mexr["condition_id"]
-            if mexr.get("exit") and cid in self.portfolio.positions:
-                _add(cid, f"match_exit_{mexr['layer']}")
-
-        # Stop-losses
-        vs_cfg = cfg.volatility_swing
-        for cid in self.portfolio.check_stop_losses(
-            cfg.risk.stop_loss_pct,
-            vs_stop_loss_pct=vs_cfg.stop_loss_pct,
-        ):
-            _add(cid, "stop_loss")
-
-        # Consensus thesis invalidation
-        for cid in self.portfolio.check_consensus_thesis():
-            _add(cid, "consensus_thesis_invalidated")
-
-        # Trailing TP (non-VS positions)
-        ttp_cfg = cfg.trailing_tp
-        if ttp_cfg.enabled:
-            for cid, pos in list(self.portfolio.positions.items()):
-                if pos.volatility_swing:
-                    continue
-                if cid in seen_cids:
-                    continue
-                # Upset positions: skip trailing TP below promotion price,
-                # use core params above it (promoted to core position)
-                if pos.entry_reason == "upset":
-                    upset_cfg = cfg.upset_hunter
-                    eff_cur = effective_price(pos.current_price, pos.direction)
-                    # Upset below promotion price: skip trailing TP entirely
-                    # Only scale-out (25¢/35¢ tiers) and hold-to-resolve apply below this price
-                    if eff_cur < upset_cfg.promotion_price:
-                        continue  # No trailing TP for unpromoted upsets
-                    # Promoted to core: use core trailing TP params
-                    act_pct = ttp_cfg.activation_pct
-                    trail_dist = ttp_cfg.trail_distance
-                else:
-                    act_pct = ttp_cfg.activation_pct
-                    trail_dist = ttp_cfg.trail_distance
-                ttp_result = calculate_trailing_tp(
-                    entry_price=pos.entry_price,
-                    current_price=pos.current_price,
-                    direction=pos.direction,
-                    peak_price=pos.peak_price,
-                    trailing_active=pos.peak_pnl_pct >= act_pct,
-                    activation_pct=act_pct,
-                    trail_distance=trail_dist,
-                )
-                if ttp_result["peak_price"] > pos.peak_price:
-                    pos.peak_price = ttp_result["peak_price"]
-                if ttp_result["action"] == "EXIT":
-                    _add(cid, f"trailing_tp: {ttp_result['reason']}")
-
-        for cid, rules in _all_triggered.items():
-            if len(rules) > 1:
-                winner = rules[0]
-                logger.info("EXIT_DETAIL: %s | fired=%s | also_triggered=%s",
-                             cid[:20], winner, rules[1:])
-
+        result, _seen_cids, _all_triggered = self._common_exit_checks()
+        self._log_exit_details(_all_triggered)
         return result
 
     # ── Double-exit guard ─────────────────────────────────────────────────

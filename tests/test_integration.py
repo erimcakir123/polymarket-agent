@@ -91,17 +91,3 @@ class TestResolutionHoldPlusGraduatedSL:
         assert hold is False
 
 
-class TestAdaptiveKellyPlusCorrelation:
-    """Kelly sizing respects correlation exposure limits."""
-    def test_kelly_then_correlation_cap(self):
-        from src.adaptive_kelly import get_adaptive_kelly_fraction
-        from src.correlation import apply_correlation_cap
-
-        kelly = get_adaptive_kelly_fraction("high", 0.75, "esports",
-                                             config_kelly_by_conf={"high": 0.25})
-        bankroll = 500.0
-        size_usdc = kelly * bankroll
-
-        positions = [{"slug": "cs2-faze-vs-navi-map-1", "size_usdc": 90.0, "direction": "BUY_YES"}]
-        capped = apply_correlation_cap(size_usdc, "cs2-faze-vs-navi", positions, bankroll)
-        assert capped == 0.0

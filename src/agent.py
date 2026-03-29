@@ -273,7 +273,7 @@ class Agent:
                     self.cycle_timer.signal_market_aware(active_count, len(self.portfolio.positions))
 
                 for pos in self.portfolio.positions.values():
-                    if pos.unrealized_pnl_pct < -(self.config.risk.stop_loss_pct * 0.83):
+                    if pos.unrealized_pnl_pct < -(self.config.risk.stop_loss_pct * self.config.risk.near_stop_loss_multiplier):
                         self.cycle_timer.signal_near_stop_loss()
                         break
 
@@ -1665,6 +1665,7 @@ class Agent:
 
     def _save_exited_market(self, cid: str) -> None:
         self._exited_markets.add(cid)
+        self._pre_match_prices.pop(cid, None)  # Clean stale cache entry
         try:
             Path("logs/exited_markets.json").write_text(json.dumps(list(self._exited_markets)), encoding="utf-8")
         except Exception:
@@ -1919,6 +1920,7 @@ class Agent:
 
         # Auto-remove positions whose markets no longer exist (stale/test data)
         for cid in stale_cids:
+            self._pre_match_prices.pop(cid, None)  # Clean stale cache entry
             pos = self.portfolio.remove_position(cid)
             if pos:
                 logger.warning("Removed stale position: %s (not on Polymarket)", pos.slug)
