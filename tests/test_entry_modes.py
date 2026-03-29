@@ -50,6 +50,8 @@ def _make_gate():
     gate.trade_log = MagicMock()
     gate._early_market_ids = set()
     gate._analyzed_market_ids = {}
+    gate._espn_odds_cache = {}
+    gate._confidence_c_cids = set()
     return gate
 
 
