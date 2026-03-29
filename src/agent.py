@@ -942,9 +942,8 @@ class Agent:
 
             if decision["action"] == "BLOCK":
                 logger.debug("Farming re-entry BLOCK: %s | %s", candidate.slug[:35], decision["reason"])
-                # Permanent blocks -> remove from pool
-                if "Max re-entries" in decision["reason"] or "Thesis broken" in decision["reason"]:
-                    self.reentry_pool.remove(cid)
+                # All BLOCKs are permanent -> remove from pool
+                self.reentry_pool.remove(cid)
                 continue
 
             if decision["action"] == "WAIT":
