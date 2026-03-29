@@ -1,17 +1,23 @@
 import json, pytest
 from unittest.mock import patch, MagicMock
 
+def _future_date_iso(days: int = 5) -> str:
+    """Return ISO date string N days from now."""
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 SAMPLE_MARKET = {
     "conditionId": "0xabc123",
-    "question": "Will Trump win 2028?",
-    "slug": "will-trump-win-2028",
+    "question": "Will Trump win?",
+    "slug": "will-trump-win",
     "outcomePrices": json.dumps(["0.62", "0.38"]),
     "outcomes": json.dumps(["Yes", "No"]),
     "clobTokenIds": json.dumps(["tok_yes_1", "tok_no_1"]),
     "volume24hr": "120000",
     "liquidity": "25000",
     "tags": json.dumps([{"label": "politics"}]),
-    "endDate": "2028-11-15T00:00:00Z",
+    "endDate": _future_date_iso(5),
     "description": "Resolution based on...",
     "eventId": "evt_001",
 }
@@ -37,7 +43,7 @@ def test_fetch_markets_parses_gamma_response(mock_get):
 def test_fetch_markets_filters_low_volume(mock_get):
     from src.market_scanner import MarketScanner
     from src.config import ScannerConfig
-    low_vol = {**SAMPLE_MARKET, "volume24hr": "1000", "liquidity": "500"}
+    low_vol = {**SAMPLE_MARKET, "volume24hr": "1000", "liquidity": "50"}
     mock_resp = MagicMock()
     mock_resp.json.return_value = [low_vol]
     mock_resp.raise_for_status = MagicMock()

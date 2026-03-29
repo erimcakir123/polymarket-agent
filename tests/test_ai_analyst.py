@@ -24,12 +24,13 @@ SAMPLE_MARKET = MarketData(
 )
 
 
-def _mock_claude_response(prob: float, confidence: str = "medium"):
+def _mock_claude_response(prob: float, confidence: str = "B-"):
     resp = MagicMock()
     resp.content = [MagicMock()]
     resp.content[0].text = json.dumps({
         "probability": prob, "confidence": confidence,
-        "reasoning": "test reasoning",
+        "reasoning_pro": "test reasoning pro",
+        "reasoning_con": "test reasoning con",
         "key_evidence_for": ["a"], "key_evidence_against": ["b"],
     })
     resp.usage = MagicMock()
@@ -39,17 +40,17 @@ def _mock_claude_response(prob: float, confidence: str = "medium"):
 
 
 @patch.object(ai_analyst_mod.anthropic, "Anthropic")
-def test_dual_prompt_averages(mock_cls):
+def test_unified_prompt_analysis(mock_cls):
+    """Single unified call (replaced old dual-prompt)."""
     client = MagicMock()
     mock_cls.return_value = client
     client.messages.create.side_effect = [
-        _mock_claude_response(0.70, "high"),
-        _mock_claude_response(0.60, "medium"),
+        _mock_claude_response(0.70, "A"),
     ]
     analyst = AIAnalyst(AIConfig())
     result = analyst.analyze_market(SAMPLE_MARKET)
-    assert 0.60 <= result.ai_probability <= 0.70
-    assert result.confidence in ("low", "medium", "high")
+    assert result.ai_probability == pytest.approx(0.70)
+    assert result.confidence in ("C", "B-", "B+", "A")
 
 
 @patch.object(ai_analyst_mod.anthropic, "Anthropic")
@@ -57,8 +58,8 @@ def test_batch_analysis(mock_cls):
     client = MagicMock()
     mock_cls.return_value = client
     client.messages.create.side_effect = [
-        _mock_claude_response(0.65), _mock_claude_response(0.55),
-        _mock_claude_response(0.80), _mock_claude_response(0.70),
+        _mock_claude_response(0.65),
+        _mock_claude_response(0.80),
     ]
     analyst = AIAnalyst(AIConfig(batch_size=5))
     results = analyst.analyze_batch([SAMPLE_MARKET, SAMPLE_MARKET])
@@ -66,17 +67,17 @@ def test_batch_analysis(mock_cls):
 
 
 @patch.object(ai_analyst_mod.anthropic, "Anthropic")
-def test_budget_exhausted_returns_market_price(mock_cls):
+def test_budget_exhausted_returns_neutral(mock_cls):
     client = MagicMock()
     mock_cls.return_value = client
     analyst = AIAnalyst(AIConfig(monthly_budget_usd=0.001))
     # Simulate having already spent the budget
     analyst._month_cost_usd = 0.01
     result = analyst.analyze_market(SAMPLE_MARKET)
-    # Should return market price without calling API
-    assert result.ai_probability == SAMPLE_MARKET.yes_price
-    assert result.confidence == "low"
-    assert "Budget exhausted" in result.reasoning_pro
+    # Should return neutral 0.5 without calling API
+    assert result.ai_probability == 0.5
+    assert result.confidence == "C"
+    assert "BUDGET_EXHAUSTED" in result.reasoning_pro
     client.messages.create.assert_not_called()
 
 
@@ -85,10 +86,13 @@ def test_cost_tracking_accumulates(mock_cls):
     client = MagicMock()
     mock_cls.return_value = client
     client.messages.create.side_effect = [
-        _mock_claude_response(0.70), _mock_claude_response(0.60),
+        _mock_claude_response(0.70),
     ]
     analyst = AIAnalyst(AIConfig(monthly_budget_usd=12.0))
+    # Reset any disk-loaded spending so we measure only this call
+    analyst._month_cost_usd = 0.0
+    analyst._sprint_cost_usd = 0.0
     analyst.analyze_market(SAMPLE_MARKET)
-    # 2 calls × (500 input × $3/M + 200 output × $15/M) = 2 × $0.0045 = $0.009
-    assert analyst._month_cost_usd == pytest.approx(0.009)
-    assert analyst.budget_remaining_usd == pytest.approx(12.0 - 0.009)
+    # 1 unified call: 500 input × $3/M + 200 output × $15/M = $0.0045
+    assert analyst._month_cost_usd == pytest.approx(0.0045)
+    assert analyst.budget_remaining_usd == pytest.approx(12.0 - 0.0045)

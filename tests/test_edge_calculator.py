@@ -27,14 +27,18 @@ def test_hold_when_no_edge():
 def test_high_confidence_lower_threshold():
     from src.edge_calculator import calculate_edge
     from src.models import Direction
-    direction, _ = calculate_edge(0.55, 0.50, min_edge=0.06, confidence="high")
+    # "A" confidence uses 0.75 multiplier -> threshold = 0.06 * 0.75 = 0.045
+    # edge = 0.55 - 0.50 = 0.05 > 0.045 -> BUY_YES
+    direction, _ = calculate_edge(0.55, 0.50, min_edge=0.06, confidence="A")
     assert direction == Direction.BUY_YES
 
 
 def test_low_confidence_higher_threshold():
     from src.edge_calculator import calculate_edge
     from src.models import Direction
-    direction, _ = calculate_edge(0.57, 0.50, min_edge=0.06, confidence="low")
+    # "C" confidence uses 1.5 multiplier -> threshold = 0.06 * 1.5 = 0.09
+    # edge = 0.57 - 0.50 = 0.07 < 0.09 -> HOLD
+    direction, _ = calculate_edge(0.57, 0.50, min_edge=0.06, confidence="C")
     assert direction == Direction.HOLD
 
 

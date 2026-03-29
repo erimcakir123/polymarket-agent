@@ -29,11 +29,14 @@ def test_take_profit_triggered():
 
 def test_high_water_mark():
     from src.portfolio import Portfolio
-    pf = Portfolio(initial_bankroll=100.0)
-    pf.update_bankroll(150.0)
-    assert pf.high_water_mark == 150.0
-    pf.update_bankroll(120.0)
-    assert pf.high_water_mark == 150.0  # doesn't decrease
+    from unittest.mock import patch
+    with patch.object(Portfolio, "_load_positions"), \
+         patch.object(Portfolio, "_load_realized"):
+        pf = Portfolio(initial_bankroll=100.0)
+        pf.update_bankroll(150.0)
+        assert pf.high_water_mark == 150.0
+        pf.update_bankroll(120.0)
+        assert pf.high_water_mark == 150.0  # doesn't decrease
 
 
 def test_drawdown_breaker():
