@@ -2,8 +2,9 @@
 
 Responsibilities:
   - Initialize all modules (entry_gate, exit_monitor, portfolio, executor, etc.)
-  - run_cycle(): heavy cycle -- entry + exit
-  - run_light_cycle(): price-only cycle
+  - run_cycle(): heavy cycle -- scanning, AI analysis, upset/early/penny entries
+  - run_light_cycle(): fast cycle (5s) -- exits, live_dip, momentum, farming re-entry,
+    scale-outs (with per-strategy cooldowns to avoid spamming)
   - _exit_position(): execute position exit (reentry pool, blacklist, logging)
   - _check_farming_reentry(): reentry pool check (no AI cost)
   - run(): main loop
@@ -54,6 +55,14 @@ _NEVER_STOCK_EXITS = frozenset({
 })
 _NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "early_penny_")
 
+# Light-cycle cooldowns: strategy_name → ticks before next run (1 tick = 5s)
+_LIGHT_COOLDOWNS = {
+    "live_dip": 60,        # 5 min (60 × 5s)
+    "momentum": 36,        # 3 min (36 × 5s)
+    "farming_reentry": 24, # 2 min (24 × 5s)
+    "scale_out": 12,       # 1 min (12 × 5s)
+}
+
 
 class Agent:
     """Thin orchestrator. Delegates entry to EntryGate, exit detection to ExitMonitor."""
@@ -69,6 +78,8 @@ class Agent:
         self.consecutive_api_failures = 0
         self.last_cycle_has_live_clob = False
         self._last_candidate_count = 0
+        self.light_cycle_count: int = 0
+        self._light_cooldowns: dict[str, int] = {}  # strategy_name → expires_at_light_tick
 
         # Exit infrastructure (owned by agent -- _exit_position needs these)
         self._exit_cooldowns: dict[str, int] = {}
@@ -327,10 +338,32 @@ class Agent:
 
         # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self._handle_hold_revokes()
-        self._process_scale_outs()
 
-        # Farming re-entry in light cycle too (no AI cost, fast re-entry)
-        self._check_farming_reentry()
+        self.light_cycle_count += 1
+
+        # --- Light cycle action strategies (with per-strategy cooldowns) ---
+        # NOTE: _pre_match_prices is populated by heavy cycle only.
+        # Light cycle reads this dict — NEVER writes.
+        held_events = self._get_held_event_ids()
+
+        if self._light_cooldown_ready("scale_out"):
+            self._process_scale_outs()
+            self._set_light_cooldown("scale_out")
+
+        if self._light_cooldown_ready("farming_reentry"):
+            entered = self._check_farming_reentry()
+            if entered:
+                self._set_light_cooldown("farming_reentry")
+
+        if self._light_cooldown_ready("live_dip"):
+            entered = self._check_live_dip(held_events)
+            if entered:
+                self._set_light_cooldown("live_dip")
+
+        if self._light_cooldown_ready("momentum"):
+            entered = self._check_live_momentum(held_events, match_states)
+            if entered:
+                self._set_light_cooldown("momentum")
 
         # Persist portfolio snapshot so dashboard sees real-time PnL
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
@@ -407,7 +440,7 @@ class Agent:
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self._exit_position(cid, reason)
         self._handle_hold_revokes()
-        self._process_scale_outs()
+        # NOTE: _process_scale_outs() moved to light cycle with cooldown
         self._sync_ws_subscriptions()
 
         # Scout + Entry: fresh scan (analyze=True)
@@ -439,14 +472,10 @@ class Agent:
             exited_markets=self._exited_markets,
         )
 
-        # Farming re-entry (no AI, uses saved probability)
-        self._check_farming_reentry()
-
-        # Upset hunter, live dip, live momentum -- all skip when entries paused
+        # NOTE: farming_reentry, live_dip, live_momentum, scale_outs moved to light cycle
+        # Upset hunter stays in heavy cycle (needs fresh scan data + AI analysis)
         if entries_allowed:
             self._check_upset_hunter(fresh_markets, bankroll)
-            self._check_live_dip(fresh_markets, bankroll)
-            self._check_live_momentum(fresh_markets, bankroll, match_states)
 
         # Check outcomes + log
         self._check_tracked_outcomes()
@@ -779,6 +808,21 @@ class Agent:
         )
         return True
 
+    # ── Light-cycle cooldown helpers ──────────────────────────────────────
+
+    def _light_cooldown_ready(self, strategy: str) -> bool:
+        """Check if strategy is off cooldown in light cycle."""
+        return self.light_cycle_count >= self._light_cooldowns.get(strategy, 0)
+
+    def _set_light_cooldown(self, strategy: str) -> None:
+        """Set cooldown for strategy after action."""
+        ticks = _LIGHT_COOLDOWNS.get(strategy, 0)
+        self._light_cooldowns[strategy] = self.light_cycle_count + ticks
+
+    def _get_held_event_ids(self) -> set[str]:
+        """Get event IDs of all currently held positions. Prevents same-event dual-side."""
+        return {p.event_id for p in self.portfolio.positions.values()}
+
     # ── Exposure guard ─────────────────────────────────────────────────────
 
     def _check_exposure_limit(self, candidate_size: float) -> bool:
@@ -791,10 +835,11 @@ class Agent:
 
     # ── Farming re-entry ──────────────────────────────────────────────────
 
-    def _check_farming_reentry(self) -> None:
+    def _check_farming_reentry(self) -> bool:
         """Unified farming re-entry -- check pool for dip opportunities (no AI cost).
 
         Replaces old spike_reentry and scouted_reentry with a 3-tier system.
+        Returns True if any re-entry was made.
         """
         self.reentry_pool.cleanup_expired(self.cycle_count)
 
@@ -805,7 +850,7 @@ class Agent:
             self._last_reentry_reset_date = now_utc.date()
 
         if not self.reentry_pool.candidates:
-            return
+            return False
 
         held_event_ids = {
             p.event_id for p in self.portfolio.positions.values()
@@ -817,6 +862,7 @@ class Agent:
         current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
         current_normal = self.portfolio.active_position_count - current_vs
 
+        entered = False
         for cid, candidate in list(self.reentry_pool.candidates.items()):
             # Cooldown check
             if self._exit_cooldowns.get(cid, 0) > self.cycle_count:
@@ -978,14 +1024,25 @@ class Agent:
                 f"_No AI call -- using saved analysis_"
             )
             self.bets_since_approval += 1
+            entered = True
+
+        return entered
 
     # ── Live dip & momentum ─────────────────────────────────────────────
 
-    def _check_live_dip(self, fresh_markets: list, bankroll: float) -> None:
-        """Enter when favorite's market price drops 10%+ (no ESPN, pure price)."""
-        if not fresh_markets:
-            return
+    def _check_live_dip(self, held_events: set[str] | None = None) -> bool:
+        """Enter when favorite's market price drops 10%+ (no ESPN, pure price).
 
+        Called from light cycle with cooldown. Uses cached _pre_match_prices
+        and fetches current prices from scanner.
+        Returns True if any entry was made.
+        """
+        # Fetch fresh market data for price comparison
+        fresh_markets = self.scanner.fetch()
+        if not fresh_markets:
+            return False
+
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         cfg = self.config.live_momentum  # Uses live_momentum config for max_concurrent
         min_drop_pct = 0.10
 
@@ -998,11 +1055,14 @@ class Agent:
         dip_count = sum(1 for p in self.portfolio.positions.values()
                         if getattr(p, "entry_reason", "") == "live_dip")
         if dip_count >= cfg.max_concurrent:
-            return
+            return False
 
-        # Pre-build event_id set for same-event check (once, not per-iteration)
-        _dip_existing_eids = {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        # Use provided held_events or build from portfolio
+        _dip_existing_eids = held_events if held_events is not None else (
+            {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        )
 
+        entered = False
         for m in fresh_markets:
             if self.portfolio.active_position_count >= self.config.risk.max_positions:
                 break
@@ -1023,9 +1083,10 @@ class Agent:
             if any(kw in _q or kw in _slug for kw in _non_ml):
                 continue
 
-            # Same-event dual-side check for live_dip
+            # Same-event dual-side check for live_dip (uses held_events from caller)
             _dip_eid = getattr(m, "event_id", "") or ""
             if _dip_eid and _dip_eid in _dip_existing_eids:
+                logger.info("SKIP same-event dedup: %s", _dip_eid)
                 continue
 
             pre_match = self._pre_match_prices.get(m.condition_id)
@@ -1099,6 +1160,7 @@ class Agent:
                 end_date_iso=getattr(m, "end_date_iso", "") or "",
             )
             dip_count += 1
+            entered = True
 
             self.trade_log.log({
                 "market": m.slug, "action": f"LIVE_DIP_{direction}",
@@ -1117,20 +1179,35 @@ class Agent:
                 f"📊 Pre-match: {pre_match:.0%} -> Now: {current_yes:.0%} (drop {drop_pct:.0%})\n"
                 f"💰 Size: ${size:.0f}"
             )
+        return entered
 
-    def _check_live_momentum(self, fresh_markets: list, bankroll: float, match_states: dict) -> None:
-        """Score-based probability re-estimation for live matches."""
+    def _check_live_momentum(self, held_events: set[str] | None = None, match_states: dict | None = None) -> bool:
+        """Score-based probability re-estimation for live matches.
+
+        Called from light cycle with cooldown. Fetches fresh market data internally.
+        Returns True if any entry was made.
+        """
         if not match_states:
-            return
+            return False
         from src.live_momentum import detect_momentum_opportunity, calculate_score_adjusted_probability
 
         cfg = self.config.live_momentum
         if not cfg.enabled:
-            return
+            return False
+
+        # Fetch fresh market data and bankroll for entries
+        fresh_markets = self.scanner.fetch()
+        bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
+
+        # Use provided held_events or build from portfolio
+        _mom_held_eids = held_events if held_events is not None else (
+            {getattr(p, "event_id", "") for p in self.portfolio.positions.values()} - {""}
+        )
 
         momentum_count = sum(1 for p in self.portfolio.positions.values()
                              if getattr(p, "entry_reason", "") == "momentum")
 
+        entered = False
         for cid, state in match_states.items():
             if not state:
                 continue
@@ -1164,11 +1241,18 @@ class Agent:
 
             # Find market in fresh_markets
             market = None
-            for m in fresh_markets:
-                if m.condition_id == cid:
-                    market = m
-                    break
+            if fresh_markets:
+                for m in fresh_markets:
+                    if m.condition_id == cid:
+                        market = m
+                        break
             if not market:
+                continue
+
+            # Same-event dual-side dedup
+            _mom_eid = getattr(market, "event_id", "") or ""
+            if _mom_eid and _mom_eid in _mom_held_eids:
+                logger.info("SKIP same-event dedup: %s", _mom_eid)
                 continue
 
             # Try both directions
@@ -1219,6 +1303,7 @@ class Agent:
                     end_date_iso=getattr(market, "end_date_iso", ""),
                 )
                 momentum_count += 1
+                entered = True
 
                 self.trade_log.log({
                     "market": market.slug, "action": f"MOMENTUM_{direction}",
@@ -1239,6 +1324,7 @@ class Agent:
                     f"💰 Size: ${size:.0f}"
                 )
                 break  # Only one direction per market
+        return entered
 
     # ── Upset Hunter & Penny scanners ─────────────────────────────────────
 
