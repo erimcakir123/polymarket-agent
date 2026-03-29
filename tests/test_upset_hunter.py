@@ -108,3 +108,77 @@ def test_pre_filter_no_candidate_when_price_out_of_range():
     ]
     candidates = pre_filter(markets, min_price=0.05, max_price=0.15)
     assert len(candidates) == 0
+
+
+def test_divergence_direction_aware_yes_side():
+    """YES-side divergence = odds_implied - yes_price."""
+    markets = [
+        MarketData(
+            condition_id="cid5",
+            question="Will Team D win?",
+            slug="team-d-win",
+            yes_price=0.10,
+            no_price=0.90,
+            yes_token_id="tok_yes",
+            no_token_id="tok_no",
+            volume_24h=50000,
+            liquidity=10000,
+            event_id="evt5",
+            odds_api_implied_prob=0.25,  # bookmaker says 25% YES
+        ),
+    ]
+    candidates = pre_filter(markets, min_price=0.05, max_price=0.15)
+    yes_candidates = [c for c in candidates if c.direction == "BUY_YES"]
+    assert len(yes_candidates) == 1
+    # divergence = 0.25 - 0.10 = 0.15
+    assert abs(yes_candidates[0].divergence - 0.15) < 1e-9
+
+
+def test_divergence_direction_aware_no_side():
+    """NO-side divergence = (1 - odds_implied) - no_price."""
+    markets = [
+        MarketData(
+            condition_id="cid6",
+            question="Will Team E win?",
+            slug="team-e-win",
+            yes_price=0.90,
+            no_price=0.10,
+            yes_token_id="tok_yes",
+            no_token_id="tok_no",
+            volume_24h=50000,
+            liquidity=10000,
+            event_id="evt6",
+            odds_api_implied_prob=0.75,  # bookmaker says 75% YES → 25% NO
+        ),
+    ]
+    candidates = pre_filter(markets, min_price=0.05, max_price=0.15)
+    no_candidates = [c for c in candidates if c.direction == "BUY_NO"]
+    assert len(no_candidates) == 1
+    # divergence = (1 - 0.75) - 0.10 = 0.15
+    assert abs(no_candidates[0].divergence - 0.15) < 1e-9
+
+
+def test_divergence_filters_per_side_independently():
+    """If YES divergence passes but NO divergence fails, only YES candidate emitted."""
+    # yes_price=0.10, odds_implied=0.25 → YES div = 0.15 (passes 0.05 threshold)
+    # no_price=0.90 (out of zone, won't produce NO candidate anyway)
+    # But test with both in zone:
+    markets = [
+        MarketData(
+            condition_id="cid7",
+            question="Close match?",
+            slug="close-match",
+            yes_price=0.10,
+            no_price=0.12,
+            yes_token_id="tok_yes",
+            no_token_id="tok_no",
+            volume_24h=50000,
+            liquidity=10000,
+            event_id="evt7",
+            odds_api_implied_prob=0.90,  # YES div = 0.90-0.10 = 0.80, NO div = 0.10-0.12 = -0.02
+        ),
+    ]
+    candidates = pre_filter(markets, min_price=0.05, max_price=0.15, min_odds_divergence=0.05)
+    # YES side should pass (div=0.80), NO side should fail (div=-0.02)
+    assert any(c.direction == "BUY_YES" for c in candidates)
+    assert not any(c.direction == "BUY_NO" for c in candidates)

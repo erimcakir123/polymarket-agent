@@ -86,13 +86,15 @@ def pre_filter(
                 if elapsed_pct is not None and elapsed_pct > 0.75:
                     continue
 
-        # Filter 2: Odds API divergence
+        # Filter 2: Odds API divergence (direction-aware)
         odds_implied = getattr(m, "odds_api_implied_prob", None)
-        divergence = None
+        # YES-side divergence: bookmaker_yes_prob - market_yes_price
+        yes_divergence = None
+        # NO-side divergence: bookmaker_no_prob - market_no_price
+        no_divergence = None
         if odds_implied is not None and odds_implied > 0:
-            divergence = odds_implied - m.yes_price
-            if divergence < min_odds_divergence:
-                continue
+            yes_divergence = odds_implied - m.yes_price
+            no_divergence = (1 - odds_implied) - no_price
 
         # Determine upset type
         if hours_left is not None and hours_left < 0:
@@ -102,44 +104,52 @@ def pre_filter(
 
         no_token_id = getattr(m, "no_token_id", "") or ""
 
-        # Emit candidate for each qualifying side
+        # Emit candidate for each qualifying side (with per-side divergence gate)
         if yes_in_zone:
-            candidates.append(UpsetCandidate(
-                condition_id=m.condition_id,
-                question=m.question,
-                slug=m.slug or "",
-                yes_price=m.yes_price,
-                yes_token_id=m.yes_token_id,
-                no_price=no_price,
-                no_token_id=no_token_id,
-                direction="BUY_YES",
-                volume_24h=m.volume_24h,
-                liquidity=m.liquidity,
-                odds_api_implied=odds_implied,
-                divergence=divergence,
-                hours_to_match=hours_left,
-                upset_type=upset_type,
-                event_id=getattr(m, "event_id", "") or "",
-            ))
+            # Gate: if odds data exists, YES divergence must meet threshold
+            if yes_divergence is not None and yes_divergence < min_odds_divergence:
+                pass  # skip YES side
+            else:
+                candidates.append(UpsetCandidate(
+                    condition_id=m.condition_id,
+                    question=m.question,
+                    slug=m.slug or "",
+                    yes_price=m.yes_price,
+                    yes_token_id=m.yes_token_id,
+                    no_price=no_price,
+                    no_token_id=no_token_id,
+                    direction="BUY_YES",
+                    volume_24h=m.volume_24h,
+                    liquidity=m.liquidity,
+                    odds_api_implied=odds_implied,
+                    divergence=yes_divergence,
+                    hours_to_match=hours_left,
+                    upset_type=upset_type,
+                    event_id=getattr(m, "event_id", "") or "",
+                ))
 
         if no_in_zone:
-            candidates.append(UpsetCandidate(
-                condition_id=m.condition_id,
-                question=m.question,
-                slug=m.slug or "",
-                yes_price=m.yes_price,
-                yes_token_id=m.yes_token_id,
-                no_price=no_price,
-                no_token_id=no_token_id,
-                direction="BUY_NO",
-                volume_24h=m.volume_24h,
-                liquidity=m.liquidity,
-                odds_api_implied=odds_implied,
-                divergence=divergence,
-                hours_to_match=hours_left,
-                upset_type=upset_type,
-                event_id=getattr(m, "event_id", "") or "",
-            ))
+            # Gate: if odds data exists, NO divergence must meet threshold
+            if no_divergence is not None and no_divergence < min_odds_divergence:
+                pass  # skip NO side
+            else:
+                candidates.append(UpsetCandidate(
+                    condition_id=m.condition_id,
+                    question=m.question,
+                    slug=m.slug or "",
+                    yes_price=m.yes_price,
+                    yes_token_id=m.yes_token_id,
+                    no_price=no_price,
+                    no_token_id=no_token_id,
+                    direction="BUY_NO",
+                    volume_24h=m.volume_24h,
+                    liquidity=m.liquidity,
+                    odds_api_implied=odds_implied,
+                    divergence=no_divergence,
+                    hours_to_match=hours_left,
+                    upset_type=upset_type,
+                    event_id=getattr(m, "event_id", "") or "",
+                ))
 
     candidates.sort(key=lambda c: c.divergence if c.divergence is not None else -1, reverse=True)
     logger.info("Upset hunter pre-filter: %d candidates from %d markets", len(candidates), len(markets))

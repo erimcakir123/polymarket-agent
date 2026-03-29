@@ -1275,7 +1275,11 @@ class Agent:
                 # Check AI confidence and edge
                 if estimate.confidence in ("C", "D"):
                     continue
-                ai_edge = estimate.ai_probability - c.yes_price
+                # ai_probability is P(YES). For BUY_NO, edge = P(NO) - no_price
+                if c.direction == "BUY_NO":
+                    ai_edge = (1 - estimate.ai_probability) - c.no_price
+                else:
+                    ai_edge = estimate.ai_probability - c.yes_price
                 if ai_edge < cfg.min_odds_divergence:
                     continue
 
@@ -1305,7 +1309,7 @@ class Agent:
 
             shares = size / order_price if order_price > 0 else 0
             ai_conf = estimate.confidence if estimate else "B-"
-            ai_prob = estimate.ai_probability if estimate else c.yes_price
+            ai_prob = estimate.ai_probability if estimate else (c.no_price if direction == "BUY_NO" else c.yes_price)
             # market_data may already be fetched for AI; fallback lookup if not
             if not market_data:
                 for m in fresh_markets:
