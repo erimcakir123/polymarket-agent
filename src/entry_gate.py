@@ -98,7 +98,7 @@ class EntryGate:
         self._eligible_cache_ts: float = 0.0
         self._seen_market_ids: set[str] = set()
         self._espn_odds_cache: dict[str, dict] = {}  # cid -> ESPN odds from discovery
-        self._confidence_c_cids: set[str] = set()  # Markets that got conf=C -- never re-analyze
+        self._confidence_c_attempts: dict[str, int] = {}  # cid -> how many times AI returned conf=C
         self._breaking_news_detected: bool = False
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
@@ -210,13 +210,14 @@ class EntryGate:
         # Active portfolio positions (don't re-analyze markets we already hold)
         _active_cids = set(self.portfolio.positions.keys())
 
-        # Skip stock-queued, already-analyzed, active positions, and conf=C blacklisted
+        # Skip stock-queued, already-analyzed, active positions, and conf=C with 2+ attempts
+        _c_blocked = {cid for cid, n in self._confidence_c_attempts.items() if n >= 2}
         markets = [
             m for m in markets
             if m.condition_id not in _stock_ids
             and m.condition_id not in self._seen_market_ids
             and m.condition_id not in _active_cids
-            and m.condition_id not in self._confidence_c_cids
+            and m.condition_id not in _c_blocked
         ]
 
         if not markets:
@@ -453,7 +454,7 @@ class EntryGate:
             if estimate.confidence in _CONF_SKIP:
                 logger.info("SKIP confidence: %s | conf=%s (insufficient data)",
                             market.slug[:35], estimate.confidence)
-                self._confidence_c_cids.add(cid)  # Blacklist -- don't re-analyze this session
+                self._confidence_c_attempts[cid] = self._confidence_c_attempts.get(cid, 0) + 1  # Block after 2 attempts
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Insufficient data (conf={estimate.confidence})",
