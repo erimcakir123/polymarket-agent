@@ -585,9 +585,10 @@ class Agent:
             if shares_to_sell < 1.0:
                 continue
 
-            # Execute partial sell
+            # Execute partial sell (disable hybrid to preserve exact share count)
             result = self.executor.place_order(
-                pos.token_id, "SELL", pos.current_price, shares_to_sell * pos.current_price,
+                pos.token_id, "SELL", pos.current_price,
+                shares_to_sell * pos.current_price, use_hybrid=False,
             )
             if not result or result.get("status") == "error":
                 continue
@@ -615,6 +616,9 @@ class Agent:
             if not hasattr(pos, "original_size_usdc") or pos.original_size_usdc is None:
                 pos.original_size_usdc = partial["original_size_usdc"]
 
+            # Record proceeds and realized PnL
+            self.portfolio.record_realized(partial["realized_pnl"])
+
             # Close dust remainder
             if partial["status"] == "CLOSE_REMAINDER":
                 self._exit_position(cid, "scale_out_final")
@@ -632,6 +636,10 @@ class Agent:
                 pos.slug[:35], so["tier"], shares_to_sell,
                 partial["realized_pnl"], partial["remaining_shares"],
             )
+
+        # Persist position changes to disk
+        if scale_outs:
+            self.portfolio._save_positions()
 
     def _try_demote_to_stock(self, pos, reason: str) -> bool:
         """Demote exited position back to candidate stock queue for re-entry.
@@ -1173,9 +1181,9 @@ class Agent:
                 continue  # only enrich candidates in price zone (save API calls)
             try:
                 odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
-                if odds and odds.get("bookmaker_avg_prob_a"):
+                if odds and odds.get("bookmaker_prob_a"):
                     # Use team A prob as YES implied (market question asks about team A winning)
-                    m.odds_api_implied_prob = odds["bookmaker_avg_prob_a"]
+                    m.odds_api_implied_prob = odds["bookmaker_prob_a"]
             except Exception:
                 pass  # Odds API unavailable -- filter will be skipped per spec
 

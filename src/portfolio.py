@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -706,6 +707,8 @@ class Portfolio:
                 "unrealized_pnl_pct": pos.unrealized_pnl_pct,
                 "entry_reason": pos.entry_reason,
                 "cycles_held": pos.cycles_held,
+                "sport_tag": pos.sport_tag,
+                "hold_hours": (datetime.now(timezone.utc) - pos.entry_timestamp).total_seconds() / 3600,
             }
 
             check = check_match_exit(data)
