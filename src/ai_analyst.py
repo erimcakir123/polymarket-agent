@@ -135,41 +135,12 @@ Confidence grades -- rate DATA AVAILABILITY, not your uncertainty about the resu
          Will be SKIPPED (no trade opened)."""
 
 
-DEVILS_ADVOCATE_PROMPT = """You are a skeptical risk analyst. Your ONLY job is to find reasons
-why this trade should NOT be taken. You are the last line of defense against bad trades.
-
-The AI analyst recommended: {direction} with {probability:.0%} probability, confidence {confidence}.
-
-Their reasoning FOR: {reasoning_pro}
-Their reasoning AGAINST: {reasoning_con}
-
-RULES:
-- Find 2-3 strong counter-arguments the analyst may have missed.
-- Consider: data quality, recency bias, overconfidence, market efficiency, timing risk.
-- If you find a CRITICAL flaw (the analyst is clearly wrong), respond with VETO.
-- If the analysis seems reasonable despite your concerns, respond with PASS.
-
-Respond with ONLY JSON:
-{{"decision": "VETO|PASS", "counter_arguments": ["...", "..."], "risk_level": "LOW|MEDIUM|HIGH"}}"""
-
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
-
-
 @dataclass
 class AIEstimate:
     ai_probability: float
     confidence: str
     reasoning_pro: str
     reasoning_con: str
-
-
-@dataclass
-class DevilsAdvocateResult:
-    """Result from Haiku Devil's Advocate veto check."""
-    vetoed: bool
-    counter_arguments: List[str]
-    risk_level: str  # LOW, MEDIUM, HIGH
-    cost_usd: float
 
 
 class AIAnalyst:
@@ -183,8 +154,6 @@ class AIAnalyst:
         self._sprint_cost_usd: float = 0.0
         self._alerted_thresholds: set = set()
         self._last_api_call: float = 0.0  # Rate limit tracker
-        self._da_vetoes: int = 0  # Devil's Advocate veto counter
-        self._da_passes: int = 0  # Devil's Advocate pass counter
         self._load_budget()
         self._reset_if_new_period()
 
@@ -570,93 +539,3 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
         logger.error("Could not parse JSON from Claude response: %s", text[:200])
         return None
 
-    def devils_advocate(
-        self, estimate: AIEstimate, direction: str, market: MarketData,
-    ) -> DevilsAdvocateResult:
-        """Run Haiku Devil's Advocate veto check for low-confidence trades.
-
-        Called for B- and C confidence trades. Haiku reviews the analysis
-        and can VETO the trade if it finds critical flaws.
-
-        Args:
-            estimate: The AI estimate to review
-            direction: "BUY_YES" or "BUY_NO"
-            market: Market data for context
-
-        Returns:
-            DevilsAdvocateResult with veto decision
-        """
-        if self.budget_exhausted:
-            logger.debug("DA skipped -- budget exhausted")
-            return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=0.0)
-
-        prompt = DEVILS_ADVOCATE_PROMPT.format(
-            direction=direction,
-            probability=estimate.ai_probability,
-            confidence=estimate.confidence,
-            reasoning_pro=estimate.reasoning_pro[:300],
-            reasoning_con=estimate.reasoning_con[:300],
-        )
-        context = f"Market: {market.question}\nSlug: {market.slug or 'N/A'}"
-
-        self._rate_limit()
-        try:
-            resp = self.client.messages.create(
-                model=HAIKU_MODEL,
-                max_tokens=256,
-                system="You are a skeptical risk analyst. Be brief and direct.",
-                messages=[{"role": "user", "content": f"{context}\n\n{prompt}"}],
-            )
-            # Track cost at Haiku rates ($0.80/$4 per MTok)
-            cost = (
-                resp.usage.input_tokens * 0.80 / 1_000_000
-                + resp.usage.output_tokens * 4.0 / 1_000_000
-            )
-            self._month_cost_usd += cost
-            self._sprint_cost_usd += cost
-            self._save_budget()
-            record_call("claude_haiku_da")
-
-            text = resp.content[0].text.strip() if resp.content else ""
-            result = self._parse_json_response(text)
-
-            if result is None:
-                logger.debug("DA parse failed -- defaulting to PASS")
-                return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=cost)
-
-            vetoed = result.get("decision", "PASS").upper() == "VETO"
-            counter_args = result.get("counter_arguments", [])
-            risk = result.get("risk_level", "MEDIUM")
-
-            if vetoed:
-                self._da_vetoes += 1
-                logger.info(
-                    "DA VETO on %s (%s, conf=%s): %s",
-                    market.slug or market.condition_id[:12],
-                    direction, estimate.confidence,
-                    "; ".join(counter_args[:2]),
-                )
-            else:
-                self._da_passes += 1
-
-            return DevilsAdvocateResult(
-                vetoed=vetoed,
-                counter_arguments=counter_args,
-                risk_level=risk,
-                cost_usd=cost,
-            )
-
-        except Exception as e:
-            logger.warning("DA call failed: %s -- defaulting to PASS", e)
-            return DevilsAdvocateResult(vetoed=False, counter_arguments=[], risk_level="LOW", cost_usd=0.0)
-
-    @property
-    def da_stats(self) -> dict:
-        """Return Devil's Advocate statistics."""
-        total = self._da_vetoes + self._da_passes
-        return {
-            "vetoes": self._da_vetoes,
-            "passes": self._da_passes,
-            "total": total,
-            "veto_rate": round(self._da_vetoes / total, 3) if total > 0 else 0.0,
-        }
