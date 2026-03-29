@@ -272,7 +272,6 @@ class ExitMonitor:
 
     def check_exits(
         self,
-        match_states: dict,
         cycle_count: int,
     ) -> list[tuple[str, str]]:
         """Run all exit detectors. Return (cid, reason) list.
@@ -319,7 +318,7 @@ class ExitMonitor:
         self._log_exit_details(_all_triggered)
         return result
 
-    def check_exits_light(self, match_states: dict) -> list[tuple[str, str]]:
+    def check_exits_light(self) -> list[tuple[str, str]]:
         """Subset of exit checks for light cycles (price-only, no AI).
 
         Light cycles run every 2 minutes. Same as heavy minus VS trailing stop.
