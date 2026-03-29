@@ -380,10 +380,10 @@ def check_reentry(
 
     # --- LOSSY RE-ENTRY: 40% recovery trigger ---
     if c.exit_reason == "stop_loss":
-        drop = eff_entry - c.last_exit_price
+        drop = eff_entry - eff_exit
         if drop > 0:
             recovery_needed = drop * 0.40
-            trigger_price = c.last_exit_price + recovery_needed
+            trigger_price = eff_exit + recovery_needed
             if eff_price < trigger_price:
                 return _wait(f"SL recovery insufficient: {eff_price:.3f} < trigger {trigger_price:.3f}")
 
