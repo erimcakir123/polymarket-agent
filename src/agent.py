@@ -1206,7 +1206,10 @@ class Agent:
         for m in fresh_markets:
             if m.odds_api_implied_prob is not None:
                 continue  # already enriched
-            if m.yes_price < cfg.min_price or m.yes_price > cfg.max_price:
+            no_price = m.no_price if m.no_price else (1 - m.yes_price)
+            yes_in_zone = cfg.min_price <= m.yes_price <= cfg.max_price
+            no_in_zone = cfg.min_price <= no_price <= cfg.max_price
+            if not yes_in_zone and not no_in_zone:
                 continue  # only enrich candidates in price zone (save API calls)
             try:
                 odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
@@ -1276,12 +1279,18 @@ class Agent:
                 if ai_edge < cfg.min_odds_divergence:
                     continue
 
-            # Execute order
-            token_id = c.yes_token_id
+            # Execute order — use candidate direction (BUY_YES or BUY_NO)
+            direction = c.direction
+            if direction == "BUY_NO":
+                token_id = c.no_token_id
+                order_price = c.no_price
+            else:
+                token_id = c.yes_token_id
+                order_price = c.yes_price
             if not token_id:
                 for m in fresh_markets:
                     if m.condition_id == c.condition_id:
-                        token_id = m.yes_token_id
+                        token_id = m.no_token_id if direction == "BUY_NO" else m.yes_token_id
                         break
             if not token_id:
                 continue
@@ -1290,11 +1299,11 @@ class Agent:
                 logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
                 continue
 
-            result = self.executor.place_order(token_id, "BUY", c.yes_price, size)
+            result = self.executor.place_order(token_id, "BUY", order_price, size)
             if not result or result.get("status") == "error":
                 continue
 
-            shares = size / c.yes_price if c.yes_price > 0 else 0
+            shares = size / order_price if order_price > 0 else 0
             ai_conf = estimate.confidence if estimate else "B-"
             ai_prob = estimate.ai_probability if estimate else c.yes_price
             # market_data may already be fetched for AI; fallback lookup if not
@@ -1304,8 +1313,8 @@ class Agent:
                         market_data = m
                         break
             self.portfolio.add_position(
-                c.condition_id, token_id, "BUY_YES",
-                c.yes_price, size, shares, c.slug,
+                c.condition_id, token_id, direction,
+                order_price, size, shares, c.slug,
                 "", confidence=ai_conf,
                 ai_probability=ai_prob,
                 entry_reason="upset",
@@ -1318,22 +1327,23 @@ class Agent:
 
             self.trade_log.log({
                 "market": c.slug, "action": "UPSET_ENTRY",
-                "size": size, "price": c.yes_price,
+                "direction": direction,
+                "size": size, "price": order_price,
                 "upset_type": c.upset_type,
                 "odds_divergence": c.divergence,
                 "ai_probability": ai_prob,
                 "mode": self.config.mode.value,
             })
             logger.info(
-                "UPSET ENTRY: %s | type=%s | price=%.2f | div=%s | size=$%.0f",
-                c.slug[:40], c.upset_type, c.yes_price,
+                "UPSET ENTRY: %s | dir=%s | type=%s | price=%.2f | div=%s | size=$%.0f",
+                c.slug[:40], direction, c.upset_type, order_price,
                 f"{c.divergence:.0%}" if c.divergence else "N/A", size,
             )
             div_str = f" | Div: {c.divergence:.0%}" if c.divergence else ""
             self.notifier.send(
                 f"🎯 *UPSET ENTRY*: {c.slug[:40]}\n\n"
-                f"🏷 Type: {c.upset_type}\n"
-                f"📊 Price: {c.yes_price:.2f}{div_str}\n"
+                f"🏷 Type: {c.upset_type} | Dir: {direction}\n"
+                f"📊 Price: {order_price:.2f}{div_str}\n"
                 f"💰 Size: ${size:.0f}"
             )
 
