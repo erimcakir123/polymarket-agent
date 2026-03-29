@@ -342,9 +342,22 @@ class Agent:
         self.light_cycle_count += 1
 
         # --- Light cycle action strategies (with per-strategy cooldowns) ---
-        # NOTE: _pre_match_prices is populated by heavy cycle only.
-        # Light cycle reads this dict — NEVER writes.
         held_events = self._get_held_event_ids()
+
+        # Fetch fresh market data once for all strategies that need it
+        _need_markets = (
+            self._light_cooldown_ready("live_dip")
+            or self._light_cooldown_ready("momentum")
+        )
+        light_fresh_markets = self.scanner.fetch() if _need_markets else []
+
+        # Cache pre-match prices from fresh scan (first-seen only).
+        # NOTE: _pre_match_prices is populated by both heavy and light cycles.
+        # All writes are first-seen-only (idempotent). Light cycle strategies
+        # only READ existing entries for dip/momentum detection.
+        for m in light_fresh_markets:
+            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
+                self._pre_match_prices[m.condition_id] = m.yes_price
 
         if self._light_cooldown_ready("scale_out"):
             self._process_scale_outs()
@@ -356,12 +369,12 @@ class Agent:
                 self._set_light_cooldown("farming_reentry")
 
         if self._light_cooldown_ready("live_dip"):
-            entered = self._check_live_dip(held_events)
+            entered = self._check_live_dip(held_events, light_fresh_markets)
             if entered:
                 self._set_light_cooldown("live_dip")
 
         if self._light_cooldown_ready("momentum"):
-            entered = self._check_live_momentum(held_events, match_states)
+            entered = self._check_live_momentum(held_events, light_fresh_markets, match_states)
             if entered:
                 self._set_light_cooldown("momentum")
 
@@ -452,6 +465,12 @@ class Agent:
 
         self._write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
+
+        # Cache pre-match prices (first-seen only) for live_dip/momentum in light cycle
+        for m in fresh_markets:
+            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
+                self._pre_match_prices[m.condition_id] = m.yes_price
+
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,
             bankroll=bankroll, cycle_count=self.cycle_count,
@@ -1030,26 +1049,22 @@ class Agent:
 
     # ── Live dip & momentum ─────────────────────────────────────────────
 
-    def _check_live_dip(self, held_events: set[str] | None = None) -> bool:
+    def _check_live_dip(self, held_events: set[str] | None = None,
+                        fresh_markets: list | None = None) -> bool:
         """Enter when favorite's market price drops 10%+ (no ESPN, pure price).
 
-        Called from light cycle with cooldown. Uses cached _pre_match_prices
-        and fetches current prices from scanner.
+        Called from light cycle with cooldown. Uses cached _pre_match_prices.
+        Accepts pre-fetched fresh_markets to avoid redundant scanner calls.
         Returns True if any entry was made.
         """
-        # Fetch fresh market data for price comparison
-        fresh_markets = self.scanner.fetch()
+        if fresh_markets is None:
+            fresh_markets = self.scanner.fetch()
         if not fresh_markets:
             return False
 
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         cfg = self.config.live_momentum  # Uses live_momentum config for max_concurrent
         min_drop_pct = 0.10
-
-        # Cache pre-match prices (first-seen only)
-        for m in fresh_markets:
-            if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
-                self._pre_match_prices[m.condition_id] = m.yes_price
 
         # Count current live_dip positions
         dip_count = sum(1 for p in self.portfolio.positions.values()
@@ -1181,10 +1196,13 @@ class Agent:
             )
         return entered
 
-    def _check_live_momentum(self, held_events: set[str] | None = None, match_states: dict | None = None) -> bool:
+    def _check_live_momentum(self, held_events: set[str] | None = None,
+                             fresh_markets: list | None = None,
+                             match_states: dict | None = None) -> bool:
         """Score-based probability re-estimation for live matches.
 
-        Called from light cycle with cooldown. Fetches fresh market data internally.
+        Called from light cycle with cooldown. Accepts pre-fetched fresh_markets
+        to avoid redundant scanner calls.
         Returns True if any entry was made.
         """
         if not match_states:
@@ -1195,8 +1213,9 @@ class Agent:
         if not cfg.enabled:
             return False
 
-        # Fetch fresh market data and bankroll for entries
-        fresh_markets = self.scanner.fetch()
+        # Use provided fresh_markets or fetch internally
+        if fresh_markets is None:
+            fresh_markets = self.scanner.fetch()
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
 
         # Use provided held_events or build from portfolio
