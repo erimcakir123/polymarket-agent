@@ -52,7 +52,7 @@ _NEVER_STOCK_EXITS = frozenset({
     "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
     "resolved", "near_resolve",
 })
-_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "far_penny_")
+_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "early_penny_")
 
 
 class Agent:
@@ -516,7 +516,7 @@ class Agent:
             if not demoted:
                 # Blacklist
                 bl_reason = reason
-                for prefix in ("match_exit_", "far_penny_", "SLOT_UPGRADE", "election_reeval"):
+                for prefix in ("match_exit_", "early_penny_", "SLOT_UPGRADE", "election_reeval"):
                     if bl_reason.startswith(prefix):
                         bl_reason = prefix.rstrip("_")
                         break
@@ -716,7 +716,7 @@ class Agent:
             "adjusted_size": 0.0,  # recalculated at execution time
             "entry_reason": "demoted",
             "is_consensus": False,
-            "is_far": False,
+            "is_early": False,
             "sanity": None,
             "manip_check": None,
         }

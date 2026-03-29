@@ -8,7 +8,7 @@ def get_adaptive_kelly_fraction(
     ai_probability: float,
     category: str,
     is_reentry: bool = False,
-    is_far: bool = False,
+    is_early: bool = False,
     config_kelly_by_conf: dict | None = None,
 ) -> float:
     base = (config_kelly_by_conf or {}).get(confidence, 0.15)
@@ -22,7 +22,7 @@ def get_adaptive_kelly_fraction(
     if is_reentry:
         base *= 0.80
 
-    if is_far:
-        base *= 0.70  # 30% discount -- capital locked longer in FAR slots
+    if is_early:
+        base *= 0.70  # 30% discount -- capital locked longer in early entry slots
 
     return max(0.05, min(0.30, base))

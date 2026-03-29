@@ -176,7 +176,7 @@ BLACKLIST_RULES = {
     "resolved_win": ("none", 0),
     "resolved_loss": ("timed", 20),
     "election_reeval": ("timed", 30),
-    "far_penny": ("none", 0),
+    "early_penny": ("none", 0),
     "slot_upgrade": ("timed", 10),
 }
 

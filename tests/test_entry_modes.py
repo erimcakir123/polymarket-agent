@@ -48,7 +48,7 @@ def _make_gate():
     risk_decision.size_usdc = 10.0
     gate.risk.evaluate = MagicMock(return_value=risk_decision)
     gate.trade_log = MagicMock()
-    gate._far_market_ids = set()
+    gate._early_market_ids = set()
     gate._analyzed_market_ids = {}
     return gate
 

@@ -164,11 +164,11 @@ class Portfolio:
         return sum(1 for p in self.positions.values() if not p.pending_resolution)
 
     # Special entry reasons that get their own slots (don't eat normal slots)
-    _SPECIAL_ENTRY_REASONS = {"live_dip", "fav_time_gate", "far"}
+    _SPECIAL_ENTRY_REASONS = {"live_dip", "fav_time_gate", "early"}
 
     @property
     def normal_position_count(self) -> int:
-        """Count normal positions (excluding VS, live_dip, fav_time_gate, far, re_entry)."""
+        """Count normal positions (excluding VS, live_dip, fav_time_gate, early, re_entry)."""
         return sum(
             1 for p in self.positions.values()
             if not p.pending_resolution
@@ -447,8 +447,8 @@ class Portfolio:
             if self._is_totals_or_spread(pos):
                 continue
 
-            # FAR penny positions: handled by _check_far_penny_exits() in main.py
-            if pos.entry_reason == "far" and pos.entry_price <= 0.05:
+            # Early entry penny positions: handled by _check_early_penny_exits() in main.py
+            if pos.entry_reason == "early" and pos.entry_price <= 0.05:
                 continue
 
             # Volatility swing: dynamic take-profit based on entry price

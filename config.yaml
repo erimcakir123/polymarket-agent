@@ -59,16 +59,17 @@ volatility_swing:
   bet_pct: 0.05
   polling_interval_min: 5
 
-far:
+early:
   enabled: true
-  max_slots: 4                    # 4 dedicated FAR slots (swing trade + penny alpha)
-  min_edge: 0.10                  # 10% min edge for FAR
+  max_slots: 4                    # 4 dedicated early entry slots (swing trade + penny alpha)
+  max_entry_price: 0.70           # Max token price for early entry
+  min_edge: 0.10                  # 10% min edge for early entry
   min_ai_probability: 0.55        # AI must be ≥55% confident
   min_confidence: "B-"            # B- minimum
   bookmaker_pre_screen_edge: 0.08 # Bookmaker must show ≥8% edge vs market
-  min_hours_to_start: 6.0         # Only markets >6h qualify as FAR
+  min_hours_to_start: 6.0         # Only markets >6h qualify as early entry
   max_hours_to_start: 336.0       # 14 days max
-  bet_pct: 0.05                   # 5% bankroll per FAR bet
+  bet_pct: 0.05                   # 5% bankroll per early entry bet
   stop_loss_pct: 0.30
   take_profit_pct: 0.40           # Normal swing TP
   penny_max_price: 0.02           # $0.01-$0.02 = penny zone

@@ -91,7 +91,7 @@ class EntryGate:
         self.scout = scout
 
         # Per-session state (survives across cycles)
-        self._far_market_ids: set[str] = set()
+        self._early_market_ids: set[str] = set()
         self._analyzed_market_ids: dict[str, float] = self._load_recent_analyses()
         self._eligible_cache: list = []
         self._eligible_pointer: int = 0
@@ -104,7 +104,7 @@ class EntryGate:
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
         self._fav_stock: list[dict] = []
-        self._far_stock: list[dict] = []
+        self._early_stock: list[dict] = []
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -256,8 +256,8 @@ class EntryGate:
         # NOTE: _seen_market_ids is updated AFTER quality filter (below),
         # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
 
-        # Update FAR market ids (>6h to start = FAR, needs higher edge)
-        self._far_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
+        # Update early entry market ids (>6h to start = early entry, needs higher edge)
+        self._early_market_ids = {m.condition_id for m in prioritized if _hours_to_start(m) > 6}
 
         # Stop-words for keyword extraction (match old main.py behaviour)
         _STOP_WORDS = frozenset({
@@ -640,7 +640,7 @@ class EntryGate:
                 "manip_check": manip_check,
                 "is_consensus": is_consensus,
                 "entry_reason": mode.lower(),
-                "is_far": cid in self._far_market_ids,
+                "is_early": cid in self._early_market_ids,
             })
 
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -753,7 +753,7 @@ class EntryGate:
                 "edge": c["edge"],
                 "is_consensus": c["is_consensus"],
                 "entry_reason": c.get("entry_reason", ""),
-                "is_far": c["is_far"],
+                "is_early": c["is_early"],
             })
 
             logger.info(
