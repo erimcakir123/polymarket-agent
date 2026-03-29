@@ -445,6 +445,8 @@ class Agent:
         # NOTE: _process_scale_outs() moved to light cycle with cooldown
         self.price_updater.sync_ws_subscriptions()
 
+        self._quick_exit_check(bankroll)  # between exits and scan
+
         # Scout + Entry: fresh scan (analyze=True)
         if entries_allowed and self.scout.should_run_scout():
             self.cycle_helpers.write_status("running", "Scouting matches")
@@ -467,6 +469,8 @@ class Agent:
             blacklist=self.blacklist, exited_markets=self._exited_markets,
         )
 
+        self._quick_exit_check(bankroll)  # between AI entries and stock drain
+
         # Breaking news detected -> shorten cycle interval
         if self.entry_gate._breaking_news_detected:
             self.entry_gate._breaking_news_detected = False
@@ -481,16 +485,38 @@ class Agent:
             exited_markets=self._exited_markets,
         )
 
+        self._quick_exit_check(bankroll)  # between stock drain and upset hunter
+
         # NOTE: farming_reentry, live_dip, live_momentum, scale_outs moved to light cycle
         # Upset hunter stays in heavy cycle (needs fresh scan data + AI analysis)
         if entries_allowed:
             self.live_strategies.check_upset_hunter(fresh_markets, bankroll)
+
+        self._quick_exit_check(bankroll)  # after upset, before summary
 
         # Check outcomes + log
         self.price_updater.check_tracked_outcomes()
         self.cycle_helpers.log_cycle_summary(bankroll, "ok")
 
     # (Light-cycle strategies moved to src/live_strategies.py)
+
+    # ── Interleaved exit check (runs between heavy cycle phases) ────────
+
+    def _quick_exit_check(self, bankroll: float) -> None:
+        """Lightweight exit sweep inserted between heavy cycle phases.
+
+        Drains WS ticks, runs light exit checks, processes scale-outs,
+        and writes a portfolio snapshot so the dashboard stays fresh.
+        """
+        self.exit_monitor.process_ws_ticks()
+        for cid, reason in self.exit_monitor.drain():
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self.exit_executor.exit_position(cid, reason)
+        for cid, reason in self.exit_monitor.check_exits_light():
+            if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
+                self.exit_executor.exit_position(cid, reason)
+        self.exit_executor.process_scale_outs()
+        self.cycle_helpers.log_cycle_summary(bankroll, "interleaved")
 
     # ── Utilities ─────────────────────────────────────────────────────────
 

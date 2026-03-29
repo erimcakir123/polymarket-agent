@@ -682,9 +682,10 @@ class LiveStrategies:
                     if m.condition_id == c.condition_id:
                         market_data = m
                         break
+            # entry_price is always YES-side for storage consistency (see entry_gate.py)
             self.ctx.portfolio.add_position(
                 c.condition_id, token_id, direction,
-                order_price, size, shares, c.slug,
+                c.yes_price, size, shares, c.slug,
                 "", confidence=ai_conf,
                 ai_probability=ai_prob,
                 entry_reason="upset",

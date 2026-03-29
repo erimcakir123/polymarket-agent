@@ -286,12 +286,14 @@ class PriceUpdater:
         for cid, pos in self.ctx.portfolio.positions.items():
             if pos.current_price <= 0.001:
                 continue
-            drift = abs(pos.current_price - pos.entry_price) / max(pos.entry_price, 0.01)
+            eff_entry = effective_price(pos.entry_price, pos.direction)
+            eff_current = effective_price(pos.current_price, pos.direction)
+            drift = abs(eff_current - eff_entry) / max(eff_entry, 0.01)
             if drift >= threshold:
                 self.ctx.entry_gate.invalidate_cache(cid)
                 logger.info(
                     "Price drift detected: %s | entry=%.0f¢ now=%.0f¢ drift=%.1f%%",
-                    pos.slug, pos.entry_price * 100, pos.current_price * 100, drift * 100,
+                    pos.slug, eff_entry * 100, eff_current * 100, drift * 100,
                 )
 
     # ------------------------------------------------------------------
