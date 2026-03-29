@@ -728,6 +728,16 @@ class Agent:
         )
         return True
 
+    # ── Exposure guard ─────────────────────────────────────────────────────
+
+    def _check_exposure_limit(self, candidate_size: float) -> bool:
+        """Return True if adding candidate_size would exceed exposure limit."""
+        total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+        bankroll = self.portfolio.bankroll
+        if bankroll <= 0:
+            return True
+        return (total_invested + candidate_size) / bankroll > self.config.risk.max_exposure_pct
+
     # ── Farming re-entry ──────────────────────────────────────────────────
 
     def _check_farming_reentry(self) -> None:
@@ -855,6 +865,11 @@ class Agent:
                     continue
 
             token_id = candidate.token_id
+
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
             result = self.executor.place_order(token_id, "BUY", eff_price, size)
             shares = size / eff_price if eff_price > 0 else 0
             yes_price_entry = current_yes_price
@@ -1010,6 +1025,10 @@ class Agent:
             if not token_id:
                 continue
 
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
             result = self.executor.place_order(token_id, "BUY", price, size)
             if not result or result.get("status") == "error":
                 continue
@@ -1124,6 +1143,10 @@ class Agent:
                     price = 1 - market.yes_price
 
                 if not token_id:
+                    continue
+
+                if self._check_exposure_limit(size):
+                    logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
                     continue
 
                 result = self.executor.place_order(token_id, "BUY", price, size)
@@ -1263,6 +1286,10 @@ class Agent:
             if not token_id:
                 continue
 
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
+                continue
+
             result = self.executor.place_order(token_id, "BUY", c.yes_price, size)
             if not result or result.get("status") == "error":
                 continue
@@ -1363,6 +1390,10 @@ class Agent:
                         break
 
             if not token_id:
+                continue
+
+            if self._check_exposure_limit(size):
+                logger.info("SKIP exposure cap: would exceed %.0f%%", self.config.risk.max_exposure_pct * 100)
                 continue
 
             result = self.executor.place_order(token_id, "BUY", price, size)

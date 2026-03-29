@@ -82,6 +82,9 @@ class RiskConfig(BaseModel):
     scale_in_num_tranches: int = 2
     price_drift_reanalysis_pct: float = 0.15
 
+    # Exposure guard (#P0) -- block entries when total invested > X% of bankroll
+    max_exposure_pct: float = 0.35
+
     @field_validator("kelly_fraction")
     @classmethod
     def kelly_in_range(cls, v: float) -> float:
