@@ -367,7 +367,13 @@ class Portfolio:
                 )
         return triggered
 
-    def check_scale_outs(self) -> list[dict]:
+    def check_scale_outs(
+        self,
+        upset_tier1_price: float = 0.25,
+        upset_tier1_sell_pct: float = 0.30,
+        upset_tier2_price: float = 0.35,
+        upset_tier2_sell_pct: float = 0.30,
+    ) -> list[dict]:
         """Check positions for scale-out tier triggers. Returns list of scale-out actions."""
         from src.scale_out import check_scale_out
         results = []
@@ -379,6 +385,10 @@ class Portfolio:
                 volatility_swing=pos.volatility_swing,
                 entry_reason=getattr(pos, "entry_reason", ""),
                 current_price=pos.current_price,
+                upset_tier1_price=upset_tier1_price,
+                upset_tier1_sell_pct=upset_tier1_sell_pct,
+                upset_tier2_price=upset_tier2_price,
+                upset_tier2_sell_pct=upset_tier2_sell_pct,
             )
             if result is not None:
                 results.append({"condition_id": cid, **result})

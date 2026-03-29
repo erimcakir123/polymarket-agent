@@ -574,7 +574,13 @@ class Agent:
         """Check and execute partial scale-out exits for all positions."""
         from src.scale_out import apply_partial_exit
 
-        scale_outs = self.portfolio.check_scale_outs()
+        upset_cfg = self.config.upset_hunter
+        scale_outs = self.portfolio.check_scale_outs(
+            upset_tier1_price=upset_cfg.scale_out_tier1_price,
+            upset_tier1_sell_pct=upset_cfg.scale_out_tier1_sell_pct,
+            upset_tier2_price=upset_cfg.scale_out_tier2_price,
+            upset_tier2_sell_pct=upset_cfg.scale_out_tier2_sell_pct,
+        )
         for so in scale_outs:
             cid = so["condition_id"]
             pos = self.portfolio.positions.get(cid)
