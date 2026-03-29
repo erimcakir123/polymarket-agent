@@ -696,6 +696,18 @@ class EntryGate:
                 )
                 continue
 
+            # Exposure guard -- skip if adding this size would exceed max exposure
+            total_invested = sum(p.size_usdc for p in self.portfolio.positions.values())
+            _bankroll = self.portfolio.bankroll
+            if _bankroll > 0 and (total_invested + size) / _bankroll > self.config.risk.max_exposure_pct:
+                logger.info(
+                    "SKIP exposure limit: %s | size=$%.1f | invested=$%.1f / bankroll=$%.1f (%.0f%% > %.0f%%)",
+                    market.slug[:35], size, total_invested, _bankroll,
+                    (total_invested + size) / _bankroll * 100,
+                    self.config.risk.max_exposure_pct * 100,
+                )
+                continue
+
             # Execute
             _token_id = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id
             _order_price = market.yes_price if direction == Direction.BUY_YES else (1 - market.yes_price)
