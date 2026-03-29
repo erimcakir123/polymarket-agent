@@ -92,6 +92,7 @@ class Agent:
         self.esports = EsportsDataClient()
         sports = SportsDataClient()
         odds_api = OddsAPIClient()
+        self.odds_api = odds_api
         from src.cricket_data import CricketDataClient
         cricket = CricketDataClient()
         discovery = SportsDiscovery(
@@ -326,6 +327,7 @@ class Agent:
 
         # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self._handle_hold_revokes()
+        self._process_scale_outs()
 
         # Farming re-entry in light cycle too (no AI cost, fast re-entry)
         self._check_farming_reentry()
@@ -405,6 +407,7 @@ class Agent:
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self._exit_position(cid, reason)
         self._handle_hold_revokes()
+        self._process_scale_outs()
         self._sync_ws_subscriptions()
 
         # Scout + Entry: fresh scan (analyze=True)
@@ -566,6 +569,69 @@ class Agent:
             )
         except Exception:
             pass
+
+    def _process_scale_outs(self) -> None:
+        """Check and execute partial scale-out exits for all positions."""
+        from src.scale_out import apply_partial_exit
+
+        scale_outs = self.portfolio.check_scale_outs()
+        for so in scale_outs:
+            cid = so["condition_id"]
+            pos = self.portfolio.positions.get(cid)
+            if not pos or self.exit_monitor.is_exiting(cid):
+                continue
+
+            shares_to_sell = pos.shares * so["sell_pct"]
+            if shares_to_sell < 1.0:
+                continue
+
+            # Execute partial sell
+            result = self.executor.place_order(
+                pos.token_id, "SELL", pos.current_price, shares_to_sell * pos.current_price,
+            )
+            if not result or result.get("status") == "error":
+                continue
+
+            fill_price = pos.current_price
+            partial = apply_partial_exit(
+                shares=pos.shares,
+                size_usdc=pos.size_usdc,
+                entry_price=pos.entry_price,
+                direction=pos.direction,
+                shares_sold=shares_to_sell,
+                fill_price=fill_price,
+                tier=so["tier"],
+                original_shares=getattr(pos, "original_shares", None),
+                original_size_usdc=getattr(pos, "original_size_usdc", None),
+                scale_out_tier=pos.scale_out_tier,
+            )
+
+            # Update position in-place
+            pos.shares = partial["remaining_shares"]
+            pos.size_usdc = partial["remaining_size_usdc"]
+            pos.scale_out_tier = partial["new_scale_out_tier"]
+            if not hasattr(pos, "original_shares") or pos.original_shares is None:
+                pos.original_shares = partial["original_shares"]
+            if not hasattr(pos, "original_size_usdc") or pos.original_size_usdc is None:
+                pos.original_size_usdc = partial["original_size_usdc"]
+
+            # Close dust remainder
+            if partial["status"] == "CLOSE_REMAINDER":
+                self._exit_position(cid, "scale_out_final")
+                continue
+
+            self.trade_log.log({
+                "market": pos.slug, "action": "SCALE_OUT",
+                "tier": so["tier"], "sell_pct": so["sell_pct"],
+                "shares_sold": shares_to_sell,
+                "realized_pnl": partial["realized_pnl"],
+                "remaining_shares": partial["remaining_shares"],
+            })
+            logger.info(
+                "SCALE_OUT: %s | %s | sold %.0f shares | pnl=$%.2f | remaining=%.0f",
+                pos.slug[:35], so["tier"], shares_to_sell,
+                partial["realized_pnl"], partial["remaining_shares"],
+            )
 
     def _try_demote_to_stock(self, pos, reason: str) -> bool:
         """Demote exited position back to candidate stock queue for re-entry.
@@ -1099,6 +1165,20 @@ class Agent:
         upset_count = sum(1 for p in self.portfolio.positions.values()
                           if getattr(p, "entry_reason", "") == "upset")
 
+        # Enrich markets with Odds API implied probabilities for divergence filter
+        for m in fresh_markets:
+            if m.odds_api_implied_prob is not None:
+                continue  # already enriched
+            if m.yes_price < cfg.min_price or m.yes_price > cfg.max_price:
+                continue  # only enrich candidates in price zone (save API calls)
+            try:
+                odds = self.odds_api.get_bookmaker_odds(m.question, m.slug, m.tags)
+                if odds and odds.get("bookmaker_avg_prob_a"):
+                    # Use team A prob as YES implied (market question asks about team A winning)
+                    m.odds_api_implied_prob = odds["bookmaker_avg_prob_a"]
+            except Exception:
+                pass  # Odds API unavailable -- filter will be skipped per spec
+
         candidates = pre_filter(
             fresh_markets,
             min_price=cfg.min_price,
@@ -1130,7 +1210,7 @@ class Agent:
 
             # AI analysis with underdog prompt
             estimate = None
-            if self.ai_analyst:
+            if self.ai:
                 odds_note = ""
                 if c.divergence is not None:
                     odds_note = f"Odds API implied: {c.odds_api_implied:.0%}, Polymarket: {c.yes_price:.0%}, divergence: {c.divergence:.0%}"
@@ -1146,7 +1226,7 @@ class Agent:
                 if not market_data:
                     continue
 
-                estimate = self.ai_analyst.analyze_market(
+                estimate = self.ai.analyze_market(
                     market_data,
                     esports_context=odds_note,
                     upset_mode=True,
@@ -1176,13 +1256,22 @@ class Agent:
             shares = size / c.yes_price if c.yes_price > 0 else 0
             ai_conf = estimate.confidence if estimate else "B-"
             ai_prob = estimate.ai_probability if estimate else c.yes_price
+            # market_data may already be fetched for AI; fallback lookup if not
+            if not market_data:
+                for m in fresh_markets:
+                    if m.condition_id == c.condition_id:
+                        market_data = m
+                        break
             self.portfolio.add_position(
                 c.condition_id, token_id, "BUY_YES",
                 c.yes_price, size, shares, c.slug,
                 "", confidence=ai_conf,
                 ai_probability=ai_prob,
                 entry_reason="upset",
-                end_date_iso="",
+                end_date_iso=market_data.end_date_iso if market_data else "",
+                match_start_iso=market_data.match_start_iso if market_data else "",
+                sport_tag=market_data.sport_tag if market_data else "",
+                event_id=c.event_id,
             )
             upset_count += 1
 

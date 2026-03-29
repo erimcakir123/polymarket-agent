@@ -47,6 +47,7 @@ class MarketData(BaseModel):
     sport_tag: str = ""  # Source sport tag (e.g. "cs2", "lol", "nba") from tag_id scan
     accepting_orders_at: str = ""  # When trading opened (proxy for market freshness)
     match_start_iso: str = ""  # Actual match start time from Gamma event startTime
+    odds_api_implied_prob: Optional[float] = None  # Bookmaker implied probability (0-1) from Odds API
 
 
 class Position(BaseModel):

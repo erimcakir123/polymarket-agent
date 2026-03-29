@@ -245,14 +245,26 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
+                # Upset positions: wider activation/trail, promotion at 35¢
+                if pos.entry_reason == "upset":
+                    upset_cfg = cfg.upset_hunter
+                    act_pct = upset_cfg.trailing_activation
+                    trail_dist = upset_cfg.trailing_distance
+                    eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                    if eff_cur >= upset_cfg.promotion_price:
+                        act_pct = ttp_cfg.activation_pct
+                        trail_dist = ttp_cfg.trail_distance
+                else:
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 ttp_result = calculate_trailing_tp(
                     entry_price=pos.entry_price,
                     current_price=pos.current_price,
                     direction=pos.direction,
                     peak_price=pos.peak_price,
-                    trailing_active=pos.peak_pnl_pct >= ttp_cfg.activation_pct,
-                    activation_pct=ttp_cfg.activation_pct,
-                    trail_distance=ttp_cfg.trail_distance,
+                    trailing_active=pos.peak_pnl_pct >= act_pct,
+                    activation_pct=act_pct,
+                    trail_distance=trail_dist,
                 )
                 if ttp_result["peak_price"] > pos.peak_price:
                     pos.peak_price = ttp_result["peak_price"]
@@ -332,14 +344,26 @@ class ExitMonitor:
                     continue
                 if cid in seen_cids:
                     continue
+                # Upset positions: wider activation/trail, promotion at 35¢
+                if pos.entry_reason == "upset":
+                    upset_cfg = cfg.upset_hunter
+                    act_pct = upset_cfg.trailing_activation
+                    trail_dist = upset_cfg.trailing_distance
+                    eff_cur = (1.0 - pos.current_price) if pos.direction == "BUY_NO" else pos.current_price
+                    if eff_cur >= upset_cfg.promotion_price:
+                        act_pct = ttp_cfg.activation_pct
+                        trail_dist = ttp_cfg.trail_distance
+                else:
+                    act_pct = ttp_cfg.activation_pct
+                    trail_dist = ttp_cfg.trail_distance
                 ttp_result = calculate_trailing_tp(
                     entry_price=pos.entry_price,
                     current_price=pos.current_price,
                     direction=pos.direction,
                     peak_price=pos.peak_price,
-                    trailing_active=pos.peak_pnl_pct >= ttp_cfg.activation_pct,
-                    activation_pct=ttp_cfg.activation_pct,
-                    trail_distance=ttp_cfg.trail_distance,
+                    trailing_active=pos.peak_pnl_pct >= act_pct,
+                    activation_pct=act_pct,
+                    trail_distance=trail_dist,
                 )
                 if ttp_result["peak_price"] > pos.peak_price:
                     pos.peak_price = ttp_result["peak_price"]
