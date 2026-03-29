@@ -14,11 +14,10 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
 from pathlib import Path
 
-from src.config import AppConfig, load_config, Mode
+from src.config import AppConfig, Mode
 from src.portfolio import Portfolio
 from src.executor import Executor
 from src.ai_analyst import AIAnalyst
@@ -30,7 +29,7 @@ from src.sports_data import SportsDataClient
 from src.sports_discovery import SportsDiscovery
 from src.news_scanner import NewsScanner
 from src.manipulation_guard import ManipulationGuard
-from src.trade_logger import TradeLogger, EdgeSourceTracker
+from src.trade_logger import TradeLogger
 from src.notifier import TelegramNotifier
 from src.websocket_feed import WebSocketFeed
 from src.circuit_breaker import CircuitBreaker
@@ -48,52 +47,6 @@ from src.cycle_logic import CycleHelpers
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class AgentContext:
-    """Shared state passed to all orchestrator modules."""
-    config: AppConfig
-    portfolio: Portfolio
-    executor: Executor
-    blacklist: Blacklist
-    circuit_breaker: CircuitBreaker
-    reentry_pool: ReentryPool
-    outcome_tracker: OutcomeTracker
-    trade_log: TradeLogger
-    portfolio_log: TradeLogger
-    perf_log: TradeLogger
-    notifier: TelegramNotifier
-    exit_monitor: ExitMonitor
-    entry_gate: EntryGate
-    scanner: MarketScanner
-    ai: AIAnalyst
-    risk: RiskManager
-    esports: EsportsDataClient
-    odds_api: OddsAPIClient
-    scout: ScoutScheduler
-    edge_tracker: EdgeSourceTracker
-    ws_feed: WebSocketFeed
-    wallet: object  # Optional[Wallet]
-    cycle_timer: CycleTimer
-
-    # Mutable shared state
-    cycle_count: int = 0
-    light_cycle_count: int = 0
-    running: bool = True
-    exited_markets: set = field(default_factory=set)
-    exit_cooldowns: dict = field(default_factory=dict)
-    match_states: dict = field(default_factory=dict)
-    last_match_state_fetch: float = 0.0
-    daily_reentry_count: int = 0
-    last_reentry_reset_date: date = field(default_factory=lambda: datetime.now(timezone.utc).date())
-    bets_since_approval: int = 0
-    pre_match_prices: dict = field(default_factory=dict)
-    light_cooldowns: dict = field(default_factory=dict)
-    soft_halt_active: bool = False
-    cb_was_active: bool = False
-    consecutive_api_failures: int = 0
-    last_cycle_has_live_clob: bool = False
-    last_candidate_count: int = 0
 
 class Agent:
     """Thin orchestrator. Delegates entry to EntryGate, exit detection to ExitMonitor."""
@@ -147,7 +100,6 @@ class Agent:
         self.ai = AIAnalyst(config.ai)
         risk = RiskManager(config.risk)
         self.scout = ScoutScheduler(sports, self.esports)
-        self.edge_tracker = EdgeSourceTracker()
         self.risk = risk
 
         # Loggers & notifications
@@ -362,7 +314,7 @@ class Agent:
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
         if not self.ws_feed.connected:
-            self.price_updater.update_position_prices()
+            self.last_cycle_has_live_clob = self.price_updater.update_position_prices()
         self.price_updater.sync_ws_subscriptions()
 
         # Fetch live match states
@@ -474,7 +426,7 @@ class Agent:
         self.price_updater.check_resolved_markets()
 
         # Update prices
-        self.price_updater.update_position_prices()
+        self.last_cycle_has_live_clob = self.price_updater.update_position_prices()
         self.price_updater.check_price_drift_reanalysis()
 
         # Process WS ticks first (main thread)
@@ -502,6 +454,7 @@ class Agent:
 
         self.cycle_helpers.write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
+        self._last_candidate_count = len(fresh_markets)
 
         # Cache pre-match prices (first-seen only) for live_dip/momentum in light cycle
         for m in fresh_markets:

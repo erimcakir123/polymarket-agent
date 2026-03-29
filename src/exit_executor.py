@@ -1,7 +1,7 @@
 """exit_executor.py -- Exit execution logic extracted from agent.py.
 
 Handles position exits, scale-outs, stock demotions, and hold revokes.
-All methods operate on AgentContext for shared state access.
+All methods operate on Agent instance (ctx) for shared state access.
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 
-from src.models import effective_price
 from src.reentry import get_blacklist_rule
 
 logger = logging.getLogger(__name__)
@@ -279,7 +278,7 @@ class ExitExecutor:
         Accepts if stock has room (< 10) OR score beats the worst existing entry.
         Returns True if demoted, False if rejected (-> caller will blacklist instead).
         """
-        from src.models import MarketData, effective_price
+        from src.models import MarketData
         from src.ai_analyst import AIEstimate
 
         _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
