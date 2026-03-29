@@ -359,7 +359,8 @@ def check_reentry(
         return _block(f"Price extreme: {eff_price:.0%}")
 
     # Thesis broken -- price dropped below original entry - buffer
-    if eff_price < eff_entry - THESIS_BROKEN_BUFFER:
+    # Skip for SL re-entries: the whole point is recovering from a price drop
+    if c.exit_reason != "stop_loss" and eff_price < eff_entry - THESIS_BROKEN_BUFFER:
         return _block(f"Thesis broken: price {eff_price:.0%} < entry {eff_entry:.0%} - 5¢")
 
     # Daily re-entry cap
