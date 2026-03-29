@@ -302,7 +302,7 @@ class Portfolio:
                 sl = vs_stop_loss_pct
             elif eff_entry_sl < 0.09:
                 # Ultra-low: only Penny Alpha skips SL (bet size IS the risk)
-                # FAR swing trades and other strategies still get their SL
+                # Early Entry swing trades and other strategies still get their SL
                 if getattr(pos, 'entry_reason', '') == 'penny':
                     continue  # Penny alpha -- no stop-loss
                 else:

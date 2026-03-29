@@ -1,8 +1,8 @@
 """entry_gate.py -- Unified market entry pipeline.
 
-ALL entry types (normal, FAR, FAV, consensus) go through this single gate.
+ALL entry types (normal, Early Entry, FAV, consensus) go through this single gate.
 Entry type only changes sizing multiplier and slot count -- same sanity check
-for everyone. FAR markets no longer bypass sanity (fixes known bug).
+for everyone. Early Entry markets no longer bypass sanity (fixes known bug).
 
 Data flow:
   agent.py calls:
@@ -55,7 +55,7 @@ class EntryGate:
     """Single unified market entry pipeline.
 
     Instantiate once. Stateful: owns market cache, AI analysis cache,
-    candidate stock queues, and far_market_ids.
+    candidate stock queues, and early_market_ids.
     """
 
     def __init__(
