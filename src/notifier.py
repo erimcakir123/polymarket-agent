@@ -176,20 +176,3 @@ class TelegramNotifier:
             f"PnL: `{sign}${pnl:.2f}`"
         )
 
-    def format_suspicious_bet(
-        self, question: str, direction: str, size: float, edge: float, reason: str
-    ) -> str:
-        return (
-            f"*BLOCKED*\n\n"
-            f"{question}\n"
-            f"`{direction}` | `${size:.2f}` | Edge: `{edge:.1%}`\n\n"
-            f"Reason: {reason}"
-        )
-
-    def alert_drawdown(self, bankroll: float, hwm: float) -> str:
-        return (
-            f"*DRAWDOWN BREAKER*\n\n"
-            f"Balance: `${bankroll:.2f}`\n"
-            f"Peak: `${hwm:.2f}`\n\n"
-            f"All trading halted. Manual review required."
-        )

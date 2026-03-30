@@ -200,29 +200,6 @@ class CricketDataClient:
         parts.append("\nUse match status, score, and format to inform your estimate.")
         return "\n".join(parts)
 
-    def get_upcoming_matches(self) -> List[Dict]:
-        """Get upcoming cricket matches (for scout scheduler)."""
-        data = self._get("matches", {"offset": "0"})
-        if not data:
-            return []
-
-        upcoming = []
-        for m in data.get("data", []):
-            if m.get("matchStarted"):
-                continue
-            teams = m.get("teams", [])
-            if len(teams) < 2:
-                continue
-            upcoming.append({
-                "teams": teams,
-                "match_type": m.get("matchType", ""),
-                "date": m.get("dateTimeGMT", m.get("date", "")),
-                "name": m.get("name", ""),
-                "series_id": m.get("series_id", ""),
-            })
-
-        return upcoming[:20]  # limit to 20 most relevant
-
     @staticmethod
     def _extract_teams(question: str) -> Tuple[Optional[str], Optional[str]]:
         """Extract team names from 'Team A vs Team B' question."""

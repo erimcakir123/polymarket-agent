@@ -2,13 +2,9 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, NewType, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, computed_field, field_validator
-
-# Semantic type: ALWAYS represents P(YES outcome wins).
-# Never direction-adjusted. For BUY_NO, flip at usage point: (1 - prob).
-YesProbability = NewType("YesProbability", float)
 
 
 def effective_price(yes_price: float, direction: str) -> float:
@@ -18,17 +14,6 @@ def effective_price(yes_price: float, direction: str) -> float:
     BUY_NO:  returns (1 - yes_price) = NO price.
     """
     return (1.0 - yes_price) if direction == "BUY_NO" else yes_price
-
-
-def validate_yes_probability(value: float, context: str = "") -> YesProbability:
-    """Runtime guard: ai_probability must be P(YES) in [0.01, 0.99]."""
-    if not (0.01 <= value <= 0.99):
-        raise ValueError(
-            f"ai_probability={value} out of range [0.01, 0.99]. "
-            f"Context: {context}. "
-            f"This value must be P(YES outcome), never direction-adjusted."
-        )
-    return YesProbability(value)
 
 
 class Direction(str, Enum):
