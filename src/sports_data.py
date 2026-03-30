@@ -126,6 +126,40 @@ _SPORT_LEAGUES: dict = {
     "cric": ("cricket", "cricket", "Cricket"),
 }
 
+# Map common Gamma seriesSlug values to (sport, league).
+# These are the actual tag values seen in Polymarket Gamma API responses.
+_SERIES_TO_ESPN: dict = {
+    # Soccer
+    "super-lig": ("soccer", "tur.1"),
+    "la-liga-2": ("soccer", "esp.2"),
+    "la-liga": ("soccer", "esp.1"),
+    "primeira-divisin-argentina": ("soccer", "arg.1"),
+    "brazil-serie-b": ("soccer", "bra.1"),
+    "womens-champions-league": ("soccer", "uefa.champions"),
+    "fifa-friendly": ("soccer", "fifa.friendly"),
+    "champions-league": ("soccer", "uefa.champions"),
+    "europa-league": ("soccer", "uefa.europa"),
+    "conference-league": ("soccer", "uefa.europa.conf"),
+    "premier-league": ("soccer", "eng.1"),
+    "bundesliga": ("soccer", "ger.1"),
+    "serie-a": ("soccer", "ita.1"),
+    "ligue-1": ("soccer", "fra.1"),
+    "eredivisie": ("soccer", "ned.1"),
+    "primeira-liga": ("soccer", "por.1"),
+    "liga-mx": ("soccer", "mex.1"),
+    "j1-league": ("soccer", "jpn.1"),
+    "a-league": ("soccer", "aus.1"),
+    # Hockey
+    "shl-2026": ("hockey", "nhl"),
+    "khl-2026": ("hockey", "nhl"),
+    # Basketball
+    "cba": ("basketball", "nba"),
+    "cbl": ("basketball", "nba"),
+    "kbl": ("basketball", "nba"),
+    # Cricket
+    "indian-premier-league": ("cricket", "cricket"),
+}
+
 # Dynamic discovery replaces hardcoded keyword mappings.
 _QUESTION_KEYWORDS: dict = {}
 
@@ -263,6 +297,18 @@ class SportsDataClient:
         for keyword, (sport, league) in _QUESTION_KEYWORDS.items():
             if keyword in tags_lower:
                 return (sport, league)
+
+        # Check tags against known Gamma seriesSlug mappings
+        for tag in tags:
+            tag_lower = tag.lower().strip()
+            if tag_lower in _SERIES_TO_ESPN:
+                sport, league = _SERIES_TO_ESPN[tag_lower]
+                logger.info("Series slug match: tag='%s' -> %s/%s", tag, sport, league)
+                return (sport, league)
+            # Also check if tag matches any _SPORT_LEAGUES label (case-insensitive)
+            for key, (s, l, label) in _SPORT_LEAGUES.items():
+                if tag_lower == label.lower() or tag_lower == l.lower():
+                    return (s, l)
 
         # Dynamic discovery via ESPN search
         team_a, team_b = self._extract_teams_from_question(question)
