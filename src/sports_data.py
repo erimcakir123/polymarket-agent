@@ -14,24 +14,115 @@ logger = logging.getLogger(__name__)
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 
 # Slug prefix → (sport, league, label) for fast sport detection.
-# ESPN search is fallback; this prevents Hurricanes→college-football bugs.
+# Sources: https://github.com/pseudo-r/Public-ESPN-API/blob/main/docs/sports/
 _SPORT_LEAGUES: dict = {
+    # ── Basketball (basketball.md) ─────────────────────────────────────────
     "nba": ("basketball", "nba", "NBA"),
-    "nhl": ("hockey", "nhl", "NHL"),
-    "nfl": ("football", "nfl", "NFL"),
-    "mlb": ("baseball", "mlb", "MLB"),
+    "wnba": ("basketball", "wnba", "WNBA"),
     "cbb": ("basketball", "mens-college-basketball", "CBB"),
     "cwbb": ("basketball", "womens-college-basketball", "WCBB"),
+    "gleague": ("basketball", "nba-development", "G-League"),
+    "fiba": ("basketball", "fiba", "FIBA"),
+    "nbl": ("basketball", "nbl", "NBL Australia"),
+    # ── Hockey (hockey.md) ─────────────────────────────────────────────────
+    "nhl": ("hockey", "nhl", "NHL"),
+    "nchm": ("hockey", "mens-college-hockey", "NCAA Hockey"),
+    "nchw": ("hockey", "womens-college-hockey", "NCAA W Hockey"),
+    # ── American Football (football.md) ────────────────────────────────────
+    "nfl": ("football", "nfl", "NFL"),
     "cfb": ("football", "college-football", "CFB"),
-    "mls": ("soccer", "usa.1", "MLS"),
+    "cfl": ("football", "cfl", "CFL"),
+    "ufl": ("football", "ufl", "UFL"),
+    "xfl": ("football", "xfl", "XFL"),
+    # ── Baseball (baseball.md) ─────────────────────────────────────────────
+    "mlb": ("baseball", "mlb", "MLB"),
+    "cbase": ("baseball", "college-baseball", "College Baseball"),
+    "wbc": ("baseball", "world-baseball-classic", "WBC"),
+    # ── Soccer — England ───────────────────────────────────────────────────
     "epl": ("soccer", "eng.1", "EPL"),
+    "eng2": ("soccer", "eng.2", "Championship"),
+    "facup": ("soccer", "eng.fa", "FA Cup"),
+    # ── Soccer — Spain ─────────────────────────────────────────────────────
     "lal": ("soccer", "esp.1", "La Liga"),
-    "ser": ("soccer", "ita.1", "Serie A"),
+    "esp2": ("soccer", "esp.2", "La Liga 2"),
+    "copdr": ("soccer", "esp.copa_del_rey", "Copa del Rey"),
+    # ── Soccer — Germany ───────────────────────────────────────────────────
     "bun": ("soccer", "ger.1", "Bundesliga"),
+    "ger2": ("soccer", "ger.2", "2. Bundesliga"),
+    "dfbp": ("soccer", "ger.dfb_pokal", "DFB Pokal"),
+    # ── Soccer — Italy ─────────────────────────────────────────────────────
+    "ser": ("soccer", "ita.1", "Serie A"),
+    "ita2": ("soccer", "ita.2", "Serie B"),
+    "copit": ("soccer", "ita.coppa_italia", "Coppa Italia"),
+    # ── Soccer — France ────────────────────────────────────────────────────
     "lig": ("soccer", "fra.1", "Ligue 1"),
+    "fra2": ("soccer", "fra.2", "Ligue 2"),
+    "coudf": ("soccer", "fra.coupe_de_france", "Coupe de France"),
+    # ── Soccer — Other European ────────────────────────────────────────────
+    "tur": ("soccer", "tur.1", "Super Lig"),
+    "ned": ("soccer", "ned.1", "Eredivisie"),
+    "ned2": ("soccer", "ned.2", "Eerste Divisie"),
+    "por": ("soccer", "por.1", "Primeira Liga"),
+    "bel": ("soccer", "bel.1", "Pro League"),
+    "aut": ("soccer", "aut.1", "Bundesliga AT"),
+    "gre": ("soccer", "gre.1", "Super League"),
+    "den": ("soccer", "den.1", "Superliga"),
+    "nor": ("soccer", "nor.1", "Eliteserien"),
+    "swe": ("soccer", "swe.1", "Allsvenskan"),
+    # ── Soccer — Americas ──────────────────────────────────────────────────
+    "mls": ("soccer", "usa.1", "MLS"),
+    "nwsl": ("soccer", "usa.nwsl", "NWSL"),
+    "arg": ("soccer", "arg.1", "Liga Profesional"),
+    "bra": ("soccer", "bra.1", "Brasileirao"),
+    "mex": ("soccer", "mex.1", "Liga MX"),
+    # ── Soccer — Asia/Oceania/Africa ───────────────────────────────────────
+    "jpn": ("soccer", "jpn.1", "J1 League"),
+    "chn": ("soccer", "chn.1", "CSL"),
+    "ind": ("soccer", "ind.1", "ISL"),
+    "aus": ("soccer", "aus.1", "A-League"),
+    "rsa": ("soccer", "rsa.1", "PSL"),
+    # ── Soccer — Cups & International ──────────────────────────────────────
+    "ucl": ("soccer", "uefa.champions", "Champions League"),
+    "uel": ("soccer", "uefa.europa", "Europa League"),
+    "uecl": ("soccer", "uefa.europa.conf", "Conference League"),
+    "wcup": ("soccer", "fifa.world", "World Cup"),
+    "euro": ("soccer", "uefa.euro", "Euro"),
+    "copa": ("soccer", "conmebol.libertadores", "Libertadores"),
+    "suda": ("soccer", "conmebol.sudamericana", "Sudamericana"),
+    "cona": ("soccer", "conmebol.america", "Copa America"),
+    "gold": ("soccer", "concacaf.gold", "Gold Cup"),
+    "frien": ("soccer", "fifa.friendly", "Friendlies"),
+    # ── Tennis (tennis.md) ─────────────────────────────────────────────────
     "atp": ("tennis", "atp", "ATP"),
     "wta": ("tennis", "wta", "WTA"),
+    # ── MMA (mma.md) ──────────────────────────────────────────────────────
     "ufc": ("mma", "ufc", "UFC"),
+    "bellator": ("mma", "bellator", "Bellator"),
+    "pfl": ("mma", "pfl", "PFL"),
+    # ── Golf (golf.md) ────────────────────────────────────────────────────
+    "pga": ("golf", "pga", "PGA Tour"),
+    "lpga": ("golf", "lpga", "LPGA"),
+    "liv": ("golf", "liv", "LIV Golf"),
+    "dpw": ("golf", "eur", "DP World Tour"),
+    "champ": ("golf", "champions-tour", "Champions Tour"),
+    # ── Racing (racing.md) ────────────────────────────────────────────────
+    "f1": ("racing", "f1", "Formula 1"),
+    "irl": ("racing", "irl", "IndyCar"),
+    "nascar": ("racing", "nascar-premier", "NASCAR Cup"),
+    # ── Rugby (rugby.md) ─────────────────────────────────────────────────
+    "rugby": ("rugby", "rugby", "Rugby"),
+    # ── Australian Football (australian_football.md) ──────────────────────
+    "afl": ("australian-football", "afl", "AFL"),
+    # ── Lacrosse (lacrosse.md) ────────────────────────────────────────────
+    "nll": ("lacrosse", "nll", "NLL"),
+    "pll": ("lacrosse", "pll", "PLL"),
+    # ── Volleyball (volleyball.md) ────────────────────────────────────────
+    "mcvb": ("volleyball", "mens-college-volleyball", "NCAA M Volleyball"),
+    "wcvb": ("volleyball", "womens-college-volleyball", "NCAA W Volleyball"),
+    # ── Field Hockey (field_hockey.md) ────────────────────────────────────
+    "cfhoc": ("field-hockey", "womens-college-field-hockey", "NCAA Field Hockey"),
+    # ── Cricket — ESPN fallback (dedicated cricket_data.py is primary) ────
+    "cric": ("cricket", "cricket", "Cricket"),
 }
 
 # Dynamic discovery replaces hardcoded keyword mappings.
@@ -77,13 +168,8 @@ class SportsDataClient:
     # ESPN search endpoint -- free, no API key needed
     _SEARCH_URL = "https://site.web.api.espn.com/apis/common/v3/search"
 
-    # Leagues to skip -- women's leagues, cricket, rugby return wrong context
-    _SKIP_LEAGUES = frozenset({
-        "eng.w.fa", "eng.w.1", "eng.w.2",  # English women's
-        "usa.w.1",  # NWSL
-        "fifa.w.worldcup", "uefa.w.euro",   # Women's international
-    })
-    _SKIP_SPORTS = frozenset({"cricket"})
+    _SKIP_LEAGUES = frozenset()  # All leagues supported
+    _SKIP_SPORTS = frozenset()  # No longer skip any sport
 
     def search_team(self, team_name: str) -> Optional[Tuple[str, str]]:
         """Search ESPN for a team by name. Returns (sport, league) or None.
