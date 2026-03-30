@@ -211,6 +211,8 @@ class EntryGate:
 
     def push_to_stock(self, candidate: dict) -> None:
         """Add a candidate to the stock queue (called by agent for demoted positions)."""
+        if "added_at" not in candidate:
+            candidate["added_at"] = datetime.now(timezone.utc).isoformat()
         self._candidate_stock.append(candidate)
 
     def _prune_candidate_stock(self) -> None:
