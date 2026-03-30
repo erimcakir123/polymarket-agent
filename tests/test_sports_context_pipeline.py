@@ -28,16 +28,10 @@ def _make_gate(discovery=None):
     gate.discovery = discovery or MagicMock()
     gate.scout = None
     gate._early_market_ids = set()
-    gate._analyzed_market_ids = {}
     gate._seen_market_ids = set()
-    gate._confidence_c_cids = set()
+    gate._confidence_c_attempts = {}
     gate._breaking_news_detected = False
     gate._candidate_stock = []
-    gate._fav_stock = []
-    gate._early_stock = []
-    gate._eligible_cache = []
-    gate._eligible_pointer = 0
-    gate._eligible_cache_ts = 0.0
     return gate
 
 

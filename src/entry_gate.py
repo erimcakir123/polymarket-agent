@@ -25,8 +25,6 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import requests
-
 from src.sport_rules import is_esports, is_esports_slug
 
 if TYPE_CHECKING:
@@ -92,10 +90,6 @@ class EntryGate:
 
         # Per-session state (survives across cycles)
         self._early_market_ids: set[str] = set()
-        self._analyzed_market_ids: dict[str, float] = self._load_recent_analyses()
-        self._eligible_cache: list = []
-        self._eligible_pointer: int = 0
-        self._eligible_cache_ts: float = 0.0
         self._seen_market_ids: set[str] = set()
         self._espn_odds_cache: dict[str, dict] = {}  # cid -> ESPN odds from discovery
         self._confidence_c_attempts: dict[str, int] = {}  # cid -> how many times AI returned conf=C
@@ -103,8 +97,6 @@ class EntryGate:
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
-        self._fav_stock: list[dict] = []
-        self._early_stock: list[dict] = []
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -193,10 +185,6 @@ class EntryGate:
     def reset_seen_markets(self) -> None:
         """Reset seen market tracking. Call at start of each fresh heavy cycle (not refill)."""
         self._seen_market_ids.clear()
-
-    def invalidate_cache(self, condition_id: str) -> None:
-        """Remove a market from the AI analysis cache (e.g., after price drift reanalysis)."""
-        self._analyzed_market_ids.pop(condition_id, None)
 
     # ── Analysis phase ─────────────────────────────────────────────────────
 
@@ -796,55 +784,6 @@ class EntryGate:
             )
 
         return entered
-
-    # ── Persistence ─────────────────────────────────────────────────────────
-
-    def _load_recent_analyses(self) -> dict[str, float]:
-        """Load recent HOLD analyses from predictions.jsonl to avoid re-spending AI.
-
-        BUY-worthy and consensus candidates are NOT cached (they re-evaluate fresh).
-        """
-        import json
-        from pathlib import Path
-        results: dict[str, float] = {}
-        path = Path("logs/predictions.jsonl")
-        if not path.exists():
-            return results
-        try:
-            cutoff = time.time() - 3600 * 6  # 6h window
-            _ce_min = 0.65
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        rec = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    ts = rec.get("timestamp", 0)
-                    try:
-                        ts = float(ts)
-                    except (TypeError, ValueError):
-                        continue
-                    if ts < cutoff:
-                        continue
-                    cid = rec.get("condition_id", "")
-                    if not cid:
-                        continue
-                    action = rec.get("action", "")
-                    if action != "HOLD":
-                        continue
-                    # Don't cache consensus candidates
-                    ai_prob = rec.get("ai_prob", 0.5)
-                    mkt_price = rec.get("price", 0.5)
-                    conf = rec.get("confidence", "")
-                    _is_cyes = ai_prob >= _ce_min and mkt_price >= _ce_min
-                    _is_cno = (1 - ai_prob) >= _ce_min and (1 - mkt_price) >= _ce_min
-                    if (_is_cyes or _is_cno) and conf in ("A", "B+"):
-                        continue  # potential consensus candidate -> don't skip
-                    results[cid] = float(ts)
-        except Exception as exc:
-            logger.warning("Could not load recent analyses: %s", exc)
-        logger.info("Loaded %d recent HOLD analyses from predictions.jsonl", len(results))
-        return results
 
 
 # ── Module-level helpers ───────────────────────────────────────────────────

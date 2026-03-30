@@ -49,9 +49,8 @@ def _make_gate():
     gate.risk.evaluate = MagicMock(return_value=risk_decision)
     gate.trade_log = MagicMock()
     gate._early_market_ids = set()
-    gate._analyzed_market_ids = {}
     gate._espn_odds_cache = {}
-    gate._confidence_c_cids = set()
+    gate._confidence_c_attempts = {}
     return gate
 
 

@@ -290,7 +290,6 @@ class PriceUpdater:
             eff_current = effective_price(pos.current_price, pos.direction)
             drift = abs(eff_current - eff_entry) / max(eff_entry, 0.01)
             if drift >= threshold:
-                self.ctx.entry_gate.invalidate_cache(cid)
                 logger.info(
                     "Price drift detected: %s | entry=%.0f¢ now=%.0f¢ drift=%.1f%%",
                     pos.slug, eff_entry * 100, eff_current * 100, drift * 100,
