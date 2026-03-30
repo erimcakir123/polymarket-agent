@@ -199,6 +199,32 @@ class EntryGate:
         """Reset seen market tracking. Call at start of each fresh heavy cycle (not refill)."""
         self._seen_market_ids.clear()
 
+    @staticmethod
+    def _volume_sorted_selection(markets: list, scan_size: int) -> list:
+        """Volume-sorted market selection (legacy). Used as fallback when scout queue is empty."""
+        imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
+        midrange = sorted([m for m in markets if 6 < _hours_to_start(m) <= 24], key=_hours_to_start)
+        discovery = sorted([m for m in markets if _hours_to_start(m) > 24], key=_hours_to_start)
+
+        imm_available = len(imminent)
+        if imm_available >= scan_size:
+            prioritized = imminent[:scan_size]
+        elif imm_available >= scan_size * 6 // 10:
+            imm_slots = imm_available
+            mid_slots = scan_size - imm_slots
+            prioritized = imminent + midrange[:mid_slots]
+        else:
+            imm_slots = imm_available
+            mid_slots = min(len(midrange), (scan_size - imm_slots) * 7 // 10)
+            disc_slots = scan_size - imm_slots - mid_slots
+            prioritized = imminent + midrange[:mid_slots] + discovery[:disc_slots]
+
+        if len(prioritized) < scan_size:
+            remaining = [m for m in markets if m not in prioritized]
+            prioritized += remaining[:scan_size - len(prioritized)]
+
+        return prioritized
+
     # ── Analysis phase ─────────────────────────────────────────────────────
 
     def _analyze_batch(self, markets: list, cycle_count: int) -> tuple[list, dict]:
@@ -233,27 +259,37 @@ class EntryGate:
         # Many markets lack ESPN/PandaScore data -- wider net catches more qualified ones.
         scan_size = ai_batch_size * 6
 
-        # Bucket markets into imminent / mid / discovery
-        imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
-        midrange  = sorted([m for m in markets if 6 < _hours_to_start(m) <= 24], key=_hours_to_start)
-        discovery = sorted([m for m in markets if _hours_to_start(m) > 24], key=_hours_to_start)
+        # --- Chronological selection from scout queue ---
+        prioritized: list = []
+        if self.scout:
+            matched_markets = self.scout.match_markets_batch(markets)
+            matched_markets.sort(key=lambda m: m["scout_entry"].get("match_time", ""))
 
-        imm_available = len(imminent)
-        if imm_available >= scan_size:
-            prioritized = imminent[:scan_size]
-        elif imm_available >= scan_size * 6 // 10:
-            imm_slots = imm_available
-            mid_slots = scan_size - imm_slots
-            prioritized = imminent + midrange[:mid_slots]
-        else:
-            imm_slots = imm_available
-            mid_slots = min(len(midrange), (scan_size - imm_slots) * 7 // 10)
-            disc_slots = scan_size - imm_slots - mid_slots
-            prioritized = imminent + midrange[:mid_slots] + discovery[:disc_slots]
+            # Expanding window: try 2h, then 3, 4, 5h
+            for window_h in (2, 3, 4, 5):
+                window_entries = self.scout.get_window(window_h)
+                window_keys = {e["scout_key"] for e in window_entries}
+                prioritized = [
+                    mm["market"] for mm in matched_markets
+                    if mm["scout_key"] in window_keys
+                ]
+                if len(prioritized) >= 5:
+                    break
 
-        if len(prioritized) < scan_size:
-            remaining = [m for m in markets if m not in prioritized]
-            prioritized += remaining[:scan_size - len(prioritized)]
+            logger.info("Scout chrono selection: %d markets in window", len(prioritized))
+
+        # Fallback to volume-sorted if scout yields too few
+        if len(prioritized) < 5:
+            logger.info("Scout yielded %d markets (< 5) -- falling back to volume-sorted", len(prioritized))
+            volume_selected = self._volume_sorted_selection(markets, scan_size)
+            scout_cids = {m.condition_id for m in prioritized}
+            for m in volume_selected:
+                if m.condition_id not in scout_cids:
+                    prioritized.append(m)
+                    if len(prioritized) >= scan_size:
+                        break
+
+        prioritized = prioritized[:scan_size]
 
         # NOTE: _seen_market_ids is updated AFTER quality filter (below),
         # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
@@ -297,23 +333,6 @@ class EntryGate:
             esports_contexts = _esports_tmp
         except Exception as exc:
             logger.warning("Esports context fetch failed: %s", exc)
-
-        # Scout inject: match scouted events -> inject sports_context into esports_contexts
-        if self.scout:
-            for _m in prioritized:
-                _scout_entry = self.scout.match_market(
-                    getattr(_m, "question", ""), _m.slug or ""
-                )
-                if _scout_entry and _m.condition_id not in esports_contexts:
-                    # Extract pre-fetched string; dict would crash ai_analyst .lower() calls
-                    _ctx_str = _scout_entry.get("sports_context") or (
-                        f"=== SCOUTED MATCH ===\n"
-                        f"{_scout_entry.get('team_a', '?')} vs {_scout_entry.get('team_b', '?')}\n"
-                        f"League: {_scout_entry.get('league_name', '?')}\n"
-                        f"Match time: {_scout_entry.get('match_time', '?')[:16]}"
-                    )
-                    esports_contexts[_m.condition_id] = _ctx_str
-                    logger.info("Scout context injected: %s", _m.slug[:40])
 
         # Sports context via unified discovery
         if self.discovery:
@@ -428,12 +447,28 @@ class EntryGate:
         # Qualified markets that didn't fit in AI batch are NOT marked --
         # they get priority in the next cycle.
         self._seen_market_ids.update(m.condition_id for m in _has_data)
-        _skipped_cids = {
-            m.condition_id for m in prioritized
-            if m.condition_id not in esports_contexts
-            or (esports_contexts.get(m.condition_id, "").count("[W]")
-                + esports_contexts.get(m.condition_id, "").count("[L]")) < 5
-        }
+        _skipped_cids = set()
+        for m in prioritized:
+            if m.condition_id not in esports_contexts:
+                _skipped_cids.add(m.condition_id)
+                continue
+            _ctx_str = esports_contexts.get(m.condition_id, "")
+            _result_count = _ctx_str.count("[W]") + _ctx_str.count("[L]")
+            _sp = getattr(m, "sport_tag", "") or ""
+            _sp_cat = "default"
+            if _sp in ("atp", "wta") or "tennis" in _sp:
+                _sp_cat = "tennis"
+            elif _sp in ("ufc",) or "mma" in _sp:
+                _sp_cat = "mma"
+            elif "golf" in _sp or "pga" in _sp:
+                _sp_cat = "golf"
+            elif "racing" in _sp or "f1" in _sp or "nascar" in _sp:
+                _sp_cat = "racing"
+            elif "cricket" in _sp:
+                _sp_cat = "cricket"
+            _thr = _THIN_DATA_THRESHOLDS.get(_sp_cat, _THIN_DATA_THRESHOLDS["default"])
+            if _result_count < _thr:
+                _skipped_cids.add(m.condition_id)
         self._seen_market_ids.update(_skipped_cids)
 
         # Run AI batch -- returns List[AIEstimate] in same order as _has_data
