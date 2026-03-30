@@ -126,6 +126,7 @@ class EntryGate:
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
+        self._last_scout_matches: list = []  # Set by _analyze_batch for mark_entered
 
     # ── Public API ─────────────────────────────────────────────────────────
 
