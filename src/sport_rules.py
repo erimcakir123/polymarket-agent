@@ -333,14 +333,6 @@ def get_sport_rule(sport_tag: str, key: str, default=None):
     return rules.get(key, DEFAULT_RULES.get(key, default))
 
 
-def get_sport_rules(sport_tag: str) -> dict:
-    """Bir sporun tüm kurallarını getir (default ile merge)."""
-    tag = _normalize_tag(sport_tag)
-    merged = dict(DEFAULT_RULES)
-    merged.update(SPORT_RULES.get(tag, {}))
-    return merged
-
-
 def get_stop_loss(sport_tag: str, is_esports_market: bool = False) -> float:
     """Sport-aware stop-loss oranı."""
     return get_sport_rule(sport_tag, "stop_loss_pct", 0.30)
@@ -354,37 +346,6 @@ def get_max_reentries(sport_tag: str, number_of_games: int = 0) -> int:
 def get_reentry_max_elapsed(sport_tag: str) -> float:
     """Sport-aware max elapsed % for re-entry."""
     return get_sport_rule(sport_tag, "reentry_max_elapsed_pct", 0.65)
-
-
-def get_trailing_tp_params(sport_tag: str) -> tuple[float, float]:
-    """Sport-aware trailing TP parameters (activation, trail_distance)."""
-    activation = get_sport_rule(sport_tag, "trailing_tp_activation", 0.20)
-    trail = get_sport_rule(sport_tag, "trailing_tp_trail", 0.08)
-    return activation, trail
-
-
-def get_match_duration(sport_tag: str) -> float:
-    """Sport-aware match duration in hours."""
-    return get_sport_rule(sport_tag, "match_duration_hours", 2.0)
-
-
-def is_losing_badly(sport_tag: str, deficit: float, elapsed_pct: float = 0.0) -> bool:
-    """Sport-aware 'losing badly' check.
-
-    Args:
-        sport_tag: Sport identifier
-        deficit: Score deficit (positive = behind). Points for NBA/NFL,
-                 goals for soccer/NHL, runs for MLB, etc.
-        elapsed_pct: Match elapsed percentage (0.0-1.0)
-    """
-    tag = _normalize_tag(sport_tag)
-    rules = SPORT_RULES.get(tag, DEFAULT_RULES)
-    threshold = rules.get("losing_badly_deficit", 0)
-
-    if threshold <= 0:
-        return False  # No losing badly rule for this sport
-
-    return deficit >= threshold
 
 
 def _normalize_tag(sport_tag: str) -> str:
