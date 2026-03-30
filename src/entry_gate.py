@@ -235,6 +235,15 @@ class EntryGate:
         """Reset seen market tracking. Called at start of each heavy cycle and each refill."""
         self._seen_market_ids.clear()
 
+    def reset_daily_caches(self) -> None:
+        """Reset stale caches daily (P3). Called when daily listing runs at 00:01 UTC."""
+        old_c = len(self._confidence_c_attempts)
+        old_odds = len(self._espn_odds_cache)
+        self._confidence_c_attempts.clear()
+        self._espn_odds_cache.clear()
+        if old_c or old_odds:
+            logger.info("Daily cache reset: cleared %d C-attempts, %d ESPN odds", old_c, old_odds)
+
     @staticmethod
     def _volume_sorted_selection(markets: list, scan_size: int) -> list:
         """Volume-sorted market selection (legacy). Used as fallback when scout queue is empty."""

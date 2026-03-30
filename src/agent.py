@@ -399,6 +399,7 @@ class Agent:
             return
         self.cycle_count += 1
         self.risk.new_cycle()
+        self._evict_stale_caches()
         logger.info("=== Cycle #%d start ===", self.cycle_count)
 
         # Self-reflection
@@ -482,6 +483,7 @@ class Agent:
         if self.scout.is_daily_listing_time() and self.scout.should_run_scout():
             self.cycle_helpers.write_status("running", "Daily match listing")
             new_listed = self.scout.run_daily_listing()
+            self.entry_gate.reset_daily_caches()  # P3: clear stale C-attempts and ESPN odds
             if new_listed:
                 self.notifier.send(f"📋 DAILY LISTING: {new_listed} matches catalogued")
         elif self.scout.should_run_scout():
@@ -557,6 +559,24 @@ class Agent:
     # (Light-cycle strategies moved to src/live_strategies.py)
 
     # ── Interleaved exit check (runs between heavy cycle phases) ────────
+
+    def _evict_stale_caches(self) -> None:
+        """Remove stale entries from in-memory caches (P4). Called each heavy cycle."""
+        active_cids = set(self.portfolio.positions.keys())
+        stale = [cid for cid in self._pre_match_prices if cid not in active_cids]
+        if len(self._pre_match_prices) > 200:
+            for cid in stale:
+                del self._pre_match_prices[cid]
+            if stale:
+                logger.info("Evicted %d stale pre-match prices (%d remaining)",
+                            len(stale), len(self._pre_match_prices))
+
+        # Prune _exited_markets when too large (P10)
+        if len(self._exited_markets) > 500:
+            excess = len(self._exited_markets) - 200
+            for _ in range(excess):
+                self._exited_markets.pop()
+            logger.info("Pruned _exited_markets to %d entries", len(self._exited_markets))
 
     def _quick_exit_check(self, bankroll: float) -> None:
         """Lightweight exit sweep inserted between heavy cycle phases.
