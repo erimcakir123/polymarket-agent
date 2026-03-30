@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
+from src.sport_rules import ESPORTS_SLUGS
+
 if TYPE_CHECKING:
     from src.sports_data import SportsDataClient
     from src.esports_data import EsportsDataClient
@@ -19,7 +21,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Lightweight route detection -- categorization, not discovery
-_ESPORTS_SLUGS = frozenset({"cs2", "csgo", "lol", "dota2", "valorant"})
 _CRICKET_SLUGS = frozenset({"ipl", "psl", "t20", "crint", "cricpakt20cup", "criclcl"})
 
 
@@ -90,9 +91,9 @@ class SportsDiscovery:
         tags_lower = {t.lower() for t in tags}
 
         # Esports: tag or slug prefix
-        if "esports" in tags_lower or slug_prefix in _ESPORTS_SLUGS:
+        if "esports" in tags_lower or slug_prefix in ESPORTS_SLUGS:
             return "esports"
-        if any(game in tags_lower for game in _ESPORTS_SLUGS):
+        if any(game in tags_lower for game in ESPORTS_SLUGS):
             return "esports"
 
         # Cricket: tag, slug, or question keyword
