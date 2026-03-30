@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -530,10 +531,14 @@ class SportsDataClient:
     # Sports where competitors are individual athletes, not teams
     _ATHLETE_SPORTS = frozenset({"tennis", "mma"})
 
+    # Sports where competitors are event-based (tournaments, races)
+    _EVENT_SPORTS = frozenset({"golf", "racing"})
+
     def get_match_context(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Build structured context string for AI analyst.
 
-        Routes to athlete-based context for tennis/MMA, team-based for others.
+        Routes to athlete-based context for tennis/MMA, event-based for golf/racing,
+        team-based for all others.
         Returns None if not a traditional sport or no data available.
         """
         sport_league = self.detect_sport(question, slug, tags)
@@ -542,9 +547,11 @@ class SportsDataClient:
 
         sport, league = sport_league
 
-        # Athlete-based sports (tennis, MMA) use different ESPN endpoints
         if sport in self._ATHLETE_SPORTS:
             return self._get_athlete_match_context(sport, league, question, slug)
+
+        if sport in self._EVENT_SPORTS:
+            return self._get_event_match_context(sport, league, question, slug)
 
         return self._get_team_match_context(sport, league, question, slug)
 
@@ -553,7 +560,7 @@ class SportsDataClient:
     ) -> Optional[str]:
         """Build context for athlete-based sports (tennis, MMA).
 
-        Uses ESPN search to confirm athletes and scoreboard for match data.
+        Scans recent ESPN scoreboards to build match/fight history with [W]/[L] markers.
         """
         team_a_name, team_b_name = self._extract_teams_from_question(question)
         slug_a, slug_b = self._extract_teams_from_slug(slug)
@@ -565,8 +572,11 @@ class SportsDataClient:
         if not team_a_name:
             return None
 
-        logger.info("Fetching ESPN athlete data: %s vs %s (%s/%s)",
-                     team_a_name, team_b_name, sport, league)
+        # Sport-specific scan window
+        days_back = 90 if sport == "mma" else 14
+
+        logger.info("Fetching ESPN %s athlete data: %s vs %s (%s, %dd scan)",
+                     sport, team_a_name, team_b_name, league, days_back)
 
         parts = [f"=== SPORTS DATA (ESPN) -- {sport}/{league} ==="]
         found_any = False
@@ -576,37 +586,183 @@ class SportsDataClient:
                 parts.append(f"\n{label}: No data available")
                 continue
 
-            # Search ESPN for this athlete
-            params = {"query": name, "limit": 5, "type": "player"}
-            record_call("espn_search")
-            self._rate_limit()
-            try:
-                resp = requests.get(self._SEARCH_URL, params=params, timeout=8)
-                data = resp.json() if resp.status_code == 200 else {}
-            except (requests.RequestException, ValueError):
-                data = {}
+            matches = self._scan_scoreboard_for_athlete(sport, league, name, days_back)
 
-            # Find matching athlete in our sport
-            athlete_info = None
-            for item in data.get("items", []):
-                if item.get("sport") == sport:
-                    athlete_info = item
-                    break
-
-            if athlete_info:
+            if matches:
                 found_any = True
-                display = athlete_info.get("displayName", name)
-                athlete_league = athlete_info.get("league", league)
-                parts.append(f"\n{label}: {display} ({athlete_league})")
+                wins = sum(1 for m in matches if m["won"])
+                losses = len(matches) - wins
+                parts.append(f"\n{label}: {name}")
+                parts.append(f"  Recent form ({len(matches)} matches): {wins}W-{losses}L")
+                parts.append("  Recent matches:")
+                for m in matches[:5]:
+                    result = "W" if m["won"] else "L"
+                    score_str = f" {m['score']}" if m.get("score") else ""
+                    parts.append(
+                        f"    [{result}] vs {m['opponent']}{score_str} "
+                        f"({m.get('event', '')}, {m.get('date', '')})"
+                    )
             else:
-                parts.append(f"\n{label}: {name} (not found on ESPN)")
+                # Fallback: ESPN search to at least confirm athlete exists
+                params = {"query": name, "limit": 5, "type": "player"}
+                record_call("espn_search")
+                self._rate_limit()
+                try:
+                    resp = requests.get(self._SEARCH_URL, params=params, timeout=8)
+                    data = resp.json() if resp.status_code == 200 else {}
+                except (requests.RequestException, ValueError):
+                    data = {}
+                athlete_info = None
+                for item in data.get("items", []):
+                    if item.get("sport") == sport:
+                        athlete_info = item
+                        break
+                if athlete_info:
+                    found_any = True
+                    display = athlete_info.get("displayName", name)
+                    parts.append(f"\n{label}: {display} ({league})")
+                    parts.append("  No recent match data found on ESPN scoreboard")
+                else:
+                    parts.append(f"\n{label}: {name} (not found on ESPN)")
 
         if not found_any:
             return None
 
-        sport_label = "tennis" if sport == "tennis" else "MMA"
-        parts.append(f"\nThis is a {sport_label} match. Use your knowledge of current "
-                     f"rankings, recent form, surface/venue, and head-to-head to estimate.")
+        sport_label = {"tennis": "tennis", "mma": "MMA"}.get(sport, sport)
+        parts.append(f"\nThis is a {sport_label} match. Use recent form, rankings, "
+                     f"surface/venue, and head-to-head to estimate.")
+        return "\n".join(parts)
+
+    def _scan_scoreboard_for_athlete(
+        self, sport: str, league: str, player_name: str, days_back: int
+    ) -> List[Dict]:
+        """Scan recent ESPN scoreboards to find an athlete's completed matches.
+
+        Returns list of dicts: {opponent, won, score, event, date}
+        """
+        from datetime import timedelta as td
+        matches = []
+        today = datetime.now(timezone.utc).date()
+
+        for i in range(days_back):
+            date = today - td(days=i)
+            date_str = date.strftime("%Y%m%d")
+            url = f"{ESPN_BASE}/{sport}/{league}/scoreboard?dates={date_str}"
+            data = self._get(url)
+            if not data:
+                continue
+
+            for event in data.get("events", []):
+                for comp in event.get("competitions", []):
+                    status = comp.get("status", {}).get("type", {})
+                    if not status.get("completed", False):
+                        continue
+                    competitors = comp.get("competitors", [])
+                    if len(competitors) != 2:
+                        continue
+
+                    player_comp = None
+                    opp_comp = None
+                    for c in competitors:
+                        athlete = c.get("athlete", {})
+                        c_name = athlete.get("displayName", "")
+                        is_match_result, score, _ = match_team(c_name.lower(), player_name.lower())
+                        if is_match_result and score >= 0.70:
+                            player_comp = c
+                        else:
+                            opp_comp = c
+
+                    if player_comp and opp_comp:
+                        won = player_comp.get("winner", False)
+                        opp_name = opp_comp.get("athlete", {}).get("displayName", "Unknown")
+                        score_str = self._extract_athlete_score(player_comp, opp_comp, sport)
+                        matches.append({
+                            "opponent": opp_name,
+                            "won": won,
+                            "score": score_str,
+                            "event": event.get("name", ""),
+                            "date": date.isoformat(),
+                        })
+
+            # Stop early if we have enough data
+            if len(matches) >= 10:
+                break
+
+        return matches
+
+    def _extract_athlete_score(self, player_comp: dict, opp_comp: dict, sport: str) -> str:
+        """Extract score string from competitor linescores."""
+        p_scores = player_comp.get("linescores", [])
+        o_scores = opp_comp.get("linescores", [])
+        if not p_scores:
+            return ""
+        if sport == "tennis":
+            # Set scores like "6-3 4-6 7-5"
+            sets = []
+            for p, o in zip(p_scores, o_scores):
+                sets.append(f"{int(p.get('value', 0))}-{int(o.get('value', 0))}")
+            return " ".join(sets)
+        elif sport == "mma":
+            return f"R{len(p_scores)}"
+        return ""
+
+    def _get_event_match_context(
+        self, sport: str, league: str, question: str, slug: str
+    ) -> Optional[str]:
+        """Build context for event-based sports (golf, racing).
+
+        Scans recent scoreboards for tournament/race results.
+        """
+        from datetime import timedelta as td
+
+        logger.info("Fetching ESPN %s event data: %s/%s", sport, league, question[:40])
+
+        today = datetime.now(timezone.utc).date()
+        results = []
+
+        for i in range(30):
+            date = today - td(days=i)
+            date_str = date.strftime("%Y%m%d")
+            url = f"{ESPN_BASE}/{sport}/{league}/scoreboard?dates={date_str}"
+            data = self._get(url)
+            if not data:
+                continue
+            for event in data.get("events", []):
+                for comp in event.get("competitions", []):
+                    status = comp.get("status", {}).get("type", {})
+                    if not status.get("completed", False):
+                        continue
+                    competitors = comp.get("competitors", [])
+                    if not competitors:
+                        continue
+                    top = []
+                    sorted_comps = sorted(competitors,
+                                          key=lambda c: c.get("order", 999))
+                    for c in sorted_comps[:3]:
+                        athlete = c.get("athlete", {})
+                        name = athlete.get("displayName", "Unknown")
+                        top.append(name)
+                    if top:
+                        results.append({
+                            "event": event.get("name", ""),
+                            "date": date.isoformat(),
+                            "top3": top,
+                            "winner": top[0] if top else "Unknown",
+                        })
+            if len(results) >= 5:
+                break
+
+        if not results:
+            return None
+
+        parts = [f"=== SPORTS DATA (ESPN) -- {sport}/{league} ==="]
+        parts.append(f"\nRecent {sport} results:")
+        for r in results[:5]:
+            parts.append(f"  [{r['date']}] {r['event']}")
+            parts.append(f"    Winner: {r['winner']}")
+            if len(r["top3"]) > 1:
+                parts.append(f"    Top 3: {', '.join(r['top3'])}")
+        parts.append(f"\nUse recent {sport} form, rankings, and venue to estimate.")
         return "\n".join(parts)
 
     def _get_team_match_context(
