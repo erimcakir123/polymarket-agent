@@ -353,6 +353,25 @@ class EsportsDataClient:
         # Fetch upcoming match metadata (tier, detailed_stats, scheduled_at)
         upcoming = self._get_upcoming_match(game_slug, team_a_name, team_b_name)
 
+        # Guard: skip matches that started too long ago (likely finished)
+        # PandaScore may still report "running" hours after a match ends
+        _MAX_MATCH_HOURS = 4  # BO5 can go ~4h max; anything beyond = stale
+        if upcoming:
+            _sched = upcoming.get("scheduled_at") or ""
+            _status = upcoming.get("status", "")
+            if _sched and _status == "running":
+                try:
+                    _start = datetime.fromisoformat(_sched.replace("Z", "+00:00"))
+                    _elapsed_h = (datetime.now(timezone.utc) - _start).total_seconds() / 3600
+                    if _elapsed_h > _MAX_MATCH_HOURS:
+                        logger.warning(
+                            "SKIP stale esports match: %s vs %s started %.1fh ago (max %dh)",
+                            team_a_name, team_b_name, _elapsed_h, _MAX_MATCH_HOURS,
+                        )
+                        return None
+                except (ValueError, TypeError):
+                    pass
+
         team_a = self.get_team_recent_results(game_slug, team_a_name)
         team_b = self.get_team_recent_results(game_slug, team_b_name)
 
