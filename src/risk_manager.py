@@ -81,7 +81,6 @@ class RiskManager:
         signal: Signal,
         bankroll: float,
         open_positions: dict,
-        correlated_exposure: float = 0.0,
         **kwargs,
     ) -> RiskDecision:
         # Cooldown check -- decrement once per cycle, not per evaluate() call
@@ -99,10 +98,6 @@ class RiskManager:
         # Already in this market
         if signal.condition_id in open_positions:
             return RiskDecision(False, 0, "Already have position in this market")
-
-        # Correlation cap
-        if correlated_exposure >= self.config.correlation_cap_pct:
-            return RiskDecision(False, 0, "Correlation cap exceeded")
 
         # Confidence-based sizing -- no Kelly formula, confidence drives bet size
         confidence = getattr(signal, 'confidence', "B-")
