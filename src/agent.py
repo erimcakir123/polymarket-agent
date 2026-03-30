@@ -572,11 +572,17 @@ class Agent:
                             len(stale), len(self._pre_match_prices))
 
         # Prune _exited_markets when too large (P10)
+        # Read from disk to preserve insertion order, keep most recent 200
         if len(self._exited_markets) > 500:
-            excess = len(self._exited_markets) - 200
-            for _ in range(excess):
-                self._exited_markets.pop()
-            logger.info("Pruned _exited_markets to %d entries", len(self._exited_markets))
+            try:
+                path = Path("logs/exited_markets.json")
+                ordered = json.loads(path.read_text()) if path.exists() else list(self._exited_markets)
+            except Exception:
+                ordered = list(self._exited_markets)
+            recent = ordered[-200:]
+            self._exited_markets = set(recent)
+            path.write_text(json.dumps(recent), encoding="utf-8")
+            logger.info("Pruned _exited_markets to %d entries (kept most recent)", len(self._exited_markets))
 
     def _quick_exit_check(self, bankroll: float) -> None:
         """Lightweight exit sweep inserted between heavy cycle phases.
