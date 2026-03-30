@@ -134,7 +134,7 @@ _SERIES_TO_ESPN: dict = {
     "la-liga-2": ("soccer", "esp.2"),
     "la-liga": ("soccer", "esp.1"),
     "primeira-divisin-argentina": ("soccer", "arg.1"),
-    "brazil-serie-b": ("soccer", "bra.1"),
+    "brazil-serie-b": ("soccer", "bra.2"),
     "womens-champions-league": ("soccer", "uefa.champions"),
     "fifa-friendly": ("soccer", "fifa.friendly"),
     "champions-league": ("soccer", "uefa.champions"),
@@ -149,13 +149,8 @@ _SERIES_TO_ESPN: dict = {
     "liga-mx": ("soccer", "mex.1"),
     "j1-league": ("soccer", "jpn.1"),
     "a-league": ("soccer", "aus.1"),
-    # Hockey
-    "shl-2026": ("hockey", "nhl"),
-    "khl-2026": ("hockey", "nhl"),
-    # Basketball
-    "cba": ("basketball", "nba"),
-    "cbl": ("basketball", "nba"),
-    "kbl": ("basketball", "nba"),
+    # Hockey — SHL/KHL not on ESPN, let dynamic search handle them
+    # Basketball — CBA/KBL not on ESPN, let dynamic search handle them
     # Cricket
     "indian-premier-league": ("cricket", "cricket"),
 }
@@ -805,7 +800,7 @@ class SportsDataClient:
         parts.append(f"\nRecent {sport} results:")
         for r in results[:5]:
             parts.append(f"  [{r['date']}] {r['event']}")
-            parts.append(f"    Winner: {r['winner']}")
+            parts.append(f"    [W] {r['winner']}")
             if len(r["top3"]) > 1:
                 parts.append(f"    Top 3: {', '.join(r['top3'])}")
         parts.append(f"\nUse recent {sport} form, rankings, and venue to estimate.")

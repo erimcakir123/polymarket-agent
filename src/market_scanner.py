@@ -249,13 +249,6 @@ class MarketScanner:
 
         return sorted(markets, key=sort_key)
 
-    def _is_esport(self, market: MarketData) -> bool:
-        """Check if market is an esports event (volume spikes only in last ~2h)."""
-        if market.sport_tag in ESPORT_TAGS:
-            return True
-        tags_lower = {t.lower() for t in market.tags}
-        return bool(tags_lower & {"esports"})
-
     def _is_sports_or_esports(self, market: MarketData) -> bool:
         """Check if market is sports or esports (not politics, crypto, etc.)."""
         if market.sport_tag:
