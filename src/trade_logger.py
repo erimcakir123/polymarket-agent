@@ -47,6 +47,36 @@ class TradeLogger:
         except OSError:
             return []
 
+    def read_recent_page(self, limit: int = 500, offset: int = 0) -> list[dict[str, Any]]:
+        """Read last `limit` entries, with optional offset for pagination.
+
+        Uses tail-read to avoid loading entire file. More efficient than read_all().
+        """
+        if not self.path.exists():
+            return []
+        try:
+            total_needed = limit + offset
+            with open(self.path, "rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                chunk_size = min(size, total_needed * 500)
+                f.seek(size - chunk_size)
+                data = f.read().decode("utf-8", errors="replace")
+            lines = [l for l in data.strip().split("\n") if l.strip()]
+            if chunk_size < size:
+                lines = lines[1:]
+            result = []
+            for l in lines:
+                try:
+                    result.append(json.loads(l))
+                except json.JSONDecodeError:
+                    continue
+            if offset > 0:
+                result = result[:-offset] if offset < len(result) else []
+            return result[-limit:] if len(result) > limit else result
+        except OSError:
+            return []
+
     def read_all(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []

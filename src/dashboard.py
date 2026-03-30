@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 
 from src.config import AppConfig, load_config
 from src.trade_logger import TradeLogger
@@ -43,8 +43,10 @@ def create_app(
 
     @app.route("/api/trades")
     def api_trades():
-        # Read all trades so EXIT entries are never buried under HOLDs
-        return jsonify(trade_log.read_all())
+        limit = request.args.get("limit", 500, type=int)
+        offset = request.args.get("offset", 0, type=int)
+        limit = min(limit, 2000)  # Cap to prevent abuse
+        return jsonify(trade_log.read_recent_page(limit=limit, offset=offset))
 
     @app.route("/api/portfolio")
     def api_portfolio():
