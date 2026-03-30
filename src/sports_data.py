@@ -83,7 +83,7 @@ class SportsDataClient:
         "usa.w.1",  # NWSL
         "fifa.w.worldcup", "uefa.w.euro",   # Women's international
     })
-    _SKIP_SPORTS = frozenset({"cricket", "rugby"})
+    _SKIP_SPORTS = frozenset({"cricket"})
 
     def search_team(self, team_name: str) -> Optional[Tuple[str, str]]:
         """Search ESPN for a team by name. Returns (sport, league) or None.
