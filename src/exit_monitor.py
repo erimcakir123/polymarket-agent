@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 
 from src.models import effective_price
+from src.stop_loss_helper import compute_stop_loss_pct
 
 if TYPE_CHECKING:
     from src.portfolio import Portfolio
@@ -107,15 +108,9 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
-        # 1. Stop-loss check -- upset positions use wider SL
-        if pos.entry_reason == "upset":
-            sl_pct = self.config.upset_hunter.stop_loss_pct  # 50%
-        else:
-            sl_pct = self.config.risk.stop_loss_pct  # 30%
-        # Lossy re-entries use tighter SL (75% of original)
-        if getattr(pos, 'sl_reentry_count', 0) >= 1:
-            sl_pct *= 0.75
-        if pnl_pct <= -abs(sl_pct):
+        # 1. Stop-loss check -- unified rules via helper
+        sl_pct = compute_stop_loss_pct(pos, base_sl_pct=self.config.risk.stop_loss_pct)
+        if sl_pct is not None and pnl_pct <= -abs(sl_pct):
             self._ws_exit_queue.append((cid, "stop_loss"))
             self._ws_exit_queued_set.add(cid)
             logger.info(

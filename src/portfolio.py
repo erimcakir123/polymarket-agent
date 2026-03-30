@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 
 from src.models import Position, effective_price
 from src.sport_rules import get_stop_loss
+from src.stop_loss_helper import compute_stop_loss_pct
 
 logger = logging.getLogger(__name__)
 
@@ -286,44 +287,9 @@ class Portfolio:
                           vs_stop_loss_pct: float = 0.20) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():
-            # Skip if price was never updated (stale 0.0 -> fake -100% PnL)
-            if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
-                logger.debug("Skipping stop-loss for %s: price never updated (%.4f)",
-                             pos.slug[:30], pos.current_price)
-                continue
-            # O/U and spread markets: hold to resolution, no stop-loss
-            if self._is_totals_or_spread(pos):
-                continue
-            # Volatility swings use their own stop-loss
-            # Esports BO series get wider stop-loss due to natural volatility
-            # BO5 gets extra +10% room (more games = more comeback potential)
-            # Use effective entry price for BUY_NO (cost = 1 - yes_price)
-            eff_entry_sl = effective_price(pos.entry_price, pos.direction)
-            if pos.volatility_swing:
-                sl = vs_stop_loss_pct
-            elif eff_entry_sl < 0.09:
-                # Ultra-low: only Penny Alpha skips SL (bet size IS the risk)
-                # Early Entry swing trades and other strategies still get their SL
-                if getattr(pos, 'entry_reason', '') == 'penny':
-                    continue  # Penny alpha -- no stop-loss
-                else:
-                    sl = 0.50  # Other ultra-low entries: wide 50% SL
-            elif eff_entry_sl < 0.20:
-                # Low-entry (9-20¢): graduated stop-loss
-                # Linear scale: 9¢ -> 60%, 20¢ -> 40%
-                t = (eff_entry_sl - 0.09) / (0.20 - 0.09)  # 0..1
-                sl = 0.60 - t * 0.20  # 60% -> 40%
-            elif pos.confidence == "B-":
-                sl = 0.30  # B- tighter stop-loss
-            else:
-                sport_tag = getattr(pos, 'sport_tag', '') or ''
-                sl = get_stop_loss(sport_tag)
-                # BO5+ esports bonus -- extra room for comeback in long series
-                if pos.category == "esports" and pos.number_of_games >= 5:
-                    sl += 0.10
-            # Lossy re-entries use tighter SL (75% of original)
-            if getattr(pos, 'sl_reentry_count', 0) >= 1:
-                sl *= 0.75
+            sl = compute_stop_loss_pct(pos, base_sl_pct=stop_loss_pct, vs_sl_pct=vs_stop_loss_pct)
+            if sl is None:
+                continue  # Skip SL for this position (penny, totals/spread, stale)
             if pos.unrealized_pnl_pct < -sl:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"
