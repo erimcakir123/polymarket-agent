@@ -161,6 +161,7 @@ Key difference: `sports_context` is empty at 00:01 listing time. Enrichment fill
 | P8 | ESPN rate limiting: 60 leagues × 3 days = 180 requests with only inter-league sleep (0.5s), no per-request sleep | `scout_scheduler.py:320,448` — sleep is outside inner day loop | Add `time.sleep(0.2)` between day requests within a league, or reduce to 2-day fetch (today + tomorrow) |
 | P9 | Dashboard `trades.jsonl` reads entire file on every page load — 72K+ lines after 30 days | `dashboard.py` `read_all()` | Add pagination to API endpoint, or read only last N entries (e.g., 500) |
 | P10 | `_espn_odds_cache` and `_exited_markets` grow without eviction | `entry_gate.py:107`, `agent.py:70` | Low priority — no functional bug, just memory. Evict resolved markets periodically |
+| P11 | Dashboard `read_all()` reads entire `trades.jsonl` into memory on every `/api/trades` call — unbounded file growth (72K+ lines/month) slows dashboard | `dashboard.py` + `trade_logger.py` | Read only last N lines (tail read), or add `?limit=500&offset=0` pagination to the API endpoint |
 
 ## Edge Cases
 
@@ -195,4 +196,4 @@ Key difference: `sports_context` is empty at 00:01 listing time. Enrichment fill
 6. All existing interleaved exit checks preserved
 7. Auto-refill still runs consecutive heavy cycles until slots full
 8. All R1-R5 spec risks mitigated — no dead code, no spaghetti, single enrichment owner
-9. All P1-P10 pre-existing bugs fixed — no stale caches, no unbounded growth, no dead code
+9. All P1-P11 pre-existing bugs fixed — no stale caches, no unbounded growth, no dead code
