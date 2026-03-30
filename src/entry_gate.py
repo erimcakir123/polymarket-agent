@@ -48,6 +48,19 @@ logger = logging.getLogger(__name__)
 # Confidence score for ranking (A=4, B+=3, B-=2, C=1)
 _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
 
+# Sport-aware thin data thresholds.
+# Tennis/MMA: individual sports with sparse match history.
+# Golf/Racing: event-based, even 1 recent result is informative.
+# Default: lowered from 5 to 3 after ESPN overhaul.
+_THIN_DATA_THRESHOLDS = {
+    "tennis": 2,
+    "mma": 2,
+    "golf": 1,
+    "racing": 1,
+    "cricket": 3,
+    "default": 3,
+}
+
 
 class EntryGate:
     """Single unified market entry pipeline.
@@ -362,13 +375,27 @@ class EntryGate:
             # Pre-AI quality gate: count match result lines in context
             # Lines like "[W]" or "[L]" indicate actual game results
             result_lines = ctx.count("[W]") + ctx.count("[L]")
-            if result_lines < 5:
+            # Sport-aware threshold: tennis/MMA/golf need fewer results
+            _sport = getattr(m, "sport_tag", "") or ""
+            _sport_cat = "default"
+            if _sport in ("atp", "wta") or "tennis" in _sport:
+                _sport_cat = "tennis"
+            elif _sport in ("ufc",) or "mma" in _sport:
+                _sport_cat = "mma"
+            elif "golf" in _sport or "pga" in _sport:
+                _sport_cat = "golf"
+            elif "racing" in _sport or "f1" in _sport or "nascar" in _sport:
+                _sport_cat = "racing"
+            elif "cricket" in _sport:
+                _sport_cat = "cricket"
+            _threshold = _THIN_DATA_THRESHOLDS.get(_sport_cat, _THIN_DATA_THRESHOLDS["default"])
+            if result_lines < _threshold:
                 _thin_data_skipped += 1
-                logger.info("SKIP thin data: %s | only %d match results (need 5+)",
-                            (m.slug or "")[:35], result_lines)
+                logger.info("SKIP thin data: %s | only %d match results (need %d+, sport=%s)",
+                            (m.slug or "")[:35], result_lines, _threshold, _sport_cat)
                 self.trade_log.log({
                     "market": m.slug, "action": "HOLD",
-                    "rejected": f"Thin data ({result_lines} results, need 5+)",
+                    "rejected": f"Thin data ({result_lines} results, need {_threshold}+)",
                     "price": m.yes_price,
                     "question": getattr(m, "question", ""),
                 })
