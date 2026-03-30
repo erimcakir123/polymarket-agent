@@ -605,10 +605,11 @@ class EntryGate:
             adjusted_size = risk_decision.size_usdc
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
-            # ── Rank score -- edge + prob + confidence ─────────────────────────
-            # Higher edge = higher priority. Negative edge already filtered above.
+            # ── Rank score -- pure edge × confidence ─────────────────────────
+            # Edge-only ranking: underdogs with high edge rank equally to favorites.
+            # Old formula (direction_prob + edge) penalized underdogs 2-3x.
             conf_score = _CONF_SCORE.get(estimate.confidence, 1)
-            rank_score = (direction_prob + edge) * conf_score
+            rank_score = edge * conf_score
 
             logger.info(
                 "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
