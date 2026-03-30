@@ -156,6 +156,8 @@ class EntryGate:
         if not markets:
             return []
 
+        self._prune_candidate_stock()
+
         cfg = self.config
         exited_markets = exited_markets or set()
 
@@ -210,6 +212,21 @@ class EntryGate:
     def push_to_stock(self, candidate: dict) -> None:
         """Add a candidate to the stock queue (called by agent for demoted positions)."""
         self._candidate_stock.append(candidate)
+
+    def _prune_candidate_stock(self) -> None:
+        """Remove stale candidates from stock queue (P2). Max 20, TTL 2 hours."""
+        now = datetime.now(timezone.utc)
+        _MAX_STOCK = 20
+        # Remove candidates older than 2h
+        self._candidate_stock = [
+            c for c in self._candidate_stock
+            if (now - datetime.fromisoformat(
+                c.get("added_at", now.isoformat())
+            ).replace(tzinfo=timezone.utc)).total_seconds() < 7200
+        ]
+        # Cap at max
+        if len(self._candidate_stock) > _MAX_STOCK:
+            self._candidate_stock = self._candidate_stock[-_MAX_STOCK:]
 
     def reset_seen_markets(self) -> None:
         """Reset seen market tracking. Called at start of each heavy cycle and each refill."""
@@ -279,6 +296,7 @@ class EntryGate:
         prioritized: list = []
         if self.scout:
             matched_markets = self.scout.match_markets_batch(markets)
+            self._last_scout_matches = matched_markets
             matched_markets.sort(key=lambda m: m["scout_entry"].get("match_time", ""))
 
             # Expanding window: try 2h, then 3, 4, 5h
@@ -761,6 +779,7 @@ class EntryGate:
                 # Save this and all remaining candidates to stock queue
                 remaining_idx = candidates.index(c)
                 for rc in candidates[remaining_idx:]:
+                    rc["added_at"] = datetime.now(timezone.utc).isoformat()
                     self._candidate_stock.append(rc)
                 logger.info("Saved %d candidates to stock queue (exposure cap)",
                             len(candidates) - remaining_idx)
@@ -801,6 +820,13 @@ class EntryGate:
                 entry_reason=c.get("entry_reason", ""),
                 is_consensus=c.get("is_consensus", False),
             )
+
+            # Mark scout entry as entered (P1: wire up dead code)
+            if self.scout:
+                for mm in getattr(self, '_last_scout_matches', []):
+                    if mm.get("market") and mm["market"].condition_id == cid:
+                        self.scout.mark_entered(mm["scout_key"])
+                        break
 
             self.trade_log.log({
                 "market": market.slug, "action": "BUY",
