@@ -62,6 +62,22 @@ _THIN_DATA_THRESHOLDS = {
 }
 
 
+def _sport_category(sport_tag: str) -> str:
+    """Map a sport_tag to a threshold category key."""
+    sp = (sport_tag or "").lower()
+    if sp in ("atp", "wta") or "tennis" in sp:
+        return "tennis"
+    if sp in ("ufc",) or "mma" in sp:
+        return "mma"
+    if "golf" in sp or "pga" in sp:
+        return "golf"
+    if "racing" in sp or "f1" in sp or "nascar" in sp:
+        return "racing"
+    if "cricket" in sp:
+        return "cricket"
+    return "default"
+
+
 class EntryGate:
     """Single unified market entry pipeline.
 
@@ -399,18 +415,7 @@ class EntryGate:
             # Lines like "[W]" or "[L]" indicate actual game results
             result_lines = ctx.count("[W]") + ctx.count("[L]")
             # Sport-aware threshold: tennis/MMA/golf need fewer results
-            _sport = getattr(m, "sport_tag", "") or ""
-            _sport_cat = "default"
-            if _sport in ("atp", "wta") or "tennis" in _sport:
-                _sport_cat = "tennis"
-            elif _sport in ("ufc",) or "mma" in _sport:
-                _sport_cat = "mma"
-            elif "golf" in _sport or "pga" in _sport:
-                _sport_cat = "golf"
-            elif "racing" in _sport or "f1" in _sport or "nascar" in _sport:
-                _sport_cat = "racing"
-            elif "cricket" in _sport:
-                _sport_cat = "cricket"
+            _sport_cat = _sport_category(getattr(m, "sport_tag", ""))
             _threshold = _THIN_DATA_THRESHOLDS.get(_sport_cat, _THIN_DATA_THRESHOLDS["default"])
             if result_lines < _threshold:
                 _thin_data_skipped += 1
@@ -454,18 +459,7 @@ class EntryGate:
                 continue
             _ctx_str = esports_contexts.get(m.condition_id, "")
             _result_count = _ctx_str.count("[W]") + _ctx_str.count("[L]")
-            _sp = getattr(m, "sport_tag", "") or ""
-            _sp_cat = "default"
-            if _sp in ("atp", "wta") or "tennis" in _sp:
-                _sp_cat = "tennis"
-            elif _sp in ("ufc",) or "mma" in _sp:
-                _sp_cat = "mma"
-            elif "golf" in _sp or "pga" in _sp:
-                _sp_cat = "golf"
-            elif "racing" in _sp or "f1" in _sp or "nascar" in _sp:
-                _sp_cat = "racing"
-            elif "cricket" in _sp:
-                _sp_cat = "cricket"
+            _sp_cat = _sport_category(getattr(m, "sport_tag", ""))
             _thr = _THIN_DATA_THRESHOLDS.get(_sp_cat, _THIN_DATA_THRESHOLDS["default"])
             if _result_count < _thr:
                 _skipped_cids.add(m.condition_id)
