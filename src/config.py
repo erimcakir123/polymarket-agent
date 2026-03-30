@@ -23,7 +23,6 @@ class CycleConfig(BaseModel):
 
 
 class ScannerConfig(BaseModel):
-    min_volume_24h: float = 5_000  # Not used -- volume filter removed
     min_liquidity: float = 100  # Floor: ensures orderbook has some orders
     tags: List[str] = []
     prefer_short_duration: bool = True
@@ -51,11 +50,6 @@ class EdgeConfig(BaseModel):
     default_spread: float = 0.02
 
 
-class TrailingStopTier(BaseModel):
-    min_peak: float
-    drop_pct: float
-
-
 class RiskConfig(BaseModel):
     kelly_fraction: float = 0.20  # Legacy -- sizing is confidence-based now
     max_single_bet_usdc: float = 75
@@ -67,19 +61,6 @@ class RiskConfig(BaseModel):
     take_profit_pct: float = 0.40
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
-    drawdown_halt_pct: float = 0.50
-    trailing_stop_tiers: List[TrailingStopTier] = []
-
-    # Re-entry (#6, #12)
-    max_daily_reentries: int = 5
-
-    # Correlation (#17)
-    max_match_exposure_pct: float = 0.15
-
-    # Scale-In (#7)
-    scale_in_min_pnl_pct: float = 0.02
-    scale_in_min_cycles: int = 3
-    scale_in_num_tranches: int = 2
     price_drift_reanalysis_pct: float = 0.15
 
     # Exposure guard (#P0) -- block entries when total invested > X% of bankroll

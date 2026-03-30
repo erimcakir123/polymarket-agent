@@ -9,7 +9,6 @@ cycle:
   night_hours: [8, 9, 10, 11, 12, 13]  # UTC 08-13 = US midnight-8am (no games)
 
 scanner:
-  min_volume_24h: 5000  # Enough liquidity for reliable pricing, esports exempt
   min_liquidity: 1000
   tags: []  # Empty = accept all categories (sports resolve fast → quicker test data)
   prefer_short_duration: true  # Prioritize markets resolving within 48h
@@ -44,7 +43,6 @@ risk:
   take_profit_pct: 0.40
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
-  drawdown_halt_pct: 0.50
 
 
 volatility_swing:
