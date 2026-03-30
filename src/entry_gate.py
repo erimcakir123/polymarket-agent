@@ -279,14 +279,18 @@ class EntryGate:
             "semi", "quarter", "into", "also", "each", "other", "these",
         })
 
-        # Fetch esports contexts
+        # Fetch esports contexts (PandaScore — esports markets ONLY)
         esports_contexts: dict = {}
         try:
             _esports_tmp: dict = {}
             for _m in prioritized:
+                _sport = getattr(_m, "sport_tag", "") or ""
+                _slug = _m.slug or ""
+                if not is_esports(_sport) and not is_esports_slug(_slug):
+                    continue  # Not esports — skip PandaScore
                 _ctx = self.esports.get_match_context(
                     getattr(_m, "question", ""),
-                    [getattr(_m, "sport_tag", "") or ""],
+                    [_sport],
                 )
                 if _ctx is not None:
                     _esports_tmp[_m.condition_id] = _ctx

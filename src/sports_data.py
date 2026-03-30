@@ -694,7 +694,13 @@ class SportsDataClient:
                 continue
 
             for event in data.get("events", []):
-                for comp in event.get("competitions", []):
+                # Tennis/MMA use groupings[].competitions[] instead of
+                # top-level competitions[].  Collect from both paths.
+                all_comps: list = list(event.get("competitions", []))
+                for grp in event.get("groupings", []):
+                    all_comps.extend(grp.get("competitions", []))
+
+                for comp in all_comps:
                     status = comp.get("status", {}).get("type", {})
                     if not status.get("completed", False):
                         continue
