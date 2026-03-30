@@ -16,13 +16,27 @@ logger = logging.getLogger(__name__)
 
 PANDASCORE_BASE = "https://api.pandascore.co"
 
-# Minimal categorization for API routing (4 games, no aliases needed).
-# Dynamic search via search_match() handles discovery.
+# Map Polymarket tags + PandaScore videogame.slug → valid API path slug.
+# PandaScore API endpoints use: /csgo/, /lol/, /dota2/, /valorant/, /ow/, /r6-siege/ etc.
+# Polymarket tags use: "counter-strike", "league-of-legends", "dota-2", etc.
+# PandaScore videogame.slug returns: "cs-go", "league-of-legends", "dota-2", etc.
 _GAME_SLUGS = {
-    "cs2": "csgo", "csgo": "csgo",
-    "lol": "lol",
-    "dota2": "dota2",
+    # CS2 — Polymarket tag "counter-strike", PandaScore returns "cs-go"
+    "cs2": "csgo", "csgo": "csgo", "counter-strike": "csgo", "cs-go": "csgo",
+    # LoL — Polymarket tag "league-of-legends"
+    "lol": "lol", "league-of-legends": "lol",
+    # Dota 2 — Polymarket tag "dota-2"
+    "dota2": "dota2", "dota-2": "dota2",
+    # Valorant
     "valorant": "valorant",
+    # R6 Siege — PandaScore returns "r6-siege"
+    "r6-siege": "r6-siege",
+    # Overwatch — PandaScore returns "ow"
+    "ow": "ow", "overwatch": "ow",
+    # Mobile Legends
+    "mobile-legends": "mobile-legends-bang-bang",
+    # StarCraft 2
+    "starcraft-2": "starcraft-2", "starcraft": "starcraft-2",
 }
 
 # Team aliases moved to centralized src/team_matcher.py
@@ -110,9 +124,11 @@ class EsportsDataClient:
             match = self.search_match(team_a)
             if match:
                 videogame = match.get("videogame", {})
-                slug = videogame.get("slug", "")
-                if slug:
-                    logger.info("PandaScore search: '%s' -> game=%s", team_a, slug)
+                raw_slug = videogame.get("slug", "")
+                if raw_slug:
+                    # Normalize PandaScore slug (e.g. "cs-go" → "csgo")
+                    slug = _GAME_SLUGS.get(raw_slug, raw_slug)
+                    logger.info("PandaScore search: '%s' -> game=%s (raw=%s)", team_a, slug, raw_slug)
                     return slug
 
         return None
@@ -274,10 +290,6 @@ class EsportsDataClient:
         losses = 0
         recent = []
         for m in matches:
-            # Client-side tier filter: skip D/C tier (manipulation-prone)
-            tier = (m.get("tournament", {}).get("tier") or "").lower()
-            if tier in ("d", "c"):
-                continue
             winner = m.get("winner", {})
             won = winner and winner.get("id") == team_id
             if won:
