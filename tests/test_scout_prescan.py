@@ -48,7 +48,7 @@ def test_is_daily_listing_time_hour_6():
 def test_run_daily_listing_no_enrichment():
     """run_daily_listing must NOT call sports.get_match_context; sports_context must be empty."""
     scout = _make_scout()
-    scout._last_run_ts = 0  # No cooldown
+    scout._last_daily_ts = 0  # No cooldown
 
     now = datetime.now(timezone.utc)
     fake_match = {
@@ -103,10 +103,15 @@ def test_get_window_returns_chronological():
             "match_time": (now + timedelta(hours=3)).isoformat(),
             "entered": False,
         },
+        "past_game": {
+            "team_a": "G", "team_b": "H",
+            "match_time": (now - timedelta(hours=1)).isoformat(),
+            "entered": False, "matched": False,
+        },
     }
 
     results = scout.get_window(hours_ahead=6)
-    assert len(results) == 3
+    assert len(results) == 3  # past_game excluded (match_time < now)
     assert results[0]["scout_key"] == "early_game"
     assert results[1]["scout_key"] == "mid_game"
     assert results[2]["scout_key"] == "late_game"

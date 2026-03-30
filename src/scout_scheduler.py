@@ -114,6 +114,7 @@ class ScoutScheduler:
         self.esports = esports
         self._queue: Dict[str, dict] = {}
         self._last_run_ts: float = 0.0          # in-memory cooldown timestamp
+        self._last_daily_ts: float = 0.0         # separate cooldown for daily listing
         self._load_queue()
 
     def _load_queue(self) -> None:
@@ -180,9 +181,9 @@ class ScoutScheduler:
         """
         # Same cooldown logic as run_scout()
         _COOLDOWN_SECS = 4 * 3600
-        if time.time() - self._last_run_ts < _COOLDOWN_SECS:
+        if time.time() - self._last_daily_ts < _COOLDOWN_SECS:
             logger.debug("Daily listing cooldown active -- skipping (%.1fh since last run)",
-                         (time.time() - self._last_run_ts) / 3600)
+                         (time.time() - self._last_daily_ts) / 3600)
             return 0
 
         logger.info("=== DAILY LISTING START ===")
@@ -232,7 +233,7 @@ class ScoutScheduler:
         SCOUT_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
         SCOUT_MARKER_FILE.write_text(now.isoformat(), encoding="utf-8")
 
-        self._last_run_ts = time.time()
+        self._last_daily_ts = time.time()
         logger.info("=== DAILY LISTING COMPLETE: %d new, %d total in queue ===", new_count, len(self._queue))
         return new_count
 
