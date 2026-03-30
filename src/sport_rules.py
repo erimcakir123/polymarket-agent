@@ -399,6 +399,7 @@ def _normalize_tag(sport_tag: str) -> str:
         "football": "soccer", "mls": "soccer",
         "ufc": "mma", "csgo": "cs2", "counter-strike": "cs2",
         "val": "valorant", "league_of_legends": "lol",
+        "league-of-legends": "lol", "dota-2": "dota2",
         "dota": "dota2", "cricket_t20": "cricket", "ipl": "cricket",
         "nrl": "rugby",
     }
