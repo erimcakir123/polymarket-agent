@@ -1,15 +1,9 @@
-"""Pre-game scout scheduler -- fetches match calendars for early entry.
+"""Pre-game scout scheduler -- fetches match calendars for chronological entry selection.
 
-Two scan modes:
-  - run_scout()        : 4x daily (00, 06, 12, 18 UTC), fetches next-24h matches.
-  - run_daily_listing(): 1x daily (00 UTC), full scan, no enrichment.
-
-Both modes save to scout_queue.json. Enrichment (sports context, AI analysis) is
-deferred to entry_gate — scout only lists matches with basic calendar data.
-
-Query helpers:
-  - get_window(hours_ahead)     : upcoming matches within a time window.
-  - match_markets_batch(markets): bulk Gamma market matching with single disk save.
+Daily listing at 00:01 UTC catalogs ALL upcoming matches (no enrichment).
+Light refreshes at 06/12/18 UTC catch late additions.
+Entry gate queries get_window() each heavy cycle for chronological selection.
+Enrichment is deferred to entry_gate via discovery.resolve() (single owner).
 """
 from __future__ import annotations
 import json
@@ -414,14 +408,14 @@ class ScoutScheduler:
                 logger.info("Scout match found: %s <-> %s", key, slug[:40])
                 return entry
 
-            # Try abbreviated matching (first 3+ chars of each team)
-            if len(team_a) >= 3 and len(team_b) >= 3:
-                a_short = team_a[:4]
-                b_short = team_b[:4]
+            # Abbreviated matching (6+ chars to avoid false positives like Real Madrid/Betis)
+            if len(team_a) >= 6 and len(team_b) >= 6:
+                a_short = team_a[:6]
+                b_short = team_b[:6]
                 if a_short in slug_lower and b_short in slug_lower:
                     entry["matched"] = True
                     self._save_queue()
-                    logger.info("Scout match (abbrev): %s <-> %s", key, slug[:40])
+                    logger.info("Scout match (abbrev6): %s <-> %s", key, slug[:40])
                     return entry
 
         return None
