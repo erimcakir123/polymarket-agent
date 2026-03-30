@@ -235,6 +235,7 @@ class Agent:
                             seen_count = len(self.entry_gate._seen_market_ids)
                             logger.info("Pool not full (%d open slots) -- refill cycle %d (seen %d markets)",
                                         open_slots, _refill_round, seen_count)
+                            self.entry_gate.reset_seen_markets()  # R3: fresh scan each refill
                             self.run_cycle()
                             last_full_cycle_time = time.time()
                             positions_after = len(self.portfolio.positions)
@@ -478,11 +479,18 @@ class Agent:
 
         # Scout + Entry: fresh scan (analyze=True)
         t0 = time.monotonic()
-        if entries_allowed and self.scout.should_run_scout():
-            self.cycle_helpers.write_status("running", "Scouting matches")
+        # Daily listing runs UNCONDITIONALLY (R4) — it's just data gathering, no entries
+        if self.scout.is_daily_listing_time() and self.scout.should_run_scout():
+            self.cycle_helpers.write_status("running", "Daily match listing")
+            new_listed = self.scout.run_daily_listing()
+            if new_listed:
+                self.notifier.send(f"📋 DAILY LISTING: {new_listed} matches catalogued")
+        elif self.scout.should_run_scout():
+            # 06/12/18 UTC refresh — catches late additions
+            self.cycle_helpers.write_status("running", "Refreshing match list")
             new_scouted = self.scout.run_scout()
             if new_scouted:
-                self.notifier.send(f"🔍 SCOUT: {new_scouted} new matches")
+                self.notifier.send(f"🔍 SCOUT REFRESH: {new_scouted} new matches")
 
         self.cycle_helpers.write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
