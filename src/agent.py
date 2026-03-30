@@ -305,40 +305,50 @@ class Agent:
 
     def run_light_cycle(self) -> None:
         """Price-only cycle: update prices + check exits. No scan, no AI."""
+        cycle_start = time.monotonic()
         self.cycle_helpers.write_status("running", "Light cycle")
         if self._is_paused():
             return
         logger.info("=== Light cycle ===")
 
         # Process WS ticks first (main thread)
+        t0 = time.monotonic()
         self.exit_monitor.process_ws_ticks()
 
         # Drain WS exits
         for cid, reason in self.exit_monitor.drain():
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self.exit_executor.exit_position(cid, reason)
+        logger.info("Phase [ws_ticks+drain] took %.1fs", time.monotonic() - t0)
 
         # Update prices
+        t0 = time.monotonic()
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
         if not self.ws_feed.connected:
             self.last_cycle_has_live_clob = self.price_updater.update_position_prices()
         self.price_updater.sync_ws_subscriptions()
+        logger.info("Phase [price_update] took %.1fs", time.monotonic() - t0)
 
         # Fetch live match states
+        t0 = time.monotonic()
         match_states = self.price_updater.fetch_match_states()
+        logger.info("Phase [match_states] took %.1fs", time.monotonic() - t0)
 
         # Light exit checks
+        t0 = time.monotonic()
         for cid, reason in self.exit_monitor.check_exits_light():
             if cid in self.portfolio.positions and not self.exit_monitor.is_exiting(cid):
                 self.exit_executor.exit_position(cid, reason)
 
         # Handle hold-revoke/restore (match_exit meta -- mutates pos directly)
         self.exit_executor.handle_hold_revokes()
+        logger.info("Phase [exit_checks] took %.1fs", time.monotonic() - t0)
 
         self.light_cycle_count += 1
 
         # --- Light cycle action strategies (with per-strategy cooldowns) ---
+        t0 = time.monotonic()
         held_events = self.live_strategies.get_held_event_ids()
 
         # Fetch fresh market data once for all strategies that need it
@@ -374,13 +384,16 @@ class Agent:
             entered = self.live_strategies.check_live_momentum(held_events, light_fresh_markets, match_states)
             if entered:
                 self.live_strategies.set_light_cooldown("momentum")
+        logger.info("Phase [strategies] took %.1fs", time.monotonic() - t0)
 
         # Persist portfolio snapshot so dashboard sees real-time PnL
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.cycle_helpers.log_cycle_summary(bankroll, "light")
+        logger.info("Full light cycle took %.1fs", time.monotonic() - cycle_start)
 
     def run_cycle(self) -> None:
         """Heavy cycle: exit checks + market scan + AI + entry decisions."""
+        cycle_start = time.monotonic()
         self.cycle_helpers.write_status("running", "Hard cycle")
         if self._is_paused():
             return
@@ -389,9 +402,12 @@ class Agent:
         logger.info("=== Cycle #%d start ===", self.cycle_count)
 
         # Self-reflection
+        t0 = time.monotonic()
         self.cycle_helpers.maybe_run_reflection()
+        logger.info("Phase [reflection] took %.1fs", time.monotonic() - t0)
 
         # Bankroll + drawdown
+        t0 = time.monotonic()
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
         self.portfolio.update_bankroll(bankroll)
         dd_level = self.portfolio.get_drawdown_level()
@@ -428,16 +444,20 @@ class Agent:
             logger.info("Entry pause active (logs/no_new_entries exists)")
 
         entries_allowed = not halt
+        logger.info("Phase [bankroll+drawdown+cb] took %.1fs", time.monotonic() - t0)
 
         # Check resolved markets
+        t0 = time.monotonic()
         self.cycle_helpers.write_status("running", "Checking exits")
         self.price_updater.check_resolved_markets()
 
         # Update prices
         self.last_cycle_has_live_clob = self.price_updater.update_position_prices()
         self.price_updater.check_price_drift_reanalysis()
+        logger.info("Phase [price_update+resolved] took %.1fs", time.monotonic() - t0)
 
         # Process WS ticks first (main thread)
+        t0 = time.monotonic()
         self.exit_monitor.process_ws_ticks()
 
         # Exit detection + execution
@@ -452,10 +472,12 @@ class Agent:
         self.exit_executor.handle_hold_revokes()
         # NOTE: _process_scale_outs() moved to light cycle with cooldown
         self.price_updater.sync_ws_subscriptions()
+        logger.info("Phase [exit_detection] took %.1fs", time.monotonic() - t0)
 
         self._quick_exit_check(bankroll)  # between exits and scan
 
         # Scout + Entry: fresh scan (analyze=True)
+        t0 = time.monotonic()
         if entries_allowed and self.scout.should_run_scout():
             self.cycle_helpers.write_status("running", "Scouting matches")
             new_scouted = self.scout.run_scout()
@@ -470,6 +492,7 @@ class Agent:
         for m in fresh_markets:
             if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
                 self._pre_match_prices[m.condition_id] = m.yes_price
+        logger.info("Phase [scout+scan] took %.1fs", time.monotonic() - t0)
 
         # Skip expensive AI analysis if exposure cap already reached
         from src.risk_manager import exceeds_exposure_limit
@@ -482,11 +505,13 @@ class Agent:
                         self.config.risk.max_exposure_pct * 100)
             entries_allowed = False
 
+        t0 = time.monotonic()
         self.entry_gate.run(
             fresh_markets, entries_allowed=entries_allowed, analyze=True,
             bankroll=bankroll, cycle_count=self.cycle_count,
             blacklist=self.blacklist, exited_markets=self._exited_markets,
         )
+        logger.info("Phase [entry_gate_ai] took %.1fs", time.monotonic() - t0)
 
         self._quick_exit_check(bankroll)  # between AI entries and stock drain
 
@@ -496,6 +521,7 @@ class Agent:
             self.cycle_timer.signal_breaking_news()
             logger.info("Breaking news detected -- cycle shortened to %d min", self.config.cycle.breaking_news_interval_min)
 
+        t0 = time.monotonic()
         self.cycle_helpers.write_status("running", "Evaluating entries")
         # Entry: stock queue drain (analyze=False -- no AI cost)
         self.entry_gate.drain_stock(
@@ -503,19 +529,23 @@ class Agent:
             cycle_count=self.cycle_count, blacklist=self.blacklist,
             exited_markets=self._exited_markets,
         )
+        logger.info("Phase [stock_drain] took %.1fs", time.monotonic() - t0)
 
         self._quick_exit_check(bankroll)  # between stock drain and upset hunter
 
         # NOTE: farming_reentry, live_dip, live_momentum, scale_outs moved to light cycle
         # Upset hunter stays in heavy cycle (needs fresh scan data + AI analysis)
+        t0 = time.monotonic()
         if entries_allowed:
             self.live_strategies.check_upset_hunter(fresh_markets, bankroll)
+        logger.info("Phase [upset_hunter] took %.1fs", time.monotonic() - t0)
 
         self._quick_exit_check(bankroll)  # after upset, before summary
 
         # Check outcomes + log
         self.price_updater.check_tracked_outcomes()
         self.cycle_helpers.log_cycle_summary(bankroll, "ok")
+        logger.info("Full heavy cycle #%d took %.1fs", self.cycle_count, time.monotonic() - cycle_start)
 
     # (Light-cycle strategies moved to src/live_strategies.py)
 
