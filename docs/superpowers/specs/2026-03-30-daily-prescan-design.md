@@ -135,26 +135,55 @@ No schema change from current. Existing fields:
 
 Key difference: `sports_context` is empty at 00:01 listing time. Enrichment fills it during the heavy cycle when the entry gate processes the market.
 
+## Risks and Mitigations
+
+### Spec-Created Risks (MUST fix during implementation)
+
+| # | Risk | Mitigation |
+|---|---|---|
+| R1 | **agent.py dispatch unclear** — `should_run_scout()` returns True for both 00:01 and 06/12/18, agent doesn't know which method to call | Add `scout.is_daily_listing_time() -> bool` (True only at hour=0). Agent checks this first: if True → `run_daily_listing()`, else → `run_scout()` |
+| R2 | **Enrichment ownership scattered** — currently 4 places populate `sports_context`: scout enrichment (scout_scheduler:200-213), scout inject (entry_gate:302-316), discovery.resolve (entry_gate:319-338), + new chronological enrichment | **Single owner: `entry_gate._analyze_batch()`** via `discovery.resolve()`. Remove enrichment from `scout_scheduler.run_scout()` and `run_daily_listing()`. Remove separate scout inject block (entry_gate:302-316) — fold into chronological selection path |
+| R3 | **`_seen_market_ids` kills refill** — chronological window has 20-30 markets, all marked "seen" after 1st cycle → refill finds 0 unseen → slots stay empty | **Reset `_seen_market_ids` before each heavy cycle in auto-refill loop**, not just at first cycle. Or: don't add chronological-window markets to `_seen_market_ids` (they should be re-eligible each cycle) |
+| R4 | **`entries_allowed` gates daily listing** — if circuit breaker / soft halt active at 00:01, daily listing never runs → entire day has no chronological data until 06:00 refresh | **Decouple daily listing from `entries_allowed`**. Listing is just data gathering (no entries, no AI). Run it unconditionally: `if scout.is_daily_listing_time(): scout.run_daily_listing()` before the `entries_allowed` check |
+| R5 | **Two selection paradigms in one method** — volume-sorted (current) + chronological (new) both live in `_analyze_batch()` | **Extract current prioritization (lines 237-256) into `_volume_sorted_selection(markets, scan_size)`**. New chronological path is the default. Fallback calls `_volume_sorted_selection()` when scout yields <5 |
+
+### Pre-Existing Bugs (fix alongside implementation)
+
+| # | Bug | Location | Fix |
+|---|---|---|---|
+| P1 | `mark_entered()` never called — `entered` flag always False → `signal_scout_approaching()` fires for already-traded markets → permanent 5-min cycles | `scout_scheduler.py:291` is dead code, never called from entry_gate or agent | Wire up: call `scout.mark_entered(scout_key)` from `entry_gate._execute_entries()` when a position is opened via scout match |
+| P2 | `_candidate_stock` never pruned — grows unbounded, stale candidates attempted repeatedly | `entry_gate.py:112` — list only grows, never shrinks | Add TTL eviction: remove stock entries older than 2 hours, or cap at 20 entries with FIFO |
+| P3 | `_confidence_c_attempts` never reset — markets getting C on Day 1 permanently blocked even if data improves by Day 5 | `entry_gate.py:108` — dict grows forever | Reset daily (clear at 00:01 with the daily listing) or evict entries older than 24h |
+| P4 | `_pre_match_prices` never evicted — stale prices from days ago cause false `live_dip` signals | `agent.py:366,492` — dict grows forever | Evict entries for resolved/exited markets. Prune entries older than 48h |
+| P5 | `match_market()` saves to disk on every single match — 50-100 disk writes per cycle if many matches | `scout_scheduler.py:275` — `_save_queue()` per match | Add `match_markets_batch(markets)` that matches all, saves once at end |
+| P6 | `_seen_market_ids` hardcoded threshold 5 conflicts with sport-aware thresholds (tennis=2, mma=2) — tennis markets analyzed once but blocked from refill | `entry_gate.py:434-436` — uses `< 5` instead of sport-aware `_THIN_DATA_THRESHOLDS` | Use the same sport-aware threshold lookup from `_THIN_DATA_THRESHOLDS` |
+| P7 | PandaScore `per_page: 100` with no pagination — drops matches when >100 upcoming per game (busy tournament days) | `scout_scheduler.py:468` | Add pagination loop: fetch page 1, if 100 results → fetch page 2, etc. |
+| P8 | ESPN rate limiting: 60 leagues × 3 days = 180 requests with only inter-league sleep (0.5s), no per-request sleep | `scout_scheduler.py:320,448` — sleep is outside inner day loop | Add `time.sleep(0.2)` between day requests within a league, or reduce to 2-day fetch (today + tomorrow) |
+| P9 | Dashboard `trades.jsonl` reads entire file on every page load — 72K+ lines after 30 days | `dashboard.py` `read_all()` | Add pagination to API endpoint, or read only last N entries (e.g., 500) |
+| P10 | `_espn_odds_cache` and `_exited_markets` grow without eviction | `entry_gate.py:107`, `agent.py:70` | Low priority — no functional bug, just memory. Evict resolved markets periodically |
+
 ## Edge Cases
 
-1. **No scout data yet (first boot)**: Fallback to current volume-sorted scan. Bot works without scout queue.
+1. **No scout data yet (first boot)**: Fallback to `_volume_sorted_selection()`. Bot works without scout queue.
 2. **00:01 scan misses a match**: 06/12/18 refresh catches late additions. If all miss, volume-sorted fallback still works.
 3. **Scout entry doesn't match any Gamma market**: Normal — match hasn't been listed on Polymarket yet. Entry skipped, pruned after `match_time + 4h`.
 4. **Queue grows large**: Pruning at `match_time + 4h` keeps it bounded. Typical: 200-400 entries, pruned within hours.
-5. **ESPN rate limiting**: Existing `time.sleep(0.5)` between league fetches. 00:01 scan takes ~45-50 seconds for all leagues.
-6. **Multiple heavy cycles**: Auto-refill runs consecutive heavy cycles. Each one re-reads `get_window()` fresh — no stale data.
+5. **ESPN rate limiting**: Sleep between leagues + between day requests. 00:01 scan takes ~60-90 seconds for all leagues.
+6. **Multiple heavy cycles (auto-refill)**: `_seen_market_ids` reset before each refill cycle (R3 mitigation). Each reads `get_window()` fresh.
+7. **Bot starts mid-day (e.g., 03:00 UTC)**: No daily listing exists. `should_run_scout()` returns False until 06:00. Volume-sorted fallback handles the gap.
+8. **Bot halted at midnight**: Daily listing runs unconditionally (R4 mitigation). When entries resume, chronological data is ready.
+9. **match_market() false positives (e.g., "Real Madrid" vs "Real Betis")**: Abbreviated matching (4-char prefix) can collide. Mitigation: increase prefix to 6 chars, or require full team_a match (not abbreviated) when team name is <8 chars.
 
 ## What Does NOT Change
 
 - Light cycle logic (5s loop, per-strategy cooldowns)
 - Exit monitoring (interleaved checks at 4 points)
 - AI batch cap (20 markets max)
-- Thin data gate thresholds
+- Thin data gate thresholds (sport-aware values preserved)
 - Odds API usage (post-AI only)
 - Risk manager / position sizing
 - Upset hunter (stays in heavy cycle)
 - WebSocket subscriptions
-- Dashboard / trade logger
 
 ## Success Criteria
 
@@ -165,3 +194,5 @@ Key difference: `sports_context` is empty at 00:01 listing time. Enrichment fill
 5. Fallback to volume-sorted scan works when scout queue is empty
 6. All existing interleaved exit checks preserved
 7. Auto-refill still runs consecutive heavy cycles until slots full
+8. All R1-R5 spec risks mitigated — no dead code, no spaghetti, single enrichment owner
+9. All P1-P10 pre-existing bugs fixed — no stale caches, no unbounded growth, no dead code
