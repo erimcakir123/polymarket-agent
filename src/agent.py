@@ -214,7 +214,7 @@ class Agent:
                         # Each refill analyzes the NEXT batch (seen_market_ids tracks offset)
                         vs_reserved = self.config.volatility_swing.reserved_slots
                         _refill_round = 0
-                        _prev_seen = len(self.entry_gate._seen_market_ids)
+                        _consecutive_dry = 0  # Track consecutive refills with no new entries
                         while True:
                             current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
                             current_normal = self.portfolio.active_position_count - current_vs
@@ -232,25 +232,24 @@ class Agent:
                                 break
                             _refill_round += 1
                             positions_before = len(self.portfolio.positions)
-                            seen_count = len(self.entry_gate._seen_market_ids)
-                            logger.info("Pool not full (%d open slots) -- refill cycle %d (seen %d markets)",
-                                        open_slots, _refill_round, seen_count)
+                            logger.info("Pool not full (%d open slots) -- refill cycle %d",
+                                        open_slots, _refill_round)
                             self.entry_gate.reset_seen_markets()  # R3: fresh scan each refill
                             self.run_cycle()
                             last_full_cycle_time = time.time()
                             positions_after = len(self.portfolio.positions)
-                            new_seen = len(self.entry_gate._seen_market_ids)
                             new_entries = positions_after - positions_before
                             if new_entries > 0:
                                 logger.info("Refill cycle %d added %d positions", _refill_round, new_entries)
+                                _consecutive_dry = 0
                             else:
-                                logger.info("Refill cycle %d -- no new entries (seen %d markets so far)",
-                                            _refill_round, new_seen)
-                            # If no new markets were analyzed, eligible pool is exhausted
-                            if new_seen == _prev_seen:
-                                logger.info("Eligible pool exhausted -- no unseen markets left. Refill done.")
+                                _consecutive_dry += 1
+                                logger.info("Refill cycle %d -- no new entries (dry streak: %d)",
+                                            _refill_round, _consecutive_dry)
+                            # Two consecutive dry refills = pool exhausted
+                            if _consecutive_dry >= 2:
+                                logger.info("Eligible pool exhausted -- 2 dry refills. Done.")
                                 break
-                            _prev_seen = new_seen
                     else:
                         self.run_light_cycle()
                     self.consecutive_api_failures = 0

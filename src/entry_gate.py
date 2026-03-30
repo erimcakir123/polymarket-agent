@@ -212,7 +212,7 @@ class EntryGate:
         self._candidate_stock.append(candidate)
 
     def reset_seen_markets(self) -> None:
-        """Reset seen market tracking. Call at start of each fresh heavy cycle (not refill)."""
+        """Reset seen market tracking. Called at start of each heavy cycle and each refill."""
         self._seen_market_ids.clear()
 
     @staticmethod
