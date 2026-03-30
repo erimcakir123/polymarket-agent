@@ -53,10 +53,10 @@ class ExitExecutor:
 
         # Profitable exit -> add to farming re-entry pool
         profitable_reasons = {
-            "take_profit", "trailing_stop", "spike_exit",
+            "take_profit", "trailing_tp", "spike_exit",
             "edge_tp", "scale_out_final", "vs_take_profit",
         }
-        if reason in profitable_reasons and realized_pnl > 0:
+        if any(reason.startswith(r) for r in profitable_reasons) and realized_pnl > 0:
             existing_pool = self.ctx.reentry_pool.get(condition_id)
             original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
             self.ctx.reentry_pool.add(
