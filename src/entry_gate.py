@@ -605,11 +605,10 @@ class EntryGate:
             adjusted_size = risk_decision.size_usdc
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
 
-            # ── Rank score -- pure edge × confidence ─────────────────────────
-            # Edge-only ranking: underdogs with high edge rank equally to favorites.
-            # Old formula (direction_prob + edge) penalized underdogs 2-3x.
+            # ── Rank score -- edge + prob + confidence ─────────────────────────
+            # Higher edge = higher priority. Negative edge already filtered above.
             conf_score = _CONF_SCORE.get(estimate.confidence, 1)
-            rank_score = edge * conf_score
+            rank_score = (direction_prob + edge) * conf_score
 
             logger.info(
                 "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
@@ -790,20 +789,7 @@ class EntryGate:
 # ── Module-level helpers ───────────────────────────────────────────────────
 
 def _hours_to_start(market) -> float:
-    """Hours until match starts. Used for imminent/mid/discovery bucketing.
-
-    Prefers match_start_iso (Gamma event startTime — actual kick-off / first map)
-    over end_date_iso (Polymarket market close — often far in the future).
-    """
-    # Primary: match start time from Gamma event (accurate for both sports & esports)
-    start_iso = getattr(market, "match_start_iso", "") or ""
-    if start_iso:
-        try:
-            start_dt = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
-            return (start_dt - datetime.now(timezone.utc)).total_seconds() / 3600
-        except (ValueError, TypeError):
-            pass
-    # Fallback: Polymarket end date
+    """Hours until market start/end. Used for imminent/mid/discovery bucketing."""
     end_iso = getattr(market, "end_date_iso", "") or ""
     if not end_iso:
         return 99.0

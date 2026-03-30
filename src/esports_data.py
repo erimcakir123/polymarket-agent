@@ -16,27 +16,13 @@ logger = logging.getLogger(__name__)
 
 PANDASCORE_BASE = "https://api.pandascore.co"
 
-# Map Polymarket tags + PandaScore videogame.slug → valid API path slug.
-# PandaScore API endpoints use: /csgo/, /lol/, /dota2/, /valorant/, /ow/, /r6-siege/ etc.
-# Polymarket tags use: "counter-strike", "league-of-legends", "dota-2", etc.
-# PandaScore videogame.slug returns: "cs-go", "league-of-legends", "dota-2", etc.
+# Minimal categorization for API routing (4 games, no aliases needed).
+# Dynamic search via search_match() handles discovery.
 _GAME_SLUGS = {
-    # CS2 — Polymarket tag "counter-strike", PandaScore returns "cs-go"
-    "cs2": "csgo", "csgo": "csgo", "counter-strike": "csgo", "cs-go": "csgo",
-    # LoL — Polymarket tag "league-of-legends"
-    "lol": "lol", "league-of-legends": "lol",
-    # Dota 2 — Polymarket tag "dota-2"
-    "dota2": "dota2", "dota-2": "dota2",
-    # Valorant
+    "cs2": "csgo", "csgo": "csgo",
+    "lol": "lol",
+    "dota2": "dota2",
     "valorant": "valorant",
-    # R6 Siege — PandaScore returns "r6-siege"
-    "r6-siege": "r6-siege",
-    # Overwatch — PandaScore returns "ow"
-    "ow": "ow", "overwatch": "ow",
-    # Mobile Legends
-    "mobile-legends": "mobile-legends-bang-bang",
-    # StarCraft 2
-    "starcraft-2": "starcraft-2", "starcraft": "starcraft-2",
 }
 
 # Team aliases moved to centralized src/team_matcher.py
@@ -124,11 +110,9 @@ class EsportsDataClient:
             match = self.search_match(team_a)
             if match:
                 videogame = match.get("videogame", {})
-                raw_slug = videogame.get("slug", "")
-                if raw_slug:
-                    # Normalize PandaScore slug (e.g. "cs-go" → "csgo")
-                    slug = _GAME_SLUGS.get(raw_slug, raw_slug)
-                    logger.info("PandaScore search: '%s' -> game=%s (raw=%s)", team_a, slug, raw_slug)
+                slug = videogame.get("slug", "")
+                if slug:
+                    logger.info("PandaScore search: '%s' -> game=%s", team_a, slug)
                     return slug
 
         return None
@@ -352,25 +336,6 @@ class EsportsDataClient:
 
         # Fetch upcoming match metadata (tier, detailed_stats, scheduled_at)
         upcoming = self._get_upcoming_match(game_slug, team_a_name, team_b_name)
-
-        # Guard: skip matches that started too long ago (likely finished)
-        # PandaScore may still report "running" hours after a match ends
-        _MAX_MATCH_HOURS = 4  # BO5 can go ~4h max; anything beyond = stale
-        if upcoming:
-            _sched = upcoming.get("scheduled_at") or ""
-            _status = upcoming.get("status", "")
-            if _sched and _status == "running":
-                try:
-                    _start = datetime.fromisoformat(_sched.replace("Z", "+00:00"))
-                    _elapsed_h = (datetime.now(timezone.utc) - _start).total_seconds() / 3600
-                    if _elapsed_h > _MAX_MATCH_HOURS:
-                        logger.warning(
-                            "SKIP stale esports match: %s vs %s started %.1fh ago (max %dh)",
-                            team_a_name, team_b_name, _elapsed_h, _MAX_MATCH_HOURS,
-                        )
-                        return None
-                except (ValueError, TypeError):
-                    pass
 
         team_a = self.get_team_recent_results(game_slug, team_a_name)
         team_b = self.get_team_recent_results(game_slug, team_b_name)
