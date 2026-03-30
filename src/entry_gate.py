@@ -789,12 +789,25 @@ class EntryGate:
 # ── Module-level helpers ───────────────────────────────────────────────────
 
 def _hours_to_start(market) -> float:
-    """Hours until market start/end. Used for imminent/mid/discovery bucketing."""
+    """Hours until match starts. Used for imminent/mid/discovery bucketing.
+
+    Prefers match_start_iso (Gamma event startTime — actual kick-off / first map)
+    over end_date_iso (Polymarket market close — often far in the future).
+    """
+    # Primary: match start time from Gamma event (accurate for sports + esports)
+    start_iso = getattr(market, "match_start_iso", "") or ""
+    if start_iso:
+        try:
+            start_dt = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+            return (start_dt - datetime.now(timezone.utc)).total_seconds() / 3600
+        except (ValueError, TypeError):
+            pass
+    # Fallback: Polymarket end date
     end_iso = getattr(market, "end_date_iso", "") or ""
     if not end_iso:
         return 99.0
     try:
         end_dt = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
-        return max(0.0, (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600)
+        return (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600
     except (ValueError, TypeError):
         return 99.0
