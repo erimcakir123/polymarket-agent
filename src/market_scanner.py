@@ -324,16 +324,13 @@ class MarketScanner:
             except (ValueError, TypeError):
                 pass
         # Skip ended matches -- no point entering a resolved event
-        # Esports EXCLUDED: Gamma API 'ended' flag is unreliable for esports,
-        # often marking live matches as ended mid-series.
-        if market.event_ended and self._is_live_sport(market) and not self._is_esport(market):
+        # All sports (including esports) go through the same time filters.
+        if market.event_ended and self._is_live_sport(market):
             logger.info("Skipped ENDED event (Gamma): %s", market.question[:60])
             return False
         # Skip late-match entries -- not enough time for meaningful edge
         # Uses sport-specific duration table (soccer=95min, NBA=150min, etc.)
-        # Esports EXCLUDED: Polymarket startTime is unreliable for esports,
-        # causing false elapsed% calculations that reject valid live matches.
-        if market.event_live and market.match_start_iso and not self._is_esport(market):
+        if market.event_live and market.match_start_iso:
             try:
                 from src.match_exit import get_game_duration
                 start_dt = datetime.fromisoformat(market.match_start_iso.replace("Z", "+00:00"))
