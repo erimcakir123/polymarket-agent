@@ -1,9 +1,15 @@
-"""Pre-game scout scheduler -- fetches match calendars and pre-analyzes before bets appear.
+"""Pre-game scout scheduler -- fetches match calendars for early entry.
 
-Runs 4x daily (00, 06, 12, 18 UTC). Looks 24 hours ahead for upcoming matches
-via ESPN (traditional sports) and PandaScore (esports). Runs AI analysis once per
-match and saves results to scout_queue.json. The main loop checks this queue each
-cycle and enters immediately when matching Polymarket bets appear.
+Two scan modes:
+  - run_scout()        : 4x daily (00, 06, 12, 18 UTC), fetches next-24h matches.
+  - run_daily_listing(): 1x daily (00 UTC), full scan, no enrichment.
+
+Both modes save to scout_queue.json. Enrichment (sports context, AI analysis) is
+deferred to entry_gate — scout only lists matches with basic calendar data.
+
+Query helpers:
+  - get_window(hours_ahead)     : upcoming matches within a time window.
+  - match_markets_batch(markets): bulk Gamma market matching with single disk save.
 """
 from __future__ import annotations
 import json
@@ -161,6 +167,152 @@ class ScoutScheduler:
 
         return True
 
+    def is_daily_listing_time(self) -> bool:
+        """Returns True only when UTC hour == 0 (daily listing window)."""
+        return datetime.now(timezone.utc).hour == 0
+
+    def run_daily_listing(self) -> int:
+        """Full daily scan at 00:01 UTC — lists all upcoming matches, NO enrichment.
+
+        Identical to run_scout() except: no sports.get_match_context or
+        esports.get_match_context calls. Every entry gets sports_context="".
+        Returns count of new entries added.
+        """
+        # Same cooldown logic as run_scout()
+        _COOLDOWN_SECS = 4 * 3600
+        if time.time() - self._last_run_ts < _COOLDOWN_SECS:
+            logger.debug("Daily listing cooldown active -- skipping (%.1fh since last run)",
+                         (time.time() - self._last_run_ts) / 3600)
+            return 0
+
+        logger.info("=== DAILY LISTING START ===")
+        now = datetime.now(timezone.utc)
+        new_count = 0
+
+        sports_matches = self._fetch_espn_upcoming()
+        logger.info("ESPN: found %d upcoming matches", len(sports_matches))
+
+        esports_matches = self._fetch_esports_upcoming()
+        logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
+
+        all_matches = sports_matches + esports_matches
+
+        for match in all_matches:
+            scout_key = match["scout_key"]
+            if scout_key in self._queue:
+                continue
+
+            entry = {
+                "scout_key": scout_key,
+                "team_a": match["team_a"],
+                "team_b": match["team_b"],
+                "question": match["question"],
+                "match_time": match.get("match_time", ""),
+                "sport": match.get("sport", ""),
+                "league": match.get("league", ""),
+                "league_name": match.get("league_name", ""),
+                "is_esports": match.get("is_esports", False),
+                "slug_hint": match.get("slug_hint", ""),
+                "tags": match.get("tags", []),
+                "sports_context": "",
+                "scouted_at": now.isoformat(),
+                "matched": False,
+                "entered": False,
+            }
+
+            self._queue[scout_key] = entry
+            new_count += 1
+            logger.info("Listed: %s vs %s (%s) @ %s",
+                        match["team_a"], match["team_b"],
+                        match.get("league_name", "esports"),
+                        match.get("match_time", "?")[:16])
+
+        self._save_queue()
+
+        SCOUT_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SCOUT_MARKER_FILE.write_text(now.isoformat(), encoding="utf-8")
+
+        self._last_run_ts = time.time()
+        logger.info("=== DAILY LISTING COMPLETE: %d new, %d total in queue ===", new_count, len(self._queue))
+        return new_count
+
+    def get_window(self, hours_ahead: float) -> List[dict]:
+        """Return scout queue entries where now <= match_time <= now + hours_ahead.
+
+        Sorted by match_time ascending. Skips entries where entered=True.
+        Each returned dict includes 'scout_key' field.
+        """
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(hours=hours_ahead)
+        results = []
+
+        for key, entry in self._queue.items():
+            if entry.get("entered"):
+                continue
+            mt_str = entry.get("match_time", "")
+            if not mt_str:
+                continue
+            try:
+                mt = datetime.fromisoformat(mt_str)
+                if mt.tzinfo is None:
+                    mt = mt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                continue
+            if now <= mt <= cutoff:
+                result = dict(entry)
+                result["scout_key"] = key
+                results.append((mt, result))
+
+        results.sort(key=lambda x: x[0])
+        return [r for _, r in results]
+
+    def match_markets_batch(self, markets: list) -> list:
+        """Match multiple Gamma markets to scout entries in bulk.
+
+        Uses 6-char abbreviated prefix (not 4-char) to reduce false positives.
+        Saves to disk ONCE at end (not per match).
+        Returns list of dicts: {"market": market_obj, "scout_entry": entry, "scout_key": key}
+        """
+        matched = []
+
+        for market in markets:
+            question = (getattr(market, "question", "") or "").lower()
+            slug = (getattr(market, "slug", "") or "").lower()
+
+            for key, entry in self._queue.items():
+                if entry.get("entered"):
+                    continue
+
+                team_a = entry["team_a"].lower()
+                team_b = entry["team_b"].lower()
+
+                if not team_a or not team_b:
+                    continue
+
+                # Full name matching
+                a_in = team_a in question or team_a in slug
+                b_in = team_b in question or team_b in slug
+
+                if a_in and b_in:
+                    entry["matched"] = True
+                    matched.append({"market": market, "scout_entry": entry, "scout_key": key})
+                    break
+
+                # 6-char abbreviated matching (stricter than match_market's 4-char)
+                if len(team_a) >= 6 and len(team_b) >= 6:
+                    a_short = team_a[:6]
+                    b_short = team_b[:6]
+                    if a_short in slug and b_short in slug:
+                        entry["matched"] = True
+                        matched.append({"market": market, "scout_entry": entry, "scout_key": key})
+                        break
+
+        # Single disk save at end
+        if matched:
+            self._save_queue()
+
+        return matched
+
     def run_scout(self) -> int:
         """Run the scout: fetch upcoming match calendars and sports data.
 
@@ -197,21 +349,6 @@ class ScoutScheduler:
                 logger.debug("Already scouted: %s", scout_key)
                 continue
 
-            # Pre-fetch sports context (free APIs, no budget impact)
-            context_parts = []
-            if match.get("sport") and match.get("league"):
-                espn_ctx = self.sports.get_match_context(
-                    match["question"], match.get("slug_hint", ""), []
-                )
-                if espn_ctx:
-                    context_parts.append(espn_ctx)
-            elif match.get("is_esports") and self.esports.available:
-                panda_ctx = self.esports.get_match_context(
-                    match["question"], match.get("tags", [])
-                )
-                if panda_ctx:
-                    context_parts.append(panda_ctx)
-
             entry = {
                 "scout_key": scout_key,
                 "team_a": match["team_a"],
@@ -224,7 +361,7 @@ class ScoutScheduler:
                 "is_esports": match.get("is_esports", False),
                 "slug_hint": match.get("slug_hint", ""),
                 "tags": match.get("tags", []),
-                "sports_context": "\n".join(context_parts) if context_parts else "",
+                "sports_context": "",
                 "scouted_at": now.isoformat(),
                 "matched": False,  # Set True when matched to Polymarket bet
                 "entered": False,  # Set True when position opened
@@ -324,6 +461,7 @@ class ScoutScheduler:
                     if resp.status_code != 200:
                         continue
                     data = resp.json()
+                    time.sleep(0.2)  # ESPN rate limiting
 
                     for event in data.get("events", []):
                         event_date_str = event.get("date", "")
@@ -465,52 +603,64 @@ class ScoutScheduler:
             try:
                 api_key = self.esports.api_key
                 url = f"https://api.pandascore.co/{game}/matches/upcoming"
-                resp = requests.get(
-                    url,
-                    params={"per_page": 100, "sort": "begin_at"},
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=10,
-                )
-                record_call("pandascore")
-                if resp.status_code != 200:
-                    continue
+                page = 1
 
-                for match in resp.json():
-                    begin_at = match.get("begin_at", "")
-                    if not begin_at:
-                        continue
+                while True:
+                    resp = requests.get(
+                        url,
+                        params={"per_page": 100, "sort": "begin_at", "page": page},
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        timeout=10,
+                    )
+                    record_call("pandascore")
+                    if resp.status_code != 200:
+                        break
 
-                    try:
-                        match_dt = datetime.fromisoformat(begin_at.replace("Z", "+00:00"))
-                    except (ValueError, TypeError):
-                        continue
+                    page_results = resp.json()
 
-                    if match_dt < now or match_dt > cutoff:
-                        continue
+                    for match in page_results:
+                        begin_at = match.get("begin_at", "")
+                        if not begin_at:
+                            continue
 
-                    opponents = match.get("opponents", [])
-                    if len(opponents) != 2:
-                        continue
+                        try:
+                            match_dt = datetime.fromisoformat(begin_at.replace("Z", "+00:00"))
+                        except (ValueError, TypeError):
+                            continue
 
-                    team_a = opponents[0].get("opponent", {}).get("name", "")
-                    team_b = opponents[1].get("opponent", {}).get("name", "")
-                    if not team_a or not team_b:
-                        continue
+                        if match_dt < now or match_dt > cutoff:
+                            continue
 
-                    scout_key = f"esports_{game}_{team_a}_{team_b}_{match_dt.strftime('%Y%m%d')}"
-                    matches.append({
-                        "scout_key": scout_key,
-                        "team_a": team_a,
-                        "team_b": team_b,
-                        "question": f"{team_a} vs {team_b}: Who will win? ({game.upper()})",
-                        "match_time": match_dt.isoformat(),
-                        "sport": "",
-                        "league": "",
-                        "league_name": game.upper(),
-                        "slug_hint": f"{game}-{team_a[:4].lower()}-{team_b[:4].lower()}",
-                        "tags": ["esports", game],
-                        "is_esports": True,
-                    })
+                        opponents = match.get("opponents", [])
+                        if len(opponents) != 2:
+                            continue
+
+                        team_a = opponents[0].get("opponent", {}).get("name", "")
+                        team_b = opponents[1].get("opponent", {}).get("name", "")
+                        if not team_a or not team_b:
+                            continue
+
+                        scout_key = f"esports_{game}_{team_a}_{team_b}_{match_dt.strftime('%Y%m%d')}"
+                        matches.append({
+                            "scout_key": scout_key,
+                            "team_a": team_a,
+                            "team_b": team_b,
+                            "question": f"{team_a} vs {team_b}: Who will win? ({game.upper()})",
+                            "match_time": match_dt.isoformat(),
+                            "sport": "",
+                            "league": "",
+                            "league_name": game.upper(),
+                            "slug_hint": f"{game}-{team_a[:4].lower()}-{team_b[:4].lower()}",
+                            "tags": ["esports", game],
+                            "is_esports": True,
+                        })
+
+                    # Pagination: if page returned 100 results, there may be more
+                    if len(page_results) >= 100:
+                        page += 1
+                        time.sleep(0.3)  # Rate limit between pages
+                    else:
+                        break
 
                 time.sleep(0.5)
             except requests.RequestException as e:
