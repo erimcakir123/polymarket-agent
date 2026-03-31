@@ -42,6 +42,9 @@ class MarketData(BaseModel):
     accepting_orders_at: str = ""  # When trading opened (proxy for market freshness)
     match_start_iso: str = ""  # Actual match start time from Gamma event startTime
     odds_api_implied_prob: Optional[float] = None  # Bookmaker implied probability (0-1) from Odds API
+    closed: bool = False                    # Gamma raw "closed" — market closed to trading
+    resolved: bool = False                  # Gamma raw "resolved" — outcome finalized
+    accepting_orders: bool = True           # Gamma raw "acceptingOrders" — accepting new orders
 
 
 class Position(BaseModel):
