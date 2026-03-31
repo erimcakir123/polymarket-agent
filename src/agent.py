@@ -76,6 +76,7 @@ class Agent:
         self._last_reentry_reset_date: date = datetime.now(timezone.utc).date()
         self.bets_since_approval: int = 0
         self._pre_match_prices: dict[str, float] = {}  # Cache first-seen YES price per market
+        self._last_momentum_update: float = 0.0  # Timestamp for 10-min momentum snapshots
 
         # Core modules
         self.portfolio = Portfolio(initial_bankroll=config.initial_bankroll)
@@ -393,6 +394,24 @@ class Agent:
             if entered:
                 self.live_strategies.set_light_cooldown("momentum")
         logger.info("Phase [strategies] took %.1fs", time.monotonic() - t0)
+
+        # 10-minute momentum snapshot: update consecutive_down_cycles for revoke tracking
+        # WS mode skips portfolio.update_price(), so momentum counters go stale.
+        # This runs every 10 min to keep revoke's dip_is_temporary check accurate.
+        now_ts = time.time()
+        if now_ts - self._last_momentum_update >= 600:  # 10 minutes
+            from src.models import effective_price
+            for pos in self.portfolio.positions.values():
+                eff_new = effective_price(pos.current_price, pos.direction)
+                eff_prev = effective_price(pos.previous_cycle_price, pos.direction)
+                if eff_prev > 0 and eff_new < eff_prev:
+                    pos.consecutive_down_cycles += 1
+                    pos.cumulative_drop += (eff_prev - eff_new)
+                else:
+                    pos.consecutive_down_cycles = 0
+                    pos.cumulative_drop = 0.0
+                pos.previous_cycle_price = pos.current_price
+            self._last_momentum_update = now_ts
 
         # Persist portfolio snapshot so dashboard sees real-time PnL
         bankroll = self.wallet.get_usdc_balance() if self.wallet else self.portfolio.bankroll
