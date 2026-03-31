@@ -79,6 +79,38 @@ class PriceUpdater:
         return states
 
     # ------------------------------------------------------------------
+    # _lookup_scout_match_time
+    # ------------------------------------------------------------------
+    def _lookup_scout_match_time(self, slug: str, question: str) -> str:
+        """Look up match start time from scout queue (ESPN/PandaScore data).
+
+        Returns ISO timestamp string or empty string if not found.
+        """
+        scout = getattr(self.ctx, "scout", None)
+        if not scout:
+            return ""
+        q_lower = (question or "").lower()
+        s_lower = (slug or "").lower()
+        for entry in scout._queue.values():
+            mt = entry.get("match_time", "")
+            if not mt:
+                continue
+            team_a = entry.get("team_a", "").lower()
+            team_b = entry.get("team_b", "").lower()
+            if not team_a or not team_b:
+                continue
+            # Match by team names in slug or question
+            a_in = team_a in q_lower or team_a in s_lower
+            b_in = team_b in q_lower or team_b in s_lower
+            if a_in and b_in:
+                return mt
+            # 6-char abbreviated match (same as scout_scheduler.match_markets_batch)
+            if len(team_a) >= 6 and len(team_b) >= 6:
+                if team_a[:6] in s_lower and team_b[:6] in s_lower:
+                    return mt
+        return ""
+
+    # ------------------------------------------------------------------
     # update_position_prices
     # ------------------------------------------------------------------
     def update_position_prices(self) -> bool:
@@ -125,10 +157,20 @@ class PriceUpdater:
                     ev_score = ev.get("score") or ""
                     ev_period = ev.get("period") or ""
 
-                    if ev_start and not pos.match_start_iso:
+                    _start_usable = ev_start and ev_start != pos.end_date_iso
+                    if _start_usable and not pos.match_start_iso:
                         pos.match_start_iso = ev_start
                         logger.info("Match start from Gamma event: %s -> %s",
                                     pos.slug[:35], ev_start)
+
+                    # Fallback: scout queue (ESPN/PandaScore) when Gamma
+                    # start is missing or mirrors end_date (unreliable).
+                    if not pos.match_start_iso or pos.match_start_iso == pos.end_date_iso:
+                        _scout_time = self._lookup_scout_match_time(pos.slug, pos.question)
+                        if _scout_time:
+                            pos.match_start_iso = _scout_time
+                            logger.info("Match start from scout queue: %s -> %s",
+                                        pos.slug[:35], _scout_time)
 
                     if ev_live is not None:
                         pos.match_live = bool(ev_live)
