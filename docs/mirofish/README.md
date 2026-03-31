@@ -35,7 +35,7 @@ Two bots, one Polymarket account. Neither knows about the other. Neither can bre
 | Phase | Name | Duration | Cost | Kill/Continue? |
 |---|---|---|---|---|
 | **0** | [Setup & Mechanical Test](phase-0-setup.md) | 1-2 days | **$0** | Continue if pipeline works |
-| **1** | [Blind Validation Test (FREE)](phase-1-blind-test.md) | 3-7 days | **$0** | KILL if 0-1/5, GRAY if 2/5, CONTINUE if 3+/5 |
+| **1** | [Signal Quality Test (FREE)](phase-1-blind-test.md) | 3-7 days + wait for near-resolution markets | **$0** | KILL if no useful analysis, CONTINUE if substantive signals |
 | **1b** | Optional: Retest with different free LLM | 2-3 days | **$0** | Only if Phase 1 was gray zone |
 | **2** | [Pipeline Build](phase-2-pipeline.md) | 1 week | **$0** | Continue if tests pass |
 | **3** | [Polymarket Integration](phase-3-integration.md) | 1 week | **$0** | Continue if dry_run works |

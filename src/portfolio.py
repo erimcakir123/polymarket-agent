@@ -4,10 +4,9 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from src.models import Position, effective_price
-from src.sport_rules import get_stop_loss
 from src.stop_loss_helper import compute_stop_loss_pct
 
 logger = logging.getLogger(__name__)
@@ -344,6 +343,9 @@ class Portfolio:
         from src.scale_out import check_scale_out
         results = []
         for cid, pos in self.positions.items():
+            # Pending + profitable: hold for oracle resolve, don't scale out
+            if pos.pending_resolution and pos.unrealized_pnl_pct > 0:
+                continue
             # Note: scouted positions intentionally participate in scale-out (spec §9j)
             result = check_scale_out(
                 scale_out_tier=pos.scale_out_tier,
