@@ -65,3 +65,52 @@ def test_fetch_markets_filters_by_tag(mock_get):
     scanner = MarketScanner(ScannerConfig(tags=["politics", "geopolitics"]))
     markets = scanner.fetch()
     assert len(markets) == 0
+
+
+def test_parse_market_resolved_fields():
+    """Verify closed/resolved/accepting_orders are parsed from raw Gamma data."""
+    from src.market_scanner import MarketScanner
+    scanner = MarketScanner.__new__(MarketScanner)
+    raw = {
+        "conditionId": "0xabc",
+        "question": "Test?",
+        "outcomePrices": '["0.6","0.4"]',
+        "clobTokenIds": '["tok_yes","tok_no"]',
+        "volume24hr": 1000,
+        "liquidity": 500,
+        "slug": "test-market",
+        "tags": "[]",
+        "endDate": "2026-04-01T00:00:00Z",
+        "description": "Test market",
+        "closed": True,
+        "resolved": True,
+        "acceptingOrders": False,
+    }
+    m = scanner._parse_market(raw)
+    assert m is not None
+    assert m.closed is True
+    assert m.resolved is True
+    assert m.accepting_orders is False
+
+
+def test_parse_market_resolved_defaults():
+    """Verify defaults when Gamma response omits closed/resolved/acceptingOrders."""
+    from src.market_scanner import MarketScanner
+    scanner = MarketScanner.__new__(MarketScanner)
+    raw = {
+        "conditionId": "0xdef",
+        "question": "Test?",
+        "outcomePrices": '["0.5","0.5"]',
+        "clobTokenIds": '["tok_yes","tok_no"]',
+        "volume24hr": 0,
+        "liquidity": 0,
+        "slug": "test-defaults",
+        "tags": "[]",
+        "endDate": "",
+        "description": "",
+    }
+    m = scanner._parse_market(raw)
+    assert m is not None
+    assert m.closed is False
+    assert m.resolved is False
+    assert m.accepting_orders is True
