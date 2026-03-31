@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from src.esports_data import EsportsDataClient
     from src.cricket_data import CricketDataClient
     from src.odds_api import OddsAPIClient
+    from src.espn_enrichment import ESPNEnrichment
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +47,13 @@ class SportsDiscovery:
         pandascore: "EsportsDataClient",
         cricket: "CricketDataClient",
         odds_api: "OddsAPIClient",
+        enrichment: "ESPNEnrichment | None" = None,
     ) -> None:
         self.espn = espn
         self.pandascore = pandascore
         self.cricket = cricket
         self.odds_api = odds_api
+        self.enrichment = enrichment
 
     def resolve(
         self, question: str, slug: str, tags: list[str],
@@ -72,12 +75,34 @@ class SportsDiscovery:
             else:  # espn
                 ctx = self.espn.get_match_context(question, slug, tags)
                 if ctx:
-                    # Fetch ESPN odds (free) -- passed to anchoring, NOT to AI
-                    # (avoid double-counting: AI sees stats, anchoring sees odds)
                     espn_odds = self.espn.get_espn_odds(question, slug, tags)
+
+                    # Enrichment: additional ESPN endpoints
+                    enrichment_ctx = None
+                    if self.enrichment:
+                        try:
+                            enrichment_ctx = self.enrichment.enrich(question, slug, tags)
+                        except Exception as exc:
+                            logger.warning("Enrichment error for '%s': %s", slug[:40], exc)
+
+                    # Combine context
+                    parts = [ctx]
+                    if espn_odds:
+                        parts.append(
+                            f"\n=== BOOKMAKER ODDS (ESPN) ===\n"
+                            f"{espn_odds.get('team_a', '?')} "
+                            f"{espn_odds.get('bookmaker_prob_a', 0):.0%} vs "
+                            f"{espn_odds.get('team_b', '?')} "
+                            f"{espn_odds.get('bookmaker_prob_b', 0):.0%} "
+                            f"({espn_odds.get('num_bookmakers', 0)} bookmakers)"
+                        )
+                    if enrichment_ctx:
+                        parts.append(enrichment_ctx)
+                    full_context = "\n".join(parts)
+
                     return DiscoveryResult(
-                        context=ctx, source="ESPN", confidence="A",
-                        espn_odds=espn_odds,
+                        context=full_context, source="ESPN",
+                        confidence="A", espn_odds=espn_odds,
                     )
 
         except Exception as exc:
