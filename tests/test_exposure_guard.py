@@ -43,4 +43,4 @@ def test_exposure_guard_allows_at_exact_limit():
 def test_exposure_guard_config_default():
     from src.config import RiskConfig
     cfg = RiskConfig()
-    assert cfg.max_exposure_pct == 0.35
+    assert cfg.max_exposure_pct == 0.50

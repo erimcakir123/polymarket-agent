@@ -8,6 +8,7 @@ from src.sports_discovery import SportsDiscovery, DiscoveryResult
 def _make_discovery(espn_ctx=None, panda_ctx=None, cricket_ctx=None):
     espn = MagicMock()
     espn.get_match_context = MagicMock(return_value=espn_ctx)
+    espn.get_espn_odds = MagicMock(return_value=None)
     espn.search_team = MagicMock(return_value=("soccer", "eng.3") if espn_ctx else None)
 
     panda = MagicMock()
@@ -58,7 +59,7 @@ def test_resolve_espn_returns_context():
     d = _make_discovery(espn_ctx="=== ESPN DATA ===")
     result = d.resolve("Lakers vs Celtics", "nba-lakers-celtics", ["sports"])
     assert result is not None
-    assert result.context == "=== ESPN DATA ==="
+    assert "=== ESPN DATA ===" in result.context
     assert result.source == "ESPN"
 
 

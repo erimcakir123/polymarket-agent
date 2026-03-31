@@ -334,7 +334,7 @@ class MarketScanner:
                 duration = get_game_duration(market.slug, 0, market.sport_tag)
                 if duration > 0:
                     elapsed_pct = elapsed_min / duration
-                    if elapsed_pct >= 0.75:
+                    if elapsed_pct >= 0.50:
                         logger.info("Skipped late-match (%.0f%% elapsed, %s): %s",
                                     elapsed_pct * 100, market.sport_tag, market.question[:60])
                         return False

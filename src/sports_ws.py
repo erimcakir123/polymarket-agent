@@ -19,7 +19,6 @@ _WS_URL = "wss://sports-api.polymarket.com/ws"
 _RECONNECT_BASE = 2.0
 _RECONNECT_MAX = 60.0
 _HEARTBEAT_INTERVAL = 5.0  # Server pings every 5s
-_STALE_TIMEOUT = 30.0  # Consider state stale after 30s without update
 
 # Date suffix pattern: -YYYY-MM-DD at end of slug
 _DATE_SUFFIX_RE = re.compile(r"-\d{4}-\d{2}-\d{2}$")

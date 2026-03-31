@@ -578,7 +578,7 @@ class SportsDataClient:
     def get_match_context(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Build structured context string for AI analyst.
 
-        Routes to athlete-based context for tennis/MMA, event-based for golf/racing,
+        Routes to athlete-based context for tennis/MMA/golf, event-based for racing,
         team-based for all others.
         Returns None if not a traditional sport or no data available.
         """
@@ -756,7 +756,7 @@ class SportsDataClient:
     def _get_event_match_context(
         self, sport: str, league: str, question: str, slug: str
     ) -> Optional[str]:
-        """Build context for event-based sports (golf, racing).
+        """Build context for event-based sports (racing).
 
         Scans recent scoreboards for tournament/race results.
         """
