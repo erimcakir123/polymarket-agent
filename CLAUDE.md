@@ -81,24 +81,30 @@ Kullanıcı mimari konularda diğer AI'lara (Gemini, ChatGPT) danışmak istiyor
 ## Project Structure
 ```
 src/
-  main.py            — Agent class, cycle orchestration (KEEP LEAN)
+  main.py            — Entry point, logging setup
+  agent.py           — Agent class, cycle orchestration (KEEP LEAN)
   config.py          — YAML config, Pydantic models, all thresholds
   market_scanner.py  — Gamma API market discovery + pre-filtering
   ai_analyst.py      — Claude API calls, prompt building, budget tracking
-  edge_calculator.py — Edge computation, confidence multipliers
-  risk_manager.py    — Kelly sizing + risk gates
-  adaptive_kelly.py  — Dynamic Kelly fraction (confidence/category based)
+  edge_calculator.py — Edge computation, direction detection
+  risk_manager.py    — Confidence-based sizing + risk gates
   portfolio.py       — Position tracking, PnL, equity snapshots
   executor.py        — Order execution (dry/paper/live) + fetch_order_book
+  exit_monitor.py    — Exit detection (SL, trailing TP, match exit)
+  exit_executor.py   — Exit execution + reentry/blacklist routing
+  trailing_tp.py     — Trailing take-profit with peak tracking
+  match_exit.py      — Match-aware exits (score, time, upset forced)
   news_scanner.py    — Tavily → NewsAPI → GNews → RSS fallback chain
   odds_api.py        — Bookmaker odds (The Odds API)
   sports_data.py     — ESPN API (free, no key)
-  liquidity_check.py — CLOB orderbook depth (entry + exit)
+  liquidity_check.py — CLOB orderbook depth (PRE-LIVE: not yet wired)
   reentry_farming.py — 3-tier re-entry pool
   reentry.py         — Graduated blacklist + re-entry eligibility
   outcome_tracker.py — Post-exit market tracking
-  sanity_check.py    — AI output validation
   price_history.py   — CLOB price history on close
+  notifier.py        — Telegram notifications + command polling
+  circuit_breaker.py — Consecutive loss / PnL halt
+  self_improve.py    — Parameter tuning from trade history
 ```
 
 ## Environment

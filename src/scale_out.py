@@ -23,8 +23,6 @@ def check_scale_out(
     unrealized_pnl_pct: float,
     volatility_swing: bool,
     entry_reason: str = "",
-    current_price: float = 0.0,
-    **_kwargs,
 ) -> dict | None:
     """Check if position qualifies for next scale-out tier. Pure function."""
     if volatility_swing:

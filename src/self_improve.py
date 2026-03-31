@@ -185,18 +185,8 @@ def edge_range_key(e: CalibrationEntry) -> str:
 PARAM_SPACE = [
     ("edge.min_edge", [0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.10, 0.12, 0.15],
      "Minimum edge threshold to place a bet"),
-    ("edge.confidence_multipliers.low", [1.0, 1.25, 1.5, 1.75, 2.0],
-     "Edge multiplier for low-confidence predictions"),
-    ("edge.confidence_multipliers.medium", [0.75, 0.85, 1.0, 1.15, 1.25],
-     "Edge multiplier for medium-confidence predictions"),
-    ("edge.confidence_multipliers.high", [0.5, 0.6, 0.75, 0.85, 1.0],
-     "Edge multiplier for high-confidence predictions"),
-    ("risk.kelly_fraction", [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40],
-     "Kelly fraction for position sizing"),
     ("risk.stop_loss_pct", [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50],
      "Stop-loss percentage trigger"),
-    ("risk.take_profit_pct", [0.20, 0.30, 0.40, 0.50, 0.60],
-     "Take-profit percentage trigger"),
     ("scanner.max_duration_days", [3, 5, 7, 10, 14, 21],
      "Maximum days until market resolution"),
     ("scanner.min_liquidity", [2000, 3000, 5000, 8000, 10000, 15000],
@@ -262,30 +252,6 @@ def propose_experiment(report: AnalysisReport, config: dict) -> AnalysisReport:
                 )
                 return report
 
-    # Priority 2: If Brier score > 0.25, calibration is off
-    if report.brier_score > 0.25:
-        # Check which confidence level is worst
-        worst_conf = ""
-        worst_brier = 0.0
-        for conf, stats in report.by_confidence.items():
-            if stats["brier_score"] > worst_brier:
-                worst_brier = stats["brier_score"]
-                worst_conf = conf
-
-        if worst_conf:
-            param_path = f"edge.confidence_multipliers.{worst_conf}"
-            current = get_nested(config, param_path)
-            if current is not None:
-                # Raise multiplier to require more edge for this confidence level
-                new_val = round(current + 0.25, 2)
-                report.proposed_param = param_path
-                report.proposed_old_value = current
-                report.proposed_new_value = new_val
-                report.proposed_reason = (
-                    f"'{worst_conf}' confidence has worst Brier score ({worst_brier:.3f}). "
-                    f"Raising edge multiplier from {current} to {new_val}."
-                )
-                return report
 
     # Priority 3: Check edge ranges -- if small-edge bets have low win rate
     small_edge = report.by_edge_range.get("0-5%", {})

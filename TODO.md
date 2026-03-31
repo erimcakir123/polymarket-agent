@@ -52,12 +52,12 @@
 
 ## Test Sürecinde Eklenecek (Live Öncesi)
 - [ ] **Dual-prompt (Devil's Advocate) geri ekle** — Şu an tek prompt ile olasılık tahmini yapıyor, ucuz olsun diye kaldırıldı. İkinci prompt belirsizlik filtresi sağlıyordu (iki tahminin farkı büyükse "belirsiz" → giriş eşiği yükseliyordu). Haiku ucuz model olarak kullanılabilir. **Bak:** `src/probability_engine.py:get_edge_threshold_adjustment()` (hazır fonksiyon, sadece bağlantısı kopuk), `src/ai_analyst.py` (prompt logic)
-- [ ] **Giriş kalitesi filtresi (slippage + spread)** — Bot şu an "kaba fark"a bakıp giriyor, order book derinliği/slippage/bid-ask spread hesaba katılmıyor. **Bak:** `src/edge_calculator.py` (tüm fonksiyonlar hazır, bağlantısı kopuk — `estimate_slippage()`, `calculate_edge()`, `scale_min_edge()`). Entry gate'e bağlanması lazım: `src/entry_gate.py:690` civarı (inline edge hesabı)
+- [ ] **CLOB orderbook depth check (entry + exit)** — `src/liquidity_check.py` hazır ama entry/exit pipeline'a bağlı değil. Live öncesi wire-up et.
 - [ ] **Esports ücretli odds API bul** — Şu an esports'ta sadece PandaScore (match history) var, bookmaker odds yok. AI tek kaynak ile karar veriyor (B+ confidence). Ücretli esports odds API bul ve entegre et (örn: Pinnacle API, Betfair Exchange, veya esports-specific odds provider). Olmazsa esports'ta sadece consensus bet'lere izin ver.
 - [ ] **Claude API spend limit ayarla** — config.yaml'da monthly_budget_usd + sprint_budget_usd (şu an 0=unlimited), Anthropic console'da da spend limit koy. Simulation bitmeden önce MUTLAKA ayarla!
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
 - [ ] Kelly rebalance — maç sırasında pozisyon boyutu güncelleme
-- [ ] Liquidity check — order book derinliği kontrol, slippage önleme (entry + exit). **Bak:** `src/edge_calculator.py:estimate_slippage()` (hazır fonksiyon)
+- [ ] Liquidity check — order book derinliği kontrol (entry + exit). **Bak:** `src/liquidity_check.py` (hazır, wire-up bekliyor)
 - [ ] Bayesian calibrator — otomatik threshold kalibrasyonu (30+ sample sonrası)
 - [ ] Portfolio circuit breaker — günlük -%8, saatlik -%5 devre kesici
 - [ ] ATR-based dynamic catastrophic floor — volatiliteye göre floor ayarlama

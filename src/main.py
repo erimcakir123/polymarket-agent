@@ -58,7 +58,10 @@ def _reset_simulation() -> None:
 def main() -> None:
     load_dotenv()
     _log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    _file_handler = logging.FileHandler("logs/bot.log", encoding="utf-8")
+    from logging.handlers import RotatingFileHandler
+    _file_handler = RotatingFileHandler(
+        "logs/bot.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
     _file_handler.setFormatter(logging.Formatter(_log_fmt))
     _console_handler = logging.StreamHandler()
     _console_handler.setFormatter(logging.Formatter(_log_fmt))

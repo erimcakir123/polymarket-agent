@@ -2,7 +2,7 @@
 from __future__ import annotations
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import yaml
 from pydantic import BaseModel, field_validator
@@ -44,10 +44,7 @@ class AIConfig(BaseModel):
 
 
 class EdgeConfig(BaseModel):
-    """Legacy -- kept for YAML compatibility. Sizing is confidence-based now."""
     min_edge: float = 0.06
-    confidence_multipliers: Dict[str, float] = {}
-    default_spread: float = 0.02
 
 
 class RiskConfig(BaseModel):
@@ -89,12 +86,6 @@ class EarlyEntryConfig(BaseModel):
     max_hours_to_start: float = 336.0     # 14 days max
     bet_pct: float = 0.05                 # 5% bankroll per early entry bet
     stop_loss_pct: float = 0.30
-    take_profit_pct: float = 0.40         # Swing trade TP (overridden for penny)
-    # Penny Alpha thresholds ($0.01-$0.02 tokens)
-    penny_max_price: float = 0.02         # Tokens at $0.01-$0.02
-    penny_1c_target_multiplier: float = 5.0  # $0.01 -> wait for 5x ($0.05)
-    penny_2c_target_multiplier: float = 2.0  # $0.02 -> wait for 2x ($0.04)
-    penny_bet_pct: float = 0.05           # 5% bankroll for penny bets
 
 
 class UpsetHunterConfig(BaseModel):
@@ -130,16 +121,6 @@ class TrailingTPConfig(BaseModel):
     enabled: bool = True
     activation_pct: float = 0.20       # Activate at +20% profit
     trail_distance: float = 0.15       # Sell when 15% below peak
-
-
-class PennyAlphaConfig(BaseModel):
-    enabled: bool = True
-    max_price: float = 0.02
-    bet_pct: float = 0.05
-    max_concurrent: int = 3
-    min_volume: float = 500
-    target_1c: float = 5.0             # $0.01 -> 5x target
-    target_2c: float = 2.0             # $0.02 -> 2x target
 
 
 class ProbabilityEngineConfig(BaseModel):
@@ -178,7 +159,6 @@ class AppConfig(BaseModel):
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()
-    penny_alpha: PennyAlphaConfig = PennyAlphaConfig()
     probability_engine: ProbabilityEngineConfig = ProbabilityEngineConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
