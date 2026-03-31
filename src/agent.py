@@ -44,6 +44,8 @@ from src.exit_executor import ExitExecutor
 from src.live_strategies import LiveStrategies
 from src.price_updater import PriceUpdater
 from src.cycle_logic import CycleHelpers
+from src.sports_ws import SportsWebSocket
+from src.espn_enrichment import ESPNEnrichment
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +92,11 @@ class Agent:
         self.odds_api = odds_api
         from src.cricket_data import CricketDataClient
         cricket = CricketDataClient()
+        espn_enrichment = ESPNEnrichment(sports_client=sports)
         discovery = SportsDiscovery(
             espn=sports, pandascore=self.esports,
             cricket=cricket, odds_api=odds_api,
+            enrichment=espn_enrichment,
         )
         news_scanner = NewsScanner()
         manip_guard = ManipulationGuard()
@@ -135,6 +139,8 @@ class Agent:
 
         # WebSocket feed (exit_monitor registers callback below)
         ws_feed = WebSocketFeed(on_price_update=None)  # callback set by ExitMonitor
+        self.sports_ws = SportsWebSocket()
+        self.sports_ws.start_background()
 
         # Composed modules
         self.exit_monitor = ExitMonitor(self.portfolio, ws_feed, config)
@@ -153,6 +159,7 @@ class Agent:
             notifier=self.notifier,
             discovery=discovery,
             scout=self.scout,
+            sports_ws=self.sports_ws,
         )
         self.ws_feed = ws_feed
         self.scanner = scanner
@@ -300,6 +307,7 @@ class Agent:
             logger.info("Interrupted by user")
         finally:
             self.cycle_helpers.write_status("offline", "Stopped")
+            self.sports_ws.stop()
             self.ws_feed.stop()
             logger.info("Agent stopped")
 
