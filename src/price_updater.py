@@ -163,17 +163,6 @@ class PriceUpdater:
                         logger.info("Match start from Gamma event: %s -> %s",
                                     pos.slug[:35], ev_start)
 
-                    # Fallback: scout queue (ESPN/PandaScore) when Gamma
-                    # start is missing or mirrors end_date (unreliable).
-                    _needs_scout = (not pos.match_start_iso
-                                    or pos.match_start_iso == pos.end_date_iso)
-                    if _needs_scout:
-                        _scout_time = self._lookup_scout_match_time(pos.slug, pos.question)
-                        if _scout_time and _scout_time != pos.match_start_iso:
-                            pos.match_start_iso = _scout_time
-                            logger.info("Match start from scout queue: %s -> %s",
-                                        pos.slug[:35], _scout_time)
-
                     if ev_live is not None:
                         pos.match_live = bool(ev_live)
                         pos.live_on_clob = bool(ev_live)
@@ -185,6 +174,17 @@ class PriceUpdater:
                         pos.match_score = ev_score
                     if ev_period:
                         pos.match_period = ev_period
+
+                # Scout queue fallback for match_start_iso (outside events
+                # block so it runs even when Gamma returns no events).
+                _needs_scout = (not pos.match_start_iso
+                                or pos.match_start_iso == pos.end_date_iso)
+                if _needs_scout:
+                    _scout_time = self._lookup_scout_match_time(pos.slug, pos.question)
+                    if _scout_time and _scout_time != pos.match_start_iso:
+                        pos.match_start_iso = _scout_time
+                        logger.info("Match start from scout queue: %s -> %s",
+                                    pos.slug[:35], _scout_time)
 
                 if is_closed:
                     if new_yes_price >= 0.95:
