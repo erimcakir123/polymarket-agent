@@ -43,6 +43,7 @@ c:\Users\erimc\OneDrive\Desktop\CLAUDE\MiroFish Political Bot\
 │   ├── simulation_client.py   ← Interface with MiroFish engine
 │   ├── probability.py         ← Extract probability from simulation results
 │   ├── edge_calculator.py     ← Compare MiroFish probability vs market price
+│   ├── catalyst_tracker.py    ← Monitor news/prices on open positions for re-evaluation
 │   └── news_enrichment.py     ← Fetch relevant news for seed packets
 ├── tests/
 │   ├── __init__.py
@@ -51,7 +52,8 @@ c:\Users\erimc\OneDrive\Desktop\CLAUDE\MiroFish Political Bot\
 │   ├── test_seed_builder.py
 │   ├── test_simulation_client.py
 │   ├── test_probability.py
-│   └── test_edge_calculator.py
+│   ├── test_edge_calculator.py
+│   └── test_catalyst_tracker.py
 ├── docs/
 │   ├── setup-log.md           ← From Phase 0
 │   ├── blind-test-results.md  ← From Phase 1
@@ -231,6 +233,54 @@ if adjusted_edge > MIN_EDGE_PERCENT / 100:
     generate signal
 ```
 
+### Module 9: `src/catalyst_tracker.py` (~150 lines)
+Track news catalysts and price movements on EXISTING positions to enable active trading (volatility swings, not buy-and-hold).
+
+Key functions:
+- `check_catalysts(positions: list[Position]) -> list[CatalystEvent]` — scan news for events affecting held positions
+- `check_price_drift(positions: list[Position]) -> list[PriceDrift]` — detect significant price changes since last check
+- `should_reevaluate(position, catalysts, price_drift) -> bool` — decide if a position needs a fresh MiroFish simulation
+- `build_reevaluation_context(position, catalysts) -> str` — format new seed packet with updated news for re-simulation
+
+This module powers the **active position management** strategy:
+- Every HOUR: check prices on all open positions via free Polymarket API (no LLM cost)
+- Every HOUR: quick news scan for keywords related to held positions
+- If price moved >5% since last check OR a major catalyst detected → flag for re-simulation
+- Re-simulation uses the SAME MiroFish pipeline but with UPDATED seed packet (new headlines, current price)
+
+Catalyst detection:
+- Keyword match on position's market question entities (e.g., "Trump", "NATO", "tariff")
+- Price movement threshold (configurable, default 5%)
+- Scheduled event detection: known upcoming dates (votes, hearings, speeches)
+
+### Module 10: `src/models.py` additions
+Add these models to support active trading:
+
+```python
+class CatalystEvent(BaseModel):
+    position_id: str
+    headline: str
+    source: str
+    relevance_score: float  # 0-1, how relevant to this position
+    timestamp: datetime
+
+class PriceDrift(BaseModel):
+    position_id: str
+    entry_price: float
+    last_checked_price: float
+    current_price: float
+    drift_percent: float
+    direction: str  # "favorable" or "adverse"
+
+class PositionReeval(BaseModel):
+    position_id: str
+    old_probability: float
+    new_probability: float
+    probability_shift: float
+    action: str  # "HOLD", "EXIT", "FLIP" (reverse direction), "ADD"
+    reasoning: str
+```
+
 ## EXECUTION ORDER
 
 Build modules in this order, test after each:
@@ -242,7 +292,9 @@ Build modules in this order, test after each:
 5. `src/simulation_client.py` → `python -m pytest tests/test_simulation_client.py -v`
 6. `src/probability.py` → `python -m pytest tests/test_probability.py -v`
 7. `src/edge_calculator.py` → `python -m pytest tests/test_edge_calculator.py -v`
-8. Integration test: scanner → seed → simulate → probability → edge (end-to-end)
+8. `src/catalyst_tracker.py` → `python -m pytest tests/test_catalyst_tracker.py -v`
+9. Integration test: scanner → seed → simulate → probability → edge (end-to-end)
+10. Integration test: catalyst_tracker → re-seed → re-simulate → re-evaluate (position update flow)
 
 ## TEST REQUIREMENTS
 
@@ -279,7 +331,7 @@ python -m pytest tests/ -v --tb=short
 
 ## SUCCESS CRITERIA
 
-- [ ] All 8 modules created and working
+- [ ] All 9 modules created and working (including catalyst_tracker)
 - [ ] All tests pass (`python -m pytest tests/ -v --tb=short`)
 - [ ] End-to-end integration test: given a political market → outputs a TradeSignal
 - [ ] No circular imports

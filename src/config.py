@@ -142,7 +142,7 @@ class ConsensusEntryConfig(BaseModel):
 class TrailingTPConfig(BaseModel):
     enabled: bool = True
     activation_pct: float = 0.20       # Activate at +20% profit
-    trail_distance: float = 0.08       # Sell when 8% below peak
+    trail_distance: float = 0.15       # Sell when 15% below peak
 
 
 class PennyAlphaConfig(BaseModel):

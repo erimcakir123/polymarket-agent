@@ -59,6 +59,17 @@ Three decision points:
 **Money at risk to test if concept works at all: $0**
 **Phases 0 through 3 are completely free.**
 
+## Trading Strategy: Active Monitoring, Not Buy-and-Hold
+
+The bot does NOT simply buy and wait for resolution. It actively manages positions:
+
+- **Light cycle (every hour, $0):** Check prices + news on existing positions via free Polymarket API
+- **Heavy cycle (every 6-12h, LLM cost):** Full MiroFish simulation for new markets + re-evaluation of flagged positions
+- **Volatility swings:** If MiroFish probability shifts after a catalyst (news event, speech, vote), the bot exits and potentially re-enters the same market at a better price — capturing profit from price swings, not just from resolution
+- **Catalyst detection:** Hourly news scan for keywords related to held positions. Major events trigger early re-evaluation
+
+Example: Buy YES at $0.40 (MiroFish says 65%) → price jumps to $0.70 after news → re-eval says edge is gone → EXIT (+$0.30) → price drops back to $0.45 → re-eval finds edge again → RE-ENTER → ride to resolution
+
 ## Key Rules
 
 - Sports bot is NEVER touched or affected
@@ -66,3 +77,5 @@ Three decision points:
 - Live trading starts at 1% position size, scales gradually
 - Max political exposure: 15% of bankroll (even at full scale)
 - Daily monitoring is mandatory during live trading
+- Re-entry cooldown: 2 heavy cycles minimum after exiting a market
+- Max 1 direction flip per market per week

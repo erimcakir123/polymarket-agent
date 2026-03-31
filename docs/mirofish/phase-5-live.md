@@ -95,12 +95,16 @@ Morning check (5 min):
 □ MiroFish engine responsive?
 □ Any overnight Telegram alerts?
 □ Open position prices — any at stop-loss?
+□ How many light cycles ran overnight? (should be ~8-10)
+□ Any positions flagged for re-evaluation?
 
 Evening check (10 min):
 □ Any new trades today?
-□ P&L for today
+□ Any re-evaluation exits today? (volatility swings)
+□ P&L for today (including swing trades)
 □ Running total P&L
 □ Sports bot still running fine?
+□ Any catalyst alerts that were missed?
 □ Update daily journal
 ```
 

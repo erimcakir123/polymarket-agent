@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Default parameters (can be overridden via config)
 DEFAULT_ACTIVATION_PCT = 0.20   # Activate trailing at +20% profit
-DEFAULT_TRAIL_DISTANCE = 0.08   # Sell when price drops 8% from peak
+DEFAULT_TRAIL_DISTANCE = 0.15   # Sell when price drops 15% from peak
 
 
 @dataclass

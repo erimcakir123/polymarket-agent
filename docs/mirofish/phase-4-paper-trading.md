@@ -50,6 +50,9 @@ LLM_MODEL_NAME=gemini-2.0-flash
 - Set up bot as a background process or scheduled task
 - Ensure logs rotate (don't fill disk)
 - Ensure MiroFish engine stays running
+- **Verify light cycles run every hour** (price checks + catalyst scan)
+- **Verify heavy cycles run every 6-12 hours** (new discovery + re-evaluation)
+- Both cycle types should be visible in logs with clear labels
 
 ### 2. Create tracking spreadsheet
 Create `docs/paper-trading-tracker.md`:
@@ -106,6 +109,13 @@ Every day, check:
 - Current market price (daily)
 - Outcome (if resolved)
 - Hypothetical P&L
+- **Trade type: NEW_ENTRY / RE-ENTRY / EXIT_REEVAL / EXIT_SL / EXIT_TP**
+- **Trigger: DISCOVERY (heavy cycle) / CATALYST (re-evaluation) / PRICE_DRIFT (light cycle)**
+
+### Per market (volatility swing tracking):
+- How many times did the bot enter/exit this market?
+- Total hypothetical P&L across all swings on this market
+- Did active monitoring (re-evaluation exits) outperform buy-and-hold?
 
 ### Aggregate (calculated at end):
 - Total signals generated
@@ -116,6 +126,9 @@ Every day, check:
 - Sharpe ratio (if enough data)
 - MiroFish calibration curve (predicted X% → actual outcome Y% of the time)
 - Comparison: MiroFish probability vs final resolution
+- **Re-evaluation accuracy: how often did re-eval exits avoid losses?**
+- **Swing profit: total P&L from volatility swings vs hypothetical buy-and-hold P&L**
+- **Light cycle value: how many urgent exits were triggered by hourly monitoring?**
 
 ## KILL/CONTINUE CRITERIA (evaluated at day 7 and day 14)
 

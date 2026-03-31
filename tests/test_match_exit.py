@@ -393,10 +393,10 @@ class TestUltraLowGuard:
 
     def test_ultra_low_late_match_exit(self):
         from src.match_exit import check_match_exit
-        # Entry <9¢, price <5¢, elapsed >90% → should exit
+        # Entry <9¢, price <5¢, elapsed >75% → should exit
         data = _make_pos_data(
             entry_price=0.07, current_price=0.03,
-            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
+            match_start_iso=self._match_started_ago(100),  # 100/130 = 77%
             slug="cs2-test", number_of_games=3,
         )
         result = check_match_exit(data)
@@ -701,7 +701,7 @@ class TestUpsetExemptions:
         assert result["exit"] is False or "never_in_profit" not in result.get("layer", "")
 
     def test_penny_exempt_from_never_in_profit(self):
-        """Penny positions should never trigger never-in-profit guard."""
+        """Penny positions exit via forced exit at 75%, never via never-in-profit."""
         from src.match_exit import check_match_exit
         data = _make_pos_data(
             entry_reason="penny",
@@ -712,4 +712,239 @@ class TestUpsetExemptions:
             consecutive_down_cycles=0, cumulative_drop=0.005,
         )
         result = check_match_exit(data)
-        assert result["exit"] is False or "never_in_profit" not in result.get("layer", "")
+        # Penny at 75% now exits via upset_forced_exit (price 1.5¢ < 50¢)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_forced_exit"
+        assert "never_in_profit" not in result.get("layer", "")
+
+
+class TestUpsetPenny75PctExit:
+    """Tests for upset/penny forced exit at 75% elapsed (was 90%)."""
+
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+    def test_upset_exits_at_75pct_still_underdog(self):
+        """Upset at 75% elapsed, still underdog (<50¢) → forced exit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.12, current_price=0.15,
+            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_forced_exit"
+
+    def test_upset_holds_if_became_favorite(self):
+        """Upset at 75% elapsed but price ≥60¢ → hold, became favorite."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.12, current_price=0.65,
+            match_start_iso=self._match_started_ago(98),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+    def test_upset_takes_profit_risky_zone(self):
+        """Upset at 75% elapsed, price 50-60¢ → take profit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.12, current_price=0.55,
+            match_start_iso=self._match_started_ago(98),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_take_profit"
+
+    def test_penny_exits_at_75pct(self):
+        """Penny at 75% elapsed, still cheap → forced exit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="penny",
+            entry_price=0.02, current_price=0.03,
+            match_start_iso=self._match_started_ago(98),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_forced_exit"
+
+    def test_penny_holds_if_became_favorite(self):
+        """Penny at 75% elapsed but price ≥60¢ → hold."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="penny",
+            entry_price=0.02, current_price=0.65,
+            match_start_iso=self._match_started_ago(98),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+    def test_upset_no_exit_at_60pct(self):
+        """Upset at 60% elapsed → no forced exit (below 75% threshold)."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="upset",
+            entry_price=0.12, current_price=0.15,
+            match_start_iso=self._match_started_ago(78),  # 78/130 = 60%
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+    def test_penny_fallback_no_timing(self):
+        """Penny with no match timing, held 3h+ and losing → forced exit."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_reason="penny",
+            entry_price=0.02, current_price=0.01,
+            match_start_iso="",  # no timing
+            slug="cs2-test", number_of_games=3,
+        )
+        data["hold_hours"] = 3.5
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "upset_max_hold"
+
+
+class TestRevokeEdgeCases:
+    """Edge case tests for hold revoke/restore mechanism."""
+
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+    def test_revoke_requires_non_temporary_dip(self):
+        """Short dip (< 3 cycles) should NOT trigger revoke."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.40,  # < entry*0.70 = 0.42
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=True, confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),  # 85/130 = 65%
+            slug="cs2-test", number_of_games=3,
+            consecutive_down_cycles=2,  # < 3 → temporary
+            cumulative_drop=0.20,
+        )
+        result = check_match_exit(data)
+        assert result.get("revoke_hold") is not True
+
+    def test_revoke_requires_elapsed_gt_60pct(self):
+        """Even with crash, revoke doesn't fire before 60% elapsed."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.35,  # massive crash
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=True, confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(70),  # 70/130 = 54%
+            slug="cs2-test", number_of_games=3,
+            consecutive_down_cycles=5, cumulative_drop=0.25,
+        )
+        result = check_match_exit(data)
+        assert result.get("revoke_hold") is not True
+
+    def test_revoke_skipped_if_score_ahead(self):
+        """Even with crash + elapsed, score ahead suppresses revoke."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.40,
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=True, confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),
+            slug="cs2-test", number_of_games=3,
+            consecutive_down_cycles=5, cumulative_drop=0.20,
+            match_score="2-1|Bo3",  # ahead
+        )
+        result = check_match_exit(data)
+        assert result.get("revoke_hold") is not True
+
+    def test_restore_requires_10_min_cooldown(self):
+        """Restore should NOT fire within 10 minutes of revocation."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.55,  # recovered > entry*0.85
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=False,  # revoked
+            hold_was_original=True,
+            hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5),  # only 5 min ago
+            confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result.get("restore_hold") is not True
+
+    def test_restore_requires_price_recovery(self):
+        """Restore should NOT fire if price hasn't recovered to entry*85%."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.48,  # 0.48/0.60 = 80% < 85%
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=False,
+            hold_was_original=True,
+            hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=15),
+            confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result.get("restore_hold") is not True
+
+    def test_restore_blocked_if_score_behind(self):
+        """Restore should NOT fire if team is behind in score."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.55,
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=False,
+            hold_was_original=True,
+            hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=15),
+            confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),
+            slug="cs2-test", number_of_games=3,
+            match_score="0-2|Bo3",  # behind
+        )
+        result = check_match_exit(data)
+        assert result.get("restore_hold") is not True
+
+    def test_never_revoked_position_cannot_restore(self):
+        """Position that was never revoked should not trigger restore."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.55,
+            ever_in_profit=True, peak_pnl_pct=0.15,
+            scouted=True,  # still holding
+            hold_was_original=False,  # never revoked
+            hold_revoked_at=None,
+            confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(85),
+            slug="cs2-test", number_of_games=3,
+        )
+        result = check_match_exit(data)
+        assert result.get("restore_hold") is not True
+
+    def test_revoke_never_profit_graduated_sl_fires_first(self):
+        """Never-in-profit + deep crash → graduated SL fires before hold_revoke.
+
+        At 73% elapsed with entry=0.60, graduated SL (max_loss ~12-20%) catches
+        the -28% PnL before the hold_revoke threshold (entry*0.75) is reached.
+        This verifies the priority chain: graduated SL > hold_revoke.
+        """
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            entry_price=0.60, current_price=0.43,  # PnL = -28.3%
+            ever_in_profit=False, peak_pnl_pct=0.0,
+            scouted=True, confidence="high", ai_probability=0.80,
+            match_start_iso=self._match_started_ago(95),  # 95/130 = 73%
+            slug="cs2-test", number_of_games=3,
+            consecutive_down_cycles=5, cumulative_drop=0.17,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "graduated_sl"  # SL catches before hold_revoke

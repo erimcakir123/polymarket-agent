@@ -295,20 +295,21 @@ def check_match_exit(data: dict) -> dict:
         except (ValueError, TypeError):
             pass
 
-    # --- Upset Hunter: forced exit at last 10% of match (3-tier price filter) ---
+    # --- Upset/Penny: forced exit at 75% of match (3-tier price filter) ---
+    # By 75% elapsed, match outcome is usually clear. Exit unless position became favorite.
     entry_reason = data.get("entry_reason", "")
-    if entry_reason == "upset" and elapsed_pct is not None and elapsed_pct >= 0.90:
+    if entry_reason in ("upset", "penny") and elapsed_pct is not None and elapsed_pct >= 0.75:
         if effective_current >= 0.60:
             pass  # HOLD — became favorite, let it resolve
         elif effective_current >= 0.50:
             return {**result, "exit": True, "layer": "upset_take_profit",
-                    "reason": f"Upset hunter: match {elapsed_pct:.0%} done, price {effective_current:.2f} in risky zone, take profit"}
+                    "reason": f"{entry_reason}: match {elapsed_pct:.0%} done, price {effective_current:.2f} in risky zone, take profit"}
         else:
             return {**result, "exit": True, "layer": "upset_forced_exit",
-                    "reason": f"Upset hunter: match {elapsed_pct:.0%} done, price {effective_current:.2f} still underdog, forced exit"}
+                    "reason": f"{entry_reason}: match {elapsed_pct:.0%} done, price {effective_current:.2f} still underdog, forced exit"}
 
-    # --- Upset Hunter: fallback for missing match timing ---
-    if entry_reason == "upset" and elapsed_pct < 0:
+    # --- Upset/Penny: fallback for missing match timing ---
+    if entry_reason in ("upset", "penny") and elapsed_pct < 0:
         hold_hours = data.get("hold_hours", 0)
         if hold_hours >= 3.0 and pnl_pct < 0:
             return {**result, "exit": True, "layer": "upset_max_hold",
@@ -320,14 +321,14 @@ def check_match_exit(data: dict) -> dict:
         return result
 
     # Ultra-low entry (<9¢) guard: normally exempt from stop loss, but
-    # if match is >90% done and price <5¢, exit (position is dead)
-    if effective_entry < 0.09 and elapsed_pct >= 0.90 and effective_current < 0.05:
+    # if match is >75% done and price <5¢, exit (position is dead)
+    if effective_entry < 0.09 and elapsed_pct >= 0.75 and effective_current < 0.05:
         return {**result, "exit": True, "layer": "ultra_low_guard",
                 "reason": f"Ultra-low eff:{effective_entry:.0f}¢ at {elapsed_pct:.0%} done, eff_price {effective_current:.0f}¢ < 5¢"}
 
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
-    if entry_reason == "upset":
-        pass  # Skip graduated SL — upsets have their own SL (50%) and forced exit at 90%
+    if entry_reason in ("upset", "penny"):
+        pass  # Skip graduated SL — upsets/penny have forced exit at 75% elapsed
     else:
         max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
 
