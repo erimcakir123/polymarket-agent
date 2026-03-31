@@ -527,6 +527,11 @@ class EntryGate:
         for market in markets:
             cid = market.condition_id
 
+            # --- Guard: resolved / closed / not accepting orders ---
+            if market.closed or market.resolved or not market.accepting_orders:
+                logger.info("SKIP resolved/closed: %s", (market.slug or "")[:40])
+                continue
+
             estimate = estimates.get(cid)
             if estimate is None:
                 continue

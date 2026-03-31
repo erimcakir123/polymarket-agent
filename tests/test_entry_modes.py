@@ -20,6 +20,9 @@ def _make_market(yes_price, cid="cid-001", slug="test-market", question="Will X 
     m.tags = []
     m.yes_token_id = "tok_yes"
     m.no_token_id = "tok_no"
+    m.closed = False
+    m.resolved = False
+    m.accepting_orders = True
     return m
 
 
