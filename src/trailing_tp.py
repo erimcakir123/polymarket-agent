@@ -60,7 +60,7 @@ def calculate_trailing_tp(
         peak_price: Highest price seen since activation (0.0 if not active)
         trailing_active: Whether trailing is currently active
         activation_pct: Profit % to activate trailing (default 20%)
-        trail_distance: Distance from peak to trigger exit (default 8%)
+        trail_distance: Distance from peak to trigger exit (default 15%)
 
     Returns:
         dict with:
