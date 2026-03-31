@@ -67,3 +67,41 @@ def test_estimate_elapsed_pct_uses_sport_duration():
     assert pct is not None
     # With sport-specific duration (150min): 80/150 ≈ 0.533
     assert 0.50 < pct < 0.60, f"Expected ~0.53, got {pct}"
+
+
+def test_elapsed_guard_blocks_half_elapsed():
+    """Market past 50% elapsed should be skipped."""
+    from src.match_exit import get_game_duration
+    from datetime import datetime, timezone, timedelta
+
+    # NBA started 90 min ago. Duration = 150 min. elapsed_pct = 0.60 > 0.50
+    m = _make_market(
+        slug="nba-lal-bos",
+        sport_tag="nba",
+        match_start_iso=(datetime.now(timezone.utc) - timedelta(minutes=90)).isoformat(),
+    )
+    start_dt = datetime.fromisoformat(m.match_start_iso.replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    elapsed_min = (now - start_dt).total_seconds() / 60
+    duration_min = get_game_duration(m.slug, 0, m.sport_tag)
+    elapsed_pct = elapsed_min / max(duration_min, 1)
+    assert elapsed_pct > 0.50, f"Expected >0.50, got {elapsed_pct}"
+
+
+def test_elapsed_guard_passes_early_match():
+    """Market in first half should not be skipped."""
+    from src.match_exit import get_game_duration
+    from datetime import datetime, timezone, timedelta
+
+    # NBA started 30 min ago. Duration = 150 min. elapsed_pct = 0.20 < 0.50
+    m = _make_market(
+        slug="nba-lal-bos",
+        sport_tag="nba",
+        match_start_iso=(datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat(),
+    )
+    start_dt = datetime.fromisoformat(m.match_start_iso.replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    elapsed_min = (now - start_dt).total_seconds() / 60
+    duration_min = get_game_duration(m.slug, 0, m.sport_tag)
+    elapsed_pct = elapsed_min / max(duration_min, 1)
+    assert elapsed_pct < 0.50, f"Expected <0.50, got {elapsed_pct}"

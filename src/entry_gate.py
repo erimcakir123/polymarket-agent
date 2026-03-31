@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from src.notifier import TelegramNotifier
     from src.scout_scheduler import ScoutScheduler
     from src.sports_discovery import SportsDiscovery
+    from src.sports_ws import SportsWebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ class EntryGate:
         notifier: "TelegramNotifier",
         discovery: "SportsDiscovery | None" = None,
         scout: "ScoutScheduler | None" = None,
+        sports_ws: "SportsWebSocket | None" = None,
     ) -> None:
         self.config = config
         self.portfolio = portfolio
@@ -116,6 +118,7 @@ class EntryGate:
         self.notifier = notifier
         self.discovery = discovery
         self.scout = scout
+        self.sports_ws = sports_ws
 
         # Per-session state (survives across cycles)
         self._early_market_ids: set[str] = set()
@@ -519,6 +522,7 @@ class EntryGate:
         """Evaluate each market using three-mode strategy. Return ranked candidate list."""
         from src.probability_engine import calculate_anchored_probability
         from src.models import Direction, effective_price
+        from src.match_exit import get_game_duration
 
         cfg = self.config
         candidates: list[dict] = []
@@ -530,6 +534,41 @@ class EntryGate:
             # --- Guard: resolved / closed / not accepting orders ---
             if market.closed or market.resolved or not market.accepting_orders:
                 logger.info("SKIP resolved/closed: %s", (market.slug or "")[:40])
+                continue
+
+            # --- Guard: match past 50% elapsed → skip ---
+            elapsed_pct = 0.0
+            _slug = market.slug or ""
+            _sport = getattr(market, "sport_tag", "") or ""
+            _nogs = getattr(market, "number_of_games", 0) or 0
+            _msi = getattr(market, "match_start_iso", "") or ""
+
+            # Prefer Sports WebSocket (real-time)
+            if self.sports_ws:
+                _ws = self.sports_ws.get_match_state(_slug)
+                if _ws and _ws.get("ended"):
+                    logger.info("SKIP ws-ended: %s", _slug[:40])
+                    continue
+                if _ws and _ws.get("elapsed"):
+                    _parts = _ws["elapsed"].split(":")
+                    _el_min = int(_parts[0]) + int(_parts[1]) / 60 if len(_parts) == 2 else 0
+                    _dur = get_game_duration(_slug, _nogs, _sport)
+                    elapsed_pct = _el_min / max(_dur, 1)
+
+            # Fallback: match_start_iso + sport duration
+            if elapsed_pct == 0.0 and _msi:
+                try:
+                    _start = datetime.fromisoformat(_msi.replace("Z", "+00:00"))
+                    _now = datetime.now(timezone.utc)
+                    _el_min = (_now - _start).total_seconds() / 60
+                    if _el_min > 0:
+                        _dur = get_game_duration(_slug, _nogs, _sport)
+                        elapsed_pct = _el_min / max(_dur, 1)
+                except (ValueError, TypeError):
+                    pass
+
+            if elapsed_pct > 0.50:
+                logger.info("SKIP half-elapsed: %s | %.0f%% through", _slug[:35], elapsed_pct * 100)
                 continue
 
             estimate = estimates.get(cid)

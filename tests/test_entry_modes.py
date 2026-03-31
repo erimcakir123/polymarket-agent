@@ -54,6 +54,7 @@ def _make_gate():
     gate._early_market_ids = set()
     gate._espn_odds_cache = {}
     gate._confidence_c_attempts = {}
+    gate.sports_ws = None
     return gate
 
 
