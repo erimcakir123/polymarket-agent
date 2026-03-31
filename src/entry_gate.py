@@ -403,7 +403,7 @@ class EntryGate:
                             self._espn_odds_cache[_m.condition_id] = result.espn_odds
                         logger.info("Sports context (%s): %s", result.source, (_m.slug or "")[:40])
                 except Exception as _exc:
-                    logger.debug("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
+                    logger.warning("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
 
         # Fetch news contexts (stop-word filtered keywords -> topic grouping works correctly)
         news_context_by_market: dict[str, str] = {}

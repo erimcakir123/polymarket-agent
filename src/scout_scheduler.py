@@ -94,7 +94,10 @@ _SCOUT_LEAGUES = [
     # === Tennis ===
     ("tennis", "atp", "ATP Tennis"),
     ("tennis", "wta", "WTA Tennis"),
-    # NOTE: F1/Golf excluded -- multi-competitor events, not moneyline head-to-head
+    # NOTE: F1 excluded -- multi-competitor events, not moneyline head-to-head
+    # === Golf ===
+    ("golf", "pga", "PGA Tour"),
+    ("golf", "lpga", "LPGA Tour"),
 ]
 
 # PandaScore games to scout
@@ -143,6 +146,9 @@ class ScoutScheduler:
 
     def should_run_scout(self) -> bool:
         """Check if it's time for a scout run (4x daily: 00, 06, 12, 18 UTC)."""
+        # Cold start: if queue is empty, run immediately
+        if not self._queue:
+            return True
         now = datetime.now(timezone.utc)
         current_hour = now.hour
 

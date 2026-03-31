@@ -570,10 +570,10 @@ class SportsDataClient:
         return None, None
 
     # Sports where competitors are individual athletes, not teams
-    _ATHLETE_SPORTS = frozenset({"tennis", "mma"})
+    _ATHLETE_SPORTS = frozenset({"tennis", "mma", "golf"})
 
     # Sports where competitors are event-based (tournaments, races)
-    _EVENT_SPORTS = frozenset({"golf", "racing"})
+    _EVENT_SPORTS = frozenset({"racing"})
 
     def get_match_context(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Build structured context string for AI analyst.
