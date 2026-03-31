@@ -298,11 +298,12 @@ class EntryGate:
         if not markets:
             return [], {}
 
-        # Slot-based batch sizing
+        # Slot-based batch sizing — scale AI calls with open slots
         open_slots = max(0, cfg.risk.max_positions - self.portfolio.active_position_count)
-        stock_empty = max(0, 5 - len(self._candidate_stock))
-        total_need = open_slots + stock_empty
-        ai_batch_size = min(cfg.ai.batch_size, max(5, total_need * 2))
+        if open_slots == 0:
+            logger.info("Pool full (0 open slots) -- skipping AI analysis")
+            return [], {}
+        ai_batch_size = min(cfg.ai.batch_size, open_slots * 3)
         # Over-scan 6x: sports data is cheap, AI is expensive.
         # Many markets lack ESPN/PandaScore data -- wider net catches more qualified ones.
         scan_size = ai_batch_size * 6
