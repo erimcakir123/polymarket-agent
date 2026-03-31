@@ -7,7 +7,7 @@ Pre-filter pipeline (cheap, no AI):
     1. Price zone: 5-15¢
     2. Odds API divergence: min 5pt
     3. Liquidity: min $5,000
-    4. Timing: max 48h before match, not past 75% if live
+    4. Timing: max 48h before match, not past 50% if live
     5. Moneyline only (no draw/spread/total)
 """
 from __future__ import annotations
@@ -83,7 +83,7 @@ def pre_filter(
                 continue
             if hours_left < 0:
                 elapsed_pct = _estimate_elapsed_pct(m)
-                if elapsed_pct is not None and elapsed_pct > 0.75:
+                if elapsed_pct is not None and elapsed_pct > 0.50:
                     continue
 
         # Filter 2: Odds API divergence (direction-aware)
@@ -189,7 +189,13 @@ def _estimate_elapsed_pct(m: MarketData) -> Optional[float]:
             start = datetime.fromisoformat(m.match_start_iso.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
             elapsed_min = (now - start).total_seconds() / 60
-            return min(elapsed_min / 120, 1.0)
+            from src.match_exit import get_game_duration
+            duration = get_game_duration(
+                m.slug or "",
+                getattr(m, "number_of_games", 0),
+                getattr(m, "sport_tag", ""),
+            )
+            return min(elapsed_min / max(duration, 1), 1.0)
         except (ValueError, TypeError):
             pass
     return None
