@@ -80,7 +80,7 @@ class Agent:
 
         # Core modules
         self.portfolio = Portfolio(initial_bankroll=config.initial_bankroll)
-        self.circuit_breaker = CircuitBreaker()
+        self.circuit_breaker = CircuitBreaker.load()
         self.blacklist = Blacklist(path="logs/blacklist.json")
         self.reentry_pool = ReentryPool()
         self.outcome_tracker = OutcomeTracker()
@@ -187,6 +187,10 @@ class Agent:
 
             while self.running:
                 self._check_stop_file()
+                if not self.running:
+                    break
+                # Poll Telegram commands (/stop, /pause, /resume, /status)
+                self.notifier.handle_commands(self)
                 if not self.running:
                     break
 

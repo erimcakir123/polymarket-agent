@@ -1,68 +1,12 @@
-"""Edge detection: AI probability vs market price with slippage awareness."""
+"""Edge detection: AI probability vs market price."""
 from __future__ import annotations
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from src.models import Direction
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIDENCE_MULTIPLIERS = {"C": 1.5, "B-": 1.0, "B+": 0.85, "A": 0.75}
-
-
-def estimate_slippage(
-    order_size_usdc: float,
-    order_book_side: List[dict],
-    max_slippage_pct: float = 0.02,
-) -> float:
-    """Estimate slippage from order book depth.
-
-    Args:
-        order_size_usdc: Size of the order in USDC
-        order_book_side: List of {price, size} from relevant side (asks for buy, bids for sell)
-        max_slippage_pct: Maximum acceptable slippage (default 2%)
-
-    Returns:
-        Estimated slippage as absolute price impact (e.g., 0.015 = 1.5 cents)
-    """
-    if not order_book_side or order_size_usdc <= 0:
-        return 0.0
-
-    total_filled = 0.0
-    weighted_price = 0.0
-    best_price = float(order_book_side[0].get("price", 0)) if order_book_side else 0.0
-
-    for level in order_book_side:
-        price = float(level.get("price", 0))
-        size = float(level.get("size", 0))
-        if price <= 0 or size <= 0:
-            continue
-
-        level_usdc = price * size
-        remaining = order_size_usdc - total_filled
-
-        if remaining <= 0:
-            break
-
-        fill_at_level = min(level_usdc, remaining)
-        weighted_price += price * fill_at_level
-        total_filled += fill_at_level
-
-    if total_filled <= 0 or best_price <= 0:
-        return 0.0
-
-    avg_fill_price = weighted_price / total_filled
-    slippage = abs(avg_fill_price - best_price)
-
-    # Cap at max slippage
-    if best_price > 0 and slippage / best_price > max_slippage_pct:
-        capped = best_price * max_slippage_pct
-        logger.warning(
-            "Slippage %.4f (%.1f%%) exceeds max %.1f%% -- capped to %.4f",
-            slippage, (slippage / best_price) * 100, max_slippage_pct * 100, capped,
-        )
-        slippage = capped
-
-    return slippage
 
 
 def calculate_edge(

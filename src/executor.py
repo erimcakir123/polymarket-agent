@@ -179,7 +179,14 @@ class Executor:
         from py_clob_client.clob_types import MarketOrderArgs, OrderType
         from py_clob_client.order_builder.constants import SELL
 
-        mo = MarketOrderArgs(token_id=token_id, amount=shares, side=SELL)
-        signed = self.client.create_market_order(mo)
-        resp = self.client.post_order(signed, OrderType.FOK)
-        return {"order_id": resp.get("orderID", ""), "status": "placed", "mode": "live", "response": resp}
+        try:
+            mo = MarketOrderArgs(token_id=token_id, amount=shares, side=SELL)
+            signed = self.client.create_market_order(mo)
+            resp = self.client.post_order(signed, OrderType.FOK)
+            if not resp.get("orderID"):
+                logger.error("Live exit got empty orderID: %s", resp)
+                return {"order_id": "", "status": "error", "mode": "live", "reason": "no orderID"}
+            return {"order_id": resp.get("orderID", ""), "status": "placed", "mode": "live", "response": resp}
+        except Exception as e:
+            logger.error("Live exit FAILED: %s", e)
+            return {"order_id": "", "status": "error", "mode": "live", "reason": str(e)}

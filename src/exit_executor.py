@@ -44,8 +44,15 @@ class ExitExecutor:
 
         self.ctx._exit_cooldowns[condition_id] = self.ctx.cycle_count + cooldown_cycles
 
-        # Execute via executor
-        self.ctx.executor.exit_position(pos, reason=reason, mode=self.ctx.config.mode)
+        # Execute via executor — if live sell fails, restore position
+        sell_result = self.ctx.executor.exit_position(pos, reason=reason, mode=self.ctx.config.mode)
+        if sell_result.get("status") == "error":
+            logger.error("EXIT SELL FAILED for %s — restoring position: %s",
+                         pos.slug[:35], sell_result.get("reason", "unknown"))
+            self.ctx.portfolio.positions[condition_id] = pos
+            self.ctx.portfolio.bankroll -= pos.size_usdc
+            self.ctx.portfolio._save_positions()
+            return
 
         # Record realized PnL
         realized_pnl = pos.unrealized_pnl_usdc

@@ -51,14 +51,12 @@ class EdgeConfig(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    kelly_fraction: float = 0.20  # Legacy -- sizing is confidence-based now
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
     max_positions: int = 20
     correlation_cap_pct: float = 0.30
     stop_loss_pct: float = 0.30
     near_stop_loss_multiplier: float = 0.83  # Shorten cycle when PnL nears SL
-    take_profit_pct: float = 0.40
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     price_drift_reanalysis_pct: float = 0.15
@@ -67,20 +65,9 @@ class RiskConfig(BaseModel):
     # 50% cap supports ~15 positions at 3-5% sizing each, keeps 50% cash buffer
     max_exposure_pct: float = 0.50
 
-    @field_validator("kelly_fraction")
-    @classmethod
-    def kelly_in_range(cls, v: float) -> float:
-        if not 0 < v <= 1.0:
-            raise ValueError("kelly_fraction must be in (0, 1]")
-        return v
-
 
 class VolatilitySwingConfig(BaseModel):
     enabled: bool = True
-    stop_loss_pct: float = 0.20
-    take_profit_pct: float = 0.60
-    tp_floor: float = 0.30
-    tp_ceiling: float = 1.00
     reserved_slots: int = 3
     max_concurrent: int = 5
     max_token_price: float = 0.50

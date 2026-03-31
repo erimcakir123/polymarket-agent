@@ -73,7 +73,9 @@ class ExitMonitor:
             pos_found = None
             for cid, pos in self.portfolio.positions.items():
                 if pos.token_id == token_id:
-                    pos.current_price = price
+                    # WS sends token-side price; convert BUY_NO to YES-side
+                    # so all downstream code (PnL, SL, TP) sees consistent prices
+                    pos.current_price = (1.0 - price) if pos.direction == "BUY_NO" else price
                     cid_found = cid
                     pos_found = pos
                     break
@@ -297,9 +299,45 @@ class ExitMonitor:
     def check_exits_light(self) -> list[tuple[str, str]]:
         """Subset of exit checks for light cycles (price-only, no AI).
 
-        Light cycles run every 2 minutes. Same as heavy minus VS trailing stop.
+        Light cycles run every 2 minutes. Includes VS trailing TP for
+        real-time protection of fast-moving volatility swing positions.
         """
-        result, _seen_cids, _all_triggered = self._common_exit_checks()
+        from src.trailing_tp import calculate_trailing_tp
+
+        result, seen_cids, _all_triggered = self._common_exit_checks()
+        cfg = self.config
+
+        def _add(cid: str, reason: str) -> None:
+            _all_triggered.setdefault(cid, []).append(reason)
+            if cid not in seen_cids and cid not in self._exiting_set:
+                result.append((cid, reason))
+                seen_cids.add(cid)
+
+        # VS trailing stop (same logic as heavy cycle)
+        ttp_cfg = cfg.trailing_tp
+        if ttp_cfg.enabled:
+            for cid, pos in list(self.portfolio.positions.items()):
+                if not pos.volatility_swing:
+                    continue
+                if cid in seen_cids:
+                    continue
+                if pos.peak_pnl_pct < ttp_cfg.activation_pct:
+                    continue
+                trail = 0.04 if _hours_to_resolution(pos) <= 0.5 else ttp_cfg.trail_distance
+                ttp_result = calculate_trailing_tp(
+                    entry_price=pos.entry_price,
+                    current_price=pos.current_price,
+                    direction=pos.direction,
+                    peak_price=pos.peak_price,
+                    trailing_active=True,
+                    activation_pct=ttp_cfg.activation_pct,
+                    trail_distance=trail,
+                )
+                if ttp_result["peak_price"] > pos.peak_price:
+                    pos.peak_price = ttp_result["peak_price"]
+                if ttp_result["action"] == "EXIT":
+                    _add(cid, f"trailing_tp: {ttp_result['reason']}")
+
         self._log_exit_details(_all_triggered)
         return result
 

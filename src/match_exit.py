@@ -314,6 +314,10 @@ def check_match_exit(data: dict) -> dict:
         if hold_hours >= 3.0 and pnl_pct < 0:
             return {**result, "exit": True, "layer": "upset_max_hold",
                     "reason": f"Upset hunter: held {hold_hours:.1f}h with no timing, PnL {pnl_pct:.1%}"}
+        # Penny/upset with no timing and positive PnL: exit after 6h to avoid stuck positions
+        if hold_hours >= 6.0:
+            return {**result, "exit": True, "layer": "upset_max_hold",
+                    "reason": f"{entry_reason}: held {hold_hours:.1f}h with no timing data, forced exit"}
 
     if elapsed_pct < 0:
         # No match timing -> can't do graduated/never-in-profit checks
