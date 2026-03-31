@@ -537,6 +537,18 @@ class EntryGate:
                 logger.info("SKIP resolved/closed: %s", (market.slug or "")[:40])
                 continue
 
+            # --- Guard: match already ended (Gamma says active but event ended) ---
+            if getattr(market, "event_ended", False) is True:
+                logger.info("SKIP event-ended: %s", (market.slug or "")[:40])
+                continue
+
+            # --- Guard: price indicates near-certain outcome (≥95¢ either side) ---
+            _yes = market.yes_price
+            if _yes >= 0.95 or _yes <= 0.05:
+                logger.info("SKIP near-resolved price: %s | YES=%.0f¢",
+                            (market.slug or "")[:40], _yes * 100)
+                continue
+
             # --- Guard: match past 50% elapsed → skip ---
             elapsed_pct = 0.0
             _slug = market.slug or ""
