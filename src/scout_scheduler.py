@@ -27,6 +27,9 @@ SCOUT_MARKER_FILE = Path("logs/.last_scout")
 # ESPN scoreboard endpoints return today's + upcoming games
 ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports"
 
+# Multi-day tournament sports — event status check skipped (see line ~489)
+_TOURNAMENT_SPORTS = frozenset({"tennis", "golf"})
+
 # Leagues to scout (sport, league, display_name)
 _SCOUT_LEAGUES = [
     # === North America ===
@@ -480,9 +483,13 @@ class ScoutScheduler:
                         if event_dt < now or event_dt > cutoff:
                             continue
 
-                        # Skip already started/completed
+                        # Skip already started/completed events.
+                        # Tennis/golf "events" are multi-day tournaments — event
+                        # status flips to "in"/"post" after day 1 while later
+                        # matches are still "pre". Sport-specific parsers handle
+                        # individual competition status instead.
                         status = event.get("status", {}).get("type", {}).get("state", "")
-                        if status in ("in", "post"):
+                        if status in ("in", "post") and sport not in _TOURNAMENT_SPORTS:
                             continue
 
                         # --- Sport-specific parsers ---

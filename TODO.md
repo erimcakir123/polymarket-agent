@@ -51,6 +51,7 @@
 - [x] Halftime exit with live state — Canlı skor ile devre arası çıkış — portfolio.py
 
 ## Test Sürecinde Eklenecek (Live Öncesi)
+- [ ] **Esports ücretli odds API bul** — Şu an esports'ta sadece PandaScore (match history) var, bookmaker odds yok. AI tek kaynak ile karar veriyor (B+ confidence). Ücretli esports odds API bul ve entegre et (örn: Pinnacle API, Betfair Exchange, veya esports-specific odds provider). Olmazsa esports'ta sadece consensus bet'lere izin ver.
 - [ ] **Claude API spend limit ayarla** — config.yaml'da monthly_budget_usd + sprint_budget_usd (şu an 0=unlimited), Anthropic console'da da spend limit koy. Simulation bitmeden önce MUTLAKA ayarla!
 - [ ] Partial exit — binary çıkış yerine %50/%75 kademeli çıkış (CLOB partial sell)
 - [ ] Kelly rebalance — maç sırasında pozisyon boyutu güncelleme
