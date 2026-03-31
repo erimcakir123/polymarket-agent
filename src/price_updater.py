@@ -165,9 +165,11 @@ class PriceUpdater:
 
                     # Fallback: scout queue (ESPN/PandaScore) when Gamma
                     # start is missing or mirrors end_date (unreliable).
-                    if not pos.match_start_iso or pos.match_start_iso == pos.end_date_iso:
+                    _needs_scout = (not pos.match_start_iso
+                                    or pos.match_start_iso == pos.end_date_iso)
+                    if _needs_scout:
                         _scout_time = self._lookup_scout_match_time(pos.slug, pos.question)
-                        if _scout_time:
+                        if _scout_time and _scout_time != pos.match_start_iso:
                             pos.match_start_iso = _scout_time
                             logger.info("Match start from scout queue: %s -> %s",
                                         pos.slug[:35], _scout_time)
