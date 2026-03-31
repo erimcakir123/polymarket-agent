@@ -63,6 +63,26 @@ _THIN_DATA_THRESHOLDS = {
 }
 
 
+def _underdog_elapsed_size_multiplier(elapsed_pct: float) -> float:
+    """Graduated size multiplier for underdog entries based on match progress.
+
+    0-10% elapsed -> 1.0 (full size)
+    10-25% -> 0.75
+    25-40% -> 0.50
+    40-50% -> 0.25 (minimum)
+    >50% -> 0.0 (blocked)
+    """
+    if elapsed_pct > 0.50:
+        return 0.0
+    if elapsed_pct > 0.40:
+        return 0.25
+    if elapsed_pct > 0.25:
+        return 0.50
+    if elapsed_pct > 0.10:
+        return 0.75
+    return 1.0
+
+
 def _sport_category(sport_tag: str) -> str:
     """Map a sport_tag to a threshold category key."""
     sp = (sport_tag or "").lower()
@@ -751,6 +771,25 @@ class EntryGate:
             )
             adjusted_size = risk_decision.size_usdc
             adjusted_size = self.manip_guard.adjust_position_size(adjusted_size, manip_check)
+
+            # ── Underdog elapsed guard (eff_entry < 20¢) ─────────────────
+            # Low-price entries need match timing; graduated size reduction.
+            _eff_entry_price = effective_price(mkt_p, direction)
+            if _eff_entry_price < 0.20:
+                _has_timing = bool(_msi) or elapsed_pct > 0.0
+                if not _has_timing:
+                    logger.info("SKIP no-start-time upset: %s | entry=%.0f¢",
+                                market.slug[:35], _eff_entry_price * 100)
+                    continue
+                _udog_mult = _underdog_elapsed_size_multiplier(elapsed_pct)
+                if _udog_mult <= 0.0:
+                    logger.info("SKIP upset-half-elapsed: %s | %.0f%% through",
+                                market.slug[:35], elapsed_pct * 100)
+                    continue
+                if _udog_mult < 1.0:
+                    adjusted_size *= _udog_mult
+                    logger.info("Underdog size reduction: %s | %.0f%% elapsed -> %.0f%% size",
+                                market.slug[:35], elapsed_pct * 100, _udog_mult * 100)
 
             # ── Rank score -- pure edge × confidence ─────────────────────────
             # Edge-only ranking: underdogs with high edge rank equally to favorites.

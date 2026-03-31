@@ -372,6 +372,10 @@ class Portfolio:
             # O/U and spread markets: hold to resolution
             if self._is_totals_or_spread(pos):
                 continue
+            # Pending resolution + profitable: wait for oracle (0.95->1.00 extra value)
+            # Pending + losing: fall through to normal exit evaluation
+            if pos.pending_resolution and pos.unrealized_pnl_pct > 0:
+                continue
 
             # Early entry penny positions: handled by _check_early_penny_exits() in main.py
             if pos.entry_reason == "early" and pos.entry_price <= 0.05:
@@ -489,6 +493,10 @@ class Portfolio:
                 continue
             # O/U and spread markets: hold to resolution
             if self._is_totals_or_spread(pos):
+                continue
+            # Pending resolution + profitable: wait for oracle resolve
+            # Pending + losing: fall through to match-aware exit evaluation
+            if pos.pending_resolution and pos.unrealized_pnl_pct > 0:
                 continue
 
             data = {
