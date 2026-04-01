@@ -433,23 +433,35 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
                     any(kw in slug_lower for kw in ("cs2", "csgo", "val", "lol", "dota"))
 
         sources_section = ["\n=== DATA SOURCES ==="]
-        has_odds = "bookmaker" in (esports_context or "").lower() or \
-                   "odds" in (esports_context or "").lower()
-        has_stats = bool(esports_context) and ("win" in esports_context.lower() or
-                                                "recent" in esports_context.lower() or
-                                                "match" in esports_context.lower())
+        ctx_lower = (esports_context or "").lower()
+        has_odds = "bookmaker" in ctx_lower or "odds api" in ctx_lower
+        has_stats = bool(esports_context) and ("win" in ctx_lower or
+                                                "recent" in ctx_lower or
+                                                "match" in ctx_lower)
+        has_bpi = "espn bpi" in ctx_lower
+        has_injuries = "injuries:" in ctx_lower
+        has_standings = "home:" in ctx_lower and "away:" in ctx_lower
 
         if has_stats:
-            sources_section.append("✓ Match Stats: Available (see data below)")
+            sources_section.append("✓ Match Stats: Available (ESPN)")
         else:
             sources_section.append("✗ Match Stats: Not available")
 
         if has_odds:
-            sources_section.append("✓ Bookmaker Odds: Available (see data below)")
+            sources_section.append("✓ Bookmaker Odds: Available (The Odds API — 8-10 providers)")
         elif is_esport:
             sources_section.append("✗ Bookmaker Odds: Not available (normal for esports -- do NOT penalize confidence)")
         else:
             sources_section.append("✗ Bookmaker Odds: Not available")
+
+        if has_bpi:
+            sources_section.append("✓ ESPN BPI Predictor: Available (ESPN's own model — independent signal)")
+
+        if has_injuries:
+            sources_section.append("✓ Injury Reports: Available (both teams)")
+
+        if has_standings:
+            sources_section.append("✓ Standings & Records: Available")
 
         if news_context:
             sources_section.append("✓ News: Available (see below)")
