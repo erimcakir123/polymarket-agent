@@ -71,6 +71,7 @@ class VolatilitySwingConfig(BaseModel):
     min_token_price: float = 0.10
     max_hours_to_start: float = 24.0
     bet_pct: float = 0.05
+    stop_loss_pct: float = 0.20
     polling_interval_min: int = 5
 
 
