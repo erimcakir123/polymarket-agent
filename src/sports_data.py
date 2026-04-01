@@ -564,6 +564,51 @@ class SportsDataClient:
 
         return None
 
+    # Sports with daily schedules where B2B matters
+    _DAILY_SPORTS = frozenset({"basketball", "hockey", "baseball"})
+
+    def detect_back_to_back(self, recent_games: List[Dict]) -> bool:
+        """Check if team played yesterday (back-to-back).
+
+        Scans recent_games dates. If most recent game was yesterday, return True.
+        No API call needed — uses cached schedule data.
+        """
+        if not recent_games:
+            return False
+
+        last_game = recent_games[-1]
+        last_date_str = last_game.get("date", "")
+        if not last_date_str:
+            return False
+
+        try:
+            from datetime import timedelta
+            last_date = datetime.strptime(last_date_str[:10], "%Y-%m-%d").date()
+            yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+            return last_date == yesterday
+        except (ValueError, TypeError):
+            return False
+
+    def get_head_to_head(
+        self, sport: str, league: str, team_a_name: str, team_b_name: str
+    ) -> List[Dict]:
+        """Find H2H matchups this season from team A's schedule.
+
+        Scans team_a's cached schedule for completed games vs team_b.
+        No extra API call needed — reuses get_team_record() cached data.
+        """
+        team_a_data = self.get_team_record(sport, league, team_a_name)
+        if not team_a_data:
+            return []
+
+        team_b_lower = team_b_name.lower()
+        h2h = []
+        for game in team_a_data.get("recent_games", []):
+            opp = game.get("opponent", "").lower()
+            if team_b_lower in opp or opp in team_b_lower:
+                h2h.append(game)
+        return h2h
+
     def _parse_game(self, event: dict, team_id: str) -> Optional[Dict]:
         """Parse a single game event into a result dict."""
         try:

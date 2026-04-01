@@ -154,3 +154,66 @@ class TestGetEspnPredictor:
         with patch.object(client, "_get", side_effect=[{"items": []}, None]):
             result = client.get_espn_predictor("basketball", "nba", "401584701", "401584701")
         assert result is None
+
+
+from datetime import datetime, timezone, timedelta
+
+
+class TestDetectBackToBack:
+    def test_detects_b2b(self):
+        client = _make_client()
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        games = [
+            {"date": "2026-03-15", "opponent": "Team X", "won": True, "score": "110-100", "home_away": "H"},
+            {"date": yesterday, "opponent": "Team Y", "won": False, "score": "95-100", "home_away": "A"},
+        ]
+        assert client.detect_back_to_back(games) is True
+
+    def test_no_b2b_when_last_game_two_days_ago(self):
+        client = _make_client()
+        two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d")
+        games = [{"date": two_days_ago, "opponent": "Team X", "won": True, "score": "110-100", "home_away": "H"}]
+        assert client.detect_back_to_back(games) is False
+
+    def test_empty_games_returns_false(self):
+        client = _make_client()
+        assert client.detect_back_to_back([]) is False
+
+    def test_no_date_field_returns_false(self):
+        client = _make_client()
+        assert client.detect_back_to_back([{"opponent": "X"}]) is False
+
+
+class TestGetHeadToHead:
+    def test_finds_h2h_from_schedule(self):
+        client = _make_client()
+        team_a_data = {
+            "team_name": "Lakers", "record": "38-29", "standing": "",
+            "recent_games": [
+                {"date": "2026-01-15", "opponent": "Boston Celtics", "won": True, "score": "110-100", "home_away": "H"},
+                {"date": "2026-02-20", "opponent": "Boston Celtics", "won": False, "score": "95-105", "home_away": "A"},
+                {"date": "2026-03-01", "opponent": "Miami Heat", "won": True, "score": "115-100", "home_away": "H"},
+            ],
+        }
+        with patch.object(client, "get_team_record", return_value=team_a_data):
+            result = client.get_head_to_head("basketball", "nba", "Lakers", "Celtics")
+        assert len(result) == 2
+        assert result[0]["opponent"] == "Boston Celtics"
+        assert result[0]["won"] is True
+        assert result[1]["won"] is False
+
+    def test_returns_empty_when_no_matchups(self):
+        client = _make_client()
+        team_a_data = {
+            "team_name": "Lakers", "record": "38-29", "standing": "",
+            "recent_games": [{"date": "2026-03-01", "opponent": "Miami Heat", "won": True, "score": "115-100", "home_away": "H"}],
+        }
+        with patch.object(client, "get_team_record", return_value=team_a_data):
+            result = client.get_head_to_head("basketball", "nba", "Lakers", "Celtics")
+        assert result == []
+
+    def test_returns_empty_when_team_not_found(self):
+        client = _make_client()
+        with patch.object(client, "get_team_record", return_value=None):
+            result = client.get_head_to_head("basketball", "nba", "Lakers", "Celtics")
+        assert result == []
