@@ -77,7 +77,8 @@ class SportsDiscovery:
                 if ctx:
                     espn_odds = self.espn.get_espn_odds(question, slug, tags)
 
-                    # Enrichment: additional ESPN endpoints
+                    # Enrichment: athlete-specific extras only
+                    # (team enrichment is now in sports_data.py._get_team_match_context)
                     enrichment_ctx = None
                     if self.enrichment:
                         try:
