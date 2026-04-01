@@ -442,10 +442,20 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
         has_injuries = "injuries:" in ctx_lower
         has_standings = "home:" in ctx_lower and "away:" in ctx_lower
 
-        if has_stats:
+        has_roster = "roster:" in ctx_lower
+        has_tournament_ctx = "prizepool:" in ctx_lower or "lan/online:" in ctx_lower
+
+        if has_stats and is_esport:
+            sources_section.append("✓ Match Stats: Available (PandaScore)")
+        elif has_stats:
             sources_section.append("✓ Match Stats: Available (ESPN)")
         else:
             sources_section.append("✗ Match Stats: Not available")
+
+        if has_roster:
+            sources_section.append("✓ Roster/Player Data: Available (PandaScore)")
+        if has_tournament_ctx:
+            sources_section.append("✓ Tournament Context: Available (PandaScore — tier, prizepool, LAN/online)")
 
         if has_odds:
             sources_section.append("✓ Bookmaker Odds: Available (The Odds API — 8-10 providers)")
@@ -472,7 +482,8 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
             sport_label = sport.upper() if sport else "ESPORTS"
             sources_section.append(f"\nSport: {sport_label} -- match stats from PandaScore are the primary data source. "
                                    f"Bookmaker odds are rarely available for esports markets. "
-                                   f"8+ recent matches per team = good data quality for B+ or A confidence.")
+                                   f"8+ recent matches per team = good data quality for B+ or A confidence. "
+                                   f"Roster changes, tier-based records, and LAN/online splits are available when present.")
 
         parts.append("\n".join(sources_section))
 

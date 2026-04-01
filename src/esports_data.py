@@ -1,9 +1,11 @@
 """PandaScore API client for esports match data (CS2, LoL, Dota2, Valorant)."""
 from __future__ import annotations
+import json
 import logging
 import os
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -256,12 +258,183 @@ class EsportsDataClient:
             return best_match
         return None
 
+    # ------------------------------------------------------------------
+    # Roster cache for change detection
+    # ------------------------------------------------------------------
+    _ROSTER_CACHE_PATH = Path("logs/roster_cache.json")
+    _ROSTER_CACHE_TTL_H = 24
+    _ROSTER_CACHE_MAX_AGE_DAYS = 30
+
+    def _load_roster_cache(self) -> Dict:
+        """Load roster cache from disk. Returns {} on any failure."""
+        try:
+            if self._ROSTER_CACHE_PATH.exists():
+                data = json.loads(self._ROSTER_CACHE_PATH.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except (json.JSONDecodeError, OSError, ValueError):
+            logger.debug("Roster cache load failed — treating as empty")
+        return {}
+
+    def _save_roster_cache(self, cache: Dict) -> None:
+        """Atomic write roster cache to disk with 30-day auto-prune."""
+        try:
+            # Prune entries older than 30 days
+            cutoff = datetime.now(timezone.utc).timestamp() - (self._ROSTER_CACHE_MAX_AGE_DAYS * 86400)
+            pruned = {}
+            for k, v in cache.items():
+                updated = v.get("updated_at", "")
+                try:
+                    ts = datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
+                    if ts > cutoff:
+                        pruned[k] = v
+                except (ValueError, TypeError):
+                    pruned[k] = v  # Keep if can't parse date
+            # Atomic write
+            self._ROSTER_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._ROSTER_CACHE_PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps(pruned, indent=2), encoding="utf-8")
+            tmp.replace(self._ROSTER_CACHE_PATH)
+        except OSError as e:
+            logger.warning("Roster cache save failed: %s", e)
+
+    def detect_roster_changes(
+        self, team_id: int, team_name: str, current_roster: List[str],
+    ) -> Optional[Dict]:
+        """Detect roster changes by comparing current roster vs cached snapshot.
+
+        Returns {new_players: [...], departed_players: [...]} or None if no change / first run.
+        """
+        if not current_roster:
+            return None
+
+        cache = self._load_roster_cache()
+        key = f"team_{team_id}"
+        entry = cache.get(key)
+        current_set = set(current_roster)
+        result = None
+
+        if entry:
+            # TTL debounce: skip comparison if cached entry is fresh (<TTL hours)
+            # Prevents false alerts from transient PandaScore partial responses
+            updated_str = entry.get("updated_at", "")
+            try:
+                updated_ts = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
+                age_hours = (datetime.now(timezone.utc) - updated_ts).total_seconds() / 3600
+                if age_hours < self._ROSTER_CACHE_TTL_H:
+                    return None  # Too fresh to re-compare
+            except (ValueError, TypeError):
+                pass  # Can't parse date — proceed with comparison
+
+            cached_players = set(entry.get("players", []))
+            new_players = sorted(current_set - cached_players)
+            departed_players = sorted(cached_players - current_set)
+            if new_players or departed_players:
+                result = {"new_players": new_players, "departed_players": departed_players}
+
+        # Update cache (keeps updated_at fresh for prune logic)
+        cache[key] = {
+            "name": team_name,
+            "players": sorted(current_set),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._save_roster_cache(cache)
+        return result
+
+    # ------------------------------------------------------------------
+    # Enrichment helpers
+    # ------------------------------------------------------------------
+
+    def _enrich_team_data(
+        self, result: Dict, team: Dict, matches: List[Dict], team_id: int,
+    ) -> None:
+        """Add roster, location, tier records, LAN/online records, game duration
+        to an existing team result dict. Mutates result in-place.
+        Designed to be called inside try/except — any failure is non-fatal.
+        """
+        # --- Roster & location from team object ---
+        result["location"] = team.get("location") or None
+        players_raw = team.get("players") or []
+        roster = [p.get("name", "") for p in players_raw if p.get("active", True) and p.get("name")]
+        result["roster"] = roster
+
+        # --- Roster change detection ---
+        roster_change = self.detect_roster_changes(team_id, result["team_name"], roster)
+        if roster_change:
+            result["roster_change"] = roster_change
+
+        # --- Tier & LAN records from match history ---
+        tier_records: Dict[str, Dict[str, int]] = {}  # tier -> {w, l}
+        lan_w, lan_l, online_w, online_l = 0, 0, 0, 0
+
+        for m in matches:
+            winner = m.get("winner", {})
+            won = bool(winner and winner.get("id") == team_id)
+            tourn = m.get("tournament") or {}
+            tier = (tourn.get("tier") or "").lower()
+            tourn_type = (tourn.get("type") or "").lower()
+
+            # Tier record
+            if tier:
+                key = f"tier_{tier}"
+                if key not in tier_records:
+                    tier_records[key] = {"w": 0, "l": 0}
+                if won:
+                    tier_records[key]["w"] += 1
+                else:
+                    tier_records[key]["l"] += 1
+
+            # LAN/online record
+            if tourn_type == "offline":
+                if won:
+                    lan_w += 1
+                else:
+                    lan_l += 1
+            elif tourn_type == "online":
+                if won:
+                    online_w += 1
+                else:
+                    online_l += 1
+
+        for tier_key, record in tier_records.items():
+            result[f"{tier_key}_record"] = record
+        if lan_w + lan_l > 0:
+            result["lan_record"] = {"w": lan_w, "l": lan_l}
+        if online_w + online_l > 0:
+            result["online_record"] = {"w": online_w, "l": online_l}
+
+        # --- Per-match enrichment: tier, LAN, game duration ---
+        for rm, m in zip(result.get("recent_matches", []), matches):
+            tourn = m.get("tournament") or {}
+            rm["tier"] = (tourn.get("tier") or "").lower() or None
+            rm["is_lan"] = (tourn.get("type") or "").lower() == "offline"
+            rm["prizepool"] = tourn.get("prizepool") or None
+
+            # Average game duration from games[].length
+            games = m.get("games") or []
+            durations = [g.get("length", 0) for g in games if g.get("length")]
+            if durations:
+                avg_sec = sum(durations) / len(durations)
+                rm["avg_game_length_min"] = round(avg_sec / 60)
+            else:
+                rm["avg_game_length_min"] = None
+
+            # Game-level score detail (which team won each game)
+            game_wins_team = sum(
+                1 for g in games
+                if g.get("winner", {}).get("id") == team_id
+            )
+            game_wins_opp = len([g for g in games if g.get("status") == "finished"]) - game_wins_team
+            if game_wins_team + game_wins_opp > 0:
+                rm["game_detail"] = f"{game_wins_team}-{max(0, game_wins_opp)}"
+
     def get_team_recent_results(
         self, game_slug: str, team_name: str, limit: int = 20
     ) -> Optional[Dict]:
         """Fetch a team's recent match results from PandaScore.
 
         Returns dict with: team_name, wins, losses, win_rate, recent_matches
+        + enriched fields: roster, location, tier records, LAN/online records, game duration
         """
         # Search for team
         teams = self._get(f"/{game_slug}/teams", {"search[name]": team_name, "per_page": 5})
@@ -320,13 +493,21 @@ class EsportsDataClient:
             })
 
         total = wins + losses
-        return {
+        result = {
             "team_name": official_name,
             "wins": wins,
             "losses": losses,
             "win_rate": round(wins / total, 2) if total > 0 else 0.0,
             "recent_matches": recent[:10],  # Last 10 for context
         }
+
+        # Enrichment wrapper — on failure, returns base result unchanged
+        try:
+            self._enrich_team_data(result, team, matches, team_id)
+        except Exception as e:
+            logger.warning("Team enrichment failed (graceful skip): %s", e)
+
+        return result
 
     def get_match_context(
         self, question: str, tags: List[str]
@@ -376,68 +557,167 @@ class EsportsDataClient:
 
         parts = [f"=== ESPORTS MATCH DATA (PandaScore) ==="]
 
-        # Match metadata from upcoming endpoint
+        # --- Tournament block ---
         if upcoming:
-            tier = (upcoming.get("tournament", {}).get("tier") or "").upper()
-            tourn_name = upcoming.get("tournament", {}).get("name", "")
-            league_name = upcoming.get("league", {}).get("name", "")
-            has_stats = upcoming.get("detailed_stats", False)
-            scheduled = (upcoming.get("scheduled_at") or "")[:16]
-            status = upcoming.get("status", "")
-            match_format = upcoming.get("match_type", "")
-            num_games = upcoming.get("number_of_games", 0)
+            self._build_tournament_block(parts, upcoming)
 
-            meta_line = f"Tournament: {league_name} - {tourn_name}"
-            if tier:
-                meta_line += f" (Tier {tier})"
-            parts.append(meta_line)
-            if match_format and num_games:
-                parts.append(f"Format: {match_format} {num_games}")
-            if scheduled:
-                parts.append(f"Scheduled: {scheduled} UTC")
-            if status and status != "not_started":
-                parts.append(f"Status: {status}")
-            if has_stats:
-                parts.append("Detailed stats: available")
-
+        # --- Team blocks ---
         for label, stats in [("TEAM A", team_a), ("TEAM B", team_b)]:
-            if not stats:
-                parts.append(f"\n{label}: No data available")
-                continue
-            total = stats["wins"] + stats["losses"]
-            parts.append(
-                f"\n{label}: {stats['team_name']}\n"
-                f"  Record (last {total} matches): {stats['wins']}W - {stats['losses']}L "
-                f"(win rate: {stats['win_rate']:.0%})"
-            )
-            if stats["recent_matches"]:
-                parts.append("  Recent matches:")
-                for m in stats["recent_matches"][:5]:
-                    result = "W" if m["won"] else "L"
-                    parts.append(
-                        f"    [{result}] vs {m['opponent']} {m['score']} "
-                        f"({m['tournament']}, {m['date']})"
-                    )
+            self._build_team_block(parts, label, stats)
 
-        # Head-to-head (scan recent matches for direct matchups)
-        if team_a and team_b:
-            h2h_a = 0
-            h2h_b = 0
-            for m in (team_a.get("recent_matches") or []):
-                if team_b and m["opponent"].lower() == team_b["team_name"].lower():
-                    if m["won"]:
-                        h2h_a += 1
-                    else:
-                        h2h_b += 1
-            if h2h_a + h2h_b > 0:
-                parts.append(
-                    f"\nHEAD-TO-HEAD (recent): "
-                    f"{team_a['team_name']} {h2h_a} - {h2h_b} {team_b['team_name']}"
-                )
+        # --- H2H block ---
+        self._build_h2h_block(parts, team_a, team_b)
 
-        parts.append("\nUse this data to inform your probability estimate. "
-                     "Weight recent form heavily.")
+        # --- Prompt guidance ---
+        parts.append(
+            "\nUse this data to inform your probability estimate. "
+            "Weight recent form, tier performance, and LAN/online split. "
+            "Roster changes are a strong signal — new players = unstable form."
+        )
         return "\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # Context string builders (called by get_match_context)
+    # ------------------------------------------------------------------
+
+    def _build_tournament_block(self, parts: List[str], upcoming: Dict) -> None:
+        """Append tournament metadata to context parts."""
+        tourn = upcoming.get("tournament") or {}
+        tier = (tourn.get("tier") or "").upper()
+        tourn_name = tourn.get("name", "")
+        league_name = upcoming.get("league", {}).get("name", "")
+        has_stats = upcoming.get("detailed_stats", False)
+        scheduled = (upcoming.get("scheduled_at") or "")[:16]
+        status = upcoming.get("status", "")
+        match_format = upcoming.get("match_type", "")
+        num_games = upcoming.get("number_of_games", 0)
+
+        meta_line = f"Tournament: {league_name} - {tourn_name}"
+        if tier:
+            meta_line += f" (Tier {tier})"
+        parts.append(meta_line)
+
+        # Enriched: prizepool, LAN/online, country
+        prizepool = tourn.get("prizepool")
+        tourn_type = (tourn.get("type") or "").lower()
+        country = tourn.get("country")
+        enriched_parts = []
+        if tourn_type:
+            enriched_parts.append(f"LAN/Online: {'LAN' if tourn_type == 'offline' else 'Online'}")
+        if prizepool:
+            enriched_parts.append(f"Prizepool: {prizepool}")
+        if country:
+            enriched_parts.append(f"Country: {country}")
+        if enriched_parts:
+            parts.append("  " + " | ".join(enriched_parts))
+
+        if match_format and num_games:
+            parts.append(f"Format: {match_format} {num_games}")
+        if scheduled:
+            parts.append(f"Scheduled: {scheduled} UTC")
+        if status and status != "not_started":
+            parts.append(f"Status: {status}")
+        if has_stats:
+            parts.append("Detailed stats: available")
+
+    def _build_team_block(self, parts: List[str], label: str, stats: Optional[Dict]) -> None:
+        """Append team data block to context parts."""
+        if not stats:
+            parts.append(f"\n{label}: No data available")
+            return
+
+        total = stats["wins"] + stats["losses"]
+        header = (
+            f"\n{label}: {stats['team_name']}"
+        )
+        # Enriched: location
+        location = stats.get("location")
+        if location:
+            header += f" ({location})"
+        parts.append(header)
+
+        parts.append(
+            f"  Record (last {total} matches): {stats['wins']}W - {stats['losses']}L "
+            f"(win rate: {stats['win_rate']:.0%})"
+        )
+
+        # Enriched: tier records
+        for tier_key in ("tier_s", "tier_a", "tier_b"):
+            rec = stats.get(f"{tier_key}_record")
+            if rec and (rec["w"] + rec["l"]) > 0:
+                parts.append(f"  {tier_key.replace('_', ' ').title()} record: {rec['w']}W-{rec['l']}L")
+
+        # Enriched: LAN/online records
+        lan = stats.get("lan_record")
+        online = stats.get("online_record")
+        if lan:
+            parts.append(f"  LAN record: {lan['w']}W-{lan['l']}L")
+        if online:
+            parts.append(f"  Online record: {online['w']}W-{online['l']}L")
+
+        # Enriched: roster
+        roster = stats.get("roster")
+        if roster:
+            parts.append(f"  Roster: {', '.join(roster)}")
+
+        # Enriched: roster change alert
+        rc = stats.get("roster_change")
+        if rc:
+            if rc.get("new_players"):
+                parts.append(f"  ⚠ NEW PLAYERS: {', '.join(rc['new_players'])} (possible stand-in)")
+            if rc.get("departed_players"):
+                parts.append(f"  ⚠ DEPARTED: {', '.join(rc['departed_players'])}")
+
+        # Recent matches
+        if stats.get("recent_matches"):
+            parts.append("  Recent matches:")
+            for m in stats["recent_matches"][:5]:
+                result_tag = "W" if m["won"] else "L"
+                line = f"    [{result_tag}] vs {m['opponent']} {m['score']}"
+                # Enriched: tier, LAN tag, duration
+                extras = []
+                if m.get("tier"):
+                    extras.append(f"T-{m['tier'].upper()}")
+                if m.get("is_lan"):
+                    extras.append("LAN")
+                if m.get("avg_game_length_min"):
+                    extras.append(f"~{m['avg_game_length_min']}min")
+                suffix = f" [{'/'.join(extras)}]" if extras else ""
+                line += f" ({m['tournament']}, {m['date']}){suffix}"
+                parts.append(line)
+
+    def _build_h2h_block(
+        self, parts: List[str], team_a: Optional[Dict], team_b: Optional[Dict],
+    ) -> None:
+        """Append head-to-head block to context parts."""
+        if not team_a or not team_b:
+            return
+
+        h2h_a = 0
+        h2h_b = 0
+        h2h_lan = 0
+        h2h_online = 0
+        for m in (team_a.get("recent_matches") or []):
+            if m["opponent"].lower() == team_b["team_name"].lower():
+                if m["won"]:
+                    h2h_a += 1
+                else:
+                    h2h_b += 1
+                # Enriched: LAN/online H2H context (only count when explicitly set)
+                if "is_lan" in m:
+                    if m["is_lan"]:
+                        h2h_lan += 1
+                    else:
+                        h2h_online += 1
+
+        if h2h_a + h2h_b > 0:
+            h2h_line = (
+                f"\nHEAD-TO-HEAD (recent): "
+                f"{team_a['team_name']} {h2h_a} - {h2h_b} {team_b['team_name']}"
+            )
+            if h2h_lan or h2h_online:
+                h2h_line += f" (LAN: {h2h_lan}, Online: {h2h_online})"
+            parts.append(h2h_line)
 
     # ------------------------------------------------------------------
     # Live match state (PandaScore running matches endpoint)
