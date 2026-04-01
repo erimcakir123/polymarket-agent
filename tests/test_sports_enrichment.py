@@ -217,3 +217,86 @@ class TestGetHeadToHead:
         with patch.object(client, "get_team_record", return_value=None):
             result = client.get_head_to_head("basketball", "nba", "Lakers", "Celtics")
         assert result == []
+
+
+class TestEnhancedTeamMatchContext:
+    def test_includes_injuries_in_context(self):
+        client = _make_client()
+        team_a = {
+            "team_name": "Los Angeles Lakers", "record": "38-29",
+            "standing": "7th in Western Conference",
+            "recent_games": [
+                {"date": "2026-03-28", "opponent": "Celtics", "won": True,
+                 "score": "110-100", "home_away": "H"},
+            ],
+        }
+        injuries = [{"player": "LeBron James", "status": "Out",
+                      "detail": "Ankle", "position": "SF"}]
+        standings = {"wins": 38, "losses": 29, "win_pct": "0.567",
+                     "home_record": "22-10", "away_record": "16-19",
+                     "streak": "W3", "last_10": "7-3",
+                     "games_behind": "5.0", "conference_rank": "13"}
+
+        with patch.object(client, "get_team_record", side_effect=[team_a, None]), \
+             patch.object(client, "_search_team", return_value={"id": "13"}), \
+             patch.object(client, "get_team_injuries", return_value=injuries), \
+             patch.object(client, "get_standings_context", return_value=standings), \
+             patch.object(client, "detect_back_to_back", return_value=False), \
+             patch.object(client, "get_head_to_head", return_value=[]), \
+             patch.object(client, "_find_espn_event", return_value=(None, None, None, None, None)):
+            result = client._get_team_match_context("basketball", "nba",
+                "Will Lakers beat Celtics?", "nba-lal-bos")
+
+        assert result is not None
+        assert "LeBron James" in result
+        assert "Out" in result
+        assert "22-10" in result
+        assert "W3" in result
+
+    def test_includes_bpi_predictor(self):
+        client = _make_client()
+        team_a = {
+            "team_name": "Los Angeles Lakers", "record": "38-29",
+            "standing": "", "recent_games": [],
+        }
+        predictor = {"home_win_pct": 0.634, "away_win_pct": 0.366,
+                     "tie_pct": 0.0, "source": "espn_bpi"}
+
+        with patch.object(client, "get_team_record", side_effect=[team_a, None]), \
+             patch.object(client, "_search_team", return_value={"id": "13"}), \
+             patch.object(client, "get_team_injuries", return_value=[]), \
+             patch.object(client, "get_standings_context", return_value=None), \
+             patch.object(client, "detect_back_to_back", return_value=False), \
+             patch.object(client, "get_head_to_head", return_value=[]), \
+             patch.object(client, "_find_espn_event",
+                          return_value=("401584701", "401584701", "Lakers", "Celtics", True)), \
+             patch.object(client, "get_espn_predictor", return_value=predictor):
+            result = client._get_team_match_context("basketball", "nba",
+                "Will Lakers beat Celtics?", "nba-lal-bos")
+
+        assert result is not None
+        assert "ESPN BPI" in result
+        assert "63.4%" in result
+
+    def test_includes_b2b_warning(self):
+        client = _make_client()
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        team_a = {
+            "team_name": "Los Angeles Lakers", "record": "38-29",
+            "standing": "", "recent_games": [
+                {"date": yesterday, "opponent": "Heat", "won": True,
+                 "score": "110-100", "home_away": "H"},
+            ],
+        }
+
+        with patch.object(client, "get_team_record", side_effect=[team_a, None]), \
+             patch.object(client, "_search_team", return_value={"id": "13"}), \
+             patch.object(client, "get_team_injuries", return_value=[]), \
+             patch.object(client, "get_standings_context", return_value=None), \
+             patch.object(client, "get_head_to_head", return_value=[]), \
+             patch.object(client, "_find_espn_event", return_value=(None, None, None, None, None)):
+            result = client._get_team_match_context("basketball", "nba",
+                "Will Lakers beat Celtics?", "nba-lal-bos")
+
+        assert result is not None
+        assert "BACK-TO-BACK" in result

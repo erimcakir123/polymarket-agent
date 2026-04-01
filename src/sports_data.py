@@ -983,10 +983,28 @@ class SportsDataClient:
         parts.append(f"\nUse recent {sport} form, rankings, and venue to estimate.")
         return "\n".join(parts)
 
+    def _get_team_id(self, sport: str, league: str, team_name: str) -> Optional[str]:
+        """Get ESPN team ID from team name. Uses cached team search."""
+        team = self._search_team(sport, league, team_name)
+        return str(team.get("id", "")) if team else None
+
+    def _get_venue_from_event(self, sport: str, league: str, event_id: str) -> Optional[str]:
+        """Extract venue name from event summary."""
+        url = f"{ESPN_BASE}/{sport}/{league}/summary?event={event_id}"
+        data = self._get(url)
+        if not data:
+            return None
+        venue = data.get("gameInfo", {}).get("venue", {})
+        if not venue:
+            return None
+        name = venue.get("fullName", "")
+        city = venue.get("address", {}).get("city", "")
+        return f"{name}, {city}" if city else name
+
     def _get_team_match_context(
         self, sport: str, league: str, question: str, slug: str
     ) -> Optional[str]:
-        """Build context for team-based sports (soccer, NBA, NFL, MLB, NHL, etc.)."""
+        """Build enriched context for team-based sports."""
         league_name = league
 
         team_a_name, team_b_name = self._extract_teams_from_question(question)
@@ -1015,12 +1033,46 @@ class SportsDataClient:
         if not team_a and not team_b:
             return None
 
+        # Try to find event for BPI predictor + venue
+        event_id, comp_id, home_team, away_team, team_a_is_home = (
+            self._find_espn_event(sport, league, team_a_name or "", team_b_name or "")
+        )
+
+        # BPI Predictor (requires event_id)
+        predictor = None
+        if event_id and comp_id:
+            predictor = self.get_espn_predictor(sport, league, event_id, comp_id)
+
         parts = [f"=== SPORTS DATA (ESPN) -- {league_name} ==="]
 
-        for label, stats in [("TEAM A", team_a), ("TEAM B", team_b)]:
+        # BPI Predictor section (top -- most important ESPN-exclusive signal)
+        if predictor:
+            home_pct = predictor["home_win_pct"] * 100
+            away_pct = predictor["away_win_pct"] * 100
+            home_label = home_team or "Home"
+            away_label = away_team or "Away"
+            parts.append(
+                f"\n=== ESPN BPI PREDICTOR ===\n"
+                f"(ESPN's own win probability model -- independent from bookmaker odds)\n"
+                f"  {home_label}: {home_pct:.1f}%\n"
+                f"  {away_label}: {away_pct:.1f}%"
+            )
+
+        # Venue
+        if event_id:
+            venue = self._get_venue_from_event(sport, league, event_id)
+            if venue:
+                parts.append(f"\nVENUE: {venue}")
+
+        for label, stats, name in [
+            ("TEAM A", team_a, team_a_name),
+            ("TEAM B", team_b, team_b_name),
+        ]:
             if not stats:
                 parts.append(f"\n{label}: No data available")
                 continue
+
+            team_id = self._get_team_id(sport, league, stats["team_name"])
 
             header = f"\n{label}: {stats['team_name']}"
             if stats["record"]:
@@ -1029,10 +1081,20 @@ class SportsDataClient:
                 header += f" -- {stats['standing']}"
             parts.append(header)
 
+            # Standings enrichment (home/away, streak, L10)
+            if team_id:
+                standing = self.get_standings_context(sport, league, team_id)
+                if standing:
+                    if standing.get("home_record"):
+                        parts.append(f"  Home: {standing['home_record']} | Away: {standing.get('away_record', 'N/A')}")
+                    if standing.get("last_10"):
+                        parts.append(f"  Last 10: {standing['last_10']} | Streak: {standing.get('streak', 'N/A')}")
+
+            # Recent games
             if stats["recent_games"]:
                 recent_5 = stats["recent_games"][-5:]
                 wins = sum(1 for g in recent_5 if g["won"])
-                parts.append(f"  Last 5: {wins}W-{5-wins}L")
+                parts.append(f"  Last 5: {wins}W-{5 - wins}L")
                 parts.append("  Recent games:")
                 for g in stats["recent_games"][-5:]:
                     result = "W" if g["won"] else "L"
@@ -1041,8 +1103,34 @@ class SportsDataClient:
                         f"{g['score']} ({g['date']})"
                     )
 
-        parts.append("\nUse team records, recent form, and seeding to inform your estimate. "
-                     "Weight recent form and home/away performance.")
+            # Back-to-back detection
+            if sport in self._DAILY_SPORTS and self.detect_back_to_back(stats.get("recent_games", [])):
+                parts.append("  ⚠️ SCHEDULE: BACK-TO-BACK")
+
+            # Injuries
+            if team_id:
+                injuries = self.get_team_injuries(sport, league, team_id)
+                if injuries:
+                    parts.append("  Injuries:")
+                    for inj in injuries[:8]:
+                        parts.append(
+                            f"    {inj['player']} ({inj['position']}) -- "
+                            f"{inj['status']}: {inj['detail']}"
+                        )
+
+        # Head-to-head
+        if team_a_name and team_b_name:
+            h2h = self.get_head_to_head(sport, league, team_a_name, team_b_name)
+            if h2h:
+                a_wins = sum(1 for g in h2h if g["won"])
+                b_wins = len(h2h) - a_wins
+                parts.append(f"\nHEAD-TO-HEAD (this season): {team_a_name} {a_wins}-{b_wins} {team_b_name}")
+                for g in h2h[-3:]:
+                    result = "W" if g["won"] else "L"
+                    parts.append(f"  [{result}] {g['home_away']} {g['score']} ({g['date']})")
+
+        parts.append("\nUse team records, recent form, standings, injuries, and BPI predictor "
+                     "to inform your estimate. Weight recent form and home/away performance.")
         return "\n".join(parts)
 
     # ── ESPN Core API odds ─────────────────────────────────────────────────
