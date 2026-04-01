@@ -438,6 +438,34 @@ class SportsDataClient:
             "recent_games": recent_games,
         }
 
+    # Sports where injury endpoint returns 500
+    _NO_INJURY_SPORTS = frozenset({"tennis", "mma", "golf", "racing", "cricket"})
+
+    def get_team_injuries(self, sport: str, league: str, team_id: str) -> List[Dict]:
+        """Fetch injury report for a team from ESPN Site API.
+
+        Returns list of: {player, status, detail, position}
+        Skips call for sports where endpoint returns 500.
+        """
+        if sport in self._NO_INJURY_SPORTS:
+            return []
+
+        url = f"{ESPN_BASE}/{sport}/{league}/teams/{team_id}/injuries"
+        data = self._get(url)
+        if not data:
+            return []
+
+        injuries = []
+        for item in data.get("injuries", []):
+            athlete = item.get("athlete", {})
+            injuries.append({
+                "player": athlete.get("displayName", "Unknown"),
+                "status": item.get("status", "Unknown"),
+                "detail": item.get("detail", ""),
+                "position": athlete.get("position", {}).get("abbreviation", ""),
+            })
+        return injuries
+
     def _parse_game(self, event: dict, team_id: str) -> Optional[Dict]:
         """Parse a single game event into a result dict."""
         try:
