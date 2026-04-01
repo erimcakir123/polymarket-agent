@@ -110,3 +110,47 @@ class TestGetStandingsContext:
             call_url = mock_get.call_args[0][0]
             assert "/apis/v2/sports/" in call_url
             assert "/standings" in call_url
+
+
+class TestGetEspnPredictor:
+    def test_returns_probabilities_from_core_api(self):
+        client = _make_client()
+        mock_response = {
+            "items": [{
+                "homeWinPercentage": 0.634,
+                "awayWinPercentage": 0.366,
+                "tiePercentage": 0.0,
+            }]
+        }
+        with patch.object(client, "_get", return_value=mock_response):
+            result = client.get_espn_predictor("basketball", "nba", "401584701", "401584701")
+        assert result is not None
+        assert result["home_win_pct"] == 0.634
+        assert result["away_win_pct"] == 0.366
+        assert result["source"] == "espn_bpi"
+
+    def test_falls_back_to_summary_predictor(self):
+        client = _make_client()
+        summary_response = {
+            "predictor": {
+                "header": "ESPN BPI Win Probability",
+                "homeTeam": {"gameProjection": "63.4", "teamChanceLoss": "36.6"},
+            }
+        }
+        with patch.object(client, "_get", side_effect=[None, summary_response]):
+            result = client.get_espn_predictor("basketball", "nba", "401584701", "401584701")
+        assert result is not None
+        assert abs(result["home_win_pct"] - 0.634) < 0.01
+        assert result["source"] == "espn_bpi"
+
+    def test_returns_none_when_both_fail(self):
+        client = _make_client()
+        with patch.object(client, "_get", return_value=None):
+            result = client.get_espn_predictor("basketball", "nba", "401584701", "401584701")
+        assert result is None
+
+    def test_returns_none_for_empty_items(self):
+        client = _make_client()
+        with patch.object(client, "_get", side_effect=[{"items": []}, None]):
+            result = client.get_espn_predictor("basketball", "nba", "401584701", "401584701")
+        assert result is None

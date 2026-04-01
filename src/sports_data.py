@@ -516,6 +516,54 @@ class SportsDataClient:
                 }
         return None
 
+    def get_espn_predictor(self, sport: str, league: str, event_id: str, comp_id: str) -> Optional[Dict]:
+        """Fetch ESPN BPI/predictor win probability (ESPN's own model, NOT bookmaker odds).
+
+        Tries Core API probabilities endpoint first (lighter response).
+        Falls back to summary endpoint and extracts predictor block.
+        Returns: {home_win_pct, away_win_pct, tie_pct, source: "espn_bpi"}
+        """
+        # Option A: probabilities endpoint (preferred)
+        prob_url = (
+            f"{self._CORE_API}/{sport}/leagues/{league}/events/{event_id}"
+            f"/competitions/{comp_id}/probabilities?limit=1"
+        )
+        data = self._get(prob_url)
+        if data:
+            items = data.get("items", [])
+            if items:
+                item = items[0]
+                home_pct = item.get("homeWinPercentage")
+                away_pct = item.get("awayWinPercentage")
+                if home_pct is not None and away_pct is not None:
+                    return {
+                        "home_win_pct": float(home_pct),
+                        "away_win_pct": float(away_pct),
+                        "tie_pct": float(item.get("tiePercentage", 0.0)),
+                        "source": "espn_bpi",
+                    }
+
+        # Option B: summary endpoint fallback
+        summary_url = f"{ESPN_BASE}/{sport}/{league}/summary?event={event_id}"
+        summary = self._get(summary_url)
+        if summary:
+            predictor = summary.get("predictor", {})
+            home_team = predictor.get("homeTeam", {})
+            projection = home_team.get("gameProjection")
+            if projection is not None:
+                try:
+                    home_pct = float(projection) / 100.0
+                    return {
+                        "home_win_pct": home_pct,
+                        "away_win_pct": 1.0 - home_pct,
+                        "tie_pct": 0.0,
+                        "source": "espn_bpi",
+                    }
+                except (ValueError, TypeError):
+                    pass
+
+        return None
+
     def _parse_game(self, event: dict, team_id: str) -> Optional[Dict]:
         """Parse a single game event into a result dict."""
         try:
