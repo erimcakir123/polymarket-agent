@@ -20,7 +20,21 @@ from src.models import MarketData
 
 logger = logging.getLogger(__name__)
 
-_ALT_SLUG = ("-draw", "-1h-", "-first-half-", "-total-", "-spread-", "-btts")
+_ALT_SLUG = (
+    # Bet-type filters (non-moneyline)
+    "-draw", "-1h-", "-first-half-", "-total-", "-spread-", "-btts",
+    # Award / season-long props
+    "-award", "-trophy", "ballon-dor", "cy-young", "hart-memorial",
+    "-mvp", "-rookie-of", "-coach-of", "-manager-of",
+    # Transfer / personnel props
+    "-traded", "-be-traded", "-signed", "-be-signed", "-fired", "-be-fired",
+    # Draft props
+    "-draft", "first-pick",
+    # Season outcome props (not match results)
+    "-relegated", "-relegation", "-promoted",
+    # Multi-outcome "which/who" props
+    "which-", "who-will-",
+)
 
 
 @dataclass

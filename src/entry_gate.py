@@ -18,6 +18,7 @@ Data flow:
 """
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import re
@@ -323,7 +324,7 @@ class EntryGate:
         if open_slots == 0:
             logger.info("Pool full (0 open slots) -- skipping AI analysis")
             return [], {}
-        ai_batch_size = min(cfg.ai.batch_size, open_slots * 3)
+        ai_batch_size = min(cfg.ai.batch_size, open_slots * 2)
         # Over-scan 6x: sports data is cheap, AI is expensive.
         # Many markets lack ESPN/PandaScore data -- wider net catches more qualified ones.
         scan_size = ai_batch_size * 6
@@ -385,46 +386,67 @@ class EntryGate:
             "semi", "quarter", "into", "also", "each", "other", "these",
         })
 
-        # Fetch esports contexts (PandaScore — esports markets ONLY)
+        # Fetch esports + sports contexts in parallel
         esports_contexts: dict = {}
-        try:
-            _esports_tmp: dict = {}
-            for _m in prioritized:
-                _sport = getattr(_m, "sport_tag", "") or ""
-                _slug = _m.slug or ""
-                if not is_esports(_sport) and not is_esports_slug(_slug):
-                    continue  # Not esports — skip PandaScore
+        _t0 = time.time()
+
+        def _enrich_esports(_m):
+            """Fetch PandaScore context for a single esports market."""
+            try:
                 _ctx = self.esports.get_match_context(
                     getattr(_m, "question", ""),
-                    [_sport],
+                    [getattr(_m, "sport_tag", "") or ""],
                 )
-                if _ctx is not None:
-                    _esports_tmp[_m.condition_id] = _ctx
-            esports_contexts = _esports_tmp
-        except Exception as exc:
-            logger.warning("Esports context fetch failed: %s", exc)
+                return ("esports", _m.condition_id, _ctx, None)
+            except Exception as exc:
+                logger.warning("Esports enrichment error for %s: %s", (_m.slug or "")[:40], exc)
+                return ("esports", _m.condition_id, None, None)
 
-        # Sports context via unified discovery
-        if self.discovery:
-            for _m in prioritized:
-                if _m.condition_id in esports_contexts:
-                    continue  # PandaScore/Scout already has context
-                _is_esports_mkt = is_esports_slug(_m.slug or "")
-                if _is_esports_mkt:
-                    continue
+        def _enrich_sports(_m):
+            """Fetch ESPN/discovery context for a single sports market."""
+            try:
+                result = self.discovery.resolve(
+                    getattr(_m, "question", ""),
+                    _m.slug or "",
+                    getattr(_m, "tags", []),
+                )
+                if result:
+                    logger.info("Sports context (%s): %s", result.source, (_m.slug or "")[:40])
+                    return ("sports", _m.condition_id, result.context, result.espn_odds)
+                return ("sports", _m.condition_id, None, None)
+            except Exception as exc:
+                logger.warning("Discovery error for %s: %s", (_m.slug or "")[:40], exc)
+                return ("sports", _m.condition_id, None, None)
+
+        # Classify markets and submit to thread pool
+        _esports_markets = []
+        _sports_markets = []
+        for _m in prioritized:
+            _sport = getattr(_m, "sport_tag", "") or ""
+            _slug = _m.slug or ""
+            if is_esports(_sport) or is_esports_slug(_slug):
+                _esports_markets.append(_m)
+            elif self.discovery and not is_esports_slug(_slug):
+                _sports_markets.append(_m)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {}
+            for _m in _esports_markets:
+                futures[_m.condition_id] = pool.submit(_enrich_esports, _m)
+            for _m in _sports_markets:
+                futures[_m.condition_id] = pool.submit(_enrich_sports, _m)
+
+            for cid, fut in futures.items():
                 try:
-                    result = self.discovery.resolve(
-                        getattr(_m, "question", ""),
-                        _m.slug or "",
-                        getattr(_m, "tags", []),
-                    )
-                    if result:
-                        esports_contexts[_m.condition_id] = result.context
-                        if result.espn_odds:
-                            self._espn_odds_cache[_m.condition_id] = result.espn_odds
-                        logger.info("Sports context (%s): %s", result.source, (_m.slug or "")[:40])
-                except Exception as _exc:
-                    logger.warning("Discovery error for %s: %s", (_m.slug or "")[:40], _exc)
+                    kind, _, ctx, espn_odds = fut.result(timeout=30)
+                    if ctx is not None:
+                        esports_contexts[cid] = ctx
+                    if espn_odds is not None:
+                        self._espn_odds_cache[cid] = espn_odds
+                except Exception as exc:
+                    logger.warning("Enrichment future error for %s: %s", cid[:12], exc)
+
+        logger.info("Enrichment completed: %d markets in %.1fs", len(esports_contexts), time.time() - _t0)
 
         # Fetch news contexts (stop-word filtered keywords -> topic grouping works correctly)
         news_context_by_market: dict[str, str] = {}

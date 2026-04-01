@@ -506,7 +506,7 @@ class Agent:
         self.price_updater.sync_ws_subscriptions()
         logger.info("Phase [exit_detection] took %.1fs", time.monotonic() - t0)
 
-        self._quick_exit_check(bankroll)  # between exits and scan
+        self._light_exit_check()  # between exits and scan — active CLOB price fetch
 
         # Scout + Entry: fresh scan (analyze=True)
         t0 = time.monotonic()
@@ -553,7 +553,7 @@ class Agent:
         )
         logger.info("Phase [entry_gate_ai] took %.1fs", time.monotonic() - t0)
 
-        self._quick_exit_check(bankroll)  # between AI entries and stock drain
+        self._light_exit_check()  # between AI entries and stock drain — active CLOB price fetch
 
         # Breaking news detected -> shorten cycle interval
         if self.entry_gate._breaking_news_detected:
@@ -630,6 +630,45 @@ class Agent:
                 self.exit_executor.exit_position(cid, reason)
         self.exit_executor.process_scale_outs()
         self.cycle_helpers.log_cycle_summary(bankroll, "interleaved")
+
+    def _light_exit_check(self) -> None:
+        """Fast exit check between heavy phases. Fetches fresh CLOB prices
+        and runs exit logic. No enrichment, no AI, no scanning.
+
+        ~2-5s with active positions, instant (0s) with none.
+        """
+        positions = self.portfolio.positions
+        if not positions:
+            return
+
+        t0 = time.monotonic()
+        n_positions = len(positions)
+
+        # 1. Fetch current CLOB midpoints for all active positions
+        for cid, pos in positions.items():
+            try:
+                mid = self.price_updater.get_clob_midpoint(pos.token_id)
+                if mid is not None:
+                    # get_clob_midpoint returns price for the specific token.
+                    # Portfolio stores YES-side price, so convert if BUY_NO.
+                    yes_price = mid if pos.direction == "BUY_YES" else 1.0 - mid
+                    self.portfolio.update_price(cid, yes_price)
+            except Exception:
+                pass  # stale price is acceptable, don't block
+
+        # 2. Run exit logic with updated prices
+        exits_triggered = 0
+        for cid, reason in self.exit_monitor.check_exits_light():
+            if cid in positions and not self.exit_monitor.is_exiting(cid):
+                self.exit_executor.exit_position(cid, reason)
+                exits_triggered += 1
+
+        # 3. Process any pending scale-outs
+        self.exit_executor.process_scale_outs()
+
+        elapsed = time.monotonic() - t0
+        logger.info("Light exit check: %d positions, %d exits triggered (%.1fs)",
+                     n_positions, exits_triggered, elapsed)
 
     # ── Utilities ─────────────────────────────────────────────────────────
 
