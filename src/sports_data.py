@@ -466,6 +466,56 @@ class SportsDataClient:
             })
         return injuries
 
+    _STANDINGS_CACHE_TTL = 21600  # 6 hours
+
+    def get_standings_context(self, sport: str, league: str, team_id: str) -> Optional[Dict]:
+        """Fetch team's standings data from ESPN.
+
+        Returns: {wins, losses, win_pct, home_record, away_record,
+                  streak, last_10, games_behind, conference_rank}
+        Uses /apis/v2/ path (not /apis/site/v2/ which returns a stub).
+        Cached for 6 hours.
+        """
+        url = f"https://site.api.espn.com/apis/v2/sports/{sport}/{league}/standings"
+
+        # Check 6-hour cache manually (override default 30min)
+        cached = self._cache.get(url)
+        if cached:
+            data, ts = cached
+            if time.monotonic() - ts < self._STANDINGS_CACHE_TTL:
+                return self._extract_team_standing(data, team_id)
+
+        data = self._get(url)
+        if not data:
+            return None
+
+        return self._extract_team_standing(data, team_id)
+
+    def _extract_team_standing(self, data: dict, team_id: str) -> Optional[Dict]:
+        """Extract a single team's standing from the full standings response."""
+        for group in data.get("children", []):
+            for entry in group.get("standings", {}).get("entries", []):
+                if str(entry.get("team", {}).get("id", "")) != str(team_id):
+                    continue
+
+                stats = {}
+                for s in entry.get("stats", []):
+                    abbrev = s.get("abbreviation", "")
+                    stats[abbrev] = s.get("displayValue", s.get("value", ""))
+
+                return {
+                    "wins": int(float(stats.get("W", 0))),
+                    "losses": int(float(stats.get("L", 0))),
+                    "win_pct": stats.get("PCT", ""),
+                    "home_record": stats.get("HOME", ""),
+                    "away_record": stats.get("AWAY", ""),
+                    "streak": stats.get("STRK", ""),
+                    "last_10": stats.get("L10", ""),
+                    "games_behind": stats.get("GB", ""),
+                    "conference_rank": entry.get("team", {}).get("id", ""),
+                }
+        return None
+
     def _parse_game(self, event: dict, team_id: str) -> Optional[Dict]:
         """Parse a single game event into a result dict."""
         try:

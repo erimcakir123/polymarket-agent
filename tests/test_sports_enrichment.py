@@ -52,3 +52,61 @@ class TestGetTeamInjuries:
         with patch.object(client, "_get", return_value={"injuries": []}):
             result = client.get_team_injuries("basketball", "nba", "10")
         assert result == []
+
+
+class TestGetStandingsContext:
+    def test_returns_standings_dict(self):
+        client = _make_client()
+        mock_response = {
+            "children": [{
+                "standings": {
+                    "entries": [{
+                        "team": {"id": "13", "displayName": "Los Angeles Lakers",
+                                 "abbreviation": "LAL"},
+                        "stats": [
+                            {"abbreviation": "W", "value": 38},
+                            {"abbreviation": "L", "value": 29},
+                            {"abbreviation": "PCT", "value": 0.567},
+                            {"abbreviation": "STRK", "displayValue": "W3"},
+                            {"abbreviation": "L10", "displayValue": "7-3"},
+                            {"abbreviation": "GB", "value": 5.0},
+                            {"abbreviation": "HOME", "displayValue": "22-10"},
+                            {"abbreviation": "AWAY", "displayValue": "16-19"},
+                        ],
+                    }]
+                }
+            }]
+        }
+        with patch.object(client, "_get", return_value=mock_response):
+            result = client.get_standings_context("basketball", "nba", "13")
+        assert result is not None
+        assert result["wins"] == 38
+        assert result["losses"] == 29
+        assert result["home_record"] == "22-10"
+        assert result["away_record"] == "16-19"
+        assert result["streak"] == "W3"
+
+    def test_returns_none_on_api_error(self):
+        client = _make_client()
+        with patch.object(client, "_get", return_value=None):
+            result = client.get_standings_context("basketball", "nba", "13")
+        assert result is None
+
+    def test_returns_none_when_team_not_found(self):
+        client = _make_client()
+        mock_response = {"children": [{"standings": {"entries": [{
+            "team": {"id": "999", "displayName": "Other", "abbreviation": "OTH"},
+            "stats": [],
+        }]}}]}
+        with patch.object(client, "_get", return_value=mock_response):
+            result = client.get_standings_context("basketball", "nba", "13")
+        assert result is None
+
+    def test_uses_correct_url_path(self):
+        """Must use /apis/v2/ not /apis/site/v2/."""
+        client = _make_client()
+        with patch.object(client, "_get", return_value=None) as mock_get:
+            client.get_standings_context("basketball", "nba", "13")
+            call_url = mock_get.call_args[0][0]
+            assert "/apis/v2/sports/" in call_url
+            assert "/standings" in call_url
