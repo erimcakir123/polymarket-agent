@@ -517,12 +517,17 @@ class ScoutScheduler:
                                         comp_dt = datetime.fromisoformat(comp_date.replace("Z", "+00:00"))
                                     except (ValueError, TypeError):
                                         comp_dt = event_dt
+                                    abbrev_a = competitors[0].get("athlete", {}).get("shortName", player_a)
+                                    abbrev_b = competitors[1].get("athlete", {}).get("shortName", player_b)
                                     slug_hint = f"ten-{player_a[:4].lower()}-{player_b[:4].lower()}"
                                     scout_key = f"{sport}_{league}_{player_a}_{player_b}_{date_str}"
                                     matches.append({
                                         "scout_key": scout_key,
                                         "team_a": player_a,
                                         "team_b": player_b,
+                                        "abbrev_a": abbrev_a,
+                                        "abbrev_b": abbrev_b,
+                                        "espn_event_id": event.get("id", ""),
                                         "question": f"{player_a} vs {player_b}: Who will win?",
                                         "match_time": comp_dt.isoformat(),
                                         "sport": sport,
@@ -547,12 +552,17 @@ class ScoutScheduler:
                                 fighter_b = competitors[1].get("athlete", {}).get("displayName", "")
                                 if not fighter_a or not fighter_b:
                                     continue
+                                abbrev_a = competitors[0].get("athlete", {}).get("shortName", fighter_a)
+                                abbrev_b = competitors[1].get("athlete", {}).get("shortName", fighter_b)
                                 slug_hint = f"mma-{fighter_a[:4].lower()}-{fighter_b[:4].lower()}"
                                 scout_key = f"{sport}_{league}_{fighter_a}_{fighter_b}_{date_str}"
                                 matches.append({
                                     "scout_key": scout_key,
                                     "team_a": fighter_a,
                                     "team_b": fighter_b,
+                                    "abbrev_a": abbrev_a,
+                                    "abbrev_b": abbrev_b,
+                                    "espn_event_id": event.get("id", ""),
                                     "question": f"{fighter_a} vs {fighter_b}: Who will win?",
                                     "match_time": event_dt.isoformat(),
                                     "sport": sport,
@@ -575,12 +585,21 @@ class ScoutScheduler:
                         if not team_a or not team_b:
                             continue
 
+                        abbrev_a = competitors[0].get("team", {}).get("abbreviation", "")
+                        abbrev_b = competitors[1].get("team", {}).get("abbreviation", "")
+                        short_a = competitors[0].get("team", {}).get("shortDisplayName", "")
+                        short_b = competitors[1].get("team", {}).get("shortDisplayName", "")
                         slug_hint = f"{sport[:3]}-{team_a[:4].lower()}-{team_b[:4].lower()}"
                         scout_key = f"{sport}_{league}_{team_a}_{team_b}_{date_str}"
                         matches.append({
                             "scout_key": scout_key,
                             "team_a": team_a,
                             "team_b": team_b,
+                            "abbrev_a": abbrev_a,
+                            "abbrev_b": abbrev_b,
+                            "short_a": short_a,
+                            "short_b": short_b,
+                            "espn_event_id": event.get("id", ""),
                             "question": f"{team_a} vs {team_b}: Who will win?",
                             "match_time": event_dt.isoformat(),
                             "sport": sport,
@@ -648,11 +667,16 @@ class ScoutScheduler:
                         if not team_a or not team_b:
                             continue
 
+                        abbrev_a = opponents[0].get("opponent", {}).get("acronym", "") or ""
+                        abbrev_b = opponents[1].get("opponent", {}).get("acronym", "") or ""
                         scout_key = f"esports_{game}_{team_a}_{team_b}_{match_dt.strftime('%Y%m%d')}"
                         matches.append({
                             "scout_key": scout_key,
                             "team_a": team_a,
                             "team_b": team_b,
+                            "abbrev_a": abbrev_a,
+                            "abbrev_b": abbrev_b,
+                            "pandascore_match_id": match.get("id"),
                             "question": f"{team_a} vs {team_b}: Who will win? ({game.upper()})",
                             "match_time": match_dt.isoformat(),
                             "sport": "",
