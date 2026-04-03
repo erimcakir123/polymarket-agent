@@ -200,12 +200,16 @@ class TeamResolver:
     def _background_refresh(self):
         """Refresh from APIs in background thread."""
         try:
-            new_abbrevs = dict(_STATIC_ABBREVS)
-            new_aliases = dict(_STATIC_ALIASES)
+            new_abbrevs: dict[str, str] = {}
+            new_aliases: dict[str, str] = {}
 
             self._fetch_polymarket_teams(new_abbrevs, new_aliases)
             self._fetch_espn_teams(new_abbrevs)
             self._fetch_pandascore_teams(new_abbrevs)
+
+            # Static codes LAST so they override API data for major leagues
+            new_abbrevs.update(_STATIC_ABBREVS)
+            new_aliases.update(_STATIC_ALIASES)
 
             with self._lock:
                 self._abbrevs = {k.lower(): v.lower() for k, v in new_abbrevs.items()}
@@ -217,24 +221,38 @@ class TeamResolver:
             logger.warning("TeamResolver: refresh failed: %s", e)
 
     def _fetch_polymarket_teams(self, abbrevs: dict, aliases: dict):
-        """Polymarket GET /teams — GOLD STANDARD for abbreviations."""
+        """Polymarket GET /teams — GOLD STANDARD for abbreviations.
+
+        API max limit is 500 per page, so we paginate until exhausted.
+        """
         try:
-            resp = requests.get("https://gamma-api.polymarket.com/teams",
-                                params={"limit": 5000}, timeout=15)
-            if resp.status_code != 200:
-                return
-            teams = resp.json()
-            if not isinstance(teams, list):
-                return
-            for team in teams:
-                abbr = (team.get("abbreviation") or "").strip()
-                name = (team.get("name") or "").strip()
-                alias = (team.get("alias") or "").strip()
-                if abbr and name and len(abbr) >= 2:
-                    abbrevs[abbr.lower()] = name.lower()
-                if alias and name:
-                    aliases[alias.lower()] = name.lower()
-            logger.info("TeamResolver: Polymarket — %d teams fetched", len(teams))
+            total = 0
+            offset = 0
+            while True:
+                resp = requests.get(
+                    "https://gamma-api.polymarket.com/teams",
+                    params={"limit": 500, "offset": offset},
+                    timeout=15,
+                )
+                if resp.status_code != 200:
+                    break
+                teams = resp.json()
+                if not isinstance(teams, list) or not teams:
+                    break
+                for team in teams:
+                    abbr = (team.get("abbreviation") or "").strip()
+                    name = (team.get("name") or "").strip()
+                    alias = (team.get("alias") or "").strip()
+                    if abbr and name and len(abbr) >= 2:
+                        abbrevs[abbr.lower()] = name.lower()
+                    if alias and name:
+                        aliases[alias.lower()] = name.lower()
+                total += len(teams)
+                if len(teams) < 500:
+                    break
+                offset += 500
+                time.sleep(0.2)
+            logger.info("TeamResolver: Polymarket — %d teams fetched", total)
         except Exception as e:
             logger.debug("TeamResolver: Polymarket fetch failed: %s", e)
 
