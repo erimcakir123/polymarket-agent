@@ -97,16 +97,24 @@ class PriceUpdater:
                 continue
             team_a = entry.get("team_a", "").lower()
             team_b = entry.get("team_b", "").lower()
+            abbrev_a = (entry.get("abbrev_a") or "").lower()
+            abbrev_b = (entry.get("abbrev_b") or "").lower()
             if not team_a or not team_b:
                 continue
-            # Match by team names in slug or question
+            # Layer 1: Abbreviation in slug tokens
+            slug_tokens = set(s_lower.split("-"))
+            if abbrev_a and abbrev_b and abbrev_a in slug_tokens and abbrev_b in slug_tokens:
+                return mt
+            # Layer 2: Full name in question or slug
             a_in = team_a in q_lower or team_a in s_lower
             b_in = team_b in q_lower or team_b in s_lower
             if a_in and b_in:
                 return mt
-            # 6-char abbreviated match (same as scout_scheduler.match_markets_batch)
-            if len(team_a) >= 6 and len(team_b) >= 6:
-                if team_a[:6] in s_lower and team_b[:6] in s_lower:
+            # Layer 3: Short name in question or slug
+            short_a = (entry.get("short_a") or "").lower()
+            short_b = (entry.get("short_b") or "").lower()
+            if short_a and short_b:
+                if (short_a in q_lower or short_a in s_lower) and (short_b in q_lower or short_b in s_lower):
                     return mt
         return ""
 
