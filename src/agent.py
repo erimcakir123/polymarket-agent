@@ -104,7 +104,7 @@ class Agent:
         scanner = MarketScanner(config.scanner)
         self.ai = AIAnalyst(config.ai)
         risk = RiskManager(config.risk)
-        self.scout = ScoutScheduler(sports, self.esports)
+        self.scout = ScoutScheduler(sports, self.esports, cricket=cricket)
         self.risk = risk
 
         # Loggers & notifications

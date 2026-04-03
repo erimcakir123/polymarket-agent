@@ -17,6 +17,7 @@ import requests
 
 from src.sports_data import SportsDataClient
 from src.esports_data import EsportsDataClient
+from src.cricket_data import CricketDataClient
 from src.api_usage import record_call
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ _SCOUT_LEAGUES = [
     # === Golf ===
     ("golf", "pga", "PGA Tour"),
     ("golf", "lpga", "LPGA Tour"),
+    # NOTE: Cricket is scouted via CricketData API, not ESPN (ESPN 404s for cricket)
 ]
 
 # PandaScore games to scout
@@ -109,9 +111,11 @@ _ESPORT_GAMES = ["csgo", "lol", "dota2", "valorant"]
 class ScoutScheduler:
     """Fetches upcoming match schedules and pre-analyzes them for early entry."""
 
-    def __init__(self, sports: SportsDataClient, esports: EsportsDataClient) -> None:
+    def __init__(self, sports: SportsDataClient, esports: EsportsDataClient,
+                 cricket: Optional[CricketDataClient] = None) -> None:
         self.sports = sports
         self.esports = esports
+        self.cricket = cricket or CricketDataClient()
         self._queue: Dict[str, dict] = {}
         self._last_run_ts: float = 0.0          # in-memory cooldown timestamp
         self._last_daily_ts: float = 0.0         # separate cooldown for daily listing
@@ -199,7 +203,10 @@ class ScoutScheduler:
         esports_matches = self._fetch_esports_upcoming()
         logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
 
-        all_matches = sports_matches + esports_matches
+        cricket_matches = self._fetch_cricket_upcoming()
+        logger.info("CricketData: found %d upcoming matches", len(cricket_matches))
+
+        all_matches = sports_matches + esports_matches + cricket_matches
 
         for match in all_matches:
             scout_key = match["scout_key"]
@@ -241,12 +248,16 @@ class ScoutScheduler:
         return new_count
 
     def get_window(self, hours_ahead: float) -> List[dict]:
-        """Return scout queue entries where now <= match_time <= now + hours_ahead.
+        """Return scout queue entries within the time window.
 
+        Includes matches that started up to 2h ago (still tradeable if
+        <50% elapsed — downstream filters enforce that) plus matches
+        starting within the next *hours_ahead* hours.
         Sorted by match_time ascending. Skips entries where entered=True.
         Each returned dict includes 'scout_key' field.
         """
         now = datetime.now(timezone.utc)
+        lookback = now - timedelta(hours=2)
         cutoff = now + timedelta(hours=hours_ahead)
         results = []
 
@@ -262,7 +273,7 @@ class ScoutScheduler:
                     mt = mt.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 continue
-            if now <= mt <= cutoff:
+            if lookback <= mt <= cutoff:
                 result = dict(entry)
                 result["scout_key"] = key
                 results.append((mt, result))
@@ -342,9 +353,13 @@ class ScoutScheduler:
         esports_matches = self._fetch_esports_upcoming()
         logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
 
-        all_matches = sports_matches + esports_matches
+        # 3. Fetch upcoming cricket matches
+        cricket_matches = self._fetch_cricket_upcoming()
+        logger.info("CricketData: found %d upcoming matches", len(cricket_matches))
 
-        # 3. Save match calendar to queue (NO AI calls -- save budget)
+        all_matches = sports_matches + esports_matches + cricket_matches
+
+        # 4. Save match calendar to queue (NO AI calls -- save budget)
         # AI analysis happens later, only when a Polymarket bet actually appears
         # Sports data (ESPN/PandaScore) is free, so we pre-fetch that
         for match in all_matches:
@@ -480,8 +495,12 @@ class ScoutScheduler:
                             continue
 
                         # Only future games within 48h window
-                        if event_dt < now or event_dt > cutoff:
-                            continue
+                        # Tournament sports (tennis, golf): event_date is tournament
+                        # start, not individual match time — skip this check so
+                        # comp-level dates are used instead.
+                        if sport not in _TOURNAMENT_SPORTS:
+                            if event_dt < now or event_dt > cutoff:
+                                continue
 
                         # Skip already started/completed events.
                         # Tennis/golf "events" are multi-day tournaments — event
@@ -517,6 +536,9 @@ class ScoutScheduler:
                                         comp_dt = datetime.fromisoformat(comp_date.replace("Z", "+00:00"))
                                     except (ValueError, TypeError):
                                         comp_dt = event_dt
+                                    # Skip comps outside the 48h window
+                                    if comp_dt < now or comp_dt > cutoff:
+                                        continue
                                     abbrev_a = competitors[0].get("athlete", {}).get("shortName", player_a)
                                     abbrev_b = competitors[1].get("athlete", {}).get("shortName", player_b)
                                     slug_hint = f"ten-{player_a[:4].lower()}-{player_b[:4].lower()}"
@@ -701,3 +723,76 @@ class ScoutScheduler:
 
         return matches
 
+    def _fetch_cricket_upcoming(self) -> List[dict]:
+        """Fetch upcoming/live cricket matches from CricketData.org API."""
+        if not self.cricket.available:
+            return []
+
+        current = self.cricket.get_current_matches()
+        if not current:
+            return []
+
+        matches = []
+        now = datetime.now(timezone.utc)
+
+        _type_map = {
+            "t20": "T20", "odi": "ODI", "test": "Test",
+            "t20i": "T20 International",
+        }
+
+        for m in current:
+            if m.get("ended"):
+                continue
+
+            teams = m.get("teams", [])
+            if len(teams) < 2:
+                continue
+
+            team_a, team_b = teams[0], teams[1]
+            if not team_a or not team_b:
+                continue
+
+            match_type = m.get("match_type", "").lower()
+            match_name = m.get("name", "")
+            match_date = m.get("date", "")
+
+            match_dt = None
+            if match_date:
+                try:
+                    match_dt = datetime.fromisoformat(match_date.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    pass
+            if not match_dt:
+                match_dt = now
+
+            league_name = _type_map.get(match_type, "Cricket")
+            if "ipl" in match_name.lower():
+                league_name = "IPL"
+            elif "psl" in match_name.lower():
+                league_name = "PSL"
+
+            shortnames = m.get("shortnames", {})
+            abbrev_a = shortnames.get(team_a, "")
+            abbrev_b = shortnames.get(team_b, "")
+
+            date_str = match_dt.strftime("%Y-%m-%d")
+            scout_key = f"cricket_{team_a}_{team_b}_{date_str}"
+            slug_hint = f"cric-{team_a[:4].lower()}-{team_b[:4].lower()}"
+
+            matches.append({
+                "scout_key": scout_key,
+                "team_a": team_a,
+                "team_b": team_b,
+                "abbrev_a": abbrev_a,
+                "abbrev_b": abbrev_b,
+                "question": f"{team_a} vs {team_b}: Who will win? (Cricket {league_name})",
+                "match_time": match_dt.isoformat(),
+                "sport": "cricket",
+                "league": match_type,
+                "league_name": league_name,
+                "slug_hint": slug_hint,
+                "tags": ["cricket", league_name.lower()],
+                "is_esports": False,
+            })
+
+        return matches
