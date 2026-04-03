@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from src.sport_rules import is_esports, is_esports_slug
-from src.market_matcher import match_batch as matcher_match_batch, AliasStore
+from src.matching import match_markets as matcher_match_batch
 
 if TYPE_CHECKING:
     from src.config import AppConfig
@@ -148,7 +148,7 @@ class EntryGate:
         self._espn_odds_cache: dict[str, dict] = {}  # cid -> ESPN odds from discovery
         self._confidence_c_attempts: dict[str, int] = {}  # cid -> how many times AI returned conf=C
         self._breaking_news_detected: bool = False
-        self._alias_store = AliasStore()  # background refresh, JSON cache
+        # TeamResolver is now handled internally by src.matching
 
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
@@ -335,7 +335,7 @@ class EntryGate:
         prioritized: list = []
         if self.scout:
             matched_markets = matcher_match_batch(
-                markets, self.scout._queue, self._alias_store
+                markets, self.scout._queue
             )
             self._last_scout_matches = matched_markets
             matched_markets.sort(key=lambda m: m["scout_entry"].get("match_time", ""))

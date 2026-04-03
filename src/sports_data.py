@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 
 from src.api_usage import record_call
-from src.team_matcher import match_team
+from src.matching.pair_matcher import match_team
 
 logger = logging.getLogger(__name__)
 
