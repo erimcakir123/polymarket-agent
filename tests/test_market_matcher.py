@@ -171,4 +171,6 @@ class TestMatchBatch:
         assert "market" in r and "scout_entry" in r and "scout_key" in r
         assert r["market"] is market
         assert r["scout_entry"]["team_a"] == "Fnatic"
+        assert r["scout_entry"]["matched"] is True
+        assert r["scout_entry"]["match_confidence"] >= 0.6
         assert r["scout_key"] == "k1"
