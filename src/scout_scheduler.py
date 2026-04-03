@@ -225,6 +225,10 @@ class ScoutScheduler:
                 "is_esports": match.get("is_esports", False),
                 "slug_hint": match.get("slug_hint", ""),
                 "tags": match.get("tags", []),
+                "abbrev_a": match.get("abbrev_a", ""),
+                "abbrev_b": match.get("abbrev_b", ""),
+                "short_a": match.get("short_a", ""),
+                "short_b": match.get("short_b", ""),
                 "sports_context": "",
                 "scouted_at": now.isoformat(),
                 "matched": False,
@@ -281,53 +285,6 @@ class ScoutScheduler:
         results.sort(key=lambda x: x[0])
         return [r for _, r in results]
 
-    def match_markets_batch(self, markets: list) -> list:
-        """Match multiple Gamma markets to scout entries in bulk.
-
-        Uses 6-char abbreviated prefix (not 4-char) to reduce false positives.
-        Saves to disk ONCE at end (not per match).
-        Returns list of dicts: {"market": market_obj, "scout_entry": entry, "scout_key": key}
-        """
-        matched = []
-
-        for market in markets:
-            question = (getattr(market, "question", "") or "").lower()
-            slug = (getattr(market, "slug", "") or "").lower()
-
-            for key, entry in self._queue.items():
-                if entry.get("entered"):
-                    continue
-
-                team_a = entry["team_a"].lower()
-                team_b = entry["team_b"].lower()
-
-                if not team_a or not team_b:
-                    continue
-
-                # Full name matching
-                a_in = team_a in question or team_a in slug
-                b_in = team_b in question or team_b in slug
-
-                if a_in and b_in:
-                    entry["matched"] = True
-                    matched.append({"market": market, "scout_entry": entry, "scout_key": key})
-                    break
-
-                # 6-char abbreviated matching (stricter than match_market's 4-char)
-                if len(team_a) >= 6 and len(team_b) >= 6:
-                    a_short = team_a[:6]
-                    b_short = team_b[:6]
-                    if a_short in slug and b_short in slug:
-                        entry["matched"] = True
-                        matched.append({"market": market, "scout_entry": entry, "scout_key": key})
-                        break
-
-        # Single disk save at end
-        if matched:
-            self._save_queue()
-
-        return matched
-
     def run_scout(self) -> int:
         """Run the scout: fetch upcoming match calendars and sports data.
 
@@ -380,6 +337,10 @@ class ScoutScheduler:
                 "is_esports": match.get("is_esports", False),
                 "slug_hint": match.get("slug_hint", ""),
                 "tags": match.get("tags", []),
+                "abbrev_a": match.get("abbrev_a", ""),
+                "abbrev_b": match.get("abbrev_b", ""),
+                "short_a": match.get("short_a", ""),
+                "short_b": match.get("short_b", ""),
                 "sports_context": "",
                 "scouted_at": now.isoformat(),
                 "matched": False,  # Set True when matched to Polymarket bet
@@ -402,47 +363,6 @@ class ScoutScheduler:
         self._last_run_ts = time.time()   # update cooldown timestamp
         logger.info("=== SCOUT COMPLETE: %d new, %d total in queue ===", new_count, len(self._queue))
         return new_count
-
-    def match_market(self, question: str, slug: str) -> Optional[dict]:
-        """Try to match a Polymarket market to a scouted match.
-
-        Returns the scout entry if matched, None otherwise.
-        """
-        q_lower = question.lower()
-        slug_lower = slug.lower()
-
-        for key, entry in self._queue.items():
-            if entry.get("entered"):
-                continue  # Already used this scout
-
-            team_a = entry["team_a"].lower()
-            team_b = entry["team_b"].lower()
-
-            # Guard: empty names always match ("" in string is True)
-            if not team_a or not team_b:
-                continue
-
-            # Check if both team names appear in question or slug
-            a_in = team_a in q_lower or team_a in slug_lower
-            b_in = team_b in q_lower or team_b in slug_lower
-
-            if a_in and b_in:
-                entry["matched"] = True
-                self._save_queue()
-                logger.info("Scout match found: %s <-> %s", key, slug[:40])
-                return entry
-
-            # Abbreviated matching (6+ chars to avoid false positives like Real Madrid/Betis)
-            if len(team_a) >= 6 and len(team_b) >= 6:
-                a_short = team_a[:6]
-                b_short = team_b[:6]
-                if a_short in slug_lower and b_short in slug_lower:
-                    entry["matched"] = True
-                    self._save_queue()
-                    logger.info("Scout match (abbrev6): %s <-> %s", key, slug[:40])
-                    return entry
-
-        return None
 
     def mark_entered(self, scout_key: str) -> None:
         """Mark a scout entry as entered (position opened)."""
