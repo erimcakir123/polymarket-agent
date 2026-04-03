@@ -107,6 +107,24 @@ src/
   self_improve.py    — Parameter tuning from trade history
 ```
 
+## API Guides (MANDATORY — read index first)
+API guide'ları çok büyük (18K-78K satır). **Asla full okuma — önce index oku, sonra lazım olan bölümü offset+limit ile oku.**
+
+```
+API Guides/
+  ESPN API/
+    espn-api-index.md              ← ÖNCE BUNU OKU (284 satır)
+    Public-ESPN-API-FULL.md        ← 18,617 satır — sadece index'ten bulunan bölümü oku
+  Pandascore API/
+    pandascore-complete-index.md   ← ÖNCE BUNU OKU (164 satır)
+    pandascore-complete-reference.md ← 2,354 satır
+  Polymarket API/
+    polymarket-api-index.md        ← ÖNCE BUNU OKU (211 satır)
+    polymarket-full-api-reference.md ← 78,024 satır — KESİNLİKLE full okuma
+```
+
+Kullanım: Index'te bölüm bul → `Read("API Guides/.../full-ref.md", offset=START, limit=SIZE)`
+
 ## Environment
 - Python 3.11+, Windows 11
 - `.env` for all secrets (NEVER hardcode)
