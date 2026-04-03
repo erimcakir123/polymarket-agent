@@ -104,7 +104,7 @@ _SCOUT_LEAGUES = [
 ]
 
 # PandaScore games to scout
-_ESPORT_GAMES = ["cs2", "lol", "dota2", "valorant"]
+_ESPORT_GAMES = ["csgo", "lol", "dota2", "valorant"]
 
 class ScoutScheduler:
     """Fetches upcoming match schedules and pre-analyzes them for early entry."""
@@ -616,7 +616,7 @@ class ScoutScheduler:
                 while True:
                     resp = requests.get(
                         url,
-                        params={"per_page": 100, "sort": "begin_at", "page": page},
+                        params={"page[size]": 100, "sort": "begin_at", "page[number]": page},
                         headers={"Authorization": f"Bearer {api_key}"},
                         timeout=10,
                     )
