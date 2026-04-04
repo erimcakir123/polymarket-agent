@@ -57,7 +57,6 @@ class OddsAPIClient:
         self._using_backup = False
         self._cache: Dict[str, Tuple[object, float]] = {}  # key -> (data, wall_clock_ts)
         self._cache_ttl = 28800  # 8h fallback TTL (tennis keys, etc.)
-        self._hist_cache_ttl = 28800  # 8 hour cache for historical
         self._requests_used = 0
         self._last_used: Optional[int] = None        # from x-requests-used header
         self._last_remaining: Optional[int] = None   # from x-requests-remaining header
