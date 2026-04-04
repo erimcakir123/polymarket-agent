@@ -57,6 +57,8 @@ class OddsAPIClient:
         self._cache_ttl = 28800  # 8h fallback TTL (tennis keys, etc.)
         self._hist_cache_ttl = 28800  # 8 hour cache for historical
         self._requests_used = 0
+        self._last_used: Optional[int] = None        # from x-requests-used header
+        self._last_remaining: Optional[int] = None   # from x-requests-remaining header
         self._notified_80 = False
         self._notified_95 = False
         self._notifier = None
@@ -298,12 +300,35 @@ class OddsAPIClient:
             logger.info("Odds API discovery: '%s/%s' -> %s (single team fallback)", team_a, team_b, best_key)
         return best_key
 
+    def _current_refresh_hours(self) -> float:
+        """Return the refresh interval in hours based on current quota usage.
+
+        Adaptive throttle:
+        - 0-70% used: 2h refresh (fastest, freshest data)
+        - 70-90% used: 3h refresh (slow down)
+        - 90%+ used: 4h refresh (emergency preservation)
+
+        Before the first API call, defaults to 2h (bootstrap).
+        """
+        if self._last_used is None or self._last_remaining is None:
+            return 2.0
+        total = self._last_used + self._last_remaining
+        if total <= 0:
+            return 2.0
+        usage_pct = self._last_used / total
+        if usage_pct >= 0.90:
+            return 4.0
+        if usage_pct >= 0.70:
+            return 3.0
+        return 2.0
+
     def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
         """Check if enough time has passed since last fetch.
 
-        Uses a simple interval (every 2h) instead of fixed UTC hours.
+        Uses the adaptive refresh interval from _current_refresh_hours()
+        so the bot slows down when the monthly budget is running low.
         """
-        return (time.time() - cached_wall_ts) >= self._REFRESH_INTERVAL_HOURS * 3600
+        return (time.time() - cached_wall_ts) >= self._current_refresh_hours() * 3600
 
     def _api_request(self, endpoint: str, params: dict) -> Optional[dict | list]:
         """Shared HTTP layer -- makes authenticated GET to The Odds API.
@@ -319,19 +344,26 @@ class OddsAPIClient:
             resp = requests.get(f"{ODDS_API_BASE}{endpoint}", params=params_with_key, timeout=10)
             resp.raise_for_status()
 
-            # Track remaining quota from headers
+            # Track remaining quota from headers (used by adaptive throttle)
             remaining_str = resp.headers.get("x-requests-remaining", "?")
-            used = resp.headers.get("x-requests-used", "?")
-            logger.info("Odds API quota: %s used, %s remaining", used, remaining_str)
+            used_str = resp.headers.get("x-requests-used", "?")
+            logger.info("Odds API quota: %s used, %s remaining", used_str, remaining_str)
+            try:
+                self._last_used = int(used_str)
+            except (ValueError, TypeError):
+                pass
+            try:
+                self._last_remaining = int(remaining_str)
+            except (ValueError, TypeError):
+                pass
             self._requests_used += 1
             record_call("odds_api")
 
-            # Quota threshold notifications
-            remaining = int(remaining_str) if remaining_str != "?" else -1
-            if remaining >= 0:
-                total = remaining + self._requests_used
+            # Quota threshold notifications (use authoritative header values)
+            if self._last_used is not None and self._last_remaining is not None:
+                total = self._last_used + self._last_remaining
                 if total > 0:
-                    usage_pct = self._requests_used / total
+                    usage_pct = self._last_used / total
                     if usage_pct >= 0.95 and not self._notified_95:
                         msg = "\u26a0\ufe0f Odds API %95 kullan\u0131ld\u0131 \u2014 backup key'e ge\u00e7i\u015f yak\u0131n"
                         logger.warning(msg)

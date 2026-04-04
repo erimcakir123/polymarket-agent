@@ -163,3 +163,45 @@ def test_build_odds_params_window_is_24_hours():
     t_to = datetime.strptime(params["commenceTimeTo"], "%Y-%m-%dT%H:%M:%SZ")
     delta = t_to - t_from
     assert delta.total_seconds() == 24 * 3600
+
+
+def test_current_refresh_hours_bootstrap():
+    """Before any API call, refresh defaults to 2 hours."""
+    client = _make_client()
+    assert client._current_refresh_hours() == 2.0
+
+
+def test_current_refresh_hours_low_usage():
+    """Usage below 70% -> 2h refresh."""
+    client = _make_client()
+    client._last_used = 5000
+    client._last_remaining = 15000
+    assert client._current_refresh_hours() == 2.0
+
+
+def test_current_refresh_hours_medium_usage():
+    """Usage 70-90% -> 3h refresh."""
+    client = _make_client()
+    client._last_used = 15000
+    client._last_remaining = 5000
+    assert client._current_refresh_hours() == 3.0
+
+
+def test_current_refresh_hours_high_usage():
+    """Usage >= 90% -> 4h refresh."""
+    client = _make_client()
+    client._last_used = 19000
+    client._last_remaining = 1000
+    assert client._current_refresh_hours() == 4.0
+
+
+def test_past_refresh_boundary_uses_dynamic_interval():
+    """_past_refresh_boundary should respect _current_refresh_hours()."""
+    import time
+    client = _make_client()
+    client._last_used = 18000
+    client._last_remaining = 2000
+    three_hours_ago = time.time() - (3 * 3600)
+    assert client._past_refresh_boundary(three_hours_ago) is False
+    five_hours_ago = time.time() - (5 * 3600)
+    assert client._past_refresh_boundary(five_hours_ago) is True
