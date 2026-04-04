@@ -651,6 +651,7 @@ class EntryGate:
             _anchor_book_prob = None
             _anchor_num_books = 0
             _odds_probs: list[tuple[float, float]] = []  # (prob, total_weight) pairs
+            _odds_api_is_3way = False  # True when Odds API returned a real 3-way soccer quote
 
             # Source 1: Odds API (paid, multi-bookmaker average)
             if not _is_esports_mkt and self.odds_api.available:
@@ -663,16 +664,23 @@ class EntryGate:
                             _mkt_odds["bookmaker_prob_a"],
                             _mkt_odds.get("total_weight") or _mkt_odds.get("num_bookmakers", 1),
                         ))
+                        if _mkt_odds.get("bookmaker_prob_draw") is not None:
+                            _odds_api_is_3way = True
                 except Exception:
                     pass
 
-            # Source 2: ESPN odds (free, cached from discovery phase -- no extra API call)
-            _espn_odds = self._espn_odds_cache.get(cid)
-            if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
-                _odds_probs.append((
-                    _espn_odds["bookmaker_prob_a"],
-                    _espn_odds.get("total_weight") or _espn_odds.get("num_bookmakers", 1),
-                ))
+            # Source 2: ESPN odds (free, cached from discovery phase -- no extra API call).
+            # Skip ESPN when Odds API already returned a real 3-way soccer quote:
+            # ESPN is 2-way only (draw mass absorbed into home/away), so averaging a
+            # 2-way P(home) with a 3-way P(home) would inflate the anchor for soccer
+            # favorites. For soccer we trust the 3-way Odds API value exclusively.
+            if not _odds_api_is_3way:
+                _espn_odds = self._espn_odds_cache.get(cid)
+                if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
+                    _odds_probs.append((
+                        _espn_odds["bookmaker_prob_a"],
+                        _espn_odds.get("total_weight") or _espn_odds.get("num_bookmakers", 1),
+                    ))
 
             # Combine: weighted average by number of bookmakers
             if _odds_probs:
