@@ -650,7 +650,7 @@ class EntryGate:
             _is_esports_mkt = is_esports(getattr(market, "sport_tag", "") or "")
             _anchor_book_prob = None
             _anchor_num_books = 0
-            _odds_probs: list[tuple[float, int]] = []  # (prob, weight) pairs
+            _odds_probs: list[tuple[float, float]] = []  # (prob, total_weight) pairs
 
             # Source 1: Odds API (paid, multi-bookmaker average)
             if not _is_esports_mkt and self.odds_api.available:
@@ -661,7 +661,7 @@ class EntryGate:
                     if _mkt_odds and _mkt_odds.get("bookmaker_prob_a") is not None:
                         _odds_probs.append((
                             _mkt_odds["bookmaker_prob_a"],
-                            _mkt_odds.get("num_bookmakers", 1),
+                            _mkt_odds.get("total_weight") or _mkt_odds.get("num_bookmakers", 1),
                         ))
                 except Exception:
                     pass
@@ -671,7 +671,7 @@ class EntryGate:
             if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
                 _odds_probs.append((
                     _espn_odds["bookmaker_prob_a"],
-                    _espn_odds.get("num_bookmakers", 1),
+                    _espn_odds.get("total_weight") or _espn_odds.get("num_bookmakers", 1),
                 ))
 
             # Combine: weighted average by number of bookmakers
