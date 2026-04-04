@@ -1,5 +1,4 @@
 """Tests for Polymarket -> Odds API sport key mapping."""
-import pytest
 
 
 def test_slug_prefix_to_odds_key_soccer():
@@ -33,6 +32,7 @@ def test_slug_prefix_unknown_returns_none():
     from src.matching.odds_sport_keys import slug_to_odds_key
     assert slug_to_odds_key("xyz999") is None
     assert slug_to_odds_key("") is None
+    assert slug_to_odds_key(None) is None
 
 
 def test_tag_to_odds_key_soccer():
@@ -58,6 +58,7 @@ def test_tag_unknown_returns_none():
     from src.matching.odds_sport_keys import tag_to_odds_key
     assert tag_to_odds_key("unknown-league-xyz") is None
     assert tag_to_odds_key("") is None
+    assert tag_to_odds_key(None) is None
 
 
 def test_resolve_odds_key_prefers_slug():

@@ -246,7 +246,9 @@ class Agent:
                             positions_before = len(self.portfolio.positions)
                             logger.info("Pool not full (%d open slots) -- refill cycle %d",
                                         open_slots, _refill_round)
-                            self.entry_gate.reset_seen_markets()  # R3: fresh scan each refill
+                            # R3: DON'T reset seen_markets during refill —
+                            # seen_market_ids prevents re-analyzing deadzone/skip markets.
+                            # Refill should find NEW markets via wider time window, not retry old ones.
                             self.run_cycle()
                             last_full_cycle_time = time.time()
                             positions_after = len(self.portfolio.positions)

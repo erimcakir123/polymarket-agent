@@ -1214,15 +1214,23 @@ class SportsDataClient:
             team_a_name = slug_a
         if not team_b_name and slug_b and len(slug_b) >= 4:
             team_b_name = slug_b
-        if not team_a_name or not team_b_name:
+        if not team_a_name:
             return None
 
-        # Find matching event on scoreboard
+        # Find matching event on scoreboard (team_b can be None for single-team questions)
         event_id, comp_id, home_team, away_team, team_a_is_home = (
-            self._find_espn_event(sport, league, team_a_name, team_b_name)
+            self._find_espn_event(sport, league, team_a_name, team_b_name or "")
         )
         if not event_id:
             return None
+
+        # Fill in missing team name from scoreboard discovery
+        if not team_b_name:
+            if team_a_is_home:
+                team_b_name = away_team
+            else:
+                team_b_name = home_team
+            logger.debug("Discovered opponent from scoreboard: %s", team_b_name)
 
         # Fetch odds from Core API
         odds_url = (
@@ -1343,10 +1351,16 @@ class SportsDataClient:
 
                 # Try both orderings: (a->0, b->1) and (a->1, b->0)
                 matched = False
-                if (any(ta in n for n in names_0) and any(tb in n for n in names_1)):
-                    matched = True
-                elif (any(ta in n for n in names_1) and any(tb in n for n in names_0)):
-                    matched = True
+                if tb:
+                    # Both teams known — require both to match
+                    if (any(ta in n for n in names_0) and any(tb in n for n in names_1)):
+                        matched = True
+                    elif (any(ta in n for n in names_1) and any(tb in n for n in names_0)):
+                        matched = True
+                else:
+                    # Single-team lookup — find team_a in either competitor
+                    if any(ta in n for n in names_0) or any(ta in n for n in names_1):
+                        matched = True
 
                 if not matched:
                     continue

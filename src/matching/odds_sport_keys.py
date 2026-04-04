@@ -151,13 +151,14 @@ def tag_to_odds_key(tag: str) -> Optional[str]:
     return None
 
 
-def resolve_odds_key(slug: str, tags: list[str]) -> Optional[str]:
+def resolve_odds_key(slug: Optional[str], tags: Optional[list[str]]) -> Optional[str]:
     """Resolve Odds API sport key from slug + tags. Slug wins, tags are fallback."""
     prefix = slug.split("-")[0].lower() if slug else ""
     result = slug_to_odds_key(prefix)
     if result:
         return result
-    for tag in (tags or []):
+    _tags: list[str] = tags if tags else []
+    for tag in _tags:
         result = tag_to_odds_key(tag)
         if result:
             return result

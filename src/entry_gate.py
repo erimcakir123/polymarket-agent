@@ -340,8 +340,8 @@ class EntryGate:
             self._last_scout_matches = matched_markets
             matched_markets.sort(key=lambda m: m["scout_entry"].get("match_time", ""))
 
-            # Expanding window: try 2h, then 3, 4, 5h
-            for window_h in (2, 3, 4, 5):
+            # Expanding window: start with closest matches, gradually widen
+            for window_h in (2, 3, 4, 5, 6, 8, 10, 12, 16, 24):
                 window_entries = self.scout.get_window(window_h)
                 window_keys = {e["scout_key"] for e in window_entries}
                 prioritized = [
