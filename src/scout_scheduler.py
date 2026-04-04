@@ -134,6 +134,13 @@ _SCOUT_LEAGUES = [
     # NOTE: AFL (Australian football) excluded — no Polymarket slug codes
 ]
 
+# Estimated match duration in minutes per ESPN sport (for live <50% filter)
+_LIVE_DURATION: dict[str, int] = {
+    "basketball": 150, "football": 195, "baseball": 180, "hockey": 150,
+    "soccer": 95, "mma": 75, "tennis": 120, "golf": 300,
+    "rugby": 100, "rugby-league": 100, "lacrosse": 90,
+}
+
 # PandaScore games to scout
 # PandaScore games to scout (all games with Polymarket slug codes)
 # Full stats: csgo, lol, dota2, valorant, ow
@@ -428,9 +435,9 @@ class ScoutScheduler:
 
         for sport, league, display_name in _SCOUT_LEAGUES:
             try:
-                # ESPN scoreboard returns today's games by default
-                # Use dates param for tomorrow too
-                for day_offset in range(3):  # Today, tomorrow, day after
+                # Yesterday (-1) catches US prime-time games that fall on previous UTC day
+                # (we're UTC+3, so 21:00 ET = 01:00 UTC next day, but ESPN dates by ET)
+                for day_offset in range(-1, 3):  # Yesterday, today, tomorrow, day after
                     date_str = (now + timedelta(days=day_offset)).strftime("%Y%m%d")
                     url = f"{ESPN_SCOREBOARD}/{sport}/{league}/scoreboard?dates={date_str}"
                     resp = requests.get(url, timeout=10)
@@ -451,22 +458,24 @@ class ScoutScheduler:
                         except (ValueError, TypeError):
                             continue
 
-                        # Only future games within 48h window
+                        # Only games within window: up to 24h ahead, or live (<50% elapsed)
                         # Tournament sports (tennis, golf): event_date is tournament
                         # start, not individual match time — skip this check so
                         # comp-level dates are used instead.
-                        if sport not in _TOURNAMENT_SPORTS:
-                            if event_dt < now or event_dt > cutoff:
-                                continue
-
-                        # Skip already started/completed events.
-                        # Tennis/golf "events" are multi-day tournaments — event
-                        # status flips to "in"/"post" after day 1 while later
-                        # matches are still "pre". Sport-specific parsers handle
-                        # individual competition status instead.
                         status = event.get("status", {}).get("type", {}).get("state", "")
-                        if status in ("in", "post") and sport not in _TOURNAMENT_SPORTS:
-                            continue
+
+                        if sport not in _TOURNAMENT_SPORTS:
+                            if status == "post":
+                                continue  # Finished — skip
+                            if status == "in":
+                                # Live game: allow if <50% of estimated duration elapsed
+                                est_min = _LIVE_DURATION.get(sport, 90)
+                                elapsed_min = (now - event_dt).total_seconds() / 60
+                                if elapsed_min > est_min * 0.5:
+                                    continue  # Past halfway — skip
+                                # else: live but <50% elapsed, keep it
+                            elif event_dt < now - timedelta(hours=4) or event_dt > cutoff:
+                                continue  # Too old or too far out
 
                         # --- Sport-specific parsers ---
                         # Each sport has different ESPN response structures.

@@ -28,7 +28,7 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "ere": "soccer", "por": "soccer", "tur": "soccer", "mls": "soccer",
     "efa": "soccer", "efl": "soccer", "dfb": "soccer", "cde": "soccer",
     "cdr": "soccer", "lcs": "soccer", "lib": "soccer", "sud": "soccer",
-    "con": "soccer", "cof": "soccer", "ofc": "soccer", "fif": "soccer",
+    "con": "soccer", "cof": "soccer", "ofc": "soccer", "fif": "soccer", "afc": "soccer",
     "mex": "soccer", "bra": "soccer", "bra2": "soccer", "arg": "soccer",
     "col": "soccer", "chi": "soccer", "jap": "soccer", "kor": "soccer",
     "ind": "soccer", "spl": "soccer", "aus": "soccer", "nor": "soccer",
