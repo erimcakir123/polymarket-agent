@@ -1,6 +1,7 @@
 """ESPN API client for traditional sports data (NBA, NCAA, NFL, MLB, NHL, soccer)."""
 from __future__ import annotations
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -53,15 +54,18 @@ _SPORT_LEAGUES: dict = {
     "dfbp": ("soccer", "ger.dfb_pokal", "DFB Pokal"),
     # ── Soccer — Italy ─────────────────────────────────────────────────────
     "ser": ("soccer", "ita.1", "Serie A"),
+    "sea": ("soccer", "ita.1", "Serie A"),      # Polymarket slug prefix
     "ita2": ("soccer", "ita.2", "Serie B"),
     "copit": ("soccer", "ita.coppa_italia", "Coppa Italia"),
     # ── Soccer — France ────────────────────────────────────────────────────
     "lig": ("soccer", "fra.1", "Ligue 1"),
+    "fl1": ("soccer", "fra.1", "Ligue 1"),      # Polymarket slug prefix
     "fra2": ("soccer", "fra.2", "Ligue 2"),
     "coudf": ("soccer", "fra.coupe_de_france", "Coupe de France"),
     # ── Soccer — Other European ────────────────────────────────────────────
     "tur": ("soccer", "tur.1", "Super Lig"),
     "ned": ("soccer", "ned.1", "Eredivisie"),
+    "ere": ("soccer", "ned.1", "Eredivisie"),    # Polymarket slug prefix
     "ned2": ("soccer", "ned.2", "Eerste Divisie"),
     "por": ("soccer", "por.1", "Primeira Liga"),
     "bel": ("soccer", "bel.1", "Pro League"),
@@ -70,22 +74,47 @@ _SPORT_LEAGUES: dict = {
     "den": ("soccer", "den.1", "Superliga"),
     "nor": ("soccer", "nor.1", "Eliteserien"),
     "swe": ("soccer", "swe.1", "Allsvenskan"),
+    "rus": ("soccer", "rus.1", "Russian Premier"),
+    "cze1": ("soccer", "cze.1", "Czech First League"),
+    "rou1": ("soccer", "rou.1", "Liga I Romania"),
+    "ukr1": ("soccer", "ukr.1", "Ukrainian Premier"),
+    "hr1": ("soccer", "cro.1", "Croatian First"),
+    "svk1": ("soccer", "svk.1", "Slovak Super Liga"),
+    "sco": ("soccer", "sco.1", "Scottish Premiership"),
     # ── Soccer — Americas ──────────────────────────────────────────────────
     "mls": ("soccer", "usa.1", "MLS"),
     "nwsl": ("soccer", "usa.nwsl", "NWSL"),
     "arg": ("soccer", "arg.1", "Liga Profesional"),
     "bra": ("soccer", "bra.1", "Brasileirao"),
+    "bra2": ("soccer", "bra.2", "Brasileirao B"),
     "mex": ("soccer", "mex.1", "Liga MX"),
+    "col": ("soccer", "col.1", "Liga BetPlay"),
+    "col1": ("soccer", "col.1", "Liga BetPlay"),
+    "chi": ("soccer", "chi.1", "Primera Chile"),
+    "chi1": ("soccer", "chi.1", "Primera Chile"),
+    "per1": ("soccer", "per.1", "Liga 1 Peru"),
+    "bol1": ("soccer", "bol.1", "Division Profesional"),
     # ── Soccer — Asia/Oceania/Africa ───────────────────────────────────────
+    "spl": ("soccer", "sau.1", "Saudi Pro League"),  # Polymarket slug prefix
+    "kor": ("soccer", "kor.1", "K League 1"),
     "jpn": ("soccer", "jpn.1", "J1 League"),
     "chn": ("soccer", "chn.1", "CSL"),
     "ind": ("soccer", "ind.1", "ISL"),
     "aus": ("soccer", "aus.1", "A-League"),
     "rsa": ("soccer", "rsa.1", "PSL"),
+    "egy1": ("soccer", "egy.1", "Egyptian Premier"),
+    "mar1": ("soccer", "mar.1", "Botola Pro"),
     # ── Soccer — Cups & International ──────────────────────────────────────
     "ucl": ("soccer", "uefa.champions", "Champions League"),
     "uel": ("soccer", "uefa.europa", "Europa League"),
     "uecl": ("soccer", "uefa.europa.conf", "Conference League"),
+    "efa": ("soccer", "eng.fa", "FA Cup"),           # Polymarket alias
+    "efl": ("soccer", "eng.2", "Championship"),      # Polymarket alias
+    "dfb": ("soccer", "ger.dfb_pokal", "DFB Pokal"), # Polymarket alias
+    "cde": ("soccer", "esp.copa_del_rey", "Copa del Rey"),
+    "cdr": ("soccer", "esp.copa_del_rey", "Copa del Rey"),
+    "lib": ("soccer", "conmebol.libertadores", "Libertadores"),
+    "sud": ("soccer", "conmebol.sudamericana", "Sudamericana"),
     "wcup": ("soccer", "fifa.world", "World Cup"),
     "euro": ("soccer", "uefa.euro", "Euro"),
     "copa": ("soccer", "conmebol.libertadores", "Libertadores"),
@@ -149,6 +178,28 @@ _SERIES_TO_ESPN: dict = {
     "liga-mx": ("soccer", "mex.1"),
     "j1-league": ("soccer", "jpn.1"),
     "a-league": ("soccer", "aus.1"),
+    "saudi-professional-league": ("soccer", "sau.1"),
+    "ere": ("soccer", "ned.1"),
+    "k-league": ("soccer", "kor.1"),
+    "mls": ("soccer", "usa.1"),
+    "scottish-premiership": ("soccer", "sco.1"),
+    "belgian-pro-league": ("soccer", "bel.1"),
+    "russian-premier-league": ("soccer", "rus.1"),
+    "danish-superliga": ("soccer", "den.1"),
+    "eliteserien": ("soccer", "nor.1"),
+    "allsvenskan": ("soccer", "swe.1"),
+    "greek-super-league": ("soccer", "gre.1"),
+    "austrian-bundesliga": ("soccer", "aut.1"),
+    "liga-betplay": ("soccer", "col.1"),
+    "brasileirao": ("soccer", "bra.1"),
+    "copa-libertadores": ("soccer", "conmebol.libertadores"),
+    "copa-sudamericana": ("soccer", "conmebol.sudamericana"),
+    "fa-cup": ("soccer", "eng.fa"),
+    "efl-cup": ("soccer", "eng.league_cup"),
+    "dfb-pokal": ("soccer", "ger.dfb_pokal"),
+    "copa-del-rey": ("soccer", "esp.copa_del_rey"),
+    "coppa-italia": ("soccer", "ita.coppa_italia"),
+    "coupe-de-france": ("soccer", "fra.coupe_de_france"),
     # Hockey — SHL/KHL not on ESPN, let dynamic search handle them
     # Basketball — CBA/KBL not on ESPN, let dynamic search handle them
     # Cricket
@@ -294,12 +345,15 @@ class SportsDataClient:
                 return (sport, league)
 
         # Check tags against known Gamma seriesSlug mappings
+        # Strip year suffixes (e.g. "serie-a-2025" -> "serie-a")
         for tag in tags:
             tag_lower = tag.lower().strip()
-            if tag_lower in _SERIES_TO_ESPN:
-                sport, league = _SERIES_TO_ESPN[tag_lower]
-                logger.info("Series slug match: tag='%s' -> %s/%s", tag, sport, league)
-                return (sport, league)
+            tag_stripped = re.sub(r"-\d{4}$", "", tag_lower)
+            for variant in (tag_lower, tag_stripped):
+                if variant in _SERIES_TO_ESPN:
+                    sport, league = _SERIES_TO_ESPN[variant]
+                    logger.info("Series slug match: tag='%s' -> %s/%s", tag, sport, league)
+                    return (sport, league)
             # Also check if tag matches any _SPORT_LEAGUES label (case-insensitive)
             for key, (s, l, label) in _SPORT_LEAGUES.items():
                 if tag_lower == label.lower() or tag_lower == l.lower():
