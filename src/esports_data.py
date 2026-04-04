@@ -511,7 +511,7 @@ class EsportsDataClient:
             "wins": wins,
             "losses": losses,
             "win_rate": round(wins / total, 2) if total > 0 else 0.0,
-            "recent_matches": recent[:10],  # Last 10 for context
+            "recent_matches": recent,  # All fetched matches
         }
 
         # Enrichment wrapper — on failure, returns base result unchanged
@@ -684,7 +684,7 @@ class EsportsDataClient:
         # Recent matches
         if stats.get("recent_matches"):
             parts.append("  Recent matches:")
-            for m in stats["recent_matches"][:5]:
+            for m in stats["recent_matches"]:
                 result_tag = "W" if m["won"] else "L"
                 line = f"    [{result_tag}] vs {m['opponent']} {m['score']}"
                 # Enriched: tier, LAN tag, duration
