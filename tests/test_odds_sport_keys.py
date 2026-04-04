@@ -77,3 +77,24 @@ def test_resolve_odds_key_no_match():
     from src.matching.odds_sport_keys import resolve_odds_key
     result = resolve_odds_key(slug="xxx-yyy", tags=["unknown-tag"])
     assert result is None
+
+
+def test_is_soccer_key_true():
+    from src.matching.odds_sport_keys import is_soccer_key
+    assert is_soccer_key("soccer_epl") is True
+    assert is_soccer_key("soccer_italy_serie_a") is True
+    assert is_soccer_key("soccer_uefa_champs_league") is True
+
+
+def test_is_soccer_key_false():
+    from src.matching.odds_sport_keys import is_soccer_key
+    assert is_soccer_key("baseball_mlb") is False
+    assert is_soccer_key("basketball_nba") is False
+    assert is_soccer_key("tennis_atp_miami_open") is False
+    assert is_soccer_key("mma_mixed_martial_arts") is False
+
+
+def test_is_soccer_key_empty_or_none():
+    from src.matching.odds_sport_keys import is_soccer_key
+    assert is_soccer_key("") is False
+    assert is_soccer_key(None) is False

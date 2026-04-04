@@ -163,3 +163,10 @@ def resolve_odds_key(slug: Optional[str], tags: Optional[list[str]]) -> Optional
         if result:
             return result
     return None
+
+
+def is_soccer_key(sport_key: Optional[str]) -> bool:
+    """Return True if the Odds API sport key is a soccer league."""
+    if not sport_key:
+        return False
+    return sport_key.startswith("soccer_")
