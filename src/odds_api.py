@@ -410,37 +410,44 @@ class OddsAPIClient:
         return data
 
     def _parse_bookmaker_markets(
-        self, markets: list, home_team: str, away_team: str
+        self, markets: list, home_team: str, away_team: str, is_soccer: bool
     ) -> Optional[Tuple[float, float, Optional[float]]]:
         """Parse a bookmaker's markets list into (home_prob, away_prob, draw_prob).
 
-        Prefers h2h_3_way (soccer, gives real draw probability) over h2h (2-way).
+        For soccer: requires h2h_3_way (2-way h2h is skipped to avoid mixing
+        draw-absorbed probabilities into a weighted average with true 3-way quotes).
+        For non-soccer: uses h2h (2-way) and returns draw_prob=None.
         Normalizes by summing outcomes to remove the vig.
 
         Returns None if no usable market/outcomes found.
         """
-        # Prefer 3-way for soccer
-        for market in markets:
-            if market.get("key") != "h2h_3_way":
-                continue
-            home_odds = away_odds = draw_odds = None
-            for outcome in market.get("outcomes", []):
-                name = outcome.get("name", "")
-                price = outcome.get("price", 0) or 0
-                if name == home_team:
-                    home_odds = price
-                elif name == away_team:
-                    away_odds = price
-                elif name.lower() == "draw":
-                    draw_odds = price
-            if home_odds and away_odds and draw_odds and home_odds > 1 and away_odds > 1 and draw_odds > 1:
-                home_raw = 1.0 / home_odds
-                away_raw = 1.0 / away_odds
-                draw_raw = 1.0 / draw_odds
-                total = home_raw + away_raw + draw_raw
-                return (home_raw / total, away_raw / total, draw_raw / total)
+        if is_soccer:
+            # Soccer: h2h_3_way ONLY. Skip this bookmaker if it doesn't offer it.
+            # Rationale: a 2-way h2h quote has draw probability mass absorbed into
+            # home/away, so averaging it with a true 3-way quote produces a
+            # distribution where home+away+draw > 1.0.
+            for market in markets:
+                if market.get("key") != "h2h_3_way":
+                    continue
+                home_odds = away_odds = draw_odds = None
+                for outcome in market.get("outcomes", []):
+                    name = outcome.get("name", "")
+                    price = outcome.get("price", 0) or 0
+                    if name == home_team:
+                        home_odds = price
+                    elif name == away_team:
+                        away_odds = price
+                    elif name.lower() == "draw":
+                        draw_odds = price
+                if home_odds and away_odds and draw_odds and home_odds > 1 and away_odds > 1 and draw_odds > 1:
+                    home_raw = 1.0 / home_odds
+                    away_raw = 1.0 / away_odds
+                    draw_raw = 1.0 / draw_odds
+                    total = home_raw + away_raw + draw_raw
+                    return (home_raw / total, away_raw / total, draw_raw / total)
+            return None
 
-        # Fall back to 2-way h2h
+        # Non-soccer: 2-way h2h
         for market in markets:
             if market.get("key") != "h2h":
                 continue
@@ -516,6 +523,7 @@ class OddsAPIClient:
 
         home_team = best_event.get("home_team", "")
         away_team = best_event.get("away_team", "")
+        is_soccer = is_soccer_key(sport_key)
 
         # Accumulators for quality-weighted average
         weighted_prob_a_sum = 0.0
@@ -532,7 +540,7 @@ class OddsAPIClient:
                 continue  # Prevent circular data — we read Polymarket directly
 
             parsed = self._parse_bookmaker_markets(
-                bookmaker.get("markets", []), home_team, away_team
+                bookmaker.get("markets", []), home_team, away_team, is_soccer
             )
             if parsed is None:
                 continue

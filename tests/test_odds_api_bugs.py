@@ -104,10 +104,11 @@ def test_get_bookmaker_odds_single_team(monkeypatch):
             "key": "draftkings",
             "title": "DraftKings",
             "markets": [{
-                "key": "h2h",
+                "key": "h2h_3_way",
                 "outcomes": [
                     {"name": "AFC Ajax", "price": 1.50},
-                    {"name": "FC Twente", "price": 2.80},
+                    {"name": "FC Twente", "price": 5.00},
+                    {"name": "Draw", "price": 4.50},
                 ]
             }]
         }]
@@ -362,3 +363,51 @@ def test_get_bookmaker_odds_non_soccer_no_draw(monkeypatch):
     )
     assert result is not None
     assert result["bookmaker_prob_draw"] is None
+
+
+def test_get_bookmaker_odds_soccer_skips_2way_bookmakers(monkeypatch):
+    """For soccer, bookmakers that only offer 2-way h2h must be skipped —
+    mixing their draw-absorbed probabilities with true 3-way quotes would
+    produce a distribution where home + away + draw > 1.0."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "soccer_epl")
+
+    fake_events = [{
+        "home_team": "Manchester City",
+        "away_team": "Arsenal",
+        "bookmakers": [
+            # Sharp: offers real 3-way — should contribute
+            {"key": "pinnacle", "title": "Pinnacle", "markets": [{
+                "key": "h2h_3_way", "outcomes": [
+                    {"name": "Manchester City", "price": 2.083},
+                    {"name": "Arsenal", "price": 4.00},
+                    {"name": "Draw", "price": 3.704},
+                ]}]},
+            # Retail: only 2-way h2h for the same soccer match — MUST be skipped
+            {"key": "draftkings", "title": "DraftKings", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "Manchester City", "price": 1.60},
+                    {"name": "Arsenal", "price": 2.40},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="EPL: Manchester City vs Arsenal",
+        slug="epl-mci-ars-2026-04-04",
+        tags=["premier-league"],
+    )
+    assert result is not None
+    # Only Pinnacle (sharp, weight 3.0) should have contributed.
+    assert result["num_bookmakers"] == 1
+    assert result["total_weight"] == 3.0
+    assert result["has_sharp"] is True
+    # Distribution must sum to 1.0 (vig-removed 3-way).
+    total = (
+        result["bookmaker_prob_a"]
+        + result["bookmaker_prob_b"]
+        + result["bookmaker_prob_draw"]
+    )
+    assert abs(total - 1.0) < 0.01
