@@ -89,10 +89,32 @@ _SCOUT_LEAGUES = [
     ("soccer", "ksa.1", "Saudi Pro League"),
     ("soccer", "ind.1", "Indian Super League"),
     ("soccer", "aus.1", "A-League"),
+    # === Additional South America (Polymarket active) ===
+    ("soccer", "per.1", "Peruvian Liga 1"),
+    ("soccer", "bol.1", "Bolivian Liga"),
+    ("soccer", "uru.1", "Uruguayan Liga"),
+    ("soccer", "ecu.1", "Ecuadorian LigaPro"),
+    ("soccer", "par.1", "Paraguayan Liga"),
+    ("soccer", "ven.1", "Venezuelan Liga"),
+    # === Additional Europe (Polymarket active, ESPN verified) ===
+    ("soccer", "cze.1", "Czech First League"),
+    ("soccer", "rou.1", "Romanian Liga I"),
+    ("soccer", "irl.1", "Irish Premier Division"),
+    ("soccer", "cyp.1", "Cypriot First Division"),
+    # === Africa ===
+    ("soccer", "rsa.1", "South African Premiership"),
+    # === Women's Soccer ===
+    ("soccer", "usa.nwsl", "NWSL"),
     # === International ===
     ("soccer", "fifa.friendly", "International Friendly"),
     ("soccer", "fifa.worldq", "FIFA World Cup Qualifiers"),
     ("soccer", "fifa.world", "FIFA World Cup"),
+    # === Rugby (ESPN uses numeric league IDs) ===
+    ("rugby", "242041", "Super Rugby Pacific"),
+    ("rugby", "267979", "Premiership Rugby"),
+    ("rugby", "289262", "Major League Rugby"),
+    # === Rugby League ===
+    ("rugby-league", "3", "NRL/Super League"),
     # === Combat Sports ===
     ("mma", "ufc", "UFC"),
     # === Tennis ===
@@ -102,11 +124,26 @@ _SCOUT_LEAGUES = [
     # === Golf ===
     ("golf", "pga", "PGA Tour"),
     ("golf", "lpga", "LPGA Tour"),
+    # === Lacrosse (Polymarket has pll, wll slug codes) ===
+    ("lacrosse", "pll", "PLL"),
+    ("lacrosse", "nll", "NLL"),
     # NOTE: Cricket is scouted via CricketData API, not ESPN (ESPN 404s for cricket)
+    # NOTE: Slovak, Croatian, Egyptian, Ukrainian, Korean leagues — ESPN 400, no endpoint
+    # NOTE: KBO (Korean baseball), J2 League — ESPN 400, no endpoint
+    # NOTE: F1/NASCAR excluded — multi-competitor events, not moneyline head-to-head
+    # NOTE: AFL (Australian football) excluded — no Polymarket slug codes
 ]
 
 # PandaScore games to scout
-_ESPORT_GAMES = ["csgo", "lol", "dota2", "valorant"]
+# PandaScore games to scout (all games with Polymarket slug codes)
+# Full stats: csgo, lol, dota2, valorant, ow
+# Fixtures: r6siege, mlbb, rl, codmw, pubg, starcraft-2, starcraft-brood-war, kog, lol-wild-rift, fifa
+_ESPORT_GAMES = [
+    "csgo", "lol", "dota2", "valorant", "ow",
+    "r6siege", "mlbb", "rl", "codmw", "pubg",
+    "starcraft-2", "starcraft-brood-war",
+    "kog", "lol-wild-rift", "fifa",
+]
 
 class ScoutScheduler:
     """Fetches upcoming match schedules and pre-analyzes them for early entry."""

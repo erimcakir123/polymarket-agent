@@ -37,7 +37,11 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "per1": "soccer", "rou1": "soccer", "ukr1": "soccer", "uwcl": "soccer",
     "bol1": "soccer", "chi1": "soccer", "col1": "soccer",
     "ja2": "soccer", "j1-100": "soccer", "j2-100": "soccer",
+    "j1100": "soccer", "j2100": "soccer",
     "abb": "soccer", "ssc": "soccer", "mwoh": "soccer", "wwoh": "soccer",
+    # Additional Polymarket soccer slug prefixes
+    "nwsl": "soccer", "bl2": "soccer", "es2": "soccer", "fr2": "soccer",
+    "scop": "soccer", "svk1": "soccer", "hr1": "soccer", "isp": "soccer",
     # MMA
     "ufc": "mma", "zuffa": "mma",
     # Tennis
@@ -71,7 +75,7 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "r6siege": "esports", "rl": "esports", "hok": "esports",
     "wildrift": "esports", "sc2": "esports", "sc": "esports", "fifa": "esports",
     # Lacrosse
-    "pll": "lacrosse", "wll": "lacrosse",
+    "pll": "lacrosse", "wll": "lacrosse", "nll": "lacrosse",
     # Chess
     "chess": "chess",
 }
@@ -87,8 +91,15 @@ _QUESTION_KEYWORDS: dict[str, str] = {
     "atp": "tennis", "wta": "tennis",
     "counter-strike": "esports", "cs2": "esports", "valorant": "esports",
     "league of legends": "esports", "dota": "esports",
+    "overwatch": "esports", "rocket league": "esports",
+    "call of duty": "esports", "pubg": "esports",
+    "starcraft": "esports", "mobile legends": "esports",
+    "rainbow six": "esports", "r6 siege": "esports",
+    "honor of kings": "esports", "king of glory": "esports",
+    "wild rift": "esports", "ea fc": "esports",
     "cricket": "cricket", "ipl": "cricket", "t20": "cricket",
     "rugby": "rugby",
+    "lacrosse": "lacrosse", "pll": "lacrosse",
 }
 
 # Scout sport field -> category (ESPN uses "basketball", "hockey", etc.)
@@ -97,6 +108,7 @@ _SCOUT_SPORT_MAP: dict[str, str] = {
     "baseball": "baseball", "hockey": "hockey",
     "soccer": "soccer", "mma": "mma", "tennis": "tennis",
     "golf": "golf", "cricket": "cricket", "rugby": "rugby",
+    "rugby-league": "rugby", "lacrosse": "lacrosse",
 }
 
 

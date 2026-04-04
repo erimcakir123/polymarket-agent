@@ -31,14 +31,27 @@ _GAME_SLUGS = {
     "dota2": "dota2", "dota-2": "dota2",
     # Valorant
     "valorant": "valorant",
-    # R6 Siege — PandaScore returns "r6-siege"
-    "r6-siege": "r6-siege",
+    # R6 Siege — PandaScore API prefix is /r6siege/
+    "r6-siege": "r6siege", "r6siege": "r6siege", "rainbow-six": "r6siege",
     # Overwatch — PandaScore returns "ow"
     "ow": "ow", "overwatch": "ow",
-    # Mobile Legends
-    "mobile-legends": "mobile-legends-bang-bang",
-    # StarCraft 2
-    "starcraft-2": "starcraft-2", "starcraft": "starcraft-2",
+    # Mobile Legends — PandaScore API prefix is /mlbb/
+    "mobile-legends": "mlbb", "mlbb": "mlbb", "mobile-legends-bang-bang": "mlbb",
+    # StarCraft 2 & Brood War
+    "starcraft-2": "starcraft-2", "starcraft": "starcraft-2", "sc2": "starcraft-2",
+    "starcraft-brood-war": "starcraft-brood-war", "brood-war": "starcraft-brood-war",
+    # Rocket League
+    "rl": "rl", "rocket-league": "rl",
+    # Call of Duty
+    "codmw": "codmw", "call-of-duty": "codmw", "cod": "codmw",
+    # PUBG
+    "pubg": "pubg",
+    # King of Glory / Honor of Kings
+    "kog": "kog", "king-of-glory": "kog", "honor-of-kings": "kog", "hok": "kog",
+    # Wild Rift
+    "lol-wild-rift": "lol-wild-rift", "wild-rift": "lol-wild-rift", "wildrift": "lol-wild-rift",
+    # EA Sports FC / FIFA
+    "fifa": "fifa", "ea-fc": "fifa", "ea-sports-fc": "fifa",
 }
 
 # Team aliases moved to centralized src/team_matcher.py
