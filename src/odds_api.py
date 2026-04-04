@@ -377,26 +377,39 @@ class OddsAPIClient:
 
         # Extract team names from question
         team_a_name, team_b_name = self._extract_teams(question)
-        if not team_a_name or not team_b_name:
+        if not team_a_name:
             return None
 
-        # Find matching event using centralized team matcher (threshold 0.80)
-        result = find_best_event_match(team_a_name, team_b_name, events)
-        if not result:
-            # Log available events for debugging match failures
-            event_names = [(e.get("home_team", "?"), e.get("away_team", "?")) for e in events[:5]]
-            logger.info("No Odds API match for '%s vs %s' in %d events. Sample: %s",
-                        team_a_name, team_b_name, len(events), event_names)
-            return None
-
-        best_event, match_conf = result
+        if team_b_name:
+            # Two-team: use existing pair matcher
+            result = find_best_event_match(team_a_name, team_b_name, events)
+            if not result:
+                event_names = [(e.get("home_team", "?"), e.get("away_team", "?")) for e in events[:5]]
+                logger.info("No Odds API match for '%s vs %s' in %d events. Sample: %s",
+                            team_a_name, team_b_name, len(events), event_names)
+                return None
+            best_event, match_conf = result
+        else:
+            # Single-team: find event containing this team
+            from src.matching.pair_matcher import find_best_single_team_match
+            result = find_best_single_team_match(team_a_name, events)
+            if not result:
+                logger.info("No Odds API single-team match for '%s' in %d events",
+                            team_a_name, len(events))
+                return None
+            best_event, match_conf, team_a_is_home_flag = result
 
         # Calculate average implied probability across bookmakers
         home_team = best_event.get("home_team", "")
         away_team = best_event.get("away_team", "")
 
         # Figure out which Polymarket team maps to home/away
-        home_is_a, _, _ = match_team(team_a_name, home_team)
+        if team_b_name:
+            home_is_a, _, _ = match_team(team_a_name, home_team)
+        else:
+            home_is_a = team_a_is_home_flag
+            # Fill in team_b from event for return value
+            team_b_name = away_team if home_is_a else home_team
 
         probs_team_a = []
         probs_team_b = []
@@ -448,7 +461,8 @@ class OddsAPIClient:
         }
 
     def _extract_teams(self, question: str) -> Tuple[Optional[str], Optional[str]]:
-        """Extract team names from question."""
+        """Extract team names from question. Returns (team_a, team_b) or (team_a, None) for single-team."""
+        import re
         q = question.strip()
         # Strip sport/tour prefixes common in Polymarket questions
         _PREFIXES = [
@@ -464,6 +478,8 @@ class OddsAPIClient:
             if q.lower().startswith(pfx.lower()):
                 q = q[len(pfx):].strip()
                 break
+
+        # Two-team: "vs" split
         for sep in [" vs. ", " vs ", " versus "]:
             if sep in q.lower():
                 idx = q.lower().index(sep)
@@ -477,5 +493,21 @@ class OddsAPIClient:
                 if a.lower().startswith("will "):
                     a = a[5:].strip()
                 return a, b
+
+        # Single-team: "Will X beat/defeat Y"
+        beat_match = re.search(
+            r'(?:will\s+)?(?:the\s+)?(.+?)\s+(?:beat|defeat|win against|win over)\s+(?:the\s+)?(.+?)[\s?]*$',
+            q, re.IGNORECASE,
+        )
+        if beat_match:
+            return beat_match.group(1).strip(), beat_match.group(2).rstrip("?").strip()
+
+        # Single-team: "Will X win"
+        win_match = re.search(r'(?:will\s+)?(?:the\s+)?(.+?)\s+win\b', q, re.IGNORECASE)
+        if win_match:
+            team = win_match.group(1).strip()
+            if len(team) >= 3:
+                return team, None
+
         return None, None
 

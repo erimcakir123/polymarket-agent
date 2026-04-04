@@ -125,3 +125,42 @@ def find_best_event_match(
     if best_event and best_conf >= min_confidence:
         return best_event, best_conf
     return None
+
+
+def find_best_single_team_match(
+    team: str,
+    events: list[dict],
+    home_key: str = "home_team",
+    away_key: str = "away_team",
+    min_confidence: float = 0.80,
+) -> Optional[tuple[dict, float, bool]]:
+    """Find best matching event for a SINGLE team name.
+
+    Returns (event, confidence, team_is_home) or None.
+    Used when Polymarket question has only one team (e.g. "Will Ajax win?").
+    """
+    best_event = None
+    best_conf = 0.0
+    best_is_home = True
+
+    for event in events:
+        home = event.get(home_key, "")
+        away = event.get(away_key, "")
+        if not home or not away:
+            continue
+
+        is_match_h, conf_h, _ = match_team(team, home)
+        if is_match_h and conf_h > best_conf:
+            best_conf = conf_h
+            best_event = event
+            best_is_home = True
+
+        is_match_a, conf_a, _ = match_team(team, away)
+        if is_match_a and conf_a > best_conf:
+            best_conf = conf_a
+            best_event = event
+            best_is_home = False
+
+    if best_event and best_conf >= min_confidence:
+        return best_event, best_conf, best_is_home
+    return None

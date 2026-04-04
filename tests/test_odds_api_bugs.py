@@ -68,3 +68,57 @@ def test_discover_sport_key_requires_both_teams():
     }
     result = client._discover_sport_key("Avalanche", "Stars")
     assert result == "icehockey_nhl"
+
+
+# ── Bug 3: Single-team questions ─────────────────────────────────────────
+
+def test_extract_teams_single_team_win():
+    """Bug 3: 'Will Ajax win on 2026-04-04?' should extract ('Ajax', None)."""
+    client = _make_client()
+    a, b = client._extract_teams("Will AFC Ajax win on 2026-04-04?")
+    assert a is not None
+    assert "ajax" in a.lower()
+    assert b is None
+
+
+def test_extract_teams_vs_still_works():
+    """Existing: 'Team A vs Team B' should still return both teams."""
+    client = _make_client()
+    a, b = client._extract_teams("MLB: Milwaukee Brewers vs Kansas City Royals")
+    assert a is not None and "brewers" in a.lower()
+    assert b is not None and "royals" in b.lower()
+
+
+def test_get_bookmaker_odds_single_team(monkeypatch):
+    """Bug 3: Single-team question should still fetch odds by finding event."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test_key")
+
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "soccer_netherlands_eredivisie")
+
+    fake_events = [{
+        "id": "abc123",
+        "home_team": "AFC Ajax",
+        "away_team": "FC Twente",
+        "bookmakers": [{
+            "key": "draftkings",
+            "title": "DraftKings",
+            "markets": [{
+                "key": "h2h",
+                "outcomes": [
+                    {"name": "AFC Ajax", "price": 1.50},
+                    {"name": "FC Twente", "price": 2.80},
+                ]
+            }]
+        }]
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="Will AFC Ajax win on 2026-04-04?",
+        slug="ere-aja-twe-2026-04-04-aja",
+        tags=["eredivisie"],
+    )
+    assert result is not None
+    assert result["bookmaker_prob_a"] > 0.5  # Ajax is the favorite (1.50 odds)
+    assert result["num_bookmakers"] >= 1
