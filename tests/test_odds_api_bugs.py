@@ -126,11 +126,15 @@ def test_get_bookmaker_odds_single_team(monkeypatch):
 
 
 def test_build_odds_params_soccer():
-    """Soccer sport keys get 3 regions + h2h,h2h_3_way markets."""
+    """Soccer sport keys get 3 regions + h2h_3_way market only.
+
+    The Odds API rejects combined `h2h,h2h_3_way` with 422 for soccer leagues —
+    the two markets are mutually exclusive, so soccer must request h2h_3_way alone.
+    """
     client = _make_client()
     params = client._build_odds_params("soccer_epl")
     assert params["regions"] == "us,uk,eu"
-    assert params["markets"] == "h2h,h2h_3_way"
+    assert params["markets"] == "h2h_3_way"
     assert "commenceTimeFrom" in params
     assert "commenceTimeTo" in params
 

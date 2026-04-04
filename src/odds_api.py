@@ -203,8 +203,9 @@ class OddsAPIClient:
     def _build_odds_params(self, sport_key: str) -> dict:
         """Build query params for GET /sports/{key}/odds based on sport type.
 
-        Soccer: 3 regions × 2 markets (h2h + h2h_3_way) = 6 credits per call
-        Non-soccer: 3 regions × 1 market (h2h) = 3 credits per call
+        Soccer: markets=h2h_3_way (3-way with draw) — API rejects combined
+            h2h,h2h_3_way with 422 for soccer leagues, they are mutually exclusive.
+        Non-soccer: markets=h2h (2-way).
 
         commenceTimeFrom/To are rounded to the top of the hour so the cache key
         stays stable within each clock hour (otherwise cache would never hit).
@@ -213,7 +214,7 @@ class OddsAPIClient:
         time_from = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         time_to = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        markets = "h2h,h2h_3_way" if is_soccer_key(sport_key) else "h2h"
+        markets = "h2h_3_way" if is_soccer_key(sport_key) else "h2h"
 
         return {
             "regions": "us,uk,eu",
