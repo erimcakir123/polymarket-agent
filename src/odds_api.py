@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,7 +26,8 @@ import requests
 
 from src.api_usage import record_call
 from src.matching.odds_sport_keys import is_soccer_key, resolve_odds_key
-from src.matching.pair_matcher import find_best_event_match, match_team
+from src.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
+from src.matching.pair_matcher import find_best_event_match, find_best_single_team_match, match_team
 
 logger = logging.getLogger(__name__)
 
@@ -408,116 +410,174 @@ class OddsAPIClient:
             self._save_cache()
         return data
 
+    def _parse_bookmaker_markets(
+        self, markets: list, home_team: str, away_team: str
+    ) -> Optional[Tuple[float, float, Optional[float]]]:
+        """Parse a bookmaker's markets list into (home_prob, away_prob, draw_prob).
+
+        Prefers h2h_3_way (soccer, gives real draw probability) over h2h (2-way).
+        Normalizes by summing outcomes to remove the vig.
+
+        Returns None if no usable market/outcomes found.
+        """
+        # Prefer 3-way for soccer
+        for market in markets:
+            if market.get("key") != "h2h_3_way":
+                continue
+            home_odds = away_odds = draw_odds = None
+            for outcome in market.get("outcomes", []):
+                name = outcome.get("name", "")
+                price = outcome.get("price", 0) or 0
+                if name == home_team:
+                    home_odds = price
+                elif name == away_team:
+                    away_odds = price
+                elif name.lower() == "draw":
+                    draw_odds = price
+            if home_odds and away_odds and draw_odds and home_odds > 1 and away_odds > 1 and draw_odds > 1:
+                home_raw = 1.0 / home_odds
+                away_raw = 1.0 / away_odds
+                draw_raw = 1.0 / draw_odds
+                total = home_raw + away_raw + draw_raw
+                return (home_raw / total, away_raw / total, draw_raw / total)
+
+        # Fall back to 2-way h2h
+        for market in markets:
+            if market.get("key") != "h2h":
+                continue
+            home_odds = away_odds = None
+            for outcome in market.get("outcomes", []):
+                name = outcome.get("name", "")
+                price = outcome.get("price", 0) or 0
+                if name == home_team:
+                    home_odds = price
+                elif name == away_team:
+                    away_odds = price
+            if home_odds and away_odds and home_odds > 1 and away_odds > 1:
+                home_raw = 1.0 / home_odds
+                away_raw = 1.0 / away_odds
+                total = home_raw + away_raw
+                return (home_raw / total, away_raw / total, None)
+
+        return None
+
     def get_bookmaker_odds(
         self, question: str, slug: str, tags: List[str]
     ) -> Optional[Dict]:
         """Get bookmaker implied probability for a sports match.
 
-        Returns dict with: team_a, team_b, bookmaker_avg_prob_a, bookmaker_avg_prob_b,
-                          num_bookmakers, odds_summary
+        Applies quality-weighted averaging (sharp books 3x, reputable 1.5x, others 1x).
+        For soccer, prefers h2h_3_way market and returns draw probability separately.
+        Filters out `polymarket` bookmaker to prevent circular data.
+
+        Returns dict with:
+            team_a, team_b,
+            bookmaker_prob_a, bookmaker_prob_b,
+            bookmaker_prob_draw (float for soccer, None otherwise),
+            num_bookmakers (int count, backward compat),
+            total_weight (float, sum of quality weights),
+            has_sharp (bool, true if Pinnacle/Betfair Exchange contributed),
+            bookmakers (list of display names, first 5)
         Or None if not a sports market / no data.
         """
         sport_key = self._detect_sport_key(question, slug, tags)
         if not sport_key:
             return None
 
-        # Fetch odds for this sport
-        events = self._get(f"/sports/{sport_key}/odds", {
-            "regions": "us",
-            "markets": "h2h",
-            "oddsFormat": "decimal",
-        })
+        params = self._build_odds_params(sport_key)
+        events = self._get(f"/sports/{sport_key}/odds", params)
         if not events:
             return None
 
-        # Extract team names from question
         team_a_name, team_b_name = self._extract_teams(question)
         if not team_a_name:
             return None
 
         if team_b_name:
-            # Two-team: use existing pair matcher
-            result = find_best_event_match(team_a_name, team_b_name, events)
-            if not result:
+            match_result = find_best_event_match(team_a_name, team_b_name, events)
+            if not match_result:
                 event_names = [(e.get("home_team", "?"), e.get("away_team", "?")) for e in events[:5]]
                 logger.info("No Odds API match for '%s vs %s' in %d events. Sample: %s",
                             team_a_name, team_b_name, len(events), event_names)
                 return None
-            best_event, match_conf = result
+            best_event, _ = match_result
+            home_is_a, _, _ = match_team(team_a_name, best_event.get("home_team", ""))
         else:
-            # Single-team: find event containing this team
-            from src.matching.pair_matcher import find_best_single_team_match
-            result = find_best_single_team_match(team_a_name, events)
-            if not result:
+            single_result = find_best_single_team_match(team_a_name, events)
+            if not single_result:
                 logger.info("No Odds API single-team match for '%s' in %d events",
                             team_a_name, len(events))
                 return None
-            best_event, match_conf, team_a_is_home_flag = result
+            best_event, _, team_a_is_home_flag = single_result
+            home_is_a = team_a_is_home_flag
+            if home_is_a:
+                team_b_name = best_event.get("away_team", "")
+            else:
+                team_b_name = best_event.get("home_team", "")
 
-        # Calculate average implied probability across bookmakers
         home_team = best_event.get("home_team", "")
         away_team = best_event.get("away_team", "")
 
-        # Figure out which Polymarket team maps to home/away
-        if team_b_name:
-            home_is_a, _, _ = match_team(team_a_name, home_team)
-        else:
-            home_is_a = team_a_is_home_flag
-            # Fill in team_b from event for return value
-            team_b_name = away_team if home_is_a else home_team
-
-        probs_team_a = []
-        probs_team_b = []
-        bookmaker_names = []
+        # Accumulators for quality-weighted average
+        weighted_prob_a_sum = 0.0
+        weighted_prob_b_sum = 0.0
+        weighted_prob_draw_sum = 0.0
+        draw_weight_total = 0.0
+        total_weight = 0.0
+        bookmaker_names: list[str] = []
+        has_sharp_flag = False
 
         for bookmaker in best_event.get("bookmakers", []):
-            for market in bookmaker.get("markets", []):
-                if market.get("key") != "h2h":
-                    continue
-                outcomes = market.get("outcomes", [])
-                home_odds = None
-                away_odds = None
-                for outcome in outcomes:
-                    if outcome.get("name") == home_team:
-                        home_odds = outcome.get("price", 0)
-                    elif outcome.get("name") == away_team:
-                        away_odds = outcome.get("price", 0)
+            bm_key = bookmaker.get("key", "")
+            if bm_key == "polymarket":
+                continue  # Prevent circular data — we read Polymarket directly
 
-                if home_odds and away_odds and home_odds > 0 and away_odds > 0:
-                    # Convert decimal odds to implied probability
-                    home_prob = 1 / home_odds
-                    away_prob = 1 / away_odds
-                    # Normalize (remove vig)
-                    total = home_prob + away_prob
-                    home_prob /= total
-                    away_prob /= total
+            parsed = self._parse_bookmaker_markets(
+                bookmaker.get("markets", []), home_team, away_team
+            )
+            if parsed is None:
+                continue
 
-                    if home_is_a:
-                        probs_team_a.append(home_prob)
-                        probs_team_b.append(away_prob)
-                    else:
-                        probs_team_a.append(away_prob)
-                        probs_team_b.append(home_prob)
-                    bookmaker_names.append(bookmaker.get("title", ""))
+            home_prob, away_prob, draw_prob = parsed
+            weight = get_bookmaker_weight(bm_key)
 
-        if not probs_team_a:
+            if home_is_a:
+                weighted_prob_a_sum += home_prob * weight
+                weighted_prob_b_sum += away_prob * weight
+            else:
+                weighted_prob_a_sum += away_prob * weight
+                weighted_prob_b_sum += home_prob * weight
+
+            if draw_prob is not None:
+                weighted_prob_draw_sum += draw_prob * weight
+                draw_weight_total += weight
+
+            total_weight += weight
+            bookmaker_names.append(bookmaker.get("title", bm_key))
+            if is_sharp(bm_key):
+                has_sharp_flag = True
+
+        if total_weight <= 0:
             return None
 
-        avg_a = sum(probs_team_a) / len(probs_team_a)
-        avg_b = sum(probs_team_b) / len(probs_team_b)
+        avg_a = weighted_prob_a_sum / total_weight
+        avg_b = weighted_prob_b_sum / total_weight
+        avg_draw = (weighted_prob_draw_sum / draw_weight_total) if draw_weight_total > 0 else None
 
         return {
             "team_a": team_a_name,
             "team_b": team_b_name,
             "bookmaker_prob_a": round(avg_a, 3),
             "bookmaker_prob_b": round(avg_b, 3),
-            "num_bookmakers": len(probs_team_a),
+            "bookmaker_prob_draw": round(avg_draw, 3) if avg_draw is not None else None,
+            "num_bookmakers": len(bookmaker_names),
+            "total_weight": round(total_weight, 2),
+            "has_sharp": has_sharp_flag,
             "bookmakers": bookmaker_names[:5],
         }
 
     def _extract_teams(self, question: str) -> Tuple[Optional[str], Optional[str]]:
         """Extract team names from question. Returns (team_a, team_b) or (team_a, None) for single-team."""
-        import re
         q = question.strip()
         # Strip sport/tour prefixes common in Polymarket questions
         _PREFIXES = [

@@ -205,3 +205,160 @@ def test_past_refresh_boundary_uses_dynamic_interval():
     assert client._past_refresh_boundary(three_hours_ago) is False
     five_hours_ago = time.time() - (5 * 3600)
     assert client._past_refresh_boundary(five_hours_ago) is True
+
+
+def test_get_bookmaker_odds_filters_polymarket(monkeypatch):
+    """Polymarket bookmaker must be excluded (circular data prevention)."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "baseball_mlb")
+
+    fake_events = [{
+        "home_team": "New York Yankees",
+        "away_team": "Boston Red Sox",
+        "bookmakers": [
+            {"key": "polymarket", "title": "Polymarket", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "New York Yankees", "price": 1.80},
+                    {"name": "Boston Red Sox", "price": 2.10},
+                ]}]},
+            {"key": "draftkings", "title": "DraftKings", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "New York Yankees", "price": 1.90},
+                    {"name": "Boston Red Sox", "price": 2.00},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="MLB: New York Yankees vs Boston Red Sox",
+        slug="mlb-nyy-bos-2026-04-04",
+        tags=[],
+    )
+    assert result is not None
+    assert result["num_bookmakers"] == 1
+    assert "polymarket" not in [b.lower() for b in result["bookmakers"]]
+
+
+def test_get_bookmaker_odds_sharp_weighted_average(monkeypatch):
+    """Pinnacle (weight 3) should pull the average toward its value."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "basketball_nba")
+
+    fake_events = [{
+        "home_team": "Los Angeles Lakers",
+        "away_team": "Boston Celtics",
+        "bookmakers": [
+            {"key": "pinnacle", "title": "Pinnacle", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "Los Angeles Lakers", "price": 1.5625},
+                    {"name": "Boston Celtics", "price": 2.7778},
+                ]}]},
+            {"key": "draftkings", "title": "DraftKings", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "Los Angeles Lakers", "price": 1.4286},
+                    {"name": "Boston Celtics", "price": 3.3333},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="NBA: Los Angeles Lakers vs Boston Celtics",
+        slug="nba-lal-bos-2026-04-04",
+        tags=[],
+    )
+    assert result is not None
+    assert 0.64 <= result["bookmaker_prob_a"] <= 0.67
+    assert result["total_weight"] == 4.0
+    assert result["has_sharp"] is True
+    assert result["num_bookmakers"] == 2
+
+
+def test_get_bookmaker_odds_no_sharp_flag(monkeypatch):
+    """has_sharp should be False when no sharp book contributes."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "basketball_nba")
+
+    fake_events = [{
+        "home_team": "Los Angeles Lakers",
+        "away_team": "Boston Celtics",
+        "bookmakers": [
+            {"key": "draftkings", "title": "DraftKings", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "Los Angeles Lakers", "price": 1.90},
+                    {"name": "Boston Celtics", "price": 2.00},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="NBA: Los Angeles Lakers vs Boston Celtics",
+        slug="nba-lal-bos-2026-04-04",
+        tags=[],
+    )
+    assert result is not None
+    assert result["has_sharp"] is False
+
+
+def test_get_bookmaker_odds_soccer_3_way(monkeypatch):
+    """Soccer with h2h_3_way should return draw probability and correct win prob."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "soccer_epl")
+
+    fake_events = [{
+        "home_team": "Manchester City",
+        "away_team": "Arsenal",
+        "bookmakers": [
+            {"key": "pinnacle", "title": "Pinnacle", "markets": [{
+                "key": "h2h_3_way", "outcomes": [
+                    {"name": "Manchester City", "price": 2.083},
+                    {"name": "Arsenal", "price": 4.00},
+                    {"name": "Draw", "price": 3.704},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="EPL: Manchester City vs Arsenal",
+        slug="epl-mci-ars-2026-04-04",
+        tags=["premier-league"],
+    )
+    assert result is not None
+    assert 0.45 <= result["bookmaker_prob_a"] <= 0.51
+    assert result["bookmaker_prob_draw"] is not None
+    assert 0.24 <= result["bookmaker_prob_draw"] <= 0.30
+
+
+def test_get_bookmaker_odds_non_soccer_no_draw(monkeypatch):
+    """Non-soccer markets should have bookmaker_prob_draw = None."""
+    from src.odds_api import OddsAPIClient
+    client = OddsAPIClient(api_key="test")
+    monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "baseball_mlb")
+
+    fake_events = [{
+        "home_team": "New York Yankees",
+        "away_team": "Boston Red Sox",
+        "bookmakers": [
+            {"key": "draftkings", "title": "DraftKings", "markets": [{
+                "key": "h2h", "outcomes": [
+                    {"name": "New York Yankees", "price": 1.90},
+                    {"name": "Boston Red Sox", "price": 2.00},
+                ]}]},
+        ],
+    }]
+    monkeypatch.setattr(client, "_get", lambda endpoint, params: fake_events)
+
+    result = client.get_bookmaker_odds(
+        question="MLB: New York Yankees vs Boston Red Sox",
+        slug="mlb-nyy-bos-2026-04-04",
+        tags=[],
+    )
+    assert result is not None
+    assert result["bookmaker_prob_draw"] is None
