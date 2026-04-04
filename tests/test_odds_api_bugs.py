@@ -122,3 +122,44 @@ def test_get_bookmaker_odds_single_team(monkeypatch):
     assert result is not None
     assert result["bookmaker_prob_a"] > 0.5  # Ajax is the favorite (1.50 odds)
     assert result["num_bookmakers"] >= 1
+
+
+def test_build_odds_params_soccer():
+    """Soccer sport keys get 3 regions + h2h,h2h_3_way markets."""
+    client = _make_client()
+    params = client._build_odds_params("soccer_epl")
+    assert params["regions"] == "us,uk,eu"
+    assert params["markets"] == "h2h,h2h_3_way"
+    assert "commenceTimeFrom" in params
+    assert "commenceTimeTo" in params
+
+
+def test_build_odds_params_non_soccer():
+    """Non-soccer sport keys get 3 regions + h2h only."""
+    client = _make_client()
+    params = client._build_odds_params("baseball_mlb")
+    assert params["regions"] == "us,uk,eu"
+    assert params["markets"] == "h2h"
+    assert "commenceTimeFrom" in params
+    assert "commenceTimeTo" in params
+
+
+def test_build_odds_params_commence_time_is_hour_rounded():
+    """commenceTimeFrom/To must be ISO 8601 Z-suffixed and hour-rounded."""
+    import re
+    client = _make_client()
+    params = client._build_odds_params("soccer_epl")
+    pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$"
+    assert re.match(pattern, params["commenceTimeFrom"])
+    assert re.match(pattern, params["commenceTimeTo"])
+
+
+def test_build_odds_params_window_is_24_hours():
+    """commenceTimeTo must be exactly 24 hours after commenceTimeFrom."""
+    from datetime import datetime
+    client = _make_client()
+    params = client._build_odds_params("baseball_mlb")
+    t_from = datetime.strptime(params["commenceTimeFrom"], "%Y-%m-%dT%H:%M:%SZ")
+    t_to = datetime.strptime(params["commenceTimeTo"], "%Y-%m-%dT%H:%M:%SZ")
+    delta = t_to - t_from
+    assert delta.total_seconds() == 24 * 3600

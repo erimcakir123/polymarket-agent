@@ -17,14 +17,14 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import requests
 
 from src.api_usage import record_call
-from src.matching.odds_sport_keys import resolve_odds_key
+from src.matching.odds_sport_keys import is_soccer_key, resolve_odds_key
 from src.matching.pair_matcher import find_best_event_match, match_team
 
 logger = logging.getLogger(__name__)
@@ -196,6 +196,29 @@ class OddsAPIClient:
 
         # Fallback: return first key
         return keys[0]
+
+    def _build_odds_params(self, sport_key: str) -> dict:
+        """Build query params for GET /sports/{key}/odds based on sport type.
+
+        Soccer: 3 regions × 2 markets (h2h + h2h_3_way) = 6 credits per call
+        Non-soccer: 3 regions × 1 market (h2h) = 3 credits per call
+
+        commenceTimeFrom/To are rounded to the top of the hour so the cache key
+        stays stable within each clock hour (otherwise cache would never hit).
+        """
+        now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        time_from = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        time_to = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        markets = "h2h,h2h_3_way" if is_soccer_key(sport_key) else "h2h"
+
+        return {
+            "regions": "us,uk,eu",
+            "markets": markets,
+            "oddsFormat": "decimal",
+            "commenceTimeFrom": time_from,
+            "commenceTimeTo": time_to,
+        }
 
     def _discover_sport_key(self, team_a: str, team_b: str) -> Optional[str]:
         """Dynamically find the sport key for a team pair using FREE endpoints.
