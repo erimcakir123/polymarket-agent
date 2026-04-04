@@ -10,6 +10,7 @@ import requests
 
 from src.api_usage import record_call
 from src.matching.pair_matcher import match_team
+from src.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
 
 logger = logging.getLogger(__name__)
 
@@ -1249,10 +1250,13 @@ class SportsDataClient:
             logger.debug("ESPN odds fetch error: %s", e)
             return None
 
-        # Parse odds from all providers
-        probs_a: list[float] = []
-        probs_b: list[float] = []
+        # Parse odds from all providers with quality-weighted averaging
+        weighted_a_sum = 0.0
+        weighted_b_sum = 0.0
+        total_weight = 0.0
+        num_providers = 0
         provider_names: list[str] = []
+        has_sharp_flag = False
 
         for item in odds_data.get("items", []):
             provider_name = item.get("provider", {}).get("name", "ESPN")
@@ -1286,30 +1290,39 @@ class SportsDataClient:
             home_prob /= total
             away_prob /= total
 
-            if team_a_is_home:
-                probs_a.append(home_prob)
-                probs_b.append(away_prob)
-            else:
-                probs_a.append(away_prob)
-                probs_b.append(home_prob)
-            provider_names.append(provider_name)
+            weight = get_bookmaker_weight(provider_name)
 
-        if not probs_a:
+            if team_a_is_home:
+                weighted_a_sum += home_prob * weight
+                weighted_b_sum += away_prob * weight
+            else:
+                weighted_a_sum += away_prob * weight
+                weighted_b_sum += home_prob * weight
+
+            total_weight += weight
+            num_providers += 1
+            provider_names.append(provider_name)
+            if is_sharp(provider_name):
+                has_sharp_flag = True
+
+        if total_weight <= 0:
             return None
 
-        avg_a = sum(probs_a) / len(probs_a)
-        avg_b = sum(probs_b) / len(probs_b)
+        avg_a = weighted_a_sum / total_weight
+        avg_b = weighted_b_sum / total_weight
 
-        logger.info("ESPN odds: %s %.0f%% vs %s %.0f%% (%d providers: %s)",
+        logger.info("ESPN odds: %s %.0f%% vs %s %.0f%% (%d providers, weight=%.1f: %s)",
                      team_a_name, avg_a * 100, team_b_name, avg_b * 100,
-                     len(probs_a), ", ".join(provider_names))
+                     num_providers, total_weight, ", ".join(provider_names))
 
         return {
             "team_a": team_a_name,
             "team_b": team_b_name,
             "bookmaker_prob_a": round(avg_a, 3),
             "bookmaker_prob_b": round(avg_b, 3),
-            "num_bookmakers": len(probs_a),
+            "num_bookmakers": num_providers,
+            "total_weight": round(total_weight, 2),
+            "has_sharp": has_sharp_flag,
             "bookmakers": provider_names[:5],
             "source": "espn",
         }
