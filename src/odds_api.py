@@ -24,19 +24,12 @@ from typing import Dict, List, Optional, Tuple
 import requests
 
 from src.api_usage import record_call
+from src.matching.odds_sport_keys import resolve_odds_key
 from src.matching.pair_matcher import find_best_event_match, match_team
 
 logger = logging.getLogger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
-
-# Dynamic sport key discovery replaces hardcoded mappings.
-# _detect_sport_key() uses /v4/sports (FREE) to find active keys,
-# then /v4/sports/{key}/events (FREE) to match teams.
-_SPORT_KEYS: dict = {}
-
-# Dynamic discovery replaces hardcoded keyword mappings.
-_QUESTION_SPORT_KEYS: dict = {}
 
 
 class OddsAPIClient:
@@ -137,29 +130,26 @@ class OddsAPIClient:
     def _detect_sport_key(self, question: str, slug: str, tags: List[str]) -> Optional[str]:
         """Detect The Odds API sport key from market data.
 
-        Priority: hardcoded lookup (fast) -> tennis dynamic -> full dynamic discovery.
+        Priority: static mapping (fast) -> tennis dynamic -> discovery fallback.
         """
+        # 1. Static mapping from slug prefix + tags (covers 95% of markets)
+        static = resolve_odds_key(slug, tags)
+        if static:
+            return static
+
+        # 2. Tennis: dynamic tournament key matching
         slug_prefix = slug.split("-")[0].lower() if slug else ""
-        if slug_prefix in _SPORT_KEYS:
-            return _SPORT_KEYS[slug_prefix]
-
         q_lower = question.lower()
-        for keyword, sport_key in _QUESTION_SPORT_KEYS.items():
-            if keyword in q_lower:
-                if sport_key == "_tennis_atp":
-                    gender = "wta" if self._is_wta_market(q_lower, slug) else "atp"
-                    return self._match_tennis_key(gender, q_lower, slug)
-                if sport_key == "_tennis_wta":
-                    return self._match_tennis_key("wta", q_lower, slug)
-                return sport_key
-
-        # Tennis slug prefixes
         if slug_prefix in ("atp", "tennis"):
             return self._match_tennis_key("atp", q_lower, slug)
         if slug_prefix == "wta":
             return self._match_tennis_key("wta", q_lower, slug)
+        if "wta" in q_lower or "women" in q_lower:
+            return self._match_tennis_key("wta", q_lower, slug)
+        if "atp" in q_lower or "tennis" in q_lower:
+            return self._match_tennis_key("atp", q_lower, slug)
 
-        # Dynamic discovery: extract teams, search through active sports
+        # 3. Dynamic discovery (expensive — last resort)
         team_a, team_b = self._extract_teams(question)
         return self._discover_sport_key(team_a, team_b)
 
@@ -233,9 +223,12 @@ class OddsAPIClient:
                           if isinstance(s, dict) and s.get("key") and s.get("active")]
             self._cache[cache_key] = (active_keys, time.time())
 
-        # Search through cached events for each sport
+        # Search through cached events — require BOTH teams to match
         team_a_lower = team_a.lower() if team_a else ""
         team_b_lower = team_b.lower() if team_b else ""
+
+        best_key = None
+        best_match_count = 0
 
         for sk in active_keys:
             events_cache_key = f"events:{sk}"
@@ -253,21 +246,34 @@ class OddsAPIClient:
                 else:
                     continue
 
-            # Check if any event matches our teams
             for event in events:
                 home = (event.get("home_team") or "").lower()
                 away = (event.get("away_team") or "").lower()
                 if not home or not away:
                     continue
-                a_match = (team_a_lower in home or home in team_a_lower or
-                           team_a_lower in away or away in team_a_lower)
-                b_match = (team_b_lower in home or home in team_b_lower or
-                           team_b_lower in away or away in team_b_lower)
-                if a_match or b_match:
-                    logger.info("Odds API discovery: '%s/%s' -> %s", team_a, team_b, sk)
+
+                a_match = (team_a_lower and (
+                    team_a_lower in home or home in team_a_lower or
+                    team_a_lower in away or away in team_a_lower
+                ))
+                b_match = (team_b_lower and (
+                    team_b_lower in home or home in team_b_lower or
+                    team_b_lower in away or away in team_b_lower
+                ))
+
+                match_count = int(bool(a_match)) + int(bool(b_match))
+
+                if match_count == 2:
+                    logger.info("Odds API discovery: '%s/%s' -> %s (both teams)", team_a, team_b, sk)
                     return sk
 
-        return None
+                if match_count == 1 and match_count > best_match_count:
+                    best_match_count = match_count
+                    best_key = sk
+
+        if best_key:
+            logger.info("Odds API discovery: '%s/%s' -> %s (single team fallback)", team_a, team_b, best_key)
+        return best_key
 
     def _past_refresh_boundary(self, cached_wall_ts: float) -> bool:
         """Check if enough time has passed since last fetch.
