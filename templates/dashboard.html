@@ -2056,7 +2056,11 @@
         function renderExitedTrades(trades) {
             const feedScroll = document.getElementById('feedScroll');
             const countEl = document.getElementById('tradeCount');
-            const exited = trades.filter(t => t.action === 'EXIT' || t.action === 'REMOVED');
+            // Include SCALE_OUT events so partial-close profits appear alongside
+            // full exits. Scale-out entries get a "PARTIAL" result label so they
+            // are visually distinct from a full close (the underlying position
+            // is still open in the ACTIVE tab).
+            const exited = trades.filter(t => t.action === 'EXIT' || t.action === 'REMOVED' || t.action === 'SCALE_OUT');
 
             // Add pending_resolution positions as pseudo-exited entries
             const pendingPositions = Object.values(allPositions || {}).filter(p => p.pending_resolution);
@@ -2138,23 +2142,27 @@
 
             feedScroll.innerHTML = sorted.map(t => {
                 const isPending = t._isPending || false;
+                const isScaleOut = t.action === 'SCALE_OUT';
                 const slug = t.market || '';
                 const buy = isPending ? t : (buyMap[slug] || {});
                 const rawQ2 = (isPending ? t.question : buy.question) || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
                 const title = escapeHtml(cleanMatchTitle(rawQ2));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
-                // Prefer total_pnl (final exit + scale-out proceeds) if present; fall back to pnl.
-                const pnl = (t.total_pnl !== undefined) ? t.total_pnl : (t.pnl || 0);
+                // Prefer total_pnl (final exit + scale-out proceeds); SCALE_OUT rows use realized_pnl.
+                const pnl = isScaleOut
+                    ? (t.realized_pnl || 0)
+                    : ((t.total_pnl !== undefined) ? t.total_pnl : (t.pnl || 0));
                 const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
                 const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
                 const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;
-                const reason = t.reason || 'manual';
-                const isWin = !isPending && pnl > 0;
-                const isLoss = !isPending && pnl < 0;
-                const resultIcon = isPending ? '&#9202;' : isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
-                const resultColor = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
-                const resultLabel = isPending ? 'RESOLVING' : isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
-                const resultBg = isPending ? COLORS.amber : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+                // Scale-out reason shows tier name (e.g. "tier1_risk_free")
+                const reason = isScaleOut ? (t.tier || 'scale_out') : (t.reason || 'manual');
+                const isWin = !isPending && !isScaleOut && pnl > 0;
+                const isLoss = !isPending && !isScaleOut && pnl < 0;
+                const resultIcon = isPending ? '&#9202;' : isScaleOut ? '&#128274;' : isWin ? '&#10003;' : isLoss ? '&#10007;' : '&#9679;';
+                const resultColor = isPending ? COLORS.amber : isScaleOut ? COLORS.green : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
+                const resultLabel = isPending ? 'RESOLVING' : isScaleOut ? 'PARTIAL' : isWin ? 'WIN' : isLoss ? 'LOSS' : 'EXIT';
+                const resultBg = isPending ? COLORS.amber : isScaleOut ? COLORS.green : isWin ? COLORS.green : isLoss ? COLORS.red : COLORS.dim;
 
                 // Enrichment from BUY entry or pending position
                 const direction = isPending ? (t.direction || '') : (buy.direction || buy.action || '');
