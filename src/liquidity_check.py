@@ -25,15 +25,21 @@ def check_exit_liquidity(
             from src.executor import fetch_order_book
             book = fetch_order_book(token_id)
 
+        from src.executor import _best_price_from_book
         bids = book.get("bids", [])
         if not bids:
             return {"fillable": False, "strategy": "skip", "reason": "No bids"}
 
-        best_bid = float(bids[0]["price"])
+        # Polymarket bids are ASC-sorted → best bid is at [-1]. Iterate the
+        # list in reverse (highest→lowest) so we accumulate depth from the
+        # top of book downward and break out once we cross the floor price.
+        best_bid = _best_price_from_book(book, "SELL")
+        if best_bid is None or best_bid <= 0:
+            return {"fillable": False, "strategy": "skip", "reason": "No valid best bid"}
         floor_price = best_bid * 0.95
 
         available = 0.0
-        for bid in bids:
+        for bid in reversed(bids):
             price = float(bid["price"])
             if price < floor_price:
                 break

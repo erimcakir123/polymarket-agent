@@ -21,7 +21,17 @@ STALE_PRICE_MAX_DRIFT = 0.05  # 5%
 
 
 def fetch_order_book(token_id: str) -> dict:
-    """Fetch CLOB order book from Polymarket. Returns {bids: [...], asks: [...]}."""
+    """Fetch CLOB order book from Polymarket. Returns {bids: [...], asks: [...]}.
+
+    IMPORTANT: Polymarket returns the orderbook with a non-standard sort:
+      - `asks` list is sorted DESCENDING by price (highest first).
+        Best ask = LOWEST price = asks[-1]
+      - `bids` list is sorted ASCENDING by price (lowest first).
+        Best bid = HIGHEST price = bids[-1]
+    Any code reading best prices MUST use the _best_price_from_book helper
+    below (or equivalent [-1] access), NOT asks[0]/bids[0] — the [0] slots
+    typically hold market-maker sentinel orders at 0.99 / 0.01.
+    """
     try:
         resp = requests.get(
             "https://clob.polymarket.com/book",
@@ -35,27 +45,30 @@ def fetch_order_book(token_id: str) -> dict:
         return {"bids": [], "asks": []}
 
 
+def _best_price_from_book(book: dict, side: str) -> Optional[float]:
+    """Return best ask (BUY) or best bid (SELL) from a Polymarket orderbook.
+
+    Single source of truth for reading Polymarket's non-standard orderbook:
+    asks are DESC-sorted, bids are ASC-sorted, so the "best" level is always
+    at index [-1]. Returns None if the book side is empty or malformed.
+    """
+    levels = book.get("asks" if side == "BUY" else "bids", [])
+    if not levels:
+        return None
+    try:
+        return float(levels[-1].get("price", 0)) or None
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
 def fetch_clob_fill_price(token_id: str, side: str) -> Optional[float]:
     """Fetch the live CLOB fill price for a BUY or SELL side.
 
-    Returns the best ask for BUY (what we'd pay) or best bid for SELL (what
-    we'd receive). Returns None if the book is empty or the request fails.
-    Used to validate scanner's Gamma snapshot price against live market.
+    Returns best ask for BUY (what we'd pay) or best bid for SELL (what we'd
+    receive). Returns None if the book is empty or the request fails.
+    Used by the stale-price guard in place_order.
     """
-    book = fetch_order_book(token_id)
-    try:
-        if side == "BUY":
-            asks = book.get("asks", [])
-            if not asks:
-                return None
-            return float(asks[0].get("price", 0)) or None
-        else:
-            bids = book.get("bids", [])
-            if not bids:
-                return None
-            return float(bids[0].get("price", 0)) or None
-    except (TypeError, ValueError, KeyError):
-        return None
+    return _best_price_from_book(fetch_order_book(token_id), side)
 
 
 def _book_depth_usdc(levels: List[dict]) -> float:
@@ -87,24 +100,22 @@ def choose_order_strategy(
         if depth >= liquid_threshold and size_usdc < depth * 0.20:
             # Liquid market, small order relative to book -> market order
             return {"strategy": "market", "price": price, "order_type": "FOK"}
-        else:
-            # Illiquid -> limit order slightly below best ask
-            best_ask = float(asks[0]["price"]) if asks else price
-            limit_price = round(max(0.01, best_ask - LIMIT_OFFSET_CENTS), 2)
-            logger.info("Illiquid book (depth=$%.0f) -> limit order @ $%.2f (best ask $%.2f)",
-                        depth, limit_price, best_ask)
-            return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
-    else:
-        bids = book.get("bids", [])
-        depth = _book_depth_usdc(bids)
-        if depth >= liquid_threshold and size_usdc < depth * 0.20:
-            return {"strategy": "market", "price": price, "order_type": "FOK"}
-        else:
-            best_bid = float(bids[0]["price"]) if bids else price
-            limit_price = round(min(0.99, best_bid + LIMIT_OFFSET_CENTS), 2)
-            logger.info("Illiquid book (depth=$%.0f) -> limit sell @ $%.2f (best bid $%.2f)",
-                        depth, limit_price, best_bid)
-            return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
+        # Illiquid -> limit order slightly below best ask
+        best_ask = _best_price_from_book(book, "BUY") or price
+        limit_price = round(max(0.01, best_ask - LIMIT_OFFSET_CENTS), 2)
+        logger.info("Illiquid book (depth=$%.0f) -> limit order @ $%.2f (best ask $%.2f)",
+                    depth, limit_price, best_ask)
+        return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
+
+    bids = book.get("bids", [])
+    depth = _book_depth_usdc(bids)
+    if depth >= liquid_threshold and size_usdc < depth * 0.20:
+        return {"strategy": "market", "price": price, "order_type": "FOK"}
+    best_bid = _best_price_from_book(book, "SELL") or price
+    limit_price = round(min(0.99, best_bid + LIMIT_OFFSET_CENTS), 2)
+    logger.info("Illiquid book (depth=$%.0f) -> limit sell @ $%.2f (best bid $%.2f)",
+                depth, limit_price, best_bid)
+    return {"strategy": "limit", "price": limit_price, "order_type": "GTC"}
 
 
 class Executor:

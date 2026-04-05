@@ -253,7 +253,10 @@ class WebSocketFeed:
                     logger.debug("Price callback error: %s", e)
 
         elif msg_type == "book":
-            # Order book snapshot -- extract best bid/ask
+            # Order book snapshot -- extract best bid/ask.
+            # Polymarket format: asks DESC-sorted, bids ASC-sorted, so the
+            # "best" level sits at [-1] for both sides. Reading [0] would
+            # return market-maker sentinel orders (typically 0.99 / 0.01).
             token_id = data.get("market", "")
             if not token_id:
                 return
@@ -262,8 +265,8 @@ class WebSocketFeed:
                     return
             bids = data.get("bids", [])
             asks = data.get("asks", [])
-            best_bid = float(bids[0]["price"]) if bids else 0.0
-            best_ask = float(asks[0]["price"]) if asks else 0.0
+            best_bid = float(bids[-1]["price"]) if bids else 0.0
+            best_ask = float(asks[-1]["price"]) if asks else 0.0
             mid = (best_bid + best_ask) / 2 if best_bid and best_ask else 0.0
             if mid > 0:
                 with self._price_lock:
