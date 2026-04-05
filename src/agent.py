@@ -145,6 +145,11 @@ class Agent:
 
         # Composed modules
         self.exit_monitor = ExitMonitor(self.portfolio, ws_feed, config)
+        # Start CLOB WebSocket background thread AFTER ExitMonitor has registered
+        # its on_price_update callback. Without this, the WS thread never starts
+        # and every tick-driven exit (SL, trailing TP) falls back to 40s+ light
+        # cycle polling — making the bot react in seconds instead of milliseconds.
+        ws_feed.start_background()
         self.entry_gate = EntryGate(
             config=config,
             portfolio=self.portfolio,
@@ -651,6 +656,10 @@ class Agent:
         t0 = time.monotonic()
         n_positions = len(positions)
 
+        # 0. Drain any pending WS ticks first so in-memory prices are current
+        # (process_ws_ticks also persists positions.json via its own throttle).
+        self.exit_monitor.process_ws_ticks()
+
         # 1. Fetch current CLOB midpoints for all active positions
         for cid, pos in positions.items():
             try:
@@ -672,6 +681,14 @@ class Agent:
 
         # 3. Process any pending scale-outs
         self.exit_executor.process_scale_outs()
+
+        # 4. Persist fresh prices so dashboard sees mid-cycle updates during
+        # the long hard-cycle AI phase (otherwise positions.json stays stale
+        # for 3-5 minutes between cycle boundaries).
+        try:
+            self.portfolio.save_prices_to_disk()
+        except Exception as exc:
+            logger.debug("Light exit save failed: %s", exc)
 
         elapsed = time.monotonic() - t0
         logger.info("Light exit check: %d positions, %d exits triggered (%.1fs)",

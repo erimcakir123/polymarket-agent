@@ -48,13 +48,14 @@
 ### 3. Integration Protocol
 
 - Yeni kodu entegre etmeden ÖNCE: çevresindeki kodu oku, uyum sağla
-- Entegre ettikten SONRA: 2 paralel audit agent çalıştır
-  - Agent 1: Import + syntax validation (`python -c "from src.main import ..."`)
-  - Agent 2: Logic review (yeni kod mevcut kodla doğru etkileşiyor mu? Edge case'ler?)
-- İkisinde de 0 hata olana kadar düzelt
+- Entegre ettikten SONRA: audit agent çalıştır
+  - **SADECE 1 AGENT tur başına** (paralel 2 agent çok kasıyor, yasak)
+  - Agent scope: import/syntax validation + logic review + edge case + cross-module etkileşim — hepsini tek agent yapsın
+  - **2 ardışık 0-bug tur gerekli**: 1. tur temiz gelirse bile 2. turu ayrı bir agent ile tekrar çalıştır, o da temiz olursa task tamam
+  - Bug bulunursa → fix → yeni audit turu (sayaç sıfırlanır, 2 ardışık 0-bug tekrar gerekli)
 - **Death spiral'a GİRME**: Cosmetic linter uyarıları, IDE type-inference sorunları, non-breaking formatlar → ATLA
 - Sadece runtime error ve logic bug düzelt
-- Her iki agent da temiz dönünce → task'i tamamla, bir sonrakine geç
+- 2 ardışık temiz audit dönünce → task'i tamamla, bir sonrakine geç
 
 ### 4. Multi-AI Consultation (Large changes only)
 

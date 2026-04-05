@@ -50,6 +50,7 @@ class ExitMonitor:
         self._ws_exit_queue: deque[tuple[str, str]] = deque()
         self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
+        self._last_ws_save_ts: float = 0.0   # Throttle positions.json writes from WS ticks
 
         # Register our callback with the WS feed
         ws_feed.set_on_price_update(self._on_ws_price_update)
@@ -62,6 +63,7 @@ class ExitMonitor:
 
     def process_ws_ticks(self) -> None:
         """Process all pending WS price ticks. Must be called from the main thread."""
+        _ticks_processed = 0
         while not self._ws_tick_queue.empty():
             try:
                 token_id, price, ts = self._ws_tick_queue.get_nowait()
@@ -78,6 +80,7 @@ class ExitMonitor:
                     pos.current_price = (1.0 - price) if pos.direction == "BUY_NO" else price
                     cid_found = cid
                     pos_found = pos
+                    _ticks_processed += 1
                     break
             if cid_found is None or pos_found is None:
                 continue
@@ -91,6 +94,19 @@ class ExitMonitor:
                 continue
 
             self._ws_check_exits(cid, pos_found)
+
+        # Throttled persistence: if we mutated any position current_price from
+        # WS ticks, persist positions.json at most once every 2 seconds so the
+        # dashboard sees near-real-time prices without disk I/O storms.
+        if _ticks_processed > 0:
+            import time as _time
+            now_ts = _time.time()
+            if now_ts - self._last_ws_save_ts >= 2.0:
+                try:
+                    self.portfolio.save_prices_to_disk()
+                    self._last_ws_save_ts = now_ts
+                except Exception as exc:
+                    logger.debug("WS tick save failed: %s", exc)
 
     def _ws_check_exits(self, cid: str, pos: "Position") -> None:
         """Lightweight exit checks triggered by WebSocket price update.
