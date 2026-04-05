@@ -16,11 +16,13 @@ from src.matching.sport_classifier import classify_sport, classify_entry, sports
 from src.matching.slug_parser import parse_slug, extract_slug_tokens
 from src.matching.team_resolver import TeamResolver, normalize
 from src.matching.pair_matcher import match_team, match_pair
+from src.matching.polymarket_teams import PolymarketTeamsCache
 
 logger = logging.getLogger(__name__)
 
-# Module-level singleton (created on first call)
+# Module-level singletons (created on first call)
 _resolver: Optional[TeamResolver] = None
+_teams_cache: Optional[PolymarketTeamsCache] = None
 
 
 def _get_resolver(cache_dir: Optional[Path] = None) -> TeamResolver:
@@ -29,6 +31,13 @@ def _get_resolver(cache_dir: Optional[Path] = None) -> TeamResolver:
         cache_path = (cache_dir / "team_resolver_cache.json") if cache_dir else None
         _resolver = TeamResolver(cache_path=cache_path, auto_refresh=cache_dir is None)
     return _resolver
+
+
+def _get_teams_cache() -> PolymarketTeamsCache:
+    global _teams_cache
+    if _teams_cache is None:
+        _teams_cache = PolymarketTeamsCache()
+    return _teams_cache
 
 
 def match_markets(
@@ -63,7 +72,44 @@ def match_markets(
         slug_parts = parse_slug(slug)
         slug_tokens = extract_slug_tokens(slug)
 
-        # Resolve slug abbreviations to names
+        # ── Layer 0: Polymarket /teams abbreviation lookup (deterministic) ──
+        # Resolve slug tokens via Polymarket's own /teams endpoint. If both
+        # tokens resolve to team names that appear in a scout entry's team_a
+        # or team_b, it's a guaranteed match (confidence=1.0). No fuzzy logic.
+        teams = _get_teams_cache()
+        layer0_matched = False
+        if len(slug_parts.team_tokens) >= 2:
+            t0_name = teams.resolve(slug_parts.team_tokens[0])
+            t1_name = teams.resolve(slug_parts.team_tokens[1])
+            if t0_name and t1_name:
+                t0_low = t0_name.lower()
+                t1_low = t1_name.lower()
+                for key, entry in scout_queue.items():
+                    if entry.get("entered") or key in used_keys:
+                        continue
+                    ea = (entry.get("team_a") or "").lower()
+                    eb = (entry.get("team_b") or "").lower()
+                    if not ea or not eb:
+                        continue
+                    if (t0_low in ea or t0_low in eb) and (t1_low in ea or t1_low in eb):
+                        entry_copy = dict(entry)
+                        entry_copy["matched"] = True
+                        entry_copy["match_confidence"] = 1.0
+                        matched.append({
+                            "market": market,
+                            "scout_entry": entry_copy,
+                            "scout_key": key,
+                        })
+                        used_keys.add(key)
+                        _diag["matched"] += 1
+                        logger.debug("L0 matched [1.00]: %s -> %s vs %s (via /teams)",
+                                     slug[:40], t0_name, t1_name)
+                        layer0_matched = True
+                        break
+        if layer0_matched:
+            continue  # Skip fuzzy layers for this market
+
+        # Resolve slug abbreviations to names (fuzzy fallback layers)
         resolved_names: list[str] = []
         for token in slug_parts.team_tokens:
             name = resolver.resolve(token)
