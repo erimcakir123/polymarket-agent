@@ -64,7 +64,7 @@ class PriceSnapshot:
         self.ask = ask
 
 
-PriceCallback = Callable[[str, float, float], None]  # token_id, yes_price, timestamp
+PriceCallback = Callable[[str, float, float, float], None]  # token_id, yes_price, bid_price, timestamp
 
 
 class WebSocketFeed:
@@ -330,7 +330,7 @@ class WebSocketFeed:
             self._prices[asset_id] = PriceSnapshot(
                 asset_id, yes_price, now, best_bid, best_ask
             )
-        self._fire_callback(asset_id, yes_price, now)
+        self._fire_callback(asset_id, yes_price, best_bid, now)
 
     def _handle_price_change_event(self, data: dict) -> None:
         """Handle an incremental price_change event.
@@ -363,7 +363,7 @@ class WebSocketFeed:
                 self._prices[asset_id] = PriceSnapshot(
                     asset_id, yes_price, now, best_bid, best_ask
                 )
-            self._fire_callback(asset_id, yes_price, now)
+            self._fire_callback(asset_id, yes_price, best_bid, now)
 
     def _handle_best_bid_ask_event(self, data: dict) -> None:
         """Handle a top-of-book update (fastest price signal)."""
@@ -386,7 +386,7 @@ class WebSocketFeed:
             self._prices[asset_id] = PriceSnapshot(
                 asset_id, yes_price, now, best_bid, best_ask
             )
-        self._fire_callback(asset_id, yes_price, now)
+        self._fire_callback(asset_id, yes_price, best_bid, now)
 
     def _handle_last_trade_event(self, data: dict) -> None:
         """Handle a trade execution — useful as a liveness signal (price may
@@ -413,11 +413,16 @@ class WebSocketFeed:
             else:
                 existing.timestamp = now  # keep connection fresh
 
-    def _fire_callback(self, asset_id: str, yes_price: float, ts: float) -> None:
-        """Invoke the registered price callback outside any lock."""
+    def _fire_callback(self, asset_id: str, yes_price: float, bid_price: float, ts: float) -> None:
+        """Invoke the registered price callback outside any lock.
+
+        Passes best-bid alongside best-ask so callers can distinguish the
+        fill price (ask, used by exit logic) from the realizable close value
+        (bid, used by dashboard MTM).
+        """
         if self._callback:
             try:
-                self._callback(asset_id, yes_price, ts)
+                self._callback(asset_id, yes_price, bid_price, ts)
             except Exception as e:
                 logger.debug("Price callback error: %s", e)
 

@@ -52,3 +52,49 @@ def test_unrealized_pnl_uses_current_price_not_bid():
     pos = _make_pos(current_price=0.60, bid_price=0.40)
     # current_price=0.60 → current_value = 200 * 0.60 = 120 → PnL = +20
     assert round(pos.unrealized_pnl_usdc, 4) == 20.0
+
+
+def test_ws_feed_fires_callback_with_bid():
+    """_handle_book_event must pass best_bid to the registered callback."""
+    from src.websocket_feed import WebSocketFeed
+
+    captured: list[tuple] = []
+    def cb(asset_id: str, yes_price: float, bid_price: float, ts: float) -> None:
+        captured.append((asset_id, yes_price, bid_price, ts))
+
+    feed = WebSocketFeed(on_price_update=cb)
+    feed._subscriptions = {"asset-123"}  # Seed subscription so handler accepts
+
+    feed._handle_book_event({
+        "asset_id": "asset-123",
+        "bids": [{"price": "0.01", "size": "100"}, {"price": "0.74", "size": "50"}],
+        "asks": [{"price": "0.99", "size": "100"}, {"price": "0.75", "size": "50"}],
+    })
+
+    assert len(captured) == 1
+    asset_id, yes_price, bid_price, _ts = captured[0]
+    assert asset_id == "asset-123"
+    assert yes_price == 0.75   # best_ask (asks[-1])
+    assert bid_price == 0.74   # best_bid (bids[-1])
+
+
+def test_ws_feed_price_change_callback_bid():
+    """_handle_price_change_event must forward best_bid from price_changes[]."""
+    from src.websocket_feed import WebSocketFeed
+
+    captured: list[tuple] = []
+    def cb(asset_id: str, yes_price: float, bid_price: float, ts: float) -> None:
+        captured.append((asset_id, yes_price, bid_price, ts))
+
+    feed = WebSocketFeed(on_price_update=cb)
+    feed._subscriptions = {"asset-xyz"}
+
+    feed._handle_price_change_event({
+        "price_changes": [
+            {"asset_id": "asset-xyz", "best_bid": "0.41", "best_ask": "0.42"},
+        ],
+    })
+
+    assert len(captured) == 1
+    assert captured[0][1] == 0.42  # yes_price = best_ask
+    assert captured[0][2] == 0.41  # bid_price
