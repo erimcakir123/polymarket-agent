@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 
+from src.models import effective_price
 from src.reentry import get_blacklist_rule
 
 logger = logging.getLogger(__name__)
@@ -248,15 +249,28 @@ class ExitExecutor:
             if shares_to_sell < 1.0:
                 continue
 
+            # pos.current_price is stored YES-side for consistency across the
+            # codebase. But we're selling a specific token (YES or NO), and the
+            # executor's stale-price guard will fetch the live fill price for
+            # THAT token — so we must pass the direction-effective price, not
+            # the YES-side price. Otherwise BUY_NO scale-outs hit a ~(1 - price)
+            # drift vs reality and get silently rejected by the guard.
+            eff_sell_price = effective_price(pos.current_price, pos.direction)
+
             # Execute partial sell (disable hybrid to preserve exact share count)
             result = self.ctx.executor.place_order(
-                pos.token_id, "SELL", pos.current_price,
-                shares_to_sell * pos.current_price, use_hybrid=False,
+                pos.token_id, "SELL", eff_sell_price,
+                shares_to_sell * eff_sell_price, use_hybrid=False,
             )
             if not result or result.get("status") == "error":
                 continue
 
-            fill_price = pos.current_price
+            # Use executor's actual fill price (may have been adjusted by the
+            # stale-price guard); fall back to our effective price.
+            _sell_fill = result.get("price", eff_sell_price)
+            # Convert back to YES-side for downstream bookkeeping (apply_partial_exit
+            # expects fill_price in the same space as entry_price, which is YES-side).
+            fill_price = _sell_fill if pos.direction == "BUY_YES" else (1.0 - _sell_fill)
             partial = apply_partial_exit(
                 shares=pos.shares,
                 size_usdc=pos.size_usdc,

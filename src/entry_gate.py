@@ -940,8 +940,15 @@ class EntryGate:
                 logger.warning("Order failed: %s -- %s", market.slug[:40], result)
                 continue
 
-            # Record position -- entry_price is always YES-side for storage consistency
-            entry_price = market.yes_price
+            # Record position -- entry_price is always YES-side for storage consistency.
+            # Executor may have adjusted the fill price via the stale-price guard
+            # (scanner Gamma snapshot vs live CLOB), so prefer result["price"] and
+            # convert back to YES-side if we bought NO.
+            _fill_side_price = result.get("price", _order_price)
+            if direction == Direction.BUY_YES:
+                entry_price = _fill_side_price
+            else:
+                entry_price = 1.0 - _fill_side_price
             eff_price = effective_price(entry_price, direction)
             shares = size / eff_price if eff_price > 0 else 0
             _token_id_for_pos = market.yes_token_id if direction == Direction.BUY_YES else market.no_token_id

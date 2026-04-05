@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 LIQUID_DEPTH_USDC = 500.0
 # Limit order offset -- place limit this many cents better than market
 LIMIT_OFFSET_CENTS = 0.01
+# Stale-price guard: reject entries where scanner's Gamma snapshot differs
+# from the live CLOB mid by more than this fraction. Prevents "enter at stale
+# 0.32, WS tick arrives showing 0.21, instant stop-loss" scenarios.
+STALE_PRICE_MAX_DRIFT = 0.05  # 5%
 
 
 def fetch_order_book(token_id: str) -> dict:
@@ -29,6 +33,29 @@ def fetch_order_book(token_id: str) -> dict:
     except Exception as e:
         logger.warning("Order book fetch failed for %s: %s", token_id[:16], e)
         return {"bids": [], "asks": []}
+
+
+def fetch_clob_fill_price(token_id: str, side: str) -> Optional[float]:
+    """Fetch the live CLOB fill price for a BUY or SELL side.
+
+    Returns the best ask for BUY (what we'd pay) or best bid for SELL (what
+    we'd receive). Returns None if the book is empty or the request fails.
+    Used to validate scanner's Gamma snapshot price against live market.
+    """
+    book = fetch_order_book(token_id)
+    try:
+        if side == "BUY":
+            asks = book.get("asks", [])
+            if not asks:
+                return None
+            return float(asks[0].get("price", 0)) or None
+        else:
+            bids = book.get("bids", [])
+            if not bids:
+                return None
+            return float(bids[0].get("price", 0)) or None
+    except (TypeError, ValueError, KeyError):
+        return None
 
 
 def _book_depth_usdc(levels: List[dict]) -> float:
@@ -96,6 +123,39 @@ class Executor:
         order_type: str = "GTC",
         use_hybrid: bool = True,
     ) -> dict:
+        # Stale-price guard: scanner's Gamma snapshot can be 1-2 minutes behind
+        # the live CLOB market for actively-trading matches. Before placing the
+        # order, fetch the live fill price and either reject (drift >5%) or
+        # adjust the fill to reality (dry_run / paper) so we don't "enter" at
+        # an imaginary price and immediately stop-loss on the next WS tick.
+        clob_fill = fetch_clob_fill_price(token_id, side)
+        if clob_fill is not None and clob_fill > 0 and price > 0:
+            drift = abs(clob_fill - price) / price
+            if drift > STALE_PRICE_MAX_DRIFT:
+                logger.warning(
+                    "STALE_PRICE_REJECT: %s | side=%s scanner=%.3f clob=%.3f drift=%.1f%%",
+                    token_id[:16], side, price, clob_fill, drift * 100,
+                )
+                return {
+                    "order_id": f"rej_{uuid.uuid4().hex[:8]}",
+                    "status": "error",
+                    "reason": "stale_price",
+                    "mode": self.mode.value,
+                    "token_id": token_id,
+                    "side": side,
+                    "scanner_price": price,
+                    "clob_price": clob_fill,
+                    "drift": round(drift, 4),
+                }
+            # Drift is acceptable -- use the real CLOB fill price for
+            # realistic PnL tracking (matters most in dry_run/paper).
+            if abs(clob_fill - price) > 0.001:
+                logger.info(
+                    "CLOB fill adjust: %s | scanner=%.3f -> clob=%.3f (drift=%.1f%%)",
+                    token_id[:16], price, clob_fill, drift * 100,
+                )
+                price = clob_fill
+
         # Hybrid mode: choose strategy based on book depth
         if use_hybrid and self.mode == Mode.LIVE:
             strategy = choose_order_strategy(token_id, side, price, size_usdc)

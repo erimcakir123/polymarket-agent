@@ -196,8 +196,15 @@ class LiveStrategies:
                 continue
 
             result = self.ctx.executor.place_order(token_id, "BUY", eff_price, size)
-            shares = size / eff_price if eff_price > 0 else 0
-            yes_price_entry = current_yes_price
+            # Stale-price guard may reject (drift >5%) or adjust the fill price.
+            if not result or result.get("status") == "error":
+                logger.info("REENTRY order rejected: %s -- %s",
+                            candidate.slug[:40], result.get("reason") if result else "no result")
+                continue
+            # Use executor's actual fill price (adjusted to live CLOB if needed).
+            _fill = result.get("price", eff_price)
+            shares = size / _fill if _fill > 0 else 0
+            yes_price_entry = _fill if direction == "BUY_YES" else (1.0 - _fill)
 
             tier_num = decision["tier"]
             reentry_num = candidate.reentry_count + 1
@@ -371,10 +378,13 @@ class LiveStrategies:
             if not result or result.get("status") == "error":
                 continue
 
-            shares = size / price if price > 0 else 0
+            # Use executor's actual fill (stale-price guard may have adjusted it).
+            _fill = result.get("price", price)
+            shares = size / _fill if _fill > 0 else 0
+            _yes_entry = _fill if direction == "BUY_YES" else (1.0 - _fill)
             self.ctx.portfolio.add_position(
                 m.condition_id, token_id, direction,
-                m.yes_price, size, shares, m.slug,
+                _yes_entry, size, shares, m.slug,
                 "", confidence="B-",
                 ai_probability=max(0.01, min(0.99, pre_match)),
                 entry_reason="live_dip",
@@ -518,10 +528,13 @@ class LiveStrategies:
                 if not result or result.get("status") == "error":
                     continue
 
-                shares = size / price if price > 0 else 0
+                # Use executor's actual fill (stale-price guard may have adjusted it).
+                _fill = result.get("price", price)
+                shares = size / _fill if _fill > 0 else 0
+                _yes_entry = _fill if direction == "BUY_YES" else (1.0 - _fill)
                 self.ctx.portfolio.add_position(
                     cid, token_id, direction,
-                    market.yes_price, size, shares, market.slug,
+                    _yes_entry, size, shares, market.slug,
                     "", confidence="B-",
                     ai_probability=signal.adjusted_prob,
                     entry_reason="momentum",
@@ -675,7 +688,10 @@ class LiveStrategies:
             if not result or result.get("status") == "error":
                 continue
 
-            shares = size / order_price if order_price > 0 else 0
+            # Use executor's actual fill (stale-price guard may have adjusted it).
+            _fill = result.get("price", order_price)
+            shares = size / _fill if _fill > 0 else 0
+            _yes_entry = _fill if direction == "BUY_YES" else (1.0 - _fill)
             ai_conf = estimate.confidence if estimate else "B-"
             ai_prob = estimate.ai_probability if estimate else (c.no_price if direction == "BUY_NO" else c.yes_price)
             # market_data may already be fetched for AI; fallback lookup if not
@@ -687,7 +703,7 @@ class LiveStrategies:
             # entry_price is always YES-side for storage consistency (see entry_gate.py)
             self.ctx.portfolio.add_position(
                 c.condition_id, token_id, direction,
-                c.yes_price, size, shares, c.slug,
+                _yes_entry, size, shares, c.slug,
                 "", confidence=ai_conf,
                 ai_probability=ai_prob,
                 entry_reason="upset",
