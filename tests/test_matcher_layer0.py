@@ -45,6 +45,7 @@ class TestPolymarketTeamsCache:
             {"id": 177234, "name": "paiN", "abbreviation": "pain", "alias": "paiN", "league": "csgo"},
         ]
         cache = PolymarketTeamsCache()
+        cache._abbr_to_name.clear()  # Clear any disk-loaded cache
         cache._ingest_teams(fake_response)
 
         assert cache.resolve("nj") == "Devils"
@@ -65,14 +66,20 @@ class TestLayer0Matching:
             slug=slug, sport_tag="nhl",
         )
 
-    def test_layer0_matches_nhl_by_abbreviation(self):
-        from src.matching import match_markets
+    def _inject_cache(self, abbr_map: dict):
+        """Inject a fake teams cache into the matcher module."""
+        import time
         from src.matching.polymarket_teams import PolymarketTeamsCache
         import src.matching as matcher_mod
+        cache = PolymarketTeamsCache()
+        cache._abbr_to_name = abbr_map
+        cache._last_refresh = time.time()  # prevent live API fetch
+        matcher_mod._teams_cache = cache
 
-        fake_cache = PolymarketTeamsCache()
-        fake_cache._abbr_to_name = {"nj": "Devils", "mon": "Canadiens"}
-        matcher_mod._teams_cache = fake_cache
+    def test_layer0_matches_nhl_by_abbreviation(self):
+        from src.matching import match_markets
+
+        self._inject_cache({"nj": "Devils", "mon": "Canadiens"})
 
         market = self._make_market()
         scout_queue = {
@@ -91,12 +98,8 @@ class TestLayer0Matching:
 
     def test_layer0_matches_esports_csgo(self):
         from src.matching import match_markets
-        from src.matching.polymarket_teams import PolymarketTeamsCache
-        import src.matching as matcher_mod
 
-        fake_cache = PolymarketTeamsCache()
-        fake_cache._abbr_to_name = {"pain": "paiN", "gl1": "GamerLegion"}
-        matcher_mod._teams_cache = fake_cache
+        self._inject_cache({"pain": "paiN", "gl1": "GamerLegion"})
 
         market = self._make_market(
             slug="cs2-pain-gl1-2026-04-06",
@@ -117,12 +120,8 @@ class TestLayer0Matching:
     def test_layer0_falls_through_to_fuzzy(self):
         """If Layer 0 can't resolve, old fuzzy layers should still match."""
         from src.matching import match_markets
-        from src.matching.polymarket_teams import PolymarketTeamsCache
-        import src.matching as matcher_mod
 
-        fake_cache = PolymarketTeamsCache()
-        fake_cache._abbr_to_name = {}
-        matcher_mod._teams_cache = fake_cache
+        self._inject_cache({})
 
         market = self._make_market(
             slug="nhl-nj-mon-2026-04-05",

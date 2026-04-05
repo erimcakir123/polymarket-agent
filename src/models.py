@@ -45,6 +45,7 @@ class MarketData(BaseModel):
     closed: bool = False                    # Gamma raw "closed" — market closed to trading
     resolved: bool = False                  # Gamma raw "resolved" — outcome finalized
     accepting_orders: bool = True           # Gamma raw "acceptingOrders" — accepting new orders
+    sports_market_type: str = ""           # "moneyline", "totals", "spreads" — from Gamma sportsMarketType
 
 
 class Position(BaseModel):

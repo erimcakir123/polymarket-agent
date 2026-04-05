@@ -51,6 +51,8 @@ def match_markets(
     Same format as old market_matcher.match_batch().
     """
     resolver = _get_resolver(cache_dir)
+    # Refresh Polymarket teams cache daily (free API, no auth needed)
+    _get_teams_cache().refresh_if_stale()
     matched = []
     used_keys: set[str] = set()
 

@@ -195,6 +195,7 @@ class MarketScanner:
                 closed=bool(raw.get("closed", False)),
                 resolved=bool(raw.get("resolved", False)),
                 accepting_orders=bool(raw.get("acceptingOrders", True)),
+                sports_market_type=raw.get("sportsMarketType", ""),
             )
         except (json.JSONDecodeError, IndexError, ValueError) as e:
             logger.warning("Failed to parse market: %s", e)
