@@ -1957,8 +1957,21 @@
                 const entryPrice = isYes ? rawEntry : (1 - rawEntry);
                 const currentPrice = isYes ? rawCurrent : (1 - rawCurrent);
                 const size = p.size_usdc || 0;
-                const pnlUsdc = p.unrealized_pnl_usdc || 0;
-                const pnlPct = p.unrealized_pnl_pct || 0;
+                // Mark-to-market using the realizable close price (best-bid)
+                // so the card shows what the user would actually receive if
+                // closing the position now. Falls back to current_price for
+                // legacy snapshots that predate bid_price (value 0 = no WS
+                // tick yet). Exit logic is unaffected — it reads
+                // unrealized_pnl_usdc which uses current_price (ask-side).
+                const _hasBid = (p.bid_price || 0) > 0;
+                const _markPrice = _hasBid ? p.bid_price : (p.current_price || 0);
+                const _effMark = (p.direction === 'BUY_NO')
+                    ? (1 - _markPrice)
+                    : _markPrice;
+                const _currentValue = (p.shares || 0) * _effMark;
+                const _sizeUsdc = p.size_usdc || 0;
+                const pnlUsdc = _currentValue - _sizeUsdc;
+                const pnlPct = _sizeUsdc > 0 ? (pnlUsdc / _sizeUsdc) : 0;
                 const confidence = p.confidence || 'medium';
                 const confLabel = confidence || 'B-';
                 const rawAiProb = p.ai_probability || 0;
@@ -1993,8 +2006,13 @@
                 const pnlColor = pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red);
                 const pnlSign = pnlNeutral ? '' : (pnlUsdc > 0 ? '+' : '');
                 const confColor = confidence === 'A' ? COLORS.green : confidence === 'B+' ? COLORS.green : confidence === 'B-' ? COLORS.amber : COLORS.red;
-                const priceInfo = currentPrice > 0
-                    ? `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.6">→</span><span>Now: ${(currentPrice*100).toFixed(0)}%</span>`
+                // Prefer bid-side for "Now" display so it matches the bid-MTM PnL below.
+                const _nowRaw = _hasBid ? p.bid_price : (p.current_price || 0);
+                const nowPrice = (p.direction === 'BUY_NO')
+                    ? (1 - _nowRaw)
+                    : _nowRaw;
+                const priceInfo = nowPrice > 0
+                    ? `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.6">→</span><span>Now: ${(nowPrice*100).toFixed(0)}%</span>`
                     : `<span>Entry: ${(entryPrice*100).toFixed(0)}%</span><span style="opacity:0.5">Awaiting price</span>`;
 
                 const borderClass = (() => {
@@ -2022,7 +2040,7 @@
                     <div class="feed-details">
                         <span>Entry: ${(entryPrice*100).toFixed(0)}%</span>
                         <span style="opacity:0.6">→</span>
-                        <span>Now: ${currentPrice > 0 ? (currentPrice*100).toFixed(0)+'%' : '—'}</span>
+                        <span>Now: ${nowPrice > 0 ? (nowPrice*100).toFixed(0)+'%' : '—'}</span>
                         <span style="opacity:0.6">→</span>
                         <span>AI: ${(aiProb*100).toFixed(0)}%</span>
                     </div>
