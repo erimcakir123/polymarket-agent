@@ -101,8 +101,12 @@ DATA CALIBRATION:
 You will see a "Data Sources" section listing what was queried for this market.
 - If bookmaker odds are present -> strong external anchor, supports higher confidence.
 - If match stats are present (ESPN, PandaScore, TheSportsDB) -> primary confidence signal.
-  8+ recent matches per team -> A. 5-7 matches -> B+. 1-4 matches -> B-.
-- Missing bookmaker odds is NOT a reason to lower confidence if match stats are adequate.
+  Grade based on BOTH match count AND bookmaker presence:
+    * 5+ matches per team AND bookmaker odds present -> A (two-source confirmation)
+    * 8+ matches per team alone (no bookmaker) -> A (rich stats compensate)
+    * 5-7 matches per team alone (no bookmaker) -> B+
+    * bookmaker odds alone (no stats) -> B+
+    * 1-4 matches per team -> B-
 - News alone (injuries, form reports, previews) WITHOUT any match statistics -> C.
   News is supplementary -- it can raise B- to B+ but cannot substitute for match data.
 - If no data sources returned meaningful content -> C.
@@ -120,11 +124,13 @@ Respond with ONLY JSON:
 "key_evidence_for": [...], "key_evidence_against": [...]}}
 
 Confidence grades -- rate DATA AVAILABILITY, not your uncertainty about the result:
-- "A"  = strong statistical data -- 2+ independent sources agree (bookmaker odds + match stats,
-         or match stats + news with 8+ recent games per team <14 days old).
-         Use A when you have rich quantitative data even if the outcome feels uncertain.
-- "B+" = solid statistical data -- at least one strong source: bookmaker odds alone,
-         OR match history with 5+ recent games (ESPN, PandaScore, TheSportsDB),
+- "A"  = strong statistical data -- EITHER:
+           (1) Bookmaker odds present AND 5+ recent matches per team <14 days old, OR
+           (2) 8+ recent matches per team alone (no bookmaker needed), OR
+           (3) Any combination providing 2+ independent rich data signals.
+         Use A when you have robust quantitative data even if the outcome feels uncertain.
+- "B+" = solid statistical data -- at least one strong source but not two:
+         bookmaker odds alone (no match history), OR 5-7 matches alone (no bookmaker),
          OR detailed news PLUS any stats. One unknown factor is fine at B+.
 - "B-" = minimal statistical data -- 1-4 recent match results available but thin sample,
          OR data older than 14 days, OR conflicting signals.
@@ -482,7 +488,7 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
             sport_label = sport.upper() if sport else "ESPORTS"
             sources_section.append(f"\nSport: {sport_label} -- match stats from PandaScore are the primary data source. "
                                    f"Bookmaker odds are rarely available for esports markets. "
-                                   f"8+ recent matches per team = good data quality for B+ or A confidence. "
+                                   f"5+ recent matches per team = good data quality; grade A if combined with bookmaker odds, otherwise B+. "
                                    f"Roster changes, tier-based records, and LAN/online splits are available when present.")
 
         parts.append("\n".join(sources_section))
