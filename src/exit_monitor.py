@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import threading
 from collections import deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
@@ -51,6 +52,15 @@ class ExitMonitor:
         self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
         self._last_ws_save_ts: float = 0.0   # Throttle positions.json writes from WS ticks
+        # Lock for process_ws_ticks so main thread and background pulse thread
+        # can't concurrently drain the queue (avoids race on _ws_exit_queued_set
+        # and position.current_price mutations).
+        self._ws_tick_lock: threading.Lock = threading.Lock()
+        # Background pulse thread (started by start_ws_pulse_thread) drains
+        # queued WS ticks every 2s so positions.json stays fresh for the
+        # dashboard even when the main thread is blocked in a long AI batch.
+        self._pulse_thread: threading.Thread | None = None
+        self._pulse_stop_event: threading.Event = threading.Event()
 
         # Register our callback with the WS feed
         ws_feed.set_on_price_update(self._on_ws_price_update)
@@ -62,51 +72,91 @@ class ExitMonitor:
         self._ws_tick_queue.put_nowait((token_id, price, ts))
 
     def process_ws_ticks(self) -> None:
-        """Process all pending WS price ticks. Must be called from the main thread."""
-        _ticks_processed = 0
-        while not self._ws_tick_queue.empty():
-            try:
-                token_id, price, ts = self._ws_tick_queue.get_nowait()
-            except queue.Empty:
-                break
+        """Process all pending WS price ticks.
 
-            # Find matching position by token_id
-            cid_found: str | None = None
-            pos_found = None
-            for cid, pos in self.portfolio.positions.items():
-                if pos.token_id == token_id:
-                    # WS sends token-side price; convert BUY_NO to YES-side
-                    # so all downstream code (PnL, SL, TP) sees consistent prices
-                    pos.current_price = (1.0 - price) if pos.direction == "BUY_NO" else price
-                    cid_found = cid
-                    pos_found = pos
-                    _ticks_processed += 1
-                    break
-            if cid_found is None or pos_found is None:
-                continue
-
-            cid: str = cast(str, cid_found)  # guarded by None-check above
-
-            # Skip if already in exit queue or actively exiting
-            if cid in self._exiting_set:
-                continue
-            if cid in self._ws_exit_queued_set:
-                continue
-
-            self._ws_check_exits(cid, pos_found)
-
-        # Throttled persistence: if we mutated any position current_price from
-        # WS ticks, persist positions.json at most once every 2 seconds so the
-        # dashboard sees near-real-time prices without disk I/O storms.
-        if _ticks_processed > 0:
-            import time as _time
-            now_ts = _time.time()
-            if now_ts - self._last_ws_save_ts >= 2.0:
+        Callable from either the main thread or the background pulse thread
+        (_ws_pulse_loop); a lock serializes the two callers so queue drain,
+        position mutation, and positions.json save are atomic w.r.t. each other.
+        """
+        with self._ws_tick_lock:
+            _ticks_processed = 0
+            while not self._ws_tick_queue.empty():
                 try:
-                    self.portfolio.save_prices_to_disk()
-                    self._last_ws_save_ts = now_ts
+                    token_id, price, ts = self._ws_tick_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+                # Find matching position by token_id
+                # Snapshot positions to avoid RuntimeError if the main thread
+                # adds/removes a position concurrently during entry/exit.
+                cid_found: str | None = None
+                pos_found = None
+                for cid, pos in list(self.portfolio.positions.items()):
+                    if pos.token_id == token_id:
+                        # WS sends token-side price; convert BUY_NO to YES-side
+                        # so all downstream code (PnL, SL, TP) sees consistent prices
+                        pos.current_price = (1.0 - price) if pos.direction == "BUY_NO" else price
+                        cid_found = cid
+                        pos_found = pos
+                        _ticks_processed += 1
+                        break
+                if cid_found is None or pos_found is None:
+                    continue
+
+                cid: str = cast(str, cid_found)  # guarded by None-check above
+
+                # Skip if already in exit queue or actively exiting
+                if cid in self._exiting_set:
+                    continue
+                if cid in self._ws_exit_queued_set:
+                    continue
+
+                self._ws_check_exits(cid, pos_found)
+
+            # Throttled persistence: if we mutated any position current_price
+            # from WS ticks, persist positions.json at most once every 2 seconds
+            # so the dashboard sees near-real-time prices without disk I/O storms.
+            if _ticks_processed > 0:
+                import time as _time
+                now_ts = _time.time()
+                if now_ts - self._last_ws_save_ts >= 2.0:
+                    try:
+                        self.portfolio.save_prices_to_disk()
+                        self._last_ws_save_ts = now_ts
+                    except Exception as exc:
+                        logger.debug("WS tick save failed: %s", exc)
+
+    def start_ws_pulse_thread(self, interval_sec: float = 2.0) -> None:
+        """Start a background daemon that drains WS ticks every interval_sec.
+
+        This keeps positions.json and in-memory prices fresh during long hard
+        cycle phases (e.g. a 3-5 min AI batch) when the main thread is blocked
+        inside a single blocking call and can't call process_ws_ticks itself.
+        """
+        if self._pulse_thread and self._pulse_thread.is_alive():
+            return
+        self._pulse_stop_event.clear()
+
+        def _loop() -> None:
+            while not self._pulse_stop_event.is_set():
+                try:
+                    self.process_ws_ticks()
                 except Exception as exc:
-                    logger.debug("WS tick save failed: %s", exc)
+                    logger.debug("WS pulse iteration failed: %s", exc)
+                # Sleep in small slices so stop_event wakes us promptly
+                self._pulse_stop_event.wait(timeout=interval_sec)
+
+        self._pulse_thread = threading.Thread(
+            target=_loop, name="ws-pulse", daemon=True,
+        )
+        self._pulse_thread.start()
+        logger.info("WS pulse thread started (interval=%.1fs)", interval_sec)
+
+    def stop_ws_pulse_thread(self) -> None:
+        """Signal the pulse thread to exit and wait briefly for it."""
+        self._pulse_stop_event.set()
+        if self._pulse_thread:
+            self._pulse_thread.join(timeout=3)
 
     def _ws_check_exits(self, cid: str, pos: "Position") -> None:
         """Lightweight exit checks triggered by WebSocket price update.

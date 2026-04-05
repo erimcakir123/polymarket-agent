@@ -1795,9 +1795,15 @@
                     (Math.min(...buyEdges) * 100).toFixed(0) + '% \u2013 ' + (Math.max(...buyEdges) * 100).toFixed(0) + '%';
             }
 
-            // Brier score: compute from BUY trades matched with EXIT outcomes
+            // Brier score: compute from BUY trades matched with EXIT outcomes.
+            // Includes UPSET_ENTRY, LIVE_DIP_*, MOMENTUM_*, FARMING_REENTRY_* actions
+            // from live_strategies so their exits aren't displayed with 0.0% pnl.
+            const isBuyAction = (a) => a && (a === 'BUY_YES' || a === 'BUY_NO' || a === 'BUY'
+                || a === 'UPSET_ENTRY'
+                || a.startsWith('LIVE_DIP_') || a.startsWith('MOMENTUM_')
+                || a.startsWith('FARMING_REENTRY_'));
             const buyMap = {};
-            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO' || t.action === 'BUY').forEach(t => { buyMap[t.market] = t; });
+            trades.filter(t => isBuyAction(t.action)).forEach(t => { buyMap[t.market] = t; });
             const calibrationPairs = exits.filter(t => buyMap[t.market] && buyMap[t.market].ai_probability)
                 .map(t => {
                     const buy = buyMap[t.market];
@@ -2089,9 +2095,15 @@
                 return;
             }
 
-            // Build a map of BUY entries by market slug for enrichment
+            // Build a map of BUY entries by market slug for enrichment.
+            // Include live-strategy entry actions (UPSET_ENTRY, LIVE_DIP_*,
+            // MOMENTUM_*, FARMING_REENTRY_*) so their exits show correct pnl%.
+            const isEntryAction = (a) => a && (a === 'BUY_YES' || a === 'BUY_NO' || a === 'BUY'
+                || a === 'UPSET_ENTRY'
+                || a.startsWith('LIVE_DIP_') || a.startsWith('MOMENTUM_')
+                || a.startsWith('FARMING_REENTRY_'));
             const buyMap = {};
-            trades.filter(t => t.action === 'BUY_YES' || t.action === 'BUY_NO' || t.action === 'BUY').forEach(t => {
+            trades.filter(t => isEntryAction(t.action)).forEach(t => {
                 buyMap[t.market] = t;
             });
 

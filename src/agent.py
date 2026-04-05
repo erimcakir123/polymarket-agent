@@ -150,6 +150,10 @@ class Agent:
         # and every tick-driven exit (SL, trailing TP) falls back to 40s+ light
         # cycle polling — making the bot react in seconds instead of milliseconds.
         ws_feed.start_background()
+        # Start background pulse thread that drains WS ticks + persists
+        # positions.json every 2s, so the dashboard stays fresh even while the
+        # main thread is blocked in a 3-5 minute AI batch.
+        self.exit_monitor.start_ws_pulse_thread(interval_sec=2.0)
         self.entry_gate = EntryGate(
             config=config,
             portfolio=self.portfolio,
@@ -324,6 +328,9 @@ class Agent:
             logger.info("Interrupted by user")
         finally:
             self.cycle_helpers.write_status("offline", "Stopped")
+            # Stop pulse thread BEFORE ws_feed so it doesn't touch a
+            # half-torn-down feed during shutdown.
+            self.exit_monitor.stop_ws_pulse_thread()
             self.sports_ws.stop()
             self.ws_feed.stop()
             logger.info("Agent stopped")

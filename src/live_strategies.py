@@ -381,6 +381,7 @@ class LiveStrategies:
                 sport_tag=getattr(m, "sport_tag", "") or "",
                 event_id=getattr(m, "event_id", "") or "",
                 end_date_iso=getattr(m, "end_date_iso", "") or "",
+                match_start_iso=getattr(m, "match_start_iso", "") or "",
             )
             dip_count += 1
             entered = True
@@ -527,6 +528,7 @@ class LiveStrategies:
                     sport_tag=sport_tag,
                     event_id=getattr(market, "event_id", ""),
                     end_date_iso=getattr(market, "end_date_iso", ""),
+                    match_start_iso=getattr(market, "match_start_iso", "") or "",
                 )
                 momentum_count += 1
                 entered = True

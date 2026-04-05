@@ -959,6 +959,7 @@ class EntryGate:
                 sport_tag=getattr(market, "sport_tag", "") or "",
                 event_id=getattr(market, "event_id", "") or "",
                 end_date_iso=getattr(market, "end_date_iso", "") or "",
+                match_start_iso=getattr(market, "match_start_iso", "") or "",
                 entry_reason=c.get("entry_reason", ""),
                 is_consensus=c.get("is_consensus", False),
             )
