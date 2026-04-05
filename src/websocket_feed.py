@@ -1,16 +1,35 @@
 """WebSocket price feed for real-time CLOB price updates.
 
 Replaces polling for positions that need fast reaction (stop-loss, take-profit,
-re-entry triggers). Connects to Polymarket CLOB WebSocket and streams price
-changes for subscribed token_ids.
+re-entry triggers). Connects to Polymarket CLOB Market Channel and streams
+book snapshots, price changes, and best-bid/ask updates.
+
+Polymarket Market Channel protocol
+(https://docs.polymarket.com/api-reference/wss/market):
+
+  Subscribe:
+    {"assets_ids": ["123...", "456..."], "type": "market"}
+
+  Server events (all have `event_type` field, not `type`):
+    - "book"           initial orderbook snapshot (asks DESC, bids ASC)
+    - "price_change"   incremental level change, contains price_changes[]
+                       each with asset_id, price, size, side, best_bid, best_ask
+    - "best_bid_ask"   top-of-book only, has asset_id, best_bid, best_ask
+    - "last_trade_price"  executed trade at asset_id/price
+    - "tick_size_change"
+    - "new_market" / "market_resolved"
+
+  All events use `asset_id` to identify the token (not `market` — that's the
+  condition_id at event level, not what we're tracking per token).
 
 Usage:
     feed = WebSocketFeed(on_price_update=my_callback)
     feed.subscribe(["token_id_1", "token_id_2"])
-    await feed.start()  # runs forever, reconnects on failure
+    feed.start_background()  # runs forever, reconnects on failure
     feed.stop()
 
 The callback receives: (token_id: str, yes_price: float, timestamp: float)
+where yes_price is the best-ask (the price we'd pay to BUY at that moment).
 """
 from __future__ import annotations
 
@@ -134,10 +153,18 @@ class WebSocketFeed:
         logger.info("WebSocket price feed started in background thread")
 
     def stop(self) -> None:
-        """Stop the WebSocket feed."""
+        """Stop the WebSocket feed gracefully.
+
+        Signals the connect loop and pinger to exit, closes the socket, then
+        joins the background thread. Avoids "event loop stopped before Future"
+        warnings by letting the loop finish cleanly rather than hard-stopping.
+        """
         self._running = False
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
+        if self._loop and self._loop.is_running() and self._ws is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(self._ws.close(), self._loop)
+            except Exception:
+                pass
         if self._thread:
             self._thread.join(timeout=5)
         self._connected = False
@@ -162,10 +189,11 @@ class WebSocketFeed:
             delay = min(RECONNECT_DELAY_BASE * (2 ** self._reconnect_count),
                         RECONNECT_DELAY_MAX)
             try:
+                # Polymarket recommends disabling library-level ping and using
+                # application-level `{}` keepalive pings instead.
                 async with websockets.connect(
                     CLOB_WS_URL,
-                    ping_interval=HEARTBEAT_INTERVAL,
-                    ping_timeout=10,
+                    ping_interval=None,
                     close_timeout=5,
                 ) as ws:
                     self._ws = ws
@@ -181,17 +209,27 @@ class WebSocketFeed:
                     if sub_list:
                         await self._subscribe_tokens(sub_list)
 
-                    # Message loop
-                    async for raw_msg in ws:
-                        if not self._running:
-                            break
-                        self._last_message_time = time.time()
-                        self._stats["messages_received"] += 1
+                    # Launch keepalive pinger as a background task
+                    ping_task = asyncio.create_task(self._keepalive_pinger(ws))
+
+                    try:
+                        # Message loop
+                        async for raw_msg in ws:
+                            if not self._running:
+                                break
+                            self._last_message_time = time.time()
+                            self._stats["messages_received"] += 1
+                            try:
+                                self._handle_message(raw_msg)
+                            except Exception as e:
+                                logger.debug("WS message parse error: %s", e)
+                                self._stats["errors"] += 1
+                    finally:
+                        ping_task.cancel()
                         try:
-                            self._handle_message(raw_msg)
-                        except Exception as e:
-                            logger.debug("WS message parse error: %s", e)
-                            self._stats["errors"] += 1
+                            await ping_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
 
             except Exception as e:
                 self._stats["errors"] += 1
@@ -204,79 +242,184 @@ class WebSocketFeed:
                                    e, delay)
                     await asyncio.sleep(delay)
 
-    async def _subscribe_tokens(self, token_ids: List[str]) -> None:
-        """Send subscription messages for token_ids."""
-        if not self._ws:
+    async def _keepalive_pinger(self, ws) -> None:
+        """Send application-level `{}` ping every HEARTBEAT_INTERVAL seconds.
+
+        Polymarket's Market Channel uses a simple `{}` → `{}` keepalive.
+        Library-level pings are disabled (ping_interval=None).
+        """
+        try:
+            while self._running:
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                try:
+                    await ws.send("{}")
+                except Exception:
+                    return
+        except asyncio.CancelledError:
             return
-        for tid in token_ids:
-            try:
-                msg = json.dumps({"type": "subscribe", "market": tid, "channel": "price"})
-                await self._ws.send(msg)
-            except Exception as e:
-                logger.debug("Failed to subscribe %s: %s", tid[:16], e)
+
+    async def _subscribe_tokens(self, token_ids: List[str]) -> None:
+        """Send subscription message for token_ids (Market Channel protocol).
+
+        Polymarket accepts a single subscription frame listing all asset_ids:
+            {"assets_ids": [...], "type": "market"}
+        """
+        if not self._ws or not token_ids:
+            return
+        try:
+            msg = json.dumps({"assets_ids": list(token_ids), "type": "market"})
+            await self._ws.send(msg)
+            logger.info("WS subscribed to %d asset(s)", len(token_ids))
+        except Exception as e:
+            logger.warning("Failed to subscribe %d tokens: %s", len(token_ids), e)
 
     def _handle_message(self, raw: str) -> None:
-        """Parse and process a WebSocket message."""
-        data = json.loads(raw)
-        msg_type = data.get("type", "")
+        """Parse and process a Polymarket Market Channel WebSocket message.
 
-        if msg_type in ("price_change", "price"):
-            token_id = data.get("market") or data.get("token_id") or data.get("asset_id", "")
-            if not token_id:
+        Polymarket events carry an `event_type` field (NOT `type`) and
+        identify the token via `asset_id`. The server may send an array of
+        events in a single frame, or a single event object.
+        """
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return
+
+        # Server may send a list of events in one frame
+        events = parsed if isinstance(parsed, list) else [parsed]
+        for data in events:
+            if not isinstance(data, dict):
+                continue
+            event_type = data.get("event_type", "")
+            if event_type == "book":
+                self._handle_book_event(data)
+            elif event_type == "price_change":
+                self._handle_price_change_event(data)
+            elif event_type == "best_bid_ask":
+                self._handle_best_bid_ask_event(data)
+            elif event_type == "last_trade_price":
+                self._handle_last_trade_event(data)
+            # Ignore tick_size_change / new_market / market_resolved for now
+
+    def _handle_book_event(self, data: dict) -> None:
+        """Handle an orderbook snapshot event.
+
+        Polymarket format: asks DESC-sorted, bids ASC-sorted, so the best
+        level sits at [-1] for both sides. Index [0] holds market-maker
+        sentinel orders (typically 0.99 / 0.01) which must NOT be read.
+        """
+        asset_id = data.get("asset_id", "")
+        if not asset_id:
+            return
+        with self._sub_lock:
+            if asset_id not in self._subscriptions:
                 return
-            with self._sub_lock:
-                if token_id not in self._subscriptions:
-                    return
-
-            # Extract price -- format varies by message type
-            price = data.get("price")
-            if price is None:
-                prices = data.get("prices", [])
-                if prices:
-                    price = float(prices[0])
-            if price is None:
-                return
-
-            price = float(price)
-            now = time.time()
-            bid = float(data.get("bid", 0) or 0)
-            ask = float(data.get("ask", 0) or 0)
-
-            with self._price_lock:
-                self._prices[token_id] = PriceSnapshot(token_id, price, now, bid, ask)
-
-            # Fire callback (outside lock to avoid deadlock)
-            if self._callback:
-                try:
-                    self._callback(token_id, price, now)
-                except Exception as e:
-                    logger.debug("Price callback error: %s", e)
-
-        elif msg_type == "book":
-            # Order book snapshot -- extract best bid/ask.
-            # Polymarket format: asks DESC-sorted, bids ASC-sorted, so the
-            # "best" level sits at [-1] for both sides. Reading [0] would
-            # return market-maker sentinel orders (typically 0.99 / 0.01).
-            token_id = data.get("market", "")
-            if not token_id:
-                return
-            with self._sub_lock:
-                if token_id not in self._subscriptions:
-                    return
-            bids = data.get("bids", [])
-            asks = data.get("asks", [])
+        bids = data.get("bids", [])
+        asks = data.get("asks", [])
+        try:
             best_bid = float(bids[-1]["price"]) if bids else 0.0
             best_ask = float(asks[-1]["price"]) if asks else 0.0
-            mid = (best_bid + best_ask) / 2 if best_bid and best_ask else 0.0
-            if mid > 0:
-                with self._price_lock:
-                    snap = self._prices.get(token_id)
-                    if snap:
-                        snap.bid = best_bid
-                        snap.ask = best_ask
-                    else:
-                        self._prices[token_id] = PriceSnapshot(
-                            token_id, mid, time.time(), best_bid, best_ask)
+        except (TypeError, ValueError, KeyError, IndexError):
+            return
+        if best_ask <= 0:
+            return
+        # Use best-ask as the "fill" price (what we'd pay to BUY right now)
+        yes_price = best_ask
+        now = time.time()
+        with self._price_lock:
+            self._prices[asset_id] = PriceSnapshot(
+                asset_id, yes_price, now, best_bid, best_ask
+            )
+        self._fire_callback(asset_id, yes_price, now)
+
+    def _handle_price_change_event(self, data: dict) -> None:
+        """Handle an incremental price_change event.
+
+        Contains `price_changes` array; each entry has asset_id, price, size,
+        side, best_bid, best_ask. We update whichever assets are subscribed.
+        """
+        changes = data.get("price_changes", [])
+        if not isinstance(changes, list):
+            return
+        now = time.time()
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            asset_id = change.get("asset_id", "")
+            if not asset_id:
+                continue
+            with self._sub_lock:
+                if asset_id not in self._subscriptions:
+                    continue
+            try:
+                best_bid = float(change.get("best_bid", 0) or 0)
+                best_ask = float(change.get("best_ask", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if best_ask <= 0:
+                continue
+            yes_price = best_ask
+            with self._price_lock:
+                self._prices[asset_id] = PriceSnapshot(
+                    asset_id, yes_price, now, best_bid, best_ask
+                )
+            self._fire_callback(asset_id, yes_price, now)
+
+    def _handle_best_bid_ask_event(self, data: dict) -> None:
+        """Handle a top-of-book update (fastest price signal)."""
+        asset_id = data.get("asset_id", "")
+        if not asset_id:
+            return
+        with self._sub_lock:
+            if asset_id not in self._subscriptions:
+                return
+        try:
+            best_bid = float(data.get("best_bid", 0) or 0)
+            best_ask = float(data.get("best_ask", 0) or 0)
+        except (TypeError, ValueError):
+            return
+        if best_ask <= 0:
+            return
+        yes_price = best_ask
+        now = time.time()
+        with self._price_lock:
+            self._prices[asset_id] = PriceSnapshot(
+                asset_id, yes_price, now, best_bid, best_ask
+            )
+        self._fire_callback(asset_id, yes_price, now)
+
+    def _handle_last_trade_event(self, data: dict) -> None:
+        """Handle a trade execution — useful as a liveness signal (price may
+        differ from mid, so we only update yes_price if no book snapshot has
+        been stored yet)."""
+        asset_id = data.get("asset_id", "")
+        if not asset_id:
+            return
+        with self._sub_lock:
+            if asset_id not in self._subscriptions:
+                return
+        try:
+            price = float(data.get("price", 0) or 0)
+        except (TypeError, ValueError):
+            return
+        if price <= 0:
+            return
+        now = time.time()
+        with self._price_lock:
+            existing = self._prices.get(asset_id)
+            if existing is None:
+                # No book snapshot yet — seed with trade price
+                self._prices[asset_id] = PriceSnapshot(asset_id, price, now, 0.0, 0.0)
+            else:
+                existing.timestamp = now  # keep connection fresh
+
+    def _fire_callback(self, asset_id: str, yes_price: float, ts: float) -> None:
+        """Invoke the registered price callback outside any lock."""
+        if self._callback:
+            try:
+                self._callback(asset_id, yes_price, ts)
+            except Exception as e:
+                logger.debug("Price callback error: %s", e)
 
     def sync_subscriptions(self, active_token_ids: List[str]) -> None:
         """Sync subscriptions with currently active positions.
