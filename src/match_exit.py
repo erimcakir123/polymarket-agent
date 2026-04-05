@@ -346,6 +346,14 @@ def check_match_exit(data: dict) -> dict:
             result["momentum_multiplier"] = 0.75
             max_loss = max(0.05, max_loss * 0.75)
 
+        # A-confidence hold-to-resolve: loosen graduated SL floor to 50%.
+        # Applied AFTER momentum tightening so A-conf positions never exit
+        # via graduated SL unless loss exceeds 50%. Catastrophic floor
+        # (Layer 1, effective_current < effective_entry × 0.50) still protects
+        # against total collapse.
+        if confidence == "A":
+            max_loss = max(max_loss, 0.50)
+
         if pnl_pct < -max_loss:
             return {**result, "exit": True, "layer": "graduated_sl",
                     "reason": f"PnL {pnl_pct:.1%} < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})"}
