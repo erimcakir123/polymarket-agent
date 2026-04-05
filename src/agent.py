@@ -227,79 +227,48 @@ class Agent:
                         vs_reserved = self.config.volatility_swing.reserved_slots
                         _refill_round = 0
                         _consecutive_dry = 0  # Track consecutive refills with no new entries
-                        # Progressive time-scope expansion: on each dry refill, widen the
-                        # scanner's max_duration_days so fewer markets are filtered as
-                        # "too far out". Restored in finally below.
-                        _original_max_days = self.scanner.config.max_duration_days
-                        _expansion_steps = [_original_max_days, 21, 30, 45]
-                        # Keep only steps >= current value, deduped and sorted
-                        _expansion_steps = sorted({d for d in _expansion_steps if d >= _original_max_days})
-                        _expansion_idx = 0
-                        try:
-                            while True:
-                                current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
-                                current_normal = self.portfolio.active_position_count - current_vs
-                                open_slots = self.config.risk.max_positions - vs_reserved - current_normal
-                                if open_slots <= 0:
-                                    logger.info("All slots filled -- refill complete")
-                                    break
-                                # Also stop refilling if exposure cap reached
-                                from src.risk_manager import exceeds_exposure_limit
-                                if exceeds_exposure_limit(
-                                    self.portfolio.positions, 0.0,
-                                    self.portfolio.bankroll, self.config.risk.max_exposure_pct,
-                                ):
-                                    logger.info("Exposure cap reached -- refill complete")
-                                    break
-                                _refill_round = _refill_round + 1
-                                positions_before = len(self.portfolio.positions)
-                                logger.info("Pool not full (%d open slots) -- refill cycle %d (time scope: %dd)",
-                                            open_slots, _refill_round, self.scanner.config.max_duration_days)
-                                # R3: DON'T reset seen_markets during refill —
-                                # seen_market_ids prevents re-analyzing deadzone/skip markets.
-                                # Refill should find NEW markets via wider time window, not retry old ones.
-                                self.run_cycle()
-                                last_full_cycle_time = time.time()
-                                positions_after = len(self.portfolio.positions)
-                                new_entries = positions_after - positions_before
-                                if new_entries > 0:
-                                    logger.info("Refill cycle %d added %d positions", _refill_round, new_entries)
-                                    _consecutive_dry = 0
-                                else:
-                                    _consecutive_dry = _consecutive_dry + 1
-                                    logger.info("Refill cycle %d -- no new entries (dry streak: %d)",
-                                                _refill_round, _consecutive_dry)
-                                    # Progressive time-scope expansion on dry cycle:
-                                    # widen window so scanner pulls markets that were
-                                    # previously filtered as "too far out".
-                                    if _expansion_idx + 1 < len(_expansion_steps):
-                                        _prev_days = _expansion_steps[_expansion_idx]
-                                        _expansion_idx = _expansion_idx + 1
-                                        _new_days = _expansion_steps[_expansion_idx]
-                                        self.scanner.config.max_duration_days = _new_days
-                                        # DO NOT reset_seen_markets here: far-out markets
-                                        # were filtered at market_scanner._passes_filters
-                                        # before ever reaching entry_gate, so they are
-                                        # NOT in _seen_market_ids. Expanding the window
-                                        # naturally un-hides them as genuinely new markets.
-                                        # Resetting would re-feed already-rejected
-                                        # deadzone/liquidity markets to AI and waste budget.
-                                        logger.info("Expanding time scope: %dd → %dd (dry refill)",
-                                                    _prev_days, _new_days)
-                                        # Give the expanded window a chance before declaring exhausted.
-                                        _consecutive_dry = 0
-                                        continue
-                                # Two consecutive dry refills after max expansion = pool exhausted
-                                if _consecutive_dry >= 2:
-                                    logger.info("Eligible pool exhausted -- 2 dry refills at max scope (%dd). Done.",
-                                                self.scanner.config.max_duration_days)
-                                    break
-                        finally:
-                            # Always restore original scope so next outer cycle starts fresh
-                            if self.scanner.config.max_duration_days != _original_max_days:
-                                logger.info("Restoring time scope: %dd → %dd",
-                                            self.scanner.config.max_duration_days, _original_max_days)
-                                self.scanner.config.max_duration_days = _original_max_days
+                        while True:
+                            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
+                            current_normal = self.portfolio.active_position_count - current_vs
+                            open_slots = self.config.risk.max_positions - vs_reserved - current_normal
+                            if open_slots <= 0:
+                                logger.info("All slots filled -- refill complete")
+                                break
+                            # Also stop refilling if exposure cap reached
+                            from src.risk_manager import exceeds_exposure_limit
+                            if exceeds_exposure_limit(
+                                self.portfolio.positions, 0.0,
+                                self.portfolio.bankroll, self.config.risk.max_exposure_pct,
+                            ):
+                                logger.info("Exposure cap reached -- refill complete")
+                                break
+                            _refill_round += 1
+                            positions_before = len(self.portfolio.positions)
+                            logger.info("Pool not full (%d open slots) -- refill cycle %d",
+                                        open_slots, _refill_round)
+                            # R3: DON'T reset seen_markets during refill —
+                            # seen_market_ids prevents re-analyzing deadzone/skip markets.
+                            # Refill picks up the NEXT batch of already-qualified-but-unbatched
+                            # markets (entry_gate marks AI-analyzed as seen at line 534, but
+                            # leaves overflow qualified markets unseen for next pass).
+                            self.run_cycle()
+                            last_full_cycle_time = time.time()
+                            positions_after = len(self.portfolio.positions)
+                            new_entries = positions_after - positions_before
+                            if new_entries > 0:
+                                logger.info("Refill cycle %d added %d positions", _refill_round, new_entries)
+                                _consecutive_dry = 0
+                            else:
+                                _consecutive_dry += 1
+                                logger.info("Refill cycle %d -- no new entries (dry streak: %d)",
+                                            _refill_round, _consecutive_dry)
+                            # Two consecutive dry refills = eligible pool exhausted within
+                            # the scout's chronological window (2h→24h expanding). Stop
+                            # and wait for next outer cycle, when new matches will move
+                            # into the 2h imminent window as their kickoff approaches.
+                            if _consecutive_dry >= 2:
+                                logger.info("Eligible pool exhausted -- 2 dry refills. Done.")
+                                break
                     else:
                         self.run_light_cycle()
                     self.consecutive_api_failures = 0
