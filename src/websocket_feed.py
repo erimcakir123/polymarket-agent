@@ -28,8 +28,11 @@ Usage:
     feed.start_background()  # runs forever, reconnects on failure
     feed.stop()
 
-The callback receives: (token_id: str, yes_price: float, timestamp: float)
-where yes_price is the best-ask (the price we'd pay to BUY at that moment).
+The callback receives: (token_id: str, yes_price: float, bid_price: float, timestamp: float)
+where yes_price is the best-ask (the price we'd pay to BUY right now) and
+bid_price is the best-bid (the price we'd receive if closing right now).
+Dashboard uses bid for mark-to-market; exit logic uses ask (stored in
+Position.current_price).
 """
 from __future__ import annotations
 

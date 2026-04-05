@@ -1953,9 +1953,7 @@
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 // For BUY_NO: stored prices are YES-side, flip to NO perspective
                 const rawEntry = p.entry_price || 0;
-                const rawCurrent = p.current_price || 0;
                 const entryPrice = isYes ? rawEntry : (1 - rawEntry);
-                const currentPrice = isYes ? rawCurrent : (1 - rawCurrent);
                 const size = p.size_usdc || 0;
                 // Mark-to-market using the realizable close price (best-bid)
                 // so the card shows what the user would actually receive if
