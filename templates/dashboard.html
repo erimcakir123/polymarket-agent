@@ -2043,6 +2043,7 @@
                     <div class="feed-impact">
                         <div class="feed-impact-bar ${pnlNeutral ? '' : (pnlUsdc > 0 ? 'positive' : 'negative')}" style="width:${pnlNeutral ? 0 : Math.min(Math.abs(pnlUsdc) * 20, 120)}px"></div>
                         <span class="feed-impact-val" style="color:${pnlColor}">${pnlNeutral ? '$0.00' : `${pnlSign}$${pnlUsdc.toFixed(2)} (${pnlSign}${(pnlPct*100).toFixed(1)}%)`}</span>
+                        ${(p.scale_out_realized_usdc || 0) > 0.005 ? `<span style="margin-left:8px;padding:1px 6px;border-radius:4px;background:${COLORS.green}22;color:${COLORS.green};font-size:10px;font-weight:600" title="Scale-out locked profit (tier ${p.scale_out_tier || '?'})">&#128274; T${p.scale_out_tier || '?'} +$${p.scale_out_realized_usdc.toFixed(2)}</span>` : ''}
                     </div>
                     <div class="feed-time" style="display:flex;justify-content:space-between">
                         <span>${entryTime}</span>
