@@ -372,7 +372,9 @@ def check_match_exit(data: dict) -> dict:
     # 4. Never-in-Profit Guard -- can trigger exit, but SL takes precedence
 
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
-    if entry_reason in ("upset", "penny"):
+    if a_conf_hold:
+        pass  # A-conf strong-entry hold: only market-flip (<50¢) can exit, handled above
+    elif entry_reason in ("upset", "penny"):
         pass  # Skip — these are designed to stay out of profit until late
     elif not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
         score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
@@ -386,9 +388,11 @@ def check_match_exit(data: dict) -> dict:
         # Between 0.75 and 0.90: Layer 2 handles via graduated SL
 
     # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
-    is_hold_candidate = scouted or (
+    # A-conf strong-entry positions use the new market-flip rule (<50¢) instead
+    # of the old revoke-hold logic. Skip Layer 4 entirely for them.
+    is_hold_candidate = not a_conf_hold and (scouted or (
         ai_probability >= 0.65 and confidence in ("A", "B+")
-    )
+    ))
 
     if is_hold_candidate:
         # Check revocation

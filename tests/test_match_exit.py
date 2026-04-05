@@ -701,6 +701,83 @@ class TestAConfidenceHold:
         assert result["exit"] is True
         assert result["layer"] == "graduated_sl"
 
+    def test_a_conf_skips_never_in_profit_guard(self):
+        """A-conf strong entry should NOT exit via never_in_profit (Layer 3)
+        even at 75%+ elapsed with no profit, as long as price >= 50¢."""
+        from src.match_exit import check_match_exit
+        # NHL 150min, 75% elapsed = 112min, entry 0.72, current 0.52
+        # Without skip: 0.52 < 0.72 * 0.75 = 0.54 → never_in_profit fires
+        # With skip (a_conf_hold): should hold
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.72, current_price=0.52,
+            match_start_iso=self._match_started_ago(112),
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.78,
+            ever_in_profit=False, peak_pnl_pct=0.0,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+        assert result.get("layer", "") != "never_in_profit"
+
+    def test_a_conf_skips_hold_revoked(self):
+        """A-conf strong entry should NOT exit via hold_revoked (Layer 4)
+        even when hold_revoked conditions are met (price < entry*0.75 at 70%+)."""
+        from src.match_exit import check_match_exit
+        # Entry 0.72, current 0.53 (above 50¢ floor), 80% elapsed, not in profit.
+        # Layer 4 hold_revoked would fire at < entry*0.75 = 0.54 → 0.53 qualifies.
+        # But a_conf_hold skips is_hold_candidate entirely.
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.72, current_price=0.53,
+            match_start_iso=self._match_started_ago(120),  # 80% of 150min
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.78,
+            ever_in_profit=False, peak_pnl_pct=0.0,
+            consecutive_down_cycles=5, cumulative_drop=0.10,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+        assert result.get("layer", "") != "hold_revoked"
+
+    def test_a_conf_buy_no_direction(self):
+        """A-conf hold rule should work for BUY_NO positions (uses effective prices)."""
+        from src.match_exit import check_match_exit
+        # Bought NO at yes_price=0.30 → effective_entry = 0.70
+        # YES price rises to 0.40 → effective_current = 0.60 (still above 0.50) → HOLD
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.30, current_price=0.40,
+            direction="BUY_NO",
+            match_start_iso=self._match_started_ago(90),
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.75,
+            ever_in_profit=True, peak_pnl_pct=0.05,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+    def test_a_conf_buy_no_market_flip(self):
+        """A-conf BUY_NO: YES rises so effective YES-No side drops below 0.50 → exit."""
+        from src.match_exit import check_match_exit
+        # Bought NO at yes_price=0.30 → effective_entry = 0.70
+        # YES rises to 0.55 → effective_current = 0.45 (< 0.50) → a_conf_market_flip
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.30, current_price=0.55,
+            direction="BUY_NO",
+            match_start_iso=self._match_started_ago(90),
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.75,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "a_conf_market_flip"
+
 
 class TestUpsetExemptions:
     """Upset positions should be exempt from graduated SL and never-in-profit guard."""

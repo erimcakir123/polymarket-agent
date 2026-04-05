@@ -148,12 +148,33 @@ class ExitExecutor:
             if not demoted:
                 # Blacklist
                 bl_reason = reason
-                for prefix in ("match_exit_", "early_penny_", "SLOT_UPGRADE", "election_reeval"):
+                for prefix in ("match_exit_", "early_penny_"):
                     if bl_reason.startswith(prefix):
-                        bl_reason = prefix.rstrip("_")
+                        # Preserve the layer name after the prefix so BLACKLIST_RULES
+                        # can match it (e.g. "match_exit_catastrophic_floor" →
+                        # "catastrophic_floor" → permanent blacklist).
+                        bl_reason = bl_reason[len(prefix):]
                         break
-                btype, duration = get_blacklist_rule(bl_reason)
-                if btype and duration:
+                # Elapsed_pct for graduated_sl dynamic cooldown: compute from pos timing
+                _elapsed_for_bl = 0.0
+                _ms = getattr(pos, "match_start_iso", "") or ""
+                if _ms:
+                    try:
+                        from src.match_exit import get_game_duration
+                        _start_dt = datetime.fromisoformat(_ms.replace("Z", "+00:00"))
+                        _elapsed_min = (datetime.now(timezone.utc) - _start_dt).total_seconds() / 60
+                        _dur = get_game_duration(
+                            pos.slug or "", getattr(pos, "number_of_games", 0),
+                            getattr(pos, "sport_tag", "") or "",
+                        )
+                        if _dur > 0:
+                            _elapsed_for_bl = _elapsed_min / _dur
+                    except (ValueError, TypeError, ImportError):
+                        _elapsed_for_bl = 0.0
+                btype, duration = get_blacklist_rule(bl_reason, _elapsed_for_bl)
+                # "none" type means no blacklist; "permanent" has duration=None but
+                # must still be recorded (expires_at_cycle=None encodes permanent).
+                if btype and btype != "none":
                     self.ctx.blacklist.add(
                         condition_id,
                         exit_reason=reason,

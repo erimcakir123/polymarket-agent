@@ -161,6 +161,7 @@ BLACKLIST_RULES = {
     "catastrophic_floor": ("permanent", None),
     "hold_revoked": ("permanent", None),
     "score_terminal_loss": ("permanent", None),
+    "a_conf_market_flip": ("permanent", None),  # Market consensus flipped <50¢; AI was wrong
     "graduated_sl": ("timed", None),
     "never_in_profit": ("timed", 20),
     "stop_loss": ("timed", 25),
