@@ -98,3 +98,62 @@ def test_ws_feed_price_change_callback_bid():
     assert len(captured) == 1
     assert captured[0][1] == 0.42  # yes_price = best_ask
     assert captured[0][2] == 0.41  # bid_price
+
+
+def test_exit_monitor_stores_bid_on_position():
+    """Ticks arriving via _on_ws_price_update must populate pos.bid_price
+    when process_ws_ticks drains the queue."""
+    from unittest.mock import MagicMock
+    from src.exit_monitor import ExitMonitor
+    from src.websocket_feed import WebSocketFeed
+
+    pos = _make_pos(token_id="TOK-1", direction="BUY_YES")
+    portfolio = MagicMock()
+    portfolio.positions = {"0xabc": pos}
+
+    config = MagicMock()
+    config.risk.stop_loss_pct = 0.30
+    config.trailing_tp.enabled = False
+    config.trailing_tp.activation_pct = 0.20
+    config.trailing_tp.trail_distance = 0.15
+
+    ws = WebSocketFeed()
+    em = ExitMonitor(portfolio, ws, config)
+
+    # Simulate a WS tick: yes_price=0.60 (ask), bid=0.58
+    em._on_ws_price_update("TOK-1", 0.60, 0.58, 1_700_000_000.0)
+    em.process_ws_ticks()
+
+    assert pos.current_price == 0.60   # ask-side, exit logic sees this
+    assert pos.bid_price == 0.58       # bid-side, dashboard sees this
+
+
+def test_exit_monitor_bid_inverted_for_buy_no():
+    """For BUY_NO positions we store YES-side prices. A NO-token tick
+    arriving with (ask=0.70, bid=0.69) means the YES token's implied
+    ask=0.30, bid=0.31. Position must store YES-side values so dashboard
+    displays the NO-side correctly via effective_price()."""
+    from unittest.mock import MagicMock
+    from src.exit_monitor import ExitMonitor
+    from src.websocket_feed import WebSocketFeed
+
+    pos = _make_pos(token_id="TOK-NO", direction="BUY_NO",
+                    entry_price=0.30, current_price=0.30)
+    portfolio = MagicMock()
+    portfolio.positions = {"0xabc": pos}
+    config = MagicMock()
+    config.risk.stop_loss_pct = 0.30
+    config.trailing_tp.enabled = False
+    config.trailing_tp.activation_pct = 0.20
+    config.trailing_tp.trail_distance = 0.15
+
+    ws = WebSocketFeed()
+    em = ExitMonitor(portfolio, ws, config)
+
+    # NO token: ask=0.70, bid=0.69 (market in our favour)
+    em._on_ws_price_update("TOK-NO", 0.70, 0.69, 1_700_000_000.0)
+    em.process_ws_ticks()
+
+    # Stored YES-side: current_price=1-0.70=0.30, bid_price=1-0.69=0.31
+    assert round(pos.current_price, 4) == 0.30
+    assert round(pos.bid_price, 4) == 0.31

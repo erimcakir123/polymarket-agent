@@ -47,7 +47,8 @@ class ExitMonitor:
     ) -> None:
         self.portfolio = portfolio
         self.config = config
-        self._ws_tick_queue: queue.SimpleQueue[tuple[str, float, float]] = queue.SimpleQueue()
+        # (token_id, yes_price_ask, bid_price, timestamp)
+        self._ws_tick_queue: queue.SimpleQueue[tuple[str, float, float, float]] = queue.SimpleQueue()
         self._ws_exit_queue: deque[tuple[str, str]] = deque()
         self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
@@ -67,9 +68,14 @@ class ExitMonitor:
 
     # ── WebSocket ──────────────────────────────────────────────────────────
 
-    def _on_ws_price_update(self, token_id: str, price: float, ts: float) -> None:
-        """Called from WS thread -- only enqueues, never mutates shared state."""
-        self._ws_tick_queue.put_nowait((token_id, price, ts))
+    def _on_ws_price_update(self, token_id: str, price: float, bid_price: float, ts: float) -> None:
+        """Called from WS thread -- only enqueues, never mutates shared state.
+
+        `price` is the token-side best-ask (fill price); `bid_price` is the
+        token-side best-bid (realizable close value). Both are enqueued so
+        the main thread can store them on the Position atomically.
+        """
+        self._ws_tick_queue.put_nowait((token_id, price, bid_price, ts))
 
     def process_ws_ticks(self) -> None:
         """Process all pending WS price ticks.
@@ -82,7 +88,7 @@ class ExitMonitor:
             _ticks_processed = 0
             while not self._ws_tick_queue.empty():
                 try:
-                    token_id, price, ts = self._ws_tick_queue.get_nowait()
+                    token_id, price, bid_price, ts = self._ws_tick_queue.get_nowait()
                 except queue.Empty:
                     break
 
@@ -93,9 +99,20 @@ class ExitMonitor:
                 pos_found = None
                 for cid, pos in list(self.portfolio.positions.items()):
                     if pos.token_id == token_id:
-                        # WS sends token-side price; convert BUY_NO to YES-side
-                        # so all downstream code (PnL, SL, TP) sees consistent prices
-                        pos.current_price = (1.0 - price) if pos.direction == "BUY_NO" else price
+                        # WS sends token-side prices; convert BUY_NO to YES-side
+                        # so all downstream code (PnL, SL, TP) sees consistent prices.
+                        # current_price stays ASK-side (drives exit logic);
+                        # bid_price is stored so the dashboard can display the
+                        # realizable close value without spread-wide false losses.
+                        if pos.direction == "BUY_NO":
+                            pos.current_price = 1.0 - price
+                            # For BUY_NO the NO-token's bid maps to (1 - bid) on the
+                            # YES-side. Dashboard re-applies effective_price(),
+                            # so we store YES-side consistently with current_price.
+                            pos.bid_price = 1.0 - bid_price if bid_price > 0 else 0.0
+                        else:
+                            pos.current_price = price
+                            pos.bid_price = bid_price
                         cid_found = cid
                         pos_found = pos
                         _ticks_processed += 1
