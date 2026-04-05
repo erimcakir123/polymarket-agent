@@ -331,7 +331,22 @@ def check_match_exit(data: dict) -> dict:
                 "reason": f"Ultra-low eff:{effective_entry:.0f}¢ at {elapsed_pct:.0%} done, eff_price {effective_current:.0f}¢ < 5¢"}
 
     # --- Step 3: Graduated Stop Loss (Layer 2) ---
-    if entry_reason in ("upset", "penny"):
+    # A-confidence strong-entry hold-to-resolve:
+    #   entry ≥ 60¢ means AI is genuinely confident and market agreed.
+    #   Skip graduated SL entirely; only exit if market flips below 50¢
+    #   (consensus no longer favors). Catastrophic floor (Layer 1) still
+    #   protects against total collapse (price < entry × 50%).
+    a_conf_hold = (
+        confidence == "A"
+        and effective_entry >= 0.60
+        and entry_reason not in ("upset", "penny")
+    )
+    if a_conf_hold:
+        if effective_current < 0.50:
+            return {**result, "exit": True, "layer": "a_conf_market_flip",
+                    "reason": f"A-conf: eff_price {effective_current:.2f} < 0.50 -- market no longer favors"}
+        # else: skip graduated SL, hold through drawdown
+    elif entry_reason in ("upset", "penny"):
         pass  # Skip graduated SL — upsets/penny have forced exit at 75% elapsed
     else:
         max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)

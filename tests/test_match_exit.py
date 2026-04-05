@@ -621,6 +621,87 @@ class TestMomentumTighteningV2:
         assert result["momentum_multiplier"] == 0.75  # Only moderate -- need 5+ cycles for 0.60
 
 
+class TestAConfidenceHold:
+    """A-confidence strong-entry (≥60¢) hold-to-resolve with 50¢ market-flip exit."""
+
+    def _match_started_ago(self, minutes: int) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+    def test_a_conf_strong_entry_holds_through_drawdown(self):
+        """A-conf entry ≥60¢, price drops to 52¢: should HOLD (above 50¢ floor)."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.72, current_price=0.52,  # -28% PnL but above 50¢
+            match_start_iso=self._match_started_ago(90),  # NHL 60% elapsed
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.78,
+            ever_in_profit=True, peak_pnl_pct=0.05,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is False
+
+    def test_a_conf_strong_entry_exits_on_market_flip(self):
+        """A-conf entry ≥60¢, price drops below 50¢: exit via a_conf_market_flip."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.72, current_price=0.48,
+            match_start_iso=self._match_started_ago(90),
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+            ai_probability=0.78,
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "a_conf_market_flip"
+
+    def test_a_conf_weak_entry_uses_normal_sl(self):
+        """A-conf with entry <60¢: normal graduated SL applies (no override)."""
+        from src.match_exit import check_match_exit
+        # Entry 0.55, 85% elapsed NHL (~128min), current 0.44 = -20% PnL.
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.55, current_price=0.44,
+            match_start_iso=self._match_started_ago(128),
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "graduated_sl"
+
+    def test_a_conf_catastrophic_floor_still_applies(self):
+        """A-conf does NOT override catastrophic floor (price halved)."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            confidence="A",
+            entry_price=0.72, current_price=0.34,  # < 0.72 × 0.50 = 0.36
+            match_start_iso=self._match_started_ago(60),
+            slug="mlb-mia-nyy", number_of_games=0,
+            category="",
+        )
+        result = check_match_exit(data)
+        assert result["exit"] is True
+        assert result["layer"] == "catastrophic_floor"
+
+    def test_b_plus_conf_unaffected_by_a_conf_hold(self):
+        """B+ confidence uses normal graduated SL regardless of entry price."""
+        from src.match_exit import check_match_exit
+        data = _make_pos_data(
+            confidence="B+",
+            entry_price=0.72, current_price=0.52,
+            match_start_iso=self._match_started_ago(128),  # 85% elapsed NHL
+            slug="nhl-nyi-car", number_of_games=0,
+            category="",
+        )
+        result = check_match_exit(data)
+        # PnL = (0.52 - 0.72) / 0.72 = -27.8%, graduated SL tier at 85% fires
+        assert result["exit"] is True
+        assert result["layer"] == "graduated_sl"
+
+
 class TestUpsetExemptions:
     """Upset positions should be exempt from graduated SL and never-in-profit guard."""
 
