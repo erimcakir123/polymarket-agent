@@ -183,23 +183,33 @@ class ExitExecutor:
                         exit_data={"slug": pos.slug},
                     )
 
+        # Net PnL includes prior scale-out proceeds so dashboard/notifier show
+        # the true per-position result (e.g. scale-out +$2.56 then final -$0.64
+        # = net +$1.92, instead of just the final leg -$0.64).
+        scale_out_pnl = getattr(pos, "scale_out_realized_usdc", 0.0) or 0.0
+        total_pnl = realized_pnl + scale_out_pnl
+
         # Log exit
         self.ctx.trade_log.log({
             "market": pos.slug, "action": "EXIT",
             "reason": reason, "pnl": realized_pnl,
+            "scale_out_pnl": scale_out_pnl,
+            "total_pnl": total_pnl,
             "price": pos.entry_price, "exit_price": pos.current_price,
             "size": pos.size_usdc,
             "direction": pos.direction,
         })
         logger.info(
-            "EXIT: %s | reason=%s | pnl=$%.2f | entry=%.2f exit=%.2f",
-            pos.slug[:40], reason, realized_pnl, pos.entry_price, pos.current_price,
+            "EXIT: %s | reason=%s | pnl=$%.2f (scale_out=$%.2f, net=$%.2f) | entry=%.2f exit=%.2f",
+            pos.slug[:40], reason, realized_pnl, scale_out_pnl, total_pnl,
+            pos.entry_price, pos.current_price,
         )
-        _pnl_emoji = "🟢" if realized_pnl >= 0 else "🔴"
+        _pnl_emoji = "🟢" if total_pnl >= 0 else "🔴"
+        _scale_line = f" (scale-out +${scale_out_pnl:.2f})" if scale_out_pnl > 0 else ""
         self.ctx.notifier.send(
             f"{_pnl_emoji} *EXIT*: {pos.slug[:40]}\n\n"
             f"📋 Reason: {reason}\n"
-            f"💵 PnL: ${realized_pnl:+.2f}\n"
+            f"💵 Net PnL: ${total_pnl:+.2f}{_scale_line}\n"
             f"📊 Entry: {pos.entry_price:.2f} -> Exit: {pos.current_price:.2f}"
         )
 
@@ -271,6 +281,8 @@ class ExitExecutor:
 
             # Record proceeds and realized PnL
             self.ctx.portfolio.record_realized(partial["realized_pnl"])
+            # Accumulate on position for net-PnL display at final exit
+            pos.scale_out_realized_usdc += partial["realized_pnl"]
 
             # Close dust remainder
             if partial["status"] == "CLOSE_REMAINDER":

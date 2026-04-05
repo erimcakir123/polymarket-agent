@@ -1724,10 +1724,12 @@
 
         function updateWaterfall(trades) {
             const executed = trades.filter(t => t.action && t.action !== 'HOLD' && t.pnl !== undefined).slice(-15);
+            // Use total_pnl (scale-out + final exit) when available, else fall back to pnl.
+            const getTotalPnl = (t) => (t.total_pnl !== undefined ? t.total_pnl : (t.pnl || 0));
             waterfallChart.data.labels = executed.map((t, i) => '#' + (i + 1));
-            waterfallChart.data.datasets[0].data = executed.map(t => t.pnl || 0);
+            waterfallChart.data.datasets[0].data = executed.map(getTotalPnl);
             waterfallChart.data.datasets[0].backgroundColor = executed.map(t =>
-                (t.pnl || 0) >= 0 ? COLORS.green : COLORS.red
+                getTotalPnl(t) >= 0 ? COLORS.green : COLORS.red
             );
             waterfallChart.data.datasets[0].borderRadius = 3;
             waterfallChart.update();
@@ -1773,10 +1775,11 @@
         function updatePerformance(perfData, trades) {
             if (!Array.isArray(trades)) trades = [];
 
-            // Derive wins/losses from EXIT trades — use PnL to determine win/loss
+            // Derive wins/losses from EXIT trades — use net PnL (includes scale-out proceeds).
             const exits = trades.filter(t => (t.action === 'EXIT' || t.action === 'REMOVED') && t.pnl !== undefined);
-            const wins = exits.filter(t => t.pnl > 0).length;
-            const losses = exits.filter(t => t.pnl < 0).length;
+            const netPnl = (t) => (t.total_pnl !== undefined ? t.total_pnl : (t.pnl || 0));
+            const wins = exits.filter(t => netPnl(t) > 0).length;
+            const losses = exits.filter(t => netPnl(t) < 0).length;
             const total = wins + losses;
 
             document.getElementById('winRate').textContent = total > 0 ? (wins / total * 100).toFixed(0) + '%' : '--%';
@@ -1801,7 +1804,7 @@
                     // For BUY_NO, AI probability is for YES side — invert to get our side's probability
                     const rawProb = buy.ai_probability;
                     const prob = (buy.action === 'BUY_NO') ? (1 - rawProb) : rawProb;
-                    const outcome = t.pnl > 0 ? 1 : 0;
+                    const outcome = netPnl(t) > 0 ? 1 : 0;
                     return { prob, outcome };
                 });
             if (calibrationPairs.length >= 2) {
@@ -1817,7 +1820,7 @@
                     const cat = (t.market || '').match(/^(nba|nhl|cbb|nfl|mlb)/i);
                     const label = cat ? cat[1].toUpperCase() : 'Other';
                     catTotal[label] = (catTotal[label] || 0) + 1;
-                    if (t.pnl > 0) catWins[label] = (catWins[label] || 0) + 1;
+                    if (netPnl(t) > 0) catWins[label] = (catWins[label] || 0) + 1;
                 });
                 let bestCat = '--', bestRate = 0;
                 for (const [cat, tot] of Object.entries(catTotal)) {
@@ -2127,7 +2130,8 @@
                 const rawQ2 = (isPending ? t.question : buy.question) || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '--';
                 const title = escapeHtml(cleanMatchTitle(rawQ2));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
-                const pnl = t.pnl || 0;
+                // Prefer total_pnl (final exit + scale-out proceeds) if present; fall back to pnl.
+                const pnl = (t.total_pnl !== undefined) ? t.total_pnl : (t.pnl || 0);
                 const pnlColor = Math.abs(pnl) < 0.005 ? COLORS.dim : (pnl >= 0 ? COLORS.green : COLORS.red);
                 const pnlSign = Math.abs(pnl) < 0.005 ? '' : (pnl >= 0 ? '+' : '');
                 const pnlText = Math.abs(pnl) < 0.005 ? '$0.00' : `${pnlSign}$${pnl.toFixed(2)}`;

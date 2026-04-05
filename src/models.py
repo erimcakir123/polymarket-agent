@@ -102,6 +102,7 @@ class Position(BaseModel):
     original_size_usdc: float | None = None
     partial_exits: list[dict] = []
     scale_out_tier: int = 0
+    scale_out_realized_usdc: float = 0.0  # Cumulative realized PnL from scale-outs (for dashboard net display)
     # Lossy re-entry fields
     sl_reentry_count: int = 0  # How many times re-entered after stop-loss (max 1, 2nd SL = blacklist)
 

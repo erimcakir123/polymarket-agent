@@ -45,6 +45,17 @@ def match_markets(
     matched = []
     used_keys: set[str] = set()
 
+    # Diagnostics: track WHY markets fail to match, so we can improve the matcher.
+    # Buckets: no_scout_entries_for_sport, sport_incompatible_only, below_threshold,
+    #          no_candidates (sport compatible but nothing resembling match).
+    _diag: dict[str, int] = {
+        "matched": 0,
+        "below_threshold": 0,
+        "no_candidates": 0,
+        "no_teams_in_slug": 0,
+    }
+    _unmatched_samples: list[str] = []  # Up to 10 slugs with best_confidence < 0.60
+
     for market in markets:
         slug = (getattr(market, "slug", "") or "").lower()
         question = (getattr(market, "question", "") or "").lower()
@@ -166,12 +177,37 @@ def match_markets(
                 "scout_key": best_key,
             })
             used_keys.add(best_key)
+            _diag["matched"] += 1
             logger.debug("Matched [%.2f]: %s -> %s vs %s",
                          best_confidence, slug[:40],
                          best_match.get("team_a", ""),
                          best_match.get("team_b", ""))
+        else:
+            # Classify failure for diagnostics
+            if not slug_parts.team_tokens:
+                _diag["no_teams_in_slug"] += 1
+            elif best_confidence > 0.0:
+                _diag["below_threshold"] += 1
+                if len(_unmatched_samples) < 10 and best_match:
+                    _unmatched_samples.append(
+                        f"[{best_confidence:.2f}] {slug[:50]} -> closest: "
+                        f"{best_match.get('team_a', '')} vs {best_match.get('team_b', '')}"
+                    )
+            else:
+                _diag["no_candidates"] += 1
+                if len(_unmatched_samples) < 10:
+                    _unmatched_samples.append(f"[0.00] {slug[:50]} (no scout candidate)")
 
     if matched:
         logger.info("matching: %d/%d markets matched", len(matched), len(markets))
+    # Full diagnostics breakdown so we can see WHERE matches are lost.
+    _total_unmatched = len(markets) - _diag["matched"]
+    if _total_unmatched > 0:
+        logger.info(
+            "matcher diag: below_thresh=%d | no_candidates=%d | no_teams_in_slug=%d",
+            _diag["below_threshold"], _diag["no_candidates"], _diag["no_teams_in_slug"],
+        )
+        for sample in _unmatched_samples[:5]:
+            logger.info("  unmatched sample: %s", sample)
 
     return matched
