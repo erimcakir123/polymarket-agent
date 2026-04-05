@@ -201,11 +201,13 @@ class OddsAPIClient:
         return keys[0]
 
     def _build_odds_params(self, sport_key: str) -> dict:
-        """Build query params for GET /sports/{key}/odds based on sport type.
+        """Build query params for GET /sports/{key}/odds.
 
-        Soccer: markets=h2h_3_way (3-way with draw) — API rejects combined
-            h2h,h2h_3_way with 422 for soccer leagues, they are mutually exclusive.
-        Non-soccer: markets=h2h (2-way).
+        Uses `markets=h2h` for ALL sports. The Odds API's `h2h` endpoint returns:
+          - 2 outcomes (home/away) for non-soccer sports
+          - 3 outcomes (home/away/draw) for soccer leagues
+        The `h2h_3_way` market key does NOT exist — requesting it returns 422
+        with "Markets not supported by this endpoint: h2h_3_way" for every sport.
 
         commenceTimeFrom/To are rounded to the top of the hour so the cache key
         stays stable within each clock hour (otherwise cache would never hit).
@@ -214,11 +216,9 @@ class OddsAPIClient:
         time_from = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         time_to = (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        markets = "h2h_3_way" if is_soccer_key(sport_key) else "h2h"
-
         return {
             "regions": "us,uk,eu",
-            "markets": markets,
+            "markets": "h2h",
             "oddsFormat": "decimal",
             "commenceTimeFrom": time_from,
             "commenceTimeTo": time_to,
@@ -415,44 +415,17 @@ class OddsAPIClient:
     ) -> Optional[Tuple[float, float, Optional[float]]]:
         """Parse a bookmaker's markets list into (home_prob, away_prob, draw_prob).
 
-        For soccer: requires h2h_3_way (2-way h2h is skipped to avoid mixing
-        draw-absorbed probabilities into a weighted average with true 3-way quotes).
-        For non-soccer: uses h2h (2-way) and returns draw_prob=None.
+        The Odds API returns `h2h` for all sports:
+          - 2 outcomes (home/away) for non-soccer → returns draw_prob=None
+          - 3 outcomes (home/away/draw) for soccer → returns normalized draw_prob
         Normalizes by summing outcomes to remove the vig.
 
         Returns None if no usable market/outcomes found.
         """
-        if is_soccer:
-            # Soccer: h2h_3_way ONLY. Skip this bookmaker if it doesn't offer it.
-            # Rationale: a 2-way h2h quote has draw probability mass absorbed into
-            # home/away, so averaging it with a true 3-way quote produces a
-            # distribution where home+away+draw > 1.0.
-            for market in markets:
-                if market.get("key") != "h2h_3_way":
-                    continue
-                home_odds = away_odds = draw_odds = None
-                for outcome in market.get("outcomes", []):
-                    name = outcome.get("name", "")
-                    price = outcome.get("price", 0) or 0
-                    if name == home_team:
-                        home_odds = price
-                    elif name == away_team:
-                        away_odds = price
-                    elif name.lower() == "draw":
-                        draw_odds = price
-                if home_odds and away_odds and draw_odds and home_odds > 1 and away_odds > 1 and draw_odds > 1:
-                    home_raw = 1.0 / home_odds
-                    away_raw = 1.0 / away_odds
-                    draw_raw = 1.0 / draw_odds
-                    total = home_raw + away_raw + draw_raw
-                    return (home_raw / total, away_raw / total, draw_raw / total)
-            return None
-
-        # Non-soccer: 2-way h2h
         for market in markets:
             if market.get("key") != "h2h":
                 continue
-            home_odds = away_odds = None
+            home_odds = away_odds = draw_odds = None
             for outcome in market.get("outcomes", []):
                 name = outcome.get("name", "")
                 price = outcome.get("price", 0) or 0
@@ -460,11 +433,29 @@ class OddsAPIClient:
                     home_odds = price
                 elif name == away_team:
                     away_odds = price
-            if home_odds and away_odds and home_odds > 1 and away_odds > 1:
+                elif name.lower() == "draw":
+                    draw_odds = price
+
+            if not (home_odds and away_odds and home_odds > 1 and away_odds > 1):
+                continue
+
+            if is_soccer:
+                # Soccer h2h must include draw outcome; otherwise skip this
+                # bookmaker (a 2-outcome quote would have draw mass absorbed
+                # into home/away and bias the weighted average).
+                if not (draw_odds and draw_odds > 1):
+                    continue
                 home_raw = 1.0 / home_odds
                 away_raw = 1.0 / away_odds
-                total = home_raw + away_raw
-                return (home_raw / total, away_raw / total, None)
+                draw_raw = 1.0 / draw_odds
+                total = home_raw + away_raw + draw_raw
+                return (home_raw / total, away_raw / total, draw_raw / total)
+
+            # Non-soccer: 2-way normalization
+            home_raw = 1.0 / home_odds
+            away_raw = 1.0 / away_odds
+            total = home_raw + away_raw
+            return (home_raw / total, away_raw / total, None)
 
         return None
 

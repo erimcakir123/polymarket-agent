@@ -104,7 +104,7 @@ def test_get_bookmaker_odds_single_team(monkeypatch):
             "key": "draftkings",
             "title": "DraftKings",
             "markets": [{
-                "key": "h2h_3_way",
+                "key": "h2h",
                 "outcomes": [
                     {"name": "AFC Ajax", "price": 1.50},
                     {"name": "FC Twente", "price": 5.00},
@@ -126,21 +126,23 @@ def test_get_bookmaker_odds_single_team(monkeypatch):
 
 
 def test_build_odds_params_soccer():
-    """Soccer sport keys get 3 regions + h2h_3_way market only.
+    """All sports (including soccer) use markets=h2h.
 
-    The Odds API rejects combined `h2h,h2h_3_way` with 422 for soccer leagues —
-    the two markets are mutually exclusive, so soccer must request h2h_3_way alone.
+    The Odds API does NOT support `h2h_3_way` — it returns 422 "Markets not
+    supported by this endpoint". For soccer, `h2h` returns 3 outcomes
+    (home/away/draw); for non-soccer, 2 outcomes (home/away). The downstream
+    parser handles both cases.
     """
     client = _make_client()
     params = client._build_odds_params("soccer_epl")
     assert params["regions"] == "us,uk,eu"
-    assert params["markets"] == "h2h_3_way"
+    assert params["markets"] == "h2h"
     assert "commenceTimeFrom" in params
     assert "commenceTimeTo" in params
 
 
 def test_build_odds_params_non_soccer():
-    """Non-soccer sport keys get 3 regions + h2h only."""
+    """Non-soccer sport keys also use h2h."""
     client = _make_client()
     params = client._build_odds_params("baseball_mlb")
     assert params["regions"] == "us,uk,eu"
@@ -311,7 +313,7 @@ def test_get_bookmaker_odds_no_sharp_flag(monkeypatch):
 
 
 def test_get_bookmaker_odds_soccer_3_way(monkeypatch):
-    """Soccer with h2h_3_way should return draw probability and correct win prob."""
+    """Soccer h2h returns 3 outcomes (home/away/draw); parser produces draw prob."""
     from src.odds_api import OddsAPIClient
     client = OddsAPIClient(api_key="test")
     monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "soccer_epl")
@@ -321,7 +323,7 @@ def test_get_bookmaker_odds_soccer_3_way(monkeypatch):
         "away_team": "Arsenal",
         "bookmakers": [
             {"key": "pinnacle", "title": "Pinnacle", "markets": [{
-                "key": "h2h_3_way", "outcomes": [
+                "key": "h2h", "outcomes": [
                     {"name": "Manchester City", "price": 2.083},
                     {"name": "Arsenal", "price": 4.00},
                     {"name": "Draw", "price": 3.704},
@@ -370,9 +372,9 @@ def test_get_bookmaker_odds_non_soccer_no_draw(monkeypatch):
 
 
 def test_get_bookmaker_odds_soccer_skips_2way_bookmakers(monkeypatch):
-    """For soccer, bookmakers that only offer 2-way h2h must be skipped —
-    mixing their draw-absorbed probabilities with true 3-way quotes would
-    produce a distribution where home + away + draw > 1.0."""
+    """For soccer, bookmakers whose h2h market lacks a draw outcome must be
+    skipped — mixing their draw-absorbed probabilities with true 3-way quotes
+    would produce a distribution where home + away + draw > 1.0."""
     from src.odds_api import OddsAPIClient
     client = OddsAPIClient(api_key="test")
     monkeypatch.setattr(client, "_detect_sport_key", lambda q, s, t: "soccer_epl")
@@ -383,7 +385,7 @@ def test_get_bookmaker_odds_soccer_skips_2way_bookmakers(monkeypatch):
         "bookmakers": [
             # Sharp: offers real 3-way — should contribute
             {"key": "pinnacle", "title": "Pinnacle", "markets": [{
-                "key": "h2h_3_way", "outcomes": [
+                "key": "h2h", "outcomes": [
                     {"name": "Manchester City", "price": 2.083},
                     {"name": "Arsenal", "price": 4.00},
                     {"name": "Draw", "price": 3.704},
