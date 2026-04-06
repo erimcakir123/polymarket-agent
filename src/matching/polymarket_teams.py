@@ -33,15 +33,28 @@ class PolymarketTeamsCache:
     """Abbreviation → team name resolver backed by Polymarket /teams API."""
 
     def __init__(self) -> None:
+        # League-scoped: (league, abbreviation) → name
+        # Prevents cross-league collisions like "atl" = Hawks (nba) vs Atletico (soccer)
+        self._league_abbr_to_name: dict[tuple[str, str], str] = {}
+        # Flat fallback: abbreviation → name (last-write-wins, used when league unknown)
         self._abbr_to_name: dict[str, str] = {}
         self._last_refresh: float = 0.0
         self._load_disk_cache()
 
-    def resolve(self, abbreviation: str) -> Optional[str]:
-        """Return team name for a slug abbreviation, or None if unknown."""
+    def resolve(self, abbreviation: str, league: str = "") -> Optional[str]:
+        """Return team name for a slug abbreviation, scoped by league.
+
+        If league is provided, looks up (league, abbr) first (zero collisions).
+        Falls back to flat abbr lookup if league is empty or not found.
+        """
         if not abbreviation:
             return None
-        return self._abbr_to_name.get(abbreviation.lower())
+        abbr = abbreviation.lower()
+        if league:
+            name = self._league_abbr_to_name.get((league.lower(), abbr))
+            if name:
+                return name
+        return self._abbr_to_name.get(abbr)
 
     def refresh_if_stale(self) -> None:
         """Fetch fresh teams from API if cache is older than REFRESH_INTERVAL."""
@@ -54,8 +67,11 @@ class PolymarketTeamsCache:
         for team in teams:
             abbr = (team.get("abbreviation") or "").lower().strip()
             name = team.get("name") or team.get("alias") or ""
+            league = (team.get("league") or "").lower().strip()
             if abbr and name:
                 self._abbr_to_name[abbr] = name
+                if league:
+                    self._league_abbr_to_name[(league, abbr)] = name
 
     def _fetch_all_teams(self) -> None:
         """Paginate through /teams endpoint and ingest all teams."""

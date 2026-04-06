@@ -75,14 +75,16 @@ def match_markets(
         slug_tokens = extract_slug_tokens(slug)
 
         # ── Layer 0: Polymarket /teams abbreviation lookup (deterministic) ──
-        # Resolve slug tokens via Polymarket's own /teams endpoint. If both
-        # tokens resolve to team names that appear in a scout entry's team_a
-        # or team_b, it's a guaranteed match (confidence=1.0). No fuzzy logic.
+        # Resolve slug tokens via Polymarket's own /teams endpoint scoped by
+        # league to prevent cross-league collisions (e.g. "atl" = Hawks in NBA
+        # vs Atletico in soccer). Uses sport from slug parser or market.sport_tag.
         teams = _get_teams_cache()
         layer0_matched = False
+        # Determine league for scoped resolution: slug parser sport or market sport_tag
+        _league = slug_parts.sport or (getattr(market, "sport_tag", "") or "").split("-")[0]
         if len(slug_parts.team_tokens) >= 2:
-            t0_name = teams.resolve(slug_parts.team_tokens[0])
-            t1_name = teams.resolve(slug_parts.team_tokens[1])
+            t0_name = teams.resolve(slug_parts.team_tokens[0], _league)
+            t1_name = teams.resolve(slug_parts.team_tokens[1], _league)
             if t0_name and t1_name:
                 t0_low = normalize(t0_name)
                 t1_low = normalize(t1_name)
