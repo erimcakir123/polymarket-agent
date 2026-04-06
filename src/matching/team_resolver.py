@@ -23,9 +23,18 @@ logger = logging.getLogger(__name__)
 _STRIP_SUFFIXES = (" fc", " sc", " esports", " gaming", " clan", " team")
 
 
+def _strip_accents(text: str) -> str:
+    """Remove diacritics/accents: ş→s, ı→i, ö→o, ü→u, ç→c, ğ→g, é→e, etc."""
+    import unicodedata
+    # Special-case Turkish dotless ı (U+0131) which NFKD doesn't decompose
+    text = text.replace("\u0131", "i")
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
 def normalize(name: str) -> str:
-    """Lowercase, strip whitespace and common suffixes."""
-    name = name.lower().strip()
+    """Lowercase, strip accents, strip whitespace and common suffixes."""
+    name = _strip_accents(name).lower().strip()
     for suffix in _STRIP_SUFFIXES:
         if name.endswith(suffix):
             name = name[:-len(suffix)].strip()

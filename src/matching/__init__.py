@@ -84,13 +84,13 @@ def match_markets(
             t0_name = teams.resolve(slug_parts.team_tokens[0])
             t1_name = teams.resolve(slug_parts.team_tokens[1])
             if t0_name and t1_name:
-                t0_low = t0_name.lower()
-                t1_low = t1_name.lower()
+                t0_low = normalize(t0_name)
+                t1_low = normalize(t1_name)
                 for key, entry in scout_queue.items():
                     if entry.get("entered") or key in used_keys:
                         continue
-                    ea = (entry.get("team_a") or "").lower()
-                    eb = (entry.get("team_b") or "").lower()
+                    ea = normalize(entry.get("team_a") or "")
+                    eb = normalize(entry.get("team_b") or "")
                     if not ea or not eb:
                         continue
                     # Bidirectional containment: "/teams" may return longer
