@@ -47,6 +47,8 @@ CRITICAL_FILES = [
 # Files/directories to DELETE after archive (runtime state).
 DELETE_FILES = CRITICAL_FILES + [
     "agent.pid",
+    "pause_signal",
+    "no_new_entries",
     "ai_budget.backup.json",
     "api_usage.json",
     "odds_cache.json",
