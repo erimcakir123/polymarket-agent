@@ -286,7 +286,7 @@ class MarketScanner:
         slug_lower = market.slug.lower()
         _ALT_SLUG = (
             "-total-", "-spread-", "-handicap-", "-over-", "-under-",
-            "-1h-", "-first-half-", "-draw", "-btts",
+            "-1h-", "-first-half-", "-first-set-", "-draw", "-btts",
             # Season-long props (not match results)
             "-award", "-trophy", "ballon-dor", "cy-young", "hart-memorial",
             "-mvp", "-rookie-of", "-coach-of", "-manager-of",
