@@ -93,7 +93,14 @@ def match_markets(
                     eb = (entry.get("team_b") or "").lower()
                     if not ea or not eb:
                         continue
-                    if (t0_low in ea or t0_low in eb) and (t1_low in ea or t1_low in eb):
+                    # Bidirectional containment: "/teams" may return longer
+                    # names ("Udinese Calcio") while scout has shorter ("Udinese"),
+                    # or vice versa. Check both directions for each team.
+                    t0_hit = (t0_low in ea or ea in t0_low or
+                              t0_low in eb or eb in t0_low)
+                    t1_hit = (t1_low in ea or ea in t1_low or
+                              t1_low in eb or eb in t1_low)
+                    if t0_hit and t1_hit:
                         entry_copy = dict(entry)
                         entry_copy["matched"] = True
                         entry_copy["match_confidence"] = 1.0
