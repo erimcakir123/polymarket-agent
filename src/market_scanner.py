@@ -53,7 +53,7 @@ class MarketScanner:
         """
         import time
         global _league_tags_cache, _league_tags_ts
-        if _league_tags_cache and (time.time() - _league_tags_ts) < 86400:
+        if _league_tags_cache and (time.time() - _league_tags_ts) < 21600:  # 6h
             return _league_tags_cache
 
         try:
@@ -170,8 +170,50 @@ class MarketScanner:
                     logger.error("Gamma /events error (tag_id=%s, %s): %s", tag_id, category, e)
                     break
 
-        logger.info("League-tag scan: %d tags, %d queries -> %d events -> %d unique markets",
-                     len(league_tags), total_queries, total_events, len(all_raw))
+        # Supplementary parent-tag scan: catches newly-added leagues not yet in /sports
+        # Parent tags 1 (sports) and 64 (esports) cover ALL sports/esports events
+        # including ones that may not have league-specific tags yet.
+        parent_new = 0
+        for category, tag_id in PARENT_TAGS:
+            offset = 0
+            while True:
+                params = {
+                    "tag_id": tag_id,
+                    "active": "true",
+                    "closed": "false",
+                    "limit": EVENTS_PER_PAGE,
+                    "offset": offset,
+                    "end_date_min": date_min,
+                }
+                try:
+                    resp = requests.get(f"{GAMMA_BASE}/events", params=params, timeout=20)
+                    resp.raise_for_status()
+                    events = resp.json()
+                    total_queries += 1
+                    if not events:
+                        break
+                    for event in events:
+                        sport_tag = self._detect_sport_tag(event, category)
+                        for raw_market in event.get("markets", []):
+                            cid = raw_market.get("conditionId", "")
+                            if cid and cid not in seen_ids:
+                                seen_ids.add(cid)
+                                raw_market["_event_live"] = bool(event.get("live", False))
+                                raw_market["_event_ended"] = bool(event.get("ended", False))
+                                raw_market["_sport_tag"] = sport_tag
+                                raw_market["_event_start_time"] = event.get("startTime", "")
+                                all_raw.append(raw_market)
+                                parent_new += 1
+                    if len(events) < EVENTS_PER_PAGE:
+                        break
+                    offset += EVENTS_PER_PAGE
+                except requests.RequestException:
+                    break
+        if parent_new:
+            logger.info("Parent-tag fallback found %d NEW markets not in league tags", parent_new)
+
+        logger.info("Total scan: %d tags + 2 parent, %d queries -> %d unique markets",
+                     len(league_tags), total_queries, len(all_raw))
         return all_raw
 
     @staticmethod
@@ -333,7 +375,14 @@ class MarketScanner:
         if self.config.tags and market.tags:
             if not any(t in self.config.tags for t in market.tags):
                 return False
-        # Block alt bets: total/spread/props -- moneyline (vs) only
+        # Block alt bets via Gamma's sportsMarketType (authoritative, no heuristics)
+        # When present: only allow "moneyline" (match winner / H2H)
+        # When absent: fall back to slug/question keyword heuristics below
+        if market.sports_market_type and market.sports_market_type.lower() != "moneyline":
+            logger.debug("Blocked non-moneyline (type=%s): %s",
+                         market.sports_market_type, market.slug[:60])
+            return False
+        # Block alt bets: keyword heuristics (backup for markets without sportsMarketType)
         q_lower = market.question.lower()
         slug_lower = market.slug.lower()
         _ALT_SLUG = (
@@ -345,7 +394,13 @@ class MarketScanner:
             "-traded", "-be-traded", "-signed", "-be-signed", "-fired", "-be-fired",
             "-draft", "first-pick", "-relegated", "-relegation", "-promoted",
         )
-        _ALT_Q = ("o/u", "over/under", "point spread", "handicap:", "set handicap", "1h moneyline", "first half", "end in a draw", "both teams to score")
+        _ALT_Q = (
+            "o/u", "over/under", "point spread", "handicap:", "set handicap",
+            "1h moneyline", "first half", "end in a draw", "both teams to score",
+            "1st quarter", "2nd quarter", "3rd quarter", "4th quarter",
+            "1st inning", "1st period", "2nd period", "3rd period",
+            "exact score", "correct score", "most kills", "most assists",
+        )
         if any(t in slug_lower for t in _ALT_SLUG) or any(t in q_lower for t in _ALT_Q):
             logger.debug("Blocked alt bet (total/spread): %s", market.slug[:60])
             return False
@@ -356,6 +411,8 @@ class MarketScanner:
             "- map ", "- game ", "map winner", "game winner",
             "first blood", "first kill", "first tower", "first baron",
             "first dragon", "pistol round", "round handicap",
+            "round 1 winner", "round 2 winner", "round 3 winner",
+            "mvp of the match", "player of the match",
         ]
         is_sub = any(p in q_lower for p in _SUB_PATTERNS)
         is_sub = is_sub or any(s in slug_lower for s in ["-game", "-map-"])

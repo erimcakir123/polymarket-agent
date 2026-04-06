@@ -26,6 +26,7 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "epl": "soccer_epl",
     "efa": "soccer_fa_cup",
     "efl": "soccer_efl_champ",
+    "elc": "soccer_england_efl_cup",
     # Soccer — Spain
     "lal": "soccer_spain_la_liga",
     "cde": "soccer_spain_copa_del_rey",
@@ -60,14 +61,36 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "bra": "soccer_brazil_campeonato",
     "bra2": "soccer_brazil_serie_b",
     "mex": "soccer_mexico_ligamx",
-    "col": "soccer_chile_campeonato",
-    "col1": "soccer_chile_campeonato",
+    "col": "soccer_colombia_primera_a",
+    "col1": "soccer_colombia_primera_a",
     "chi": "soccer_chile_campeonato",
     "chi1": "soccer_chile_campeonato",
+    "per1": "soccer_peru_primera_division",
+    "bol1": "soccer_bolivia_primera_division",
+    "ecu": "soccer_ecuador_primera_a",
+    "uru": "soccer_uruguay_primera_division",
+    "par": "soccer_paraguay_primera_division",
+    "ven": "soccer_venezuela_primera_division",
     # Soccer — Asia/Middle East
     "spl": "soccer_saudi_arabia_pro_league",
     "kor": "soccer_korea_kleague1",
     "jpn": "soccer_japan_j_league",
+    "ind": "soccer_india_super_league",
+    "chn": "soccer_china_superleague",
+    "tha": "soccer_thailand_thai_league",
+    "idn": "soccer_indonesia_liga1",
+    # Soccer — Africa
+    "egy1": "soccer_egypt_premier_league",
+    "mar1": "soccer_morocco_botola_pro",
+    # Soccer — Other Europe
+    "cze1": "soccer_czech_republic_first_league",
+    "rou1": "soccer_romania_liga_1",
+    "ukr1": "soccer_ukraine_premier_league",
+    "hr1": "soccer_croatia_hnl",
+    "svk1": "soccer_slovakia_super_liga",
+    "sui": "soccer_switzerland_superleague",
+    "pol": "soccer_poland_ekstraklasa",
+    "cyp": "soccer_cyprus_first_division",
     # Soccer — Cups/International
     "ucl": "soccer_uefa_champs_league",
     "uel": "soccer_uefa_europa_league",
@@ -80,6 +103,24 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "gold": "soccer_concacaf_gold_cup",
     # Soccer — Australia
     "aus": "soccer_australia_aleague",
+    # Basketball — non-NBA
+    "wnba": "basketball_wnba",
+    "cbb": "basketball_ncaab",
+    "ncaab": "basketball_ncaab",
+    # Hockey — non-NHL
+    "ahl": "icehockey_ahl",
+    # American Football — non-NFL
+    "ncaaf": "americanfootball_ncaaf",
+    # Boxing
+    "box": "boxing_boxing",
+    # Cricket
+    "ipl": "cricket_ipl",
+    "cric": "cricket_test_match",
+    # AFL
+    "afl": "aussierules_afl",
+    # Rugby
+    "ruchamp": "rugbyunion_six_nations",
+    "ruprem": "rugbyunion_premiership",
 }
 
 # ── Polymarket Gamma series tag -> Odds API sport key ────────────────────
@@ -107,7 +148,7 @@ _TAG_TO_ODDS: dict[str, str] = {
     "j1-league": "soccer_japan_j_league",
     "a-league": "soccer_australia_aleague",
     "liga-mx": "soccer_mexico_ligamx",
-    "liga-betplay": "soccer_chile_campeonato",
+    "liga-betplay": "soccer_colombia_primera_a",
     "brasileirao": "soccer_brazil_campeonato",
     "brazil-serie-b": "soccer_brazil_serie_b",
     "mls": "soccer_usa_mls",
@@ -123,11 +164,36 @@ _TAG_TO_ODDS: dict[str, str] = {
     "copa-del-rey": "soccer_spain_copa_del_rey",
     "coppa-italia": "soccer_italy_coppa_italia",
     "coupe-de-france": "soccer_france_coupe_de_france",
+    # Soccer — additional tags
+    "swiss-super-league": "soccer_switzerland_superleague",
+    "polish-ekstraklasa": "soccer_poland_ekstraklasa",
+    "czech-first-league": "soccer_czech_republic_first_league",
+    "romanian-liga-i": "soccer_romania_liga_1",
+    "ukrainian-premier-league": "soccer_ukraine_premier_league",
+    "croatian-football-league": "soccer_croatia_hnl",
+    "primera-divisin-argentina": "soccer_argentina_primera_division",
+    "colombian-primera-a": "soccer_colombia_primera_a",
+    "peruvian-liga-1": "soccer_peru_primera_division",
+    "uruguayan-primera-division": "soccer_uruguay_primera_division",
+    "ecuadorian-ligapro": "soccer_ecuador_primera_a",
+    "venezuelan-primera": "soccer_venezuela_primera_division",
+    "paraguayan-primera": "soccer_paraguay_primera_division",
+    "indian-super-league": "soccer_india_super_league",
+    "chinese-super-league": "soccer_china_superleague",
+    "thai-league": "soccer_thailand_thai_league",
+    "egyptian-premier-league": "soccer_egypt_premier_league",
+    "concacaf-champions-cup": "soccer_concacaf_gold_cup",
+    "uefa-nations-league": "soccer_uefa_european_championship",
     # Non-soccer (tag fallbacks)
     "mlb": "baseball_mlb",
     "nba": "basketball_nba",
     "nhl": "icehockey_nhl",
     "nfl": "americanfootball_nfl",
+    "wnba": "basketball_wnba",
+    "ncaab": "basketball_ncaab",
+    "ncaaf": "americanfootball_ncaaf",
+    "afl": "aussierules_afl",
+    "ipl": "cricket_ipl",
 }
 
 

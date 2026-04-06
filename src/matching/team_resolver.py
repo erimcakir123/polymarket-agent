@@ -297,7 +297,7 @@ class TeamResolver:
         api_key = os.getenv("PANDASCORE_API_KEY", "")
         if not api_key:
             return
-        for game in ["csgo", "lol", "dota2", "valorant"]:
+        for game in ["csgo", "lol", "dota2", "valorant", "ow", "rl", "r6siege", "mlbb", "codmw"]:
             try:
                 resp = requests.get(
                     f"https://api.pandascore.co/{game}/teams",

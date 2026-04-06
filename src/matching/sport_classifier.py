@@ -16,9 +16,11 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "bkfibaqaf": "basketball", "bkfibaqam": "basketball",
     "bkfibaqas": "basketball", "bkfibaqeu": "basketball",
     # American Football
-    "nfl": "football", "cfb": "football",
+    "nfl": "football", "cfb": "football", "ncaaf": "football",
+    "cfl": "football", "ufl": "football", "xfl": "football",
     # Baseball
     "mlb": "baseball", "kbo": "baseball", "wbc": "baseball",
+    "npb": "baseball", "cbase": "baseball",
     # Hockey
     "nhl": "hockey", "ahl": "hockey", "khl": "hockey",
     "shl": "hockey", "cehl": "hockey", "dehl": "hockey", "snhl": "hockey",
@@ -42,6 +44,13 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     # Additional Polymarket soccer slug prefixes
     "nwsl": "soccer", "bl2": "soccer", "es2": "soccer", "fr2": "soccer",
     "scop": "soccer", "svk1": "soccer", "hr1": "soccer", "isp": "soccer",
+    "ecu": "soccer", "uru": "soccer", "par": "soccer", "ven": "soccer",
+    "sui": "soccer", "pol": "soccer", "cyp": "soccer", "irl1": "soccer",
+    "nga": "soccer", "gha": "soccer", "tha": "soccer", "mys": "soccer",
+    "idn": "soccer", "sgp": "soccer", "elc": "soccer",
+    "unl": "soccer", "cnl": "soccer", "afcl": "soccer", "ccup": "soccer",
+    "cafcl": "soccer", "ser": "soccer", "sco": "soccer", "bel": "soccer",
+    "aut": "soccer", "gre": "soccer", "swe": "soccer",
     # MMA
     "ufc": "mma", "zuffa": "mma",
     # Tennis
@@ -76,8 +85,16 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "wildrift": "esports", "sc2": "esports", "sc": "esports", "fifa": "esports",
     # Lacrosse
     "pll": "lacrosse", "wll": "lacrosse", "nll": "lacrosse",
+    # Australian Football
+    "afl": "australian_football",
+    # Boxing
+    "box": "boxing",
+    # Racing
+    "f1": "racing", "irl": "racing", "nascar": "racing",
     # Chess
     "chess": "chess",
+    # Water Polo
+    "wpolo": "water_polo",
 }
 
 # Question keyword fallbacks (checked only if slug/tag don't match)

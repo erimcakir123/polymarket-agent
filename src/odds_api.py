@@ -583,7 +583,13 @@ class OddsAPIClient:
             "ATP:", "WTA:", "Counter-Strike:", "CS2:", "CS:GO:",
             "Valorant:", "VALORANT:", "Dota 2:", "LoL:", "League of Legends:",
             "MLB:", "NBA:", "NHL:", "NFL:", "MMA:", "UFC:", "Boxing:",
-            "Cricket:", "Rugby:", "Will",
+            "Cricket:", "Rugby:", "Formula 1:", "F1:", "Golf:", "PGA:", "LPGA:",
+            "KBO:", "NPB:", "CFL:", "AFL:", "NRL:",
+            "Serie A:", "La Liga:", "EPL:", "Bundesliga:", "Ligue 1:",
+            "Premier League:", "Champions League:", "Europa League:",
+            "Overwatch:", "PUBG:", "Mobile Legends:", "Rainbow Six:",
+            "Rocket League:", "StarCraft:", "Honor of Kings:",
+            "Will",
         ]
         for pfx in _PREFIXES:
             if q.startswith(pfx):
@@ -607,6 +613,24 @@ class OddsAPIClient:
                 if a.lower().startswith("will "):
                     a = a[5:].strip()
                 return a, b
+
+        # Two-team: "Who will win: X or Y?" / "Winner of X or Y"
+        or_match = re.search(
+            r'(?:who\s+will\s+win[:\s]+|winner\s+of\s+)(.+?)\s+or\s+(.+?)[\s?]*$',
+            q, re.IGNORECASE,
+        )
+        if or_match:
+            a = or_match.group(1).strip().rstrip(",")
+            b = or_match.group(2).strip().rstrip("?")
+            return a, b
+
+        # Two-team: "X to beat Y"
+        to_beat_match = re.search(
+            r'(?:will\s+)?(?:the\s+)?(.+?)\s+to\s+(?:beat|defeat)\s+(?:the\s+)?(.+?)[\s?]*$',
+            q, re.IGNORECASE,
+        )
+        if to_beat_match:
+            return to_beat_match.group(1).strip(), to_beat_match.group(2).rstrip("?").strip()
 
         # Single-team: "Will X beat/defeat Y"
         beat_match = re.search(
