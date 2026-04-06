@@ -108,7 +108,7 @@ class Agent:
         self.risk = risk
 
         # Loggers & notifications
-        self.trade_log = TradeLogger(config.logging.trades_file)
+        self.trade_log = TradeLogger(config.logging.trades_file, archive_path="logs/trade_archive.jsonl")
         self.portfolio_log = TradeLogger(config.logging.portfolio_file)
         self.perf_log = TradeLogger(config.logging.performance_file)
         self.notifier = TelegramNotifier(

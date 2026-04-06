@@ -10,10 +10,10 @@
 → Direkt implement → test → next task
 
 **Medium** (50-200 lines, 2-3 dosya, yeni feature):
-→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → 2 paralel audit agent çalıştır → 0 hata olana kadar düzelt → next task
+→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → 1 audit agent (sadece değişen dosyalar + bağımlılıkları) → 0 hata olana kadar düzelt → next task
 
 **Large** (yeni modül, mimari değişiklik, strateji kararı):
-→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → 2 paralel audit agent → 0 hata → next task
+→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → 1 audit agent (değişen dosyalar + bağımlılıkları) → 0 hata → dry_run smoke test → next task
 
 ### 2. Anti-Spaghetti Rules (HER ZAMAN GEÇERLİ)
 
@@ -49,13 +49,20 @@
 
 - Yeni kodu entegre etmeden ÖNCE: çevresindeki kodu oku, uyum sağla
 - Entegre ettikten SONRA: audit agent çalıştır
-  - **SADECE 1 AGENT tur başına** (paralel 2 agent çok kasıyor, yasak)
-  - Agent scope: import/syntax validation + logic review + edge case + cross-module etkileşim — hepsini tek agent yapsın
-  - **1 adet 0-bug tur yeterli**: 0 bug dönünce task tamam, 2. tura gerek yok (bilgisayar kasıyor)
-  - Bug bulunursa → fix → yeni audit turu
-- **Death spiral'a GİRME**: Cosmetic linter uyarıları, IDE type-inference sorunları, non-breaking formatlar → ATLA
-- Sadece runtime error ve logic bug düzelt
+  - **SADECE 1 AGENT** — paralel agent yasak, bilgisayar kasıyor
+  - **Audit scope: SADECE değişen dosyalar + onları import eden dosyalar** — tüm projeyi tarama
+  - Agent'a hangi dosyaların değiştiğini ve bağımlılıklarını açıkça söyle
+  - **1 temiz tur = tamam** — 0 bug dönünce task biter, 2. tura gerek yok
+  - Bug bulunursa → fix → 1 tur daha (max 3 tur, sonra kullanıcıya sor)
+- **Death spiral'a GİRME**:
+  - Cosmetic linter uyarıları, IDE type-inference sorunları, non-breaking formatlar → ATLA
+  - Sadece **runtime error** ve **logic bug** düzelt
+  - Audit agent cosmetic issue raporlarsa → yoksay, sayaç sıfırlama
 - Temiz audit dönünce → task'i tamamla, bir sonrakine geç
+- **Güvenlik zinciri özeti:**
+  1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
+  2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + bağımlılıkları)
+  3. Large changes → dry_run smoke test (bot'u çalıştırıp hata kontrolü)
 
 ### 4. Multi-AI Consultation (Large changes only)
 

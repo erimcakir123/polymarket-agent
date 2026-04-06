@@ -10,16 +10,27 @@ logger = logging.getLogger(__name__)
 
 
 class TradeLogger:
-    def __init__(self, file_path: str) -> None:
+    def __init__(self, file_path: str, archive_path: str | None = None) -> None:
         self.path = Path(file_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._archive: Path | None = None
+        if archive_path:
+            self._archive = Path(archive_path)
+            self._archive.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, data: dict[str, Any]) -> None:
         data = {**data}  # Don't mutate caller's dict
         if "timestamp" not in data:
             data["timestamp"] = datetime.now(timezone.utc).isoformat()
+        line = json.dumps(data, default=str) + "\n"
         with open(self.path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(data, default=str) + "\n")
+            f.write(line)
+        if self._archive:
+            try:
+                with open(self._archive, "a", encoding="utf-8") as f:
+                    f.write(line)
+            except OSError:
+                pass
 
     def read_recent(self, n: int = 50) -> list[dict[str, Any]]:
         if not self.path.exists():
