@@ -14,13 +14,17 @@ logger = logging.getLogger(__name__)
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
 
-# Parent tags that cover ALL sports and esports on Polymarket
+# Fallback parent tags (used when /sports endpoint is unreachable)
 PARENT_TAGS: list[tuple[str, int]] = [
     ("sports", 1),      # All traditional sports
     ("esports", 64),    # All esports
 ]
 
 EVENTS_PER_PAGE = 200  # Gamma API max per request
+
+# Cache for league-specific tag_ids discovered from /sports endpoint
+_league_tags_cache: list[tuple[str, int]] = []
+_league_tags_ts: float = 0.0
 
 # Esport identifiers -- includes both short names and seriesSlug values from Gamma
 ESPORT_TAGS: set[str] = {
@@ -38,6 +42,49 @@ ESPORT_TAGS: set[str] = {
 class MarketScanner:
     def __init__(self, config: ScannerConfig) -> None:
         self.config = config
+
+    def _fetch_league_tags(self) -> list[tuple[str, int]]:
+        """Discover all league-specific tag_ids from Polymarket /sports endpoint.
+
+        Daily H2H match markets live under league-specific tags (e.g. Turkish
+        Super Lig = tag_id 102564), NOT under parent tags 1/64 which only cover
+        season-long/futures markets. This method fetches the full list, caches
+        it for 24h, and falls back to PARENT_TAGS on failure.
+        """
+        import time
+        global _league_tags_cache, _league_tags_ts
+        if _league_tags_cache and (time.time() - _league_tags_ts) < 86400:
+            return _league_tags_cache
+
+        try:
+            resp = requests.get(f"{GAMMA_BASE}/sports", timeout=15)
+            resp.raise_for_status()
+            sports = resp.json()
+        except Exception as exc:
+            logger.warning("/sports endpoint failed: %s — falling back to parent tags", exc)
+            return PARENT_TAGS
+
+        seen_tags: set[int] = set()
+        result: list[tuple[str, int]] = []
+        for entry in sports:
+            sport_code = entry.get("sport", "")
+            for t in entry.get("tags", "").split(","):
+                t = t.strip()
+                if t.isdigit():
+                    tid = int(t)
+                    if tid not in seen_tags:
+                        seen_tags.add(tid)
+                        result.append((sport_code, tid))
+
+        if result:
+            _league_tags_cache = result
+            _league_tags_ts = time.time()
+            logger.info("Discovered %d league tags from /sports (%d entries)",
+                        len(result), len(sports))
+        else:
+            logger.warning("No tags from /sports — falling back to parent tags")
+            return PARENT_TAGS
+        return result
 
     def fetch(self) -> List[MarketData]:
         use_tag_ids = False
@@ -64,8 +111,12 @@ class MarketScanner:
         return result
 
     def _fetch_by_tag_ids(self) -> list[dict]:
-        """Fetch ALL sports & esports markets using 2 parent tags + pagination.
-        Only filters by end_date_min (now) -- max_duration_days handles upper bound."""
+        """Fetch ALL sports & esports markets using league-specific tags + pagination.
+
+        Discovers tag_ids from /sports endpoint (171 leagues, each with unique tags).
+        Daily H2H match markets live under these league tags, not under parent tags
+        1/64 which only cover futures/season-long markets.
+        """
         seen_ids: set[str] = set()
         all_raw: list[dict] = []
         total_events = 0
@@ -74,7 +125,8 @@ class MarketScanner:
         now = datetime.now(timezone.utc)
         date_min = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        for category, tag_id in PARENT_TAGS:
+        league_tags = self._fetch_league_tags()
+        for category, tag_id in league_tags:
             offset = 0
             while True:
                 params: dict = {
@@ -118,8 +170,8 @@ class MarketScanner:
                     logger.error("Gamma /events error (tag_id=%s, %s): %s", tag_id, category, e)
                     break
 
-        logger.info("Parent-tag scan: %d queries -> %d events -> %d unique markets",
-                     total_queries, total_events, len(all_raw))
+        logger.info("League-tag scan: %d tags, %d queries -> %d events -> %d unique markets",
+                     len(league_tags), total_queries, total_events, len(all_raw))
         return all_raw
 
     @staticmethod
