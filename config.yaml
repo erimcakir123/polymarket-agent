@@ -14,7 +14,7 @@ scanner:
   prefer_short_duration: true  # Prioritize markets resolving within 48h
   max_markets_per_cycle: 300  # Fetch more per tag to catch esports + lower volume sports
   max_duration_days: 14  # Skip markets resolving more than 14 days out (test calibration)
-  allowed_categories: ["sports", "esports"]  # Only sports/esports bets — remove to allow all
+  allowed_categories: ["sports"]  # Esports disabled (0W/5L, -$21) — re-enable with damage-ladder exit strategy
 
 ai:
   model: "claude-sonnet-4-20250514"

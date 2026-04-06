@@ -357,6 +357,11 @@ class MarketScanner:
         # Category filter: only allow specified categories (e.g. sports, esports)
         if self.config.allowed_categories:
             allowed = {c.lower() for c in self.config.allowed_categories}
+            # Block esports if not in allowed_categories
+            if "esports" not in allowed:
+                sport_tag = (market.sport_tag or "").lower()
+                if sport_tag in ESPORT_TAGS or (market.slug or "").split("-")[0] in ESPORT_TAGS:
+                    return False
             if "sports" in allowed or "esports" in allowed:
                 if not self._is_sports_or_esports(market):
                     logger.debug("Skipped non-sports market: %s", market.question[:60])

@@ -350,9 +350,11 @@ class ScoutScheduler:
         sports_matches = self._fetch_espn_upcoming()
         logger.info("ESPN: found %d upcoming matches", len(sports_matches))
 
-        # 2. Fetch upcoming esports matches
-        esports_matches = self._fetch_esports_upcoming()
-        logger.info("PandaScore: found %d upcoming matches", len(esports_matches))
+        # 2. Fetch upcoming esports matches (disabled: 0W/5L, -$21, no odds data)
+        # Re-enable with damage-ladder exit strategy — see plans/nifty-snacking-hearth.md
+        esports_matches: list[dict] = []
+        # esports_matches = self._fetch_esports_upcoming()
+        logger.info("PandaScore: SKIPPED (esports disabled)")
 
         # 3. Fetch upcoming cricket matches
         cricket_matches = self._fetch_cricket_upcoming()
