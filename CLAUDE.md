@@ -51,11 +51,11 @@
 - Entegre ettikten SONRA: audit agent çalıştır
   - **SADECE 1 AGENT tur başına** (paralel 2 agent çok kasıyor, yasak)
   - Agent scope: import/syntax validation + logic review + edge case + cross-module etkileşim — hepsini tek agent yapsın
-  - **2 ardışık 0-bug tur gerekli**: 1. tur temiz gelirse bile 2. turu ayrı bir agent ile tekrar çalıştır, o da temiz olursa task tamam
-  - Bug bulunursa → fix → yeni audit turu (sayaç sıfırlanır, 2 ardışık 0-bug tekrar gerekli)
+  - **1 adet 0-bug tur yeterli**: 0 bug dönünce task tamam, 2. tura gerek yok (bilgisayar kasıyor)
+  - Bug bulunursa → fix → yeni audit turu
 - **Death spiral'a GİRME**: Cosmetic linter uyarıları, IDE type-inference sorunları, non-breaking formatlar → ATLA
 - Sadece runtime error ve logic bug düzelt
-- 2 ardışık temiz audit dönünce → task'i tamamla, bir sonrakine geç
+- Temiz audit dönünce → task'i tamamla, bir sonrakine geç
 
 ### 4. Multi-AI Consultation (Large changes only)
 

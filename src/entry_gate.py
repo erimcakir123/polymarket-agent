@@ -24,6 +24,7 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.sport_rules import is_esports, is_esports_slug
@@ -222,6 +223,7 @@ class EntryGate:
 
         # Execute top N
         entered = self._execute_candidates(candidates, bankroll, cycle_count)
+        self._save_candidate_stock()
         return entered
 
     def drain_stock(self, entries_allowed: bool, bankroll: float, cycle_count: int,
@@ -256,6 +258,34 @@ class EntryGate:
         # Cap at max
         if len(self._candidate_stock) > _MAX_STOCK:
             self._candidate_stock = self._candidate_stock[-_MAX_STOCK:]
+
+    def _save_candidate_stock(self) -> None:
+        """Persist candidate stock to disk so dashboard STOCK tab shows it."""
+        stock_path = Path("logs/candidate_stock.json")
+        try:
+            stock_path.parent.mkdir(parents=True, exist_ok=True)
+            serializable = []
+            for c in self._candidate_stock:
+                entry = {}
+                market = c.get("market")
+                if market:
+                    entry["condition_id"] = getattr(market, "condition_id", "")
+                    entry["slug"] = getattr(market, "slug", "")
+                    entry["question"] = getattr(market, "question", "")
+                    entry["yes_price"] = getattr(market, "yes_price", 0)
+                    entry["sport_tag"] = getattr(market, "sport_tag", "")
+                entry["score"] = c.get("score", 0)
+                est = c.get("estimate")
+                entry["confidence"] = getattr(est, "confidence", "") if est else ""
+                entry["edge"] = c.get("edge", 0)
+                entry["added_at"] = c.get("added_at", "")
+                entry["entry_reason"] = c.get("entry_reason", "")
+                serializable.append(entry)
+            tmp = stock_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(serializable, default=str), encoding="utf-8")
+            tmp.replace(stock_path)
+        except Exception as exc:
+            logger.debug("Could not save candidate stock: %s", exc)
 
     def reset_seen_markets(self) -> None:
         """Reset seen market tracking. Called at start of each heavy cycle and each refill."""
@@ -888,9 +918,16 @@ class EntryGate:
                             market.slug[:35], market_event_id[:20])
                 continue
 
-            # Slot check
+            # Slot check — save remaining candidates to stock when full
             open_slots = cfg.risk.max_positions - self.portfolio.active_position_count
             if open_slots <= 0:
+                remaining_idx = candidates.index(c)
+                overflow = candidates[remaining_idx:]
+                for rc in overflow:
+                    rc["added_at"] = datetime.now(timezone.utc).isoformat()
+                    self._candidate_stock.append(rc)
+                if overflow:
+                    logger.info("Slots full — saved %d candidates to stock queue", len(overflow))
                 break
 
             # Min bet check
