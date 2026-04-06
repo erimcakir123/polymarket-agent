@@ -101,6 +101,7 @@ class PolymarketTeamsCache:
 
         if all_teams:
             self._abbr_to_name.clear()
+            self._league_abbr_to_name.clear()
             self._ingest_teams(all_teams)
             self._last_refresh = time.time()
             self._save_disk_cache(all_teams)
