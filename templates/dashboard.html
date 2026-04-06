@@ -502,11 +502,14 @@
         .tag-ld { background: var(--purple-dim); color: var(--purple); }
         .tag-fav { background: var(--green-dim); color: var(--green); }
 
-        /* ── Position card border by entry reason ── */
+        /* ── Position card border by entry reason (special entries only) ── */
         .feed-item.border-vs { border-left: 3px solid var(--orange); }
         .feed-item.border-far { border-left: 3px solid var(--blue); }
         .feed-item.border-ld { border-left: 3px solid var(--purple); }
         .feed-item.border-fav { border-left: 3px solid var(--green); }
+        .feed-item.border-upset { border-left: 3px solid #e0a040; }
+        .feed-item.border-momentum { border-left: 3px solid var(--amber); }
+        .feed-item.border-reentry { border-left: 3px solid var(--accent); }
 
         .feed-scroll::-webkit-scrollbar { width: 4px; }
         .feed-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -520,7 +523,7 @@
         }
         .feed-item:hover {
             background: var(--bg-elevated);
-            box-shadow: inset 3px 0 0 var(--accent), 0 0 12px rgba(45,212,168,0.06);
+            box-shadow: 0 0 12px rgba(45,212,168,0.06);
         }
         .feed-item.is-new::after {
             content: '';
@@ -1017,10 +1020,15 @@
                             </div>
                         </div>
                         <div style="width:1px;align-self:stretch;background:var(--border);margin:0 4px"></div>
-                        <div id="slotInline" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;align-content:center">
-                            <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/15</span>
+                        <div id="slotInline" style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;align-content:center">
+                            <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/20</span>
                             <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">VS 0/5</span>
+                            <span class="entry-tag" id="slotUpsetInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(224,160,64,0.15);color:#e0a040">UPS 0</span>
+                            <span class="entry-tag" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--purple-dim);color:var(--purple)">LD 0</span>
+                            <span class="entry-tag" id="slotMomInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--amber-dim);color:var(--amber)">MOM 0</span>
                             <span class="entry-tag" id="slotReInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(45,212,168,0.15);color:#2dd4a8">RE 0 (0)</span>
+                            <span class="entry-tag" id="slotFarInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--blue-dim);color:var(--blue)">FAR 0</span>
+                            <span class="entry-tag" id="slotFavInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--green-dim);color:var(--green)">FAV 0</span>
                         </div>
                     </div>
                     <div id="positionLegend" style="display:none"></div>
@@ -1739,9 +1747,10 @@
             const legendEl = document.getElementById('positionLegend');
             const totalEl = document.getElementById('totalPositions');
             const pos = allPositions ? Object.values(allPositions) : [];
+            window._lastPositions = pos;
             // Unified pipeline: NRM + VS
             const s = window._lastSlots || {};
-            const maxPos = s.max_total || ((s.normal?.max || 15) + (s.vs?.max || 5));
+            const maxPos = s.max_total || ((s.normal?.max || 20) + (s.vs?.max || 5));
             const count = pos.length;
             const pct = maxPos > 0 ? count / maxPos : 0;
 
@@ -1975,7 +1984,7 @@
                 const rawAiProb = p.ai_probability || 0;
                 // Show AI probability for OUR side: BUY_YES=X winning%, BUY_NO=Y winning%
                 const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
-                const scouted = p.scouted || false;
+                const scouted = p.scouted || (p.confidence === 'A' && p.entry_reason !== 'upset' && p.entry_reason !== 'penny');
                 const entryTime = p.entry_timestamp ? new Date(p.entry_timestamp).toLocaleString() : '--';
                 let countdown = '';
                 const _timeIso = p.match_start_iso || p.end_date_iso;
@@ -2017,8 +2026,11 @@
                     const er = p.entry_reason || '';
                     const vs = p.volatility_swing || false;
                     if (vs) return 'border-vs';
-                    if (er === 'far') return 'border-far';
+                    if (er === 'upset' || er === 'penny') return 'border-upset';
                     if (er === 'live_dip') return 'border-ld';
+                    if (er === 'momentum') return 'border-momentum';
+                    if (er === 'farming_reentry') return 'border-reentry';
+                    if (er === 'far') return 'border-far';
                     if (er === 'fav_time_gate') return 'border-fav';
                     return '';
                 })();
@@ -2050,8 +2062,11 @@
                             const er = p.entry_reason || '';
                             const vs = p.volatility_swing || false;
                             if (vs) return '<span class="entry-tag tag-vs">VS</span>';
-                            if (er === 'far') return '<span class="entry-tag tag-far">FAR</span>';
+                            if (er === 'upset' || er === 'penny') return '<span class="entry-tag" style="background:rgba(224,160,64,0.15);color:#e0a040">UPSET</span>';
                             if (er === 'live_dip') return '<span class="entry-tag tag-ld">LD</span>';
+                            if (er === 'momentum') return '<span class="entry-tag" style="background:var(--amber-dim);color:var(--amber)">MOM</span>';
+                            if (er === 'farming_reentry') return '<span class="entry-tag" style="background:rgba(45,212,168,0.15);color:var(--accent)">RE</span>';
+                            if (er === 'far') return '<span class="entry-tag tag-far">FAR</span>';
                             if (er === 'fav_time_gate') return '<span class="entry-tag tag-fav">FAV</span>';
                             return '';
                         })()}
@@ -2404,6 +2419,30 @@
                 const el = document.getElementById(t.id);
                 if (!el || !t.data) continue;
                 el.textContent = `${t.label} ${t.data.current || 0}/${t.data.max || 0}`;
+            }
+            // Entry type counts from positions
+            const _pos = window._lastPositions || [];
+            const _typeCounts = {ups: 0, ld: 0, mom: 0, far: 0, fav: 0};
+            for (const p of _pos) {
+                const er = p.entry_reason || '';
+                const vs = p.volatility_swing || false;
+                if (vs) continue; // VS counted separately
+                if (er === 'upset' || er === 'penny') _typeCounts.ups++;
+                else if (er === 'live_dip') _typeCounts.ld++;
+                else if (er === 'momentum') _typeCounts.mom++;
+                else if (er === 'far') _typeCounts.far++;
+                else if (er === 'fav_time_gate') _typeCounts.fav++;
+            }
+            const _typeEls = [
+                ['slotUpsetInline', 'UPS', _typeCounts.ups],
+                ['slotLdInline', 'LD', _typeCounts.ld],
+                ['slotMomInline', 'MOM', _typeCounts.mom],
+                ['slotFarInline', 'FAR', _typeCounts.far],
+                ['slotFavInline', 'FAV', _typeCounts.fav],
+            ];
+            for (const [id, label, count] of _typeEls) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = `${label} ${count}`;
             }
             // Reentry slot: "RE current/max (waiting)"
             const reEl = document.getElementById('slotReInline');
