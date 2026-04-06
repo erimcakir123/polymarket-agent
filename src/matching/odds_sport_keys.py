@@ -121,6 +121,16 @@ _SLUG_TO_ODDS: dict[str, str] = {
     # Rugby
     "ruchamp": "rugbyunion_six_nations",
     "ruprem": "rugbyunion_premiership",
+    # Baseball — non-MLB
+    "kbo": "baseball_kbo",
+    "npb": "baseball_npb",
+    # Canadian Football
+    "cfl": "americanfootball_cfl",
+    # Golf
+    "lpga": "golf_lpga_tour",
+    "liv": "golf_liv_tour",
+    # Rugby League
+    "nrl": "rugbyleague_nrl",
 }
 
 # ── Polymarket Gamma series tag -> Odds API sport key ────────────────────
