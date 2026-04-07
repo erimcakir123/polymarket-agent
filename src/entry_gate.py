@@ -360,9 +360,9 @@ class EntryGate:
             logger.info("Pool full (0 open slots) -- skipping AI analysis")
             return [], {}
         ai_batch_size = min(cfg.ai.batch_size, open_slots * 2)
-        # Over-scan 3x: balance enrichment cost vs coverage.
-        # Polymarket-first pipeline pre-sorts by match proximity, so top 60 captures most imminent.
-        scan_size = ai_batch_size * 3
+        # Over-scan 6x: wider net ensures AI batch stays full even with high no_data rate.
+        # Polymarket-first pipeline pre-sorts by match proximity.
+        scan_size = ai_batch_size * 6
 
         # --- Polymarket-first: sort by match proximity, scout as bonus ---
         prioritized = self._volume_sorted_selection(
@@ -473,34 +473,11 @@ class EntryGate:
 
         logger.info("Enrichment completed: %d markets in %.1fs", len(esports_contexts), time.time() - _t0)
 
-        # Fetch news contexts (stop-word filtered keywords -> topic grouping works correctly)
+        # News scanning disabled: 96% fail rate, adds 15 min to cycle for negligible data.
+        # ESPN stats + Odds API bookmaker odds are sufficient for A/B+ confidence.
+        # TODO: Re-enable when news APIs stabilize or find better provider.
         news_context_by_market: dict[str, str] = {}
         self._breaking_news_detected = False
-        try:
-            market_keywords: dict[str, list[str]] = {}
-            for m in prioritized:
-                q = getattr(m, "question", "") or m.slug or ""
-                words = re.sub(r"[^\w\s]", " ", q.lower()).split()
-                kws = [w for w in words if w not in _STOP_WORDS and len(w) > 2][:5]
-                market_keywords[m.condition_id] = kws if kws else [(m.slug or q)[:20]]
-
-            raw_news: dict[str, list] = (
-                self.news_scanner.search_for_markets(market_keywords) if prioritized else {}
-            )
-
-            # Detect breaking news for cycle_timer signal (checked by agent after run())
-            self._breaking_news_detected = any(
-                any(a.get("is_breaking") for a in arts)
-                for arts in raw_news.values()
-            )
-
-            # Convert raw article lists -> AI-ready text strings
-            news_context_by_market = {
-                cid: self.news_scanner.build_news_context(arts)
-                for cid, arts in raw_news.items()
-            }
-        except Exception as exc:
-            logger.warning("News fetch failed: %s", exc)
 
         # Filter: only markets with sufficient sports data qualify for AI analysis
         _has_data: list = []
@@ -885,6 +862,8 @@ class EntryGate:
                 "is_consensus": is_consensus,
                 "entry_reason": mode.lower(),
                 "is_early": cid in self._early_market_ids,
+                "bookmaker_prob": _anchor_book_prob,
+                "bookmaker_count": _anchor_num_books,
             })
 
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -1032,8 +1011,8 @@ class EntryGate:
                 "is_early": c["is_early"],
                 "reasoning_pro": getattr(estimate, "reasoning_pro", ""),
                 "reasoning_con": getattr(estimate, "reasoning_con", ""),
-                "bookmaker_prob": _anchor_book_prob,
-                "bookmaker_count": _anchor_num_books,
+                "bookmaker_prob": c.get("bookmaker_prob"),
+                "bookmaker_count": c.get("bookmaker_count"),
                 "sport_tag": getattr(market, "sport_tag", ""),
             })
 

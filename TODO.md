@@ -39,6 +39,9 @@
 - [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) veya SportsGameOdds Rookie ($99/ay) upgrade değerlendir
 - [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
 
+## Temizlik
+- [ ] **News scanner kodunu sil** — Tavily, NewsAPI, GNews, RSS. %96 fail rate, 15 dk cycle uzatıyordu. `src/news_scanner.py` + entry_gate referansları + agent.py init. Şu an disable edildi, tamamen kaldırılacak.
+
 ## Mimari İyileştirme: Polymarket-First Pipeline
 - [ ] **Pipeline tersine çevir** — Şu an: ESPN scout → Polymarket eşleştir. Hedef: Polymarket market'ler → ESPN/Odds API enrichment. Scout bonus olarak kalsın.
   - Pipeline: Polymarket H2H market'ler → chrono + pre-filter → enrichment (Odds API + ESPN paralel) → data quality gate → AI analiz → entry

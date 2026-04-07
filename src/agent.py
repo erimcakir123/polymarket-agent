@@ -537,7 +537,7 @@ class Agent:
         for m in fresh_markets:
             if m.condition_id not in self._pre_match_prices and m.yes_price > 0:
                 self._pre_match_prices[m.condition_id] = m.yes_price
-        logger.info("Phase [scout+scan] took %.1fs", time.monotonic() - t0)
+        logger.info("Phase [market_scan] took %.1fs", time.monotonic() - t0)
 
         # Skip expensive AI analysis if exposure cap already reached
         from src.risk_manager import exceeds_exposure_limit
