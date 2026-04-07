@@ -603,7 +603,7 @@ class EntryGate:
 
         cfg = self.config
         candidates: list[dict] = []
-        _CONF_SKIP = {"C", "", "?"}  # C = veri yetersiz, skip
+        _CONF_SKIP = {"C", "B-", "", "?"}  # C = veri yetersiz, B- = ince data, skip
 
         for market in markets:
             cid = market.condition_id
