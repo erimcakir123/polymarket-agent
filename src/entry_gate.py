@@ -383,16 +383,23 @@ class EntryGate:
 
             logger.info("Scout chrono selection: %d markets in window", len(prioritized))
 
-        # Fallback to volume-sorted if scout yields too few
-        if len(prioritized) < 5:
-            logger.info("Scout yielded %d markets (< 5) -- falling back to volume-sorted", len(prioritized))
+        # Always top-up with volume-sorted markets to fill scan_size.
+        # Scout matches get priority (already in prioritized), then fallback fills remaining slots.
+        # Fallback markets go through the same enrichment + quality + confidence filters.
+        if len(prioritized) < scan_size:
+            scout_count = len(prioritized)
             volume_selected = self._volume_sorted_selection(markets, scan_size)
             scout_cids = {m.condition_id for m in prioritized}
+            fallback_added = 0
             for m in volume_selected:
-                if m.condition_id not in scout_cids:
+                if m.condition_id not in scout_cids and m.condition_id not in self._seen_market_ids:
                     prioritized.append(m)
+                    fallback_added += 1
                     if len(prioritized) >= scan_size:
                         break
+            if fallback_added:
+                logger.info("Fallback: added %d volume-sorted markets (scout=%d, total=%d)",
+                            fallback_added, scout_count, len(prioritized))
 
         prioritized = prioritized[:scan_size]
 
@@ -932,6 +939,8 @@ class EntryGate:
 
             # Min bet check
             if size < 5.0:  # Polymarket minimum order size
+                logger.info("SKIP min-bet: %s | size=$%.2f < $5.00 | conf=%s edge=%.1f%%",
+                            market.slug[:35], size, estimate.confidence, c.get("edge", 0) * 100)
                 continue
 
             # Extreme price guard -- don't enter markets already at 0% or 100%

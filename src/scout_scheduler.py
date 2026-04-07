@@ -695,10 +695,12 @@ class ScoutScheduler:
     def _fetch_cricket_upcoming(self) -> List[dict]:
         """Fetch upcoming/live cricket matches from CricketData.org API."""
         if not self.cricket.available:
+            logger.info("CricketData: client not available (no API key?)")
             return []
 
         current = self.cricket.get_current_matches()
         if not current:
+            logger.info("CricketData: get_current_matches returned empty")
             return []
 
         matches = []

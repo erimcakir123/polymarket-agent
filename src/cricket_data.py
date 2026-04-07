@@ -77,6 +77,11 @@ class CricketDataClient:
         """Get all currently active/recent cricket matches."""
         data = self._get("currentMatches", {"offset": "0"})
         if not data:
+            logger.warning("CricketData: currentMatches returned None, retrying once...")
+            time.sleep(2)
+            data = self._get("currentMatches", {"offset": "0"})
+        if not data:
+            logger.warning("CricketData: currentMatches failed after retry")
             return []
 
         matches = []

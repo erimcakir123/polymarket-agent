@@ -1398,49 +1398,55 @@ class SportsDataClient:
                 continue
 
             for event in data.get("events", []):
-                competitions = event.get("competitions", [])
+                # Collect competitions from both flat and grouped structures
+                # Tennis/golf use groupings[].competitions[], team sports use flat competitions[]
+                competitions = list(event.get("competitions", []))
+                for grp in event.get("groupings", []):
+                    competitions.extend(grp.get("competitions", []))
                 if not competitions:
                     continue
-                comp = competitions[0]
-                competitors = comp.get("competitors", [])
-                if len(competitors) != 2:
-                    continue
 
-                # Match team_a to one competitor, team_b to the other
-                names_0 = self._competitor_names(competitors[0])
-                names_1 = self._competitor_names(competitors[1])
                 ta = team_a.lower()
                 tb = team_b.lower()
 
-                # Try both orderings: (a->0, b->1) and (a->1, b->0)
-                matched = False
-                if tb:
-                    # Both teams known — require both to match
-                    if (any(ta in n for n in names_0) and any(tb in n for n in names_1)):
-                        matched = True
-                    elif (any(ta in n for n in names_1) and any(tb in n for n in names_0)):
-                        matched = True
-                else:
-                    # Single-team lookup — find team_a in either competitor
-                    if any(ta in n for n in names_0) or any(ta in n for n in names_1):
-                        matched = True
+                for comp in competitions:
+                    competitors = comp.get("competitors", [])
+                    if len(competitors) != 2:
+                        continue
 
-                if not matched:
-                    continue
+                    # Match team_a to one competitor, team_b to the other
+                    names_0 = self._competitor_names(competitors[0])
+                    names_1 = self._competitor_names(competitors[1])
 
-                # Determine actual home/away from ESPN homeAway field
-                actual_home = competitors[0] if competitors[0].get("homeAway") == "home" else competitors[1]
-                actual_away = competitors[0] if competitors[0].get("homeAway") == "away" else competitors[1]
-                actual_home_name = actual_home.get("team", {}).get("displayName", "")
-                actual_away_name = actual_away.get("team", {}).get("displayName", "")
+                    # Try both orderings: (a->0, b->1) and (a->1, b->0)
+                    matched = False
+                    if tb:
+                        # Both teams known — require both to match
+                        if (any(ta in n for n in names_0) and any(tb in n for n in names_1)):
+                            matched = True
+                        elif (any(ta in n for n in names_1) and any(tb in n for n in names_0)):
+                            matched = True
+                    else:
+                        # Single-team lookup — find team_a in either competitor
+                        if any(ta in n for n in names_0) or any(ta in n for n in names_1):
+                            matched = True
 
-                # Is team_a the home team?
-                a_is_home = any(ta in n for n in self._competitor_names(actual_home))
+                    if not matched:
+                        continue
 
-                event_id = event.get("id", "")
-                comp_id = comp.get("id", event_id)
+                    # Determine actual home/away from ESPN homeAway field
+                    actual_home = competitors[0] if competitors[0].get("homeAway") == "home" else competitors[1]
+                    actual_away = competitors[0] if competitors[0].get("homeAway") == "away" else competitors[1]
+                    actual_home_name = actual_home.get("team", actual_home.get("athlete", {})).get("displayName", "")
+                    actual_away_name = actual_away.get("team", actual_away.get("athlete", {})).get("displayName", "")
 
-                return event_id, comp_id, actual_home_name, actual_away_name, a_is_home
+                    # Is team_a the home team?
+                    a_is_home = any(ta in n for n in self._competitor_names(actual_home))
+
+                    event_id = event.get("id", "")
+                    comp_id = comp.get("id", event_id)
+
+                    return event_id, comp_id, actual_home_name, actual_away_name, a_is_home
 
         return None, None, None, None, None
 
