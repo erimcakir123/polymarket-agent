@@ -302,29 +302,32 @@ class EntryGate:
 
     @staticmethod
     def _volume_sorted_selection(markets: list, scan_size: int) -> list:
-        """Volume-sorted market selection (legacy). Used as fallback when scout queue is empty."""
-        imminent = sorted([m for m in markets if _hours_to_start(m) <= 6], key=_hours_to_start)
-        midrange = sorted([m for m in markets if 6 < _hours_to_start(m) <= 24], key=_hours_to_start)
-        discovery = sorted([m for m in markets if _hours_to_start(m) > 24], key=_hours_to_start)
+        """Time-prioritized market selection. Prefers imminent matches, then unknown-time
+        (likely close but missing match_start_iso), then midrange, then discovery."""
+        imminent = []     # ≤6h — confirmed close
+        unknown_time = [] # No match_start_iso but end_date ≤48h — probably close
+        midrange = []     # 6-24h
+        discovery = []    # >24h
 
-        imm_available = len(imminent)
-        if imm_available >= scan_size:
-            prioritized = imminent[:scan_size]
-        elif imm_available >= scan_size * 6 // 10:
-            imm_slots = imm_available
-            mid_slots = scan_size - imm_slots
-            prioritized = imminent + midrange[:mid_slots]
-        else:
-            imm_slots = imm_available
-            mid_slots = min(len(midrange), (scan_size - imm_slots) * 7 // 10)
-            disc_slots = scan_size - imm_slots - mid_slots
-            prioritized = imminent + midrange[:mid_slots] + discovery[:disc_slots]
+        for m in markets:
+            h = _hours_to_start(m)
+            has_start = bool((getattr(m, "match_start_iso", "") or "").strip())
+            if has_start and h <= 6:
+                imminent.append(m)
+            elif not has_start and h <= 48:
+                unknown_time.append(m)
+            elif h <= 24:
+                midrange.append(m)
+            else:
+                discovery.append(m)
 
-        if len(prioritized) < scan_size:
-            remaining = [m for m in markets if m not in prioritized]
-            prioritized += remaining[:scan_size - len(prioritized)]
+        imminent.sort(key=_hours_to_start)
+        midrange.sort(key=_hours_to_start)
+        discovery.sort(key=_hours_to_start)
 
-        return prioritized
+        # Priority: imminent → unknown_time → midrange → discovery
+        prioritized = imminent + unknown_time + midrange + discovery
+        return prioritized[:scan_size]
 
     # ── Analysis phase ─────────────────────────────────────────────────────
 
@@ -680,6 +683,7 @@ class EntryGate:
                     "ai_prob": estimate.ai_probability,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
+                    "sport_tag": getattr(market, "sport_tag", ""),
                 })
                 continue
 
@@ -720,6 +724,15 @@ class EntryGate:
                     ))
 
             # Combine: weighted average by number of bookmakers
+            _has_odds_api = bool(_mkt_odds) if '_mkt_odds' in dir() else False
+            _has_espn_odds = cid in self._espn_odds_cache
+            _has_context = cid in esports_contexts
+            logger.debug("DATA: %s | ESPN=%s OddsAPI=%s ctx=%s | conf=%s",
+                         market.slug[:35],
+                         "YES" if _has_espn_odds else "NO",
+                         "YES" if _has_odds_api else "NO",
+                         "YES" if _has_context else "NO",
+                         estimate.confidence)
             if _odds_probs:
                 total_weight = sum(w for _, w in _odds_probs)
                 _anchor_book_prob = sum(p * w for p, w in _odds_probs) / total_weight
@@ -796,6 +809,8 @@ class EntryGate:
                     "edge": edge,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
+                    "sport_tag": getattr(market, "sport_tag", ""),
+                    "bookmaker_prob": _anchor_book_prob,
                 })
                 continue
 
@@ -1034,6 +1049,11 @@ class EntryGate:
                 "is_consensus": c["is_consensus"],
                 "entry_reason": c.get("entry_reason", ""),
                 "is_early": c["is_early"],
+                "reasoning_pro": getattr(estimate, "reasoning_pro", ""),
+                "reasoning_con": getattr(estimate, "reasoning_con", ""),
+                "bookmaker_prob": _anchor_book_prob,
+                "bookmaker_count": _anchor_num_books,
+                "sport_tag": getattr(market, "sport_tag", ""),
             })
 
             logger.info(
@@ -1065,6 +1085,15 @@ class EntryGate:
                 f"💰 Size: ${size:.2f}\n"
                 f"⏱ {_time_label}"
             )
+
+        # Log WINNER candidates that didn't enter (debug: why not?)
+        entered_set = set(entered)
+        for c in candidates:
+            _c_cid = c["market"].condition_id
+            if _c_cid not in entered_set:
+                logger.info("WINNER NOT ENTERED: %s | score=%.3f conf=%s edge=%.1f%% size=$%.2f",
+                            c["market"].slug[:35], c["score"], c["estimate"].confidence,
+                            c.get("edge", 0) * 100, c["adjusted_size"])
 
         return entered
 

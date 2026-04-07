@@ -563,6 +563,10 @@ class OddsAPIClient:
         avg_b = weighted_prob_b_sum / total_weight
         avg_draw = (weighted_prob_draw_sum / draw_weight_total) if draw_weight_total > 0 else None
 
+        logger.info("Odds API: %s vs %s | %d bookmakers (weight=%.1f) | sharp=%s | prob=%.0f%%/%.0f%% | key=%s",
+                    team_a_name, team_b_name, len(bookmaker_names), total_weight,
+                    has_sharp_flag, avg_a * 100, avg_b * 100, sport_key)
+
         return {
             "team_a": team_a_name,
             "team_b": team_b_name,

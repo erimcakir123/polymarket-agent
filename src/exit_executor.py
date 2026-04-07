@@ -234,6 +234,32 @@ class ExitExecutor:
         except Exception:
             pass
 
+        # Track for post-exit resolution (did we exit too early/late?)
+        try:
+            self.ctx.outcome_tracker.track(
+                condition_id=condition_id,
+                token_id=pos.token_id,
+                slug=pos.slug,
+                question=getattr(pos, "question", ""),
+                direction=pos.direction,
+                ai_probability=pos.ai_probability,
+                confidence=pos.confidence,
+                entry_price=pos.entry_price,
+                exit_price=pos.current_price,
+                exit_reason=reason,
+                pnl=total_pnl,
+                size=pos.size_usdc,
+                sport_tag=getattr(pos, "sport_tag", ""),
+                entry_reason=getattr(pos, "entry_reason", ""),
+                scouted=getattr(pos, "scouted", False),
+                peak_pnl_pct=pos.peak_pnl_pct,
+                match_score=getattr(pos, "match_score", ""),
+                cycles_held=getattr(pos, "cycles_held", 0),
+                bookmaker_prob=getattr(pos, "bookmaker_prob", 0.0),
+            )
+        except Exception:
+            pass
+
     def process_scale_outs(self) -> None:
         """Check and execute partial scale-out exits for all positions."""
         from src.scale_out import apply_partial_exit

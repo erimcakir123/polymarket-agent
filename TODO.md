@@ -39,6 +39,14 @@
 - [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) veya SportsGameOdds Rookie ($99/ay) upgrade değerlendir
 - [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
 
+## Mimari İyileştirme: Polymarket-First Pipeline
+- [ ] **Pipeline tersine çevir** — Şu an: ESPN scout → Polymarket eşleştir. Hedef: Polymarket market'ler → ESPN/Odds API enrichment. Scout bonus olarak kalsın.
+  - Pipeline: Polymarket H2H market'ler → chrono + pre-filter → enrichment (Odds API + ESPN paralel) → data quality gate → AI analiz → entry
+  - ESPN match bulursa → confidence boost (A eligible). Sadece Odds API bulursa → B+ eligible. Hiçbiri bulamazsa → skip
+  - Scout'un 60+ lig tarama maliyetini ortadan kaldırır
+- [ ] **Composite selection score** — Sadece zamana göre sıralama yerine: zaman (0-40p) + mispricing sinyali (0-30p, toss-up=en çok edge potansiyeli) + novelty (0-20p) + liquidity (0-10p)
+- [ ] **Esports damage-ladder exit stratejisi** — Plan hazır: `plans/nifty-snacking-hearth.md`. Skor bazlı kademeli pozisyon küçültme (trailing TP/SL yerine). Esports açıldığında implemente et.
+
 ## Gelecek Geliştirmeler
 - [ ] Dynamic hold-to-resolve promotion — kâr %50+ ve AI certainty >60% ise scouted'a promote et, %50 altına düşünce geri al (30+ sample sonrası kalibre)
 - [ ] Maç sonucu log'lama — pozisyon kapanınca Gamma API'den final sonucu çek, logs/match_outcomes.jsonl'e kaydet (AI tahmin vs gerçek sonuç karşılaştırma)
