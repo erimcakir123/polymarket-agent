@@ -107,6 +107,8 @@ You will see a "Data Sources" section listing what was queried for this market.
     * 5-7 matches per team alone (no bookmaker) -> B+
     * bookmaker odds alone (no stats) -> B+
     * 1-4 matches per team -> B-
+  NOTE for individual sports (tennis, MMA, boxing): "matches per team" means
+  "matches per athlete". A tennis player with 5 recent matches = "5+ matches".
 - News alone (injuries, form reports, previews) WITHOUT any match statistics -> C.
   News is supplementary -- it can raise B- to B+ but cannot substitute for match data.
 - If no data sources returned meaningful content -> C.
@@ -125,10 +127,11 @@ Respond with ONLY JSON:
 
 Confidence grades -- rate DATA AVAILABILITY, not your uncertainty about the result:
 - "A"  = strong statistical data -- EITHER:
-           (1) Bookmaker odds present AND 5+ recent matches per team <14 days old, OR
-           (2) 8+ recent matches per team alone (no bookmaker needed), OR
+           (1) Bookmaker odds present AND 5+ recent matches per team/athlete <14 days old, OR
+           (2) 8+ recent matches per team/athlete alone (no bookmaker needed), OR
            (3) Any combination providing 2+ independent rich data signals.
          Use A when you have robust quantitative data even if the outcome feels uncertain.
+         For individual sports (tennis, MMA, boxing): count matches per athlete, not per team.
 - "B+" = solid statistical data -- at least one strong source but not two:
          bookmaker odds alone (no match history), OR 5-7 matches alone (no bookmaker),
          OR detailed news PLUS any stats. One unknown factor is fine at B+.

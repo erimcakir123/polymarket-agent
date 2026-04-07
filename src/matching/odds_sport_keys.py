@@ -107,6 +107,7 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "wnba": "basketball_wnba",
     "cbb": "basketball_ncaab",
     "ncaab": "basketball_ncaab",
+    "euroleague": "basketball_euroleague",
     # Hockey — non-NHL
     "ahl": "icehockey_ahl",
     # American Football — non-NFL
@@ -116,6 +117,17 @@ _SLUG_TO_ODDS: dict[str, str] = {
     # Cricket
     "ipl": "cricket_ipl",
     "cric": "cricket_test_match",
+    "cricipl": "cricket_ipl",
+    "cricpsl": "cricket_psl",
+    "psp": "cricket_psl",
+    "cricbbl": "cricket_bbl",
+    "criccpl": "cricket_cpl",
+    "crict20blast": "cricket_t20_blast",
+    "cricsa20": "cricket_sa20",
+    "crint": "cricket_international_t20",
+    "t20": "cricket_international_t20",
+    "test": "cricket_test_match",
+    "odi": "cricket_odi",
     # AFL
     "afl": "aussierules_afl",
     # Rugby
@@ -204,6 +216,13 @@ _TAG_TO_ODDS: dict[str, str] = {
     "ncaaf": "americanfootball_ncaaf",
     "afl": "aussierules_afl",
     "ipl": "cricket_ipl",
+    # Basketball — International
+    "euroleague": "basketball_euroleague",
+    # Cricket — Tournament tags
+    "psl": "cricket_psl",
+    "big-bash-league": "cricket_bbl",
+    "caribbean-premier-league": "cricket_cpl",
+    "t20-blast": "cricket_t20_blast",
 }
 
 

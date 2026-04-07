@@ -37,6 +37,7 @@ _SCOUT_LEAGUES = [
     ("basketball", "nba", "NBA"),
     ("basketball", "wnba", "WNBA"),
     ("basketball", "mens-college-basketball", "NCAA Basketball"),
+    ("basketball", "fiba", "FIBA"),
     ("football", "nfl", "NFL"),
     ("football", "college-football", "NCAA Football"),
     ("baseball", "mlb", "MLB"),
