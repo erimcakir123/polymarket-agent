@@ -346,6 +346,12 @@ class Portfolio:
             # Pending + profitable: hold for oracle resolve, don't scale out
             if pos.pending_resolution and pos.unrealized_pnl_pct > 0:
                 continue
+            # A-conf hold-to-resolve: skip scale-out, hold full position until resolution
+            from src.models import effective_price
+            _eff_entry = effective_price(pos.entry_price, pos.direction)
+            if (pos.confidence == "A" and _eff_entry >= 0.60
+                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
+                continue
             # Note: scouted positions intentionally participate in scale-out (spec §9j)
             result = check_scale_out(
                 scale_out_tier=pos.scale_out_tier,

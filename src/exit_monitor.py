@@ -204,9 +204,12 @@ class ExitMonitor:
             )
             return
 
-        # 2. Trailing TP check (non-VS positions only)
+        # 2. Trailing TP check (non-VS, non-A-conf-hold positions only)
+        _a_conf_hold = (pos.confidence == "A"
+                        and effective_price(entry, direction) >= 0.60
+                        and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
         ttp_cfg = self.config.trailing_tp
-        if ttp_cfg.enabled and not pos.volatility_swing:
+        if ttp_cfg.enabled and not pos.volatility_swing and not _a_conf_hold:
             # Update peak tracking -- always in effective space
             # BUY_YES: effective = YES price (higher = better)
             # BUY_NO:  effective = NO value = 1 - YES price (higher = better)
@@ -297,13 +300,18 @@ class ExitMonitor:
         for cid in self.portfolio.check_consensus_thesis():
             _add(cid, "consensus_thesis_invalidated")
 
-        # 3. Trailing take-profit (non-VS positions)
+        # 3. Trailing take-profit (non-VS, non-A-conf-hold positions)
         ttp_cfg = cfg.trailing_tp
         if ttp_cfg.enabled:
             for cid, pos in list(self.portfolio.positions.items()):
                 if pos.volatility_swing:
                     continue
                 if cid in seen_cids:
+                    continue
+                # A-conf hold-to-resolve: skip trailing TP, hold until resolution
+                _eff_entry = effective_price(pos.entry_price, pos.direction)
+                if (pos.confidence == "A" and _eff_entry >= 0.60
+                        and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
                     continue
                 # All positions (including upset) use the same trailing TP params
                 act_pct = ttp_cfg.activation_pct
