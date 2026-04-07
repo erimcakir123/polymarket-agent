@@ -360,51 +360,32 @@ class EntryGate:
             logger.info("Pool full (0 open slots) -- skipping AI analysis")
             return [], {}
         ai_batch_size = min(cfg.ai.batch_size, open_slots * 2)
-        # Over-scan 6x: sports data is cheap, AI is expensive.
-        # Many markets lack ESPN/PandaScore data -- wider net catches more qualified ones.
-        scan_size = ai_batch_size * 6
+        # Over-scan 3x: balance enrichment cost vs coverage.
+        # Polymarket-first pipeline pre-sorts by match proximity, so top 60 captures most imminent.
+        scan_size = ai_batch_size * 3
 
-        # --- Chronological selection from scout queue ---
-        prioritized: list = []
+        # --- Polymarket-first: sort by match proximity, scout as bonus ---
+        prioritized = self._volume_sorted_selection(
+            [m for m in markets if m.condition_id not in self._seen_market_ids],
+            scan_size,
+        )
+
+        # Bonus: scout-matched markets get priority (move to front)
         if self.scout:
-            matched_markets = matcher_match_batch(
-                markets, self.scout._queue
-            )
-            self._last_scout_matches = matched_markets
-            matched_markets.sort(key=lambda m: m["scout_entry"].get("match_time", ""))
-
-            # Expanding window: start with closest matches, gradually widen
-            for window_h in (2, 3, 4, 5, 6, 8, 10, 12, 16, 24):
-                window_entries = self.scout.get_window(window_h)
-                window_keys = {e["scout_key"] for e in window_entries}
-                prioritized = [
-                    mm["market"] for mm in matched_markets
-                    if mm["scout_key"] in window_keys
-                ]
-                if len(prioritized) >= 5:
-                    break
-
-            logger.info("Scout chrono selection: %d markets in window", len(prioritized))
-
-        # Always top-up with volume-sorted markets to fill scan_size.
-        # Scout matches get priority (already in prioritized), then fallback fills remaining slots.
-        # Fallback markets go through the same enrichment + quality + confidence filters.
-        if len(prioritized) < scan_size:
-            scout_count = len(prioritized)
-            volume_selected = self._volume_sorted_selection(markets, scan_size)
-            scout_cids = {m.condition_id for m in prioritized}
-            fallback_added = 0
-            for m in volume_selected:
-                if m.condition_id not in scout_cids and m.condition_id not in self._seen_market_ids:
-                    prioritized.append(m)
-                    fallback_added += 1
-                    if len(prioritized) >= scan_size:
-                        break
-            if fallback_added:
-                logger.info("Fallback: added %d volume-sorted markets (scout=%d, total=%d)",
-                            fallback_added, scout_count, len(prioritized))
-
-        prioritized = prioritized[:scan_size]
+            matched_markets = matcher_match_batch(markets, self.scout._queue)
+            if matched_markets:
+                self._last_scout_matches = matched_markets
+                scout_cids = {mm["market"].condition_id for mm in matched_markets}
+                scout_prioritized = [m for m in prioritized if m.condition_id in scout_cids]
+                non_scout = [m for m in prioritized if m.condition_id not in scout_cids]
+                prioritized = scout_prioritized + non_scout
+                prioritized = prioritized[:scan_size]
+                logger.info("Polymarket-first: %d total, %d scout-boosted",
+                            len(prioritized), len(scout_prioritized))
+            else:
+                logger.info("Polymarket-first: %d total, 0 scout matches", len(prioritized))
+        else:
+            logger.info("Polymarket-first: %d total (no scout)", len(prioritized))
 
         # NOTE: _seen_market_ids is updated AFTER quality filter (below),
         # so qualified markets that didn't fit in AI batch get re-evaluated next cycle.
@@ -557,6 +538,9 @@ class EntryGate:
         if not _has_data:
             logger.info("No markets with data -- skipping AI batch")
             return [], {}
+
+        # Re-sort by match start time (enrichment may have filled match_start_iso from ESPN)
+        _has_data.sort(key=_hours_to_start)
 
         # Cap at AI batch size (over-scanned to find enough quality markets)
         _qualified_count = len(_has_data)
@@ -724,14 +708,11 @@ class EntryGate:
                     ))
 
             # Combine: weighted average by number of bookmakers
-            _has_odds_api = bool(_mkt_odds) if '_mkt_odds' in dir() else False
             _has_espn_odds = cid in self._espn_odds_cache
-            _has_context = cid in esports_contexts
-            logger.debug("DATA: %s | ESPN=%s OddsAPI=%s ctx=%s | conf=%s",
+            logger.debug("DATA: %s | ESPN=%s OddsAPI=%s | conf=%s",
                          market.slug[:35],
                          "YES" if _has_espn_odds else "NO",
-                         "YES" if _has_odds_api else "NO",
-                         "YES" if _has_context else "NO",
+                         "YES" if _odds_probs else "NO",
                          estimate.confidence)
             if _odds_probs:
                 total_weight = sum(w for _, w in _odds_probs)

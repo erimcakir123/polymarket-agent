@@ -527,22 +527,8 @@ class Agent:
 
         self._light_exit_check()  # between exits and scan — active CLOB price fetch
 
-        # Scout + Entry: fresh scan (analyze=True)
+        # Polymarket-first: scan markets BEFORE scout (scout is non-blocking bonus)
         t0 = time.monotonic()
-        # Daily listing runs UNCONDITIONALLY (R4) — it's just data gathering, no entries
-        if self.scout.is_daily_listing_time() and self.scout.should_run_scout():
-            self.cycle_helpers.write_status("running", "Daily match listing")
-            new_listed = self.scout.run_daily_listing()
-            self.entry_gate.reset_daily_caches()  # P3: clear stale C-attempts and ESPN odds
-            if new_listed:
-                self.notifier.send(f"📋 DAILY LISTING: {new_listed} matches catalogued")
-        elif self.scout.should_run_scout():
-            # 06/12/18 UTC refresh — catches late additions
-            self.cycle_helpers.write_status("running", "Refreshing match list")
-            new_scouted = self.scout.run_scout()
-            if new_scouted:
-                self.notifier.send(f"🔍 SCOUT REFRESH: {new_scouted} new matches")
-
         self.cycle_helpers.write_status("running", "Scanning markets")
         fresh_markets = self.scanner.fetch()
         self._last_candidate_count = len(fresh_markets)
@@ -603,6 +589,20 @@ class Agent:
 
         # Check outcomes + log
         self.price_updater.check_tracked_outcomes()
+
+        # Scout: runs AFTER entries (non-blocking). Populates queue for next cycle's scout-boost.
+        if self.scout.is_daily_listing_time() and self.scout.should_run_scout():
+            self.cycle_helpers.write_status("running", "Daily match listing")
+            new_listed = self.scout.run_daily_listing()
+            self.entry_gate.reset_daily_caches()
+            if new_listed:
+                self.notifier.send(f"📋 DAILY LISTING: {new_listed} matches catalogued")
+        elif self.scout.should_run_scout():
+            self.cycle_helpers.write_status("running", "Refreshing match list")
+            new_scouted = self.scout.run_scout()
+            if new_scouted:
+                self.notifier.send(f"🔍 SCOUT REFRESH: {new_scouted} new matches")
+
         self.cycle_helpers.log_cycle_summary(bankroll, "ok")
         logger.info("Full heavy cycle #%d took %.1fs", self.cycle_count, time.monotonic() - cycle_start)
 
