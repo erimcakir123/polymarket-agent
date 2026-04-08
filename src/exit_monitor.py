@@ -52,6 +52,8 @@ class ExitMonitor:
         self._ws_exit_queue: deque[tuple[str, str]] = deque()
         self._ws_exit_queued_set: set[str] = set()
         self._exiting_set: set[str] = set()  # Double-exit guard
+        self._ws_scale_out_queue: list[tuple[str, dict]] = []
+        self._ws_scale_out_queued_set: set[str] = set()
         self._last_ws_save_ts: float = 0.0   # Throttle positions.json writes from WS ticks
         # Lock for process_ws_ticks so main thread and background pulse thread
         # can't concurrently drain the queue (avoids race on _ws_exit_queued_set
@@ -247,7 +249,7 @@ class ExitMonitor:
                     self._ws_scale_out_queue.append((cid, so))
                     self._ws_scale_out_queued_set.add(cid)
                     # Force flag so process_scale_outs executes even if price drops back
-                    pos._force_scale_out_tier = so["tier"]
+                    pos.force_scale_out_tier = so["tier"]
                     logger.info("WS_SCALE_OUT queued: %s | tier=%s pnl=%.1f%%",
                                 pos.slug[:35], so["tier"], pnl_pct * 100)
 
@@ -334,6 +336,12 @@ class ExitMonitor:
             if cid not in seen_cids and cid not in self._exiting_set:
                 result.append((cid, reason))
                 seen_cids.add(cid)
+
+        # 0. Near-resolve profit: our side ≥94¢ → exit immediately
+        for cid, pos in list(self.portfolio.positions.items()):
+            _eff = effective_price(pos.current_price, pos.direction)
+            if _eff >= 0.94:
+                _add(cid, "near_resolve_profit")
 
         # 1. Match-aware exits (4 layers: score/time/halftime/pre-match)
         match_exit_results = self.portfolio.check_match_aware_exits()

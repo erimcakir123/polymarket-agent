@@ -213,6 +213,16 @@ def create_app(
                 pass
         return jsonify({"state": "offline", "step": ""})
 
+    @app.route("/api/realized")
+    def api_realized():
+        rpath = Path("logs/realized_pnl.json")
+        if not rpath.exists():
+            return jsonify({"total": 0, "wins": 0, "losses": 0, "hwm": 0})
+        try:
+            return jsonify(json.loads(rpath.read_text(encoding="utf-8")))
+        except Exception:
+            return jsonify({"total": 0, "wins": 0, "losses": 0, "hwm": 0})
+
     return app
 
 

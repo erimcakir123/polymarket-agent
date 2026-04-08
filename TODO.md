@@ -39,6 +39,10 @@
 - [ ] Bot kârlı olunca: The Odds API 20K ($30/ay) veya SportsGameOdds Rookie ($99/ay) upgrade değerlendir
 - [ ] RapidAPI Dota2 API + Valorant Esports API free tier test et
 
+## Dashboard UX
+- [ ] **Pozisyon kartlarında "kime oynadık" göster** — "Will Club Atletico de Madrid win? NO" yerine "FC Barcelona kazanır" gibi. BUY_NO ise karşı takım adını göster. Oranlar da kazanacağını düşündüğümüz tarafın oranı olsun.
+- [ ] **Same-event guard fix** — event_id boş geliyor, aynı maçın iki tarafına girilebiliyor. Gamma event_id parse edilmeli.
+
 ## Temizlik
 - [ ] **News scanner kodunu sil** — Tavily, NewsAPI, GNews, RSS. %96 fail rate, 15 dk cycle uzatıyordu. `src/news_scanner.py` + entry_gate referansları + agent.py init. Şu an disable edildi, tamamen kaldırılacak.
 

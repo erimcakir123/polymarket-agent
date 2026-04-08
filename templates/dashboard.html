@@ -1678,19 +1678,7 @@
             }
             document.getElementById('pnlPct').textContent = bankroll > 0 ? (livePnl / bankroll * 100).toFixed(1) + '%' : '0%';
 
-            // Realized P&L
-            const realizedPnl = latest.realized_pnl || 0;
-            const realizedWins = latest.realized_wins || 0;
-            const realizedLosses = latest.realized_losses || 0;
-            const realizedEl = document.getElementById('realizedPnl');
-            if (Math.abs(realizedPnl) < 0.005) {
-                realizedEl.innerHTML = dimDollars(0);
-                realizedEl.className = 'card-value up';
-            } else {
-                realizedEl.innerHTML = dimDollars(realizedPnl, realizedPnl >= 0 ? '+$' : '-$');
-                realizedEl.className = 'card-value ' + (realizedPnl >= 0 ? 'up' : 'down');
-            }
-            document.getElementById('realizedWL').textContent = realizedWins + 'W / ' + realizedLosses + 'L';
+            // Realized P&L — handled by fetchRealized() from realized_pnl.json (single source of truth)
 
             // Drawdown gauge
             const ddPct = Math.min(dd / 50 * 100, 100);
@@ -1731,9 +1719,9 @@
         }
 
         function updateWaterfall(trades) {
-            const executed = trades.filter(t => t.action && t.action !== 'HOLD' && t.pnl !== undefined).slice(-15);
-            // Use total_pnl (scale-out + final exit) when available, else fall back to pnl.
-            const getTotalPnl = (t) => (t.total_pnl !== undefined ? t.total_pnl : (t.pnl || 0));
+            const executed = trades.filter(t => t.action && t.action !== 'HOLD' && (t.pnl !== undefined || t.realized_pnl !== undefined || t.total_pnl !== undefined)).slice(-15);
+            // Use total_pnl > pnl > realized_pnl (scale-out uses realized_pnl)
+            const getTotalPnl = (t) => (t.total_pnl !== undefined ? t.total_pnl : (t.pnl !== undefined ? t.pnl : (t.realized_pnl || 0)));
             waterfallChart.data.labels = executed.map((t, i) => '#' + (i + 1));
             waterfallChart.data.datasets[0].data = executed.map(getTotalPnl);
             waterfallChart.data.datasets[0].backgroundColor = executed.map(t =>
@@ -1750,7 +1738,7 @@
             window._lastPositions = pos;
             // Unified pipeline: NRM + VS
             const s = window._lastSlots || {};
-            const maxPos = s.max_total || ((s.normal?.max || 20) + (s.vs?.max || 5));
+            const maxPos = s.max_total || ((s.normal?.max || 17) + (s.vs?.max || 3));
             const count = pos.length;
             const pct = maxPos > 0 ? count / maxPos : 0;
 
@@ -2601,11 +2589,33 @@
             }
         };
 
+        function fetchRealized() {
+            fetch('/api/realized?_=' + Date.now(), {cache: 'no-store'})
+                .then(r => r.json())
+                .then(data => {
+                    const pnl = data.total || 0;
+                    const wins = data.wins || 0;
+                    const losses = data.losses || 0;
+                    const el = document.getElementById('realizedPnl');
+                    if (Math.abs(pnl) < 0.005) {
+                        el.innerHTML = '$0.00';
+                        el.className = 'card-value up';
+                    } else {
+                        el.innerHTML = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+                        el.className = 'card-value ' + (pnl >= 0 ? 'up' : 'down');
+                    }
+                    document.getElementById('realizedWL').textContent = wins + 'W / ' + losses + 'L';
+                })
+                .catch(() => {});
+        }
+
         /* ── Init ── */
         fetchData();
         fetchBotStatus();
-        setInterval(fetchData, 10000);
-        setInterval(fetchBotStatus, 5000);
+        fetchRealized();
+        setInterval(fetchData, 1000);
+        setInterval(fetchBotStatus, 5000);  // 5s — spawns tasklist subprocess, 1s too heavy
+        setInterval(fetchRealized, 1000);
         setInterval(renderBotStatus, 1000);
     </script>
 </body>

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Exits that should never be demoted to stock (permanent skip)
 _NEVER_STOCK_EXITS = frozenset({
     "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
-    "resolved", "near_resolve",
+    "resolved", "near_resolve", "near_resolve_profit",
 })
 _NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "early_penny_")
 
@@ -215,7 +215,7 @@ class ExitExecutor:
         )
 
         # Mark permanently exited if resolved
-        if reason in ("resolved", "near_resolve"):
+        if reason in ("resolved", "near_resolve", "near_resolve_profit"):
             self.save_exited_market(condition_id)
 
         # Post-exit: save CLOB price history for calibration
@@ -266,11 +266,11 @@ class ExitExecutor:
 
         # --- WS force-execute block: honour flags set by WS price-spike detection ---
         for cid, pos in list(self.ctx.portfolio.positions.items()):
-            tier = getattr(pos, '_force_scale_out_tier', None)
+            tier = getattr(pos, 'force_scale_out_tier', None)
             if tier is None:
                 continue
             # Clear immediately to prevent re-fire
-            pos._force_scale_out_tier = None
+            pos.force_scale_out_tier = None
 
             if self.ctx.exit_monitor.is_exiting(cid):
                 continue

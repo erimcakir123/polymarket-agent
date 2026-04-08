@@ -104,6 +104,7 @@ class Position(BaseModel):
     partial_exits: list[dict] = []
     scale_out_tier: int = 0
     scale_out_realized_usdc: float = 0.0  # Cumulative realized PnL from scale-outs (for dashboard net display)
+    force_scale_out_tier: str | None = None  # WS-triggered force flag, cleared after execution
     # Dashboard-only: live best-bid for mark-to-market display. DO NOT read in exit
     # logic — always use current_price (which is ask-side) for SL/TP/match exits.
     # 0.0 means "no WS tick received yet" (falls back to current_price in the UI).
