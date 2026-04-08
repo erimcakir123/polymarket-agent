@@ -166,9 +166,9 @@ class PriceUpdater:
                     ev_period = ev.get("period") or ""
 
                     _start_usable = ev_start and ev_start != pos.end_date_iso
-                    if _start_usable and not pos.match_start_iso:
+                    if _start_usable and ev_start != pos.match_start_iso:
                         pos.match_start_iso = ev_start
-                        logger.info("Match start from Gamma event: %s -> %s",
+                        logger.info("Match start updated: %s -> %s",
                                     pos.slug[:35], ev_start)
 
                     if ev_live is not None:

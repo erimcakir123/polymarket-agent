@@ -689,8 +689,8 @@ class Agent:
         # 3. Process WS-triggered scale-outs (catches fast spikes) + regular scale-outs
         for cid, so in self.exit_monitor.drain_scale_outs():
             pos = self.portfolio.positions.get(cid)
-            if pos and pos.scale_out_tier < int(so["tier"][-1]):
-                # Force scale-out check by updating unrealized_pnl_pct
+            _tier_num = 1 if "tier1" in so["tier"] else (2 if "tier2" in so["tier"] else 0)
+            if pos and pos.scale_out_tier < _tier_num:
                 logger.info("WS scale-out trigger: %s | %s", pos.slug[:35], so["reason"])
         self.exit_executor.process_scale_outs()
 

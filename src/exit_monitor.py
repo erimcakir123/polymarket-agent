@@ -232,13 +232,15 @@ class ExitMonitor:
                 volatility_swing=pos.volatility_swing,
             )
             if so is not None:
-                # Don't exit — queue for partial sell in next light cycle
-                # But update peak tracking so TP floor reflects the spike
                 if not hasattr(self, '_ws_scale_out_queue'):
                     self._ws_scale_out_queue = []
-                self._ws_scale_out_queue.append((cid, so))
-                logger.info("WS_SCALE_OUT queued: %s | tier=%s pnl=%.1f%%",
-                            pos.slug[:35], so["tier"], pnl_pct * 100)
+                if not hasattr(self, '_ws_scale_out_queued_set'):
+                    self._ws_scale_out_queued_set = set()
+                if cid not in self._ws_scale_out_queued_set:
+                    self._ws_scale_out_queue.append((cid, so))
+                    self._ws_scale_out_queued_set.add(cid)
+                    logger.info("WS_SCALE_OUT queued: %s | tier=%s pnl=%.1f%%",
+                                pos.slug[:35], so["tier"], pnl_pct * 100)
 
         # 2b. Trailing TP check (non-VS, non-A-conf-hold, post-match-start only)
         ttp_cfg = self.config.trailing_tp
@@ -284,6 +286,8 @@ class ExitMonitor:
             return []
         result = list(self._ws_scale_out_queue)
         self._ws_scale_out_queue.clear()
+        if hasattr(self, '_ws_scale_out_queued_set'):
+            self._ws_scale_out_queued_set.clear()
         return result
 
     def drain(self) -> list[tuple[str, str]]:
