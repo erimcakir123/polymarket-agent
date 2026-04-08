@@ -454,14 +454,24 @@ class EntryGate:
                     espn_odds = odds_api_result
 
                 # Append bookmaker info to context so AI sees it for confidence grading
-                if odds_api_result and ctx:
+                if odds_api_result:
                     bm_count = odds_api_result.get("num_bookmakers", 0)
                     has_sharp = odds_api_result.get("has_sharp", False)
                     prob_a = odds_api_result.get("bookmaker_prob_a", 0)
                     prob_b = odds_api_result.get("bookmaker_prob_b", 0)
-                    ctx += (f"\n\n=== BOOKMAKER ODDS ({bm_count} bookmakers"
-                            f"{', incl. Pinnacle' if has_sharp else ''}) ===\n"
-                            f"  Implied: {prob_a:.0%} / {prob_b:.0%}\n")
+                    team_a = odds_api_result.get("team_a", "Team A")
+                    team_b = odds_api_result.get("team_b", "Team B")
+                    odds_section = (f"\n\n=== BOOKMAKER ODDS ({bm_count} bookmakers"
+                                    f"{', incl. Pinnacle' if has_sharp else ''}) ===\n"
+                                    f"  {team_a}: {prob_a:.0%}\n"
+                                    f"  {team_b}: {prob_b:.0%}\n")
+                    if ctx:
+                        ctx += odds_section
+                    else:
+                        # No ESPN data but Odds API found odds — create minimal context
+                        ctx = (f"=== {getattr(_m, 'question', _m.slug)} ===\n"
+                               f"No match statistics available.\n"
+                               + odds_section)
 
                 if ctx:
                     logger.info("Sports context (%s): %s", result.source if result else "odds", (_m.slug or "")[:40])
