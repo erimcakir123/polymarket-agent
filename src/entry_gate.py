@@ -530,10 +530,18 @@ class EntryGate:
             # Pre-AI quality gate: count match result lines in context
             # Lines like "[W]" or "[L]" indicate actual game results
             result_lines = ctx.count("[W]") + ctx.count("[L]")
+            # Bookmaker odds count as data even without match results,
+            # but only if Pinnacle (sharp) is included and 10+ bookmakers
+            _has_bookmaker = "BOOKMAKER ODDS" in ctx and "Pinnacle" in ctx
+            if _has_bookmaker:
+                import re as _re
+                _bm_match = _re.search(r"(\d+) bookmakers", ctx)
+                if _bm_match and int(_bm_match.group(1)) < 10:
+                    _has_bookmaker = False
             # Sport-aware threshold: tennis/MMA/golf need fewer results
             _sport_cat = _sport_category(getattr(m, "sport_tag", ""))
             _threshold = _THIN_DATA_THRESHOLDS.get(_sport_cat, _THIN_DATA_THRESHOLDS["default"])
-            if result_lines < _threshold:
+            if result_lines < _threshold and not _has_bookmaker:
                 _thin_data_skipped += 1
                 logger.info("SKIP thin data: %s | only %d match results (need %d+, sport=%s)",
                             (m.slug or "")[:35], result_lines, _threshold, _sport_cat)

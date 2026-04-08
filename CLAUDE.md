@@ -2,6 +2,10 @@
 
 # CLAUDE.md — Optimus Claudeus (Polymarket Agent)
 
+## Temel Kurallar (İSTİSNASIZ)
+- **Kod değiştirmeden ÖNCE kullanıcıya SOR.** İzinsiz değişiklik yapma.
+- **Her değişiklik öncesi planning skill kullan.** Direkt koda dalma.
+
 ## Development Workflow (MANDATORY — follow exactly)
 
 ### 1. Change Size Protocol
