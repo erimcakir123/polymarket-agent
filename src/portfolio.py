@@ -286,6 +286,11 @@ class Portfolio:
                           vs_stop_loss_pct: float = 0.20) -> List[str]:
         triggered = []
         for cid, pos in self.positions.items():
+            # A-conf hold-to-resolve: skip flat SL (catastrophic floor + market flip still apply via match_exit)
+            _eff_entry = effective_price(pos.entry_price, pos.direction)
+            if (pos.confidence == "A" and _eff_entry >= 0.60
+                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
+                continue
             sl = compute_stop_loss_pct(pos, base_sl_pct=stop_loss_pct, vs_sl_pct=vs_stop_loss_pct)
             if sl is None:
                 continue  # Skip SL for this position (penny, totals/spread, stale)

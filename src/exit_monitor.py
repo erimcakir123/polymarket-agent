@@ -193,21 +193,25 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
+        # A-conf hold-to-resolve check (reused by SL and TP)
+        _a_conf_hold = (pos.confidence == "A"
+                        and effective_entry >= 0.60
+                        and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
+
         # 1. Stop-loss check -- unified rules via helper
-        sl_pct = compute_stop_loss_pct(pos, base_sl_pct=self.config.risk.stop_loss_pct)
-        if sl_pct is not None and pnl_pct <= -abs(sl_pct):
-            self._ws_exit_queue.append((cid, "stop_loss"))
-            self._ws_exit_queued_set.add(cid)
-            logger.info(
-                "WS_EXIT queued [stop_loss]: %s | pnl=%.1f%% <= -%.0f%%",
-                pos.slug[:35], pnl_pct * 100, abs(sl_pct) * 100,
-            )
-            return
+        # A-conf hold-to-resolve: skip flat SL, only catastrophic floor + market flip apply
+        if not _a_conf_hold:
+            sl_pct = compute_stop_loss_pct(pos, base_sl_pct=self.config.risk.stop_loss_pct)
+            if sl_pct is not None and pnl_pct <= -abs(sl_pct):
+                self._ws_exit_queue.append((cid, "stop_loss"))
+                self._ws_exit_queued_set.add(cid)
+                logger.info(
+                    "WS_EXIT queued [stop_loss]: %s | pnl=%.1f%% <= -%.0f%%",
+                    pos.slug[:35], pnl_pct * 100, abs(sl_pct) * 100,
+                )
+                return
 
         # 2. Trailing TP check (non-VS, non-A-conf-hold positions only)
-        _a_conf_hold = (pos.confidence == "A"
-                        and effective_price(entry, direction) >= 0.60
-                        and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
         ttp_cfg = self.config.trailing_tp
         if ttp_cfg.enabled and not pos.volatility_swing and not _a_conf_hold:
             # Update peak tracking -- always in effective space

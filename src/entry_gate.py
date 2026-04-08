@@ -959,7 +959,7 @@ class EntryGate:
             # Extreme price guard -- don't enter markets already at 0% or 100%
             _yes_p = market.yes_price
             _eff_entry = effective_price(_yes_p, direction)
-            if _eff_entry <= 0.05 or _eff_entry >= 0.95:
+            if _eff_entry <= 0.05 or _eff_entry >= 0.85:
                 logger.info(
                     "SKIP extreme price: %s | eff_price=%.0f%% -- market already resolved/extreme",
                     market.slug[:40], _eff_entry * 100,
