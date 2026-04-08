@@ -119,7 +119,7 @@ class ConsensusEntryConfig(BaseModel):
 
 
 class TrailingTPConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False  # Disabled: scale-out handles profit-taking, TP was cutting winners short
     activation_pct: float = 0.20       # Activate at +20% profit
     trail_distance: float = 0.15       # Sell when 15% below peak
 
