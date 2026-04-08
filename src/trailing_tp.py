@@ -88,12 +88,18 @@ def calculate_trailing_tp(
     else:
         return _hold(0.0, False, 0.0, 0.0)
 
+    # Entry effective price = minimum floor (never exit at or below entry)
+    if direction == "BUY_YES":
+        _entry_eff = entry_price
+    else:
+        _entry_eff = eff_price_fn(entry_price, direction)
+
     # Step 1: Check if trailing should activate
     if not trailing_active:
         if profit_pct >= activation_pct:
             # ACTIVATE trailing TP
             new_peak = effective_price
-            floor = new_peak * (1.0 - trail_distance)
+            floor = max(new_peak * (1.0 - trail_distance), _entry_eff * 1.01)  # At least 1% above entry
             logger.info(
                 "Trailing TP ACTIVATED: profit=%.1f%%, peak=$%.3f, floor=$%.3f",
                 profit_pct * 100, new_peak, floor,
@@ -114,7 +120,7 @@ def calculate_trailing_tp(
     if effective_price > peak_price:
         # New high -- update peak and floor
         peak_price = effective_price
-        floor = peak_price * (1.0 - trail_distance)
+        floor = max(peak_price * (1.0 - trail_distance), _entry_eff * 1.01)
         logger.debug(
             "Trailing TP new peak: $%.3f, floor=$%.3f, profit=%.1f%%",
             peak_price, floor, profit_pct * 100,
@@ -129,7 +135,7 @@ def calculate_trailing_tp(
         }
 
     # Price is below peak -- check if it hit the floor
-    floor = peak_price * (1.0 - trail_distance)
+    floor = max(peak_price * (1.0 - trail_distance), _entry_eff * 1.01)
 
     if effective_price <= floor:
         # TRAIL HIT -- EXIT

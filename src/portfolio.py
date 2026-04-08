@@ -284,6 +284,7 @@ class Portfolio:
 
     def check_stop_losses(self, stop_loss_pct: float = 0.30,
                           vs_stop_loss_pct: float = 0.20) -> List[str]:
+        from datetime import datetime, timezone
         triggered = []
         for cid, pos in self.positions.items():
             # A-conf hold-to-resolve: skip flat SL (catastrophic floor + market flip still apply via match_exit)
@@ -291,6 +292,15 @@ class Portfolio:
             if (pos.confidence == "A" and _eff_entry >= 0.60
                     and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
                 continue
+            # Pre-match: don't trigger SL before match starts (price noise)
+            _msi = getattr(pos, "match_start_iso", "") or ""
+            if _msi:
+                try:
+                    _sdt = datetime.fromisoformat(_msi.replace("Z", "+00:00"))
+                    if datetime.now(timezone.utc) < _sdt:
+                        continue
+                except (ValueError, TypeError):
+                    pass
             sl = compute_stop_loss_pct(pos, base_sl_pct=stop_loss_pct, vs_sl_pct=vs_stop_loss_pct)
             if sl is None:
                 continue  # Skip SL for this position (penny, totals/spread, stale)

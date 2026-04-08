@@ -686,7 +686,12 @@ class Agent:
                 self.exit_executor.exit_position(cid, reason)
                 exits_triggered += 1
 
-        # 3. Process any pending scale-outs
+        # 3. Process WS-triggered scale-outs (catches fast spikes) + regular scale-outs
+        for cid, so in self.exit_monitor.drain_scale_outs():
+            pos = self.portfolio.positions.get(cid)
+            if pos and pos.scale_out_tier < int(so["tier"][-1]):
+                # Force scale-out check by updating unrealized_pnl_pct
+                logger.info("WS scale-out trigger: %s | %s", pos.slug[:35], so["reason"])
         self.exit_executor.process_scale_outs()
 
         # 4. Persist fresh prices so dashboard sees mid-cycle updates during

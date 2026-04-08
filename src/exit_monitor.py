@@ -198,9 +198,21 @@ class ExitMonitor:
                         and effective_entry >= 0.60
                         and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
 
+        # Pre-match guard: don't exit before match starts (result unknown, price noise)
+        _match_start = getattr(pos, "match_start_iso", "") or ""
+        _pre_match = False
+        if _match_start:
+            try:
+                from datetime import datetime, timezone
+                _start_dt = datetime.fromisoformat(_match_start.replace("Z", "+00:00"))
+                _pre_match = datetime.now(timezone.utc) < _start_dt
+            except (ValueError, TypeError):
+                pass
+
         # 1. Stop-loss check -- unified rules via helper
         # A-conf hold-to-resolve: skip flat SL, only catastrophic floor + market flip apply
-        if not _a_conf_hold:
+        # Pre-match: skip SL/TP (match hasn't started, price noise not actionable)
+        if not _a_conf_hold and not _pre_match:
             sl_pct = compute_stop_loss_pct(pos, base_sl_pct=self.config.risk.stop_loss_pct)
             if sl_pct is not None and pnl_pct <= -abs(sl_pct):
                 self._ws_exit_queue.append((cid, "stop_loss"))
@@ -211,9 +223,26 @@ class ExitMonitor:
                 )
                 return
 
-        # 2. Trailing TP check (non-VS, non-A-conf-hold positions only)
+        # 2a. Scale-out check (WS path — catches fast spikes that light cycle misses)
+        if not pos.volatility_swing and not _a_conf_hold:
+            from src.scale_out import check_scale_out
+            so = check_scale_out(
+                scale_out_tier=pos.scale_out_tier,
+                unrealized_pnl_pct=pnl_pct,
+                volatility_swing=pos.volatility_swing,
+            )
+            if so is not None:
+                # Don't exit — queue for partial sell in next light cycle
+                # But update peak tracking so TP floor reflects the spike
+                if not hasattr(self, '_ws_scale_out_queue'):
+                    self._ws_scale_out_queue = []
+                self._ws_scale_out_queue.append((cid, so))
+                logger.info("WS_SCALE_OUT queued: %s | tier=%s pnl=%.1f%%",
+                            pos.slug[:35], so["tier"], pnl_pct * 100)
+
+        # 2b. Trailing TP check (non-VS, non-A-conf-hold, post-match-start only)
         ttp_cfg = self.config.trailing_tp
-        if ttp_cfg.enabled and not pos.volatility_swing and not _a_conf_hold:
+        if ttp_cfg.enabled and not pos.volatility_swing and not _a_conf_hold and not _pre_match:
             # Update peak tracking -- always in effective space
             # BUY_YES: effective = YES price (higher = better)
             # BUY_NO:  effective = NO value = 1 - YES price (higher = better)
@@ -248,6 +277,14 @@ class ExitMonitor:
                         pos.slug[:35], ttp_result["reason"],
                     )
                     return
+
+    def drain_scale_outs(self) -> list[tuple[str, dict]]:
+        """Pop WS-triggered scale-out signals. Called by agent before process_scale_outs."""
+        if not hasattr(self, '_ws_scale_out_queue'):
+            return []
+        result = list(self._ws_scale_out_queue)
+        self._ws_scale_out_queue.clear()
+        return result
 
     def drain(self) -> list[tuple[str, str]]:
         """Pop all WS-triggered exits and return them.
