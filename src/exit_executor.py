@@ -262,7 +262,66 @@ class ExitExecutor:
 
     def process_scale_outs(self) -> None:
         """Check and execute partial scale-out exits for all positions."""
-        from src.scale_out import apply_partial_exit
+        from src.scale_out import apply_partial_exit, SCALE_OUT_TIERS
+
+        # --- WS force-execute block: honour flags set by WS price-spike detection ---
+        for cid, pos in list(self.ctx.portfolio.positions.items()):
+            tier = getattr(pos, '_force_scale_out_tier', None)
+            if tier is None:
+                continue
+            # Clear immediately to prevent re-fire
+            pos._force_scale_out_tier = None
+
+            if self.ctx.exit_monitor.is_exiting(cid):
+                continue
+
+            tier_info = SCALE_OUT_TIERS.get(tier)
+            if not tier_info:
+                logger.warning("WS FORCE SCALE-OUT: unknown tier %s for %s", tier, cid)
+                continue
+
+            sell_pct = tier_info["sell_pct"]
+            shares_to_sell = pos.shares * sell_pct
+            if shares_to_sell < 1.0:
+                continue
+
+            eff_sell_price = effective_price(pos.current_price, pos.direction)
+            result = self.ctx.executor.place_order(
+                pos.token_id, "SELL", eff_sell_price,
+                shares_to_sell * eff_sell_price, use_hybrid=False,
+            )
+            if not result or result.get("status") == "error":
+                logger.warning("WS FORCE SCALE-OUT failed: %s | tier=%s", pos.slug[:35], tier)
+                continue
+
+            _sell_fill = result.get("price", eff_sell_price)
+            fill_price = _sell_fill if pos.direction == "BUY_YES" else (1.0 - _sell_fill)
+            partial = apply_partial_exit(
+                shares=pos.shares,
+                size_usdc=pos.size_usdc,
+                entry_price=pos.entry_price,
+                direction=pos.direction,
+                shares_sold=shares_to_sell,
+                fill_price=fill_price,
+                tier=tier,
+                original_shares=getattr(pos, "original_shares", None),
+                original_size_usdc=getattr(pos, "original_size_usdc", None),
+                scale_out_tier=pos.scale_out_tier,
+            )
+
+            pos.shares = partial["remaining_shares"]
+            pos.size_usdc = partial["remaining_size_usdc"]
+            pos.scale_out_tier = partial["new_scale_out_tier"]
+            if not hasattr(pos, "original_shares") or pos.original_shares is None:
+                pos.original_shares = partial["original_shares"]
+            if not hasattr(pos, "original_size_usdc") or pos.original_size_usdc is None:
+                pos.original_size_usdc = partial["original_size_usdc"]
+
+            self.ctx.portfolio.record_realized(partial["realized_pnl"])
+            pos.scale_out_realized_usdc += partial["realized_pnl"]
+
+            logger.info("WS FORCE SCALE-OUT: %s | %s | sold %.0f shares | pnl=$%.2f",
+                        pos.slug[:35], tier, shares_to_sell, partial["realized_pnl"])
 
         scale_outs = self.ctx.portfolio.check_scale_outs()
         for so in scale_outs:

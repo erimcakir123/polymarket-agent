@@ -193,6 +193,13 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
+        # Near-resolve: our side ≥94¢ → exit, don't risk 6¢ for resolve
+        if effective_current >= 0.94:
+            self._ws_exit_queue.append((cid, "near_resolve_profit"))
+            self._ws_exit_queued_set.add(cid)
+            logger.info("WS_EXIT queued [near_resolve]: %s | eff=%.0f%%", pos.slug[:35], effective_current * 100)
+            return
+
         # A-conf hold-to-resolve check (reused by SL and TP)
         _a_conf_hold = (pos.confidence == "A"
                         and effective_entry >= 0.60
@@ -239,6 +246,8 @@ class ExitMonitor:
                 if cid not in self._ws_scale_out_queued_set:
                     self._ws_scale_out_queue.append((cid, so))
                     self._ws_scale_out_queued_set.add(cid)
+                    # Force flag so process_scale_outs executes even if price drops back
+                    pos._force_scale_out_tier = so["tier"]
                     logger.info("WS_SCALE_OUT queued: %s | tier=%s pnl=%.1f%%",
                                 pos.slug[:35], so["tier"], pnl_pct * 100)
 

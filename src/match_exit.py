@@ -431,7 +431,7 @@ def check_match_exit(data: dict) -> dict:
     # Underdog positions: as match progresses, AI target decays toward market
     # EXCEPTION: late in match (≥60%) and in profit (≥10%) -> let it ride, resolution close
     # EXCEPTION: A-conf hold-to-resolve -> skip edge decay, hold until resolution
-    if ai_probability > 0 and not result.get("exit") and not a_conf_hold:
+    if ai_probability > 0 and not result.get("exit") and not a_conf_hold and effective_entry < 0.50:
         effective_ai_side = effective_price(ai_probability, direction)
         late_and_winning = elapsed_pct >= 0.60 and effective_current > effective_entry * 1.10
         if effective_ai_side < 0.65 and not late_and_winning:

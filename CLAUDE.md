@@ -49,24 +49,54 @@
 - "Sadece log ekliyorum" bile olsa uygula
 - Kısacası: **kod dokunacaksan, önce neyi bozacağını bil ve sor**
 
-### 3. Integration Protocol
+### 3. Audit Protocol (KESİN KURAL)
 
+#### Ne Zaman Audit Yapılır?
+- Medium/Large değişiklik tamamlandıktan sonra (≥50 satır veya 2+ dosya)
+- Small değişikliklerde audit YAPILMAZ
+
+#### Audit Nasıl Yapılır?
+1. **Değişen dosya listesini hazırla** — `git diff --name-only` ile
+2. **TEK bir audit agent başlat** — aşağıdaki şablonu kullan
+
+#### Agent Prompt Şablonu:
+```
+PHASE 1 — Context: Read ALL src/*.py files to understand the full codebase.
+Do NOT read: API Guides/, docs/, logs/, tests/, .env, config YAML files.
+
+PHASE 2 — Focused Audit: Check these CHANGED files for issues:
+Files: [liste]
+Changes: [her dosyada ne değişti, 1 cümle]
+
+Look for:
+- Runtime errors (missing imports, wrong args, undefined vars)
+- Logic bugs (wrong conditions, broken control flow, edge cases)
+- Breaking changes (değişiklik başka dosyaları bozuyor mu?)
+- Interface mismatches (fonksiyon signature değişti ama caller güncellenmedi mi?)
+- Dead code (kullanılmayan fonksiyon, import, değişken — RAPORLA ama silme, kullanıcıya sor)
+- Spaghetti code (fonksiyon >80 satır mı? aynı mantık 2+ yerde mi? iş mantığı main.py'de mi?)
+
+Rules:
+- Do NOT spawn sub-agents
+- Do NOT read API Guides or docs/ — bunlar büyük, kilitler
+- IGNORE: cosmetic issues, type hints, docstrings, formatting, naming style
+- Report format: file:line — description — severity (critical/warning)
+```
+
+#### Kilitlenme Koruması:
+- Paralel agent YASAK — aynı anda max 1 agent
+- Agent 3 dakikadan uzun sürerse → kullanıcıya bildir
+- Death spiral koruması: max 3 audit turu, sonra kullanıcıya sor
+- Cosmetic issue (linter, type-inference, format) → ATLA, sayaç sıfırlanmaz
+
+#### Entegrasyon Kuralları:
 - Yeni kodu entegre etmeden ÖNCE: çevresindeki kodu oku, uyum sağla
-- Entegre ettikten SONRA: audit agent çalıştır
-  - **SADECE 1 AGENT** — paralel agent yasak, bilgisayar kasıyor
-  - **Audit scope: SADECE değişen dosyalar + onları import eden dosyalar** — tüm projeyi tarama
-  - Agent'a hangi dosyaların değiştiğini ve bağımlılıklarını açıkça söyle
-  - **1 temiz tur = tamam** — 0 bug dönünce task biter, 2. tura gerek yok
-  - Bug bulunursa → fix → 1 tur daha (max 3 tur, sonra kullanıcıya sor)
-- **Death spiral'a GİRME**:
-  - Cosmetic linter uyarıları, IDE type-inference sorunları, non-breaking formatlar → ATLA
-  - Sadece **runtime error** ve **logic bug** düzelt
-  - Audit agent cosmetic issue raporlarsa → yoksay, sayaç sıfırlama
 - Temiz audit dönünce → task'i tamamla, bir sonrakine geç
-- **Güvenlik zinciri özeti:**
-  1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
-  2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + bağımlılıkları)
-  3. Large changes → dry_run smoke test (bot'u çalıştırıp hata kontrolü)
+
+#### Güvenlik Zinciri Özeti:
+1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
+2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + bağımlılıkları)
+3. Large changes → dry_run smoke test (bot'u çalıştırıp hata kontrolü)
 
 ### 4. Multi-AI Consultation (Large changes only)
 
