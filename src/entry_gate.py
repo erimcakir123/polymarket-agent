@@ -151,6 +151,10 @@ class EntryGate:
         self._breaking_news_detected: bool = False
         # TeamResolver is now handled internally by src.matching
 
+        # Qualified overflow: enriched markets that didn't fit in AI batch.
+        # Consumed by refill cycles without re-running enrichment.
+        self._qualified_overflow: list[tuple] = []  # [(market, context_str), ...]
+
         # Candidate stock queues (pre-analyzed, waiting for slots)
         self._candidate_stock: list[dict] = []
         self._last_scout_matches: list = []  # Set by _analyze_batch for mark_entered
@@ -288,8 +292,9 @@ class EntryGate:
             logger.debug("Could not save candidate stock: %s", exc)
 
     def reset_seen_markets(self) -> None:
-        """Reset seen market tracking. Called at start of each heavy cycle and each refill."""
+        """Reset seen market tracking. Called at start of each heavy cycle."""
         self._seen_market_ids.clear()
+        self._qualified_overflow.clear()  # Fresh cycle = fresh scan, don't use stale overflow
 
     def reset_daily_caches(self) -> None:
         """Reset stale caches daily (P3). Called when daily listing runs at 00:01 UTC."""
@@ -331,9 +336,41 @@ class EntryGate:
 
     # ── Analysis phase ─────────────────────────────────────────────────────
 
+    def _drain_overflow(self, ai_batch_size: int) -> tuple[list, dict]:
+        """Drain qualified overflow from previous cycle — skip enrichment, AI only."""
+        batch = self._qualified_overflow[:ai_batch_size]
+        self._qualified_overflow = self._qualified_overflow[ai_batch_size:]
+
+        _has_data = [m for m, _ in batch]
+        _overflow_contexts = {m.condition_id: ctx for m, ctx in batch if ctx}
+
+        logger.info("Refill from overflow: %d markets, %d remaining (no enrichment)",
+                    len(_has_data), len(self._qualified_overflow))
+
+        if not _has_data:
+            return [], {}
+
+        estimates_list = self.ai.analyze_batch(
+            _has_data, "", _overflow_contexts, news_by_market={},
+        )
+        estimates = {
+            m.condition_id: est
+            for m, est in zip(_has_data, estimates_list)
+            if est is not None
+        }
+        self._seen_market_ids.update(m.condition_id for m in _has_data)
+        return _has_data, estimates
+
     def _analyze_batch(self, markets: list, cycle_count: int) -> tuple[list, dict]:
         """Prioritize markets, fetch external data, run AI batch. Return (markets, estimates)."""
         cfg = self.config
+
+        # Overflow from previous cycle? Drain it first (no enrichment needed)
+        if self._qualified_overflow:
+            open_slots = max(0, cfg.risk.max_positions - self.portfolio.active_position_count)
+            if open_slots > 0:
+                _overflow_batch = min(cfg.ai.batch_size, open_slots * 2)
+                return self._drain_overflow(_overflow_batch)
 
         # Stock IDs (don't re-analyze markets already in candidate stock)
         _stock_ids = {c.get("condition_id", "") for c in self._candidate_stock}
@@ -565,10 +602,17 @@ class EntryGate:
         # Re-sort by match start time (enrichment may have filled match_start_iso from ESPN)
         _has_data.sort(key=_hours_to_start)
 
-        # Cap at AI batch size (over-scanned to find enough quality markets)
+        # Cap at AI batch size — save overflow for enrichment-free refill
         _qualified_count = len(_has_data)
         if _qualified_count > ai_batch_size:
+            self._qualified_overflow = [
+                (m, esports_contexts.get(m.condition_id, ""))
+                for m in _has_data[ai_batch_size:]
+            ]
+            logger.info("Qualified overflow: %d markets saved for refill", len(self._qualified_overflow))
             _has_data = _has_data[:ai_batch_size]
+        else:
+            self._qualified_overflow = []
         logger.info(
             "Over-scan: scanned %d → no_data=%d thin=%d → qualified %d → AI batch %d",
             len(prioritized), _no_data_skipped, _thin_data_skipped,
