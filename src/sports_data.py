@@ -890,7 +890,9 @@ class SportsDataClient:
             return None
 
         # Sport-specific scan window
-        days_back = 90 if sport == "mma" else 14
+        # Tennis: 30d captures Challenger/qualifying regulars who only play 1-2x/week
+        # MMA: 90d captures full fight cycles (fighters compete ~1x/2mo)
+        days_back = 90 if sport == "mma" else 30
 
         logger.info("Fetching ESPN %s athlete data: %s vs %s (%s, %dd scan)",
                      sport, team_a_name, team_b_name, league, days_back)
@@ -912,7 +914,9 @@ class SportsDataClient:
                 parts.append(f"\n{label}: {name}")
                 parts.append(f"  Recent form ({len(matches)} matches): {wins}W-{losses}L")
                 parts.append("  Recent matches:")
-                for m in matches[:5]:
+                # Show up to 10 matches: AI grades A-conf at 8+ per athlete,
+                # so 10 gives headroom. Data already fetched (fetch cap is 10).
+                for m in matches[:10]:
                     result = "W" if m["won"] else "L"
                     score_str = f" {m['score']}" if m.get("score") else ""
                     parts.append(
@@ -1072,7 +1076,7 @@ class SportsDataClient:
                             "top3": top,
                             "winner": top[0] if top else "Unknown",
                         })
-            if len(results) >= 5:
+            if len(results) >= 10:
                 break
 
         if not results:
@@ -1080,7 +1084,7 @@ class SportsDataClient:
 
         parts = [f"=== SPORTS DATA (ESPN) -- {sport}/{league} ==="]
         parts.append(f"\nRecent {sport} results:")
-        for r in results[:5]:
+        for r in results[:10]:
             parts.append(f"  [{r['date']}] {r['event']}")
             parts.append(f"    [W] {r['winner']}")
             if len(r["top3"]) > 1:
@@ -1195,13 +1199,15 @@ class SportsDataClient:
                     if standing.get("last_10"):
                         parts.append(f"  Last 10: {standing['last_10']} | Streak: {standing.get('streak', 'N/A')}")
 
-            # Recent games
+            # Recent games: show up to 10 for AI A-conf grading (8+ matches = A).
+            # get_team_record already caps fetched recent_games at 10.
             if stats["recent_games"]:
-                recent_5 = stats["recent_games"][-5:]
-                wins = sum(1 for g in recent_5 if g["won"])
-                parts.append(f"  Last 5: {wins}W-{5 - wins}L")
+                recent_n = stats["recent_games"][-10:]
+                wins = sum(1 for g in recent_n if g["won"])
+                losses = len(recent_n) - wins
+                parts.append(f"  Last {len(recent_n)}: {wins}W-{losses}L")
                 parts.append("  Recent games:")
-                for g in stats["recent_games"][-5:]:
+                for g in recent_n:
                     result = "W" if g["won"] else "L"
                     parts.append(
                         f"    [{result}] {g['home_away']} vs {g['opponent']} "
@@ -1230,7 +1236,7 @@ class SportsDataClient:
                 a_wins = sum(1 for g in h2h if g["won"])
                 b_wins = len(h2h) - a_wins
                 parts.append(f"\nHEAD-TO-HEAD (this season): {team_a_name} {a_wins}-{b_wins} {team_b_name}")
-                for g in h2h[-3:]:
+                for g in h2h[-5:]:
                     result = "W" if g["won"] else "L"
                     parts.append(f"  [{result}] {g['home_away']} {g['score']} ({g['date']})")
 
