@@ -505,6 +505,21 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
         lessons = self._load_lessons()
         if lessons:
             parts.append(f"\nLESSONS FROM YOUR PAST MISTAKES:\n{lessons}")
+
+        # Chess-specific prompt addendum: draw risk awareness
+        _is_chess = sport == "chess" or slug_lower.startswith("chess-")
+        if _is_chess:
+            parts.append(
+                "\n=== CHESS-SPECIFIC INSTRUCTIONS ===\n"
+                "This is a 'Will X win?' chess market. At elite level, 50-65% of "
+                "classical games and 30-40% of blitz games end in DRAWS. Polymarket "
+                "resolves these markets NO on draws. You MUST discount P(YES) by "
+                "each player's historical draw rate and the Polymarket draw market "
+                "price. A player who is a slight favorite at 55% market price may "
+                "have true win probability near 30% due to draw mass. Favor NO when "
+                "both players have high draw rates and the Polymarket draw market "
+                "is elevated (>30c)."
+            )
         return "\n".join(p for p in parts if p)
 
     def _load_lessons(self) -> str:
