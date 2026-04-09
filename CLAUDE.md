@@ -42,10 +42,10 @@
 → Direkt implement → test → next task
 
 **Medium** (50-200 lines, 2-3 dosya, yeni feature):
-→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → 1 audit agent (sadece değişen dosyalar + bağımlılıkları) → 0 hata olana kadar düzelt → next task
+→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → audit agent (sadece değişen dosyalar + bağımlılıkları) → **2 ARDIŞIK CLEAN audit dönene kadar düzelt** (aşağıda açıklanmış) → next task
 
 **Large** (yeni modül, mimari değişiklik, strateji kararı):
-→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → 1 audit agent (değişen dosyalar + bağımlılıkları) → 0 hata → dry_run smoke test → next task
+→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → audit agent (değişen dosyalar + bağımlılıkları) → **2 ARDIŞIK CLEAN audit** → dry_run smoke test → next task
 
 ### 2. Anti-Spaghetti Rules (HER ZAMAN GEÇERLİ)
 
@@ -134,12 +134,32 @@ Rules:
 #### Kilitlenme Koruması:
 - Paralel agent YASAK — aynı anda max 1 agent
 - Agent 3 dakikadan uzun sürerse → kullanıcıya bildir
-- Death spiral koruması: max 3 audit turu, sonra kullanıcıya sor
+- **Death spiral koruması: max 3 FIX turu**, sonra kullanıcıya sor
+  (1 FIX turu = non-clean audit + kod düzeltme. CLEAN audit'ler sayılmaz.)
 - Cosmetic issue (linter, type-inference, format) → ATLA, sayaç sıfırlanmaz
+
+#### Terminasyon Kuralı — 2 Ardışık CLEAN:
+Audit'in tek seferlik CLEAN sonucu yeterli DEĞİLDİR. İlk CLEAN bir false negative
+olabilir (agent bir şeyi kaçırmış olabilir). Bu yüzden:
+
+1. **Audit 1 koş** → bulgular var mı?
+2. Bulgular varsa → düzelt → **Audit 2 koş**
+3. Audit 2 CLEAN ise → **mutlaka bir Audit 3 daha koş**
+4. Audit 3 de CLEAN ise → **iş biter** (2 ardışık CLEAN sağlandı)
+5. Audit 3 bulgu bulursa → düzelt → Audit 4 → Audit 5 (yine 2 ardışık CLEAN ara)
+6. 3 FIX turunda hâlâ 2 ardışık CLEAN yakalanamadıysa → kullanıcıya sor
+
+**Neden 2 ardışık?** Tek CLEAN = "bu audit bulgu bulamadı". Ardışık 2 CLEAN =
+"bulgu yok VE fix regression eklemedi". İkinci audit, fix'lerin yeni bug
+doğurmadığını doğrular.
+
+**Minimum audit sayısı**: 2 (her ikisi de ilk seferde CLEAN çıkarsa)
+**Tipik akış**: 3-4 audit (1 bulgu-fix turu + 2 clean confirmation turu)
+**Maksimum**: 3 FIX turu içinde bitmezse kullanıcıya danış
 
 #### Entegrasyon Kuralları:
 - Yeni kodu entegre etmeden ÖNCE: çevresindeki kodu oku, uyum sağla
-- Temiz audit dönünce → task'i tamamla, bir sonrakine geç
+- **2 ardışık CLEAN audit** dönünce → task'i tamamla, bir sonrakine geç
 
 #### Güvenlik Zinciri Özeti:
 1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
