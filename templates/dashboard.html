@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Polymarket Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <style>
         /* ── Reset & Base ── */
@@ -46,8 +45,8 @@
             --space-lg: 24px;
             --space-xl: 32px;
             --space-2xl: 48px;
-            --font-sans: 'Inter', -apple-system, sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', emoji;
-            --font-mono: 'JetBrains Mono', 'Fira Code', monospace, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji';
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
             --transition: 180ms ease-out;
         }
 
@@ -1622,9 +1621,11 @@
         function getSportEmoji(sportTag, slug) {
             const s = (sportTag || '').toLowerCase();
             const sl = (slug || '').toLowerCase();
-            // Tennis (ATP/WTA/ITF)
+            // Tennis (ATP/WTA/ITF) — custom Apple-style tennis ball icon
             if (s.startsWith('atp') || s.startsWith('wta') || s.includes('tennis')
-                || sl.startsWith('atp-') || sl.startsWith('wta-')) return '🎾';
+                || sl.startsWith('atp-') || sl.startsWith('wta-')) {
+                return '<img src="/static/tennis_icon.png" alt="🎾" style="width:1em;height:1em;vertical-align:-0.15em;display:inline-block">';
+            }
             // Basketball (NBA, WNBA, Euroleague, NCAAB)
             if (s.includes('nba') || s.includes('wnba') || s.includes('euroleague') || s.includes('ncaab')
                 || sl.startsWith('nba-') || sl.startsWith('wnba-') || sl.startsWith('euroleague-')
