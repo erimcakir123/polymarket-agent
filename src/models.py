@@ -86,6 +86,7 @@ class Position(BaseModel):
     entry_reason: str = ""  # How this position was entered (e.g. "ai", "stock", "live_dip")
     is_consensus: bool = False  # True when AI and market agree on favorite
     pending_resolution: bool = False  # True when price ≥0.95 or ≤0.05 (awaiting oracle)
+    stale_unknown: bool = False  # True when startup_cleanup couldn't determine outcome — kept in portfolio, manual review
     sport_tag: str = ""  # Specific sport (e.g. "cs2", "dota2", "lol", "nba") for correlation
     event_id: str = ""  # Gamma event ID -- all outcomes of the same match share this
     bookmaker_prob: float = 0.0  # Bookmaker implied probability at entry (0 = not available)

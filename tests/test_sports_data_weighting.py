@@ -1,6 +1,8 @@
 """Tests for ESPN odds sharp bookmaker weighting in sports_data.py."""
 from unittest.mock import MagicMock
 
+import pytest
+
 
 def _make_odds_response(providers_odds: list) -> dict:
     """Build a fake ESPN odds API response from a list of (provider_name, home_odds, away_odds)."""
@@ -67,3 +69,105 @@ def test_espn_odds_has_sharp_false_for_retail_only(monkeypatch):
     assert result is not None
     assert result["has_sharp"] is False
     assert result["total_weight"] == 1.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Question parser tests (Monte Carlo / tournament-prefix bug fix)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("question,expected_a,expected_b", [
+    # Existing short-prefix behavior preserved
+    ("NBA: Lakers vs Warriors", "Lakers", "Warriors"),
+    ("MLB: Yankees vs Red Sox", "Yankees", "Red Sox"),
+    ("KHL: SKA vs CSKA", "SKA", "CSKA"),
+    ("Will the Lakers beat the Warriors?", "Lakers", "Warriors"),
+    ("Real Madrid vs Barcelona", "Real Madrid", "Barcelona"),
+    ("A vs B: O/U 238.5", "A", "B"),
+
+    # Monte Carlo bug fix — multi-word tournament prefix with colon
+    (
+        "Rolex Monte Carlo Masters: Matteo Berrettini vs Joao Fonseca",
+        "Matteo Berrettini",
+        "Joao Fonseca",
+    ),
+    (
+        "Rolex Monte Carlo Masters: Felix Auger-Aliassime vs Casper Ruud",
+        "Felix Auger-Aliassime",
+        "Casper Ruud",
+    ),
+    (
+        "Rolex Monte Carlo Masters: Alexander Blockx vs Alex de Minaur",
+        "Alexander Blockx",
+        "Alex de Minaur",
+    ),
+    (
+        "Rolex Monte Carlo Masters: Tomas Machac vs Jannik Sinner",
+        "Tomas Machac",
+        "Jannik Sinner",
+    ),
+
+    # Challenger city prefixes (single-word)
+    ("Campinas: Gonzalo Bueno vs Lucio Ratti", "Gonzalo Bueno", "Lucio Ratti"),
+    ("Wuning: Li Tu vs Alastair Gray", "Li Tu", "Alastair Gray"),
+    (
+        "Campinas: Guido Justo vs Juan Manuel La Serna",
+        "Guido Justo",
+        "Juan Manuel La Serna",
+    ),
+
+    # Bonus fix — other sports with multi-word prefixes
+    ("Premier League: Arsenal vs Chelsea", "Arsenal", "Chelsea"),
+    ("UFC 300: Jones vs Miocic", "Jones", "Miocic"),
+    (
+        "Champions League Final: Real Madrid vs Liverpool",
+        "Real Madrid",
+        "Liverpool",
+    ),
+
+    # Nested colons
+    ("Masters: Round 1: Sinner vs Alcaraz", "Sinner", "Alcaraz"),
+
+    # Single-player "win" / "be the winner" patterns
+    ("Will Jannik Sinner win the 2026 French Open?", "Jannik Sinner", None),
+    (
+        "Will Carlos Alcaraz be the 2026 Wimbledon winner?",
+        "Carlos Alcaraz",
+        None,
+    ),
+])
+def test_extract_teams_from_question(question, expected_a, expected_b):
+    """Parser handles tournament prefixes, nested colons, and winner patterns."""
+    from src.sports_data import SportsDataClient
+
+    client = SportsDataClient()
+    a, b = client._extract_teams_from_question(question)
+    assert a == expected_a, f"team_a mismatch for {question!r}: got {a!r}"
+    assert b == expected_b, f"team_b mismatch for {question!r}: got {b!r}"
+
+
+@pytest.mark.parametrize("name,expected", [
+    # Should be detected as tournament
+    ("Rolex Monte Carlo Masters", True),
+    ("Monte Carlo Masters", True),
+    ("French Open", True),
+    ("ATP 500 Dubai", True),       # "atp 500" keyword matches (case-insensitive)
+    ("Grand Slam Cup", True),
+    ("Wimbledon Championships", True),
+    ("US Open", True),
+    ("Madrid Open", True),
+    # Should NOT be detected (actual player/team names)
+    ("Jannik Sinner", False),
+    ("Carlos Alcaraz", False),
+    ("Real Madrid", False),         # no tournament keyword
+    ("Alex de Minaur", False),
+    ("", False),
+    ("A", False),                   # too short
+    ("Cup", False),                 # single word, even with keyword
+])
+def test_looks_like_tournament(name, expected):
+    """Tournament name detector is conservative: keyword + 2+ words required."""
+    from src.sports_data import _looks_like_tournament
+
+    assert _looks_like_tournament(name) is expected, (
+        f"_looks_like_tournament({name!r}) expected {expected}"
+    )

@@ -8,6 +8,34 @@
 
 ## Development Workflow (MANDATORY — follow exactly)
 
+### 0. Plan-First Rule (KESİN KURAL — İSTİSNASIZ)
+
+**Her kullanıcı talebinde, aksiyon almadan ÖNCE:**
+
+1. Talebi küçük somut adımlara böl
+2. Her adım için belirt:
+   - Hangi dosya(lar) etkilenir
+   - Ne değişecek (özet)
+   - Risk / kırılma ihtimali
+3. Planı kullanıcıya sun
+4. **Onay BEKLE** — "ok/evet/yap" gelmeden kodlama başlamaz
+5. Onay gelince sırayla uygula, her adımda raporla
+6. Scope genişlerse (başka agent tavsiyesi, yeni bulgu vb.) → **yeni plan, yeni onay**. Bir önceki onay, yeni scope'u kapsamaz.
+
+**İstisna (plan gerekmez):**
+- READ-ONLY bilgi talebi (log okuma, grep, dosya okuma, durum sorgusu)
+- Tek satır/dosya soru cevaplama (kod yazmadan)
+- Kullanıcının explicit "şimdi yap" talebi (ama yine de ne yapacağını tek cümle özetle)
+
+**İstisna DEĞİL (plan mutlaka):**
+- Kod yazma/değiştirme (1 satır bile)
+- Dosya silme/taşıma
+- Bot start/stop/restart/reset
+- Git commit/push/branch operasyonları
+- Başka AI/agent çağırma
+
+**Neden:** Önceki sessionda scope creep ile plansız eklenen değişiklikler tekrar iş çıkardı. Plan-first = hata minimizasyonu + şeffaflık.
+
 ### 1. Change Size Protocol
 
 **Small** (<50 lines, single file, bug fix, API key addition):

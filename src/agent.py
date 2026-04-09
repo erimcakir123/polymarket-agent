@@ -186,6 +186,15 @@ class Agent:
         """Main agent loop. Alternates heavy and light cycles."""
         import signal as _signal
         logger.info("Agent starting -- mode=%s", self.config.mode.value)
+
+        # STARTUP CLEANUP: resolve stale positions from previous sessions
+        # BEFORE the first cycle. Non-blocking: failure here never stops startup.
+        try:
+            from src.startup_cleanup import StartupCleanup
+            StartupCleanup(self).run()
+        except Exception as e:
+            logger.error("Startup cleanup failed (non-blocking): %s", e)
+
         self.consecutive_api_failures = 0
         last_full_cycle_time = 0.0
         try:

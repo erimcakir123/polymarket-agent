@@ -261,6 +261,36 @@ _SERIES_TO_ESPN: dict = {
 _QUESTION_KEYWORDS: dict = {}
 
 
+# Tournament name keywords used to detect when the parser mistakenly extracted
+# a tournament title (e.g. "Rolex Monte Carlo Masters") as a player name.
+# Kept intentionally conservative: only strings that are unambiguously
+# tournament identifiers. Combined with len>=2-word guard in the helper.
+_TOURNAMENT_KEYWORDS: frozenset = frozenset({
+    "masters", "open", "cup", "championship", "championships",
+    "challenger", "grand slam", "grand prix", "trophy", "finals",
+    "wimbledon", "roland garros", "monte carlo", "indian wells",
+    "futures", "atp 250", "atp 500", "atp 1000", "wta 125",
+})
+
+
+def _looks_like_tournament(name: str) -> bool:
+    """Return True if `name` looks like a tournament title, not a player/team.
+
+    Heuristic: contains a known tournament keyword AND has 2+ words. Avoids
+    false positives on short names that happen to include the substring
+    "open" (e.g. a hypothetical player "Open"). Used as a sanity check in
+    athlete-based sports where Polymarket questions like
+    "Rolex Monte Carlo Masters: A vs B" can leak the tournament prefix
+    into the extracted team_a slot.
+    """
+    if not name or len(name) < 4:
+        return False
+    lower = name.lower()
+    if len(name.split()) < 2:
+        return False
+    return any(kw in lower for kw in _TOURNAMENT_KEYWORDS)
+
+
 class SportsDataClient:
     """Fetches team stats and recent results from ESPN (free, no API key)."""
 
@@ -759,13 +789,27 @@ class SportsDataClient:
         """Extract team names from various question formats.
 
         Handles: 'NBA: Team A vs Team B', 'Will Team A beat Team B?',
-        'Team A vs Team B: Who will win?', 'Will Team A win on DATE?', etc.
+        'Team A vs Team B: Who will win?', 'Will Team A win on DATE?',
+        'Rolex Monte Carlo Masters: Player A vs Player B', etc.
         """
         import re
         q = question.strip()
 
-        # Strip common prefixes like "NBA: ", "MLB: ", "KHL: ", "ELH: "
-        q = re.sub(r'^[A-Za-z]{2,10}:\s*', '', q)
+        # Iteratively strip any "Prefix: ..." where the remainder contains "vs".
+        # Handles both short prefixes (NBA:, MLB:) and multi-word tournament
+        # prefixes (Rolex Monte Carlo Masters:, Premier League:, UFC 300:,
+        # Campinas:, Wuning:). Iteration handles nested colons like
+        # "Masters: Round 1: A vs B". Only strips when "vs" is present after
+        # the colon, so "A vs B: O/U 238.5" is left untouched.
+        while True:
+            m = re.match(
+                r'^([^:]{1,60}):\s+(.+?\s+vs\.?\s+.+)$',
+                q,
+                flags=re.IGNORECASE,
+            )
+            if not m:
+                break
+            q = m.group(2)
 
         # Try "vs" split
         for sep in [" vs. ", " vs ", " versus "]:
@@ -773,10 +817,14 @@ class SportsDataClient:
                 idx = q.lower().index(sep)
                 team_a = q[:idx].strip()
                 team_b = q[idx + len(sep):].strip()
-                # Remove trailing stuff like "(Match)", " - Tournament", ": O/U 238.5"
-                for char in ["(", " -", ":"]:
+                # team_a: colon already handled by prefix strip above, so only
+                # strip "(" and " -" trailing annotations.
+                for char in ["(", " -"]:
                     if char in team_a:
                         team_a = team_a[:team_a.index(char)].strip()
+                # team_b: keep ":" in strip list so "A vs B: O/U 238.5" still
+                # trims the suffix after team_b.
+                for char in ["(", " -", ":"]:
                     if char in team_b:
                         team_b = team_b[:team_b.index(char)].strip()
                 # Remove question mark
@@ -803,8 +851,9 @@ class SportsDataClient:
             return self._clean_team_name(to_beat_match.group(1).strip()), self._clean_team_name(to_beat_match.group(2).rstrip("?").strip())
 
         # Single-team pattern: "Will Team A win on DATE?" / "Will Team A win?"
+        # Also handles: "Will Team A be the 2026 Wimbledon winner?"
         win_match = re.search(
-            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+win\b',
+            r'[Ww]ill\s+(?:the\s+)?(.+?)\s+(?:win\b|be\s+(?:the\s+)?.*?winner\b)',
             q,
         )
         if win_match:
@@ -881,6 +930,25 @@ class SportsDataClient:
         """
         team_a_name, team_b_name = self._extract_teams_from_question(question)
         slug_a, slug_b = self._extract_teams_from_slug(slug)
+
+        # Defense-in-depth: if the parser leaked a tournament title into a
+        # player slot (e.g. "Rolex Monte Carlo Masters"), clear it so the slug
+        # fallback below can fill in the real player name. Only applies to
+        # athlete-based sports where this confusion occurs.
+        if sport in ("tennis", "mma"):
+            if team_a_name and _looks_like_tournament(team_a_name):
+                logger.debug(
+                    "Detected tournament name '%s' as player A, clearing",
+                    team_a_name,
+                )
+                team_a_name = None
+            if team_b_name and _looks_like_tournament(team_b_name):
+                logger.debug(
+                    "Detected tournament name '%s' as player B, clearing",
+                    team_b_name,
+                )
+                team_b_name = None
+
         if not team_a_name and slug_a and len(slug_a) >= 4:
             team_a_name = slug_a
         if not team_b_name and slug_b and len(slug_b) >= 4:

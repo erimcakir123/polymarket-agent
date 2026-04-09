@@ -302,6 +302,11 @@ class PriceUpdater:
                 logger.debug("Price update failed for %s: %s", pos.slug[:30], e)
 
         for cid in stale_cids:
+            # Skip stale removal for positions flagged by startup_cleanup as unknown —
+            # user wants them kept in portfolio for manual review, not auto-deleted.
+            _pos_check = self.ctx.portfolio.positions.get(cid)
+            if _pos_check and getattr(_pos_check, "stale_unknown", False):
+                continue
             self.ctx._pre_match_prices.pop(cid, None)
             pos = self.ctx.portfolio.remove_position(cid)
             if pos:
