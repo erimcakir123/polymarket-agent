@@ -1403,9 +1403,12 @@
                 const shortB = abbr(b);
                 return isYes ? shortA : shortB;
             }
-            // "Will X win"
+            // "Will X win" — YES = X winning, NO = X not winning (draw or opponent)
             const willMatch = q.match(/^Will\s+(.+?)\s+win/i);
-            if (willMatch) return willMatch[1].trim();
+            if (willMatch) {
+                const team = willMatch[1].trim();
+                return isYes ? team : `NOT ${team}`;
+            }
             return isYes ? 'YES' : 'NO';
         }
 
