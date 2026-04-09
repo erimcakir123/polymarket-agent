@@ -464,16 +464,82 @@ class EntryGate:
                 logger.warning("Esports enrichment error for %s: %s", (_m.slug or "")[:40], exc)
                 return ("esports", _m.condition_id, None, None)
 
-        def _enrich_sports(_m):
-            """Fetch ESPN/discovery context + Odds API for a single sports market."""
+        def _enrich_chess(_m):
+            """Fetch chess context via Lichess + Chess.com dual source.
+
+            Handles:
+              - Player name extraction from Polymarket event title
+              - Rating + form + draw rate + [W]/[L] tokens per player
+              - Polymarket sibling draw market price as signal
+              - Chess-specific draw warning embedded in context
+            """
             try:
+                from src.chess_data import get_chess_data
+                ctx = get_chess_data().format_context(
+                    getattr(_m, "question", ""), _m.slug or "",
+                )
+                if ctx:
+                    logger.info(
+                        "Chess context: %s | tokens=%d",
+                        (_m.slug or "")[:40],
+                        ctx.count("[W]") + ctx.count("[L]"),
+                    )
+                    return ("sports", _m.condition_id, ctx, None)
+                return ("sports", _m.condition_id, None, None)
+            except Exception as exc:
+                logger.warning("Chess enrichment error for %s: %s",
+                               (_m.slug or "")[:40], exc)
+                return ("sports", _m.condition_id, None, None)
+
+        def _enrich_sports(_m):
+            """Fetch ESPN/discovery context + Odds API for a single sports market.
+
+            Includes two additive paths:
+              - Chess fast-path (routes chess markets to _enrich_chess)
+              - Tennis TML supplementary fallback (when ESPN < 6 [W]/[L] tokens)
+            """
+            try:
+                _slug = _m.slug or ""
+                _sport_tag_lower = (getattr(_m, "sport_tag", "") or "").lower()
+                _slug_prefix = _slug.split("-")[0].lower() if _slug else ""
+
+                # ── Chess fast-path ─────────────────────────────────────
+                if _slug_prefix == "chess" or _sport_tag_lower == "chess":
+                    return _enrich_chess(_m)
+
+                # ── Existing ESPN/discovery flow ────────────────────────
                 result = self.discovery.resolve(
                     getattr(_m, "question", ""),
-                    _m.slug or "",
+                    _slug,
                     getattr(_m, "tags", []),
                 )
                 ctx = result.context if result else None
                 espn_odds = result.espn_odds if result else None
+
+                # ── Tennis TML supplementary fallback (ATP only) ────────
+                _is_atp = _slug_prefix == "atp" or _sport_tag_lower == "atp"
+                if _is_atp:
+                    _existing_tokens = (ctx.count("[W]") + ctx.count("[L]")) if ctx else 0
+                    _tml_threshold = self.config.tennis.tml_fallback_threshold_tokens
+                    if _existing_tokens < _tml_threshold:
+                        try:
+                            from src.tennis_tml import get_tennis_tml
+                            tml_ctx = get_tennis_tml().format_context(
+                                getattr(_m, "question", ""), _slug,
+                            )
+                            if tml_ctx:
+                                if ctx:
+                                    ctx = ctx + "\n\n" + tml_ctx
+                                else:
+                                    ctx = tml_ctx
+                                logger.info(
+                                    "Tennis TML fallback: %s | tokens=%d→%d",
+                                    _slug[:35], _existing_tokens,
+                                    ctx.count("[W]") + ctx.count("[L]"),
+                                )
+                        except Exception as tml_exc:
+                            logger.warning("TML fallback error for %s: %s",
+                                           _slug[:40], tml_exc)
 
                 # Odds API: fetch bookmaker odds (Pinnacle etc.) — especially for tennis
                 # where ESPN doesn't provide odds but Odds API does
@@ -481,7 +547,7 @@ class EntryGate:
                 if self.odds_api and self.odds_api.available:
                     try:
                         odds_api_result = self.odds_api.get_bookmaker_odds(
-                            getattr(_m, "question", ""), _m.slug or "", getattr(_m, "tags", [])
+                            getattr(_m, "question", ""), _slug, getattr(_m, "tags", [])
                         )
                     except Exception:
                         pass
@@ -506,12 +572,13 @@ class EntryGate:
                         ctx += odds_section
                     else:
                         # No ESPN data but Odds API found odds — create minimal context
-                        ctx = (f"=== {getattr(_m, 'question', _m.slug)} ===\n"
+                        ctx = (f"=== {getattr(_m, 'question', _slug)} ===\n"
                                f"No match statistics available.\n"
                                + odds_section)
 
                 if ctx:
-                    logger.info("Sports context (%s): %s", result.source if result else "odds", (_m.slug or "")[:40])
+                    logger.info("Sports context (%s): %s",
+                                result.source if result else "odds", _slug[:40])
                     return ("sports", _m.condition_id, ctx, espn_odds)
                 return ("sports", _m.condition_id, None, None)
             except Exception as exc:
