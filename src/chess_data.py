@@ -21,7 +21,7 @@ import logging
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -36,6 +36,7 @@ from src.tennis_tml import _parse_players_from_question  # helper reuse
 logger = logging.getLogger(__name__)
 
 _CACHE_DIR = Path("logs/chess_cache")
+_STATS_CACHE_PATH = _CACHE_DIR / "stats_cache.json"
 
 _CHESSCOM_BASE = "https://api.chess.com/pub"
 _LICHESS_BASE = "https://lichess.org/api"
@@ -74,6 +75,7 @@ class ChessDataClient:
         self._cfg = load_config().chess
         self._stats_cache: dict[str, PlayerStats] = {}
         self._last_request_at: float = 0.0
+        self._load_persistent_cache()
 
     def _throttle(self) -> None:
         now = time.time()
@@ -81,6 +83,67 @@ class ChessDataClient:
         if delta < self._cfg.rate_limit_seconds:
             time.sleep(self._cfg.rate_limit_seconds - delta)
         self._last_request_at = time.time()
+
+    # ── Disk persistence ───────────────────────────────────────────
+
+    def _load_persistent_cache(self) -> None:
+        """Load stats cache from disk on startup, filtering stale entries.
+
+        Warm-start path: any PlayerStats whose fetched_at is within the
+        stats_cache_hours TTL is restored. Stale entries are dropped. On
+        any read/parse failure we silently start with an empty cache.
+        """
+        try:
+            if not _STATS_CACHE_PATH.exists():
+                return
+            raw = json.loads(_STATS_CACHE_PATH.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                return
+            now = time.time()
+            max_age_seconds = self._cfg.stats_cache_hours * 3600
+            loaded = 0
+            for key, data in raw.items():
+                if not isinstance(data, dict):
+                    continue
+                fetched_at = data.get("fetched_at", 0) or 0
+                if (now - fetched_at) >= max_age_seconds:
+                    continue  # stale, drop
+                try:
+                    games = [
+                        ChessGame(**g)
+                        for g in (data.get("games") or [])
+                        if isinstance(g, dict)
+                    ]
+                    self._stats_cache[key] = PlayerStats(
+                        real_name=data.get("real_name", ""),
+                        lichess_rapid=data.get("lichess_rapid"),
+                        lichess_blitz=data.get("lichess_blitz"),
+                        lichess_classical=data.get("lichess_classical"),
+                        chesscom_rapid=data.get("chesscom_rapid"),
+                        chesscom_blitz=data.get("chesscom_blitz"),
+                        games=games,
+                        fetched_at=fetched_at,
+                    )
+                    loaded += 1
+                except (TypeError, KeyError):
+                    continue
+            if loaded:
+                logger.info(
+                    "Chess stats cache loaded: %d fresh entries from disk", loaded,
+                )
+        except Exception as exc:
+            logger.warning("Chess stats cache load error: %s", exc)
+
+    def _persist_cache(self) -> None:
+        """Write stats cache to disk atomically via .tmp rename."""
+        try:
+            _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            serialized = {k: asdict(v) for k, v in self._stats_cache.items()}
+            tmp = _STATS_CACHE_PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps(serialized), encoding="utf-8")
+            tmp.replace(_STATS_CACHE_PATH)
+        except Exception as exc:
+            logger.warning("Chess stats cache persist error: %s", exc)
 
     # ── Public API ─────────────────────────────────────────────────
 
@@ -293,6 +356,7 @@ class ChessDataClient:
                 fetched_at=time.time(),
             )
             self._stats_cache[cache_key] = stats
+            self._persist_cache()
             return stats
 
     # ── Lichess fetchers ───────────────────────────────────────────
