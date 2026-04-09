@@ -337,7 +337,7 @@ def check_match_exit(data: dict) -> dict:
     #   (consensus no longer favors). Catastrophic floor (Layer 1) still
     #   protects against total collapse (price < entry × 50%).
     _is_baseball = sport_tag in ("mlb", "baseball", "kbo", "npb")
-    _baseball_losing = _is_baseball and elapsed_pct >= 0.70 and effective_current < 0.60
+    _baseball_losing = _is_baseball and elapsed_pct >= 0.50 and effective_current < 0.60
     a_conf_hold = (
         confidence == "A"
         and effective_entry >= 0.60
