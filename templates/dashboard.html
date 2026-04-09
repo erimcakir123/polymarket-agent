@@ -1402,12 +1402,13 @@
                 const shortB = abbr(b);
                 return isYes ? shortA : shortB;
             }
-            // "Will X win" — YES = X winning, NO = X not winning (draw or opponent)
+            // "Will X win" — YES side shows the team name (they win).
+            // NO side: caller decides whether to show team name (non-draw
+            // sports, opponent-wins unambiguous) or literal "NO" (draw-risk
+            // sports, ambiguous between draw + opponent). This helper just
+            // returns the team name; caller overrides for draw-risk + NO.
             const willMatch = q.match(/^Will\s+(.+?)\s+win/i);
-            if (willMatch) {
-                const team = willMatch[1].trim();
-                return isYes ? team : `NOT ${team}`;
-            }
+            if (willMatch) return willMatch[1].trim();
             return isYes ? 'YES' : 'NO';
         }
 
@@ -1667,6 +1668,35 @@
                 || s.includes('premier') || s.includes('serie')) return '⚽';
             // Default
             return '🎯';
+        }
+
+        /**
+         * Returns true if the sport/slug has a meaningful draw rate (>=5%).
+         * Mirrors ai_analyst._detect_draw_risk_sport() — must stay in sync.
+         * For draw-risk sports, BUY_NO is ambiguous (draw + opponent-win mixed),
+         * so we surface "NO" explicitly in the UI; for non-draw sports BUY_NO
+         * is unambiguous (= opponent wins) and the rightside direction badge
+         * alone is sufficient.
+         */
+        function isDrawRiskSport(sportTag, slug) {
+            const s = (sportTag || '').toLowerCase();
+            const sl = (slug || '').toLowerCase();
+            if (s === 'chess' || sl.startsWith('chess-')) return true;
+            if (s.includes('cricket') || sl.startsWith('cric')
+                || s === 'ipl' || s === 'psl') return true;
+            if (s.includes('rugby') || sl.startsWith('rugby-') || s.includes('nrl')) return true;
+            // Soccer — widest net, mirror getSportEmoji prefix list
+            const soccerPrefixes = ['uel-','ucl-','epl-','uefa','tur-','esp-','ita-','ger-','fra-',
+                'bra-','arg-','col-','mex-','bel-','por-','ned-','sco-','jpn-','spl-','mls-',
+                'aus-','chi-','lib-','sud-','gre-','nor-','swe-','den-','aut-','ind-','ksa-',
+                'rsa-','uru-','bol-','per-','par-','cze-','rou-','irl-','cyp-','chn-','ecu-',
+                'ven-','fifa','eng-','isp-','nwsl','usa-','conmebol'];
+            if (soccerPrefixes.some(p => sl.startsWith(p))) return true;
+            if (s.includes('soccer') || s.includes('football')
+                || s.includes('uefa') || s.includes('fifa') || s.includes('mls')
+                || s.includes('liga') || s.includes('bundesliga') || s.includes('ligue')
+                || s.includes('premier') || s.includes('serie')) return true;
+            return false;
         }
 
         /* ── Data Fetching ── */
@@ -2010,7 +2040,13 @@
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const direction = p.direction || 'BUY_YES';
                 const isYes = direction.includes('YES');
-                const dirLabel = getDirectionLabel(p.question, direction, slug);
+                const isDrawRisk = isDrawRiskSport(p.sport_tag, slug);
+                // For draw-risk sports on NO side: show "NO" instead of the
+                // opponent team name, because the position is against the
+                // named team winning (draw + opponent-win combined).
+                const dirLabel = (!isYes && isDrawRisk)
+                    ? 'NO'
+                    : getDirectionLabel(p.question, direction, slug);
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 // For BUY_NO: stored prices are YES-side, flip to NO perspective
                 const rawEntry = p.entry_price || 0;
@@ -2109,7 +2145,7 @@
                         <span style="opacity:0.6">→</span>
                         <span>Now: ${nowPrice > 0 ? (nowPrice*100).toFixed(0)+'%' : '—'}</span>
                         <span style="opacity:0.6">→</span>
-                        <span title="AI win probability for our ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI ${dirLabel}: ${(aiProb*100).toFixed(0)}%</span>
+                        <span title="AI win probability for our ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI${(!isYes && isDrawRisk) ? ' NO' : ''}: ${(aiProb*100).toFixed(0)}%</span>
                     </div>
                     <div class="feed-details" style="margin-top:2px">
                         <span>$${size.toFixed(2)}</span>
@@ -2254,7 +2290,12 @@
                 // Enrichment from BUY entry or pending position
                 const direction = isPending ? (t.direction || '') : (buy.direction || buy.action || '');
                 const isYes = isPending ? direction.includes('YES') || direction === 'BUY_YES' : direction.includes('YES');
-                const dirLabel = isPending ? (isYes ? 'YES' : 'NO') : (direction ? getDirectionLabel(buy.question, direction, slug) : '');
+                const tradeSportTag = isPending ? (t.sport_tag || '') : (buy.sport_tag || '');
+                const tradeIsDrawRisk = isDrawRiskSport(tradeSportTag, slug);
+                // Draw-risk NO: force "NO" label (see position card comment)
+                const dirLabel = (!isYes && tradeIsDrawRisk)
+                    ? 'NO'
+                    : (isPending ? (isYes ? 'YES' : 'NO') : (direction ? getDirectionLabel(buy.question, direction, slug) : ''));
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 const rawBuyPrice = isPending ? (t.price || 0) : (buy.entry_price || buy.price || 0);
                 // rawBuyPrice is execution price (already our side): YES price for BUY_YES, NO price for BUY_NO
@@ -2293,7 +2334,7 @@
                     </div>
                     ${confLabel || aiProb > 0 || edge > 0 ? `<div class="feed-details" style="margin-top:2px">
                         ${confLabel ? `<span style="color:${confColor};font-weight:700">${confLabel}</span>` : ''}
-                        ${aiProb > 0 ? `<span title="AI win probability for our ${dirLabel || 'side'} (raw P(YES)=${(rawAiProb2*100).toFixed(0)}%)">AI ${dirLabel || ''}: ${(aiProb*100).toFixed(0)}%</span>` : ''}
+                        ${aiProb > 0 ? `<span title="AI win probability for our ${dirLabel || 'side'} (raw P(YES)=${(rawAiProb2*100).toFixed(0)}%)">AI${(!isYes && tradeIsDrawRisk) ? ' NO' : ''}: ${(aiProb*100).toFixed(0)}%</span>` : ''}
                         ${edge > 0 ? `<span>Edge: ${(edge*100).toFixed(1)}%</span>` : ''}
                     </div>` : ''}
                     <div class="feed-impact">
@@ -2327,6 +2368,7 @@
                 const isYes = dir.includes('YES');
                 // Show AI probability for OUR side (BUY_NO inverts raw P(YES))
                 const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
+                const stockIsDrawRisk = isDrawRiskSport(s.sport_tag, slug);
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 const dirLabel = dir.includes('YES') ? 'YES' : dir.includes('NO') ? 'NO' : dir;
                 const price = s.stocked_price || 0;
@@ -2350,7 +2392,7 @@
                     </div>
                     <div class="feed-details">
                         <span>Edge: ${(edge*100).toFixed(1)}%</span>
-                        <span title="AI win probability for ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI ${dirLabel}: ${(aiProb*100).toFixed(0)}%</span>
+                        <span title="AI win probability for ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI${(!isYes && stockIsDrawRisk) ? ' NO' : ''}: ${(aiProb*100).toFixed(0)}%</span>
                         <span>Price: ${(price*100).toFixed(0)}¢</span>
                         ${conf ? `<span>Conf: ${conf}</span>` : ''}
                     </div>
