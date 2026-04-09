@@ -89,8 +89,28 @@
 
 #### Agent Prompt Şablonu:
 ```
-PHASE 1 — Context: Read ALL src/*.py files to understand the full codebase.
-Do NOT read: API Guides/, docs/, logs/, tests/, .env, config YAML files.
+PHASE 1 — Scoped Context (grep-first, RAM-aware):
+
+1. Read ONLY the files listed as CHANGED in PHASE 2 below.
+2. For each changed file, discover external consumers via grep (not Read):
+     Grep pattern: "from src.<module>|import.*<module_name>"
+     Grep pattern: "<exported_function_name>|<exported_class_name>"
+   Look at the grep output as a LIST of candidate files — do not open them blindly.
+3. Read ONLY the consumer files that grep actually returned. These are the
+   files that could be broken by the change. Nothing else is relevant.
+4. For huge consumer files (>1000 lines), read only the relevant function/region
+   via Read(..., offset=X, limit=Y). Do not load entire large files.
+
+BANNED patterns (cause RAM crashes, wasted context):
+- "Read ALL src/*.py files" — blind glob-and-read. This is the #1 audit crash cause.
+- Reading files that grep did not return as consumers.
+- Reading API Guides/, docs/, logs/, tests/, .env, config YAML that is unchanged.
+- Spawning sub-agents (subagent_type=Agent).
+
+PREFERRED patterns:
+- Grep over Read for symbol-level flow understanding.
+- Targeted Read with offset+limit for huge files.
+- Early "CLEAN" exit if grep shows no broken references in consumers.
 
 PHASE 2 — Focused Audit: Check these CHANGED files for issues:
 Files: [liste]
@@ -99,7 +119,7 @@ Changes: [her dosyada ne değişti, 1 cümle]
 Look for:
 - Runtime errors (missing imports, wrong args, undefined vars)
 - Logic bugs (wrong conditions, broken control flow, edge cases)
-- Breaking changes (değişiklik başka dosyaları bozuyor mu?)
+- Breaking changes (değişiklik başka dosyaları bozuyor mu? — grep-verified)
 - Interface mismatches (fonksiyon signature değişti ama caller güncellenmedi mi?)
 - Dead code (kullanılmayan fonksiyon, import, değişken — RAPORLA ama silme, kullanıcıya sor)
 - Spaghetti code (fonksiyon >80 satır mı? aynı mantık 2+ yerde mi? iş mantığı main.py'de mi?)
@@ -123,8 +143,15 @@ Rules:
 
 #### Güvenlik Zinciri Özeti:
 1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
-2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + bağımlılıkları)
+2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + grep-verified consumers)
 3. Large changes → dry_run smoke test (bot'u çalıştırıp hata kontrolü)
+
+**Neden grep-first PHASE 1?**
+Eski şablon "Read ALL src/*.py" diyordu → 60+ dosya belleğe yükleniyor → Windows RAM
+doygunluğu → audit sırasında hard crash / Windows restart (2026-04-09 tespit edildi).
+Grep-first yaklaşımda sadece *alakalı* consumer'lar okunur, kapsam otomatik olarak
+değişikliğin gerçek etki alanına daralır. Kalite kaybı yok — çünkü grep 20 consumer
+bulursa agent 20'yi de okur, sadece alakasız dosyalar eleniyor.
 
 ### 4. Multi-AI Consultation (Large changes only)
 
