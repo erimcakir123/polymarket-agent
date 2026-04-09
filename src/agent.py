@@ -233,13 +233,10 @@ class Agent:
                         last_full_cycle_time = time.time()
                         # Auto-refill: keep running hard cycles until slots full
                         # Each refill analyzes the NEXT batch (seen_market_ids tracks offset)
-                        vs_reserved = self.config.volatility_swing.reserved_slots
                         _refill_round = 0
                         _consecutive_dry = 0  # Track consecutive refills with no new entries
                         while True:
-                            current_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
-                            current_normal = self.portfolio.active_position_count - current_vs
-                            open_slots = self.config.risk.max_positions - vs_reserved - current_normal
+                            open_slots = self.config.risk.max_positions - self.portfolio.active_position_count
                             if open_slots <= 0:
                                 logger.info("All slots filled -- refill complete")
                                 break

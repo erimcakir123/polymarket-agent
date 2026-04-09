@@ -65,7 +65,7 @@ class RiskConfig(BaseModel):
 
 class VolatilitySwingConfig(BaseModel):
     enabled: bool = True
-    reserved_slots: int = 3
+    reserved_slots: int = 0  # Single pool — all entry modes share max_positions
     max_concurrent: int = 5
     max_token_price: float = 0.50
     min_token_price: float = 0.10

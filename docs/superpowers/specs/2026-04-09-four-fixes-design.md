@@ -51,13 +51,13 @@ if a_conf_hold:
         return exit(a_conf_market_flip)
     # Baseball 70%+ elapsed: if losing, allow graduated SL. If winning, keep holding.
     _is_baseball = sport_tag in ("mlb", "baseball", "kbo", "npb")
-    if _is_baseball and elapsed_pct >= 0.70 and effective_current < effective_entry:
-        pass  # Fall through to graduated SL (losing, cut it)
+    if _is_baseball and elapsed_pct >= 0.70 and effective_current < 0.60:
+        pass  # Fall through to graduated SL (underdog/toss-up, cut it)
     else:
-        pass  # Normal hold-to-resolve (winning or <70%)
+        pass  # Normal hold-to-resolve (favorite ≥60¢ or <70% elapsed)
 ```
 
-Yani: beyzbol %70 elapsed + zararda → graduated SL. Kârdaysa → hold-to-resolve devam (%94+ near_resolve çıkar).
+Yani: beyzbol %70 elapsed + bizim taraf <60¢ → graduated SL (underdog/toss-up, kes). Bizim taraf ≥60¢ → hold-to-resolve devam (favori, kazanıyoruz, %94+ near_resolve çıkar).
 
 ## 3. Live Dip Bug Fix — B- skip + Moneyline filtresi
 **Sorun**: Live dip entry_gate'i bypass ediyor → B- skip yok, moneyline filtresi yok. Golf Top10 prop market'e $20 girdi.

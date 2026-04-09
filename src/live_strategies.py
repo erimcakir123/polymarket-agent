@@ -314,6 +314,11 @@ class LiveStrategies:
             if any(kw in _q or kw in _slug for kw in _non_ml):
                 continue
 
+            # Block non-moneyline markets (Top10, spread, totals, props)
+            _smt = getattr(m, "sports_market_type", "") or ""
+            if _smt and _smt.lower() != "moneyline":
+                continue
+
             # Same-event dual-side check for live_dip (uses held_events from caller)
             _dip_eid = getattr(m, "event_id", "") or ""
             if _dip_eid and _dip_eid in _dip_existing_eids:

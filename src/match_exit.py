@@ -336,10 +336,13 @@ def check_match_exit(data: dict) -> dict:
     #   Skip graduated SL entirely; only exit if market flips below 50¢
     #   (consensus no longer favors). Catastrophic floor (Layer 1) still
     #   protects against total collapse (price < entry × 50%).
+    _is_baseball = sport_tag in ("mlb", "baseball", "kbo", "npb")
+    _baseball_losing = _is_baseball and elapsed_pct >= 0.70 and effective_current < 0.60
     a_conf_hold = (
         confidence == "A"
         and effective_entry >= 0.60
         and entry_reason not in ("upset", "penny")
+        and not _baseball_losing
     )
     if a_conf_hold:
         if effective_current < 0.50:

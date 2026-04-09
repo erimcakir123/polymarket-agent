@@ -362,10 +362,14 @@ class Portfolio:
             if pos.pending_resolution and pos.unrealized_pnl_pct > 0:
                 continue
             # A-conf hold-to-resolve: skip scale-out, hold full position until resolution
+            # EXCEPTION: soccer (draw risk) + baseball (inning spikes) → allow scale-out
             from src.models import effective_price
+            from src.matching.sport_classifier import classify_sport
             _eff_entry = effective_price(pos.entry_price, pos.direction)
+            _sport = classify_sport(pos) if hasattr(pos, 'slug') else ""
             if (pos.confidence == "A" and _eff_entry >= 0.60
-                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
+                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")
+                    and _sport not in ("soccer", "baseball")):
                 continue
             # Note: scouted positions intentionally participate in scale-out (spec §9j)
             result = check_scale_out(
