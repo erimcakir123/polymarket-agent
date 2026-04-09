@@ -1333,6 +1333,12 @@
             let q = (question || '').trim();
             // Strip game prefix: "LoL:", "Counter-Strike:", etc.
             q = q.replace(/^(LoL|Counter-Strike|CS2|Valorant|Dota\s*2|MLBB|Overwatch)\s*:\s*/i, '');
+            // Strip tournament/venue prefix before "X vs Y"
+            // (e.g. "Madrid: Fery vs Royer" → "Fery vs Royer",
+            //       "Rolex Monte Carlo Masters: Sinner vs Machac" → "Sinner vs Machac")
+            // Only applies when the suffix after the colon already contains " vs ".
+            const prefixMatch = q.match(/^[^:]+:\s*(.+?\s+vs\.?\s+.+)$/i);
+            if (prefixMatch) q = prefixMatch[1].trim();
             // O/U → "Lakers vs Pistons: O/U 227.5" → "Lakers vs Pistons (O/U 227.5)"
             const ouMatch = q.match(/^(.+?)\s*:\s*(O\/U\s+[\d.]+)/i);
             if (ouMatch) return `${ouMatch[1].replace(/\./g, '').trim()} (${ouMatch[2]})`;
@@ -2076,23 +2082,17 @@
                     return '';
                 })();
 
-                // Sport emoji replaces old green/red dot. Colored bubble background
-                // encodes PnL sign: green bubble=profit, red=loss, neutral=breakeven.
+                // Sport emoji replaces old green/red dot. PnL sign is already
+                // conveyed by the colored PnL text on the card; tooltip shows exact value.
                 const sportEmoji = getSportEmoji(p.sport_tag, slug);
-                const bubbleBg = pnlNeutral
-                    ? 'rgba(255,255,255,0.08)'
-                    : (pnlUsdc > 0 ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)');
-                const bubbleBorder = pnlNeutral
-                    ? 'rgba(255,255,255,0.15)'
-                    : (pnlUsdc > 0 ? COLORS.green : COLORS.red);
-                const bubbleTitle = pnlNeutral
+                const emojiTitle = pnlNeutral
                     ? 'Breakeven'
                     : (pnlUsdc > 0 ? `+$${pnlUsdc.toFixed(2)} (winning)` : `-$${Math.abs(pnlUsdc).toFixed(2)} (losing)`);
 
                 return `<div class="feed-item ${borderClass}">
                     <div class="feed-top">
                         <div class="feed-market-wrap">
-                            <span class="feed-tick" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${bubbleBg};border:1.5px solid ${bubbleBorder};font-size:13px;line-height:1;flex-shrink:0" title="${bubbleTitle}">${sportEmoji}</span>
+                            <span class="feed-tick" style="display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;flex-shrink:0" title="${emojiTitle}">${sportEmoji}</span>
                             ${scouted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;flex-shrink:0" title="Scouted — hold to resolve">S</span>' : ''}
                             <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
                         </div>
