@@ -565,12 +565,18 @@ class EntryGate:
                     has_sharp = odds_api_result.get("has_sharp", False)
                     prob_a = odds_api_result.get("bookmaker_prob_a", 0)
                     prob_b = odds_api_result.get("bookmaker_prob_b", 0)
+                    prob_draw = odds_api_result.get("bookmaker_prob_draw")
                     team_a = odds_api_result.get("team_a", "Team A")
                     team_b = odds_api_result.get("team_b", "Team B")
                     odds_section = (f"\n\n=== BOOKMAKER ODDS ({bm_count} bookmakers"
                                     f"{', incl. Pinnacle' if has_sharp else ''}) ===\n"
                                     f"  {team_a}: {prob_a:.0%}\n"
                                     f"  {team_b}: {prob_b:.0%}\n")
+                    # 3-way markets (soccer, rugby, cricket Test) expose a draw
+                    # price — surface it in the AI context so the draw-risk
+                    # warning in ai_analyst can reference a concrete number.
+                    if prob_draw is not None:
+                        odds_section += f"  Draw: {prob_draw:.0%}\n"
                     if ctx:
                         ctx += odds_section
                     else:
