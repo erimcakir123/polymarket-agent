@@ -174,11 +174,15 @@ class ChessUsernameResolver:
             return
 
         BATCH = 300
+        BULK_DELAY_SECONDS = 3.0  # Lichess bulk endpoint has stricter rate limits
         name_map: dict[str, tuple[Optional[str], Optional[str]]] = {}
         chesscom_lower_index = {u.lower(): u for u in all_usernames}
 
         for i in range(0, len(all_usernames), BATCH):
             batch = all_usernames[i : i + BATCH]
+            # Extra sleep for bulk endpoint to avoid 429 cascades
+            if i > 0:
+                time.sleep(BULK_DELAY_SECONDS)
             try:
                 self._throttle()
                 resp = requests.post(
@@ -190,6 +194,13 @@ class ChessUsernameResolver:
                     },
                     timeout=30,
                 )
+                if resp.status_code == 429:
+                    # Backoff and skip remaining batches — rely on guessing for rest
+                    logger.warning(
+                        "Lichess bulk rate-limited at batch %d -- skipping remaining bulk lookups, will use guessing fallback",
+                        i // BATCH,
+                    )
+                    break
                 if resp.status_code != 200:
                     logger.warning(
                         "Lichess bulk batch %d: HTTP %d",
@@ -331,10 +342,9 @@ class ChessUsernameResolver:
         lichess_user: Optional[str] = None
         chesscom_user: Optional[str] = None
 
-        # Chess.com guessing
+        # Chess.com guessing — collect all candidates, pick most active titled
+        cc_candidates: list[tuple[str, int, int]] = []  # (username, score, activity)
         for g in guesses:
-            if chesscom_user:
-                break
             try:
                 self._throttle()
                 resp = requests.get(
@@ -346,23 +356,54 @@ class ChessUsernameResolver:
                     continue
                 data = resp.json()
                 fetched_name = data.get("name") or ""
-                if not fetched_name:
+                fetched_title = data.get("title") or ""
+                fetched_status = data.get("status") or ""
+
+                # Skip closed accounts
+                if fetched_status == "closed":
                     continue
-                score = fuzz.WRatio(_normalize_name(fetched_name), normalized)
-                if score >= 85:
-                    chesscom_user = data.get("username") or g
-                    logger.info(
-                        "Chess.com guess hit: %s -> %s (score=%d)",
-                        real_name, chesscom_user, score,
-                    )
-                    break
+
+                # Two acceptance paths:
+                #  A) Name-based: .name field matches target (fuzzy >=85)
+                #  B) Title-based: titled player (GM/IM/WGM/WIM) whose username is
+                #     a plausible guess pattern — many top GMs hide their real name
+                if fetched_name:
+                    score = fuzz.WRatio(_normalize_name(fetched_name), normalized)
+                elif fetched_title in _TITLES:
+                    score = 85  # baseline acceptance for titled no-name accounts
+                else:
+                    continue
+                if score < 85:
+                    continue
+
+                # Validate activity via archives endpoint (rejects dormant accounts)
+                cand_user = data.get("username") or g
+                self._throttle()
+                arch_resp = requests.get(
+                    f"{_CHESSCOM_BASE}/player/{cand_user}/games/archives",
+                    headers={"User-Agent": _UA},
+                    timeout=10,
+                )
+                activity = 0
+                if arch_resp.status_code == 200:
+                    activity = len(arch_resp.json().get("archives") or [])
+                cc_candidates.append((cand_user, score, activity))
             except Exception:
                 continue
+        if cc_candidates:
+            # Prefer highest activity, then highest name-match score
+            cc_candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
+            best_cc = cc_candidates[0]
+            if best_cc[2] >= 5:  # at least 5 archive months = semi-active
+                chesscom_user = best_cc[0]
+                logger.info(
+                    "Chess.com guess hit: %s -> %s (score=%d, archives=%d)",
+                    real_name, chesscom_user, best_cc[1], best_cc[2],
+                )
 
-        # Lichess guessing
+        # Lichess guessing — validate via count.all (total rated games)
+        li_candidates: list[tuple[str, int, int]] = []  # (username, score, activity)
         for g in guesses:
-            if lichess_user:
-                break
             try:
                 self._throttle()
                 resp = requests.get(
@@ -380,15 +421,22 @@ class ChessUsernameResolver:
                 if not fetched_name:
                     continue
                 score = fuzz.WRatio(_normalize_name(fetched_name), normalized)
-                if score >= 85:
-                    lichess_user = data.get("id") or data.get("username")
-                    logger.info(
-                        "Lichess guess hit: %s -> %s (score=%d)",
-                        real_name, lichess_user, score,
-                    )
-                    break
+                if score < 85:
+                    continue
+                activity = (data.get("count") or {}).get("all", 0) or 0
+                cand_user = data.get("id") or data.get("username") or g
+                li_candidates.append((cand_user, score, activity))
             except Exception:
                 continue
+        if li_candidates:
+            li_candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
+            best_li = li_candidates[0]
+            if best_li[2] >= 50:  # at least 50 rated games
+                lichess_user = best_li[0]
+                logger.info(
+                    "Lichess guess hit: %s -> %s (score=%d, games=%d)",
+                    real_name, lichess_user, best_li[1], best_li[2],
+                )
 
         if lichess_user or chesscom_user:
             return ResolvedUser(
