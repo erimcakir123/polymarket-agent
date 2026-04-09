@@ -18,6 +18,102 @@ logger = logging.getLogger(__name__)
 
 BUDGET_FILE = Path("logs/ai_budget.json")
 
+# ── Draw-risk sport warnings ──────────────────────────────────────────
+# Sports where "Will X win?" markets resolve NO on draws. The AI must
+# discount P(YES) by the historical draw rate of the sport/format AND
+# the Polymarket draw market price (if a 3-way sibling market exists).
+#
+# Only sports with draw rate >= 5% are listed -- below that the impact
+# on P(YES) is negligible and adding a warning would just waste prompt
+# tokens. MMA (1-2%), boxing (1-2%), NFL (~0.5%) are intentionally NOT
+# listed.
+_DRAW_RISK_WARNINGS = {
+    "chess": (
+        "=== CHESS-SPECIFIC INSTRUCTIONS ===\n"
+        "This is a 'Will X win?' chess market. At elite level, 50-65% of "
+        "classical games and 30-40% of blitz games end in DRAWS. Polymarket "
+        "resolves these markets NO on draws. You MUST discount P(YES) by "
+        "each player's historical draw rate and the Polymarket draw market "
+        "price. A player who is a slight favorite at 55% market price may "
+        "have true win probability near 30% due to draw mass. Favor NO when "
+        "both players have high draw rates and the Polymarket draw market "
+        "is elevated (>30c)."
+    ),
+    "soccer": (
+        "=== SOCCER DRAW-RISK INSTRUCTIONS ===\n"
+        "This is a 'Will X win?' soccer market. In top leagues ~25-30% of "
+        "matches end in DRAWS; defensive matchups and derbies push higher. "
+        "Polymarket resolves these markets NO on draws. Always check the "
+        "BOOKMAKER ODDS section for 3-way prices: if the draw price is >25c "
+        "you must discount your raw P(YES) accordingly. A 55% market favorite "
+        "typically has true win probability near 42-48% once draw mass is "
+        "subtracted. Favor NO when the match profile suggests a low-scoring, "
+        "defensive affair or when the draw price is >28c."
+    ),
+    "cricket": (
+        "=== CRICKET DRAW-RISK INSTRUCTIONS ===\n"
+        "Cricket draw risk depends on FORMAT:\n"
+        "- TEST matches: 25-35% end in draws (weather, slow pitches, time outs)\n"
+        "- ODI / T20 / T10: effectively 0% draws (Super Over breaks ties)\n"
+        "Check the slug and match type: 'test' or 'testcric' -> apply heavy "
+        "draw discount (NO resolves on draw). T20/ODI/IPL/PSL -> draw risk "
+        "negligible, evaluate as a pure win/loss bet. When in doubt about "
+        "format, check the BOOKMAKER ODDS section -- if it includes a Draw "
+        "price the market is 3-way (Test)."
+    ),
+    "rugby": (
+        "=== RUGBY DRAW-RISK INSTRUCTIONS ===\n"
+        "Rugby Union has ~5-10% draw rate (Rugby League ~2-5%). Close "
+        "matches between evenly-ranked Test sides at wet venues push toward "
+        "the upper end. Polymarket 'Will X win?' markets resolve NO on draws. "
+        "If the BOOKMAKER ODDS section shows a Draw price >10c, apply a "
+        "moderate discount to your P(YES). For blowouts between mismatched "
+        "sides draw risk is minimal."
+    ),
+}
+
+
+def _detect_draw_risk_sport(sport_tag: str, slug_lower: str) -> str | None:
+    """Return the draw-risk category key if the market is in one, else None.
+
+    Called by _build_prompt to decide whether to append a draw-risk warning.
+    Chess keeps the strictest match (exact tag or slug prefix) to avoid
+    false positives. Soccer uses the extensive slug list already used by
+    the dashboard so we get full coverage of league prefixes (uel-, ucl-,
+    epl-, tur-, esp-, etc.).
+    """
+    sp = (sport_tag or "").lower()
+    sl = slug_lower or ""
+
+    if sp == "chess" or sl.startswith("chess-"):
+        return "chess"
+
+    if "cricket" in sp or sl.startswith("cric") or sp in ("ipl", "psl"):
+        return "cricket"
+
+    if "rugby" in sp or sl.startswith("rugby-") or "nrl" in sp:
+        return "rugby"
+
+    # Soccer — widest net, check last because many sport_tags contain league codes
+    _SOCCER_PREFIXES = (
+        "uel-", "ucl-", "epl-", "uefa", "tur-", "esp-", "ita-", "ger-", "fra-",
+        "bra-", "arg-", "col-", "mex-", "bel-", "por-", "ned-", "sco-", "jpn-",
+        "spl-", "mls-", "aus-", "chi-", "lib-", "sud-", "gre-", "nor-", "swe-",
+        "den-", "aut-", "ind-", "ksa-", "rsa-", "uru-", "bol-", "per-", "par-",
+        "cze-", "rou-", "irl-", "cyp-", "chn-", "ecu-", "ven-", "fifa", "eng-",
+        "isp-", "nwsl", "usa-", "conmebol",
+    )
+    _SOCCER_TAG_HINTS = (
+        "soccer", "football", "uefa", "fifa", "mls", "liga", "bundesliga",
+        "ligue", "premier", "serie",
+    )
+    if any(sl.startswith(p) for p in _SOCCER_PREFIXES):
+        return "soccer"
+    if any(hint in sp for hint in _SOCCER_TAG_HINTS):
+        return "soccer"
+
+    return None
+
 _SLUG_GUIDE = """
 READING THE SLUG:
 The market slug contains encoded info. Decode it to understand the full context:
@@ -506,20 +602,12 @@ Do NOT anchor to the low market price. Form your own estimate independently.""")
         if lessons:
             parts.append(f"\nLESSONS FROM YOUR PAST MISTAKES:\n{lessons}")
 
-        # Chess-specific prompt addendum: draw risk awareness
-        _is_chess = sport == "chess" or slug_lower.startswith("chess-")
-        if _is_chess:
-            parts.append(
-                "\n=== CHESS-SPECIFIC INSTRUCTIONS ===\n"
-                "This is a 'Will X win?' chess market. At elite level, 50-65% of "
-                "classical games and 30-40% of blitz games end in DRAWS. Polymarket "
-                "resolves these markets NO on draws. You MUST discount P(YES) by "
-                "each player's historical draw rate and the Polymarket draw market "
-                "price. A player who is a slight favorite at 55% market price may "
-                "have true win probability near 30% due to draw mass. Favor NO when "
-                "both players have high draw rates and the Polymarket draw market "
-                "is elevated (>30c)."
-            )
+        # Draw-risk warning dispatch: appends a sport-specific instruction
+        # block for chess / soccer / cricket / rugby. Returns None for sports
+        # with negligible draw rate (tennis, NBA, NHL, MLB, MMA, etc.).
+        _draw_sport = _detect_draw_risk_sport(sport, slug_lower)
+        if _draw_sport and _draw_sport in _DRAW_RISK_WARNINGS:
+            parts.append("\n" + _DRAW_RISK_WARNINGS[_draw_sport])
         return "\n".join(p for p in parts if p)
 
     def _load_lessons(self) -> str:
