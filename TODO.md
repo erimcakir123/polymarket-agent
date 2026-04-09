@@ -111,3 +111,33 @@
 - [x] Upset/penny forced exit 90% → 75% — match_exit.py line 298-309
 - [x] Trail distance 8% → 15% — config.py + trailing_tp.py
 - [x] 10-dakika momentum snapshot (WS modunda revoke tracking) — agent.py light cycle
+
+## Data Coverage Gaps (Tracked 2026-04-09)
+
+Following the tennis TML + chess (Lichess/Chess.com) integration, these gaps remain:
+
+### WTA (Women's tennis)
+- TML-Database only publishes ATP data (verified empirically 2026-04-09: all WTA file paths return 404)
+- ESPN WTA scoreboard data is sparse
+- Options evaluated:
+  - (a) Skip WTA entirely — safest, current state
+  - (b) api-tennis.com 14-day trial — vendor lock-in risk
+  - (c) sportdevs 300 req/day trial
+  - (d) tennis-data.co.uk weekly CSVs — site had timeout issues during testing
+- Decision: deferred pending user choice
+
+### Low-coverage football leagues
+- Egypt Premier League (egypt-1): ESPN does not cover (10 markets/cycle skipped)
+- Europa Conference League (europa-conference-league): ESPN does not cover (8 markets/cycle skipped)
+- Saudi Professional League (saudi-professional-league): ESPN partial coverage (4 markets/cycle skipped)
+- Potential sources:
+  - api-football (RapidAPI) — free tier limited
+  - football-data.org — unclear coverage for these leagues
+- Action: monitor frequency of skips; if >10 markets/cycle consistently, investigate paid source
+
+### Future chess features
+- Polymarket chess events contain 3-way markets (Player A win / Player B win / Draw)
+- Currently we fetch draw market prices as signal, but bot only enters player-win markets
+- Future: add direct draw-market entry strategy when both players have high historical draw rates
+- Future: track chess tournament round number (already in slug) for fatigue modeling
+- Future: if Magnus Carlsen's Lichess account (DrNykterstein) cannot be auto-resolved (no realName set, skipped by bulk lookup), Chess.com-only resolution is acceptable fallback
