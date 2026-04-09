@@ -511,7 +511,10 @@ class ScoutScheduler:
                                     abbrev_a = competitors[0].get("athlete", {}).get("shortName", player_a)
                                     abbrev_b = competitors[1].get("athlete", {}).get("shortName", player_b)
                                     slug_hint = f"ten-{player_a[:4].lower()}-{player_b[:4].lower()}"
-                                    scout_key = f"{sport}_{league}_{player_a}_{player_b}_{date_str}"
+                                    # Use match's own date (comp_dt), not queried day_offset date,
+                                    # so multi-day tournaments (tennis/golf) don't create 4x dupes.
+                                    match_date = comp_dt.strftime("%Y%m%d")
+                                    scout_key = f"{sport}_{league}_{player_a}_{player_b}_{match_date}"
                                     matches.append({
                                         "scout_key": scout_key,
                                         "team_a": player_a,
@@ -546,7 +549,9 @@ class ScoutScheduler:
                                 abbrev_a = competitors[0].get("athlete", {}).get("shortName", fighter_a)
                                 abbrev_b = competitors[1].get("athlete", {}).get("shortName", fighter_b)
                                 slug_hint = f"mma-{fighter_a[:4].lower()}-{fighter_b[:4].lower()}"
-                                scout_key = f"{sport}_{league}_{fighter_a}_{fighter_b}_{date_str}"
+                                # Use fight's own date (event_dt), not queried day_offset.
+                                match_date = event_dt.strftime("%Y%m%d")
+                                scout_key = f"{sport}_{league}_{fighter_a}_{fighter_b}_{match_date}"
                                 matches.append({
                                     "scout_key": scout_key,
                                     "team_a": fighter_a,
@@ -581,7 +586,9 @@ class ScoutScheduler:
                         short_a = competitors[0].get("team", {}).get("shortDisplayName", "")
                         short_b = competitors[1].get("team", {}).get("shortDisplayName", "")
                         slug_hint = f"{sport[:3]}-{team_a[:4].lower()}-{team_b[:4].lower()}"
-                        scout_key = f"{sport}_{league}_{team_a}_{team_b}_{date_str}"
+                        # Use match's own date (event_dt), not queried day_offset date.
+                        match_date = event_dt.strftime("%Y%m%d")
+                        scout_key = f"{sport}_{league}_{team_a}_{team_b}_{match_date}"
                         matches.append({
                             "scout_key": scout_key,
                             "team_a": team_a,

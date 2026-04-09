@@ -195,8 +195,35 @@ class ExitMonitor:
 
         pnl_pct = (effective_current - effective_entry) / effective_entry if effective_entry > 0 else 0
 
+        # Pre-match guard: don't exit before match starts (result unknown, price noise)
+        # Moved up so near_resolve can use it.
+        _match_start = getattr(pos, "match_start_iso", "") or ""
+        _pre_match = False
+        _mins_since_start = None
+        if _match_start:
+            try:
+                from datetime import datetime, timezone
+                _start_dt = datetime.fromisoformat(_match_start.replace("Z", "+00:00"))
+                _now = datetime.now(timezone.utc)
+                _pre_match = _now < _start_dt
+                _mins_since_start = (_now - _start_dt).total_seconds() / 60
+            except (ValueError, TypeError):
+                pass
+
         # Near-resolve: our side ≥94¢ → exit, don't risk 6¢ for resolve
+        # SANITY: reject if match hasn't started or just started (<5min).
+        # WebSocket sometimes delivers spike prices (0.00 or 1.00) at open/first tick,
+        # which falsely trigger near_resolve. A real 94% means the match is essentially
+        # decided, which cannot happen in the first 5 minutes.
         if effective_current >= 0.94:
+            if _pre_match:
+                logger.warning("WS near_resolve REJECTED [pre_match]: %s | eff=%.0f%% (match not started)",
+                               pos.slug[:35], effective_current * 100)
+                return
+            if _mins_since_start is not None and _mins_since_start < 5.0:
+                logger.warning("WS near_resolve REJECTED [just_started]: %s | eff=%.0f%% (%.1fmin in)",
+                               pos.slug[:35], effective_current * 100, _mins_since_start)
+                return
             self._ws_exit_queue.append((cid, "near_resolve_profit"))
             self._ws_exit_queued_set.add(cid)
             logger.info("WS_EXIT queued [near_resolve]: %s | eff=%.0f%%", pos.slug[:35], effective_current * 100)
@@ -206,17 +233,6 @@ class ExitMonitor:
         _a_conf_hold = (pos.confidence == "A"
                         and effective_entry >= 0.60
                         and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
-
-        # Pre-match guard: don't exit before match starts (result unknown, price noise)
-        _match_start = getattr(pos, "match_start_iso", "") or ""
-        _pre_match = False
-        if _match_start:
-            try:
-                from datetime import datetime, timezone
-                _start_dt = datetime.fromisoformat(_match_start.replace("Z", "+00:00"))
-                _pre_match = datetime.now(timezone.utc) < _start_dt
-            except (ValueError, TypeError):
-                pass
 
         # 1. Stop-loss check -- unified rules via helper
         # A-conf hold-to-resolve: skip flat SL, only catastrophic floor + market flip apply
@@ -338,9 +354,27 @@ class ExitMonitor:
                 seen_cids.add(cid)
 
         # 0. Near-resolve profit: our side ≥94¢ → exit immediately
+        # SANITY: reject if match hasn't started or just started (<5min) — WS spikes
+        # at match open falsely trigger this. Real 94% cannot happen in first 5min.
+        from datetime import datetime, timezone
+        _now_ts = datetime.now(timezone.utc)
         for cid, pos in list(self.portfolio.positions.items()):
             _eff = effective_price(pos.current_price, pos.direction)
             if _eff >= 0.94:
+                _ms = getattr(pos, "match_start_iso", "") or ""
+                if _ms:
+                    try:
+                        _sd = datetime.fromisoformat(_ms.replace("Z", "+00:00"))
+                        _mins = (_now_ts - _sd).total_seconds() / 60
+                        if _mins < 5.0:
+                            logger.warning(
+                                "near_resolve REJECTED [%s]: %s | eff=%.0f%% (%.1fmin in)",
+                                "pre_match" if _mins < 0 else "just_started",
+                                pos.slug[:35], _eff * 100, _mins,
+                            )
+                            continue
+                    except (ValueError, TypeError):
+                        pass
                 _add(cid, "near_resolve_profit")
 
         # 1. Match-aware exits (4 layers: score/time/halftime/pre-match)
