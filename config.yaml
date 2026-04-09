@@ -86,6 +86,26 @@ bond_farming:
   max_total_bond_pct: 0.20
   max_days_to_resolution: 0.25
 
+tennis:
+  tml_enabled: true
+  tml_refresh_hours: 6
+  tml_max_matches_per_player: 10
+  tml_max_h2h_matches: 5
+  tml_fallback_threshold_tokens: 6
+  tml_years_to_merge: 2
+
+chess:
+  enabled: true
+  lichess_enabled: true
+  chesscom_enabled: true
+  stats_cache_hours: 6
+  max_games_per_player: 10
+  max_h2h_games: 5
+  rate_limit_seconds: 1.1
+  username_resolver_refresh_days: 30
+  failed_resolve_retry_days: 7
+  fetch_polymarket_draw_price: true
+
 notifications:
   telegram_enabled: true
 

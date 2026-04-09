@@ -131,6 +131,28 @@ class ProbabilityEngineConfig(BaseModel):
     high_divergence_threshold: float = 0.15
 
 
+class TennisConfig(BaseModel):
+    tml_enabled: bool = True
+    tml_refresh_hours: int = 6
+    tml_max_matches_per_player: int = 10
+    tml_max_h2h_matches: int = 5
+    tml_fallback_threshold_tokens: int = 6  # trigger TML when ESPN ctx has fewer [W]/[L]
+    tml_years_to_merge: int = 2  # e.g. 2026 + 2025
+
+
+class ChessConfig(BaseModel):
+    enabled: bool = True
+    lichess_enabled: bool = True
+    chesscom_enabled: bool = True
+    stats_cache_hours: int = 6
+    max_games_per_player: int = 10
+    max_h2h_games: int = 5
+    rate_limit_seconds: float = 1.1
+    username_resolver_refresh_days: int = 30
+    failed_resolve_retry_days: int = 7
+    fetch_polymarket_draw_price: bool = True
+
+
 class NotificationConfig(BaseModel):
     telegram_enabled: bool = False
 
@@ -161,6 +183,8 @@ class AppConfig(BaseModel):
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()
     probability_engine: ProbabilityEngineConfig = ProbabilityEngineConfig()
+    tennis: TennisConfig = TennisConfig()
+    chess: ChessConfig = ChessConfig()
     notifications: NotificationConfig = NotificationConfig()
     dashboard: DashboardConfig = DashboardConfig()
     logging: LoggingConfig = LoggingConfig()
