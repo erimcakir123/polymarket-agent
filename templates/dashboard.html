@@ -1605,6 +1605,59 @@
             return div.innerHTML;
         }
 
+        /* ── Sport emoji mapping ──
+         * Maps sport_tag or slug prefix to an emoji for position cards.
+         * Falls back to 🎯 for unknown sports.
+         */
+        function getSportEmoji(sportTag, slug) {
+            const s = (sportTag || '').toLowerCase();
+            const sl = (slug || '').toLowerCase();
+            // Tennis (ATP/WTA/ITF)
+            if (s.startsWith('atp') || s.startsWith('wta') || s.includes('tennis')
+                || sl.startsWith('atp-') || sl.startsWith('wta-')) return '🎾';
+            // Basketball (NBA, WNBA, Euroleague, NCAAB)
+            if (s.includes('nba') || s.includes('wnba') || s.includes('euroleague') || s.includes('ncaab')
+                || sl.startsWith('nba-') || sl.startsWith('wnba-') || sl.startsWith('euroleague-')
+                || sl.startsWith('ncaab-')) return '🏀';
+            // Hockey (NHL, KHL, SHL, AHL)
+            if (s.includes('nhl') || s.includes('khl') || s.includes('shl') || s.includes('ahl')
+                || sl.startsWith('nhl-') || sl.startsWith('khl-') || sl.startsWith('shl-')
+                || sl.startsWith('ahl-')) return '🏒';
+            // Baseball (MLB)
+            if (s === 'mlb' || s.includes('mlb') || sl.startsWith('mlb-')) return '⚾';
+            // American Football (NFL)
+            if (s === 'nfl' || s.includes('nfl') || sl.startsWith('nfl-') || sl.startsWith('ncf-')) return '🏈';
+            // MMA / UFC
+            if (s.includes('ufc') || s.includes('mma') || sl.startsWith('ufc-') || sl.startsWith('mma-')) return '🥊';
+            // Chess
+            if (s.includes('chess') || sl.startsWith('chess')) return '♟️';
+            // Cricket (incl. IPL, PSL, T20)
+            if (s.includes('cricket') || s.includes('ipl') || s.includes('psl') || s.includes('t20')
+                || sl.startsWith('cric') || sl.startsWith('ipl-') || sl.startsWith('psl-')) return '🏏';
+            // Esports (CS2, LoL, Dota, Valorant, etc.)
+            if (s.includes('cs2') || s.includes('csgo') || s.includes('lol') || s.includes('dota')
+                || s.includes('valorant') || s.includes('esports') || s.includes('r6')
+                || s.includes('pubg') || s.includes('mlbb')) return '🎮';
+            // Golf (PGA, LPGA)
+            if (s.includes('pga') || s.includes('lpga') || s.includes('golf')) return '⛳';
+            // Rugby (Union, League, NRL)
+            if (s.includes('rugby') || s.includes('nrl')) return '🏉';
+            // Soccer — widest net, check last
+            const soccerPrefixes = ['uel-','ucl-','epl-','uefa','tur-','esp-','ita-','ger-','fra-',
+                'bra-','arg-','col-','mex-','bel-','por-','ned-','sco-','jpn-','spl-','mls-',
+                'aus-','chi-','lib-','sud-','gre-','nor-','swe-','den-','aut-','ind-','ksa-',
+                'rsa-','uru-','bol-','per-','par-','cze-','rou-','irl-','cyp-','chn-','ecu-',
+                'ven-','fifa','eng-','isp-','nwsl','usa-','conmebol'];
+            if (soccerPrefixes.some(p => sl.startsWith(p))
+                || s.includes('soccer') || s.includes('football') || s.includes('eng.')
+                || s.includes('esp.') || s.includes('ita.') || s.includes('ger.') || s.includes('fra.')
+                || s.includes('uefa') || s.includes('fifa') || s.includes('mls')
+                || s.includes('liga') || s.includes('bundesliga') || s.includes('ligue')
+                || s.includes('premier') || s.includes('serie')) return '⚽';
+            // Default
+            return '🎯';
+        }
+
         /* ── Data Fetching ── */
         async function fetchData() {
             try {
@@ -2023,10 +2076,23 @@
                     return '';
                 })();
 
+                // Sport emoji replaces old green/red dot. Colored bubble background
+                // encodes PnL sign: green bubble=profit, red=loss, neutral=breakeven.
+                const sportEmoji = getSportEmoji(p.sport_tag, slug);
+                const bubbleBg = pnlNeutral
+                    ? 'rgba(255,255,255,0.08)'
+                    : (pnlUsdc > 0 ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)');
+                const bubbleBorder = pnlNeutral
+                    ? 'rgba(255,255,255,0.15)'
+                    : (pnlUsdc > 0 ? COLORS.green : COLORS.red);
+                const bubbleTitle = pnlNeutral
+                    ? 'Breakeven'
+                    : (pnlUsdc > 0 ? `+$${pnlUsdc.toFixed(2)} (winning)` : `-$${Math.abs(pnlUsdc).toFixed(2)} (losing)`);
+
                 return `<div class="feed-item ${borderClass}">
                     <div class="feed-top">
                         <div class="feed-market-wrap">
-                            <span class="feed-tick" style="color:${pnlNeutral ? COLORS.dim : (pnlUsdc > 0 ? COLORS.green : COLORS.red)}">&#9679;</span>
+                            <span class="feed-tick" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${bubbleBg};border:1.5px solid ${bubbleBorder};font-size:13px;line-height:1;flex-shrink:0" title="${bubbleTitle}">${sportEmoji}</span>
                             ${scouted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;flex-shrink:0" title="Scouted — hold to resolve">S</span>' : ''}
                             <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
                         </div>

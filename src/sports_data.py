@@ -795,15 +795,16 @@ class SportsDataClient:
         import re
         q = question.strip()
 
-        # Iteratively strip any "Prefix: ..." where the remainder contains "vs".
-        # Handles both short prefixes (NBA:, MLB:) and multi-word tournament
-        # prefixes (Rolex Monte Carlo Masters:, Premier League:, UFC 300:,
-        # Campinas:, Wuning:). Iteration handles nested colons like
-        # "Masters: Round 1: A vs B". Only strips when "vs" is present after
-        # the colon, so "A vs B: O/U 238.5" is left untouched.
+        # Iteratively strip any "Prefix: ..." where the remainder contains a
+        # match pivot ("vs", "beat", "defeat", etc). Handles both short
+        # prefixes (NBA:, MLB:) and multi-word tournament prefixes (Rolex
+        # Monte Carlo Masters:, Premier League:, UFC 300:, Campinas:,
+        # Wuning:). Iteration handles nested colons like
+        # "Masters: Round 1: A vs B". Pivot requirement keeps
+        # "A vs B: O/U 238.5" untouched (O/U after team_b has no pivot).
         while True:
             m = re.match(
-                r'^([^:]{1,60}):\s+(.+?\s+vs\.?\s+.+)$',
+                r'^([^:]{1,60}):\s+(.+?\s+(?:vs\.?|beat|defeat|win\s+against|win\s+over)\s+.+)$',
                 q,
                 flags=re.IGNORECASE,
             )

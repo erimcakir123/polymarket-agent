@@ -84,6 +84,11 @@ def test_espn_odds_has_sharp_false_for_retail_only(monkeypatch):
     ("Real Madrid vs Barcelona", "Real Madrid", "Barcelona"),
     ("A vs B: O/U 238.5", "A", "B"),
 
+    # Regression guard: "X to beat Y" (no "Will") with prefix — audit finding #1
+    ("NBA: Lakers to beat Celtics", "Lakers", "Celtics"),
+    ("Premier League: Arsenal to beat Chelsea", "Arsenal", "Chelsea"),
+    ("NBA: Will Lakers beat Celtics?", "Lakers", "Celtics"),
+
     # Monte Carlo bug fix — multi-word tournament prefix with colon
     (
         "Rolex Monte Carlo Masters: Matteo Berrettini vs Joao Fonseca",
