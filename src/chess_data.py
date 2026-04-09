@@ -87,10 +87,9 @@ class ChessDataClient:
     def format_context(self, question: str, slug: str) -> Optional[str]:
         """Build chess context with [W]/[L] tokens + draw awareness.
 
-        Returns None if:
-          - Chess disabled in config
-          - Could not extract both player names
-          - Neither player has resolvable data
+        Returns None if chess disabled, player names cannot be extracted,
+        or neither player has resolvable data. Delegates per-player rendering
+        to _format_player_block to keep this orchestrator small.
         """
         if not self._cfg.enabled:
             return None
@@ -106,43 +105,8 @@ class ChessDataClient:
             return None
 
         parts: list[str] = ["=== CHESS DATA (Lichess + Chess.com) ==="]
-
-        for label, name, stats in [
-            ("PLAYER A", player_a, stats_a),
-            ("PLAYER B", player_b, stats_b),
-        ]:
-            parts.append("")
-            if not stats:
-                parts.append(f"{label}: {name} -- no data available")
-                continue
-            parts.append(f"{label}: {name}")
-            ratings = self._format_ratings(stats)
-            if ratings:
-                parts.append(f"  Ratings: {ratings}")
-
-            recent = stats.games[:15]  # last 15 for form + draw rate calc
-            wins = sum(1 for g in recent if g.won is True)
-            losses = sum(1 for g in recent if g.won is False)
-            draws = sum(1 for g in recent if g.won is None)
-            total = wins + losses + draws
-            draw_rate = (draws / total * 100) if total > 0 else 0
-            parts.append(
-                f"  Recent form ({total} games): {wins}W-{draws}D-{losses}L"
-            )
-            parts.append(f"  DRAW RATE: {draw_rate:.0f}%")
-
-            # Last N decisive games -> [W]/[L] tokens
-            decisive = [g for g in stats.games if g.won is not None][
-                : self._cfg.max_games_per_player
-            ]
-            if decisive:
-                parts.append(f"  Recent decisive ({len(decisive)} games):")
-                for g in decisive:
-                    result = "W" if g.won else "L"
-                    parts.append(
-                        f"    [{result}] vs {g.opponent} "
-                        f"({g.speed}, {g.event}, {g.date})"
-                    )
+        parts.extend(self._format_player_block("PLAYER A", player_a, stats_a))
+        parts.extend(self._format_player_block("PLAYER B", player_b, stats_b))
 
         # H2H section
         h2h = self._extract_h2h(
@@ -189,6 +153,42 @@ class ChessDataClient:
             "Polymarket draw market price is elevated."
         )
         return "\n".join(parts)
+
+    def _format_player_block(
+        self, label: str, name: str, stats: Optional[PlayerStats],
+    ) -> list[str]:
+        """Render one player's ratings, recent form, draw rate, and [W]/[L] tokens."""
+        lines: list[str] = [""]
+        if not stats:
+            lines.append(f"{label}: {name} -- no data available")
+            return lines
+        lines.append(f"{label}: {name}")
+        ratings = self._format_ratings(stats)
+        if ratings:
+            lines.append(f"  Ratings: {ratings}")
+
+        recent = stats.games[:15]  # last 15 for form + draw rate calc
+        wins = sum(1 for g in recent if g.won is True)
+        losses = sum(1 for g in recent if g.won is False)
+        draws = sum(1 for g in recent if g.won is None)
+        total = wins + losses + draws
+        draw_rate = (draws / total * 100) if total > 0 else 0
+        lines.append(f"  Recent form ({total} games): {wins}W-{draws}D-{losses}L")
+        lines.append(f"  DRAW RATE: {draw_rate:.0f}%")
+
+        # Last N decisive games -> [W]/[L] tokens
+        decisive = [g for g in stats.games if g.won is not None][
+            : self._cfg.max_games_per_player
+        ]
+        if decisive:
+            lines.append(f"  Recent decisive ({len(decisive)} games):")
+            for g in decisive:
+                result = "W" if g.won else "L"
+                lines.append(
+                    f"    [{result}] vs {g.opponent} "
+                    f"({g.speed}, {g.event}, {g.date})"
+                )
+        return lines
 
     # ── Player name extraction ─────────────────────────────────────
 
@@ -241,6 +241,12 @@ class ChessDataClient:
             logger.info("Chess: unresolved player %s", real_name)
             return None
 
+        # Lock held across the entire fetch sequence: INTENTIONAL.
+        # _throttle() shares _last_request_at across workers, and Lichess +
+        # Chess.com both require serial calls to avoid 429 rate limiting.
+        # Holding the lock serializes all 8 ThreadPoolExecutor workers at this
+        # point, which defeats pool parallelism for chess markets but is the
+        # only correct way to enforce the shared per-client rate limit.
         with self._lock:
             lichess_data = None
             chesscom_data = None
@@ -248,6 +254,16 @@ class ChessDataClient:
                 lichess_data = self._fetch_lichess(resolved.lichess)
             if resolved.chesscom and self._cfg.chesscom_enabled:
                 chesscom_data = self._fetch_chesscom(resolved.chesscom)
+
+            # If both sources failed (404, disabled, network error) return None
+            # rather than caching an empty PlayerStats that would render as
+            # "Recent form (0 games)" / "Ratings: " in the AI context.
+            if not lichess_data and not chesscom_data:
+                logger.info(
+                    "Chess: both sources empty for %s (lichess=%s, chesscom=%s)",
+                    real_name, resolved.lichess, resolved.chesscom,
+                )
+                return None
 
             games: list[ChessGame] = []
             if lichess_data:

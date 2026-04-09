@@ -95,11 +95,20 @@ class TennisTMLClient:
         all_matches.sort(key=lambda m: m.date, reverse=True)
         self._matches = all_matches
         self._player_names_normalized = all_names
-        self._loaded_at = time.time()
-        logger.info(
-            "TML loaded: %d matches, %d unique players (years=%s)",
-            len(all_matches), len(all_names), years,
-        )
+        if all_matches:
+            # Only mark as loaded on success. On total failure (network down AND
+            # no disk cache), leave _loaded_at at 0 so the next call retries
+            # instead of silently caching the empty state for tml_refresh_hours.
+            self._loaded_at = time.time()
+            logger.info(
+                "TML loaded: %d matches, %d unique players (years=%s)",
+                len(all_matches), len(all_names), years,
+            )
+        else:
+            logger.warning(
+                "TML load failed: 0 matches fetched from %s -- will retry next call",
+                years,
+            )
 
     def _fetch_year_csv(self, year: int) -> Optional[str]:
         """Fetch {year}.csv from GitHub raw, fall back to disk cache on failure."""
@@ -261,29 +270,8 @@ class TennisTMLClient:
             return None
 
         parts: list[str] = ["=== TENNIS DATA (TML) -- ATP ==="]
-
-        for label, name, matches in [
-            ("PLAYER A", player_a, a_matches),
-            ("PLAYER B", player_b, b_matches),
-        ]:
-            parts.append("")
-            if not matches:
-                parts.append(f"{label}: {name} -- no recent TML matches")
-                continue
-            wins = sum(1 for _, won in matches if won)
-            losses = len(matches) - wins
-            parts.append(f"{label}: {name}")
-            parts.append(f"  Recent form ({len(matches)} matches): {wins}W-{losses}L")
-            parts.append("  Recent matches:")
-            for m, won in matches:
-                opp = m.loser if won else m.winner
-                result = "W" if won else "L"
-                date_fmt = _format_date(m.date)
-                surface_tag = f" [{m.surface}]" if m.surface else ""
-                parts.append(
-                    f"    [{result}] vs {opp} ({m.score}){surface_tag} "
-                    f"({m.tourney}, {date_fmt})"
-                )
+        parts.extend(_format_player_block("PLAYER A", player_a, a_matches))
+        parts.extend(_format_player_block("PLAYER B", player_b, b_matches))
 
         # H2H section
         h2h = self.get_head_to_head(player_a, player_b)
@@ -310,6 +298,31 @@ class TennisTMLClient:
 
 
 # ── Module-level helpers ────────────────────────────────────────────────────
+
+def _format_player_block(
+    label: str, name: str, matches: list[tuple[TMLMatch, bool]],
+) -> list[str]:
+    """Render one player's recent form + [W]/[L] match history lines."""
+    lines: list[str] = [""]
+    if not matches:
+        lines.append(f"{label}: {name} -- no recent TML matches")
+        return lines
+    wins = sum(1 for _, won in matches if won)
+    losses = len(matches) - wins
+    lines.append(f"{label}: {name}")
+    lines.append(f"  Recent form ({len(matches)} matches): {wins}W-{losses}L")
+    lines.append("  Recent matches:")
+    for m, won in matches:
+        opp = m.loser if won else m.winner
+        result = "W" if won else "L"
+        date_fmt = _format_date(m.date)
+        surface_tag = f" [{m.surface}]" if m.surface else ""
+        lines.append(
+            f"    [{result}] vs {opp} ({m.score}){surface_tag} "
+            f"({m.tourney}, {date_fmt})"
+        )
+    return lines
+
 
 def _normalize_name(name: str) -> str:
     """Lowercase, strip accents, collapse whitespace. For fuzzy matching only."""
