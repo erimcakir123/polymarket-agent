@@ -2106,7 +2106,7 @@
                         <span style="opacity:0.6">→</span>
                         <span>Now: ${nowPrice > 0 ? (nowPrice*100).toFixed(0)+'%' : '—'}</span>
                         <span style="opacity:0.6">→</span>
-                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
+                        <span title="AI win probability for our ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI ${dirLabel}: ${(aiProb*100).toFixed(0)}%</span>
                     </div>
                     <div class="feed-details" style="margin-top:2px">
                         <span>$${size.toFixed(2)}</span>
@@ -2291,7 +2291,7 @@
                     </div>
                     ${confLabel || aiProb > 0 || edge > 0 ? `<div class="feed-details" style="margin-top:2px">
                         ${confLabel ? `<span style="color:${confColor};font-weight:700">${confLabel}</span>` : ''}
-                        ${aiProb > 0 ? `<span>AI: ${(aiProb*100).toFixed(0)}%</span>` : ''}
+                        ${aiProb > 0 ? `<span title="AI win probability for our ${dirLabel || 'side'} (raw P(YES)=${(rawAiProb2*100).toFixed(0)}%)">AI ${dirLabel || ''}: ${(aiProb*100).toFixed(0)}%</span>` : ''}
                         ${edge > 0 ? `<span>Edge: ${(edge*100).toFixed(1)}%</span>` : ''}
                     </div>` : ''}
                     <div class="feed-impact">
@@ -2319,10 +2319,12 @@
                 const title = escapeHtml(cleanMatchTitle(rawQ));
                 const polyUrl = slug ? `https://polymarket.com/market/${encodeURIComponent(slug)}` : '#';
                 const edge = s.edge || 0;
-                const aiProb = s.ai_probability || 0;
+                const rawAiProb = s.ai_probability || 0;
                 const conf = s.confidence || '';
                 const dir = s.direction || '';
                 const isYes = dir.includes('YES');
+                // Show AI probability for OUR side (BUY_NO inverts raw P(YES))
+                const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
                 const dirColor = isYes ? COLORS.blue : COLORS.orange;
                 const dirLabel = dir.includes('YES') ? 'YES' : dir.includes('NO') ? 'NO' : dir;
                 const price = s.stocked_price || 0;
@@ -2346,7 +2348,7 @@
                     </div>
                     <div class="feed-details">
                         <span>Edge: ${(edge*100).toFixed(1)}%</span>
-                        <span>AI: ${(aiProb*100).toFixed(0)}%</span>
+                        <span title="AI win probability for ${dirLabel} side (raw P(YES)=${(rawAiProb*100).toFixed(0)}%)">AI ${dirLabel}: ${(aiProb*100).toFixed(0)}%</span>
                         <span>Price: ${(price*100).toFixed(0)}¢</span>
                         ${conf ? `<span>Conf: ${conf}</span>` : ''}
                     </div>
@@ -2401,7 +2403,7 @@
                     </div>
                     <div class="feed-details">
                         ${price > 0 ? `<span>Price: ${(price*100).toFixed(0)}%</span>` : ''}
-                        ${aiProb > 0 ? `<span>AI: ${(aiProb*100).toFixed(0)}%</span>` : ''}
+                        ${aiProb > 0 ? `<span title="AI raw P(YES) — no position direction yet">AI YES: ${(aiProb*100).toFixed(0)}%</span>` : ''}
                         ${edge > 0 ? `<span style="color:${COLORS.amber}">Edge: ${(edge*100).toFixed(1)}%</span>` : `<span style="color:${COLORS.red}">No edge</span>`}
                     </div>
                     ${reason ? `<div class="feed-details" style="margin-top:2px"><span style="opacity:0.7;font-size:12px">${escapeHtml(reason)}</span></div>` : ''}
