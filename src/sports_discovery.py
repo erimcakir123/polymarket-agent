@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Lightweight route detection -- categorization, not discovery
+# Lightweight route detection -- categorization, not discovery.
+# Covers legacy short slugs (ipl, psl) AND current Polymarket prefixes (cricipl, cricpsl, ...).
 _CRICKET_SLUGS = frozenset({"ipl", "psl", "t20", "crint", "cricpakt20cup", "criclcl"})
 
 
@@ -122,8 +123,12 @@ class SportsDiscovery:
         if any(game in tags_lower for game in ESPORTS_SLUGS):
             return "esports"
 
-        # Cricket: tag, slug, or question keyword
+        # Cricket: tag, slug prefix (exact OR "cric*" umbrella), or question keyword.
+        # Polymarket uses "cricipl-*", "cricpsl-*", "crict20-*" etc. for current cricket
+        # markets; the legacy exact-match set above is kept for backwards compatibility.
         if "cricket" in tags_lower or slug_prefix in _CRICKET_SLUGS:
+            return "cricket"
+        if slug_prefix.startswith("cric"):
             return "cricket"
         if "cricket" in question.lower():
             return "cricket"
