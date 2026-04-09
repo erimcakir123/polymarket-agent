@@ -2036,7 +2036,6 @@
                 const rawAiProb = p.ai_probability || 0;
                 // Show AI probability for OUR side: BUY_YES=X winning%, BUY_NO=Y winning%
                 const aiProb = isYes ? rawAiProb : (1 - rawAiProb);
-                const scouted = p.scouted || (p.confidence === 'A' && p.entry_reason !== 'upset' && p.entry_reason !== 'penny');
                 const entryTime = p.entry_timestamp ? new Date(p.entry_timestamp).toLocaleString() : '--';
                 let countdown = '';
                 const _timeIso = p.match_start_iso || p.end_date_iso;
@@ -2098,7 +2097,6 @@
                     <div class="feed-top">
                         <div class="feed-market-wrap">
                             <span class="feed-tick" style="display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;flex-shrink:0" title="${emojiTitle}">${sportEmoji}</span>
-                            ${scouted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;flex-shrink:0" title="Scouted — hold to resolve">S</span>' : ''}
                             <a class="feed-market" href="${polyUrl}" target="_blank" rel="noopener" title="${title}">${title}</a>
                         </div>
                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
@@ -2116,7 +2114,6 @@
                     <div class="feed-details" style="margin-top:2px">
                         <span>$${size.toFixed(2)}</span>
                         <span style="color:${confColor};font-weight:700">${confLabel}</span>
-                        ${scouted ? '<span style="color:var(--accent)">&#128270; Hold-to-resolve</span>' : ''}
                         ${(() => {
                             const er = p.entry_reason || '';
                             const vs = p.volatility_swing || false;

@@ -141,3 +141,16 @@ Following the tennis TML + chess (Lichess/Chess.com) integration, these gaps rem
 - Future: add direct draw-market entry strategy when both players have high historical draw rates
 - Future: track chess tournament round number (already in slug) for fatigue modeling
 - Future: if Magnus Carlsen's Lichess account (DrNykterstein) cannot be auto-resolved (no realName set, skipped by bulk lookup), Chess.com-only resolution is acceptable fallback
+
+## Clean-code refactors (last priority)
+
+### Remove pos.scouted field — duplicate of confidence == "A"
+- **Problem**: `Position.scouted` bool field and `confidence == "A"` carry the same meaning in the exit path. Exit monitor already ignores `pos.scouted` and dispatches hold-to-resolve behavior purely off confidence. `pos.scouted` is only used for post-hoc logging annotations and one `handle_hold_revokes` branch in exit_executor.py that toggles the flag without affecting exit decisions.
+- **Scope** (~35 lines, 9 files):
+  - `src/models.py` — remove `Position.scouted` field definition
+  - `src/portfolio.py` — stop constructing/serializing the field
+  - `src/exit_executor.py` — replace revoke branch with `confidence = "B-"` demotion (so hold-to-resolve naturally stops)
+  - `src/match_exit.py`, `src/match_outcomes.py`, `src/outcome_tracker.py`, `src/reentry_farming.py`, `src/live_strategies.py`, `src/price_updater.py` — drop `scouted` / `was_scouted` parameters (pass-through logging annotations only)
+- **Do NOT touch**: `src/scout_scheduler.py`, `src/agent.py` scout cycles, `src/matching/__init__.py`, `src/entry_gate.py:mark_entered`, `src/cycle_timer.py`, `logs/scout_queue.json`. These belong to the separate "ScoutScheduler" match-calendar system, which is critical and must keep working.
+- **Risk**: Medium. Multi-file, affects in-flight positions (revoke branch behavior changes). Requires Medium-change protocol: plan → audit → 2 consecutive CLEAN rounds.
+- **Why deferred**: Dashboard badge was the only user-visible symptom (already removed). Dead code underneath bot is benign. Prioritize revenue-relevant fixes first.
