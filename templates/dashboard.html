@@ -1722,10 +1722,11 @@
         }
 
         /* ── Data Fetching ── */
+        let allEquityData = {};
         async function fetchData() {
             try {
                 const ts = Date.now();
-                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp, apiUsageResp, calResp] = await Promise.all([
+                const [tradesResp, portfolioResp, perfResp, budgetResp, posResp, slotsResp, stockResp, apiUsageResp, calResp, equityResp] = await Promise.all([
                     fetch('/api/trades?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/portfolio?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/performance?_=' + ts, {cache: 'no-store'}),
@@ -1734,7 +1735,8 @@
                     fetch('/api/slots?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/stock?_=' + ts, {cache: 'no-store'}),
                     fetch('/api/api-usage?_=' + ts, {cache: 'no-store'}),
-                    fetch('/api/calibration?_=' + ts, {cache: 'no-store'})
+                    fetch('/api/calibration?_=' + ts, {cache: 'no-store'}),
+                    fetch('/api/equity?_=' + ts, {cache: 'no-store'})
                 ]);
                 allTrades = await tradesResp.json();
                 allPortfolioData = await portfolioResp.json();
@@ -1745,6 +1747,7 @@
                 allStockData = await stockResp.json();
                 const apiUsageData = await apiUsageResp.json();
                 const calData = await calResp.json();
+                allEquityData = await equityResp.json();
 
                 updateSummary(allPortfolioData);
                 updateBankrollChart(allPortfolioData);
@@ -1763,22 +1766,44 @@
         function updateSummary(data) {
             if (!Array.isArray(data) || !data.length) return;
             const latest = data[data.length - 1];
-            const bankroll = latest.bankroll || 60;
-            const hwm = latest.hwm || bankroll;
-            const pnl = latest.unrealized_pnl || 0;
-            const positions = latest.positions || 0;
-            // Equity = bankroll + current value of all positions (locked bets are NOT losses)
             const allPos = Object.values(allPositions || {});
-            const positionValues = allPos.reduce((sum, p) => sum + (p.current_value || p.size_usdc || 0), 0);
-            const equity = bankroll + positionValues;
+
+            // SINGLE SOURCE OF TRUTH: /api/equity (Portfolio.compute_equity).
+            // Falls back to legacy client-side calculation if snapshot missing.
+            // Master formula: total_equity = initial + realized + unrealized
+            // Cash balance  = initial + realized - active_cost
+            let cash, equity, hwm, unrealized, activeCost;
+            if (allEquityData && typeof allEquityData.total_equity === 'number') {
+                cash        = allEquityData.cash;
+                equity      = allEquityData.total_equity;
+                hwm         = allEquityData.hwm || equity;
+                unrealized  = allEquityData.unrealized;
+                activeCost  = allEquityData.active_cost;
+            } else {
+                // Fallback (pre-snapshot): reconstruct the correct formula
+                // client-side using initial + realized - locked math.
+                const livePnl = allPos.reduce((sum, p) => sum + (p.unrealized_pnl_usdc || 0), 0);
+                const locked  = allPos.reduce((sum, p) => sum + (p.size_usdc || 0), 0);
+                const initial = latest.initial_bankroll || 1000;
+                const realized = latest.realized_pnl || 0;
+                cash        = initial + realized - locked;
+                equity      = initial + realized + livePnl;
+                hwm         = Math.max(latest.hwm || 0, equity);
+                unrealized  = livePnl;
+                activeCost  = locked;
+            }
+            const bankroll = cash;  // legacy alias used below in PnL % calc
             const dd = hwm > 0 ? Math.max(0, (hwm - equity) / hwm * 100) : 0;
 
-            document.getElementById('bankroll').innerHTML = dimDollars(bankroll);
+            document.getElementById('bankroll').innerHTML = dimDollars(cash);
             document.getElementById('hwm').innerHTML = dimDollars(hwm);
             document.getElementById('drawdown').textContent = dd.toFixed(1) + '% drawdown';
 
-            // Locked in bets
-            const locked = allPos.reduce((sum, p) => sum + (p.size_usdc || 0), 0);
+            // Locked in bets — prefer backend active_cost (excludes pending_resolution),
+            // fall back to client sum of position sizes.
+            const locked = (typeof activeCost === 'number' && activeCost > 0)
+                ? activeCost
+                : allPos.reduce((sum, p) => sum + (p.size_usdc || 0), 0);
             document.getElementById('lockedAmount').innerHTML = dimDollars(locked);
             document.getElementById('lockedSub').textContent = allPos.length + ' position' + (allPos.length !== 1 ? 's' : '');
 

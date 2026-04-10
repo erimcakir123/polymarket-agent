@@ -16,6 +16,7 @@ POSITIONS_FILE = Path("logs/positions.json")
 STATUS_FILE = Path("logs/bot_status.json")
 STOCK_FILE = Path("logs/candidate_stock.json")
 REENTRY_POOL_FILE = Path("logs/reentry_pool.json")
+EQUITY_SNAPSHOT_FILE = Path("logs/equity.json")
 
 
 def create_app(
@@ -51,6 +52,24 @@ def create_app(
     @app.route("/api/portfolio")
     def api_portfolio():
         return jsonify(portfolio_log.read_recent(100))
+
+    @app.route("/api/equity")
+    def api_equity():
+        """Single source of truth for dashboard equity display.
+
+        Reads the snapshot written by Portfolio.save_prices_to_disk() each
+        cycle. Contains: initial, realized, unrealized, active_cost, cash,
+        total_equity, hwm, positions, wins, losses, ts.
+
+        Falls back to empty structure if snapshot missing (bot not started
+        yet). Dashboard has its own client-side fallback as well.
+        """
+        if EQUITY_SNAPSHOT_FILE.exists():
+            try:
+                return jsonify(json.loads(EQUITY_SNAPSHOT_FILE.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return jsonify({})
 
     @app.route("/api/performance")
     def api_performance():

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 POSITIONS_FILE = Path("logs/positions.json")
 REALIZED_FILE = Path("logs/realized_pnl.json")
+EQUITY_SNAPSHOT_FILE = Path("logs/equity.json")
 
 
 class Portfolio:
@@ -257,18 +258,58 @@ class Portfolio:
             if eff_price > pos.peak_price:
                 pos.peak_price = eff_price
 
-    def save_prices_to_disk(self) -> None:
-        """Persist current prices to disk so dashboard can read them."""
-        self._save_positions()
-        # Update HWM based on equity (cash + position values)
-        total_value = sum(
-            getattr(p, 'current_value', p.size_usdc) or p.size_usdc
-            for p in self.positions.values()
+    def compute_equity(self) -> dict:
+        """Single source of truth for equity / cash / HWM / drawdown math.
+
+        All downstream consumers (portfolio guards, dashboard, cycle logger,
+        drawdown breaker) MUST use these values. Prevents "two formulas,
+        two answers" drift where bankroll + positionValues disagreed with
+        initial + realized + unrealized.
+
+        Returns a dict with:
+          initial      -- starting bankroll (constant)
+          realized     -- cumulative realized P&L (closed positions)
+          unrealized   -- sum of open-position mark-to-market P&L
+          active_cost  -- sum of entry cost for all open (non-pending) positions
+          cash         -- cash available = initial + realized - active_cost
+          total_equity -- net worth = initial + realized + unrealized (THE master)
+          hwm          -- high water mark (updated by caller via save_prices_to_disk)
+        """
+        unrealized = self.total_unrealized_pnl()
+        active_cost = sum(
+            p.size_usdc for p in self.positions.values() if not p.pending_resolution
         )
-        equity = self.bankroll + total_value
-        if equity > self.high_water_mark:
-            self.high_water_mark = equity
+        return {
+            "initial": self._initial_bankroll,
+            "realized": self.realized_pnl,
+            "unrealized": unrealized,
+            "active_cost": active_cost,
+            "cash": self._initial_bankroll + self.realized_pnl - active_cost,
+            "total_equity": self._initial_bankroll + self.realized_pnl + unrealized,
+            "hwm": self.high_water_mark,
+        }
+
+    def save_prices_to_disk(self) -> None:
+        """Persist current prices + equity snapshot so dashboard can read them."""
+        self._save_positions()
+        # Update HWM based on TRUE equity (not bankroll + positionValues drift).
+        eq = self.compute_equity()
+        if eq["total_equity"] > self.high_water_mark:
+            self.high_water_mark = eq["total_equity"]
+            eq["hwm"] = self.high_water_mark  # refresh after bump
             self._save_realized()
+        # Persist equity snapshot for dashboard single-source-of-truth read.
+        try:
+            from datetime import datetime, timezone
+            EQUITY_SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = EQUITY_SNAPSHOT_FILE.with_suffix(".tmp")
+            payload = {**eq, "positions": len(self.positions),
+                       "wins": self.realized_wins, "losses": self.realized_losses,
+                       "ts": datetime.now(timezone.utc).isoformat()}
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(EQUITY_SNAPSHOT_FILE)
+        except Exception as exc:
+            logger.debug("equity snapshot save failed: %s", exc)
 
     def update_bankroll(self, new_bankroll: float) -> None:
         self.bankroll = new_bankroll
@@ -436,12 +477,7 @@ class Portfolio:
     def is_drawdown_breaker_active(self, halt_pct: float = 0.50) -> bool:
         if self.high_water_mark <= 0:
             return False
-        # Use equity (cash + position current values) not just cash
-        total_value = sum(
-            getattr(p, 'current_value', p.size_usdc) or p.size_usdc
-            for p in self.positions.values()
-        )
-        equity = self.bankroll + total_value
+        equity = self.compute_equity()["total_equity"]
         return equity < self.high_water_mark * (1 - halt_pct)
 
     def get_drawdown_level(self, soft_pct: float = 0.50, hard_pct: float = 0.65) -> str:
@@ -453,11 +489,7 @@ class Portfolio:
         """
         if self.high_water_mark <= 0:
             return "none"
-        total_value = sum(
-            getattr(p, 'current_value', p.size_usdc) or p.size_usdc
-            for p in self.positions.values()
-        )
-        equity = self.bankroll + total_value
+        equity = self.compute_equity()["total_equity"]
         drawdown = 1 - (equity / self.high_water_mark)
         if drawdown >= hard_pct:
             return "hard"  # Equity < 35% of HWM -> close everything
