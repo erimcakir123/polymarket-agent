@@ -5,6 +5,7 @@
 ## Temel Kurallar (İSTİSNASIZ)
 - **Kod değiştirmeden ÖNCE kullanıcıya SOR.** İzinsiz değişiklik yapma.
 - **Her değişiklik öncesi planning skill kullan.** Direkt koda dalma.
+- **Tek-seferlik analiz raporları (HTML/MD) `docs/` veya `plans/` altında biriktirilmez.** Üretildikten ve kullanıcı okuduktan sonra Claude tarafından silinir. Sadece kalıcı dokümantasyon `docs/` altında kalır (bot-flowchart, testing-plan, espn-api-reference vb.). Eski "rapor görmek istiyorum" çıktıları çöpe — kod tarafında bağlı değiller, runtime'da kullanılmıyorlar.
 
 ## Development Workflow (MANDATORY — follow exactly)
 
