@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Data Funnel Analizi — Confidence Grade Plan</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; line-height: 1.55; background: #fafafa; }
+  h1 { border-bottom: 3px solid #111; padding-bottom: 0.4rem; margin-top: 2rem; }
+  h2 { color: #0a4b8c; margin-top: 2.2rem; border-left: 4px solid #0a4b8c; padding-left: 0.6rem; }
+  h3 { color: #444; margin-top: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: #fff; font-size: 0.92rem; }
+  th, td { border: 1px solid #d0d0d0; padding: 0.55rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; font-weight: 600; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  .grade-A { background: #d4edda; color: #155724; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .grade-Bp { background: #fff3cd; color: #856404; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .grade-Bm { background: #ffe4b5; color: #995500; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .grade-C { background: #f8d7da; color: #721c24; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .ok { color: #155724; font-weight: 600; }
+  .warn { color: #856404; font-weight: 600; }
+  .bad { color: #721c24; font-weight: 600; }
+  .box { background: #fff; border: 1px solid #d0d0d0; border-radius: 6px; padding: 1rem 1.3rem; margin: 1rem 0; }
+  code { background: #eef; padding: 1px 5px; border-radius: 3px; font-size: 0.88rem; }
+  .muted { color: #777; font-size: 0.88rem; }
+  .rec-high { border-left: 5px solid #28a745; }
+  .rec-med { border-left: 5px solid #ffc107; }
+  .rec-low { border-left: 5px solid #dc3545; }
+  svg { max-width: 100%; height: auto; display: block; margin: 1.5rem auto; }
+  .caption { text-align: center; color: #666; font-size: 0.85rem; margin-top: -1rem; margin-bottom: 1.5rem; }
+</style>
+</head>
+<body>
+
+<h1>Data Funnel &amp; Confidence Grade — Analiz ve Yol Haritası</h1>
+<p class="muted">Oluşturulma: 2026-04-10 · Kaynak: <code>bot.log</code>, <code>src/ai_analyst.py</code>, <code>src/entry_gate.py</code>, canlı Odds API <code>/sports</code> sorgusu, GitHub repo listesi</p>
+
+<h2>1 · Grade Sistemi — A, B+, B−, C Ne Demek?</h2>
+
+<p>AI'ye verilen veri <b>ne kadar zengin</b>se o kadar yüksek grade. Grade <i>AI'nin emin olma hissi değil</i>, <b>elimizdeki verinin kalitesi</b> demek. Kaynak: <code>src/ai_analyst.py:224-240</code>.</p>
+
+<table>
+  <tr>
+    <th>Grade</th>
+    <th>Kural</th>
+    <th>Ne Var?</th>
+    <th>Bot Davranışı</th>
+  </tr>
+  <tr>
+    <td><span class="grade-A">A</span></td>
+    <td><b>İki güçlü kaynak</b><br>(bookmaker <b>+</b> ≥5 maç) <b>VEYA</b> tek başına ≥8 maç</td>
+    <td>Bahisçi oranları + zengin maç geçmişi + muhtemelen haber</td>
+    <td><b>Full-size giriş</b>, tüm stratejilere açık, yüksek güven</td>
+  </tr>
+  <tr>
+    <td><span class="grade-Bp">B+</span></td>
+    <td><b>Tek güçlü kaynak</b><br>bookmaker tek başına (maç yok) <b>VEYA</b> 5-7 maç tek başına (bookmaker yok)</td>
+    <td>Ya bahisçi ya maç istatistiği — ama ikisi birden değil</td>
+    <td>Giriş açık ama <b>küçük boy</b>, "bir bilinmeyen faktör" riski</td>
+  </tr>
+  <tr>
+    <td><span class="grade-Bm">B−</span></td>
+    <td>1-4 maç veya 14 günden eski veri veya çelişkili sinyaller</td>
+    <td>Çok az veri, haberle desteklenmemiş stat</td>
+    <td><b>SKIP</b> — girmez (logda "insufficient data")</td>
+  </tr>
+  <tr>
+    <td><span class="grade-C">C</span></td>
+    <td>Maç geçmişi yok, bookmaker yok, istatistik yok</td>
+    <td>Sadece haber (veya hiçbir şey)</td>
+    <td><b>SKIP</b> — hiç analiz bile edilmez</td>
+  </tr>
+</table>
+
+<div class="box">
+  <b>Temel denklem:</b> &nbsp;<code>kaynak sayısı × kaynak derinliği = grade</code><br>
+  A'ya ulaşmanın iki yolu var: (1) iki kaynağı birden doldurmak, (2) tek kaynağı çok derin yapmak.
+</div>
+
+<h2>2 · API Envanteri — Elimizde Ne Var?</h2>
+
+<table>
+  <tr>
+    <th>API / Kaynak</th>
+    <th>Dosya</th>
+    <th>Ne Sağlar?</th>
+    <th>Kapsama</th>
+    <th>Maliyet</th>
+    <th>Durum</th>
+  </tr>
+  <tr>
+    <td><b>Polymarket Gamma</b></td>
+    <td><code>market_scanner.py</code></td>
+    <td>Market listesi, fiyat, volume, tag, slug, start time</td>
+    <td>Tüm Polymarket</td>
+    <td>Ücretsiz</td>
+    <td class="ok">✓ Sağlıklı</td>
+  </tr>
+  <tr>
+    <td><b>Polymarket CLOB</b></td>
+    <td><code>executor.py</code>, <code>liquidity_check.py</code></td>
+    <td>Orderbook derinliği, fill fiyatı, WS ticks</td>
+    <td>Tüm Polymarket</td>
+    <td>Ücretsiz</td>
+    <td class="ok">✓ Sağlıklı</td>
+  </tr>
+  <tr>
+    <td><b>Claude (Anthropic)</b></td>
+    <td><code>ai_analyst.py</code></td>
+    <td>Olasılık tahmini, confidence grade, reasoning</td>
+    <td>Her market</td>
+    <td>$48/ay budget</td>
+    <td class="ok">✓ Sağlıklı</td>
+  </tr>
+  <tr>
+    <td><b>ESPN Public API</b></td>
+    <td><code>sports_data.py</code></td>
+    <td>Maç geçmişi, skor, takım/atlet stat</td>
+    <td>NBA, NFL, MLB, NHL, Soccer (major), ATP/WTA (thin), MMA, NCAA, AFL, rugby, cricket (zayıf)</td>
+    <td>Ücretsiz (key yok)</td>
+    <td class="ok">✓ Sağlıklı ama <b>tenis thin</b>, Challenger/ITF yok</td>
+  </tr>
+  <tr>
+    <td><b>The Odds API</b></td>
+    <td><code>odds_api.py</code></td>
+    <td>Bahisçi oranları (42+ kitap, Pinnacle dahil), sharp money sinyali</td>
+    <td>16 sport group, <b>Sadece ATP Masters+Slams, WTA 500+/Premier</b></td>
+    <td>20K credit/ay (≈650/gün)</td>
+    <td class="warn">✓ Çalışıyor, <b>Challenger/ITF YOK</b></td>
+  </tr>
+  <tr>
+    <td><b>TML-Database (Tennismylife GitHub)</b></td>
+    <td><code>tennis_tml.py</code></td>
+    <td>ATP ana tur maç geçmişi (3081 maç, 456 oyuncu)</td>
+    <td>Sadece ATP ana tur (250+, 500, 1000, Slam)</td>
+    <td>Ücretsiz (MIT)</td>
+    <td class="warn">✓ Çalışıyor, <b>WTA yok, Challenger yok</b></td>
+  </tr>
+  <tr>
+    <td><b>Lichess API</b></td>
+    <td><code>chess_data.py</code></td>
+    <td>Satranç maç geçmişi, rating, draw rate</td>
+    <td>Lichess oyuncuları</td>
+    <td>Ücretsiz</td>
+    <td class="ok">✓ Sağlıklı</td>
+  </tr>
+  <tr>
+    <td><b>Chess.com API</b></td>
+    <td><code>chess_data.py</code></td>
+    <td>Satranç maç geçmişi, rating, H2H</td>
+    <td>Chess.com oyuncuları</td>
+    <td>Ücretsiz</td>
+    <td class="ok">✓ Sağlıklı</td>
+  </tr>
+  <tr>
+    <td><b>PandaScore</b></td>
+    <td><code>pandascore_client.py</code> (varsa)</td>
+    <td>Esports maç geçmişi, canlı skor</td>
+    <td>CS2, Dota2, LoL, Valorant</td>
+    <td>Ücretsiz tier sınırlı</td>
+    <td class="muted">? Esports kapalı durumda</td>
+  </tr>
+  <tr>
+    <td><b>Tavily / NewsAPI / GNews / RSS</b></td>
+    <td><code>news_scanner.py</code></td>
+    <td>Haber başlıkları, makale gövdesi</td>
+    <td>Global news</td>
+    <td>Tavily: 1K/ay ücretsiz</td>
+    <td class="bad">✗ <b>DEVRE DIŞI</b> (%96 fail rate, entry_gate.py:626)</td>
+  </tr>
+  <tr>
+    <td><b>TheSportsDB</b></td>
+    <td>— (bağlı değil)</td>
+    <td>Genel spor DB</td>
+    <td>Amatör seviye, thin</td>
+    <td>Ücretsiz</td>
+    <td class="muted">— Kullanılmıyor</td>
+  </tr>
+</table>
+
+<div class="box">
+  <b>Özet:</b> 10 kaynak (3'ü gerçek Polymarket altyapı, 7'si veri zenginleştirme). Veri zenginleştirme için <b>aktif 6 kaynak</b> (ESPN, Odds API, TML, Lichess, Chess.com, Claude). News tamamen kapalı.
+</div>
+
+<h2>3 · Sport × Data Source Matrisi</h2>
+
+<p>Bugünün (2026-04-10) <code>bot.log</code> taraması: 83 grade karar noktası bulundu.</p>
+
+<table>
+  <tr>
+    <th>Branş</th>
+    <th><span class="grade-A">A</span></th>
+    <th><span class="grade-Bp">B+</span></th>
+    <th><span class="grade-Bm">B−</span></th>
+    <th><span class="grade-C">C</span></th>
+    <th>Total</th>
+    <th>ESPN</th>
+    <th>Odds API</th>
+    <th>TML</th>
+    <th>Chess API</th>
+    <th>News</th>
+    <th>Neden B+/Düşük?</th>
+  </tr>
+  <tr>
+    <td><b>ATP (ana tur)</b></td>
+    <td>36</td><td>0</td><td>0</td><td>0</td><td>36</td>
+    <td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td>—</td><td class="bad">✗</td>
+    <td>— (A alıyor)</td>
+  </tr>
+  <tr>
+    <td><b>ATP Challenger</b></td>
+    <td>0</td><td>2</td><td>2</td><td>7</td><td>11</td>
+    <td class="warn">thin</td><td class="bad">yok</td><td class="bad">yok</td><td>—</td><td class="bad">✗</td>
+    <td>Odds API + TML Challenger kapsama yok → sadece thin ESPN</td>
+  </tr>
+  <tr>
+    <td><b>WTA (ana tur + Challenger)</b></td>
+    <td>0</td><td>2</td><td>11</td><td>6</td><td>19</td>
+    <td class="warn">thin</td><td class="warn">sadece 500+</td><td class="bad">yok</td><td>—</td><td class="bad">✗</td>
+    <td>TML WTA'yı desteklemiyor, ESPN ince → ana tur bile B−</td>
+  </tr>
+  <tr>
+    <td><b>ISP (Indian Super League soccer)</b></td>
+    <td>4</td><td>6</td><td>0</td><td>1</td><td>11</td>
+    <td class="ok">✓</td><td class="warn">spotty</td><td>—</td><td>—</td><td class="bad">✗</td>
+    <td>Odds API bazı maçlar eksik</td>
+  </tr>
+  <tr>
+    <td><b>KHL (Rus hokey)</b></td>
+    <td>0</td><td>0</td><td>0</td><td>3</td><td>3</td>
+    <td class="bad">yok</td><td class="bad">yok</td><td>—</td><td>—</td><td class="bad">✗</td>
+    <td>ESPN KHL desteklemiyor, Odds API yok → full C</td>
+  </tr>
+  <tr>
+    <td><b>Cricket IPL</b></td>
+    <td>0</td><td>0</td><td>0</td><td>1</td><td>1</td>
+    <td class="warn">zayıf</td><td class="ok">✓</td><td>—</td><td>—</td><td class="bad">✗</td>
+    <td>ESPN cricket coverage yüzeysel, cricket_data.py yok</td>
+  </tr>
+  <tr>
+    <td><b>ROU1 (Romanya Liga I)</b></td>
+    <td>0</td><td>0</td><td>0</td><td>2</td><td>2</td>
+    <td class="bad">yok</td><td class="warn">spotty</td><td>—</td><td>—</td><td class="bad">✗</td>
+    <td>ESPN lokal ligleri tutmuyor</td>
+  </tr>
+  <tr>
+    <td><b>Satranç</b></td>
+    <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+    <td>—</td><td class="bad">yok</td><td>—</td><td class="ok">✓</td><td class="bad">✗</td>
+    <td>Bugün örnek yok; fast-path var</td>
+  </tr>
+</table>
+
+<div class="box">
+  <b>Anahtar gözlem:</b><br>
+  · <b>ATP ana tur</b> → %100 A (mükemmel kombinasyon: ESPN + Odds API + TML)<br>
+  · <b>ATP Challenger</b> → %0 A, çoğu C/B− (iki ayağı da eksik)<br>
+  · <b>WTA</b> → %0 A, <b>tek A gradesi yok</b> (TML WTA tutmuyor)<br>
+  · <b>Niş ligler (KHL, ROU1, Cricket IPL)</b> → full C (ESPN lokali desteklemiyor)
+</div>
+
+<h2>4 · Funnel — HTML Flowchart</h2>
+
+<svg viewBox="0 0 1100 680" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- Step 1: Market -->
+  <rect x="450" y="20" width="200" height="50" rx="8" fill="#e3f2fd" stroke="#0a4b8c" stroke-width="2"/>
+  <text x="550" y="50" text-anchor="middle" font-weight="600">Polymarket Market</text>
+  <line x1="550" y1="70" x2="550" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Step 2: Sport classify -->
+  <rect x="420" y="100" width="260" height="50" rx="8" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <text x="550" y="122" text-anchor="middle" font-weight="600">Sport Classifier</text>
+  <text x="550" y="140" text-anchor="middle" font-size="11" fill="#666">slug/tags → atp, wta, chess, soccer, ...</text>
+  <line x1="550" y1="150" x2="550" y2="180" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Step 3: Enrichment branches -->
+  <rect x="380" y="180" width="340" height="40" rx="8" fill="#ede7f6" stroke="#4527a0" stroke-width="2"/>
+  <text x="550" y="205" text-anchor="middle" font-weight="600">Enrichment Router (entry_gate._enrich_sports)</text>
+
+  <!-- Branches -->
+  <line x1="550" y1="220" x2="180" y2="260" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="550" y1="220" x2="420" y2="260" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="550" y1="220" x2="680" y2="260" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="550" y1="220" x2="920" y2="260" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- Chess branch -->
+  <rect x="80" y="260" width="200" height="90" rx="8" fill="#f3e5f5" stroke="#6a1b9a"/>
+  <text x="180" y="283" text-anchor="middle" font-weight="600">Chess fast-path</text>
+  <text x="180" y="303" text-anchor="middle" font-size="11">Lichess API</text>
+  <text x="180" y="318" text-anchor="middle" font-size="11">Chess.com API</text>
+  <text x="180" y="333" text-anchor="middle" font-size="11" fill="#666">→ [W]/[L] + draw rate</text>
+
+  <!-- ESPN branch -->
+  <rect x="320" y="260" width="200" height="90" rx="8" fill="#e8f5e9" stroke="#2e7d32"/>
+  <text x="420" y="283" text-anchor="middle" font-weight="600">ESPN discovery</text>
+  <text x="420" y="303" text-anchor="middle" font-size="11">Tüm sportlar için</text>
+  <text x="420" y="318" text-anchor="middle" font-size="11">NBA/NFL/MLB/NHL/EPL</text>
+  <text x="420" y="333" text-anchor="middle" font-size="11" fill="#666">→ match history stats</text>
+
+  <!-- Tennis TML -->
+  <rect x="580" y="260" width="200" height="90" rx="8" fill="#fff9c4" stroke="#f57f17"/>
+  <text x="680" y="283" text-anchor="middle" font-weight="600">Tennis TML fallback</text>
+  <text x="680" y="303" text-anchor="middle" font-size="11">ATP ana tur sadece</text>
+  <text x="680" y="318" text-anchor="middle" font-size="11">Trigger: ESPN &lt; 6 token</text>
+  <text x="680" y="333" text-anchor="middle" font-size="11" fill="#666">→ ESPN'i güçlendirir</text>
+
+  <!-- Odds API -->
+  <rect x="820" y="260" width="200" height="90" rx="8" fill="#ffe0b2" stroke="#e65100"/>
+  <text x="920" y="283" text-anchor="middle" font-weight="600">The Odds API</text>
+  <text x="920" y="303" text-anchor="middle" font-size="11">ATP/WTA 500+, NBA, soccer...</text>
+  <text x="920" y="318" text-anchor="middle" font-size="11">42+ bookmaker</text>
+  <text x="920" y="333" text-anchor="middle" font-size="11" fill="#666">→ bookmaker_prob_a/b</text>
+
+  <!-- Merge -->
+  <line x1="180" y1="350" x2="550" y2="395" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="420" y1="350" x2="550" y2="395" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="680" y1="350" x2="550" y2="395" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="920" y1="350" x2="550" y2="395" stroke="#333" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <rect x="380" y="395" width="340" height="50" rx="8" fill="#e0f2f1" stroke="#00695c" stroke-width="2"/>
+  <text x="550" y="420" text-anchor="middle" font-weight="600">Context Merge → AI Prompt</text>
+  <text x="550" y="438" text-anchor="middle" font-size="11" fill="#666">ESPN stats + TML + bookmaker → single context</text>
+
+  <line x1="550" y1="445" x2="550" y2="475" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Claude -->
+  <rect x="420" y="475" width="260" height="50" rx="8" fill="#fce4ec" stroke="#880e4f" stroke-width="2"/>
+  <text x="550" y="498" text-anchor="middle" font-weight="600">Claude (ai_analyst)</text>
+  <text x="550" y="515" text-anchor="middle" font-size="11" fill="#666">→ probability + confidence grade</text>
+
+  <line x1="550" y1="525" x2="550" y2="555" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Grade decision -->
+  <rect x="430" y="555" width="240" height="50" rx="8" fill="#fff" stroke="#333" stroke-width="2"/>
+  <text x="550" y="578" text-anchor="middle" font-weight="600">Confidence Grade</text>
+  <text x="550" y="595" text-anchor="middle" font-size="11" fill="#666">A / B+ / B− / C</text>
+
+  <line x1="430" y1="580" x2="200" y2="640" stroke="#2e7d32" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="550" y1="605" x2="550" y2="640" stroke="#f57f17" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="670" y1="580" x2="900" y2="640" stroke="#c62828" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <rect x="80" y="640" width="240" height="30" rx="6" fill="#d4edda" stroke="#155724"/>
+  <text x="200" y="660" text-anchor="middle" font-size="11" font-weight="600">A → ENTER full size</text>
+
+  <rect x="430" y="640" width="240" height="30" rx="6" fill="#fff3cd" stroke="#856404"/>
+  <text x="550" y="660" text-anchor="middle" font-size="11" font-weight="600">B+ → ENTER smaller size</text>
+
+  <rect x="780" y="640" width="240" height="30" rx="6" fill="#f8d7da" stroke="#721c24"/>
+  <text x="900" y="660" text-anchor="middle" font-size="11" font-weight="600">B− / C → SKIP</text>
+</svg>
+<p class="caption">Şekil 1 — Data enrichment funnel: Market'ten grade'e kadar tüm yol</p>
+
+<h2>5 · Flow'lar &amp; Fallback'ler</h2>
+
+<h3>Ana akış (entry_gate._enrich_sports)</h3>
+<ol>
+  <li><b>Sport classification:</b> Slug prefix (<code>atp-</code>, <code>wta-</code>, <code>chess-</code>) + tags → branş kararı.</li>
+  <li><b>Fast-path:</b> Satranç → doğrudan <code>chess_data</code> (Lichess+Chess.com), ESPN atlanır.</li>
+  <li><b>Genel path:</b> ESPN discovery — tüm sporlar için maç geçmişi dener.</li>
+  <li><b>Tennis TML fallback:</b> Slug <code>atp-</code> ise ve ESPN context'te &lt;6 [W]/[L] token varsa, TML'den ek maç çekilir. <b>WTA için çalışmaz.</b></li>
+  <li><b>Odds API:</b> Her sporda paralel sorgu. Başarılı olursa bookmaker odds eklenir.</li>
+  <li><b>Merge:</b> Tüm kaynaklar tek bir context string'e birleşir ve Claude'a gönderilir.</li>
+  <li><b>Grade kararı:</b> Claude prompt'ta [W]/[L] token sayısına, bookmaker varlığına ve news miktarına bakarak A/B+/B−/C verir.</li>
+</ol>
+
+<h3>Aktif fallback'ler</h3>
+<ul>
+  <li><b>ESPN odds → Odds API odds:</b> ESPN kendi bahis hattı vermiyorsa, Odds API sonucu ESPN odds alanına da yazılır.</li>
+  <li><b>TML disk cache:</b> GitHub'dan indirme başarısızsa, <code>logs/tennis_cache/</code>'teki son başarılı CSV okunur. Dün indirilmişse bugün network yoksa bile çalışır.</li>
+  <li><b>Odds API backup key:</b> <code>ODDS_API_KEY_BACKUP</code> environment variable varsa, primary key 429/401 verince otomatik geçiş.</li>
+  <li><b>Chess dual source:</b> Lichess veya Chess.com'dan biri oyuncuyu bulamazsa diğeri denenir, sonuçlar merge edilir.</li>
+</ul>
+
+<h3>Eksik / kopuk fallback'ler</h3>
+<ul>
+  <li class="bad"><b>News chain devre dışı:</b> <code>entry_gate.py:626</code> — Tavily/NewsAPI/GNews/RSS zinciri %96 fail nedeniyle kapatılmış. News bir daha grade'i yükseltmiyor.</li>
+  <li class="bad"><b>WTA için TML muadili yok:</b> Tek fallback ESPN. ESPN thin dönerse dip hattından çıkış yok.</li>
+  <li class="bad"><b>Challenger / ITF tenis için kaynak yok:</b> ESPN de kapsamıyor, TML de kapsamıyor, Odds API da kapsamıyor — üçü birden sessiz.</li>
+  <li class="bad"><b>Lokal ligler (KHL, ROU1, lokal cricket):</b> ESPN kapsama yok, Odds API spotty, özel bir veri modülü yok → otomatik C.</li>
+</ul>
+
+<h2>6 · Araştırma Sonuçları — "Senin İki Sorun"</h2>
+
+<h3>Soru 1: TML'e Challenger maçları eklenebilir mi?</h3>
+
+<div class="box">
+  <b>Cevap: <span class="warn">KISMEN EVET ama güncellik sorunlu.</span></b><br><br>
+  <b>Tennismylife/TML-Database repo içeriği:</b> Sadece <code>1968.csv</code> ... <code>2026.csv</code> (yıllık ana tur CSV'leri). <b>Challenger CSV dosyası yok.</b> TML Challenger'ı kendi repo'suna almıyor.<br><br>
+
+  <b>Alternatif: JeffSackmann/tennis_atp repo:</b> Burada beklediğimiz dosyalar var:<br>
+  <code>atp_matches_qual_chall_2023.csv</code>, <code>atp_matches_qual_chall_2024.csv</code><br>
+  <code>atp_matches_futures_2023.csv</code>, <code>atp_matches_futures_2024.csv</code><br>
+  <b>PROBLEM:</b> <span class="bad">2025 ve 2026 dosyaları YOK.</span> Sackmann yılda bir güncelliyor → şu an 2024 sonu veriyle çalışıyor.<br><br>
+
+  <b>Pratik sonuç:</b>
+  <ul>
+    <li>Sackmann Challenger verisi ATP repo'sunda mevcut AMA <b>en yeni 2024 sonu</b></li>
+    <li>2026 Nisan'ında trade yaparken, 16+ aylık eski veri → "14 gün taze" kuralı bu verinin değerini sıfırlar</li>
+    <li><b>Sene başı uyumsuzluğu:</b> 2025 sezonu boyunca Challenger Prizmic/Royer/Landaluce maçları burada <b>yoktur</b></li>
+  </ul>
+
+  <b>Ne işe yarar:</b> Sackmann Challenger merge edilirse Bueno gibi oyuncular için 2 yerine <b>20-30 historik maç</b> gelir — ama 2024 sezonu maçları. "14 günlük tazelik" kuralı gevşetilirse faydalı. Aksi halde AI yine "old data" diye B+'da bırakır.
+</div>
+
+<h3>Soru 2: Odds API'de Challenger key'i var mı?</h3>
+
+<div class="box">
+  <b>Cevap: <span class="bad">KESİN HAYIR.</span></b><br><br>
+  Canlı <code>/sports?all=true</code> sorgusu çalıştırdım. The Odds API'nin tüm tenis anahtarları (31 tane):<br><br>
+
+  <b>ATP (16 key, hepsi Masters/Slam/ATP 500):</b><br>
+  <code>tennis_atp_monte_carlo_masters</code>, <code>tennis_atp_aus_open_singles</code>, <code>tennis_atp_french_open</code>, <code>tennis_atp_wimbledon</code>, <code>tennis_atp_us_open</code>, <code>tennis_atp_indian_wells</code>, <code>tennis_atp_miami_open</code>, <code>tennis_atp_madrid_open</code>, <code>tennis_atp_italian_open</code>, <code>tennis_atp_canadian_open</code>, <code>tennis_atp_cincinnati_open</code>, <code>tennis_atp_china_open</code>, <code>tennis_atp_shanghai_masters</code>, <code>tennis_atp_paris_masters</code>, <code>tennis_atp_dubai</code>, <code>tennis_atp_qatar_open</code><br><br>
+
+  <b>WTA (15 key, hepsi Slam/Premier/500):</b><br>
+  <code>tennis_wta_aus_open_singles</code>, <code>tennis_wta_french_open</code>, <code>tennis_wta_wimbledon</code>, <code>tennis_wta_us_open</code>, <code>tennis_wta_indian_wells</code>, <code>tennis_wta_miami_open</code>, <code>tennis_wta_madrid_open</code>, <code>tennis_wta_italian_open</code>, <code>tennis_wta_canadian_open</code>, <code>tennis_wta_cincinnati_open</code>, <code>tennis_wta_china_open</code>, <code>tennis_wta_wuhan_open</code>, <code>tennis_wta_charleston_open</code>, <code>tennis_wta_dubai</code>, <code>tennis_wta_qatar_open</code><br><br>
+
+  <b>Sonuç:</b> Challenger yok. ITF yok. Odds API bu seviyelere line açmıyor çünkü Pinnacle/Bet365 gibi büyük kitaplar Challenger/ITF'e zaten açmıyor — veri kaynağı yok.<br><br>
+
+  <b>Bu yol tamamen kapalı.</b> Odds API Challenger coverage'ı eklemek mümkün değil — başka bir bahisçi API'sine geçmek gerekir (Pinnacle API, Betfair Exchange API, SBR vs.).
+</div>
+
+<h2>7 · Herşeyi A'ya Çekmek — Kategori Kategori Öneriler</h2>
+
+<h3 style="color:#2e7d32;">Öneri 1 · ATP Challenger Coverage <span class="rec-med" style="padding:2px 10px; margin-left:8px;">ORTA ETKİ</span></h3>
+<div class="box rec-med">
+  <b>Sorun:</b> Challenger maçları (Monza Prizmic/Royer gibi) hem Odds API'de hem TML'de yok.<br>
+  <b>Çözüm seçenekleri:</b>
+  <ol>
+    <li><b>Sackmann repo'sundan geçmiş Challenger CSV'leri merge et</b> (2023+2024) → historik H2H için işe yarar, recent form için eski.</li>
+    <li><b>Tennis Abstract / Sofascore scraping</b> (riskli, rate-limit, ToS grisi)</li>
+    <li><b>Kuralı gevşet:</b> Challenger maçlarında 3+ maç = B+ yerine A — ama kalite düşer</li>
+    <li><b>En temiz: Challenger'ı komple skip et</b> → bu seviyede edge bulmak zaten zor, son trade $-10 kanıt</li>
+  </ol>
+  <b>Tavsiye:</b> Seçenek 4 + Seçenek 1 birlikte. Challenger default skip, ama Sackmann historik veriyi H2H için kullan. Kod etkisi orta.
+</div>
+
+<h3 style="color:#c62828;">Öneri 2 · WTA Coverage <span class="rec-high" style="padding:2px 10px; margin-left:8px;">YÜKSEK ETKİ</span></h3>
+<div class="box rec-high">
+  <b>Sorun:</b> WTA'da <b>hiç A gradesi yok</b> (bugün 0/19). TML WTA'yı kapsamıyor.<br>
+  <b>Çözüm seçenekleri:</b>
+  <ol>
+    <li><b>Sackmann <code>tennis_wta</code> repo'sunu bağla</b> (<code>wta_matches_2023.csv</code>, <code>wta_matches_2024.csv</code>) → TML ile aynı pattern, ~150-200 satır yeni modül. 2024 sonu kadar coverage.</li>
+    <li><b>Current-year (2025/2026) için alternatif:</b>
+      <ul>
+        <li>Sofascore scraping (riskli)</li>
+        <li>WTA resmi sitesi scraping (yavaş)</li>
+        <li>Tennis Abstract processed files (Sackmann-based, aynı gecikme)</li>
+      </ul>
+    </li>
+    <li><b>Odds API WTA 500+ zaten dolu</b> → büyük turnuvalar zaten A alabilir ESPN maç geçmişi yeterliyse</li>
+  </ol>
+  <b>Tavsiye:</b> Seçenek 1 (Sackmann WTA merge). Challenger Sackmann çözümü ile aynı infrastructure — tek yerde iki repo bağlamak. Kod etkisi: orta (~200 satır).
+</div>
+
+<h3 style="color:#0a4b8c;">Öneri 3 · News Pipeline Geri Açma <span class="rec-med" style="padding:2px 10px; margin-left:8px;">ORTA ETKİ</span></h3>
+<div class="box rec-med">
+  <b>Sorun:</b> News tamamen kapalı (entry_gate.py:626), ama news B− → B+ yükseltmesini sağlıyor. Bu da en az 1 grade kayıp.<br>
+  <b>Çözüm:</b> Tavily yerine doğrudan bir sport-specific kaynak bağla:
+  <ul>
+    <li><b>SportsPress / SerpAPI</b> — premium ama güvenilir</li>
+    <li><b>Reddit API (r/tennis, r/soccer)</b> — ücretsiz, ama noise yüksek</li>
+    <li><b>Team-specific RSS</b> (ATP Tour resmi RSS, WTA resmi RSS)</li>
+    <li><b>Injury reports from bookmaker previews</b> — Odds API bazen markets açıklamalarında veriyor</li>
+  </ul>
+  <b>Tavsiye:</b> Düşük öncelik. Asıl ayak (bookmaker + stat) çözüldükten sonra ek buff olarak.
+</div>
+
+<h3 style="color:#880e4f;">Öneri 4 · Niş Lig Filtreleme <span class="rec-high" style="padding:2px 10px; margin-left:8px;">YÜKSEK ETKİ (EFFORT DÜŞÜK)</span></h3>
+<div class="box rec-high">
+  <b>Sorun:</b> KHL, ROU1, lokal cricket, niş soccer ligleri hep C alıyor → zaten skip ediliyor AMA AI çağrısı yapılıyor (cost) ve scout queue'yu tıkıyor.<br>
+  <b>Çözüm:</b> <code>market_scanner</code>'da bu slug prefiksleri için <b>pre-filter</b> ekle — Claude'a hiç gitmeden skip et.<br>
+  Pre-filter listesi: <code>khl</code>, <code>rou1</code>, <code>cricipl</code> (IPL hariç), niş soccer prefiksleri.<br>
+  <b>Tavsiye:</b> En kolay kazanç. AI budget tasarrufu + cycle hızlanması. Kod etkisi: ~20 satır config ekleme.
+</div>
+
+<h3 style="color:#e65100;">Öneri 5 · Challenger'ı Risk Azaltma ile Girme <span class="rec-med" style="padding:2px 10px; margin-left:8px;">ORTA ETKİ</span></h3>
+<div class="box rec-med">
+  <b>Sorun:</b> Bugünkü Prizmic trade'i gösterdi ki B+ Challenger + thin liquidity = stop-loss gap + büyük zarar.<br>
+  <b>Çözüm:</b> B+ gradesinde:
+  <ul>
+    <li>Position size'ı yarıya indir ($15 → $7)</li>
+    <li>Stop-loss'u sıkılaştır (-30% → -20%)</li>
+    <li>Liquidity minimum arttır (thin challenger marketlerini otomatik skip)</li>
+    <li>Manipulation guard medium severity → block (sadece low severity geçiş)</li>
+  </ul>
+  <b>Tavsiye:</b> "Herşeyi A'ya çek" hedefinin alternatifi. Grade'i yükseltmek yerine B+'da daha az kaybetmek. Birlikte uygulanabilir.
+</div>
+
+<h2>8 · Özet ve Öncelik Matrisi</h2>
+
+<table>
+  <tr>
+    <th>#</th>
+    <th>Öneri</th>
+    <th>Etki</th>
+    <th>Effort</th>
+    <th>Kod Etkisi</th>
+    <th>Hedef Grade</th>
+  </tr>
+  <tr>
+    <td>1</td><td>Sackmann WTA repo merge</td><td class="ok">Yüksek</td><td>Orta</td><td>~200 satır (tennis_sackmann.py yeni modül)</td><td>WTA: C/B− → B+/A</td>
+  </tr>
+  <tr>
+    <td>2</td><td>Niş lig pre-filter (KHL, ROU1...)</td><td class="ok">Yüksek</td><td>Düşük</td><td>~20 satır config</td><td>AI credit + cycle tasarrufu</td>
+  </tr>
+  <tr>
+    <td>3</td><td>Challenger risk azaltma (size ½, SL sıkı)</td><td class="warn">Orta</td><td>Düşük</td><td>~30 satır risk_manager</td><td>B+ zararları yarıya iner</td>
+  </tr>
+  <tr>
+    <td>4</td><td>Sackmann ATP Challenger merge (historik)</td><td class="warn">Orta</td><td>Orta</td><td>#1 ile birlikte ~50 ek satır</td><td>ATP Challenger: C → B− (historik H2H için)</td>
+  </tr>
+  <tr>
+    <td>5</td><td>News pipeline alternatif kaynak</td><td class="warn">Orta</td><td>Yüksek</td><td>~300 satır + API key maliyeti</td><td>Tüm B− → B+</td>
+  </tr>
+  <tr>
+    <td>6</td><td>Odds API Challenger</td><td class="bad">N/A</td><td>—</td><td>İmkansız</td><td>—</td>
+  </tr>
+</table>
+
+<div class="box" style="background:#e3f2fd; border-color:#0a4b8c;">
+  <b>Önerilen sıralama:</b>
+  <ol>
+    <li><b>#2 Niş lig pre-filter</b> (en kolay, AI budget koruma)</li>
+    <li><b>#3 Challenger risk azaltma</b> (Prizmic vakası tekrarlanmasın)</li>
+    <li><b>#1 Sackmann WTA merge</b> (gerçek grade upgrade, WTA'yı kurtarır)</li>
+    <li><b>#4 Sackmann ATP Challenger merge</b> (#1 ile aynı modül, bonus)</li>
+    <li><b>#5 News</b> (en son, asıl iki ayak çözüldükten sonra)</li>
+  </ol>
+  Her biri ayrı bir plan + ayrı bir onay gerektirir. Bugün dokunmuyoruz, test devam ediyor.
+</div>
+
+<p class="muted" style="text-align:center; margin-top:3rem;">— Son —</p>
+</body>
+</html>
