@@ -200,10 +200,16 @@ class ExitExecutor:
             "size": pos.size_usdc,
             "direction": pos.direction,
         })
+        # Display prices must reflect the direction-effective side (NO vs YES),
+        # otherwise BUY_NO exits look like wins when they're actually losses.
+        # PnL/arşiv/price_history ham YES-side saklanmaya devam eder.
+        _eff_entry = effective_price(pos.entry_price, pos.direction)
+        _eff_exit = effective_price(pos.current_price, pos.direction)
+        _side_tag = "NO" if pos.direction == "BUY_NO" else "YES"
         logger.info(
-            "EXIT: %s | reason=%s | pnl=$%.2f (scale_out=$%.2f, net=$%.2f) | entry=%.2f exit=%.2f",
+            "EXIT: %s | reason=%s | pnl=$%.2f (scale_out=$%.2f, net=$%.2f) | entry=%.2f exit=%.2f (%s)",
             pos.slug[:40], reason, realized_pnl, scale_out_pnl, total_pnl,
-            pos.entry_price, pos.current_price,
+            _eff_entry, _eff_exit, _side_tag,
         )
         _pnl_emoji = "🟢" if total_pnl >= 0 else "🔴"
         _scale_line = f" (scale-out +${scale_out_pnl:.2f})" if scale_out_pnl > 0 else ""
@@ -211,7 +217,7 @@ class ExitExecutor:
             f"{_pnl_emoji} *EXIT*: {pos.slug[:40]}\n\n"
             f"📋 Reason: {reason}\n"
             f"💵 Net PnL: ${total_pnl:+.2f}{_scale_line}\n"
-            f"📊 Entry: {pos.entry_price:.2f} -> Exit: {pos.current_price:.2f}"
+            f"📊 Entry: {_eff_entry:.2f} -> Exit: {_eff_exit:.2f} ({_side_tag})"
         )
 
         # Mark permanently exited if resolved
