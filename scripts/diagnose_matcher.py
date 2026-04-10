@@ -8,7 +8,7 @@ of the likely reason.
 Usage:
     python scripts/diagnose_matcher.py
 
-Output: docs/superpowers/analysis/2026-04-06-matcher-diagnostic.md
+Output: logs/matcher-diagnostic.md
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from src.market_scanner import MarketScanner  # noqa: E402
 from src.config import load_config  # noqa: E402
 
 SCOUT_QUEUE = PROJECT_ROOT / "logs" / "scout_queue.json"
-REPORT = PROJECT_ROOT / "docs" / "superpowers" / "analysis" / "2026-04-06-matcher-diagnostic.md"
+REPORT = PROJECT_ROOT / "logs" / "matcher-diagnostic.md"
 
 # Window used by entry_gate._analyze_batch scout chrono selection
 WINDOW_START_HOURS = -2.0

@@ -1,7 +1,5 @@
 # src/edge_decay.py
-"""AI signal freshness -- decay AI target toward market price as match progresses.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #4
-"""
+"""AI signal freshness -- decay AI target toward market price as match progresses."""
 
 
 def get_edge_decay_factor(elapsed_pct: float) -> float:

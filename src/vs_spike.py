@@ -1,7 +1,5 @@
 # src/vs_spike.py
-"""VS spike detection and resolution-aware TP.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #5, #2
-"""
+"""VS spike detection and resolution-aware TP."""
 from __future__ import annotations
 
 

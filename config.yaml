@@ -59,7 +59,7 @@ volatility_swing:
 
 early:
   enabled: true
-  max_slots: 4                    # 4 dedicated early entry slots (swing trade + penny alpha)
+  max_slots: 4                    # 4 dedicated early entry slots
   max_entry_price: 0.70           # Max token price for early entry
   min_edge: 0.10                  # 10% min edge for early entry
   min_ai_probability: 0.55        # AI must be ≥55% confident
@@ -70,10 +70,6 @@ early:
   bet_pct: 0.05                   # 5% bankroll per early entry bet
   stop_loss_pct: 0.30
   take_profit_pct: 0.40           # Normal swing TP
-  penny_max_price: 0.02           # $0.01-$0.02 = penny zone
-  penny_1c_target_multiplier: 5.0 # $0.01 → hold for 5x ($0.05)
-  penny_2c_target_multiplier: 2.0 # $0.02 → hold for 2x ($0.04)
-  penny_bet_pct: 0.05             # 5% bankroll for penny (high sizing — near-guaranteed)
 
 consensus_entry:
   enabled: true

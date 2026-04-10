@@ -987,12 +987,12 @@ class EntryGate:
             if _eff_entry_price < 0.20:
                 _has_timing = bool(_msi) or elapsed_pct > 0.0
                 if not _has_timing:
-                    logger.info("SKIP no-start-time upset: %s | entry=%.0f¢",
+                    logger.info("SKIP no-start-time underdog: %s | entry=%.0f¢",
                                 market.slug[:35], _eff_entry_price * 100)
                     continue
                 _udog_mult = _underdog_elapsed_size_multiplier(elapsed_pct)
                 if _udog_mult <= 0.0:
-                    logger.info("SKIP upset-half-elapsed: %s | %.0f%% through",
+                    logger.info("SKIP underdog-half-elapsed: %s | %.0f%% through",
                                 market.slug[:35], elapsed_pct * 100)
                     continue
                 if _udog_mult < 1.0:

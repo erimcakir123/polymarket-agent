@@ -1,7 +1,5 @@
 # src/liquidity_check.py
-"""Check CLOB order book depth before placing sell orders.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #18
-"""
+"""Check CLOB order book depth before placing sell orders."""
 from __future__ import annotations
 import logging
 

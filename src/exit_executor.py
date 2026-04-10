@@ -20,7 +20,7 @@ _NEVER_STOCK_EXITS = frozenset({
     "hard_halt_drawdown", "hard_halt", "stop_loss", "esports_halftime",
     "resolved", "near_resolve", "near_resolve_profit",
 })
-_NEVER_STOCK_PREFIXES = ("match_exit_", "election_reeval", "early_penny_")
+_NEVER_STOCK_PREFIXES = ("match_exit_",)
 
 
 class ExitExecutor:
@@ -149,13 +149,11 @@ class ExitExecutor:
             if not demoted:
                 # Blacklist
                 bl_reason = reason
-                for prefix in ("match_exit_", "early_penny_"):
-                    if bl_reason.startswith(prefix):
-                        # Preserve the layer name after the prefix so BLACKLIST_RULES
-                        # can match it (e.g. "match_exit_catastrophic_floor" →
-                        # "catastrophic_floor" → permanent blacklist).
-                        bl_reason = bl_reason[len(prefix):]
-                        break
+                if bl_reason.startswith("match_exit_"):
+                    # Preserve the layer name after the prefix so BLACKLIST_RULES
+                    # can match it (e.g. "match_exit_catastrophic_floor" →
+                    # "catastrophic_floor" → permanent blacklist).
+                    bl_reason = bl_reason[len("match_exit_"):]
                 # Elapsed_pct for graduated_sl dynamic cooldown: compute from pos timing
                 _elapsed_for_bl = 0.0
                 _ms = getattr(pos, "match_start_iso", "") or ""

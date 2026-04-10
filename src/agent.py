@@ -2,7 +2,7 @@
 
 Responsibilities:
   - Initialize all modules (entry_gate, exit_monitor, portfolio, executor, etc.)
-  - run_cycle(): heavy cycle -- scanning, AI analysis, upset/early/penny entries
+  - run_cycle(): heavy cycle -- scanning, AI analysis, entry evaluation
   - run_light_cycle(): fast cycle (5s) -- exits, live_dip, momentum, farming re-entry,
     scale-outs (with per-strategy cooldowns to avoid spamming)
   - run(): main loop
@@ -582,16 +582,9 @@ class Agent:
         )
         logger.info("Phase [stock_drain] took %.1fs", time.monotonic() - t0)
 
-        self._quick_exit_check(bankroll)  # between stock drain and upset hunter
+        self._quick_exit_check(bankroll)
 
         # NOTE: farming_reentry, live_dip, live_momentum, scale_outs moved to light cycle
-        # Upset hunter stays in heavy cycle (needs fresh scan data + AI analysis)
-        t0 = time.monotonic()
-        if entries_allowed:
-            self.live_strategies.check_upset_hunter(fresh_markets, bankroll)
-        logger.info("Phase [upset_hunter] took %.1fs", time.monotonic() - t0)
-
-        self._quick_exit_check(bankroll)  # after upset, before summary
 
         # Check outcomes + log
         self.price_updater.check_tracked_outcomes()

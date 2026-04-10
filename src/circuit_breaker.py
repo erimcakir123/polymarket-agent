@@ -1,6 +1,4 @@
-"""Portfolio-level circuit breaker -- halts new entries on excessive losses.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #14
-"""
+"""Portfolio-level circuit breaker -- halts new entries on excessive losses."""
 from __future__ import annotations
 import json
 import logging

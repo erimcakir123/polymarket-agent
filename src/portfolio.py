@@ -330,8 +330,7 @@ class Portfolio:
         for cid, pos in self.positions.items():
             # A-conf hold-to-resolve: skip flat SL (catastrophic floor + market flip still apply via match_exit)
             _eff_entry = effective_price(pos.entry_price, pos.direction)
-            if (pos.confidence == "A" and _eff_entry >= 0.60
-                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
+            if pos.confidence == "A" and _eff_entry >= 0.60:
                 continue
             # Pre-match: don't trigger SL before match starts (price noise)
             _msi = getattr(pos, "match_start_iso", "") or ""
@@ -344,7 +343,7 @@ class Portfolio:
                     pass
             sl = compute_stop_loss_pct(pos, base_sl_pct=stop_loss_pct, vs_sl_pct=vs_stop_loss_pct)
             if sl is None:
-                continue  # Skip SL for this position (penny, totals/spread, stale)
+                continue  # Skip SL for this position (totals/spread, stale)
             if pos.unrealized_pnl_pct < -sl:
                 triggered.append(cid)
                 label = "VS stop-loss" if pos.volatility_swing else "Stop-loss"
@@ -409,7 +408,6 @@ class Portfolio:
             _eff_entry = effective_price(pos.entry_price, pos.direction)
             _sport = classify_sport(pos) if hasattr(pos, 'slug') else ""
             if (pos.confidence == "A" and _eff_entry >= 0.60
-                    and getattr(pos, "entry_reason", "") not in ("upset", "penny")
                     and _sport not in ("soccer", "baseball")):
                 continue
             # Note: scouted positions intentionally participate in scale-out (spec §9j)

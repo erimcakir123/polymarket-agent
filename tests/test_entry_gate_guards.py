@@ -50,25 +50,6 @@ def test_pass_normal_market():
     assert should_skip is False
 
 
-def test_estimate_elapsed_pct_uses_sport_duration():
-    """Verify _estimate_elapsed_pct uses sport-specific duration, not hardcoded 120."""
-    from src.upset_hunter import _estimate_elapsed_pct
-    from datetime import datetime, timezone, timedelta
-
-    # NBA match started 80 minutes ago
-    # NBA duration = 150 min → elapsed_pct = 80/150 = 0.533
-    # Old code would give 80/120 = 0.667 (wrong)
-    m = _make_market(
-        slug="nba-lal-bos",
-        sport_tag="nba",
-        match_start_iso=(datetime.now(timezone.utc) - timedelta(minutes=80)).isoformat(),
-    )
-    pct = _estimate_elapsed_pct(m)
-    assert pct is not None
-    # With sport-specific duration (150min): 80/150 ≈ 0.533
-    assert 0.50 < pct < 0.60, f"Expected ~0.53, got {pct}"
-
-
 def test_elapsed_guard_blocks_half_elapsed():
     """Market past 50% elapsed should be skipped."""
     from src.match_exit import get_game_duration

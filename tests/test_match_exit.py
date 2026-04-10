@@ -232,7 +232,7 @@ class TestLayer1CatastrophicFloor:
 
     def test_underdog_exempt(self):
         from src.match_exit import check_match_exit
-        # Entry <20¢ is exempt from catastrophic floor (penny/upset territory)
+        # Entry <20¢ is exempt from catastrophic floor (sub-20¢ underdog territory)
         data = _make_pos_data(entry_price=0.19, current_price=0.08)
         result = check_match_exit(data)
         # Should NOT exit via catastrophic (Layer 2 might exit but not Layer 1)
@@ -247,7 +247,7 @@ class TestLayer1CatastrophicFloor:
         assert result["layer"] == "catastrophic_floor"
 
     def test_catastrophic_floor_skips_below_20c_entry(self):
-        """Catastrophic floor should NOT trigger for entries below 20¢ (penny/upset territory)."""
+        """Catastrophic floor should NOT trigger for entries below 20¢ (sub-20¢ underdog territory)."""
         from src.match_exit import check_match_exit
         data = _make_pos_data(entry_price=0.19, current_price=0.08)
         result = check_match_exit(data)
@@ -777,199 +777,6 @@ class TestAConfidenceHold:
         result = check_match_exit(data)
         assert result["exit"] is True
         assert result["layer"] == "a_conf_market_flip"
-
-
-class TestUpsetExemptions:
-    """Upset positions should be exempt from graduated SL and never-in-profit guard."""
-
-    def _match_started_ago(self, minutes: int) -> str:
-        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
-
-    def test_upset_exempt_from_graduated_sl(self):
-        """Upset positions should never trigger graduated SL."""
-        from src.match_exit import check_match_exit
-        # 85% elapsed on CS2 BO3 (130 min) = ~110 min
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.10, current_price=0.06,
-            match_start_iso=self._match_started_ago(110),
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=False, peak_pnl_pct=0.0,
-            consecutive_down_cycles=6, cumulative_drop=0.04,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False or "graduated" not in result.get("layer", "")
-
-    def test_upset_forced_exit_holds_above_60c(self):
-        """Upset at 92% elapsed with price >= 60c should HOLD (became favorite)."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.10, current_price=0.65,
-            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=True, peak_pnl_pct=5.50,
-            consecutive_down_cycles=0, cumulative_drop=0.0,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False  # Should HOLD
-
-    def test_upset_forced_exit_takes_profit_50_to_60c(self):
-        """Upset at 92% elapsed with price 50-60c should take profit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.10, current_price=0.55,
-            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=True, peak_pnl_pct=4.50,
-            consecutive_down_cycles=0, cumulative_drop=0.0,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_take_profit"
-
-    def test_upset_forced_exit_below_50c(self):
-        """Upset at 92% elapsed with price below 50c should force exit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.10, current_price=0.12,
-            match_start_iso=self._match_started_ago(120),  # 120/130 = 92%
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=False, peak_pnl_pct=0.20,
-            consecutive_down_cycles=0, cumulative_drop=0.0,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_forced_exit"
-
-    def test_upset_exempt_from_never_in_profit(self):
-        """Upset positions should never trigger never-in-profit guard."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.10, current_price=0.09,
-            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=False, peak_pnl_pct=0.0,
-            consecutive_down_cycles=0, cumulative_drop=0.01,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False or "never_in_profit" not in result.get("layer", "")
-
-    def test_penny_exempt_from_never_in_profit(self):
-        """Penny positions exit via forced exit at 75%, never via never-in-profit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="penny",
-            entry_price=0.02, current_price=0.015,
-            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
-            slug="cs2-test", number_of_games=3,
-            ever_in_profit=False, peak_pnl_pct=0.0,
-            consecutive_down_cycles=0, cumulative_drop=0.005,
-        )
-        result = check_match_exit(data)
-        # Penny at 75% now exits via upset_forced_exit (price 1.5¢ < 50¢)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_forced_exit"
-        assert "never_in_profit" not in result.get("layer", "")
-
-
-class TestUpsetPenny75PctExit:
-    """Tests for upset/penny forced exit at 75% elapsed (was 90%)."""
-
-    def _match_started_ago(self, minutes: int) -> str:
-        return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
-
-    def test_upset_exits_at_75pct_still_underdog(self):
-        """Upset at 75% elapsed, still underdog (<50¢) → forced exit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.12, current_price=0.15,
-            match_start_iso=self._match_started_ago(98),  # 98/130 = 75%
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_forced_exit"
-
-    def test_upset_holds_if_became_favorite(self):
-        """Upset at 75% elapsed but price ≥60¢ → hold, became favorite."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.12, current_price=0.65,
-            match_start_iso=self._match_started_ago(98),
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False
-
-    def test_upset_takes_profit_risky_zone(self):
-        """Upset at 75% elapsed, price 50-60¢ → take profit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.12, current_price=0.55,
-            match_start_iso=self._match_started_ago(98),
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_take_profit"
-
-    def test_penny_exits_at_75pct(self):
-        """Penny at 75% elapsed, still cheap → forced exit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="penny",
-            entry_price=0.02, current_price=0.03,
-            match_start_iso=self._match_started_ago(98),
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_forced_exit"
-
-    def test_penny_holds_if_became_favorite(self):
-        """Penny at 75% elapsed but price ≥60¢ → hold."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="penny",
-            entry_price=0.02, current_price=0.65,
-            match_start_iso=self._match_started_ago(98),
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False
-
-    def test_upset_no_exit_at_60pct(self):
-        """Upset at 60% elapsed → no forced exit (below 75% threshold)."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="upset",
-            entry_price=0.12, current_price=0.15,
-            match_start_iso=self._match_started_ago(78),  # 78/130 = 60%
-            slug="cs2-test", number_of_games=3,
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is False
-
-    def test_penny_fallback_no_timing(self):
-        """Penny with no match timing, held 3h+ and losing → forced exit."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            entry_reason="penny",
-            entry_price=0.02, current_price=0.01,
-            match_start_iso="",  # no timing
-            slug="cs2-test", number_of_games=3,
-        )
-        data["hold_hours"] = 3.5
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "upset_max_hold"
 
 
 class TestRevokeEdgeCases:

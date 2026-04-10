@@ -89,20 +89,6 @@ class EarlyEntryConfig(BaseModel):
     stop_loss_pct: float = 0.30
 
 
-class UpsetHunterConfig(BaseModel):
-    enabled: bool = True
-    min_price: float = 0.05
-    max_price: float = 0.15
-    bet_pct: float = 0.02
-    max_concurrent: int = 3
-    stop_loss_pct: float = 0.50
-    min_liquidity: float = 5_000
-    min_odds_divergence: float = 0.05
-    max_hours_before_match: float = 48
-    late_match_exit_pct: float = 0.10
-    max_hold_hours: float = 3.0
-
-
 class LiveMomentumConfig(BaseModel):
     enabled: bool = True
     min_edge: float = 0.06
@@ -178,7 +164,6 @@ class AppConfig(BaseModel):
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
     early: EarlyEntryConfig = EarlyEntryConfig()
-    upset_hunter: UpsetHunterConfig = UpsetHunterConfig()
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()

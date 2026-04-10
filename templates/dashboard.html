@@ -507,7 +507,6 @@
         .feed-item.border-far { border-left: 3px solid var(--blue); }
         .feed-item.border-ld { border-left: 3px solid var(--purple); }
         .feed-item.border-fav { border-left: 3px solid var(--green); }
-        .feed-item.border-upset { border-left: 3px solid #e0a040; }
         .feed-item.border-momentum { border-left: 3px solid var(--amber); }
         .feed-item.border-reentry { border-left: 3px solid var(--accent); }
 
@@ -1023,7 +1022,6 @@
                         <div id="slotInline" style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;align-content:center">
                             <span class="entry-tag" style="font-size:8px;padding:2px 4px;text-align:center;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);white-space:nowrap" id="slotNormalInline">NRM 0/20</span>
                             <span class="entry-tag tag-vs" id="slotVsInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap">VS 0/5</span>
-                            <span class="entry-tag" id="slotUpsetInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(224,160,64,0.15);color:#e0a040">UPS 0</span>
                             <span class="entry-tag" id="slotLdInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--purple-dim);color:var(--purple)">LD 0</span>
                             <span class="entry-tag" id="slotMomInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:var(--amber-dim);color:var(--amber)">MOM 0</span>
                             <span class="entry-tag" id="slotReInline" style="font-size:8px;padding:2px 4px;text-align:center;white-space:nowrap;background:rgba(45,212,168,0.15);color:#2dd4a8">RE 0 (0)</span>
@@ -2160,7 +2158,6 @@
                     const er = p.entry_reason || '';
                     const vs = p.volatility_swing || false;
                     if (vs) return 'border-vs';
-                    if (er === 'upset' || er === 'penny') return 'border-upset';
                     if (er === 'live_dip') return 'border-ld';
                     if (er === 'momentum') return 'border-momentum';
                     if (er === 'farming_reentry') return 'border-reentry';
@@ -2201,7 +2198,6 @@
                             const er = p.entry_reason || '';
                             const vs = p.volatility_swing || false;
                             if (vs) return '<span class="entry-tag tag-vs">VS</span>';
-                            if (er === 'upset' || er === 'penny') return '<span class="entry-tag" style="background:rgba(224,160,64,0.15);color:#e0a040">UPSET</span>';
                             if (er === 'live_dip') return '<span class="entry-tag tag-ld">LD</span>';
                             if (er === 'momentum') return '<span class="entry-tag" style="background:var(--amber-dim);color:var(--amber)">MOM</span>';
                             if (er === 'farming_reentry') return '<span class="entry-tag" style="background:rgba(45,212,168,0.15);color:var(--accent)">RE</span>';
@@ -2574,19 +2570,17 @@
             }
             // Entry type counts from positions
             const _pos = window._lastPositions || [];
-            const _typeCounts = {ups: 0, ld: 0, mom: 0, far: 0, fav: 0};
+            const _typeCounts = {ld: 0, mom: 0, far: 0, fav: 0};
             for (const p of _pos) {
                 const er = p.entry_reason || '';
                 const vs = p.volatility_swing || false;
                 if (vs) continue; // VS counted separately
-                if (er === 'upset' || er === 'penny') _typeCounts.ups++;
-                else if (er === 'live_dip') _typeCounts.ld++;
+                if (er === 'live_dip') _typeCounts.ld++;
                 else if (er === 'momentum') _typeCounts.mom++;
                 else if (er === 'far') _typeCounts.far++;
                 else if (er === 'fav_time_gate') _typeCounts.fav++;
             }
             const _typeEls = [
-                ['slotUpsetInline', 'UPS', _typeCounts.ups],
                 ['slotLdInline', 'LD', _typeCounts.ld],
                 ['slotMomInline', 'MOM', _typeCounts.mom],
                 ['slotFarInline', 'FAR', _typeCounts.far],

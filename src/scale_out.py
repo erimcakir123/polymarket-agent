@@ -1,6 +1,5 @@
 # src/scale_out.py
 """3-tier scale-out (partial exit) system.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #1
 
 Tier 1 (Risk-Free): +25% PnL -> sell 40%
 Tier 2 (Profit Lock): +50% PnL -> sell 50% of remaining
@@ -22,13 +21,12 @@ def check_scale_out(
     scale_out_tier: int,
     unrealized_pnl_pct: float,
     volatility_swing: bool,
-    entry_reason: str = "",
 ) -> dict | None:
     """Check if position qualifies for next scale-out tier. Pure function."""
     if volatility_swing:
         return None
 
-    # --- All positions (including upset): PnL-based tiers ---
+    # PnL-based tiers
     if scale_out_tier == 0 and unrealized_pnl_pct >= 0.25:
         return {
             "action": "scale_out",

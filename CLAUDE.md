@@ -6,6 +6,7 @@
 - **Kod değiştirmeden ÖNCE kullanıcıya SOR.** İzinsiz değişiklik yapma.
 - **Her değişiklik öncesi planning skill kullan.** Direkt koda dalma.
 - **Tek-seferlik analiz raporları (HTML/MD) `docs/` veya `plans/` altında biriktirilmez.** Üretildikten ve kullanıcı okuduktan sonra Claude tarafından silinir. Sadece kalıcı dokümantasyon `docs/` altında kalır (bot-flowchart, testing-plan, espn-api-reference vb.). Eski "rapor görmek istiyorum" çıktıları çöpe — kod tarafında bağlı değiller, runtime'da kullanılmıyorlar.
+- **Plan/spec dosyaları kod docstring'lerinden referans verilmez.** `/write-plan` ve `/brainstorm` çıktıları implement bittikten sonra silinir, dolayısıyla source kodda `Spec: docs/superpowers/...` veya benzeri referans satırı yazma. Modülün ne yaptığını docstring'in kendisi anlatır, "doğum belgesi" linki tutmanın faydası yok ve dangling reference yaratır.
 
 ## Development Workflow (MANDATORY — follow exactly)
 

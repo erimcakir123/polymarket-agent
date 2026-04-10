@@ -1,7 +1,5 @@
 # src/reentry.py
-"""Re-entry eligibility, tiered blacklist, and dynamic re-entry parameters.
-Spec: docs/superpowers/specs/2026-03-23-profit-max-risk-opt-v2-design.md #6, #8, #10
-"""
+"""Re-entry eligibility, tiered blacklist, and dynamic re-entry parameters."""
 from __future__ import annotations
 import json
 import logging
@@ -179,8 +177,6 @@ BLACKLIST_RULES = {
     "vs_mandatory_exit": ("timed", 15),
     "resolved_win": ("none", 0),
     "resolved_loss": ("timed", 20),
-    "election_reeval": ("timed", 30),
-    "early_penny": ("none", 0),
     "slot_upgrade": ("timed", 10),
 }
 

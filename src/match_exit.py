@@ -1,7 +1,4 @@
-"""Match-aware exit system -- 4-layer exit logic using match timing, score, and profit history.
-
-Spec: docs/superpowers/specs/2026-03-22-match-aware-exit-system-design.md
-"""
+"""Match-aware exit system -- 4-layer exit logic using match timing, score, and profit history."""
 from __future__ import annotations
 
 import logging
@@ -295,30 +292,6 @@ def check_match_exit(data: dict) -> dict:
         except (ValueError, TypeError):
             pass
 
-    # --- Upset/Penny: forced exit at 75% of match (3-tier price filter) ---
-    # By 75% elapsed, match outcome is usually clear. Exit unless position became favorite.
-    entry_reason = data.get("entry_reason", "")
-    if entry_reason in ("upset", "penny") and elapsed_pct is not None and elapsed_pct >= 0.75:
-        if effective_current >= 0.60:
-            pass  # HOLD — became favorite, let it resolve
-        elif effective_current >= 0.50:
-            return {**result, "exit": True, "layer": "upset_take_profit",
-                    "reason": f"{entry_reason}: match {elapsed_pct:.0%} done, price {effective_current:.2f} in risky zone, take profit"}
-        else:
-            return {**result, "exit": True, "layer": "upset_forced_exit",
-                    "reason": f"{entry_reason}: match {elapsed_pct:.0%} done, price {effective_current:.2f} still underdog, forced exit"}
-
-    # --- Upset/Penny: fallback for missing match timing ---
-    if entry_reason in ("upset", "penny") and elapsed_pct < 0:
-        hold_hours = data.get("hold_hours", 0)
-        if hold_hours >= 3.0 and pnl_pct < 0:
-            return {**result, "exit": True, "layer": "upset_max_hold",
-                    "reason": f"Upset hunter: held {hold_hours:.1f}h with no timing, PnL {pnl_pct:.1%}"}
-        # Penny/upset with no timing and positive PnL: exit after 6h to avoid stuck positions
-        if hold_hours >= 6.0:
-            return {**result, "exit": True, "layer": "upset_max_hold",
-                    "reason": f"{entry_reason}: held {hold_hours:.1f}h with no timing data, forced exit"}
-
     if elapsed_pct < 0:
         # No match timing -> can't do graduated/never-in-profit checks
         # Return no exit, let existing flat stop loss handle
@@ -341,7 +314,6 @@ def check_match_exit(data: dict) -> dict:
     a_conf_hold = (
         confidence == "A"
         and effective_entry >= 0.60
-        and entry_reason not in ("upset", "penny")
         and not _baseball_losing
     )
     if a_conf_hold:
@@ -349,8 +321,6 @@ def check_match_exit(data: dict) -> dict:
             return {**result, "exit": True, "layer": "a_conf_market_flip",
                     "reason": f"A-conf: eff_price {effective_current:.2f} < 0.50 -- market no longer favors"}
         # else: skip graduated SL, hold through drawdown
-    elif entry_reason in ("upset", "penny"):
-        pass  # Skip graduated SL — upsets/penny have forced exit at 75% elapsed
     else:
         max_loss = get_graduated_max_loss(elapsed_pct, effective_entry, score_info)
 
@@ -377,8 +347,6 @@ def check_match_exit(data: dict) -> dict:
     # --- Step 4: Never-in-Profit Guard (Layer 3) ---
     if a_conf_hold:
         pass  # A-conf strong-entry hold: only market-flip (<50¢) can exit, handled above
-    elif entry_reason in ("upset", "penny"):
-        pass  # Skip — these are designed to stay out of profit until late
     elif not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
         score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
         if score_ahead:

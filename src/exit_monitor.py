@@ -231,8 +231,7 @@ class ExitMonitor:
 
         # A-conf hold-to-resolve check (reused by SL and TP)
         _a_conf_hold = (pos.confidence == "A"
-                        and effective_entry >= 0.60
-                        and getattr(pos, "entry_reason", "") not in ("upset", "penny"))
+                        and effective_entry >= 0.60)
 
         # 1. Stop-loss check -- unified rules via helper
         # A-conf hold-to-resolve: skip flat SL, only catastrophic floor + market flip apply
@@ -284,7 +283,6 @@ class ExitMonitor:
             peak_pnl = (pos.peak_price - eff_entry) / eff_entry if eff_entry > 0 else 0
             pos.peak_pnl_pct = max(pos.peak_pnl_pct, peak_pnl)
 
-            # All positions (including upset) use the same trailing TP params
             act_pct = ttp_cfg.activation_pct
             trail_dist = ttp_cfg.trail_distance
 
@@ -406,10 +404,8 @@ class ExitMonitor:
                     continue
                 # A-conf hold-to-resolve: skip trailing TP, hold until resolution
                 _eff_entry = effective_price(pos.entry_price, pos.direction)
-                if (pos.confidence == "A" and _eff_entry >= 0.60
-                        and getattr(pos, "entry_reason", "") not in ("upset", "penny")):
+                if pos.confidence == "A" and _eff_entry >= 0.60:
                     continue
-                # All positions (including upset) use the same trailing TP params
                 act_pct = ttp_cfg.activation_pct
                 trail_dist = ttp_cfg.trail_distance
                 ttp_result = calculate_trailing_tp(
