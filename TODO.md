@@ -144,6 +144,11 @@ Following the tennis TML + chess (Lichess/Chess.com) integration, these gaps rem
 
 ## Clean-code refactors (last priority)
 
+### Chess cache persistence hygiene (from Task 10 audit, 2026-04-11)
+- **W1 — chess_username_resolver.py:83-94** `_persist_cache()` writes two files sequentially (`username_map.json` + `unresolved.json`). If the first `replace` succeeds and the second `write_text` fails mid-write, disk ends up with orphan `.tmp` + divergent state (resolved names fresh, failed cache stale). No runtime break — next successful persist re-sync's — but a crash between the two writes leaves a dangling `.tmp`. Fix options: merge both dicts into a single JSON file, or add orphan-`.tmp` cleanup on startup. Severity: low.
+- **W2 — chess_data.py:358-359** `_persist_cache()` is called inside `_lock` after every successful `_get_player_stats()`. One chess-heavy cycle with 5 markets = 5 full `stats_cache.json` serializations + disk syncs back-to-back. Correctness is fine (lock guards iteration), just redundant I/O. Fix options: dirty-flag + single cycle-end persist, or 30s throttled persist. Severity: low (perf, not correctness).
+- **Why deferred**: Both are low severity. Chess/tennis area is new and will see more iteration — revisit during the next refactor pass in this area rather than opening a dedicated fix PR.
+
 ### Remove pos.scouted field — duplicate of confidence == "A"
 - **Problem**: `Position.scouted` bool field and `confidence == "A"` carry the same meaning in the exit path. Exit monitor already ignores `pos.scouted` and dispatches hold-to-resolve behavior purely off confidence. `pos.scouted` is only used for post-hoc logging annotations and one `handle_hold_revokes` branch in exit_executor.py that toggles the flag without affecting exit decisions.
 - **Scope** (~35 lines, 9 files):
