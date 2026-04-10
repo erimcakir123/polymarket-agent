@@ -466,8 +466,11 @@ MATCH_OUTCOMES_FILE = Path("logs/match_outcomes.jsonl")
 CALIBRATION_EVENTS_FILE = Path("logs/calibration_events.jsonl")
 AUTO_CAL_STATE_FILE = Path("logs/auto_cal_state.json")
 
-# How many resolved outcomes between auto-calibration runs
-AUTO_CAL_INTERVAL = 50
+# How many resolved outcomes between auto-calibration runs.
+# Lowered from 50 -> 15: bot resolves ~10-30 trades/day, so 15 gives one or
+# two reports per day instead of one per week. Reports are read-only so cost
+# is just one Telegram message per run.
+AUTO_CAL_INTERVAL = 15
 
 
 def _load_match_outcomes() -> list[dict]:
@@ -533,6 +536,14 @@ def auto_calibrate(logger: Any = None) -> dict | None:
     by_entry_reason: dict[str, dict] = {}
     book_vs_ai: list[dict] = []  # entries where bookmaker_prob is available
 
+    # Hold-vs-exit analytics (post_exit_* records only)
+    by_exit_reason: dict[str, dict] = {}        # per-exit-reason: count, exit_correct_n, total_left_on_table
+    total_left_on_table = 0.0                    # sum of pnl_left_on_table across all post_exit records
+    post_exit_count = 0                           # count of post_exit records (subset of resolved)
+    exit_correct_count = 0                        # exits that were the right call
+    held_better_count = 0                         # holds that would have done better than our exit
+    held_better_total_diff = 0.0                  # sum of (hypothetical - actual) for held_better cases
+
     for r in resolved:
         ai_prob = r.get("ai_probability", 0.5)
         yes_won = r.get("yes_won")
@@ -564,6 +575,42 @@ def auto_calibrate(logger: Any = None) -> dict | None:
                 "ai_better": brier_err < book_brier,
             })
 
+        # Hold-vs-exit analytics: only for post_exit_* records that carry the
+        # outcome_tracker analytics (actual_pnl, hypothetical_pnl, etc).
+        exit_reason_str = r.get("exit_reason", "") or ""
+        actual_pnl = r.get("actual_pnl")
+        hypothetical_pnl = r.get("hypothetical_pnl")
+        left_on_table = r.get("pnl_left_on_table")
+        exit_was_correct = r.get("exit_was_correct")
+
+        if exit_reason_str.startswith("post_exit_") and actual_pnl is not None:
+            post_exit_count += 1
+            # Strip the prefix so the breakdown key is the underlying exit reason.
+            base_reason = exit_reason_str[len("post_exit_"):]
+            stats = by_exit_reason.setdefault(base_reason, {
+                "count": 0,
+                "exit_correct_n": 0,
+                "total_left_on_table": 0.0,
+                "total_actual_pnl": 0.0,
+                "total_hypothetical_pnl": 0.0,
+                "held_better_n": 0,  # cases where holding beat our exit
+            })
+            stats["count"] += 1
+            stats["total_actual_pnl"] += actual_pnl
+            if hypothetical_pnl is not None:
+                stats["total_hypothetical_pnl"] += hypothetical_pnl
+            if left_on_table is not None:
+                stats["total_left_on_table"] += left_on_table
+                total_left_on_table += left_on_table
+            if exit_was_correct is True:
+                stats["exit_correct_n"] += 1
+                exit_correct_count += 1
+            # "Held would have been better" = positive money left on table
+            if left_on_table is not None and left_on_table > 0:
+                stats["held_better_n"] += 1
+                held_better_count += 1
+                held_better_total_diff += left_on_table
+
     n = len(resolved)
     overall_win_rate = total_correct / n if n else 0.0
     overall_brier = total_brier / n if n else 1.0
@@ -593,6 +640,52 @@ def auto_calibrate(logger: Any = None) -> dict | None:
             f"(AI Brier={avg_ai_brier:.3f} vs Book={avg_book_brier:.3f})"
         )
 
+    # Hold-vs-exit weakness checks (only meaningful with enough post_exit samples)
+    exit_reason_summary: dict[str, dict] = {}
+    if post_exit_count >= 3:
+        avg_left_on_table = total_left_on_table / post_exit_count
+        exit_correct_pct = exit_correct_count / post_exit_count
+        held_better_pct = held_better_count / post_exit_count
+        avg_held_better_diff = (held_better_total_diff / held_better_count) if held_better_count > 0 else 0.0
+
+        if avg_left_on_table > 2.0:  # >$2 per trade left on table on average
+            weaknesses.append(
+                f"Avg ${avg_left_on_table:.2f} left on table per exit "
+                f"(across {post_exit_count} post-exits) -- exits may be premature"
+            )
+        if exit_correct_pct < 0.55 and post_exit_count >= 10:
+            weaknesses.append(
+                f"Exit timing only {exit_correct_pct:.0%} correct over {post_exit_count} samples"
+            )
+        if held_better_pct >= 0.60 and post_exit_count >= 10:
+            weaknesses.append(
+                f"Holding would have beaten {held_better_pct:.0%} of exits "
+                f"(avg ${avg_held_better_diff:.2f} extra) -- consider raising exit thresholds"
+            )
+
+        # Per-exit-reason summary (rounded for JSON output)
+        for reason, stats in by_exit_reason.items():
+            n = stats["count"]
+            exit_reason_summary[reason] = {
+                "count": n,
+                "exit_correct_rate": round(stats["exit_correct_n"] / n, 4) if n else 0.0,
+                "avg_actual_pnl": round(stats["total_actual_pnl"] / n, 2) if n else 0.0,
+                "avg_hypothetical_pnl": round(stats["total_hypothetical_pnl"] / n, 2) if n else 0.0,
+                "avg_left_on_table": round(stats["total_left_on_table"] / n, 2) if n else 0.0,
+                "held_better_n": stats["held_better_n"],
+                "held_better_pct": round(stats["held_better_n"] / n, 4) if n else 0.0,
+            }
+            # Per-reason weakness: enough samples + holding consistently better
+            if n >= 5 and stats["held_better_n"] / n >= 0.60:
+                avg_diff_for_reason = (
+                    stats["total_left_on_table"] / stats["held_better_n"]
+                    if stats["held_better_n"] > 0 else 0.0
+                )
+                weaknesses.append(
+                    f"exit_reason={reason}: holding beats exit {stats['held_better_n']}/{n} times "
+                    f"(avg ${avg_diff_for_reason:.2f} extra)"
+                )
+
     # Build calibration event
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -607,6 +700,15 @@ def auto_calibrate(logger: Any = None) -> dict | None:
             "ai_better_pct": round(ai_vs_book_pct, 4),
             "avg_ai_brier": round(avg_ai_brier, 4),
             "avg_book_brier": round(avg_book_brier, 4),
+        },
+        "hold_vs_exit": {
+            "post_exit_samples": post_exit_count,
+            "total_left_on_table": round(total_left_on_table, 2),
+            "avg_left_on_table_per_exit": round(total_left_on_table / post_exit_count, 2) if post_exit_count else 0.0,
+            "exit_correct_rate": round(exit_correct_count / post_exit_count, 4) if post_exit_count else 0.0,
+            "held_better_count": held_better_count,
+            "held_better_pct": round(held_better_count / post_exit_count, 4) if post_exit_count else 0.0,
+            "by_exit_reason": exit_reason_summary,
         },
         "weaknesses": weaknesses,
     }

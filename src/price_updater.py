@@ -572,7 +572,10 @@ class PriceUpdater:
 
         resolved = self.ctx.outcome_tracker.check_resolutions(gamma_events)
         for outcome in resolved:
-            # Log resolved outcome to match_outcomes.jsonl
+            # Log resolved outcome to match_outcomes.jsonl. Pass the post-exit
+            # tracker analytics (yes_won_override, actual_pnl, hypothetical_pnl,
+            # pnl_left_on_table, exit_was_correct) so self_improve can ingest
+            # them and produce hold-vs-exit / match-flip-recovery breakdowns.
             try:
                 _log_resolved(
                     slug=outcome["slug"],
@@ -592,6 +595,11 @@ class PriceUpdater:
                     match_score=outcome.get("match_score", ""),
                     cycles_held=outcome.get("cycles_held", 0),
                     bookmaker_prob=outcome.get("bookmaker_prob", 0.0),
+                    yes_won_override=outcome.get("yes_won"),
+                    actual_pnl=outcome.get("actual_pnl"),
+                    hypothetical_pnl=outcome.get("hypothetical_pnl"),
+                    pnl_left_on_table=outcome.get("pnl_left_on_table"),
+                    exit_was_correct=outcome.get("exit_was_correct"),
                 )
             except Exception:
                 pass

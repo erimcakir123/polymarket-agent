@@ -34,16 +34,40 @@ def log_outcome(
     price_history: list[float] | None = None,
     cycles_held: int = 0,
     bookmaker_prob: float = 0.0,
+    # Post-exit outcome tracker fields (allow self_improve to ingest these)
+    yes_won_override: bool | None = None,    # outcome_tracker provides this directly
+    actual_pnl: float | None = None,         # what we actually realized at exit
+    hypothetical_pnl: float | None = None,   # what we'd have made if held to resolve
+    pnl_left_on_table: float | None = None,  # hypothetical - actual (positive = we exited too early)
+    exit_was_correct: bool | None = None,    # exit decision was right (True if pnl>0 OR we'd have lost)
 ) -> None:
-    """Append one outcome record to the JSONL log."""
-    is_resolved = exit_reason.startswith("resolved_")
+    """Append one outcome record to the JSONL log.
+
+    A market is considered RESOLVED for self_improve / calibration purposes if:
+      1. exit_reason starts with 'resolved_' (sync exit at oracle resolution), OR
+      2. exit_reason starts with 'post_exit_' (outcome_tracker observed final result
+         after our early exit -- yes_won_override, actual_pnl, hypothetical_pnl
+         must be provided by the caller in this case).
+    """
+    is_resolved = (
+        exit_reason.startswith("resolved_") or
+        exit_reason.startswith("post_exit_")
+    )
     is_win = exit_reason == "resolved_win"
-    is_loss = exit_reason == "resolved_loss"
 
     # AI said YES has this probability
     ai_yes_prob = ai_probability
-    # Did YES actually win? (only known for resolved markets)
-    yes_won = is_win if direction == "BUY_YES" else (not is_win if direction == "BUY_NO" else None)
+
+    # Did YES actually win? Three sources, in priority order:
+    #   1. yes_won_override (outcome_tracker post-exit knows the final result)
+    #   2. exit_reason == 'resolved_win' for BUY_YES side
+    #   3. None (unknown)
+    if yes_won_override is not None:
+        yes_won = yes_won_override
+    elif exit_reason.startswith("resolved_"):
+        yes_won = is_win if direction == "BUY_YES" else (not is_win)
+    else:
+        yes_won = None
 
     # AI was correct if: predicted >50% YES and YES won, or <50% YES and NO won
     ai_correct = None
@@ -51,8 +75,17 @@ def log_outcome(
         ai_favored_yes = ai_yes_prob > 0.5
         ai_correct = (ai_favored_yes and yes_won) or (not ai_favored_yes and not yes_won)
 
-    # Bet was correct if we made money
-    bet_correct = pnl > 0 if is_resolved else None
+    # "Bet correct" semantics differ for sync vs post-exit:
+    #   - sync resolved_*: pnl > 0 means we made money on this exit
+    #   - post_exit_*: hypothetical_pnl > 0 means our SIDE was right
+    #     (independent of whether our actual exit captured profit)
+    if is_resolved:
+        if hypothetical_pnl is not None:
+            bet_correct = hypothetical_pnl > 0
+        else:
+            bet_correct = pnl > 0
+    else:
+        bet_correct = None
 
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -79,6 +112,13 @@ def log_outcome(
         "cycles_held": cycles_held,
         "price_history": [round(p, 4) for p in (price_history or [])],
         "bookmaker_prob": round(bookmaker_prob, 4) if bookmaker_prob else 0.0,
+        # Post-exit outcome tracker analytics (None for sync resolved_* exits).
+        # These power the deeper self_improve breakdowns: hold-vs-exit, exit
+        # timing accuracy, match-flip recovery rate, money left on the table.
+        "actual_pnl": round(actual_pnl, 2) if actual_pnl is not None else None,
+        "hypothetical_pnl": round(hypothetical_pnl, 2) if hypothetical_pnl is not None else None,
+        "pnl_left_on_table": round(pnl_left_on_table, 2) if pnl_left_on_table is not None else None,
+        "exit_was_correct": exit_was_correct,
     }
 
     try:
