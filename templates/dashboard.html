@@ -1699,6 +1699,28 @@
             return false;
         }
 
+        /**
+         * Preserve feedScroll scroll position across fetchData() re-renders.
+         * Prevents the "tick-tick scroll down" bug: when innerHTML is re-written
+         * every second, the browser keeps scrollTop but new DOM nodes may be
+         * fractionally taller, drifting the scroll 1 pixel per render. This
+         * wrapper captures scrollTop BEFORE any render functions run and
+         * snaps it back AFTER they complete.
+         */
+        function preserveFeedScroll(renderFn) {
+            const el = document.getElementById('feedScroll');
+            const savedTop = el ? el.scrollTop : 0;
+            try {
+                renderFn();
+            } finally {
+                if (el) {
+                    el.scrollTop = savedTop;
+                    // Second pass after layout reflow catches any late shifts.
+                    requestAnimationFrame(() => { el.scrollTop = savedTop; });
+                }
+            }
+        }
+
         /* ── Data Fetching ── */
         async function fetchData() {
             try {
@@ -1730,7 +1752,7 @@
                 updatePositions();
                 updatePerformance(perfData, allTrades);
                 updateDivergence(calData);
-                updateTradeFeed(allTrades);
+                preserveFeedScroll(() => updateTradeFeed(allTrades));
                 updateBudget(budgetData);
                 updateSlots(slotsData);
                 updateApiUsage(apiUsageData);
@@ -2203,7 +2225,12 @@
                     action: 'RESOLVING',
                     market: p.slug || '',
                     question: p.question || '',
-                    timestamp: new Date().toISOString(),
+                    // Stable timestamp: prefer match end time, fall back to entry time.
+                    // Previously we used new Date() here which caused the trades feed
+                    // to "tick-tick" scroll down every second as each pending entry
+                    // re-rendered with a fresh timestamp and the relativeTime() output
+                    // shifted by 1 pixel per render.
+                    timestamp: p.match_start_iso || p.end_date_iso || p.entry_timestamp || new Date(0).toISOString(),
                     pnl: resolvedPnl,
                     size: p.size_usdc || 0,
                     price: p.entry_price || 0,
