@@ -44,10 +44,10 @@
 → Direkt implement → test → next task
 
 **Medium** (50-200 lines, 2-3 dosya, yeni feature):
-→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → audit agent (sadece değişen dosyalar + bağımlılıkları) → **2 ARDIŞIK CLEAN audit dönene kadar düzelt** (aşağıda açıklanmış) → next task
+→ Taslak plan yaz → kullanıcı onayı al → implement et → mevcut kodla uyum kontrolü (ilgili dosyaları oku) → audit (method §3 karar matrisine göre — default manual) → **2 ARDIŞIK CLEAN audit dönene kadar düzelt** (aşağıda açıklanmış) → next task
 
 **Large** (yeni modül, mimari değişiklik, strateji kararı):
-→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → audit agent (değişen dosyalar + bağımlılıkları) → **2 ARDIŞIK CLEAN audit** → dry_run smoke test → next task
+→ Diğer AI'lara danışmak için prompt hazırla → kullanıcı diğer AI'lardan tavsiye toplar → taslak çıkar → kullanıcı onayı → implement et → GERİ KALAN KOD İLE UYUMSUZLUK YARATMAYACAK ŞEKİLDE entegre et (gerekirse ilgili dosyaları baştan oku) → audit (method §3 karar matrisine göre) → **2 ARDIŞIK CLEAN audit** → dry_run smoke test → next task
 
 ### 2. Anti-Spaghetti Rules (HER ZAMAN GEÇERLİ)
 
@@ -85,9 +85,36 @@
 - Medium/Large değişiklik tamamlandıktan sonra (≥50 satır veya 2+ dosya)
 - Small değişikliklerde audit YAPILMAZ
 
-#### Audit Nasıl Yapılır?
-1. **Değişen dosya listesini hazırla** — `git diff --name-only` ile
-2. **TEK bir audit agent başlat** — aşağıdaki şablonu kullan
+#### Audit Nasıl Yapılır? — Manual = Default, Agent = İstisna
+
+**Pre-audit context budget check (ZORUNLU — audit başlatmadan önce sor):**
+1. Bu session'da kaç Read + Edit yaptım? (mental sayım)
+2. Bot çalışıyor mu? (`tasklist | grep python`)
+3. Bu session'da zaten bir audit agent spawn edildi mi?
+
+**Karar matrisi:**
+
+| Durum | Method |
+|---|---|
+| Medium change (50-200 satır, 2-3 dosya) | **Manual audit** |
+| Large change + pre-audit <30 Read/Edit + bot idle + 0 agent bu session | Agent spawn OK |
+| Large change + pre-audit ≥30 Read/Edit | **Manual audit** (context bloated) |
+| Large change + pre-audit ≥50 Read/Edit | **Session-split öner** — "cleanup'ı commit'leyip yeni session'da audit yapalım mı?" |
+| Kullanıcı "agent ile audit yap" dediyse | Agent spawn (budget check atla) |
+
+**Manual audit adımları:**
+1. `git diff --name-only` → değişen dosya listesi
+2. Her değişen dosya için: Read (offset+limit ile sadece değişen region'lar, küçük dosyalar full)
+3. Her değişen symbol için: Grep ile consumer'ları bul
+4. Sadece grep'in döndürdüğü consumer dosyalarını oku (blind Read YOK)
+5. Aşağıdaki "Agent Prompt Şablonu"ndaki PHASE 1 + PHASE 2 checklist'ini zihinsel uygula
+6. Bulguları rapor et: `file:line — description — severity`
+
+**Agent audit adımları:**
+1. `git diff --name-only` → değişen dosya listesi
+2. **TEK bir audit agent başlat** — aşağıdaki "Agent Prompt Şablonu"nu kullan
+
+**Neden manual default?** Agent spawn = subprocess memory spike + parent context'e 10KB+ rapor injection. Pre-audit phase'de 30+ Read/Edit yapılmışsa, agent spawn Windows'u swap'a iter (2026-04-09 ve 2026-04-10 incident'leri). Manual audit: aynı grep-first rigor, subprocess yok, 10x az memory. Kalite eşdeğer — aynı PHASE 1/PHASE 2 checklist'i ben parent process'te çalıştırıyorum.
 
 #### Agent Prompt Şablonu:
 ```
@@ -165,7 +192,7 @@ doğurmadığını doğrular.
 
 #### Güvenlik Zinciri Özeti:
 1. §2.5 "Önce Neyi Bozar?" → değişiklik öncesi koruma (grep + kırılma analizi)
-2. Audit agent → değişiklik sonrası koruma (değişen dosyalar + grep-verified consumers)
+2. Audit (manual default / agent istisna — karar matrisine bak) → değişiklik sonrası koruma (değişen dosyalar + grep-verified consumers)
 3. Large changes → dry_run smoke test (bot'u çalıştırıp hata kontrolü)
 
 **Neden grep-first PHASE 1?**
