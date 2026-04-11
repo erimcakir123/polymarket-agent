@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_add_position():
     from src.portfolio import Portfolio
     pf = Portfolio()
@@ -45,18 +42,6 @@ def test_drawdown_breaker():
     pf.update_bankroll(200.0)  # HWM = 200
     pf.update_bankroll(90.0)   # 55% drawdown
     assert pf.is_drawdown_breaker_active(halt_pct=0.50)
-
-
-def test_match_aware_exit_catastrophic():
-    """Integration: catastrophic floor exits via check_match_aware_exits."""
-    from src.portfolio import Portfolio
-    pf = Portfolio()
-    pf.add_position("0xcat", "tok", "BUY_YES", 0.70, 20.0, 28.57, "cs2-test-match",
-                     category="esports", number_of_games=3)
-    pf.update_price("0xcat", 0.34)  # Below entry×50%
-    exits = pf.check_match_aware_exits()
-    assert "0xcat" in [e["condition_id"] for e in exits]
-    assert any(e["layer"] == "catastrophic_floor" for e in exits)
 
 
 def test_ever_in_profit_tracking():

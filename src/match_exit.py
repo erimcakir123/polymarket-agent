@@ -1,4 +1,4 @@
-"""Match-aware exit system -- 4-layer exit logic using match timing, score, and profit history."""
+"""Match-aware exit system -- layered exit logic using match timing, score, and profit history."""
 from __future__ import annotations
 
 import logging
@@ -215,7 +215,7 @@ def get_graduated_max_loss(
 
 
 def check_match_exit(data: dict) -> dict:
-    """Run 4-layer match-aware exit check on a position.
+    """Run layered match-aware exit check on a position.
 
     Args:
         data: Dict with position fields (see _make_pos_data in tests for schema)
@@ -274,14 +274,7 @@ def check_match_exit(data: dict) -> dict:
         return {**result, "exit": False, "layer": "score_terminal_win",
                 "reason": f"Match already won -- hold to resolve (score: {match_score})"}
 
-    # --- Step 1: Catastrophic Floor (Layer 1) ---
-    is_reentry = data.get("entry_reason", "").startswith("re_entry") or data.get("entry_reason") == "scale_in"
-    cat_floor_mult = 0.75 if is_reentry else 0.50
-    if effective_entry >= 0.20 and effective_current < effective_entry * cat_floor_mult:
-        return {**result, "exit": True, "layer": "catastrophic_floor",
-                "reason": f"Price eff:{effective_current:.3f} < eff_entry*{cat_floor_mult:.0%} ({effective_entry*cat_floor_mult:.3f})"}
-
-    # --- Step 2: Calculate elapsed_pct ---
+    # --- Step 1: Calculate elapsed_pct ---
     elapsed_pct = -1.0
     if match_start_iso:
         try:
@@ -303,12 +296,11 @@ def check_match_exit(data: dict) -> dict:
         return {**result, "exit": True, "layer": "ultra_low_guard",
                 "reason": f"Ultra-low eff:{effective_entry:.0f}¢ at {elapsed_pct:.0%} done, eff_price {effective_current:.0f}¢ < 5¢"}
 
-    # --- Step 3: Graduated Stop Loss (Layer 2) ---
+    # --- Step 2: Graduated Stop Loss (Layer 1) ---
     # A-confidence strong-entry hold-to-resolve:
     #   entry ≥ 60¢ means AI is genuinely confident and market agreed.
     #   Skip graduated SL entirely; only exit if market flips below 50¢
-    #   (consensus no longer favors). Catastrophic floor (Layer 1) still
-    #   protects against total collapse (price < entry × 50%).
+    #   (consensus no longer favors).
     _is_baseball = sport_tag in ("mlb", "baseball", "kbo", "npb")
     _baseball_losing = _is_baseball and elapsed_pct >= 0.50 and effective_current < 0.60
     a_conf_hold = (
@@ -344,7 +336,7 @@ def check_match_exit(data: dict) -> dict:
     # 3. Hold-to-Resolve -- skips normal TP, not SL
     # 4. Never-in-Profit Guard -- can trigger exit, but SL takes precedence
 
-    # --- Step 4: Never-in-Profit Guard (Layer 3) ---
+    # --- Step 3: Never-in-Profit Guard (Layer 2) ---
     if a_conf_hold:
         pass  # A-conf strong-entry hold: only market-flip (<50¢) can exit, handled above
     elif not ever_in_profit and peak_pnl_pct <= 0.01 and elapsed_pct >= 0.70:
@@ -356,11 +348,11 @@ def check_match_exit(data: dict) -> dict:
         elif effective_current < effective_entry * 0.75:
             return {**result, "exit": True, "layer": "never_in_profit",
                     "reason": f"Never profited + 70%+ done + eff_price {effective_current:.3f} < eff_entry*75% ({effective_entry*0.75:.3f})"}
-        # Between 0.75 and 0.90: Layer 2 handles via graduated SL
+        # Between 0.75 and 0.90: Layer 1 handles via graduated SL
 
-    # --- Step 5: Hold-to-Resolve Check (Layer 4) ---
+    # --- Step 4: Hold-to-Resolve Check (Layer 3) ---
     # A-conf strong-entry positions use the new market-flip rule (<50¢) instead
-    # of the old revoke-hold logic. Skip Layer 4 entirely for them.
+    # of the old revoke-hold logic. Skip Layer 3 entirely for them.
     is_hold_candidate = not a_conf_hold and (scouted or (
         ai_probability >= 0.65 and confidence in ("A", "B+")
     ))
@@ -398,7 +390,7 @@ def check_match_exit(data: dict) -> dict:
         except (ValueError, TypeError):
             pass
 
-    # --- Step 6: Edge Decay TP (Layer 5) ---
+    # --- Step 5: Edge Decay TP (Layer 4) ---
     # Underdog positions: as match progresses, AI target decays toward market
     # EXCEPTION: late in match (≥60%) and in profit (≥10%) -> let it ride, resolution close
     # EXCEPTION: A-conf hold-to-resolve -> skip edge decay, hold until resolution

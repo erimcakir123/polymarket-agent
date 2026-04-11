@@ -151,8 +151,8 @@ class ExitExecutor:
                 bl_reason = reason
                 if bl_reason.startswith("match_exit_"):
                     # Preserve the layer name after the prefix so BLACKLIST_RULES
-                    # can match it (e.g. "match_exit_catastrophic_floor" →
-                    # "catastrophic_floor" → permanent blacklist).
+                    # can match it (e.g. "match_exit_graduated_sl" →
+                    # "graduated_sl" → timed blacklist).
                     bl_reason = bl_reason[len("match_exit_"):]
                 # Elapsed_pct for graduated_sl dynamic cooldown: compute from pos timing
                 _elapsed_for_bl = 0.0
@@ -326,6 +326,20 @@ class ExitExecutor:
 
             logger.info("WS FORCE SCALE-OUT: %s | %s | sold %.0f shares | pnl=$%.2f",
                         pos.slug[:35], tier, shares_to_sell, partial["realized_pnl"])
+
+            # Log to trades.jsonl so dashboard realized_pnl.json and trade history stay in sync
+            self.ctx.trade_log.log({
+                "market": pos.slug, "action": "SCALE_OUT",
+                "tier": tier, "sell_pct": sell_pct,
+                "shares_sold": shares_to_sell,
+                "realized_pnl": partial["realized_pnl"],
+                "remaining_shares": partial["remaining_shares"],
+            })
+
+            # Close dust remainder (mirror normal scale-out path)
+            if partial["status"] == "CLOSE_REMAINDER":
+                self.exit_position(cid, "scale_out_final")
+                continue
 
         scale_outs = self.ctx.portfolio.check_scale_outs()
         for so in scale_outs:

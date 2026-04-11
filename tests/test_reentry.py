@@ -71,9 +71,9 @@ class TestBlacklistRules:
         assert btype == "reentry"
         assert duration == 5
 
-    def test_catastrophic_is_permanent(self):
+    def test_hold_revoked_is_permanent(self):
         from src.reentry import get_blacklist_rule
-        btype, duration = get_blacklist_rule("catastrophic_floor", elapsed_pct=0.5)
+        btype, duration = get_blacklist_rule("hold_revoked", elapsed_pct=0.5)
         assert btype == "permanent"
 
     def test_graduated_sl_dynamic_duration(self):
@@ -115,7 +115,7 @@ class TestBlacklist:
         return Blacklist(path=path)
 
     def test_permanent_always_blocked(self, bl):
-        bl.add("cond-1", "catastrophic_floor", "permanent", expires_at_cycle=None)
+        bl.add("cond-1", "hold_revoked", "permanent", expires_at_cycle=None)
         assert bl.is_blocked("cond-1", current_cycle=0) is True
         assert bl.is_blocked("cond-1", current_cycle=999999) is True
 
@@ -139,7 +139,7 @@ class TestBlacklist:
         assert bl.is_blocked("cond-3", current_cycle=51) is False
 
     def test_cleanup_removes_expired_keeps_permanent(self, bl):
-        bl.add("perm-1", "catastrophic_floor", "permanent", expires_at_cycle=None)
+        bl.add("perm-1", "hold_revoked", "permanent", expires_at_cycle=None)
         bl.add("timed-1", "stop_loss", "timed", expires_at_cycle=10)
         bl.add("timed-2", "graduated_sl", "timed", expires_at_cycle=20)
         bl.cleanup(current_cycle=15)
@@ -226,7 +226,7 @@ class TestScoreReversal:
 
     def test_permanent_blacklist_not_overrideable(self):
         from src.reentry import qualifies_for_score_reversal_reentry, BlacklistEntry
-        entry = BlacklistEntry("cid1", "catastrophic_floor", "permanent", None, {})
+        entry = BlacklistEntry("cid1", "hold_revoked", "permanent", None, {})
         ok, _ = qualifies_for_score_reversal_reentry(
             entry, {"available": True, "map_diff": 3}, elapsed_pct=0.50, current_cycle=50,
         )

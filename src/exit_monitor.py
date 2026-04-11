@@ -234,7 +234,7 @@ class ExitMonitor:
                         and effective_entry >= 0.60)
 
         # 1. Stop-loss check -- unified rules via helper
-        # A-conf hold-to-resolve: skip flat SL, only catastrophic floor + market flip apply
+        # A-conf hold-to-resolve: skip flat SL, only market flip (<50¢) applies
         # Pre-match: skip SL/TP (match hasn't started, price noise not actionable)
         if not _a_conf_hold and not _pre_match:
             sl_pct = compute_stop_loss_pct(pos, base_sl_pct=self.config.risk.stop_loss_pct)
@@ -375,7 +375,7 @@ class ExitMonitor:
                         pass
                 _add(cid, "near_resolve_profit")
 
-        # 1. Match-aware exits (4 layers: score/time/halftime/pre-match)
+        # 1. Match-aware exits (layered: graduated_sl / never_in_profit / hold_revoked / edge_decay)
         match_exit_results = self.portfolio.check_match_aware_exits()
         for mexr in match_exit_results:
             cid = mexr["condition_id"]

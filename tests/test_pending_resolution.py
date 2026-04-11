@@ -109,7 +109,7 @@ def test_pending_loss_evaluates_match_exit():
 
     # Match-aware exit should evaluate (not skip) this position
     results = port.check_match_aware_exits()
-    # The catastrophic floor should fire (price 0.05 < entry*0.50 = 0.35)
+    # Graduated SL should fire (PnL -92.9% far below max_loss tier)
     exit_results = [r for r in results if r.get("exit") and r["condition_id"] == cid]
     assert len(exit_results) > 0, "Pending + losing should be evaluated by match exit"
 

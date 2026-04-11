@@ -328,7 +328,7 @@ class Portfolio:
         from datetime import datetime, timezone
         triggered = []
         for cid, pos in self.positions.items():
-            # A-conf hold-to-resolve: skip flat SL (catastrophic floor + market flip still apply via match_exit)
+            # A-conf hold-to-resolve: skip flat SL (market flip <50¢ still applies via match_exit)
             _eff_entry = effective_price(pos.entry_price, pos.direction)
             if pos.confidence == "A" and _eff_entry >= 0.60:
                 continue
@@ -421,7 +421,7 @@ class Portfolio:
         return results
 
     def check_match_aware_exits(self) -> list[dict]:
-        """Run 4-layer match-aware exit check on all positions.
+        """Run layered match-aware exit check on all positions.
 
         Returns list of dicts with: condition_id, layer, reason, exit, revoke_hold, restore_hold
         """

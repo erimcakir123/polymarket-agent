@@ -222,53 +222,10 @@ def _make_pos_data(
     }
 
 
-class TestLayer1CatastrophicFloor:
-    def test_favorite_halved_exits(self):
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.70, current_price=0.34)
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
-
-    def test_underdog_exempt(self):
-        from src.match_exit import check_match_exit
-        # Entry <20¢ is exempt from catastrophic floor (sub-20¢ underdog territory)
-        data = _make_pos_data(entry_price=0.19, current_price=0.08)
-        result = check_match_exit(data)
-        # Should NOT exit via catastrophic (Layer 2 might exit but not Layer 1)
-        assert result.get("layer") != "catastrophic_floor"
-
-    def test_catastrophic_floor_triggers_at_20c_entry(self):
-        """Catastrophic floor should trigger for entries as low as 20¢."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.20, current_price=0.09)  # Below 50% of 20¢
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
-
-    def test_catastrophic_floor_skips_below_20c_entry(self):
-        """Catastrophic floor should NOT trigger for entries below 20¢ (sub-20¢ underdog territory)."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.19, current_price=0.08)
-        result = check_match_exit(data)
-        assert result.get("layer") != "catastrophic_floor"
-
-    def test_above_25_not_exempt(self):
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.30, current_price=0.14)
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
-
-    def test_price_above_half_no_exit(self):
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.70, current_price=0.40)
-        result = check_match_exit(data)
-        assert result.get("layer") != "catastrophic_floor"
-
+class TestScoreTerminal:
     def test_score_already_lost_exits(self):
         from src.match_exit import check_match_exit
-        # Even if price hasn't halved, score 0-2 in BO3 = lost
+        # Score 0-2 in BO3 = lost, exits via score_terminal_loss
         data = _make_pos_data(
             entry_price=0.50, current_price=0.40,
             match_score="0-2|Bo3", number_of_games=3,
@@ -375,7 +332,6 @@ class TestLayer4HoldToResolve:
         # max_loss = 0.30 * 1.50 = 0.45, with momentum tighten: 0.45*0.75 = 0.3375
         # entry*0.70 = 0.105. current=0.10 → PnL = -33.3% > -33.75% → graduated SL does NOT fire.
         # Hold revocation: ever_in_profit + current < entry*0.70 + elapsed > 0.60 + not score_ahead + not temporary dip
-        # Note: entry < 0.25 so catastrophic floor is exempt.
         data = _make_pos_data(
             entry_price=0.15, current_price=0.10,  # below entry*0.70=0.105
             ever_in_profit=True, peak_pnl_pct=0.15,
@@ -441,14 +397,6 @@ class TestSuccessCriteria:
     def _match_started_ago(self, minutes: int) -> str:
         return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
 
-    def test_xcrew_scenario_prevented(self):
-        """Entry 70¢, drops to 34¢ → catastrophic floor exits instead of -99%."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.70, current_price=0.34)
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
-
     def test_liverpool_scenario_preserved(self):
         """Entry 70¢ (AI 85%), price 66¢, team winning → no exit."""
         from src.match_exit import check_match_exit
@@ -512,13 +460,6 @@ class TestSuccessCriteria:
         # The key test: it should NOT exit via never_in_profit when score is ahead
         assert result.get("layer") != "never_in_profit" or result["exit"] is False
 
-    def test_underdog_protection(self):
-        """Entry 19¢ (below threshold), drops to 8¢ → no catastrophic (exempt), graduated handles."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(entry_price=0.19, current_price=0.08)
-        result = check_match_exit(data)
-        assert result.get("layer") != "catastrophic_floor"
-
     def test_favorite_early_catch(self):
         """Entry 75¢, mid-match, price 58¢ → graduated SL catches earlier than flat -40%."""
         from src.match_exit import check_match_exit
@@ -561,23 +502,6 @@ class TestBuyNoDirection:
         }
         base.update(overrides)
         return base
-
-    def test_catastrophic_floor_buy_no_triggers_on_adverse_move(self):
-        """BUY_NO at YES=0.35 (eff=0.65). YES rises to 0.85 (eff=0.15).
-        Eff 0.15 < eff_entry 0.65 * 0.50 = 0.325 -> should EXIT."""
-        from src.match_exit import check_match_exit
-        data = self._make_data(entry_price=0.35, current_price=0.85)
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
-
-    def test_catastrophic_floor_buy_no_no_false_trigger(self):
-        """BUY_NO at YES=0.65 (eff=0.35). YES drops to 0.50 (eff=0.50).
-        Eff 0.50 > eff_entry 0.35 * 0.50 = 0.175 -> should NOT exit (we're profiting)."""
-        from src.match_exit import check_match_exit
-        data = self._make_data(entry_price=0.65, current_price=0.50)
-        result = check_match_exit(data)
-        assert result["exit"] is False or result["layer"] != "catastrophic_floor"
 
 
 class TestMomentumTighteningV2:
@@ -671,20 +595,6 @@ class TestAConfidenceHold:
         result = check_match_exit(data)
         assert result["exit"] is True
         assert result["layer"] == "graduated_sl"
-
-    def test_a_conf_catastrophic_floor_still_applies(self):
-        """A-conf does NOT override catastrophic floor (price halved)."""
-        from src.match_exit import check_match_exit
-        data = _make_pos_data(
-            confidence="A",
-            entry_price=0.72, current_price=0.34,  # < 0.72 × 0.50 = 0.36
-            match_start_iso=self._match_started_ago(60),
-            slug="mlb-mia-nyy", number_of_games=0,
-            category="",
-        )
-        result = check_match_exit(data)
-        assert result["exit"] is True
-        assert result["layer"] == "catastrophic_floor"
 
     def test_b_plus_conf_unaffected_by_a_conf_hold(self):
         """B+ confidence uses normal graduated SL regardless of entry price."""

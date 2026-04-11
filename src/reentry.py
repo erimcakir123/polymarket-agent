@@ -156,7 +156,6 @@ def is_grace_period_active(data: dict) -> bool:
 # --- Tiered Blacklist ---
 
 BLACKLIST_RULES = {
-    "catastrophic_floor": ("permanent", None),
     "hold_revoked": ("permanent", None),
     "score_terminal_loss": ("permanent", None),
     "a_conf_market_flip": ("permanent", None),  # Market consensus flipped <50¢; AI was wrong
