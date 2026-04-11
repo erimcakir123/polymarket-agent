@@ -1,7 +1,5 @@
 # tests/test_reentry.py
 import pytest
-import tempfile
-import os
 
 
 class TestCanReenter:

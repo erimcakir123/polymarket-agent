@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timezone
 
 from src.models import effective_price
-from src.sport_rules import get_sport_rule
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +255,6 @@ def check_match_exit(data: dict) -> dict:
     volatility_swing = data.get("volatility_swing", False)
     pnl_pct = data.get("unrealized_pnl_pct", 0.0)
     sport_tag = data.get("sport_tag", "")
-    ht_deficit = get_sport_rule(sport_tag, "halftime_exit_deficit", 15)
 
     # VS positions use their own exit system
     if volatility_swing:

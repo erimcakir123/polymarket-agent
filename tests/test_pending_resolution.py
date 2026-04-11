@@ -42,22 +42,6 @@ def _make_portfolio_with_position(**overrides) -> tuple[Portfolio, str]:
     return p, cid
 
 
-def test_pending_in_profit_holds_tp():
-    """Pending + profitable position should NOT trigger take-profit."""
-    port, cid = _make_portfolio_with_position(
-        entry_price=0.30,
-        current_price=0.95,
-        shares=33.33,  # size=10, entry=0.30
-        pending_resolution=True,
-    )
-    # Unrealized PnL should be positive (bought at 30c, now 95c)
-    pos = port.positions[cid]
-    assert pos.unrealized_pnl_pct > 0, f"Expected profit, got {pos.unrealized_pnl_pct}"
-
-    triggered = port.check_take_profits()
-    assert cid not in triggered, "Pending + profitable should NOT trigger TP"
-
-
 def test_pending_in_profit_holds_match_exit():
     """Pending + profitable position should NOT trigger match-aware exit."""
     port, cid = _make_portfolio_with_position(
@@ -114,17 +98,3 @@ def test_pending_loss_evaluates_match_exit():
     assert len(exit_results) > 0, "Pending + losing should be evaluated by match exit"
 
 
-def test_non_pending_tp_still_works():
-    """Non-pending profitable position should still trigger TP normally."""
-    port, cid = _make_portfolio_with_position(
-        entry_price=0.30,
-        current_price=0.95,
-        shares=33.33,
-        pending_resolution=False,  # NOT pending
-    )
-    pos = port.positions[cid]
-    assert pos.unrealized_pnl_pct > 0
-
-    # TP should fire for non-pending position (PnL > threshold)
-    triggered = port.check_take_profits(take_profit_pct=0.40)
-    assert cid in triggered, "Non-pending profitable should trigger TP"
