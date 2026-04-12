@@ -11,3 +11,4 @@ logs/.last_*
 .venv/
 *.egg-info/
 dist/
+.claude/settings.local.json
