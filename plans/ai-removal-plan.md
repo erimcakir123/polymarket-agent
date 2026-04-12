@@ -25,58 +25,86 @@ with bookmaker-derived confidence.
 
 ## 2. New Confidence System (A/B/C only — drop B+ and B-)
 
-User rule:
-- **A** = `has_sharp == True` AND `total_weight ≥ 30`  (Pinnacle-grade signal)
-- **B** = `has_sharp == True` OR `total_weight ≥ 30`   (one condition met)
-- **C** = neither                                       → **SKIP, no trade**
+### Rules
 
-### Data backing (from 230 historical BUY trades, 155 resolved)
+- **A** = `has_sharp == True` (Pinnacle/Betfair Exchange present)
+- **B** = `bm_weight ≥ 5` (at least a few bookmakers, sharp not required)
+- **C** = `bm_weight < 5` or no bookmaker data → **SKIP, no trade**
 
-Since historical logs don't contain `has_sharp`, we used weight≥50 as a proxy
-for "likely has sharp" in the simulation. The proxy is imperfect but directionally
-useful.
+### Data backing (130 resolved trades, fresh CLOB query 2026-04-12)
+
+**Direction accuracy by weight bucket (ground truth = match outcome):**
+
+| Weight Bucket | N | DIR% |
+|---|---:|---:|
+| 0 (no BM) | 13 | 54% |
+| 1-4 | 2 | 50% |
+| 30-49 | 16 | 81% |
+| 50-59 | 43 | 67% |
+| 75-99 | 11 | 73% |
+| 100+ | 14 | 64% |
+
+**Cumulative: weight ≥1 = 70% DIR, weight ≥5 = 70% DIR (same — no trades
+in the 1-4 bucket are resolved enough to matter).**
+
+**PnL impact of C-skip threshold (all 154 historical BUYs):**
+
+| B threshold | Trades cut | Cut PnL | Remaining PnL |
+|---:|---:|---:|---:|
+| ≥1 | 52 | −$37 | +$56 |
+| **≥5** | **54** | **−$36** | **+$55** |
+| ≥25 | 55 | −$7 | +$27 |
+| ≥30 | 58 | −$4 | +$23 |
+
+**Key finding:** weight < 5 trades collectively lost −$36. Cutting them
+*improves* total PnL from +$19 to +$55. Higher thresholds (≥25, ≥30) start
+cutting profitable trades and reduce total PnL.
+
+**Why weight ≥ 5 and not higher?**
+- 84% of trades already have weight ≥ 30. The filter mostly catches the
+  truly data-poor entries (esports without odds, prop bets, obscure markets).
+- Raising to ≥30 would cut only 4 more trades but also lose $28 in profit
+  from the 5-29 bracket.
+
+**has_sharp as A tier:**
+- Not logged historically, cannot validate from past data.
+- Theoretically sound: Pinnacle closing line is the industry benchmark.
+- Forward-only test: after Phase 2 adds `has_sharp` logging, we can
+  measure A vs B direction accuracy after 2 weeks of live data.
+
+### Bookmaker weight distribution (115 trades with bm_count field)
 
 ```
-Scenario 1 (A=weight≥50, B=15-49, C<15):
-  A:  W/L=59/46  WR=56%  PnL=+$24.39
-  B:  W/L= 4/6   WR=40%  PnL=+$10.90
-  C:  W/L=18/22  WR=45%  PnL= +$4.58  ← SKIP eliminates this
-  A+B total: W/L=63/52  WR=55%  PnL=+$35.29
-
-Baseline (all trades):
-  W/L=81/74  WR=52%  PnL=+$39.86
+Avg: 55, Median: 53.5
+  weight 0:     13 trades (11%) → C tier
+  weight 1-29:   6 trades  (5%) → B tier (borderline)
+  weight 30-59: 70 trades (61%) → B tier (bulk)
+  weight 60+:   26 trades (23%) → B tier
 ```
 
-**Trade-off:** skipping C trades costs $4.58 in foregone winnings but avoids
-30-40 risky low-data trades. Sample size is enough to show direction, but the
-precise weight thresholds may need tuning after 2+ weeks of live `has_sharp`
-logging.
-
-### Implementation detail
-
-**Historical logs lack `has_sharp`.** We must start logging it from now on so
-this rule can be properly enforced. Proxy for the first 2 weeks:
+### Implementation
 
 ```python
 def derive_confidence(bm_weight: float, has_sharp: bool) -> str:
     """Derive confidence tier from bookmaker signal strength.
 
-    A = sharp (Pinnacle/Betfair Exchange) AND ≥30 weight
-    B = sharp OR ≥30 weight
-    C = neither → skip entry
+    A = sharp book present (Pinnacle/Betfair Exchange)
+    B = bookmaker weight ≥ 5 (at least a few bookmakers)
+    C = insufficient data → skip entry
     """
-    if bm_weight is None or bm_weight <= 0:
+    if bm_weight is None or bm_weight < 5:
         return "C"
-    if has_sharp and bm_weight >= 30:
+    if has_sharp:
         return "A"
-    if has_sharp or bm_weight >= 30:
-        return "B"
-    return "C"
+    return "B"
 ```
 
 New canonical confidence alphabet: **{"A", "B", "C"}** — drop B+, B-, "?".
 Every place that currently reads `estimate.confidence in ("A","B+","B-","C")`
 must be updated.
+
+**Historical logs lack `has_sharp`.** We must start logging it from now on
+(Phase 2) so A-tier can be properly enforced and validated.
 
 ---
 
