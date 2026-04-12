@@ -41,7 +41,7 @@ def test_risk_manager_vetoes_max_positions():
     rm = RiskManager(RiskConfig(max_positions=2))
     open_positions = {"m1": {}, "m2": {}}
     signal = Signal(condition_id="m3", direction=Direction.BUY_YES,
-                    ai_probability=0.75, market_price=0.60, edge=0.15, confidence="high")
+                    anchor_probability=0.75, market_price=0.60, edge=0.15, confidence="high")
     result = rm.evaluate(signal, bankroll=100.0, open_positions=open_positions)
     assert result.approved is False
     assert "max_positions" in result.reason
@@ -56,7 +56,7 @@ def test_risk_manager_cooldown():
     for _ in range(3):
         rm.record_outcome(win=False)
     signal = Signal(condition_id="m1", direction=Direction.BUY_YES,
-                    ai_probability=0.75, market_price=0.60, edge=0.15, confidence="high")
+                    anchor_probability=0.75, market_price=0.60, edge=0.15, confidence="high")
     result = rm.evaluate(signal, bankroll=100.0, open_positions={})
     assert result.approved is False
     assert "cooldown" in result.reason.lower()

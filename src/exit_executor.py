@@ -110,7 +110,7 @@ class ExitExecutor:
                     question=getattr(pos, "question", ""),
                     direction=pos.direction,
                     token_id=pos.token_id,
-                    ai_probability=pos.anchor_probability,
+                    anchor_probability=pos.anchor_probability,
                     confidence=pos.confidence,
                     original_entry_price=original_entry,
                     exit_price=pos.current_price,
@@ -430,9 +430,9 @@ class ExitExecutor:
         Returns True if demoted, False if rejected (-> caller will blacklist instead).
         """
         from src.models import MarketData
-        from src.ai_analyst import AIEstimate
+        from src.probability_engine import BookmakerProbability
 
-        _CONF_SCORE: dict[str, int] = {"A": 4, "B+": 3, "B-": 2, "C": 1}
+        _CONF_SCORE: dict[str, int] = {"A": 3, "B": 2, "C": 0}
         STOCK_MAX = 10
 
         # Calculate ranking score from saved position data
@@ -475,11 +475,12 @@ class ExitExecutor:
             logger.warning("Could not reconstruct MarketData for stock demotion: %s", exc)
             return False
 
-        estimate = AIEstimate(
-            ai_probability=pos.anchor_probability,  # AIEstimate still uses old field name until Phase 7
-            confidence=getattr(pos, "confidence", "B-"),
-            reasoning_pro="(demoted -- re-evaluate at entry)",
-            reasoning_con="",
+        estimate = BookmakerProbability(
+            probability=pos.anchor_probability,
+            confidence=getattr(pos, "confidence", "B"),
+            bookmaker_prob=getattr(pos, "bookmaker_prob", 0.0),
+            num_bookmakers=0,
+            has_sharp=False,
         )
 
         candidate = {

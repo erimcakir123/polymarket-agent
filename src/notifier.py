@@ -139,13 +139,11 @@ class TelegramNotifier:
                 positions = len(agent.portfolio.positions)
                 bankroll = agent.portfolio.bankroll
                 paused = PAUSE_FILE.exists()
-                budget = agent.ai.budget_remaining_usd
                 self.send(
                     f"*STATUS*\n\n"
                     f"Mode: `{agent.config.mode.value}`\n"
                     f"Balance: `${bankroll:.2f}`\n"
                     f"Positions: `{positions}`\n"
-                    f"API budget left: `${budget:.2f}`\n"
                     f"State: `{'PAUSED' if paused else 'RUNNING'}`\n"
                     f"Bets: `{agent.bets_since_approval}`/10"
                 )

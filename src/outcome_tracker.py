@@ -235,6 +235,9 @@ class OutcomeTracker:
             data = json.loads(TRACKER_FILE.read_text())
             for cid, d in data.items():
                 d.setdefault("bookmaker_prob", 0.0)  # backward compat
+                # Migrate old ai_probability → anchor_probability
+                if "ai_probability" in d and "anchor_probability" not in d:
+                    d["anchor_probability"] = d.pop("ai_probability")
                 self._tracked[cid] = TrackedMarket(**d)
             if self._tracked:
                 logger.info("Outcome tracker: loaded %d markets to watch", len(self._tracked))

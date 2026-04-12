@@ -228,6 +228,9 @@ class ReentryPool:
                 d.setdefault("total_reentry_risk", 0.0)
                 d.setdefault("sl_reentry_count", 0)
                 d.setdefault("exit_reason", "")
+                # Migrate old ai_probability → anchor_probability
+                if "ai_probability" in d and "anchor_probability" not in d:
+                    d["anchor_probability"] = d.pop("ai_probability")
                 self._pool[cid] = ReentryCandidate(**d)
             logger.info("Loaded %d re-entry candidates from disk", len(self._pool))
         except Exception as e:

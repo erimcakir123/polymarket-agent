@@ -20,7 +20,6 @@ from pathlib import Path
 from src.config import AppConfig, Mode
 from src.portfolio import Portfolio
 from src.executor import Executor
-from src.ai_analyst import AIAnalyst
 from src.market_scanner import MarketScanner
 from src.risk_manager import RiskManager
 from src.odds_api import OddsAPIClient
@@ -102,7 +101,6 @@ class Agent:
         news_scanner = NewsScanner()
         manip_guard = ManipulationGuard()
         scanner = MarketScanner(config.scanner)
-        self.ai = AIAnalyst(config.ai)
         risk = RiskManager(config.risk)
         self.scout = ScoutScheduler(sports, self.esports, cricket=cricket)
         self.risk = risk
@@ -158,7 +156,6 @@ class Agent:
             config=config,
             portfolio=self.portfolio,
             executor=self.executor,
-            ai=self.ai,
             scanner=scanner,
             risk=risk,
             odds_api=odds_api,
@@ -460,7 +457,7 @@ class Agent:
 
         # Self-reflection
         t0 = time.monotonic()
-        self.cycle_helpers.maybe_run_reflection()
+        # self_reflection removed (AI deletion)
         logger.info("Phase [reflection] took %.1fs", time.monotonic() - t0)
 
         # Bankroll + drawdown

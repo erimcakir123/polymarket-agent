@@ -31,17 +31,6 @@ class ScannerConfig(BaseModel):
     allowed_categories: List[str] = []  # Empty = allow all; e.g. ["sports", "esports"]
 
 
-class AIConfig(BaseModel):
-    model: str = "claude-sonnet-4-20250514"
-    max_tokens: int = 1024
-    cache_ttl_min: int = 15
-    cache_invalidate_price_move_pct: float = 0.05
-    batch_size: int = 20
-    monthly_budget_usd: float = 48.0
-    sprint_budget_usd: float = 24.0
-    input_cost_per_mtok: float = 3.0
-    output_cost_per_mtok: float = 15.0
-
 
 class EdgeConfig(BaseModel):
     min_edge: float = 0.06
@@ -153,7 +142,6 @@ class AppConfig(BaseModel):
     initial_bankroll: float = 1000.0
     cycle: CycleConfig = CycleConfig()
     scanner: ScannerConfig = ScannerConfig()
-    ai: AIConfig = AIConfig()
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
     volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()

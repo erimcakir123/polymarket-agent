@@ -11,7 +11,6 @@ from src.trade_logger import TradeLogger
 
 DASHBOARD_HTML = Path(__file__).parent.parent / "templates" / "dashboard.html"
 IMAGE_DIR = Path(__file__).parent.parent / "İmage"
-BUDGET_FILE = Path("logs/ai_budget.json")
 POSITIONS_FILE = Path("logs/positions.json")
 STATUS_FILE = Path("logs/bot_status.json")
 STOCK_FILE = Path("logs/candidate_stock.json")
@@ -84,16 +83,6 @@ def create_app(
             except (json.JSONDecodeError, OSError):
                 pass
         return jsonify({})
-
-    @app.route("/api/budget")
-    def api_budget():
-        if BUDGET_FILE.exists():
-            try:
-                data = json.loads(BUDGET_FILE.read_text(encoding="utf-8"))
-                return jsonify(data)
-            except (json.JSONDecodeError, OSError):
-                pass
-        return jsonify({"spent": 0.0, "limit": 0.0, "remaining": 0.0})
 
     @app.route("/api/slots")
     def api_slots():

@@ -29,7 +29,7 @@ class TestScaleOutPlusMatchAware:
             "number_of_games": 3, "slug": "cs2-test", "match_score": "",
             "match_start_iso": "2026-01-01T00:00:00+00:00",
             "ever_in_profit": True, "peak_pnl_pct": 0.26, "scouted": False,
-            "confidence": "medium", "ai_probability": 0.5,
+            "confidence": "medium", "anchor_probability": 0.5,
             "consecutive_down_cycles": 0, "cumulative_drop": 0.0,
             "hold_revoked_at": None, "hold_was_original": False,
             "volatility_swing": False, "unrealized_pnl_pct": -0.60,

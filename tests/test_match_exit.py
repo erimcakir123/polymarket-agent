@@ -191,7 +191,7 @@ def _make_pos_data(
     entry_price=0.55, current_price=0.55, peak_pnl_pct=0.0,
     ever_in_profit=False, match_start_iso="", number_of_games=3,
     slug="cs2-test-match", match_score="", direction="BUY_YES",
-    scouted=False, confidence="medium_high", ai_probability=0.70,
+    scouted=False, confidence="medium_high", anchor_probability=0.70,
     consecutive_down_cycles=0, cumulative_drop=0.0,
     hold_revoked_at=None, hold_was_original=False,
     volatility_swing=False, category="esports",
@@ -210,7 +210,7 @@ def _make_pos_data(
         "direction": direction,
         "scouted": scouted,
         "confidence": confidence,
-        "ai_probability": ai_probability,
+        "anchor_probability": anchor_probability,
         "consecutive_down_cycles": consecutive_down_cycles,
         "cumulative_drop": cumulative_drop,
         "hold_revoked_at": hold_revoked_at,
@@ -317,7 +317,7 @@ class TestLayer4HoldToResolve:
         data = _make_pos_data(
             entry_price=0.55, current_price=0.65,
             ever_in_profit=True, peak_pnl_pct=0.18,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(60),
             slug="cs2-test", number_of_games=3,
         )
@@ -335,7 +335,7 @@ class TestLayer4HoldToResolve:
         data = _make_pos_data(
             entry_price=0.15, current_price=0.10,  # below entry*0.70=0.105
             ever_in_profit=True, peak_pnl_pct=0.15,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(79),  # 79/130=0.608 > 0.60
             slug="cs2-test", number_of_games=3,
             consecutive_down_cycles=4, cumulative_drop=0.10,
@@ -383,7 +383,7 @@ class TestLayer4HoldToResolveRestoreAndMore:
             scouted=False,  # was revoked
             hold_was_original=True,
             hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=15),
-            confidence="high", ai_probability=0.80,
+            confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(60),
             slug="cs2-test", number_of_games=3,
         )
@@ -402,7 +402,7 @@ class TestSuccessCriteria:
         from src.match_exit import check_match_exit
         data = _make_pos_data(
             entry_price=0.70, current_price=0.66,
-            ai_probability=0.85, confidence="high", scouted=True,
+            anchor_probability=0.85, confidence="high", scouted=True,
             match_start_iso=self._match_started_ago(60),
             slug="epl-test", number_of_games=0,
         )
@@ -490,7 +490,7 @@ class TestBuyNoDirection:
             "peak_pnl_pct": 0.0,
             "scouted": False,
             "confidence": "medium",
-            "ai_probability": 0.5,
+            "anchor_probability": 0.5,
             "consecutive_down_cycles": 0,
             "cumulative_drop": 0.0,
             "hold_revoked_at": None,
@@ -511,7 +511,7 @@ class TestMomentumTighteningV2:
             "number_of_games": 3, "slug": "cs2-test",
             "match_score": "", "match_start_iso": (datetime.now(timezone.utc) - timedelta(minutes=80)).isoformat(),
             "ever_in_profit": False, "peak_pnl_pct": 0.0, "scouted": False,
-            "confidence": "medium", "ai_probability": 0.5,
+            "confidence": "medium", "anchor_probability": 0.5,
             "consecutive_down_cycles": 0, "cumulative_drop": 0.0,
             "hold_revoked_at": None, "hold_was_original": False,
             "volatility_swing": False, "unrealized_pnl_pct": -0.30,
@@ -560,7 +560,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(90),  # NHL 60% elapsed
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.78,
+            anchor_probability=0.78,
             ever_in_profit=True, peak_pnl_pct=0.05,
         )
         result = check_match_exit(data)
@@ -575,7 +575,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(90),
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.78,
+            anchor_probability=0.78,
         )
         result = check_match_exit(data)
         assert result["exit"] is True
@@ -624,7 +624,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(112),
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.78,
+            anchor_probability=0.78,
             ever_in_profit=False, peak_pnl_pct=0.0,
         )
         result = check_match_exit(data)
@@ -644,7 +644,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(120),  # 80% of 150min
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.78,
+            anchor_probability=0.78,
             ever_in_profit=False, peak_pnl_pct=0.0,
             consecutive_down_cycles=5, cumulative_drop=0.10,
         )
@@ -664,7 +664,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(90),
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.75,
+            anchor_probability=0.75,
             ever_in_profit=True, peak_pnl_pct=0.05,
         )
         result = check_match_exit(data)
@@ -682,7 +682,7 @@ class TestAConfidenceHold:
             match_start_iso=self._match_started_ago(90),
             slug="nhl-nyi-car", number_of_games=0,
             category="",
-            ai_probability=0.75,
+            anchor_probability=0.75,
         )
         result = check_match_exit(data)
         assert result["exit"] is True
@@ -701,7 +701,7 @@ class TestRevokeEdgeCases:
         data = _make_pos_data(
             entry_price=0.60, current_price=0.40,  # < entry*0.70 = 0.42
             ever_in_profit=True, peak_pnl_pct=0.15,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),  # 85/130 = 65%
             slug="cs2-test", number_of_games=3,
             consecutive_down_cycles=2,  # < 3 → temporary
@@ -716,7 +716,7 @@ class TestRevokeEdgeCases:
         data = _make_pos_data(
             entry_price=0.60, current_price=0.35,  # massive crash
             ever_in_profit=True, peak_pnl_pct=0.15,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(70),  # 70/130 = 54%
             slug="cs2-test", number_of_games=3,
             consecutive_down_cycles=5, cumulative_drop=0.25,
@@ -730,7 +730,7 @@ class TestRevokeEdgeCases:
         data = _make_pos_data(
             entry_price=0.60, current_price=0.40,
             ever_in_profit=True, peak_pnl_pct=0.15,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),
             slug="cs2-test", number_of_games=3,
             consecutive_down_cycles=5, cumulative_drop=0.20,
@@ -748,7 +748,7 @@ class TestRevokeEdgeCases:
             scouted=False,  # revoked
             hold_was_original=True,
             hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5),  # only 5 min ago
-            confidence="high", ai_probability=0.80,
+            confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),
             slug="cs2-test", number_of_games=3,
         )
@@ -764,7 +764,7 @@ class TestRevokeEdgeCases:
             scouted=False,
             hold_was_original=True,
             hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=15),
-            confidence="high", ai_probability=0.80,
+            confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),
             slug="cs2-test", number_of_games=3,
         )
@@ -780,7 +780,7 @@ class TestRevokeEdgeCases:
             scouted=False,
             hold_was_original=True,
             hold_revoked_at=datetime.now(timezone.utc) - timedelta(minutes=15),
-            confidence="high", ai_probability=0.80,
+            confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),
             slug="cs2-test", number_of_games=3,
             match_score="0-2|Bo3",  # behind
@@ -797,7 +797,7 @@ class TestRevokeEdgeCases:
             scouted=True,  # still holding
             hold_was_original=False,  # never revoked
             hold_revoked_at=None,
-            confidence="high", ai_probability=0.80,
+            confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(85),
             slug="cs2-test", number_of_games=3,
         )
@@ -815,7 +815,7 @@ class TestRevokeEdgeCases:
         data = _make_pos_data(
             entry_price=0.60, current_price=0.43,  # PnL = -28.3%
             ever_in_profit=False, peak_pnl_pct=0.0,
-            scouted=True, confidence="high", ai_probability=0.80,
+            scouted=True, confidence="high", anchor_probability=0.80,
             match_start_iso=self._match_started_ago(95),  # 95/130 = 73%
             slug="cs2-test", number_of_games=3,
             consecutive_down_cycles=5, cumulative_drop=0.17,

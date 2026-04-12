@@ -3,10 +3,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-def _make_estimate(ai_prob, confidence):
+def _make_estimate(anchor_prob, confidence):
     est = MagicMock()
-    est.ai_probability = ai_prob
+    est.probability = anchor_prob
     est.confidence = confidence
+    est.bookmaker_prob = anchor_prob
+    est.num_bookmakers = 6
+    est.has_sharp = False
     return est
 
 

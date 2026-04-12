@@ -33,7 +33,7 @@ def test_signal_creation():
     s = Signal(
         condition_id="0xabc",
         direction=Direction.BUY_YES,
-        ai_probability=0.72,
+        anchor_probability=0.72,
         market_price=0.60,
         edge=0.12,
         confidence="high",

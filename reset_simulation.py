@@ -22,16 +22,6 @@ from pathlib import Path
 
 LOGS_DIR = Path(__file__).parent / "logs"
 ARCHIVE_DIR = LOGS_DIR / "archive"
-BUDGET_DEFAULT = {
-    "month": "",  # filled at runtime
-    "spent": 0.0,
-    "limit": 48.0,
-    "remaining": 48.0,
-    "sprint": "",
-    "sprint_spent": 0.0,
-    "sprint_limit": 24.0,
-    "sprint_remaining": 24.0,
-}
 
 # Files to ARCHIVE then DELETE on reset (simulation state)
 ARCHIVE_FILES = [
@@ -44,7 +34,6 @@ ARCHIVE_FILES = [
     "candidate_stock.json",
     "match_outcomes.jsonl",
     "exited_markets.json",
-    "ai_budget.json",
     "outcome_tracker.json",
     "predictions.jsonl",  # Delete on reset — all markets re-analyzed fresh after reset
 ]
@@ -193,22 +182,6 @@ def wipe_data() -> None:
     print(f"  Wiped {deleted} items")
 
 
-def reset_budget() -> None:
-    """Reset AI budget to zero spent."""
-    from datetime import date
-    today = date.today()
-    month_key = today.strftime("%Y-%m")
-    half = "A" if today.day <= 15 else "B"
-    sprint_key = f"{month_key}-{half}"
-
-    budget = BUDGET_DEFAULT.copy()
-    budget["month"] = month_key
-    budget["sprint"] = sprint_key
-
-    budget_path = LOGS_DIR / "ai_budget.json"
-    budget_path.write_text(json.dumps(budget, indent=2))
-    print(f"  Budget reset: $0.00 / ${budget['limit']:.0f}")
-
 
 def reset_test_date() -> None:
     """Set test start date to today."""
@@ -262,26 +235,23 @@ def main() -> None:
     print("SIMULATION RESET")
     print("=" * 50)
 
-    print("\n[1/6] Killing all bot processes...")
+    print("\n[1/5] Killing all bot processes...")
     kill_all_bots()
 
-    print("\n[2/6] Archiving current data...")
+    print("\n[2/5] Archiving current data...")
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     archive_data()
 
-    print("\n[3/6] Wiping simulation data...")
+    print("\n[3/5] Wiping simulation data...")
     wipe_data()
 
-    print("\n[4/6] Resetting AI budget...")
-    reset_budget()
-
-    print("\n[5/6] Setting test start date...")
+    print("\n[4/5] Setting test start date...")
     reset_test_date()
 
     if no_start:
-        print("\n[6/6] Skipped bot start (--no-start)")
+        print("\n[5/5] Skipped bot start (--no-start)")
     else:
-        print("\n[6/6] Starting bot...")
+        print("\n[5/5] Starting bot...")
         start_bot()
         verify_single_instance()
 

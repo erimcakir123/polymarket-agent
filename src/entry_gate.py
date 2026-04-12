@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from src.config import AppConfig
     from src.portfolio import Portfolio
     from src.executor import Executor
-    from src.ai_analyst import AIAnalyst
     from src.market_scanner import MarketScanner
     from src.risk_manager import RiskManager
     from src.odds_api import OddsAPIClient
@@ -114,7 +113,6 @@ class EntryGate:
         config: "AppConfig",
         portfolio: "Portfolio",
         executor: "Executor",
-        ai: "AIAnalyst",
         scanner: "MarketScanner",
         risk: "RiskManager",
         odds_api: "OddsAPIClient",
@@ -130,7 +128,6 @@ class EntryGate:
         self.config = config
         self.portfolio = portfolio
         self.executor = executor
-        self.ai = ai
         self.scanner = scanner
         self.risk = risk
         self.odds_api = odds_api
@@ -421,7 +418,7 @@ class EntryGate:
         if self._qualified_overflow:
             open_slots = max(0, cfg.risk.max_positions - self.portfolio.active_position_count)
             if open_slots > 0:
-                _overflow_batch = min(cfg.ai.batch_size, open_slots * 2)
+                _overflow_batch = min(20, open_slots * 2)
                 return self._drain_overflow(_overflow_batch)
 
         # Stock IDs (don't re-analyze markets already in candidate stock)
@@ -448,7 +445,7 @@ class EntryGate:
         if open_slots == 0:
             logger.info("Pool full (0 open slots) -- skipping AI analysis")
             return [], {}
-        ai_batch_size = min(cfg.ai.batch_size, open_slots * 2)
+        ai_batch_size = min(20, open_slots * 2)
         # Over-scan 6x: wider net ensures AI batch stays full even with high no_data rate.
         # Polymarket-first pipeline pre-sorts by match proximity.
         scan_size = ai_batch_size * 6
@@ -624,9 +621,7 @@ class EntryGate:
                                     f"{', incl. Pinnacle' if has_sharp else ''}) ===\n"
                                     f"  {team_a}: {prob_a:.0%}\n"
                                     f"  {team_b}: {prob_b:.0%}\n")
-                    # 3-way markets (soccer, rugby, cricket Test) expose a draw
-                    # price — surface it in the AI context so the draw-risk
-                    # warning in ai_analyst can reference a concrete number.
+                    # 3-way markets (soccer, rugby, cricket Test) expose a draw price.
                     if prob_draw is not None:
                         odds_section += f"  Draw: {prob_draw:.0%}\n"
                     if ctx:
