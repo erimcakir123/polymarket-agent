@@ -1,5 +1,5 @@
 # src/edge_decay.py
-"""AI signal freshness -- decay AI target toward market price as match progresses."""
+"""Anchor signal freshness -- decay anchor target toward market price as match progresses."""
 
 
 def get_edge_decay_factor(elapsed_pct: float) -> float:
@@ -13,8 +13,8 @@ def get_edge_decay_factor(elapsed_pct: float) -> float:
         return 0.25
 
 
-def get_decayed_ai_target(ai_prob: float, current_price: float, elapsed_pct: float) -> float:
+def get_decayed_anchor_target(anchor_prob: float, current_price: float, elapsed_pct: float) -> float:
     """Blend AI target toward current price. Output is in raw YES-probability frame.
     Callers handle direction conversion when computing edge."""
     decay = get_edge_decay_factor(elapsed_pct)
-    return current_price + (ai_prob - current_price) * decay
+    return current_price + (anchor_prob - current_price) * decay

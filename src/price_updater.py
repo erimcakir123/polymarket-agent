@@ -411,18 +411,18 @@ class PriceUpdater:
                     unresolved.append(line)
                     continue
                 resolved_yes = yes_price > 0.50  # YES won
-                ai_prob = pred.get("ai_probability", 0.5)
-                ai_was_right = (ai_prob > 0.5 and resolved_yes) or (ai_prob <= 0.5 and not resolved_yes)
-                error = abs(ai_prob - (1.0 if resolved_yes else 0.0))
+                anchor_prob = pred.get("anchor_probability", 0.5)
+                anchor_was_right = (anchor_prob > 0.5 and resolved_yes) or (anchor_prob <= 0.5 and not resolved_yes)
+                error = abs(anchor_prob - (1.0 if resolved_yes else 0.0))
 
                 result = {
                     "condition_id": cid,
                     "question": pred.get("question", ""),
-                    "ai_probability": ai_prob,
+                    "anchor_probability": anchor_prob,
                     "market_price_at_trade": pred.get("market_price", 0),
                     "direction": pred.get("direction", ""),
                     "resolved_yes": resolved_yes,
-                    "ai_correct": ai_was_right,
+                    "ai_correct": anchor_was_right,
                     "prediction_error": round(error, 3),
                     "category": pred.get("category", ""),
                     "resolved_at": datetime.now(timezone.utc).isoformat(),
@@ -432,9 +432,9 @@ class PriceUpdater:
                 logger.info(
                     "Calibration: %s | AI=%.0f%% | Result=%s | %s",
                     pred.get("question", "")[:40],
-                    ai_prob * 100,
+                    anchor_prob * 100,
                     "YES" if resolved_yes else "NO",
-                    "CORRECT" if ai_was_right else "WRONG",
+                    "CORRECT" if anchor_was_right else "WRONG",
                 )
             except Exception as e:
                 logger.debug("Calibration check failed for %s: %s", cid[:20], e)
@@ -581,7 +581,7 @@ class PriceUpdater:
                     slug=outcome["slug"],
                     question=outcome.get("question", ""),
                     direction=outcome["direction"],
-                    ai_probability=outcome["ai_probability"],
+                    anchor_probability=outcome["anchor_probability"],
                     confidence=outcome["confidence"],
                     entry_price=outcome["entry_price"],
                     exit_price=outcome["exit_price"],

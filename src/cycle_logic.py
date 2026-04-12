@@ -72,7 +72,7 @@ class CycleHelpers:
             return
         brier_pairs = []
         for l in lines:
-            prob = l.get("ai_probability", 0.5)
+            prob = l.get("anchor_probability", l.get("ai_probability", 0.5))
             outcome = 1 if l.get("resolved_yes", False) else 0
             brier_pairs.append((prob - outcome) ** 2)
         brier = sum(brier_pairs) / len(brier_pairs) if brier_pairs else 0.5
@@ -129,7 +129,7 @@ class CycleHelpers:
                 r = json.loads(line)
                 results.append(
                     f"- Q: {r.get('question', '')[:80]} | "
-                    f"AI: {r.get('ai_probability', 0):.0%} | "
+                    f"Anchor: {r.get('anchor_probability', r.get('ai_probability', 0)):.0%} | "
                     f"Result: {'YES' if r.get('resolved_yes') else 'NO'} | "
                     f"{'CORRECT' if r.get('ai_correct') else 'WRONG'} | "
                     f"Error: {r.get('prediction_error', 0):.0%} | "

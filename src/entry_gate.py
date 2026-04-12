@@ -336,28 +336,80 @@ class EntryGate:
 
     # ── Analysis phase ─────────────────────────────────────────────────────
 
+    def _build_bookmaker_estimates(self, markets: list) -> dict:
+        """Build bookmaker-derived estimates for each market. No AI call."""
+        from src.probability_engine import calculate_bookmaker_probability
+
+        estimates = {}
+        for m in markets:
+            cid = m.condition_id
+            _odds_probs: list[tuple[float, float]] = []
+            _has_sharp = False
+            _odds_api_is_3way = False
+
+            # Source 1: Odds API (paid, multi-bookmaker average)
+            _is_esports_mkt = is_esports(getattr(m, "sport_tag", "") or "")
+            if not _is_esports_mkt and self.odds_api.available:
+                try:
+                    _mkt_odds = self.odds_api.get_bookmaker_odds(
+                        m.question, m.slug or "", m.tags or []
+                    )
+                    if _mkt_odds and _mkt_odds.get("bookmaker_prob_a") is not None:
+                        _odds_probs.append((
+                            _mkt_odds["bookmaker_prob_a"],
+                            _mkt_odds.get("total_weight") or _mkt_odds.get("num_bookmakers", 1),
+                        ))
+                        if _mkt_odds.get("has_sharp"):
+                            _has_sharp = True
+                        if _mkt_odds.get("bookmaker_prob_draw") is not None:
+                            _odds_api_is_3way = True
+                except Exception:
+                    pass
+
+            # Source 2: ESPN odds (cached from enrichment)
+            # Skip ESPN when Odds API returned a 3-way soccer quote (2-way ESPN
+            # would inflate the anchor for soccer favorites).
+            if not _odds_api_is_3way:
+                _espn_odds = self._espn_odds_cache.get(cid)
+                if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
+                    _odds_probs.append((
+                        _espn_odds["bookmaker_prob_a"],
+                        _espn_odds.get("total_weight") or _espn_odds.get("num_bookmakers", 1),
+                    ))
+                    if _espn_odds.get("has_sharp"):
+                        _has_sharp = True
+
+            # Combine: weighted average
+            if _odds_probs:
+                total_weight = sum(w for _, w in _odds_probs)
+                book_prob = sum(p * w for p, w in _odds_probs) / total_weight
+                num_books = total_weight
+            else:
+                book_prob = None
+                num_books = 0
+
+            estimates[cid] = calculate_bookmaker_probability(
+                bookmaker_prob=book_prob,
+                num_bookmakers=num_books,
+                has_sharp=_has_sharp,
+            )
+
+        return estimates
+
     def _drain_overflow(self, ai_batch_size: int) -> tuple[list, dict]:
         """Drain qualified overflow from previous cycle — skip enrichment, AI only."""
         batch = self._qualified_overflow[:ai_batch_size]
         self._qualified_overflow = self._qualified_overflow[ai_batch_size:]
 
         _has_data = [m for m, _ in batch]
-        _overflow_contexts = {m.condition_id: ctx for m, ctx in batch if ctx}
 
-        logger.info("Refill from overflow: %d markets, %d remaining (no enrichment)",
+        logger.info("Refill from overflow: %d markets, %d remaining",
                     len(_has_data), len(self._qualified_overflow))
 
         if not _has_data:
             return [], {}
 
-        estimates_list = self.ai.analyze_batch(
-            _has_data, "", _overflow_contexts, news_by_market={},
-        )
-        estimates = {
-            m.condition_id: est
-            for m, est in zip(_has_data, estimates_list)
-            if est is not None
-        }
+        estimates = self._build_bookmaker_estimates(_has_data)
         self._seen_market_ids.update(m.condition_id for m in _has_data)
         return _has_data, estimates
 
@@ -711,14 +763,8 @@ class EntryGate:
                 _skipped_cids.add(m.condition_id)
         self._seen_market_ids.update(_skipped_cids)
 
-        # Run AI batch -- returns List[AIEstimate] in same order as _has_data
-        _estimates_list = self.ai.analyze_batch(
-            _has_data, "", esports_contexts, news_by_market=news_context_by_market
-        )
-        estimates: dict = {
-            m.condition_id: est
-            for m, est in zip(_has_data, _estimates_list)
-        }
+        # Build bookmaker-derived estimates (no AI call)
+        estimates = self._build_bookmaker_estimates(_has_data)
 
         return _has_data, estimates
 
@@ -732,14 +778,12 @@ class EntryGate:
         cycle_count: int,
         fresh_scan: bool,
     ) -> list[dict]:
-        """Evaluate each market using three-mode strategy. Return ranked candidate list."""
-        from src.probability_engine import calculate_anchored_probability
+        """Evaluate each market using bookmaker-derived strategy. Return ranked candidate list."""
         from src.models import Direction, effective_price
         from src.match_exit import get_game_duration
 
-        cfg = self.config
         candidates: list[dict] = []
-        _CONF_SKIP = {"C", "B-", "", "?"}  # C = veri yetersiz, B- = ince data, skip
+        _CONF_SKIP = {"C"}  # C = bookmaker data insufficient, skip
 
         for market in markets:
             cid = market.condition_id
@@ -806,104 +850,49 @@ class EntryGate:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Insufficient data (conf={estimate.confidence})",
-                    "ai_prob": estimate.ai_probability,
+                    "anchor_prob": estimate.probability,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
                     "sport_tag": getattr(market, "sport_tag", ""),
                 })
                 continue
 
-            # ── Bookmaker anchor (Odds API + ESPN odds combined) ────────────
-            _is_esports_mkt = is_esports(getattr(market, "sport_tag", "") or "")
-            _anchor_book_prob = None
-            _anchor_num_books = 0
-            _odds_probs: list[tuple[float, float]] = []  # (prob, total_weight) pairs
-            _odds_api_is_3way = False  # True when Odds API returned a real 3-way soccer quote
-
-            # Source 1: Odds API (paid, multi-bookmaker average)
-            if not _is_esports_mkt and self.odds_api.available:
-                try:
-                    _mkt_odds = self.odds_api.get_bookmaker_odds(
-                        market.question, market.slug or "", market.tags or []
-                    )
-                    if _mkt_odds and _mkt_odds.get("bookmaker_prob_a") is not None:
-                        _odds_probs.append((
-                            _mkt_odds["bookmaker_prob_a"],
-                            _mkt_odds.get("total_weight") or _mkt_odds.get("num_bookmakers", 1),
-                        ))
-                        if _mkt_odds.get("bookmaker_prob_draw") is not None:
-                            _odds_api_is_3way = True
-                except Exception:
-                    pass
-
-            # Source 2: ESPN odds (free, cached from discovery phase -- no extra API call).
-            # Skip ESPN when Odds API already returned a real 3-way soccer quote:
-            # ESPN is 2-way only (draw mass absorbed into home/away), so averaging a
-            # 2-way P(home) with a 3-way P(home) would inflate the anchor for soccer
-            # favorites. For soccer we trust the 3-way Odds API value exclusively.
-            if not _odds_api_is_3way:
-                _espn_odds = self._espn_odds_cache.get(cid)
-                if _espn_odds and _espn_odds.get("bookmaker_prob_a") is not None:
-                    _odds_probs.append((
-                        _espn_odds["bookmaker_prob_a"],
-                        _espn_odds.get("total_weight") or _espn_odds.get("num_bookmakers", 1),
-                    ))
-
-            # Combine: weighted average by number of bookmakers
-            _has_espn_odds = cid in self._espn_odds_cache
-            logger.debug("DATA: %s | ESPN=%s OddsAPI=%s | conf=%s",
-                         market.slug[:35],
-                         "YES" if _has_espn_odds else "NO",
-                         "YES" if _odds_probs else "NO",
-                         estimate.confidence)
-            if _odds_probs:
-                total_weight = sum(w for _, w in _odds_probs)
-                _anchor_book_prob = sum(p * w for p, w in _odds_probs) / total_weight
-                _anchor_num_books = total_weight
-            anchored = calculate_anchored_probability(
-                ai_prob=estimate.ai_probability,
-                bookmaker_prob=_anchor_book_prob,
-                num_bookmakers=_anchor_num_books,
-            )
-            # ── Two-case strategy: consensus vs disagree ─────────────────
-            ai_p = estimate.ai_probability     # Raw AI P(YES) -- before anchoring
-            ai_n = 1.0 - ai_p                  # Raw AI P(NO)
-            mkt_p = market.yes_price            # Market P(YES)
-            mkt_n = 1.0 - mkt_p                # Market P(NO)
+            # ── Two-case strategy: bookmaker vs market ──────────────────
+            book_p = estimate.probability        # Bookmaker P(YES)
+            book_n = 1.0 - book_p                # Bookmaker P(NO)
+            mkt_p = market.yes_price             # Market P(YES)
+            mkt_n = 1.0 - mkt_p                  # Market P(NO)
 
             # Determine favorites
-            ai_favors_yes = ai_p >= 0.50
+            book_favors_yes = book_p >= 0.50
             mkt_favors_yes = mkt_p >= 0.50
-            is_consensus = ai_favors_yes == mkt_favors_yes
+            is_consensus = book_favors_yes == mkt_favors_yes
 
             if is_consensus:
-                # CASE A: AI and market agree on favorite
+                # CASE A: Bookmaker and market agree on favorite
                 # Direction = favorite side. Edge = payout potential (99¢ - entry).
-                # Use raw AI probability (skip shrinkage -- market already confirms).
-                if ai_favors_yes:
+                if book_favors_yes:
                     direction = Direction.BUY_YES
-                    direction_prob = ai_p
+                    direction_prob = book_p
                     entry_price = mkt_p
                 else:
                     direction = Direction.BUY_NO
-                    direction_prob = ai_n
+                    direction_prob = book_n
                     entry_price = mkt_n
                 edge = 0.99 - entry_price
             else:
-                # CASE B: AI and market disagree on favorite
-                # Use anchored (shrunk) probability. Standard edge calculation.
-                ai_p_anchored = anchored.probability
-                ai_n_anchored = 1.0 - ai_p_anchored
-                edge_yes = ai_p_anchored - mkt_p
-                edge_no = ai_n_anchored - mkt_n
+                # CASE B: Bookmaker and market disagree on favorite
+                # Standard edge calculation.
+                edge_yes = book_p - mkt_p
+                edge_no = book_n - mkt_n
 
-                if ai_p_anchored >= ai_n_anchored:
+                if book_p >= book_n:
                     direction = Direction.BUY_YES
-                    direction_prob = ai_p_anchored
+                    direction_prob = book_p
                     edge = edge_yes
                 else:
                     direction = Direction.BUY_NO
-                    direction_prob = ai_n_anchored
+                    direction_prob = book_n
                     edge = edge_no
 
             # Mode classification by direction probability
@@ -913,7 +902,7 @@ class EntryGate:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Low probability ({direction_prob*100:.0f}% < 50%)",
-                    "ai_prob": estimate.ai_probability,
+                    "anchor_prob": estimate.probability,
                     "edge": edge if 'edge' in dir() else 0,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
@@ -928,19 +917,19 @@ class EntryGate:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Deadzone ({direction_prob*100:.0f}% in 50-60%)",
-                    "ai_prob": estimate.ai_probability,
+                    "anchor_prob": estimate.probability,
                     "edge": edge,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
                     "sport_tag": getattr(market, "sport_tag", ""),
-                    "bookmaker_prob": _anchor_book_prob,
+                    "bookmaker_prob": estimate.bookmaker_prob,
                 })
                 continue
 
             # ── Liquidity gate (confidence-aware) ────────────────────────────
-            # High-confidence entries (prob≥65%, conf B+/A) hold to resolution
+            # High-confidence entries (prob≥65%, conf A) hold to resolution
             # so orderbook depth doesn't matter. Lower confidence needs $1K+.
-            _high_conf = estimate.confidence in {"A", "B+"}
+            _high_conf = estimate.confidence == "A"
             _high_prob = direction_prob >= 0.65
             _liq_val = getattr(market, 'liquidity', 0) or 0
             _low_liq = isinstance(_liq_val, (int, float)) and _liq_val < 1_000
@@ -951,7 +940,7 @@ class EntryGate:
                 self.trade_log.log({
                     "market": market.slug, "action": "HOLD",
                     "rejected": f"Low liquidity (${getattr(market, 'liquidity', 0):.0f})",
-                    "ai_prob": estimate.ai_probability,
+                    "anchor_prob": estimate.probability,
                     "edge": edge,
                     "price": market.yes_price,
                     "question": getattr(market, "question", ""),
@@ -968,7 +957,7 @@ class EntryGate:
             signal = Signal(
                 condition_id=cid,
                 direction=direction,
-                ai_probability=ai_p,
+                anchor_probability=book_p,
                 market_price=mkt_p,
                 edge=edge,
                 confidence=estimate.confidence,
@@ -1000,14 +989,13 @@ class EntryGate:
                     logger.info("Underdog size reduction: %s | %.0f%% elapsed -> %.0f%% size",
                                 market.slug[:35], elapsed_pct * 100, _udog_mult * 100)
 
-            # ── Rank score -- pure edge × confidence ─────────────────────────
-            # Edge-only ranking: underdogs with high edge rank equally to favorites.
-            # Old formula (direction_prob + edge) penalized underdogs 2-3x.
-            conf_score = _CONF_SCORE.get(estimate.confidence, 1)
+            # ── Rank score -- edge × confidence ─────────────────────────────
+            _RANK_SCORE: dict[str, int] = {"A": 3, "B": 2, "C": 0}
+            conf_score = _RANK_SCORE.get(estimate.confidence, 1)
             rank_score = edge * conf_score
 
             logger.info(
-                "%s mode: %s | AI=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
+                "%s mode: %s | BM=%.0f%% mkt=%.0f%% edge=%.1f%% conf=%s score=%.3f",
                 mode, market.slug[:35],
                 direction_prob * 100,
                 mkt_p * 100 if direction == Direction.BUY_YES else mkt_n * 100,
@@ -1027,8 +1015,9 @@ class EntryGate:
                 "is_consensus": is_consensus,
                 "entry_reason": mode.lower(),
                 "is_early": cid in self._early_market_ids,
-                "bookmaker_prob": _anchor_book_prob,
-                "bookmaker_count": _anchor_num_books,
+                "bookmaker_prob": estimate.bookmaker_prob,
+                "bookmaker_count": estimate.num_bookmakers,
+                "has_sharp": estimate.has_sharp,
             })
 
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -1147,7 +1136,7 @@ class EntryGate:
                 entry_price=entry_price,
                 size_usdc=size,
                 shares=shares,
-                ai_probability=estimate.ai_probability,
+                anchor_probability=estimate.probability,
                 confidence=estimate.confidence,
                 sport_tag=getattr(market, "sport_tag", "") or "",
                 event_id=getattr(market, "event_id", "") or "",
@@ -1155,6 +1144,7 @@ class EntryGate:
                 match_start_iso=getattr(market, "match_start_iso", "") or "",
                 entry_reason=c.get("entry_reason", ""),
                 is_consensus=c.get("is_consensus", False),
+                bookmaker_prob=estimate.bookmaker_prob,
             )
 
             # Mark scout entry as entered (P1: wire up dead code)
@@ -1168,23 +1158,22 @@ class EntryGate:
                 "market": market.slug, "action": "BUY",
                 "direction": direction.value if hasattr(direction, "value") else direction,
                 "size_usdc": size, "entry_price": entry_price,
-                "ai_prob": estimate.ai_probability,
+                "anchor_prob": estimate.probability,
                 "confidence": estimate.confidence,
                 "edge": c["edge"],
                 "is_consensus": c["is_consensus"],
                 "entry_reason": c.get("entry_reason", ""),
                 "is_early": c["is_early"],
-                "reasoning_pro": getattr(estimate, "reasoning_pro", ""),
-                "reasoning_con": getattr(estimate, "reasoning_con", ""),
                 "bookmaker_prob": c.get("bookmaker_prob"),
                 "bookmaker_count": c.get("bookmaker_count"),
+                "has_sharp": c.get("has_sharp", False),
                 "sport_tag": getattr(market, "sport_tag", ""),
             })
 
             logger.info(
-                "ENTERED: %s | dir=%s | size=$%.2f | price=%.2f | AI=%.0f%% | conf=%s%s",
+                "ENTERED: %s | dir=%s | size=$%.2f | price=%.2f | BM=%.0f%% | conf=%s%s",
                 market.slug[:45], direction, size, entry_price,
-                estimate.ai_probability * 100, estimate.confidence,
+                estimate.probability * 100, estimate.confidence,
                 " [CONSENSUS]" if c["is_consensus"] else "",
             )
 
@@ -1203,7 +1192,7 @@ class EntryGate:
             _consensus_label = "Consensus" if c.get("is_consensus") else "Disagree"
             self.notifier.send(
                 f"📈 *ENTRY*: {market.slug[:40]}\n"
-                f"Entry {_dir_label} @ {_eff_p:.0%} | AI {estimate.ai_probability:.0%}\n\n"
+                f"Entry {_dir_label} @ {_eff_p:.0%} | BM {estimate.probability:.0%}\n\n"
                 f"🏷 {_sport} | {_consensus_label}\n"
                 f"🎯 Conf: {estimate.confidence}\n"
                 f"📊 Edge: {c['edge']:.1%}\n"

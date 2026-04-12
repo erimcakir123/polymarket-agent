@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 
 def effective_price(yes_price: float, direction: str) -> float:
@@ -60,14 +60,22 @@ class Position(BaseModel):
     entry_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     category: str = ""
     confidence: str = "B-"
-    ai_probability: float = 0.5  # ALWAYS P(YES outcome). Never direction-adjusted.
+    anchor_probability: float = 0.5  # ALWAYS P(YES outcome). Never direction-adjusted.
 
-    @field_validator("ai_probability")
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_ai_probability(cls, data: dict) -> dict:
+        """Backward-compat: rename ai_probability → anchor_probability on load."""
+        if isinstance(data, dict) and "ai_probability" in data and "anchor_probability" not in data:
+            data["anchor_probability"] = data.pop("ai_probability")
+        return data
+
+    @field_validator("anchor_probability")
     @classmethod
     def check_yes_probability(cls, v: float) -> float:
         if not (0.01 <= v <= 0.99):
             raise ValueError(
-                f"ai_probability={v} outside [0.01, 0.99]. "
+                f"anchor_probability={v} outside [0.01, 0.99]. "
                 f"Must be P(YES outcome), never direction-adjusted."
             )
         return v
@@ -143,17 +151,17 @@ class Position(BaseModel):
 class Signal(BaseModel):
     condition_id: str
     direction: Direction
-    ai_probability: float  # ALWAYS P(YES outcome). Never direction-adjusted.
+    anchor_probability: float  # ALWAYS P(YES outcome). Never direction-adjusted.
     market_price: float
     edge: float
     confidence: str
 
-    @field_validator("ai_probability")
+    @field_validator("anchor_probability")
     @classmethod
-    def check_yes_probability(cls, v: float) -> float:
+    def check_signal_probability(cls, v: float) -> float:
         if not (0.01 <= v <= 0.99):
             raise ValueError(
-                f"ai_probability={v} outside [0.01, 0.99]. "
+                f"anchor_probability={v} outside [0.01, 0.99]. "
                 f"Must be P(YES outcome), never direction-adjusted."
             )
         return v

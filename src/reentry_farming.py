@@ -85,7 +85,7 @@ class ReentryCandidate:
     question: str
     direction: str
     token_id: str
-    ai_probability: float
+    anchor_probability: float
     confidence: str
     original_entry_price: float  # First-ever entry price (for thesis check)
     last_exit_price: float       # Price at most recent exit
@@ -122,7 +122,7 @@ class ReentryPool:
         question: str,
         direction: str,
         token_id: str,
-        ai_probability: float,
+        anchor_probability: float,
         confidence: str,
         original_entry_price: float,
         exit_price: float,
@@ -159,7 +159,7 @@ class ReentryPool:
                 question=question,
                 direction=direction,
                 token_id=token_id,
-                ai_probability=ai_probability,
+                anchor_probability=anchor_probability,
                 confidence=confidence,
                 original_entry_price=original_entry_price,
                 last_exit_price=exit_price,
@@ -174,7 +174,7 @@ class ReentryPool:
                 sl_reentry_count=sl_reentry_count,
             )
             logger.info("Re-entry pool ADD: %s | profit=$%.2f | AI=%.0f%% | %s | reason=%s",
-                        slug[:40], realized_pnl, ai_probability * 100, direction, exit_reason or "profitable")
+                        slug[:40], realized_pnl, anchor_probability * 100, direction, exit_reason or "profitable")
         self._save()
 
     def remove(self, condition_id: str) -> None:
@@ -279,8 +279,8 @@ def check_reentry(
     eff_price = effective_price(current_yes_price, c.direction)
     eff_exit = effective_price(c.last_exit_price, c.direction)
     eff_entry = effective_price(c.original_entry_price, c.direction)
-    # ai_probability is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    eff_ai = effective_price(c.ai_probability, c.direction)
+    # anchor_probability is ALWAYS P(YES). Flip here for BUY_NO usage only.
+    eff_ai = effective_price(c.anchor_probability, c.direction)
     elapsed_pct = 0.0
 
     # --- HARD BLOCKS ---
@@ -325,7 +325,7 @@ def check_reentry(
             eff_ai = min(0.95, max(0.05, eff_ai + score_adjustment))
             if score_adjustment != 0:
                 logger.debug("Score-adjusted AI: %.0f%% -> %.0f%% (maps: %d-%d)",
-                             c.ai_probability * 100, eff_ai * 100, ms_a, ms_b)
+                             c.anchor_probability * 100, eff_ai * 100, ms_a, ms_b)
 
     # AI says losing side (prob < 50%) -- don't re-enter a likely loser
     if eff_ai < 0.50:

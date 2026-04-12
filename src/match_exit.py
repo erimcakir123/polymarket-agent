@@ -247,7 +247,7 @@ def check_match_exit(data: dict) -> dict:
     peak_pnl_pct = data.get("peak_pnl_pct", 0.0)
     scouted = data.get("scouted", False)
     confidence = data.get("confidence", "B-")
-    ai_probability = data.get("ai_probability", 0.5)
+    anchor_probability = data.get("anchor_probability", 0.5)
     consecutive_down = data.get("consecutive_down_cycles", 0)
     cumulative_drop = data.get("cumulative_drop", 0.0)
     hold_revoked_at = data.get("hold_revoked_at")
@@ -352,7 +352,7 @@ def check_match_exit(data: dict) -> dict:
     # A-conf strong-entry positions use the new market-flip rule (<50¢) instead
     # of the old revoke-hold logic. Skip Layer 3 entirely for them.
     is_hold_candidate = not a_conf_hold and (scouted or (
-        ai_probability >= 0.65 and confidence in ("A", "B+")
+        anchor_probability >= 0.65 and confidence in ("A", "B+")
     ))
 
     if is_hold_candidate:
@@ -392,13 +392,13 @@ def check_match_exit(data: dict) -> dict:
     # Underdog positions: as match progresses, AI target decays toward market
     # EXCEPTION: late in match (≥60%) and in profit (≥10%) -> let it ride, resolution close
     # EXCEPTION: A-conf hold-to-resolve -> skip edge decay, hold until resolution
-    if ai_probability > 0 and not result.get("exit") and not a_conf_hold and effective_entry < 0.50:
-        effective_ai_side = effective_price(ai_probability, direction)
+    if anchor_probability > 0 and not result.get("exit") and not a_conf_hold and effective_entry < 0.50:
+        effective_ai_side = effective_price(anchor_probability, direction)
         late_and_winning = elapsed_pct >= 0.60 and effective_current > effective_entry * 1.10
         if effective_ai_side < 0.65 and not late_and_winning:
             try:
-                from src.edge_decay import get_decayed_ai_target
-                decayed = get_decayed_ai_target(effective_ai_side, effective_current, elapsed_pct)
+                from src.edge_decay import get_decayed_anchor_target
+                decayed = get_decayed_anchor_target(effective_ai_side, effective_current, elapsed_pct)
                 edge_tp = decayed * 0.85
                 if effective_current >= edge_tp and effective_current > effective_entry * 1.10:
                     return {**result, "exit": True, "layer": "edge_decay",

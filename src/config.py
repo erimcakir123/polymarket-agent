@@ -80,7 +80,7 @@ class EarlyEntryConfig(BaseModel):
     max_slots: int = 2
     max_entry_price: float = 0.70
     min_edge: float = 0.10
-    min_ai_probability: float = 0.55
+    min_anchor_probability: float = 0.55
     min_confidence: str = "B-"
     bookmaker_pre_screen_edge: float = 0.08
     min_hours_to_start: float = 6.0       # Only markets >6h out qualify as early entry
@@ -109,12 +109,6 @@ class TrailingTPConfig(BaseModel):
     activation_pct: float = 0.20       # Activate at +20% profit
     trail_distance: float = 0.15       # Sell when 15% below peak
 
-
-class ProbabilityEngineConfig(BaseModel):
-    book_weight: float = 0.55
-    ai_weight: float = 0.45
-    shrinkage_factor: float = 0.10
-    high_divergence_threshold: float = 0.15
 
 
 class TennisConfig(BaseModel):
@@ -167,7 +161,6 @@ class AppConfig(BaseModel):
     live_momentum: LiveMomentumConfig = LiveMomentumConfig()
     consensus_entry: ConsensusEntryConfig = ConsensusEntryConfig()
     trailing_tp: TrailingTPConfig = TrailingTPConfig()
-    probability_engine: ProbabilityEngineConfig = ProbabilityEngineConfig()
     tennis: TennisConfig = TennisConfig()
     chess: ChessConfig = ChessConfig()
     notifications: NotificationConfig = NotificationConfig()

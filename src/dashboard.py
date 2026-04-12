@@ -187,7 +187,7 @@ def create_app(
                 # Only include resolved outcomes that have both AI and bookmaker probs
                 if not r.get("resolved"):
                     continue
-                ai_prob = r.get("ai_probability", 0)
+                ai_prob = r.get("anchor_probability", r.get("ai_probability", 0))
                 book_prob = r.get("bookmaker_prob", 0)
                 yes_won = r.get("yes_won")
                 if yes_won is None:

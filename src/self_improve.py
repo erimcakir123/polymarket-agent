@@ -38,11 +38,11 @@ MIN_RESOLVED = 15
 class CalibrationEntry:
     condition_id: str
     question: str
-    ai_probability: float
+    anchor_probability: float
     market_price_at_trade: float
     direction: str
     resolved_yes: bool
-    ai_correct: bool
+    anchor_correct: bool
     prediction_error: float
     category: str
     confidence: str = ""
@@ -90,11 +90,11 @@ def load_calibration() -> list[CalibrationEntry]:
             entries.append(CalibrationEntry(
                 condition_id=d.get("condition_id", ""),
                 question=d.get("question", ""),
-                ai_probability=d.get("ai_probability", 0.5),
+                anchor_probability=d.get("anchor_probability", d.get("ai_probability", 0.5)),
                 market_price_at_trade=d.get("market_price_at_trade", 0.5),
                 direction=d.get("direction", ""),
                 resolved_yes=d.get("resolved_yes", False),
-                ai_correct=d.get("ai_correct", False),
+                anchor_correct=d.get("anchor_correct", False),
                 prediction_error=d.get("prediction_error", 0.0),
                 category=d.get("category", "unknown"),
                 confidence=d.get("confidence", ""),
@@ -135,7 +135,7 @@ def brier_score(entries: list[CalibrationEntry]) -> float:
     total = 0.0
     for e in entries:
         outcome = 1.0 if e.resolved_yes else 0.0
-        total += (e.ai_probability - outcome) ** 2
+        total += (e.anchor_probability - outcome) ** 2
     return total / len(entries)
 
 
@@ -143,7 +143,7 @@ def win_rate(entries: list[CalibrationEntry]) -> float:
     """Percentage of correct predictions."""
     if not entries:
         return 0.0
-    return sum(1 for e in entries if e.ai_correct) / len(entries)
+    return sum(1 for e in entries if e.anchor_correct) / len(entries)
 
 
 def analyze_by_group(entries: list[CalibrationEntry], key_fn) -> dict[str, dict[str, Any]]:
@@ -166,7 +166,7 @@ def analyze_by_group(entries: list[CalibrationEntry], key_fn) -> dict[str, dict[
 
 def edge_range_key(e: CalibrationEntry) -> str:
     """Bucket edge into ranges."""
-    edge = abs(e.ai_probability - e.market_price_at_trade)
+    edge = abs(e.anchor_probability - e.market_price_at_trade)
     if edge < 0.05:
         return "0-5%"
     elif edge < 0.10:
@@ -545,26 +545,26 @@ def auto_calibrate(logger: Any = None) -> dict | None:
     held_better_total_diff = 0.0                  # sum of (hypothetical - actual) for held_better cases
 
     for r in resolved:
-        ai_prob = r.get("ai_probability", 0.5)
+        anchor_prob = r.get("anchor_probability", r.get("ai_probability", 0.5))
         yes_won = r.get("yes_won")
-        ai_correct = r.get("ai_correct")
+        anchor_correct = r.get("anchor_correct")
         conf = r.get("confidence", "unknown")
         sport = r.get("sport_tag", "unknown") or "unknown"
         entry_reason = r.get("entry_reason", "unknown") or "unknown"
         book_prob = r.get("bookmaker_prob", 0.0)
 
         outcome_val = 1.0 if yes_won else 0.0
-        brier_err = (ai_prob - outcome_val) ** 2
+        brier_err = (anchor_prob - outcome_val) ** 2
         total_brier += brier_err
-        if ai_correct:
+        if anchor_correct:
             total_correct += 1
 
         # Per-confidence breakdown
-        _acc(by_confidence, conf, ai_correct, brier_err)
+        _acc(by_confidence, conf, anchor_correct, brier_err)
         # Per-sport breakdown
-        _acc(by_sport, sport, ai_correct, brier_err)
+        _acc(by_sport, sport, anchor_correct, brier_err)
         # Per-entry-reason breakdown
-        _acc(by_entry_reason, entry_reason, ai_correct, brier_err)
+        _acc(by_entry_reason, entry_reason, anchor_correct, brier_err)
 
         # Bookmaker comparison
         if book_prob > 0:
@@ -732,12 +732,12 @@ def auto_calibrate(logger: Any = None) -> dict | None:
     return event
 
 
-def _acc(breakdown: dict, key: str, ai_correct: bool | None, brier_err: float) -> None:
+def _acc(breakdown: dict, key: str, anchor_correct: bool | None, brier_err: float) -> None:
     """Accumulate stats into a breakdown dict."""
     if key not in breakdown:
         breakdown[key] = {"count": 0, "correct": 0, "total_brier": 0.0}
     breakdown[key]["count"] += 1
-    if ai_correct:
+    if anchor_correct:
         breakdown[key]["correct"] += 1
     breakdown[key]["total_brier"] += brier_err
     n = breakdown[key]["count"]

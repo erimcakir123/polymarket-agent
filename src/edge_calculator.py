@@ -1,4 +1,4 @@
-"""Edge detection: AI probability vs market price."""
+"""Edge detection: anchor probability vs market price."""
 from __future__ import annotations
 import logging
 from typing import Dict, Optional
@@ -10,7 +10,7 @@ DEFAULT_CONFIDENCE_MULTIPLIERS = {"C": 1.5, "B-": 1.0, "B+": 0.85, "A": 0.75}
 
 
 def calculate_edge(
-    ai_prob: float,
+    anchor_prob: float,
     market_yes_price: float,
     min_edge: float = 0.06,
     confidence: str = "B-",
@@ -22,10 +22,10 @@ def calculate_edge(
     """Calculate edge between AI probability and market price.
 
     Args:
-        ai_prob: Anchored probability (bookmaker-weighted or shrunk)
+        anchor_prob: Bookmaker-derived anchor probability
         market_yes_price: Current YES token price
         min_edge: Base minimum edge threshold
-        confidence: AI confidence grade
+        confidence: Confidence grade (A/B/C)
         confidence_multipliers: Grade-to-multiplier mapping
         spread: Bid-ask spread to account for
         slippage: Estimated slippage from order book
@@ -34,11 +34,11 @@ def calculate_edge(
     Returns:
         (Direction, effective_edge) tuple
     """
-    # ai_prob is ALWAYS P(YES wins). raw > 0 -> BUY_YES, raw < 0 -> BUY_NO.
+    # anchor_prob is ALWAYS P(YES). raw > 0 -> BUY_YES, raw < 0 -> BUY_NO.
     multipliers = confidence_multipliers or DEFAULT_CONFIDENCE_MULTIPLIERS
     multiplier = multipliers.get(confidence, 1.0)
     threshold = (min_edge + edge_threshold_adjustment) * multiplier
-    raw = ai_prob - market_yes_price
+    raw = anchor_prob - market_yes_price
 
     # Effective edge = raw edge minus costs (spread + slippage)
     cost = spread + slippage
@@ -54,7 +54,7 @@ def calculate_edge(
 
 
 def calculate_edge_with_whale(
-    ai_prob: float,
+    anchor_prob: float,
     market_price: float,
     min_edge: float = 0.06,
     confidence: str = "B-",
@@ -62,9 +62,9 @@ def calculate_edge_with_whale(
     whale_weight: float = 0.15,
 ) -> tuple[Direction, float]:
     if whale_prob is not None:
-        blended = ai_prob * (1 - whale_weight) + whale_prob * whale_weight
+        blended = anchor_prob * (1 - whale_weight) + whale_prob * whale_weight
     else:
-        blended = ai_prob
+        blended = anchor_prob
     return calculate_edge(blended, market_price, min_edge, confidence)
 
 

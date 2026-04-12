@@ -74,7 +74,7 @@ class ExitExecutor:
                 question=getattr(pos, "question", ""),
                 direction=pos.direction,
                 token_id=pos.token_id,
-                ai_probability=pos.ai_probability,
+                anchor_probability=pos.anchor_probability,
                 confidence=pos.confidence,
                 original_entry_price=original_entry,
                 exit_price=pos.current_price,
@@ -99,7 +99,7 @@ class ExitExecutor:
                     exit_data={"slug": pos.slug},
                 )
                 logger.info("BLACKLIST: 2nd SL after lossy re-entry, permanent ban: %s", pos.slug[:40])
-            elif pos.ai_probability >= 0.65:
+            elif pos.anchor_probability >= 0.65:
                 # AI still believes in the market -- add to pool for potential recovery
                 existing_pool = self.ctx.reentry_pool.get(condition_id)
                 original_entry = existing_pool.original_entry_price if existing_pool else pos.entry_price
@@ -110,7 +110,7 @@ class ExitExecutor:
                     question=getattr(pos, "question", ""),
                     direction=pos.direction,
                     token_id=pos.token_id,
-                    ai_probability=pos.ai_probability,
+                    ai_probability=pos.anchor_probability,
                     confidence=pos.confidence,
                     original_entry_price=original_entry,
                     exit_price=pos.current_price,
@@ -125,7 +125,7 @@ class ExitExecutor:
                     sl_reentry_count=0,
                 )
                 logger.info("REENTRY_POOL: SL exit added (AI=%.0f%%): %s",
-                            pos.ai_probability * 100, pos.slug[:40])
+                            pos.anchor_probability * 100, pos.slug[:40])
             else:
                 # AI prob < 65% -- normal blacklist for SL
                 btype, duration = get_blacklist_rule("stop_loss")
@@ -246,7 +246,7 @@ class ExitExecutor:
                 slug=pos.slug,
                 question=getattr(pos, "question", ""),
                 direction=pos.direction,
-                ai_probability=pos.ai_probability,
+                anchor_probability=pos.anchor_probability,
                 confidence=pos.confidence,
                 entry_price=pos.entry_price,
                 exit_price=pos.current_price,
@@ -436,7 +436,7 @@ class ExitExecutor:
         STOCK_MAX = 10
 
         # Calculate ranking score from saved position data
-        pos_edge = max(0.0, abs(pos.ai_probability - pos.current_price))
+        pos_edge = max(0.0, abs(pos.anchor_probability - pos.current_price))
         pos_score = pos_edge * _CONF_SCORE.get(getattr(pos, "confidence", "C"), 1)
 
         stock = self.ctx.entry_gate._candidate_stock
@@ -476,7 +476,7 @@ class ExitExecutor:
             return False
 
         estimate = AIEstimate(
-            ai_probability=pos.ai_probability,
+            ai_probability=pos.anchor_probability,  # AIEstimate still uses old field name until Phase 7
             confidence=getattr(pos, "confidence", "B-"),
             reasoning_pro="(demoted -- re-evaluate at entry)",
             reasoning_con="",

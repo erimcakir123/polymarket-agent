@@ -2,10 +2,17 @@
 
 **Trigger phrase:** "AI silme planını uygula"
 
-**Status:** Ready to execute in a fresh session. Do NOT touch this file until
-implementation is complete — this IS the spec for the next session.
+**Status:** IN PROGRESS — Phase 0-2 done, Phase 3 half-done. Resume from Phase 3 remaining steps.
+
+**Rollback hash:** `cc25df8` (last clean commit before any changes)
 
 **Prerequisite:** Bot must be stopped. Dashboard can stay up.
+
+**SESSION RULES:**
+- NEVER run `pytest tests/` (full suite) — causes Windows crash (RAM spike ~500 MB)
+- Only run single-file tests: `pytest tests/test_specific.py`
+- Max 1 audit agent per session, manual audit preferred
+- Compile check: `python -m py_compile src/file.py` instead of full pytest
 
 ---
 
@@ -27,71 +34,14 @@ with bookmaker-derived confidence.
 
 ### Rules
 
-- **A** = `has_sharp == True` (Pinnacle/Betfair Exchange present)
+- **A** = `has_sharp == True` AND `bm_weight >= 5`
 - **B** = `bm_weight ≥ 5` (at least a few bookmakers, sharp not required)
 - **C** = `bm_weight < 5` or no bookmaker data → **SKIP, no trade**
 
-### Data backing (130 resolved trades, fresh CLOB query 2026-04-12)
-
-**Direction accuracy by weight bucket (ground truth = match outcome):**
-
-| Weight Bucket | N | DIR% |
-|---|---:|---:|
-| 0 (no BM) | 13 | 54% |
-| 1-4 | 2 | 50% |
-| 30-49 | 16 | 81% |
-| 50-59 | 43 | 67% |
-| 75-99 | 11 | 73% |
-| 100+ | 14 | 64% |
-
-**Cumulative: weight ≥1 = 70% DIR, weight ≥5 = 70% DIR (same — no trades
-in the 1-4 bucket are resolved enough to matter).**
-
-**PnL impact of C-skip threshold (all 154 historical BUYs):**
-
-| B threshold | Trades cut | Cut PnL | Remaining PnL |
-|---:|---:|---:|---:|
-| ≥1 | 52 | −$37 | +$56 |
-| **≥5** | **54** | **−$36** | **+$55** |
-| ≥25 | 55 | −$7 | +$27 |
-| ≥30 | 58 | −$4 | +$23 |
-
-**Key finding:** weight < 5 trades collectively lost −$36. Cutting them
-*improves* total PnL from +$19 to +$55. Higher thresholds (≥25, ≥30) start
-cutting profitable trades and reduce total PnL.
-
-**Why weight ≥ 5 and not higher?**
-- 84% of trades already have weight ≥ 30. The filter mostly catches the
-  truly data-poor entries (esports without odds, prop bets, obscure markets).
-- Raising to ≥30 would cut only 4 more trades but also lose $28 in profit
-  from the 5-29 bracket.
-
-**has_sharp as A tier:**
-- Not logged historically, cannot validate from past data.
-- Theoretically sound: Pinnacle closing line is the industry benchmark.
-- Forward-only test: after Phase 2 adds `has_sharp` logging, we can
-  measure A vs B direction accuracy after 2 weeks of live data.
-
-### Bookmaker weight distribution (115 trades with bm_count field)
-
-```
-Avg: 55, Median: 53.5
-  weight 0:     13 trades (11%) → C tier
-  weight 1-29:   6 trades  (5%) → B tier (borderline)
-  weight 30-59: 70 trades (61%) → B tier (bulk)
-  weight 60+:   26 trades (23%) → B tier
-```
-
-### Implementation
+### Implementation (DONE — `src/confidence.py`)
 
 ```python
-def derive_confidence(bm_weight: float, has_sharp: bool) -> str:
-    """Derive confidence tier from bookmaker signal strength.
-
-    A = sharp book present (Pinnacle/Betfair Exchange)
-    B = bookmaker weight ≥ 5 (at least a few bookmakers)
-    C = insufficient data → skip entry
-    """
+def derive_confidence(bm_weight: float | None, has_sharp: bool) -> str:
     if bm_weight is None or bm_weight < 5:
         return "C"
     if has_sharp:
@@ -100,155 +50,122 @@ def derive_confidence(bm_weight: float, has_sharp: bool) -> str:
 ```
 
 New canonical confidence alphabet: **{"A", "B", "C"}** — drop B+, B-, "?".
-Every place that currently reads `estimate.confidence in ("A","B+","B-","C")`
-must be updated.
-
-**Historical logs lack `has_sharp`.** We must start logging it from now on
-(Phase 2) so A-tier can be properly enforced and validated.
 
 ---
 
 ## 3. Scope — What Gets Deleted / Rewritten / Refactored
 
 ### DELETE (full file removal)
-- `src/ai_analyst.py` (657 lines, contains `AIAnalyst`, `AIEstimate`, prompt
-  templates, budget tracking, Claude API client)
+- `src/ai_analyst.py` (657 lines)
 - `tests/test_ai_analyst.py` (98 lines)
 - `tests/test_ai_confidence_prompt.py` (57 lines)
 - `logs/ai_budget.json`, `logs/ai_budget.backup.json`, `logs/ai_lessons.md`
-  (runtime state files)
 
 ### REFACTOR (partial, same file)
-- `src/agent.py:23, 105, 161` — drop `AIAnalyst` import and instantiation.
-  `ctx.ai` removed. Any other reader of `ctx.ai` must be updated.
-- `src/entry_gate.py` (≈1250 lines) — **biggest change**:
-  - Remove `self.ai.analyze_batch()` calls (2 sites: `_drain_overflow:353`,
-    `_analyze_batch:715`). Replace with a bookmaker-driven candidate builder.
-  - Rewrite `_evaluate_candidates` two-case strategy:
-    - OLD: `ai_favors_yes vs mkt_favors_yes` (consensus/disagree)
-    - NEW: `bookmaker_favors_yes vs mkt_favors_yes`
-  - Confidence filter: replace `estimate.confidence in _CONF_SKIP` with
-    `derive_confidence(bm_weight, has_sharp) == "C"` skip
-  - Rank score formula: replace `_CONF_SCORE = {"A":4,"B+":3,"B-":2,"C":1}`
-    with `{"A":3,"B":2,"C":0}` (C never enters)
-  - Drop `_confidence_c_attempts` tracking loop (still useful — keep for A/B
-    where repeated insufficient data blocks a market)
-- `src/probability_engine.py` — rename to something like
-  `src/bookmaker_probability.py` OR simplify in place:
-  - Function `calculate_anchored_probability(ai_prob, bookmaker_prob, ...)`
-    → `calculate_bookmaker_probability(bookmaker_prob, num_bookmakers)`
-  - Remove `AI_WEIGHT`, `BOOK_WEIGHT`, shrinkage logic, divergence logic
-  - Return `(probability, confidence_via_derive_confidence, metadata)`
-- `src/cycle_logic.py:104, 164-182` — delete `self_reflection()` method.
-  AI-driven self-improvement loop is gone. Remove the `logs/ai_lessons.md`
-  read/write path.
-- `src/notifier.py:142` — delete `agent.ai.budget_remaining_usd` line in
-  Telegram status (find and remove the whole block that displays budget).
-- `src/dashboard.py:14, 85-96, 190-198`:
-  - Delete `BUDGET_FILE` constant and `/api/budget` route.
-  - Simplify `/api/calibration`: it currently compares `ai_probability` vs
-    `bookmaker_prob`. After deletion there's only one prob — the calibration
-    endpoint becomes bookmaker-vs-outcome accuracy.
-- `src/config.py:34-43, 162` — delete `AIConfig` class and `AppConfig.ai`
-  field.
-- `src/exit_executor.py:433-478` — `try_demote_to_stock` reconstructs a
-  `MarketData` + `AIEstimate` for the stock queue. Replace `AIEstimate` with
-  a plain dict `{"anchor_probability": ..., "confidence": ..., "is_sharp": ...}`.
-- `src/models.py:63-73, 146-159` — rename `Position.ai_probability` and
-  `Signal.ai_probability` to `anchor_probability`. Update field_validator
-  error messages. Keep the 0.01–0.99 validation.
-- `reset_simulation.py:47, 208` + `scripts/reset_bot.py:35, 52` — remove
-  references to `ai_budget.json`, `ai_budget.backup.json`, `ai_lessons.md`.
+- `src/agent.py` — drop `AIAnalyst` import/instantiation, `ctx.ai`
+- `src/entry_gate.py` (~1250 lines) — biggest change:
+  - Remove `self.ai.analyze_batch()` calls
+  - Rewrite two-case strategy: `ai_favors_yes` → `book_favors_yes`
+  - Confidence filter: `derive_confidence() == "C"` skip
+  - Rank score: `{"A":3,"B":2,"C":0}`
+- `src/probability_engine.py` — DONE (see Phase 3)
+- `src/cycle_logic.py` — delete `self_reflection()` method
+- `src/notifier.py` — delete budget display
+- `src/dashboard.py` — delete `/api/budget`, simplify `/api/calibration`
+- `src/config.py` — delete `AIConfig`, clean `ProbabilityEngineConfig`
+- `src/exit_executor.py` — replace `AIEstimate` with `BookmakerEstimate`
+- `src/models.py` — rename `ai_probability` → `anchor_probability`
+- `reset_simulation.py` + `scripts/reset_bot.py` — remove AI file refs
 
 ### MECHANICAL RENAME (19 files, ~106 references)
-All of these just read `ai_probability` / `ai_prob` as a number and don't
-care about its source. Rename wholesale to `anchor_probability` /
-`anchor_prob`:
-- `src/match_exit.py` (4 refs)
-- `src/exit_executor.py` (7 refs — after the AIEstimate removal above)
-- `src/portfolio.py` (3 refs — field access on Position)
-- `src/reentry.py` (10 refs)
-- `src/edge_calculator.py` (7 refs)
-- `src/live_strategies.py` (7 refs)
-- `src/edge_decay.py` (2 refs)
-- `src/self_improve.py` (6 refs)
-- `src/price_updater.py` (6 refs)
-- `src/match_outcomes.py` (3 refs)
-- `src/dashboard.py` (2 refs)
-- `src/models.py` (6 refs — already covered above)
-- `src/edge_calculator.py` (7 refs)
-- `src/reentry_farming.py` (7 refs)
-- `src/cycle_logic.py` (2 refs)
-- `src/outcome_tracker.py` (4 refs)
-- `src/probability_engine.py` (13 refs — most will be deleted)
+`ai_probability` → `anchor_probability`, `ai_prob` → `anchor_prob`
 
-**Important:** the `trades.jsonl` file already has `ai_prob` written by the
-old code. We do NOT rewrite historical logs. The dashboard must handle both
-keys (`ai_probability` in old records, `anchor_probability` in new) —
-prefer new, fall back to old.
-
-### NEW FILE
-- `src/confidence.py` — single function:
-  ```python
-  def derive_confidence(bm_weight: float, has_sharp: bool) -> str: ...
-  ```
-  Plus unit tests in `tests/test_confidence.py`.
+### NEW FILES (DONE)
+- `src/confidence.py` — `derive_confidence()` 
+- `tests/test_confidence.py` — 10 parametrized tests, all green
 
 ---
 
-## 4. Execution Phases (fresh session)
+## 4. Execution Phases — Progress Tracker
 
-### Phase 0 — Safety checks (before touching code)
-1. Verify bot is stopped: `tasklist | grep python` shows only dashboards
-2. Verify clean git state: `git status` shows no uncommitted work
-3. Take an explicit snapshot: `git log -1 --format=%H` → note the hash for rollback
-4. Run full test suite baseline: `pytest tests/ -x --tb=line 2>&1 | tail -15`
-   → note pass count (should be 112 or higher depending on skipped cases)
+### Phase 0 — Safety checks ✅ DONE
+- Bot stopped (only dashboards running, PIDs 3124 + 17660)
+- Git clean (only .gitignore modified)
+- Rollback hash: `cc25df8`
+- Test baseline: 494 tests collected (circuit_breaker has pre-existing file lock issue on Windows — unrelated)
 
-### Phase 1 — Add confidence helper (new code only, no deletions yet)
-1. Create `src/confidence.py` with `derive_confidence()`
-2. Create `tests/test_confidence.py` — cover:
-   - `(0, False)` → "C"
-   - `(None, False)` → "C"
-   - `(15, False)` → "C" (<30 and no sharp)
-   - `(30, False)` → "B"
-   - `(50, False)` → "B"
-   - `(10, True)` → "B" (sharp but low weight)
-   - `(30, True)` → "A"
-   - `(100, True)` → "A"
-3. Run `pytest tests/test_confidence.py` → green
-4. Commit: `feat(confidence): add bookmaker-derived confidence helper`
+### Phase 1 — Add confidence helper ✅ DONE
+- Created `src/confidence.py` with `derive_confidence(bm_weight, has_sharp)` → A/B/C
+- Created `tests/test_confidence.py` — 10 parametrized tests, all green
+- **Not yet committed** (will batch with other phases)
 
-### Phase 2 — Log `has_sharp` flag in BUY events (forward-only data)
-1. `src/entry_gate.py` — find where `bookmaker_count`, `bookmaker_prob` are
-   written to the BUY trade_log.log() call. Add `"has_sharp": _has_sharp`.
-2. `_has_sharp` must come from the Odds API + ESPN combined path. Inspect
-   `_odds_probs` gathering at ~line 820-862. The `odds_api_result.get("has_sharp")`
-   flag exists (line 565). We need to preserve it through to the BUY event.
-3. Commit: `feat(logging): record has_sharp flag in BUY trade events`
+### Phase 2 — Log `has_sharp` flag in BUY events ✅ DONE
+Changes in `src/entry_gate.py`:
+- Line 820: Added `_anchor_has_sharp = False` variable
+- Line 833: Odds API → `if _mkt_odds.get("has_sharp"): _anchor_has_sharp = True`
+- Line 852: ESPN → `if _espn_odds.get("has_sharp"): _anchor_has_sharp = True`
+- Line 1033: Added `"has_sharp": _anchor_has_sharp` to candidate dict
+- Line 1182: Added `"has_sharp": c.get("has_sharp", False)` to BUY trade_log
+- Compile check passed
 
-Rationale: even if Phase 3+ fails, after Phase 2 we'll have real `has_sharp`
-data building up — future conf calibration can use real signal.
+### Phase 3 — Refactor `probability_engine.py` to BM-only 🔶 HALF DONE
 
-### Phase 3 — Refactor `probability_engine.py` to BM-only
-1. Replace `calculate_anchored_probability()` with
-   `calculate_bookmaker_probability(bookmaker_prob, num_bookmakers, has_sharp)`
-2. Return: `(probability, confidence, metadata_dict)`
-3. If `bookmaker_prob is None or <= 0` → raise or return `(None, "C", {})`
-4. Delete `AI_WEIGHT`, `BOOK_WEIGHT`, `SHRINKAGE_*`, `HIGH_DIVERGENCE_THRESHOLD`
-   constants
-5. Delete `AnchoredProbability` dataclass or rename to
-   `BookmakerProbability`. Field names: `probability`, `confidence`,
-   `bookmaker_prob`, `num_bookmakers`, `has_sharp`.
-6. Update `src/config.py:ProbabilityEngineConfig` — remove `book_weight`,
-   `ai_weight`, `shrinkage_factor`, `high_divergence_threshold`.
-7. Any caller of `calculate_anchored_probability` must be updated now
-   (only `entry_gate.py:863`).
-8. Run `pytest tests/` → expect `test_probability_engine.py` to fail (needs
-   rewrite). Fix those tests.
-9. Commit: `refactor(probability_engine): bookmaker-only, drop AI blend`
+**DONE:**
+- `src/probability_engine.py` fully rewritten:
+  - `AnchoredProbability` → `BookmakerProbability` (dataclass)
+  - `calculate_anchored_probability()` → `calculate_bookmaker_probability(bookmaker_prob, num_bookmakers, has_sharp)`
+  - Deleted: `AI_WEIGHT`, `BOOK_WEIGHT`, `SHRINKAGE_*`, `HIGH_DIVERGENCE_THRESHOLD`
+  - Deleted: `get_edge_threshold_adjustment()` (was dead code — no callers)
+  - New function imports `derive_confidence` from `src.confidence`
+  - Returns `BookmakerProbability(probability, confidence, bookmaker_prob, num_bookmakers, has_sharp)`
 
-### Phase 4 — Update `Position` / `Signal` models
+**REMAINING (do these next):**
+1. **`src/config.py`** — `ProbabilityEngineConfig` still has old fields:
+   ```python
+   class ProbabilityEngineConfig(BaseModel):
+       book_weight: float = 0.55      # DELETE
+       ai_weight: float = 0.45        # DELETE
+       shrinkage_factor: float = 0.10 # DELETE
+       high_divergence_threshold: float = 0.15  # DELETE
+   ```
+   Either delete the entire class (since no config fields remain) or keep as
+   empty placeholder. Check if `AppConfig.probability_engine` is referenced
+   anywhere — if not, delete both. Also check `config.yaml` for these keys.
+
+2. **`src/entry_gate.py:736,868`** — caller still uses old function:
+   ```python
+   # Line 736:
+   from src.probability_engine import calculate_anchored_probability
+   # Line 868-872:
+   anchored = calculate_anchored_probability(
+       ai_prob=estimate.ai_probability,
+       bookmaker_prob=_anchor_book_prob,
+       num_bookmakers=_anchor_num_books,
+   )
+   ```
+   Update to:
+   ```python
+   from src.probability_engine import calculate_bookmaker_probability
+   # ...
+   anchored = calculate_bookmaker_probability(
+       bookmaker_prob=_anchor_book_prob,
+       num_bookmakers=_anchor_num_books,
+       has_sharp=_anchor_has_sharp,
+   )
+   ```
+   Note: `anchored.probability` is used at line 900 (CASE B). This still works
+   because `BookmakerProbability` also has `.probability`. BUT the variable
+   `ai_p = estimate.ai_probability` at line 874 is still AI-based — this will
+   be replaced in Phase 6 when the full entry_gate AI removal happens.
+
+3. **`tests/test_probability_engine.py`** — needs full rewrite to test
+   `calculate_bookmaker_probability` instead of `calculate_anchored_probability`.
+   Run: `pytest tests/test_probability_engine.py` to verify.
+
+4. **Compile check** all changed files, then commit:
+   `refactor(probability_engine): bookmaker-only, drop AI blend`
+
+### Phase 4 — Update `Position` / `Signal` models (PENDING)
 1. `src/models.py` — rename `ai_probability` → `anchor_probability` in both
    `Position` and `Signal`.
 2. Field validator error message: `"anchor_probability={v} outside [0.01, 0.99]"`
@@ -257,13 +174,12 @@ data building up — future conf calibration can use real signal.
    `ai_probability` → `anchor_probability` if present.
 4. Run tests — everything that reads `pos.ai_probability` will break here;
    tests should flag them.
-5. Don't commit yet — tests are broken.
+5. Don't commit yet — tests are broken until Phase 5.
 
-### Phase 5 — Mechanical rename (19 files)
+### Phase 5 — Mechanical rename (19 files) (PENDING)
 Use `Grep` + `Edit replace_all` for each file:
 - `ai_probability` → `anchor_probability`
-- `ai_prob` → `anchor_prob` (watch out: `ai_prob=est.ai_probability` patterns
-  may need context-sensitive edits)
+- `ai_prob` → `anchor_prob`
 
 Files (in dependency order):
 1. `src/edge_calculator.py`
@@ -279,92 +195,70 @@ Files (in dependency order):
 11. `src/self_improve.py`
 12. `src/cycle_logic.py`
 13. `src/exit_executor.py` (deferred partial — AIEstimate removal here)
-14. `src/dashboard.py` (keep backward-compat for old logs)
+14. `src/dashboard.py` (keep backward-compat for old logs: `ai_probability` fallback)
 15. `src/notifier.py`
 
 After each file: `python -m py_compile <file>` → must pass.
 
+**Important:** `trades.jsonl` has `ai_prob` in old records. Dashboard must
+handle both keys — prefer `anchor_probability`, fall back to `ai_probability`.
+
 Commit: `refactor(models): rename ai_probability → anchor_probability (19 files)`
 
-### Phase 6 — Delete AI from `entry_gate.py`
-This is the risky step. Approach as a surgery:
+### Phase 6 — Delete AI from `entry_gate.py` (PENDING)
+This is the risky step. Approach as surgery:
 
-1. Read `src/entry_gate.py` fully (it's ~1250 lines) — understand current
-   flow before touching.
-2. In `_analyze_batch` (around line 364):
-   - Delete `self.ai.analyze_batch(...)` call at line 715
-   - Replace with a new helper `_build_bookmaker_estimates(markets)` that
-     returns `dict[cid, BookmakerEstimate]` where `BookmakerEstimate` is a
-     simple dataclass:
+1. Read `src/entry_gate.py` fully — understand current flow before touching.
+2. In `_analyze_batch` (~line 364):
+   - Delete `self.ai.analyze_batch(...)` call (~line 715)
+   - Replace with `_build_bookmaker_estimates(markets)` helper
+   - `BookmakerEstimate` dataclass in `src/models.py`:
      ```python
      @dataclass
      class BookmakerEstimate:
-         anchor_probability: float   # P(YES) from bookmaker
-         confidence: str              # "A" / "B" / "C"
+         anchor_probability: float
+         confidence: str
          bookmaker_prob: float
-         num_bookmakers: float        # total_weight
+         num_bookmakers: float
          has_sharp: bool
      ```
-   - Place `BookmakerEstimate` in `src/models.py` (or a new
-     `src/bookmaker_estimate.py` if we want it isolated).
-3. In `_drain_overflow` (line 340): do the same replacement.
+3. In `_drain_overflow` (~line 340): same replacement.
 4. In `_evaluate_candidates`:
-   - Replace `estimate.confidence in _CONF_SKIP` with
-     `estimate.confidence == "C"`
-   - Rewrite the consensus/disagree block (lines 869-907):
-     - `ai_p = estimate.anchor_probability` (was ai_probability)
-     - `ai_favors_yes` → `book_favors_yes` (rename for clarity)
-     - Logic stays the same: if BM and market agree → Case A, else Case B
-5. In the `try_demote_to_stock` call site — update to use
-   `BookmakerEstimate` instead of `AIEstimate`
-6. Delete `_confidence_c_attempts` if it becomes dead, OR keep it keyed on
-   "C returned" (repeated insufficient data should still block)
-7. Run: `python -m py_compile src/entry_gate.py`
-8. Run: `pytest tests/ -x` — expect failures in test_entry_gate* tests. Fix.
-9. Commit: `refactor(entry_gate): replace AI analysis with bookmaker-derived estimates`
+   - Replace `estimate.confidence in _CONF_SKIP` → `estimate.confidence == "C"`
+   - Rewrite consensus/disagree block:
+     - `ai_p` → `book_p` (from `estimate.anchor_probability`)
+     - `ai_favors_yes` → `book_favors_yes`
+     - Logic stays same: BM and market agree → Case A, else Case B
+   - Rank score: `{"A":3,"B":2,"C":0}` (C never enters)
+5. Update `try_demote_to_stock` → use `BookmakerEstimate` instead of `AIEstimate`
+6. Keep `_confidence_c_attempts` keyed on "C returned"
+7. Compile check + targeted test
+8. Commit: `refactor(entry_gate): replace AI analysis with bookmaker-derived estimates`
 
-### Phase 7 — Delete `ai_analyst.py` and related
-1. `src/agent.py:23, 105, 161` — remove `from src.ai_analyst import AIAnalyst`,
-   remove `self.ai = AIAnalyst(config.ai)`, remove `ai=self.ai` from
-   EntryGate kwargs.
-2. `src/cycle_logic.py:104, 164-182` — delete `self_reflection()` method
-   entirely. Also delete the cron/schedule that calls it (search for
-   `self_reflection` in cycle_logic and agent).
-3. `src/exit_executor.py:433, 478` — the `from src.ai_analyst import AIEstimate`
-   import is gone. Replace the `AIEstimate(...)` construction with
-   `BookmakerEstimate(...)` (from Phase 6).
-4. `src/notifier.py:142` — remove `agent.ai.budget_remaining_usd` and the
-   entire budget display block.
-5. `src/dashboard.py:14, 85-96` — remove `BUDGET_FILE`, remove `/api/budget`
-   route.
-6. `src/dashboard.py:190-198` — simplify `/api/calibration`: it currently
-   compares `ai_probability` vs `bookmaker_prob`. After deletion drop AI
-   side, keep bookmaker vs outcome only.
-7. `src/config.py:34-43, 162` — delete `AIConfig` class and
-   `AppConfig.ai: AIConfig = AIConfig()` field.
-8. **Finally** delete `src/ai_analyst.py` entirely.
-9. Delete `tests/test_ai_analyst.py` + `tests/test_ai_confidence_prompt.py`.
-10. `reset_simulation.py:47, 208` + `scripts/reset_bot.py:35, 52` — remove
-    `ai_budget.json`, `ai_budget.backup.json`, `ai_lessons.md` references.
-11. Delete `logs/ai_budget.json`, `logs/ai_budget.backup.json`,
-    `logs/ai_lessons.md` if they exist (they are runtime state, safe).
-12. Remove `anthropic` from `requirements.txt` if listed.
-13. `python -m py_compile` over all of `src/` → must pass.
-14. `pytest tests/ --tb=short` → must be 100% green.
-15. Commit: `feat(ai-removal): delete AIAnalyst and replace with bookmaker-only pipeline`
+### Phase 7 — Delete `ai_analyst.py` and related (PENDING)
+1. `src/agent.py` — remove `AIAnalyst` import, instantiation, `ai=self.ai`
+2. `src/cycle_logic.py` — delete `self_reflection()` method + its caller
+3. `src/exit_executor.py` — replace `AIEstimate` with `BookmakerEstimate`
+4. `src/notifier.py` — remove `agent.ai.budget_remaining_usd` block
+5. `src/dashboard.py` — remove `BUDGET_FILE`, `/api/budget` route, simplify `/api/calibration`
+6. `src/config.py` — delete `AIConfig` class and `AppConfig.ai` field
+7. **Delete** `src/ai_analyst.py`
+8. **Delete** `tests/test_ai_analyst.py` + `tests/test_ai_confidence_prompt.py`
+9. `reset_simulation.py` + `scripts/reset_bot.py` — remove AI file refs
+10. Delete `logs/ai_budget.json`, `logs/ai_budget.backup.json`, `logs/ai_lessons.md`
+11. Remove `anthropic` from `requirements.txt` if listed
+12. Compile check all `src/`
+13. Targeted test run
+14. Commit: `feat(ai-removal): delete AIAnalyst and replace with bookmaker-only pipeline`
 
-### Phase 8 — Audit (grep-first manual)
-**CLAUDE.md §3 audit protocol applies** because this is Large change.
-Two consecutive CLEAN audits required.
+### Phase 8 — Audit (grep-first manual) (PENDING)
+**CLAUDE.md §3 audit protocol applies** — Large change, 2 consecutive CLEAN required.
 
 Audit 1 — Broken imports, dead refs:
 ```
 grep -rn "ai_analyst\|AIAnalyst\|AIEstimate\|anthropic\|ai_probability\|ai_prob\|budget_remaining\|ai_lessons\|ai_budget\|_call_claude\|self_reflection" src/ tests/
 ```
-Every match must be either:
-- Expected (e.g., backward-compat dashboard read)
-- Commented for a known reason
-- Or removed
+Every match must be: expected (backward-compat), commented, or removed.
 
 Audit 2 — Runtime logic sanity:
 - Re-read `entry_gate._evaluate_candidates`
@@ -372,30 +266,13 @@ Audit 2 — Runtime logic sanity:
 - Re-read `probability_engine.calculate_bookmaker_probability`
 - Confirm no stale `AIEstimate` field access
 
-### Phase 9 — dry_run smoke test
-1. Bot must still be stopped
-2. Start fresh: `python -m src.main` (dry_run mode)
-3. Watch `logs/bot.log` for 2 cycles (~5 minutes)
-4. Look for:
-   - `NameError` / `AttributeError` / `ImportError` — any means **STOP and fix**
-   - BUY events must have `has_sharp` flag written
-   - `estimate.confidence` should be "A", "B", or "C" only (no B+/B-/?)
-   - No Claude API calls (no `anthropic` usage, budget file untouched)
-5. If bot completes 2 cycles without errors:
-   - Tail the bot.log: any `ERROR` or `WARNING` lines related to the refactor?
-   - `tasklist | grep python` → only 1 src.main process
-6. If smoke test passes, stop the bot: `taskkill /PID <pid> /F`
-7. Final commit: `chore(ai-removal): dry-run smoke test passed`
-
-### Phase 10 — Notes for user
-- Self-improvement loop is dead. If user wants it back, it must be rebuilt
-  without an LLM (e.g., parameter sweep driven by realized PnL).
-- Dashboard "AI Budget" widget is gone. Consider removing the HTML element
-  if it exists.
-- `logs/calibration_events.jsonl` still works but now only tracks
-  `anchor_probability` (bookmaker-derived).
-- `anchor_probability` field in trades.jsonl will be NEW. Old records still
-  have `ai_probability`. Any analysis script must handle both.
+### Phase 9 — dry_run smoke test (PENDING)
+1. Start: `python -m src.main` (dry_run mode)
+2. Watch `logs/bot.log` for 2 cycles (~5 minutes)
+3. Check: no `NameError`/`AttributeError`/`ImportError`, BUY events have
+   `has_sharp` + `anchor_probability`, confidence is A/B/C only, no Claude
+   API calls
+4. Stop bot, final commit: `chore(ai-removal): dry-run smoke test passed`
 
 ---
 
@@ -407,9 +284,9 @@ Audit 2 — Runtime logic sanity:
 | Position deserialization fails on old positions.json | Medium | Phase 4 `model_validator(mode='before')` handles rename |
 | Entry gate rewrite introduces logic bug | High | Phase 9 dry-run smoke test + pytest |
 | Dashboard crashes on missing budget endpoint | Low | Phase 7 explicit removal |
-| `reasoning_pro` / `reasoning_con` fields referenced somewhere not grepped | Medium | Additional grep: `reasoning_pro\|reasoning_con` |
-| Test fixtures construct `AIEstimate` objects | Medium | Remove test files in Phase 7; fix any stragglers |
-| Window memory bloat during audit | Medium | Session-split — do Phases 0-2 in one, 3-5 next, 6-9 last |
+| `reasoning_pro` / `reasoning_con` fields referenced somewhere | Medium | Additional grep |
+| Test fixtures construct `AIEstimate` objects | Medium | Remove test files in Phase 7 |
+| **Windows RAM crash from full pytest** | **High** | **NEVER run `pytest tests/` — single file only** |
 
 ---
 
@@ -421,44 +298,34 @@ Before marking this plan complete:
 - [ ] `grep -rn "self\.ai\." src/` → zero matches
 - [ ] `grep -rn "ai_probability" src/` → zero matches in source (old
       trades.jsonl records and backward-compat readers OK)
-- [ ] `pytest tests/ -x --tb=short` → all green
 - [ ] `python -m py_compile src/*.py` → all pass
+- [ ] Targeted test files pass (NOT full suite)
 - [ ] Bot starts in dry_run, completes 2 cycles, no errors in log
 - [ ] `trades.jsonl` new BUY events contain `has_sharp` key
-- [ ] `trades.jsonl` new BUY events contain `anchor_probability` key (not
-      `ai_prob`)
-- [ ] `logs/ai_budget.json` not recreated after 2 bot cycles (no API calls)
-- [ ] Dashboard loads without JS errors when old `/api/budget` is gone (check
-      that frontend `dashboard/*.html` doesn't reference it)
+- [ ] `trades.jsonl` new BUY events contain `anchor_probability` key
+- [ ] `logs/ai_budget.json` not recreated after 2 bot cycles
+- [ ] Dashboard loads without JS errors when `/api/budget` is gone
 
 ---
 
 ## 7. What's NOT in Scope
 
-- New strategy logic. We're preserving the existing consensus/disagree case
-  framework; only the source of probability changes (AI → bookmaker).
-- Confidence threshold tuning. We're using `{≥30 weight, has_sharp}` as the
-  starting point. User can retune after 2 weeks of new data.
-- Dashboard HTML/JS refactor. Just remove the dead endpoint, let the frontend
-  silently skip the missing data.
-- Removing scout queue or news_scanner — these can still provide contextual
-  info if we choose to use them for anything else later.
-- Odds API / ESPN odds fetching — totally untouched, still the primary
-  source.
+- New strategy logic (consensus/disagree framework preserved)
+- Confidence threshold tuning (≥5 weight as starting point)
+- Dashboard HTML/JS refactor
+- Removing scout queue or news_scanner
+- Odds API / ESPN odds fetching — totally untouched
 
 ---
 
-## 8. Historical Context (for the next session)
+## 8. Historical Context
 
-This plan was designed after:
 - 2026-04-10/11 ground-truth analysis showed AI-BM parrot rate %81.8
-- 230 historical BUY trade simulation of 3-tier confidence system
+- 2026-04-12 first implementation session: Phase 0-2 done, Phase 3 half-done
 - User explicitly requested Seçenek C (full rewrite) over stub/kill-switch
-- Dead code philosophy: user wants zero dead code, spaghetti is forbidden
+- Dead code philosophy: user wants zero dead code
 
-The prior session left these artifacts in place:
-- Session deleted `catastrophic_floor` exit rule (commit `d5c7d80`)
-- Session fixed phantom SCALE_OUT bug in WS force path (commit `d5c7d80`)
-- Session deleted 3 dead tests + orphan `_tmp_*.py` files (commit `c4d30ca`)
-
-The next session starts from that clean baseline.
+**Git state (uncommitted):**
+- NEW: `src/confidence.py`, `tests/test_confidence.py`
+- MODIFIED: `src/entry_gate.py` (has_sharp logging), `src/probability_engine.py` (full rewrite)
+- No commits made yet — all changes are staged/unstaged

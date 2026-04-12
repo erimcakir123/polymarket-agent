@@ -48,10 +48,10 @@ def get_min_reentry_drop(effective_exit_price: float) -> float:
 
 
 def get_reentry_size_multiplier(
-    ai_prob: float, direction: str, score_info: dict, original_pnl_pct: float
+    anchor_prob: float, direction: str, score_info: dict, original_pnl_pct: float
 ) -> float:
-    # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    effective_ai = effective_price(ai_prob, direction)
+    # anchor_prob is ALWAYS P(YES). Flip here for BUY_NO usage only.
+    effective_ai = effective_price(anchor_prob, direction)
     base = 0.50
     if effective_ai >= 0.75:
         base += 0.25
@@ -68,7 +68,7 @@ def can_reenter(
     exit_reason: str,
     exit_price: float,
     current_price: float,
-    ai_prob: float,
+    anchor_prob: float,
     direction: str,
     score_info: dict,
     elapsed_pct: float,
@@ -78,8 +78,8 @@ def can_reenter(
     daily_reentry_count: int,
     market_reentry_count: int,
 ) -> tuple[bool, str]:
-    # ai_prob is ALWAYS P(YES wins). Flip here for BUY_NO usage only.
-    effective_ai = effective_price(ai_prob, direction)
+    # anchor_prob is ALWAYS P(YES). Flip here for BUY_NO usage only.
+    effective_ai = effective_price(anchor_prob, direction)
     effective_exit = effective_price(exit_price, direction)
     effective_current = effective_price(current_price, direction)
 
@@ -96,7 +96,7 @@ def can_reenter(
         return False, f"Drop {actual_drop:.0%} < required {min_drop:.0%}"
 
     if effective_ai < 0.60:
-        return False, f"AI prob {effective_ai:.0%} < 60%"
+        return False, f"Anchor prob {effective_ai:.0%} < 60%"
 
     if score_info.get("available") and score_info.get("map_diff", 0) < 0:
         return False, "Score behind"
@@ -235,15 +235,15 @@ def qualifies_for_score_reversal_reentry(
 
 
 def passes_confidence_momentum(
-    saved_ai_prob: float,
-    current_ai_prob: float,
+    saved_anchor_prob: float,
+    current_anchor_prob: float,
     direction: str,
     threshold: float = 1.05,
 ) -> tuple[bool, str]:
-    """Check if AI confidence is rising (for re-entry qualification).
+    """Check if anchor confidence is rising (for re-entry qualification).
     Compares saved effective prob at exit with current effective prob."""
-    saved_eff = effective_price(saved_ai_prob, direction)
-    current_eff = effective_price(current_ai_prob, direction)
+    saved_eff = effective_price(saved_anchor_prob, direction)
+    current_eff = effective_price(current_anchor_prob, direction)
     if saved_eff < 0.10:
         return True, "Saved effective prob too low"
     ratio = current_eff / saved_eff

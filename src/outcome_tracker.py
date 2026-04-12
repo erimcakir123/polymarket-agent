@@ -37,7 +37,7 @@ class TrackedMarket:
     slug: str
     question: str
     direction: str
-    ai_probability: float
+    anchor_probability: float
     confidence: str
     entry_price: float
     exit_price: float
@@ -68,7 +68,7 @@ class OutcomeTracker:
         slug: str,
         question: str,
         direction: str,
-        ai_probability: float,
+        anchor_probability: float,
         confidence: str,
         entry_price: float,
         exit_price: float,
@@ -94,7 +94,7 @@ class OutcomeTracker:
             slug=slug,
             question=question,
             direction=direction,
-            ai_probability=ai_probability,
+            anchor_probability=anchor_probability,
             confidence=confidence,
             entry_price=entry_price,
             exit_price=exit_price,
@@ -176,7 +176,7 @@ class OutcomeTracker:
                 "slug": tm.slug,
                 "question": tm.question,
                 "direction": tm.direction,
-                "ai_probability": tm.ai_probability,
+                "anchor_probability": tm.anchor_probability,
                 "confidence": tm.confidence,
                 "entry_price": tm.entry_price,
                 "exit_price": tm.exit_price,

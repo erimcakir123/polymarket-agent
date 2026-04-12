@@ -160,7 +160,7 @@ class LiveStrategies:
 
             # --- ENTER ---
             direction = candidate.direction
-            ai_prob = candidate.ai_probability
+            anchor_prob = candidate.anchor_probability
             size_mult = decision["size_mult"]
 
             # Calculate position size (confidence-based * tier multiplier)
@@ -215,7 +215,7 @@ class LiveStrategies:
                 cid, token_id, direction,
                 yes_price_entry, size, shares, candidate.slug,
                 "", confidence=candidate.confidence,
-                ai_probability=ai_prob,
+                anchor_probability=anchor_prob,
                 question=candidate.question,
                 end_date_iso=candidate.end_date_iso,
                 match_start_iso=candidate.match_start_iso,
@@ -239,7 +239,7 @@ class LiveStrategies:
                 "confidence": candidate.confidence,
                 "mode": self.ctx.config.mode.value,
                 "status": result.get("status", ""),
-                "ai_probability": ai_prob,
+                "anchor_probability": anchor_prob,
                 "reentry_tier": tier_num,
                 "reentry_count": reentry_num,
             })
@@ -390,7 +390,7 @@ class LiveStrategies:
                 m.condition_id, token_id, direction,
                 _yes_entry, size, shares, m.slug,
                 "", confidence="B-",
-                ai_probability=max(0.01, min(0.99, pre_match)),
+                anchor_probability=max(0.01, min(0.99, pre_match)),
                 entry_reason="live_dip",
                 sport_tag=getattr(m, "sport_tag", "") or "",
                 event_id=getattr(m, "event_id", "") or "",
@@ -460,10 +460,10 @@ class LiveStrategies:
             if cid in self.ctx.portfolio.positions:
                 pos = self.ctx.portfolio.positions[cid]
                 adjusted = calculate_score_adjusted_probability(
-                    pos.ai_probability, state, sport_tag, pos.direction,
+                    pos.anchor_probability, state, sport_tag, pos.direction,
                 )
                 if adjusted is not None:
-                    pos.ai_probability = adjusted
+                    pos.anchor_probability = adjusted
                 continue
 
             # Mode A: New entry if edge >= 6%
@@ -540,7 +540,7 @@ class LiveStrategies:
                     cid, token_id, direction,
                     _yes_entry, size, shares, market.slug,
                     "", confidence="B-",
-                    ai_probability=signal.adjusted_prob,
+                    anchor_probability=signal.adjusted_prob,
                     entry_reason="momentum",
                     sport_tag=sport_tag,
                     event_id=getattr(market, "event_id", ""),

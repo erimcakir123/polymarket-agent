@@ -19,7 +19,7 @@ def log_outcome(
     slug: str,
     question: str,
     direction: str,
-    ai_probability: float,
+    anchor_probability: float,
     confidence: str,
     entry_price: float,
     exit_price: float,
@@ -55,8 +55,8 @@ def log_outcome(
     )
     is_win = exit_reason == "resolved_win"
 
-    # AI said YES has this probability
-    ai_yes_prob = ai_probability
+    # Anchor said YES has this probability
+    anchor_yes_prob = anchor_probability
 
     # Did YES actually win? Three sources, in priority order:
     #   1. yes_won_override (outcome_tracker post-exit knows the final result)
@@ -70,10 +70,10 @@ def log_outcome(
         yes_won = None
 
     # AI was correct if: predicted >50% YES and YES won, or <50% YES and NO won
-    ai_correct = None
+    anchor_correct = None
     if is_resolved and yes_won is not None:
-        ai_favored_yes = ai_yes_prob > 0.5
-        ai_correct = (ai_favored_yes and yes_won) or (not ai_favored_yes and not yes_won)
+        anchor_favored_yes = anchor_yes_prob > 0.5
+        anchor_correct = (anchor_favored_yes and yes_won) or (not anchor_favored_yes and not yes_won)
 
     # "Bet correct" semantics differ for sync vs post-exit:
     #   - sync resolved_*: pnl > 0 means we made money on this exit
@@ -92,14 +92,14 @@ def log_outcome(
         "slug": slug,
         "question": question,
         "direction": direction,
-        "ai_probability": round(ai_yes_prob, 4),
+        "anchor_probability": round(anchor_yes_prob, 4),
         "confidence": confidence,
         "entry_price": round(entry_price, 4),
         "exit_price": round(exit_price, 4),
         "exit_reason": exit_reason,
         "resolved": is_resolved,
         "yes_won": yes_won,
-        "ai_correct": ai_correct,
+        "anchor_correct": anchor_correct,
         "bet_correct": bet_correct,
         "pnl": round(pnl, 2),
         "size": round(size, 2),
@@ -127,8 +127,8 @@ def log_outcome(
             f.write(json.dumps(record) + "\n")
         logger.info(
             "Outcome logged: %s | %s | AI=%.0f%% | %s | PnL=$%.2f",
-            slug[:35], exit_reason, ai_yes_prob * 100,
-            "correct" if ai_correct else ("wrong" if ai_correct is False else "n/a"),
+            slug[:35], exit_reason, anchor_yes_prob * 100,
+            "correct" if anchor_correct else ("wrong" if anchor_correct is False else "n/a"),
             pnl,
         )
     except OSError as e:
