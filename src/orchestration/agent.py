@@ -137,6 +137,8 @@ class Agent:
 
     def _run_heavy(self, prefer_eligible_queue: bool = False) -> None:
         """Scan → enrich → gate → execute. Exit-triggered'da queue önce."""
+        mode = self.deps.state.config.mode.value
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="scanning")
         if prefer_eligible_queue:
             queued = self.deps.scanner.drain_eligible()
             if queued:
@@ -145,10 +147,10 @@ class Agent:
         else:
             markets = self.deps.scanner.scan()
             self._process_markets(markets)
-
-        # Dashboard snapshot'ları (presentation ayrı process olduğu için disk üzerinden)
+        # Dashboard snapshot'ları (presentation ayrı process, disk üzerinden).
         self._dump_eligible_queue()
         self._log_equity_snapshot()
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
 
     def _process_markets(self, markets: list[MarketData]) -> None:
         """Gate'ten geçir, onaylı signal'leri execute et.
@@ -157,10 +159,12 @@ class Agent:
         portfolio o an boş gibi görünür). Bu loop'ta execution öncesi TEKRAR kontrol
         edilir — çünkü her add_position sonrası portfolio değişiyor ve cap aşılabilir.
         """
+        mode = self.deps.state.config.mode.value
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="analyzing")
         results = self.deps.gate.run(markets)
         by_cid = {m.condition_id: m for m in markets}
         max_exposure_pct = self.deps.gate.config.max_exposure_pct
-
+        executing_written = False
         for r in results:
             market = by_cid.get(r.condition_id)
             if r.signal is None:
@@ -184,6 +188,9 @@ class Agent:
                 self.deps.scanner.push_eligible(market)
                 continue
 
+            if not executing_written:
+                self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="executing")
+                executing_written = True
             self._execute_entry(market, r.signal)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
