@@ -287,9 +287,13 @@ html, body {
 .pnl-pos { color: var(--green); }
 .pnl-neg { color: var(--red); }
 
-/* Unrealized (Open PnL) özel: pozitif → lime, negatif → kırmızı. Bold. */
-.unr-pos { color: #a4d45a; font-weight: 600; }
-.unr-neg { color: var(--red); font-weight: 600; }
+/* Unrealized (Open PnL) özel: pozitif → açık turkuaz mavi, negatif → kırmızı. */
+.unr-pos { color: #22d3ee; }
+.unr-neg { color: var(--red); }
+
+/* Feed pozisyon kartlarında PnL: lime + bold (progress bar ile tutarlı). */
+.feed-item .unr-pos { color: #a4d45a; font-weight: 600; }
+.feed-item .unr-neg { color: var(--red); font-weight: 600; }
 
 /* Locked in bets — her zaman turuncu (kullanıcı isteği). */
 .locked-color { color: var(--orange); }
