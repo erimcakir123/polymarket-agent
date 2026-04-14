@@ -68,7 +68,7 @@
     _confPill(conf) {
       const c = (conf || "?").toUpperCase();
       const cls = c === "A" ? "conf-a" : c === "B" ? "conf-b" : c === "C" ? "conf-c" : "conf-unk";
-      return `<span class="feed-conf ${cls}">${c}</span>`;
+      return `<span class="feed-conf ${cls}">${FMT.escapeHtml(c)}</span>`;
     },
 
     _countdownPill(matchStartIso, matchLive) {
