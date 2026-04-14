@@ -115,7 +115,7 @@
         <div class="feed-impact">
           <div class="feed-impact-bar"><div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"
             style="width:${Math.min(100, Math.abs(pnlPct))}%"></div></div>
-          <span class="${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
+          <span class="${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)} <span class="feed-pnl-pct">${FMT.pctSigned(pnlPct, 1)}</span></span>
         </div>
         <div class="feed-time">
           <span>$${p.size_usdc.toFixed(0)}</span>
