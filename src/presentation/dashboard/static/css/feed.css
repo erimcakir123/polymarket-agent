@@ -192,3 +192,49 @@
   display: flex;
   justify-content: space-between;
 }
+
+/* Active card — yeni öğeler (Task 7) */
+.feed-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;  /* A ↔ YES arası gap — volatility_swing ↔ $50 ile eşit */
+}
+
+.feed-conf {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #0a0a0a;
+}
+.feed-conf.conf-a   { background: #16c784; }                /* A — yeşil */
+.feed-conf.conf-b   { background: #a4d45a; color: #0a0a0a; }  /* B — sarıya yakın yeşil (lime) */
+.feed-conf.conf-c   { background: #e6c94d; color: #0a0a0a; }  /* C — sarı */
+.feed-conf.conf-unk { background: #4b5563; color: #e5e7eb; }  /* bilinmiyor */
+
+.feed-countdown {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(59, 130, 246, 0.18);  /* mavi @ opacity düşük */
+  color: #93c5fd;
+  margin-left: auto;  /* alt satır: en sağa yasla */
+}
+.feed-countdown.live {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+}
+
+/* feed-time: $50 ↔ volatility_swing gap'i A ↔ YES (=6px) ile aynı */
+.feed-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.feed-time .feed-entry-reason {
+  color: #9ca3af;
+}
