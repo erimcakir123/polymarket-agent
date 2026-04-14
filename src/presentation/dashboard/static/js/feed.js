@@ -138,10 +138,10 @@
         <div class="feed-details">
           <span>Entry ${FMT.cents(t.entry_price)}</span>
           <span>Exit ${FMT.cents(t.exit_price || 0)}</span>
-          <span>${t.exit_reason || ""}</span>
         </div>
         <div class="feed-impact">
           <span class="${FMT.pnlClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
+          <span class="feed-exit-reason">${FMT.escapeHtml(t.exit_reason || "")}</span>
         </div>
         <div class="feed-time"><span>${FMT.relTime(t.exit_timestamp)}</span>
           <span>${t.final_outcome || ""}</span></div>

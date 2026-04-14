@@ -178,11 +178,17 @@
 
 .feed-impact-bar-fill {
   height: 100%;
-  background: var(--blue);
+  background: #a4d45a;  /* pozitif — lime (YES mavisiyle karışmasın) */
   transition: width 0.25s ease;
 }
 
 .feed-impact-bar-fill.neg { background: var(--red); }
+
+.feed-exit-reason {
+  margin-left: auto;
+  color: #9ca3af;
+  font-size: 10px;
+}
 
 .feed-time {
   margin-top: 4px;
@@ -223,7 +229,22 @@
   padding: 0 2px;
 }
 .feed-countdown.live {
-  color: #fecaca;
+  color: rgba(239, 68, 68, 0.6);  /* tam kırmızı %60 opak */
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+.feed-countdown.live::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.6);
+  margin-right: 5px;
+  vertical-align: middle;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
 }
 
 /* Kart nefes alsın — padding + gap hafif artış; detay satırı sönük */
