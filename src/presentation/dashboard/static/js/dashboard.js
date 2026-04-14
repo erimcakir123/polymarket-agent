@@ -247,19 +247,40 @@
   // ── RENDER (DOM updates) ──
   const RENDER = {
     status(data) {
-      if (!data.bot_alive) {
+      // Light cycle: Online (bot canlı) / Offline
+      const botAlive = !!data.bot_alive;
+      this._applyCycle("cg-light", "light",
+        botAlive ? "Online" : "Offline", botAlive);
+
+      // Hard cycle: stage'e göre etiket
+      if (!botAlive) {
         this._applyCycle("cg-hard", "offline", "Offline", false);
-        this._applyCycle("cg-light", "offline", "Offline", false);
         return;
       }
-      const lc = (data.last_cycle || "").toLowerCase();
-      const recent = this._isRecent(data.last_cycle_at, 15);
-      const hardActive = lc === "heavy" && recent;
-      const lightActive = lc === "light" && recent;
-      this._applyCycle("cg-hard", "hard",
-        hardActive ? this._hardLabel(data.reason || "") : "Waiting", hardActive);
-      this._applyCycle("cg-light", "light",
-        lightActive ? "Running" : "Waiting", lightActive);
+      const stage = (data.stage || "").toLowerCase();
+      const stageRecent = this._isRecent(data.stage_at, 15);
+      let label, live;
+      if (stage === "scanning" && stageRecent) { label = "Scanning"; live = true; }
+      else if (stage === "analyzing" && stageRecent) { label = "Analyzing"; live = true; }
+      else if (stage === "executing" && stageRecent) { label = "Executing"; live = true; }
+      else if (stage === "idle" || !stageRecent) {
+        label = this._idleLabel(data.next_heavy_at);
+        live = false;
+      }
+      else { label = "Waiting"; live = false; }
+      this._applyCycle("cg-hard", "hard", label, live);
+    },
+
+    _idleLabel(nextHeavyIso) {
+      if (!nextHeavyIso) return "Idle";
+      const target = new Date(nextHeavyIso).getTime();
+      if (isNaN(target)) return "Idle";
+      const diff = Math.max(0, target - Date.now());
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      const mm = String(mins).padStart(2, "0");
+      const ss = String(secs).padStart(2, "0");
+      return `Idle - next ${mm}:${ss}`;
     },
 
     _applyCycle(id, variant, label, live) {
@@ -267,12 +288,6 @@
       document.getElementById(id + "-status").textContent = label;
       const dot = document.querySelector("#" + id + " .cycle-dot");
       if (dot) dot.classList.toggle("live", live);
-    },
-
-    _hardLabel(reason) {
-      if (reason === "cold_start") return "Cold start";
-      if (reason === "exit_triggered_heavy") return "Exit-triggered scan";
-      return "Scanning markets";
     },
 
     _isRecent(iso, maxSeconds) {
@@ -388,6 +403,17 @@
   // ── Expose for feed.js ──
   global.FMT = FMT;
   global.ICONS = ICONS;
+
+  // Idle countdown — /api/status cevabı cache'lenir, 1s'de bir label re-render edilir
+  let _lastStatusData = null;
+  const _origStatus = RENDER.status.bind(RENDER);
+  RENDER.status = function (data) {
+    _lastStatusData = data;
+    _origStatus(data);
+  };
+  setInterval(() => {
+    if (_lastStatusData) _origStatus(_lastStatusData);
+  }, 1000);
 
   document.addEventListener("DOMContentLoaded", () => MAIN.init());
 })(window);
