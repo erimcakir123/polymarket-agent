@@ -202,31 +202,43 @@
 
 .feed-conf {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
   letter-spacing: 0.5px;
-  color: #0a0a0a;
+  background: transparent;
+  padding: 0 4px;
 }
-.feed-conf.conf-a   { background: #16c784; }                /* A — yeşil */
-.feed-conf.conf-b   { background: #a4d45a; color: #0a0a0a; }  /* B — sarıya yakın yeşil (lime) */
-.feed-conf.conf-c   { background: #e6c94d; color: #0a0a0a; }  /* C — sarı */
-.feed-conf.conf-unk { background: #4b5563; color: #e5e7eb; }  /* bilinmiyor */
+.feed-conf.conf-a   { color: #16c784; }                 /* A — yeşil */
+.feed-conf.conf-b   { color: #a4d45a; }                 /* B — lime (sarıya yakın yeşil) */
+.feed-conf.conf-c   { color: #e6c94d; }                 /* C — sarı */
+.feed-conf.conf-unk { color: #9ca3af; }                 /* bilinmiyor — gri */
 
 .feed-countdown {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  background: rgba(59, 130, 246, 0.18);  /* mavi @ opacity düşük */
+  background: transparent;
   color: #93c5fd;
-  margin-left: auto;  /* alt satır: en sağa yasla */
+  margin-left: auto;
+  padding: 0 2px;
 }
 .feed-countdown.live {
-  background: rgba(239, 68, 68, 0.22);
   color: #fecaca;
+}
+
+/* Kart nefes alsın — padding + gap hafif artış; detay satırı sönük */
+.feed-item {
+  padding: 14px 14px;
+}
+.feed-top {
+  margin-bottom: 8px;
+}
+.feed-details {
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+.feed-impact {
+  margin-bottom: 8px;
 }
 
 /* feed-time: $50 ↔ volatility_swing gap'i A ↔ YES (=6px) ile aynı */

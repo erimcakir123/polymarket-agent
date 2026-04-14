@@ -71,14 +71,13 @@
       return `<span class="feed-conf ${cls}">${FMT.escapeHtml(c)}</span>`;
     },
 
-    _countdownPill(matchStartIso, matchLive) {
+    _countdownPill(matchStartIso, _matchLive) {
       if (!matchStartIso) return "";
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
       const diff = start - Date.now();
       if (diff <= 0) {
-        if (matchLive) return `<span class="feed-countdown live">LIVE</span>`;
-        return "";
+        return `<span class="feed-countdown live">LIVE</span>`;
       }
       const mins = Math.floor(diff / MS_PER_MIN);
       const hours = Math.floor(mins / 60);
