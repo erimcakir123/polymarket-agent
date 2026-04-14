@@ -369,18 +369,29 @@ class Agent:
         except OSError as e:
             logger.warning("Eligible queue snapshot failed: %s", e)
 
-    def _write_bot_status(self, tick: CycleTick) -> None:
-        """Dashboard için anlık bot durumu — hangi cycle çalıştı + zaman."""
-        cycle = "heavy" if tick.run_heavy else "light" if tick.run_light else "idle"
+    def _write_bot_status_stage(self, cycle: str, stage: str) -> None:
+        """Dashboard için bot aşama snapshot'ı.
+
+        cycle: 'heavy' | 'light'
+        stage: 'scanning' | 'analyzing' | 'executing' | 'idle' | 'light'
+        """
         try:
             self.deps.bot_status_store.save({
                 "mode": self.deps.state.config.mode.value,
-                "last_cycle": cycle,
-                "last_cycle_at": datetime.now(timezone.utc).isoformat(),
-                "reason": tick.reason,
+                "cycle": cycle,
+                "stage": stage,
+                "stage_at": datetime.now(timezone.utc).isoformat(),
+                "next_heavy_at": self.deps.cycle_manager.next_heavy_at_iso(),
+                "light_alive": True,
             })
         except OSError as e:
-            logger.warning("Bot status write failed: %s", e)
+            logger.warning("Bot status stage write failed: %s", e)
+
+    def _write_bot_status(self, tick: CycleTick) -> None:
+        """Cycle sonu snapshot — light ise stage='light', heavy ise stage='idle'."""
+        cycle = "heavy" if tick.run_heavy else "light"
+        stage = "idle" if tick.run_heavy else "light"
+        self._write_bot_status_stage(cycle=cycle, stage=stage)
 
     def _log_equity_snapshot(self) -> None:
         """Heavy cycle sonunda bankroll snapshot → EquityHistoryLogger."""
