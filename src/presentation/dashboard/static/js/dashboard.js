@@ -11,6 +11,9 @@
   const CONFIG = {
     pollIntervalMs: 5000,
     waterfallMaxBars: 40,
+    stageRecentSec: 15,         // stage_at kaç saniyeden yeniyse aktif sayılır
+    idleTickMs: 1000,           // idle countdown re-render intervali
+    msPerMin: 60000,            // dakika→ms dönüştürme sabiti
   };
 
   const MODE = document.body.dataset.mode || "dry_run";
@@ -258,7 +261,7 @@
         return;
       }
       const stage = (data.stage || "").toLowerCase();
-      const stageRecent = this._isRecent(data.stage_at, 15);
+      const stageRecent = this._isRecent(data.stage_at, CONFIG.stageRecentSec);
       let label, live;
       if (stage === "scanning" && stageRecent) { label = "Scanning"; live = true; }
       else if (stage === "analyzing" && stageRecent) { label = "Analyzing"; live = true; }
@@ -276,8 +279,8 @@
       const target = new Date(nextHeavyIso).getTime();
       if (isNaN(target)) return "Idle";
       const diff = Math.max(0, target - Date.now());
-      const mins = Math.floor(diff / 60000);
-      const secs = Math.floor((diff % 60000) / 1000);
+      const mins = Math.floor(diff / CONFIG.msPerMin);
+      const secs = Math.floor((diff % CONFIG.msPerMin) / 1000);
       const mm = String(mins).padStart(2, "0");
       const ss = String(secs).padStart(2, "0");
       return `Idle - next ${mm}:${ss}`;
@@ -413,7 +416,7 @@
   };
   setInterval(() => {
     if (_lastStatusData) _origStatus(_lastStatusData);
-  }, 1000);
+  }, CONFIG.idleTickMs);
 
   document.addEventListener("DOMContentLoaded", () => MAIN.init());
 })(window);
