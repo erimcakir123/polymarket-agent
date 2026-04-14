@@ -1,0 +1,123 @@
+"""Polymarket MarketData → The Odds API sport_key çözümleyici.
+
+Öncelik: static mapping (slug/tag) → tennis dinamik → event discovery fallback.
+odds_client DI ile — HTTP çağrıları dışarıdan verilir.
+"""
+from __future__ import annotations
+
+import logging
+
+from src.domain.matching.odds_sport_keys import resolve_odds_key
+from src.strategy.enrichment.question_parser import extract_teams
+
+logger = logging.getLogger(__name__)
+
+_GENERIC_TENNIS_WORDS: frozenset[str] = frozenset({
+    "open", "grand", "prix", "cup", "championship", "masters", "series",
+})
+
+
+def resolve_sport_key(
+    question: str,
+    slug: str,
+    tags: list[str],
+    odds_client,
+) -> str | None:
+    """Market için The Odds API sport_key bul. None → bulunamadı.
+
+    odds_client: OddsAPIClient benzeri. `get_sports(include_inactive=False)` ve
+    `get_events(sport_key)` metodları kullanılır.
+    """
+    # 1. Static mapping — pazarların ~95%'ini kapsar
+    static = resolve_odds_key(slug, tags)
+    if static:
+        return static
+
+    # 2. Tennis: dinamik turnuva key matching
+    slug_lower = (slug or "").lower()
+    prefix = slug_lower.split("-")[0] if slug_lower else ""
+    q_lower = (question or "").lower()
+
+    if prefix == "atp" or ("atp" in q_lower or ("tennis" in q_lower and "wta" not in q_lower)):
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+    if prefix == "wta" or "wta" in q_lower or "women" in q_lower:
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+
+    # 3. Dinamik discovery — takım adlarıyla tüm sport'ların event'lerini ara
+    team_a, team_b = extract_teams(question)
+    if team_a or team_b:
+        return _discover_by_events(team_a or "", team_b or "", odds_client)
+
+    return None
+
+
+def _match_tennis_key(gender: str, q_lower: str, slug_lower: str, odds_client) -> str | None:
+    """Aktif tennis key'leri arasından en iyi turnuva eşleşmesini bul."""
+    sports = odds_client.get_sports(include_inactive=False) or []
+    prefix = f"tennis_{gender}"
+    keys = [s["key"] for s in sports
+            if isinstance(s, dict) and s.get("key", "").startswith(prefix) and s.get("active")]
+    if not keys:
+        return None
+    if len(keys) == 1:
+        return keys[0]
+
+    combined = f"{q_lower} {slug_lower}"
+
+    # Her key için spesifik kelime eşleşmesi sayısını hesapla
+    best_key: str | None = None
+    best_score = 0
+    for key in keys:
+        parts = key.split("_")[2:]  # 'tennis_atp_miami_open' → ['miami', 'open']
+        specific = [p for p in parts if len(p) > 2 and p not in _GENERIC_TENNIS_WORDS]
+        score = sum(1 for p in specific if p in combined)
+        if score > best_score:
+            best_score = score
+            best_key = key
+
+    if best_key:
+        return best_key
+
+    # Turnuva adı tamamen geçiyorsa
+    for key in keys:
+        tourney = " ".join(key.split("_")[2:])
+        if tourney and tourney in combined:
+            return key
+
+    return keys[0]
+
+
+def _discover_by_events(team_a: str, team_b: str, odds_client) -> str | None:
+    """Aktif sport'ların event listesinde takım adı eşleşmesi ara."""
+    sports = odds_client.get_sports(include_inactive=False) or []
+    active_keys = [s["key"] for s in sports
+                   if isinstance(s, dict) and s.get("key") and s.get("active")]
+
+    a_lower = team_a.lower()
+    b_lower = team_b.lower()
+
+    best_key: str | None = None
+    best_count = 0
+
+    for sk in active_keys:
+        events = odds_client.get_events(sk) or []
+        if not isinstance(events, list):
+            continue
+        for event in events:
+            home = (event.get("home_team") or "").lower()
+            away = (event.get("away_team") or "").lower()
+            if not home or not away:
+                continue
+
+            a_match = a_lower and (a_lower in home or home in a_lower
+                                    or a_lower in away or away in a_lower)
+            b_match = b_lower and (b_lower in home or home in b_lower
+                                    or b_lower in away or away in b_lower)
+            count = int(bool(a_match)) + int(bool(b_match))
+            if count == 2:
+                return sk
+            if count == 1 and count > best_count:
+                best_count = count
+                best_key = sk
+
+    return best_key

@@ -1,0 +1,268 @@
+# PRD — Polymarket Agent 2.0
+
+> Ürün gereksinimleri ve demir kurallar.
+> Version: 2.0 | Tarih: 2026-04-13 | Durum: APPROVED
+>
+> **SSOT ilkesi**: Bu dosya "ne" ve "neden" sorularına cevap verir. Teknik "nasıl" için TDD.md'ye referans verilir.
+
+---
+
+## 1. Giriş
+
+Polymarket Agent 2.0, Polymarket tahmin piyasalarında otomatik trading yapan bir bot. Odds API üzerinden 20+ bookmaker'ın konsensüs olasılığını çıkarır, Polymarket'teki piyasa fiyatıyla karşılaştırarak pozitif beklenen değer (edge) tespit eder, çok katmanlı risk yönetimiyle pozisyon açar ve yönetir.
+
+Çalışma mantığı tek cümlede: **Bookmaker konsensüsü + piyasa fiyatı fırsatı → boyutlandır → aç → izle → çık.**
+
+---
+
+## 2. Demir Kurallar
+
+Bu kuralların hiçbiri ihlal edilemez. Her biri ya mimari bütünlüğü ya da sermaye güvenliğini korur.
+
+### 2.1 P(YES) Anchor Kuralı
+Olasılık her zaman P(YES) olarak saklanır. BUY_YES de BUY_NO da olsa, `anchor_probability = P(YES)` değişmez. Yön ayarlaması karar mantığında yapılır, saklama yapılmaz. (bkz. ARCHITECTURE_GUARD Kural 7)
+
+### 2.2 Event-Level Guard
+Aynı `event_id`'ye sahip iki pozisyon ASLA açılamaz. "Man City vs Brighton" maçında BUY_YES "City wins" varsa, BUY_NO "Brighton wins" açılamaz — aynı event. Bu kural `entry/gate.py` seviyesinde kontrol edilir. (bkz. ARCHITECTURE_GUARD Kural 8, TDD §6.4)
+
+### 2.3 Confidence-Based Sizing
+Pozisyon boyutu confidence seviyesine göre belirlenir:
+- **A**: bankroll × %5
+- **B**: bankroll × %4
+- **C**: giriş yapılmaz (blok)
+
+Ek çarpanlar `max_single_bet_usdc` ve `max_bet_pct` cap'lerine tabidir. (bkz. TDD §6.5)
+
+### 2.4 Bookmaker-Derived Probability
+P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair gibi sharp book'lar `bookmaker_weights` ile ağırlıklandırılır. (bkz. TDD §6.1)
+
+### 2.5 3-Katmanlı Cycle
+Bot üç cycle seviyesinde çalışır:
+- **WebSocket**: anlık fiyat tick (SL + scale-out)
+- **Light (5 sn)**: hızlı çıkış kontrolü
+- **Heavy (30 dk)**: scan + enrichment + entry kararları
+
+Heavy cycle içinde light cycle interleave eder (heavy uzun sürerse light yine tetiklenir). Gece modunda (UTC 08-13) heavy 60 dk'ya uzar.
+
+### 2.6 Circuit Breaker Zorunludur
+Aşağıdaki eşiklerden birinde bot yeni giriş yapmaz:
+- Günlük kayıp ≥ %8 → 120 dk cooldown
+- Saatlik kayıp ≥ %5 → 60 dk cooldown
+- 4 ardışık kayıp → 60 dk cooldown
+- Soft blok: günlük kayıp ≥ %3 → yeni giriş askıda
+
+Circuit breaker her entry öncesi kontrol edilir ve devre dışı bırakılamaz. (bkz. TDD §6.15)
+
+### 2.7 Scale-Out Profit-Taking
+Kâr alma tek mekanizma ile: 3-tier scale-out.
+- **Tier 1**: PnL ≥ %25 → pozisyonun %40'ını sat
+- **Tier 2**: PnL ≥ %50 → kalan pozisyonun %50'sini sat
+- **Tier 3**: Resolution'a kadar hold
+
+(bkz. TDD §6.6)
+
+---
+
+## 3. Operasyonel Akışlar
+
+### 3.1 Bot Başlatma Akışı
+1. `main.py` argparse (mode: dry_run | paper | live) ve config.yaml yükler.
+2. `orchestration/process_lock.py` tek instance garantisi verir.
+3. `orchestration/startup.py` wallet'i bağlar, persistence'ı açar, açık pozisyonları JSON store'dan geri yükler.
+4. `agent.py` ana döngüyü başlatır → heavy cycle tetiklenir.
+
+### 3.2 Entry Akışı (Heavy Cycle)
+1. **Scan**: `scanner.py` Polymarket Gamma'dan `allowed_sport_tags` filtreli market'ler çeker (bkz. `config.yaml` scanner bölümü).
+2. **Match**: `domain/matching/` modülleri Polymarket market'ini Odds API sport key'ine eşler.
+3. **Enrich**: `strategy/enrichment/odds_enricher.py` Odds API'dan bookmaker probability çeker.
+4. **Gate**: `strategy/entry/gate.py` event-guard + manipulation + liquidity + confidence + edge kontrolü yapar.
+5. **Size**: `domain/risk/position_sizer.py` confidence bazlı boyut üretir, cap'lere uygular.
+6. **Execute**: `infrastructure/executor.py` CLOB client üzerinden emri gönderir (dry_run modunda loglar).
+7. **Record**: Pozisyon JSON store'a yazılır, trade log JSONL'e eklenir.
+
+### 3.3 Light Cycle İzleme (5 sn)
+Her 5 saniyede bir:
+1. WebSocket tick'lerinden son fiyatlar okunur.
+2. Açık pozisyonlar için flat SL (`stop_loss.py`) ve scale-out (`scale_out.py`) kontrolü yapılır.
+3. Tetiklenen çıkış sinyali varsa `exit/monitor.py` üzerinden ilkine göre emir gönderilir.
+
+### 3.4 Exit Akışı (Heavy Cycle)
+Heavy cycle sırasında açık pozisyonlar için:
+1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).
+2. **Near-Resolve**: eff_price ≥ 94¢ + 5 dk pre-match guard → çık (TDD §6.11).
+3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → graduated SL atlanır; market_flip sadece elapsed ≥ %85'te tetiklenir (TDD §6.9).
+4. **Favored**: eff_price ≥ 65¢ + confidence ∈ {A, B} → promoted; altı demoted (TDD §6.13).
+5. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → daha agresif SL (TDD §6.10).
+
+### 3.5 Circuit Breaker Tetiklendiğinde
+1. `circuit_breaker.py` bankroll durumunu her entry öncesi kontrol eder.
+2. Eşik aşılırsa yeni entry reddedilir, log + Telegram bildirimi.
+3. Cooldown süresi dolana kadar bot sadece **çıkış** kararları alır (açık pozisyon yönetimi devam).
+4. Cooldown sonrası otomatik devreye girer.
+
+---
+
+## 4. Fonksiyonel Gereksinimler
+
+8 yetenek grubu. Detaylar TDD'ye referans.
+
+### F1. Scan
+Bot Polymarket Gamma API'dan canlı market'leri keşfeder. `allowed_sport_tags` filtresi uygular. Max `max_markets_per_cycle=300` limitiyle sınırlı. (bkz. `config.yaml` scanner bölümü, `src/orchestration/scanner.py`)
+
+### F2. Enrich
+Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. TDD §6.1)
+
+### F3. Entry Decision
+`strategy/entry/gate.py` giriş kararını orchestrate eder. 4 entry stratejisi: normal, early_entry (6+ saat öncesi), volatility_swing (düşük fiyatlı underdog), consensus (bookmaker+market aynı favori). Her strateji edge + confidence + guards'tan geçer. (bkz. TDD §6.4)
+
+### F4. Position Sizing
+Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri uygulanır. (bkz. TDD §6.5)
+
+### F5. Execute
+`executor.py` 3 modda çalışır: `dry_run` (log-only), `paper` (mock fills), `live` (gerçek CLOB emri). Her emir trade log'a JSONL formatında yazılır. (bkz. `src/infrastructure/executor.py`)
+
+### F6. Monitor
+3 katmanlı izleme: WS tick (anlık), Light cycle (5 sn), Heavy cycle (30 dk). Pozisyon durumu JSON store'da tutulur, dashboard anlık okur.
+
+### F7. Exit
+Çıkış kararı birden fazla mekanizmanın değerlendirmesiyle verilir: flat SL, graduated SL, scale-out, never-in-profit, market_flip, near-resolve, hold_revoked, ultra_low_guard, circuit_breaker, manual. İlk tetiklenen sinyal uygulanır. Tam liste ve öncelik sırası TDD §6.6–§6.14'te; ExitReason enum `src/models/` altında.
+
+### F8. Report
+3 sunum kanalı: Flask dashboard (localhost:5050), Telegram bildirim (entry/exit/CB), JSONL trade log (audit).
+
+**Dashboard scope**:
+- **Özet metrikler** (5 kart): Balance, Open P&L, Realized P&L (W/L alt-yazı), Locked in Bets, Peak Balance (total equity peak'ten drawdown%)
+- **Koruma + analiz göstergeleri** (3 kart):
+  - **Loss Protection** — RISK gauge + Down% + Stop at% (CB günlük eşik) + Status (Safe/Caution/Warning/Stopped)
+  - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/VS/CON/EAR)
+  - **Branches** — sport/league ROI treemap: alan ∝ invested USDC, renk ∝ ROI (yeşil+/kırmızı−/sıfıra yakın mavi), hover tooltip
+- **Grafikler** (2): Total Equity zaman serisi (total_equity = bankroll + invested + unrealized), Per-Trade PnL waterfall
+- **Trades feed** (sağ panel, 4 sekme): Active | Exited | Skipped | Stock — her kart tıklanabilir (Polymarket event sayfasını yeni sekmede açar), branş ikonlarıyla
+- **Cycle bar** (topbar): Hard cycle (mavi) + Light cycle (teal) durumu; bot offline/idle gri
+
+**Kaldırılan bölümler**:
+- **API Usage** paneli — Odds API quota tracking henüz implement edilmedi; kart + endpoint kaldırıldı (sonraki faza ertelendi)
+- **Performance** paneli (Wins%, Avg Edge, Brier Score, Best Topic) — MVP dışı
+- **AI vs Bookmaker** paneli (divergence chart) — MVP dışı
+
+**Rationale**: MVP odak sermaye yönetimi + pozisyon takibi + per-branch ROI sağlığı. Model karşılaştırması ve API quota dashboardu sonraki faza ertelendi.
+
+Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
+
+---
+
+## 5. Non-Fonksiyonel Gereksinimler
+
+### 5.1 Latency
+- Heavy cycle ≤ 30 sn (scan + enrichment + entry decision)
+- Light cycle ≤ 1 sn (SL + scale-out kontrolü)
+- WebSocket tick → exit decision ≤ 500 ms
+
+### 5.2 Uptime
+- MVP hedefi: 48 saat kesintisiz dry_run
+- WebSocket disconnect → 30 sn içinde reconnect
+
+### 5.3 Crash Recovery
+- `startup.py` açık pozisyonları `positions.json`'dan geri yükler
+- Trade log JSONL append-only, crash'ten sonra replayable
+- Process lock çift instance engeller
+
+### 5.4 Observability
+- Flask dashboard: pozisyonlar, PnL, circuit breaker durumu, < 3 sn gecikme, 5 sn polling
+- Bot durumu her tick `logs/bot_status.json`'a yazılır (mode, last_cycle, last_cycle_at, reason) → dashboard cycle bar
+- Trade history append + exit update (`TradeHistoryLogger.update_on_exit` atomic rewrite); dashboard Exited/Stats/Branches/Waterfall bu dosyadan beslenir
+- Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır; dashboard son 100 snapshot'ı grafikler; Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
+- Skipped adaylar `skipped_trades.jsonl`'e (orchestration'dan) yazılır; dashboard Skipped sekmesinde gösterir
+- Eligible queue her heavy cycle sonunda `eligible_queue.json`'a dump edilir; dashboard Stock sekmesinde gösterir
+- Telegram: entry/exit/CB olayları
+- JSONL trade log: audit için append + exit güncelleme (append-only değil artık)
+
+### 5.5 Çalışma Modları
+- `dry_run`: API çağrıları canlı, emir gönderimi yok — default test modu
+- `paper`: mock fills, bankroll simülasyonu
+- `live`: gerçek emir + gerçek USDC
+
+### 5.6 Test Kapsamı
+- Domain katmanı: > %90 unit test coverage zorunlu
+- Strategy katmanı: > %80 unit test coverage
+- Integration test: entry pipeline + exit pipeline + WS reconnect
+
+---
+
+## 6. Teknik Kısıtlar
+
+### 6.1 API Limitleri
+- **The Odds API**: 20K kredi/ay (paid tier), her `fetch_odds` 1-10 kredi
+- **Polymarket CLOB REST**: ~100 istek/dk
+- **Polymarket Gamma**: rate limit belirsiz, ~300 market/cycle güvenli
+- **Telegram**: 30 mesaj/sn
+
+### 6.2 Altyapı
+- **Chain**: Polygon mainnet
+- **Ödeme**: USDC (6 decimal)
+- **Python**: 3.12+
+- **OS**: Linux (production), Windows (dev)
+
+### 6.3 Cycle Süreleri
+- Heavy: 30 dk (gündüz), 60 dk (gece UTC 08-13)
+- Light: 5 sn
+- WebSocket: sürekli (disconnect + reconnect)
+
+### 6.4 Market Filtreleme
+- Min likidite: $1000
+- Max süre: 14 gün (maç başlangıcından öncesi)
+- Allowed categories: `sports` (yalnızca)
+- Allowed sport_tags: `baseball_*`, `basketball_*`, `icehockey_*`, `americanfootball_ncaaf|cfl|ufl`, `tennis_*` (dinamik), `golf_lpga_tour|liv_tour` (bkz. `config.yaml` scanner bölümü)
+
+---
+
+## 7. Savunma Mekanizmaları
+
+4 katmanlı koruma. Her biri pozitif feature — bot'un aktif yaptığı kontroller.
+
+### 7.1 Manipulation Guard
+`domain/guards/manipulation.py` şu kontrolleri yapar:
+- Min likidite: $10K toplam book
+- Self-resolving market tespiti (kişi/kurum + self-resolving fiil paterni)
+
+(bkz. TDD §6.16)
+
+### 7.2 Liquidity Check
+`domain/guards/liquidity.py` entry + exit seviyelerinde:
+- **Entry**: min $100 depth; pozisyon > %20 book payı ise boyut yarıya iner
+- **Exit**: min %80 fill ratio; altıysa emir bölünür
+
+(bkz. TDD §6.17)
+
+### 7.3 Circuit Breaker
+Bölüm 2.6'daki eşiklerin aktif enforcement'ı. `domain/risk/circuit_breaker.py` her entry öncesi bankroll durumunu kontrol eder. (bkz. TDD §6.15)
+
+### 7.4 Event-Level Guard
+`strategy/entry/gate.py` her entry kararında event_id kontrolü yapar. Açık pozisyon listesinde aynı event_id varsa entry reddedilir. (bkz. Demir Kural 2.2, ARCHITECTURE_GUARD Kural 8)
+
+---
+
+## 8. Sözlük
+
+| Terim | Tanım |
+|---|---|
+| **anchor** / `anchor_probability` | Bookmaker konsensüsünden hesaplanan P(YES). Pozisyon yönünden bağımsız saklanır. |
+| **P(YES)** | Polymarket market'indeki YES outcome'unun olasılığı (0.0 – 1.0) |
+| **edge** | Piyasa fiyatı ile anchor arasındaki beklenen değer farkı (`anchor - market_price` BUY_YES için) |
+| **eff_price** | Effective price — pozisyon için pratik fiyat (market mid ± slippage tahmini) |
+| **direction** | `BUY_YES` / `BUY_NO` / `HOLD` — Direction enum |
+| **confidence** | `A` (sharp book veya ≥5 bookmaker) / `B` (≥3 bookmaker) / `C` (yetersiz, giriş blok) |
+| **favored** | Pozisyonun elverişli durumda olduğunu işaretleyen flag (eff ≥ 65¢ + conf ∈ {A,B}) |
+| **scale-out** | Kademeli kâr alma: PnL eşiklerinde pozisyonun bir kısmı satılır |
+| **elapsed** | Maç ilerleme oranı (0.0 = başlangıç, 1.0 = bitiş) |
+| **consensus** | Bookmaker ve Polymarket market'inin aynı favori üzerinde anlaşması |
+
+---
+
+## 9. Referanslar
+
+- [TDD.md](TDD.md) — Teknik tasarım, algoritmalar, veri modelleri, cycle detayları
+- [ARCHITECTURE_GUARD.md](ARCHITECTURE_GUARD.md) — Mimari kurallar (12 demir kural + anti-pattern'ler)
+- [TODO.md](TODO.md) — Ertelenmiş işler ve branşlar
+- [CLAUDE.md](CLAUDE.md) — Geliştirme asistanı kuralları (TODO yönetimi, mimari koruma)
+- [PLAN.md](PLAN.md) — Aktif implementation planları (PLAN-001..PLAN-007)

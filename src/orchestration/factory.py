@@ -1,0 +1,125 @@
+"""Agent dependency injection factory — tüm katmanları inşa edip Agent döner.
+
+main.py burayı çağırır. Test izolasyonu için agent.py DI container
+(AgentDeps) üzerinden çalışır; factory sadece production wiring yapar.
+"""
+from __future__ import annotations
+
+import logging
+
+from src.config.settings import AppConfig, Mode
+from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
+from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.apis.gamma_client import GammaClient
+from src.infrastructure.apis.odds_client import OddsAPIClient
+from src.infrastructure.executor import Executor
+from src.infrastructure.persistence.eligible_queue_snapshot import EligibleQueueSnapshot
+from src.infrastructure.persistence.equity_history import EquityHistoryLogger
+from src.infrastructure.persistence.json_store import JsonStore
+from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
+from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.websocket.price_feed import PriceFeed
+from src.orchestration.agent import Agent, AgentDeps
+from src.orchestration.cycle_manager import CycleManager
+from src.orchestration.scanner import MarketScanner
+from src.orchestration.startup import RuntimeState
+from src.strategy.entry.gate import EntryGate, GateConfig
+from src.strategy.enrichment.odds_enricher import enrich_market
+
+logger = logging.getLogger(__name__)
+
+
+def build_agent(state: RuntimeState) -> Agent:
+    """Tüm agent bağımlılıklarını inşa et."""
+    cfg = state.config
+
+    gamma = GammaClient()
+    odds = OddsAPIClient()
+    scanner = MarketScanner(cfg.scanner, gamma_client=gamma)
+    cycle_manager = CycleManager(cfg.cycle)
+    cooldown = CooldownTracker(
+        trigger_threshold=cfg.risk.consecutive_loss_cooldown,
+        cooldown_cycles=cfg.risk.cooldown_cycles,
+    )
+    # WS price feed — agent entry/exit'te subscribe/unsubscribe yapacak,
+    # callback agent.__init__'te bağlanır. Test senaryosunda None verilebilir;
+    # production'da her zaman inşa edilir.
+    price_feed = PriceFeed()
+
+    # Executor: LIVE ise CLOB client gerekli — main.py LIVE confirm'dan sonra wire'lar
+    executor = _build_executor(cfg)
+
+    trade_logger = TradeHistoryLogger("logs/trade_history.jsonl")
+    equity_logger = EquityHistoryLogger("logs/equity_history.jsonl")
+    skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
+    eligible_snapshot = EligibleQueueSnapshot("logs/eligible_queue.json")
+    bot_status_store = JsonStore("logs/bot_status.json")
+
+    # Gate: enricher + manipulation_check closure'ları
+    def _enricher(market):
+        return enrich_market(market, odds)
+
+    def _manip(question: str, liquidity: float) -> ManipulationCheck:
+        return manipulation_check(
+            question=question, liquidity=liquidity,
+            min_liquidity_usd=cfg.manipulation.min_liquidity_usd,
+        )
+
+    gate_cfg = GateConfig(
+        min_edge=cfg.edge.min_edge,
+        max_positions=cfg.risk.max_positions,
+        max_exposure_pct=cfg.risk.max_exposure_pct,
+        max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
+        max_bet_pct=cfg.risk.max_bet_pct,
+        # Consensus
+        consensus_enabled=cfg.consensus.enabled,
+        consensus_min_price=cfg.consensus.min_price,
+        # Early entry
+        early_enabled=cfg.early.enabled,
+        early_min_edge=cfg.early.min_edge,
+        early_min_anchor_probability=cfg.early.min_anchor_probability,
+        early_min_confidence=cfg.early.min_confidence,
+        early_max_entry_price=cfg.early.max_entry_price,
+        early_min_hours_to_start=cfg.early.min_hours_to_start,
+        early_max_hours_to_start=cfg.early.max_hours_to_start,
+        # Volatility swing
+        vs_enabled=cfg.volatility_swing.enabled,
+        vs_min_token_price=cfg.volatility_swing.min_token_price,
+        vs_max_token_price=cfg.volatility_swing.max_token_price,
+        vs_max_hours_to_start=cfg.volatility_swing.max_hours_to_start,
+        vs_max_concurrent=cfg.volatility_swing.max_concurrent,
+    )
+    gate = EntryGate(
+        config=gate_cfg,
+        portfolio=state.portfolio,
+        circuit_breaker=state.circuit_breaker,
+        cooldown=cooldown,
+        blacklist=state.blacklist,
+        odds_enricher=_enricher,
+        manipulation_checker=_manip,
+    )
+
+    deps = AgentDeps(
+        state=state, scanner=scanner, cycle_manager=cycle_manager,
+        executor=executor, odds_client=odds, trade_logger=trade_logger,
+        gate=gate, cooldown=cooldown,
+        equity_logger=equity_logger, skipped_logger=skipped_logger,
+        eligible_snapshot=eligible_snapshot, bot_status_store=bot_status_store,
+        price_feed=price_feed,
+    )
+    return Agent(deps)
+
+
+def _build_executor(cfg: AppConfig) -> Executor:
+    """LIVE mode → CLOB client wire; dry_run/paper → stub."""
+    if cfg.mode != Mode.LIVE:
+        return Executor(mode=cfg.mode)
+    # LIVE: py-clob-client runtime wiring
+    import os
+    from src.infrastructure.apis.clob_client import ClobOrderClient, build_client
+    private_key = os.getenv("PRIVATE_KEY", "")
+    if not private_key:
+        raise RuntimeError("LIVE mode requires PRIVATE_KEY env var")
+    raw = build_client(host="https://clob.polymarket.com", chain_id=137, private_key=private_key)
+    clob = ClobOrderClient(raw)
+    return Executor(mode=cfg.mode, clob_client=clob)

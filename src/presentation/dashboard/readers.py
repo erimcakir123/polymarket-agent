@@ -1,0 +1,129 @@
+"""Dashboard state readers — stdlib-only JSON/JSONL okuyucuları.
+
+ARCH_GUARD Kural 1 (katman atlama yasağı): dashboard ayrı process'tir, infra
+import etmez. State'e `logs/*.json|jsonl` dosyaları üzerinden erişir.
+
+Sadece `json` ve `pathlib` kullanılır. Pydantic, infra ya da domain import YOK.
+
+Her fonksiyon tek dosya okur, dict/list döner. Dosya yoksa veya bozuksa default.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# JSONL satır boyutu tahminleri (bytes) — tail okumada yeterli pencere için.
+_BYTES_TRADES = 1000    # match_timeline dahil → geniş
+_BYTES_EQUITY = 256     # küçük snapshot
+_BYTES_SKIPPED = 512
+
+
+# ── JSON helpers ──
+
+def _read_json(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Read JSON failed %s: %s", path, e)
+        return default
+
+
+def _read_jsonl_tail(path: Path, n: int, bytes_per_line: int) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            chunk_size = min(size, n * bytes_per_line)
+            f.seek(size - chunk_size)
+            raw = f.read().decode("utf-8", errors="replace")
+        lines = [l for l in raw.strip().split("\n") if l.strip()]
+        if chunk_size < size and lines:
+            lines = lines[1:]
+        out: list[dict[str, Any]] = []
+        for l in lines[-n:]:
+            try:
+                out.append(json.loads(l))
+            except json.JSONDecodeError:
+                continue
+        return out
+    except OSError as e:
+        logger.warning("Read JSONL tail failed %s: %s", path, e)
+        return []
+
+
+# ── Public reader functions (her biri tek dosya) ──
+
+def read_positions(logs_dir: Path) -> dict[str, Any]:
+    """positions.json → {positions, realized_pnl, high_water_mark}."""
+    return _read_json(logs_dir / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
+
+
+def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
+    """trade_history.jsonl son N kayıt."""
+    return _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
+
+
+def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
+    """equity_history.jsonl son N snapshot."""
+    return _read_jsonl_tail(logs_dir / "equity_history.jsonl", n, _BYTES_EQUITY)
+
+
+def read_skipped(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
+    """skipped_trades.jsonl son N skip."""
+    return _read_jsonl_tail(logs_dir / "skipped_trades.jsonl", n, _BYTES_SKIPPED)
+
+
+def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
+    """eligible_queue.json snapshot (liste)."""
+    raw = _read_json(logs_dir / "eligible_queue.json", [])
+    return raw if isinstance(raw, list) else []
+
+
+def read_breaker(logs_dir: Path) -> dict[str, Any]:
+    """circuit_breaker_state.json."""
+    return _read_json(logs_dir / "circuit_breaker_state.json", {})
+
+
+def read_bot_status(logs_dir: Path) -> dict[str, Any]:
+    """bot_status.json — {mode, last_cycle, last_cycle_at, reason}."""
+    return _read_json(logs_dir / "bot_status.json", {})
+
+
+def bot_is_alive(logs_dir: Path) -> bool:
+    """agent.pid dosyasında bulunan PID hala çalışıyor mu?
+
+    Windows: os.kill(pid, 0) TerminateProcess ile aynı → tehlikeli. tasklist kullanılır.
+    POSIX: os.kill(pid, 0) güvenli existence check.
+    """
+    pid_file = logs_dir / "agent.pid"
+    if not pid_file.exists():
+        return False
+    try:
+        pid = int(pid_file.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    if sys.platform == "win32":
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return str(pid) in result.stdout
+        except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError, OSError):
+        return False

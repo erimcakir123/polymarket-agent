@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'ARCH_GUARD KONTROLU: ARCHITECTURE_GUARD.md bu gorevde okundu mu? 8 anti-pattern self-check mesaji yazildi mi? Hayir ise DUR - Read ARCHITECTURE_GUARD.md, self-check mesajini yaz (DRY, <400 satir, domain I/O yok, katman duzeni, magic number yok, utils/helpers yok, sessiz hata yok, P(YES) anchor), sonra Edit/Write yap.'"
+          }
+        ]
+      }
+    ]
+  }
+}

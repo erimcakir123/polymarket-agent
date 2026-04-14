@@ -1,0 +1,87 @@
+/* Gauges + Loss Protection/Positions body + Slot tags — dashboard.css vars */
+
+/* ── Gauge canvas ortalaması ── */
+.gauge-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+}
+
+.gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.gauge-center .gauge-num { white-space: nowrap; }
+
+.gauge-center small {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--muted-dim);
+  letter-spacing: 0.12em;
+  margin-top: 2px;
+}
+
+/* ── Loss Protection + Positions body ──
+   Header üstte kalır; lp-body kalan alanı doldurur, içerik yatay+dikey ortalanır.
+*/
+.lp-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+  place-content: center start;
+}
+
+.lp-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lp-stats strong {
+  margin-left: 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Slot tags (Positions card) — flex-wrap: dar kartta 1 kolona düşer ── */
+.slot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-self: center;
+  max-width: 100%;
+}
+
+.slot-tag {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.slot-tag.tag-nor.active { background: var(--blue-dim); color: var(--blue); }
+.slot-tag.tag-vs.active  { background: rgba(245, 156, 74, 0.18); color: var(--orange); }
+.slot-tag.tag-con.active { background: rgba(168, 85, 247, 0.18); color: var(--purple); }
+.slot-tag.tag-ear.active { background: rgba(245, 158, 11, 0.18); color: var(--amber); }

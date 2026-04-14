@@ -1,0 +1,404 @@
+"""Ana agent döngüsü — katmanları bağlayan orchestrator (TDD §4).
+
+Heavy cycle: scanner → eligible-queue / fresh → enrich → gate → execute → persist.
+Light cycle: WS tick drain + exit check + position mark-to-market + persist.
+Exit-triggered heavy: sonraki tick'te eligible-queue önce.
+
+Bu dosya sadece koordinasyon yapar — iş mantığı domain/strategy'de, I/O infrastructure'da.
+"""
+from __future__ import annotations
+
+import logging
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+
+from src.domain.portfolio.exposure import exceeds_exposure_limit
+from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.executor import Executor
+from src.infrastructure.persistence.eligible_queue_snapshot import (
+    EligibleQueueEntry,
+    EligibleQueueSnapshot,
+)
+from src.infrastructure.persistence.equity_history import EquityHistoryLogger, EquitySnapshot
+from src.infrastructure.persistence.json_store import JsonStore
+from src.infrastructure.persistence.skipped_trade_logger import (
+    SkippedTradeLogger,
+    SkippedTradeRecord,
+)
+from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, TradeRecord, _split_sport_tag
+from src.infrastructure.websocket.price_feed import PriceFeed
+from src.models.market import MarketData
+from src.models.position import Position
+from src.orchestration.cycle_manager import CycleManager, CycleTick
+from src.orchestration.scanner import MarketScanner
+from src.orchestration.startup import RuntimeState, persist
+from src.strategy.entry.gate import EntryGate
+from src.strategy.exit import monitor as exit_monitor
+from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentDeps:
+    """Dependency injection container — test için mock'lanabilir.
+
+    price_feed opsiyonel: None ise WS hiç başlatılmaz (test senaryosunda
+    anlık fiyat güncellemesi gerekmeyebilir). Production'da factory her zaman
+    verir — gerçek exit tetiklenmesi için şart.
+    """
+    state: RuntimeState
+    scanner: MarketScanner
+    cycle_manager: CycleManager
+    executor: Executor
+    odds_client: object  # OddsAPIClient benzeri
+    trade_logger: TradeHistoryLogger
+    gate: EntryGate
+    cooldown: CooldownTracker
+    equity_logger: EquityHistoryLogger
+    skipped_logger: SkippedTradeLogger
+    eligible_snapshot: EligibleQueueSnapshot
+    bot_status_store: JsonStore
+    price_feed: PriceFeed | None = None
+
+
+class Agent:
+    """Bot ana döngüsü. Thin orchestration layer."""
+
+    def __init__(self, deps: AgentDeps) -> None:
+        self.deps = deps
+        self._stop_requested = False
+        self._ws_started = False
+        # WS callback'i agent'a bağla — pozisyon fiyatlarını günceller
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.set_callback(self._on_price_update)
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.stop()
+
+    def run(self, max_ticks: int | None = None) -> None:
+        """Ana döngü. max_ticks=None → sonsuza kadar; test için sayılı tick."""
+        self._start_ws_if_needed()
+        ticks = 0
+        while not self._stop_requested:
+            tick = self.deps.cycle_manager.tick(has_positions=self.deps.state.portfolio.count() > 0)
+            self.deps.cooldown.new_cycle()
+
+            try:
+                if tick.run_heavy:
+                    self._run_heavy(prefer_eligible_queue=tick.prefer_eligible_queue)
+                if tick.run_light:
+                    self._run_light()
+            except Exception as e:
+                logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
+
+            persist(self.deps.state)
+            self._write_bot_status(tick)
+
+            ticks += 1
+            if max_ticks is not None and ticks >= max_ticks:
+                break
+            time.sleep(self.deps.cycle_manager.sleep_seconds())
+
+    # ── WS price feed integration ──
+
+    def _start_ws_if_needed(self) -> None:
+        """İlk run'da WS başlat + mevcut pozisyonlara subscribe."""
+        if self._ws_started or self.deps.price_feed is None:
+            return
+        # Restore edilmiş pozisyonlar varsa token'larına subscribe
+        tokens = [p.token_id for p in self.deps.state.portfolio.positions.values() if p.token_id]
+        if tokens:
+            self.deps.price_feed.subscribe(tokens)
+        self.deps.price_feed.start_background()
+        self._ws_started = True
+
+    def _on_price_update(self, token_id: str, yes_price: float, bid_price: float, _ts: float) -> None:
+        """WS background thread'den geliyor — thread-safe portfolio fiyat güncellemesi.
+
+        Sadece anlık fiyat set eder (current_price + bid_price). Peak/momentum
+        state'i light cycle'da tick_position_state ile güncellenir — exit kararları
+        orada alınır, WS callback hafif kalır.
+
+        `_ts`: PriceCallback interface'i (token_id, yes_price, bid_price, timestamp).
+        Timestamp şu an kullanılmıyor ama signature uyumu için positional gerekli.
+        """
+        try:
+            self.deps.state.portfolio.update_position_price(token_id, yes_price, bid_price)
+        except Exception as e:
+            logger.error("WS price update error: %s", e)
+
+    # ── Heavy cycle ──
+
+    def _run_heavy(self, prefer_eligible_queue: bool = False) -> None:
+        """Scan → enrich → gate → execute. Exit-triggered'da queue önce."""
+        if prefer_eligible_queue:
+            queued = self.deps.scanner.drain_eligible()
+            if queued:
+                logger.info("Heavy (exit-triggered): %d eligible queue entries first", len(queued))
+                self._process_markets(queued)
+        else:
+            markets = self.deps.scanner.scan()
+            self._process_markets(markets)
+
+        # Dashboard snapshot'ları (presentation ayrı process olduğu için disk üzerinden)
+        self._dump_eligible_queue()
+        self._log_equity_snapshot()
+
+    def _process_markets(self, markets: list[MarketData]) -> None:
+        """Gate'ten geçir, onaylı signal'leri execute et.
+
+        Gate'de yapılan exposure check statik (300 market tek pass'te değerlendirilir,
+        portfolio o an boş gibi görünür). Bu loop'ta execution öncesi TEKRAR kontrol
+        edilir — çünkü her add_position sonrası portfolio değişiyor ve cap aşılabilir.
+        """
+        results = self.deps.gate.run(markets)
+        by_cid = {m.condition_id: m for m in markets}
+        max_exposure_pct = self.deps.gate.config.max_exposure_pct
+
+        for r in results:
+            market = by_cid.get(r.condition_id)
+            if r.signal is None:
+                if market is not None:
+                    self._log_skip(market, r.skipped_reason)
+                    if r.skipped_reason in ("max_positions_reached", "exposure_cap_reached"):
+                        self.deps.scanner.push_eligible(market)
+                continue
+
+            if market is None:
+                continue
+
+            # Execution-time exposure re-check (gate-time statik check yetersiz)
+            if exceeds_exposure_limit(
+                self.deps.state.portfolio.positions,
+                r.signal.size_usdc,
+                self.deps.state.portfolio.bankroll,
+                max_exposure_pct,
+            ):
+                self._log_skip(market, "exposure_cap_reached")
+                self.deps.scanner.push_eligible(market)
+                continue
+
+            self._execute_entry(market, r.signal)
+
+    def _execute_entry(self, market: MarketData, signal) -> None:
+        """Sim/live order → position open → trade record."""
+        token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id
+        side = "BUY"  # Polymarket'te YES/NO ayrı token; hep BUY
+        price = market.yes_price if signal.direction.value == "BUY_YES" else market.no_price
+        order = self.deps.executor.place_order(
+            token_id=token_id, side=side, price=price, size_usdc=signal.size_usdc,
+        )
+        if order.get("status") != "simulated" and order.get("status") != "placed":
+            logger.warning("Order rejected: %s", order.get("reason", "?"))
+            return
+
+        fill_price = order.get("price", price)
+        shares = signal.size_usdc / fill_price if fill_price > 0 else 0.0
+
+        pos = Position(
+            condition_id=market.condition_id,
+            token_id=token_id,
+            direction=signal.direction.value,
+            entry_price=fill_price,
+            size_usdc=signal.size_usdc,
+            shares=shares,
+            current_price=fill_price,
+            anchor_probability=signal.anchor_probability,
+            entry_reason=signal.entry_reason.value,
+            confidence=signal.confidence,
+            sport_tag=market.sport_tag,
+            event_id=market.event_id or "",
+            match_start_iso=market.match_start_iso,
+            question=market.question,
+            end_date_iso=market.end_date_iso,
+            slug=market.slug,
+            bookmaker_prob=signal.bookmaker_prob,
+        )
+
+        if not self.deps.state.portfolio.add_position(pos):
+            # Event guard / duplicate condition → zaten logged
+            return
+
+        # Anlık fiyat akışı için WS subscribe
+        if self.deps.price_feed is not None and self._ws_started:
+            self.deps.price_feed.subscribe([token_id])
+
+        self._log_trade_entry(market, signal, pos)
+
+    def _log_trade_entry(self, market: MarketData, signal, pos: Position) -> None:
+        """TradeHistoryLogger'a yeni trade entry kaydı."""
+        category, league = _split_sport_tag(market.sport_tag)
+        record = TradeRecord(
+            slug=market.slug,
+            condition_id=market.condition_id,
+            event_id=market.event_id or "",
+            token_id=pos.token_id,
+            sport_tag=market.sport_tag,
+            sport_category=category,
+            league=league,
+            direction=signal.direction.value,
+            entry_price=pos.entry_price,
+            size_usdc=pos.size_usdc,
+            shares=pos.shares,
+            confidence=signal.confidence,
+            bookmaker_prob=signal.bookmaker_prob,
+            anchor_probability=signal.anchor_probability,
+            num_bookmakers=signal.num_bookmakers,
+            has_sharp=signal.has_sharp,
+            entry_reason=signal.entry_reason.value,
+            entry_timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.deps.trade_logger.log(record)
+
+    # ── Light cycle ──
+
+    def _run_light(self) -> None:
+        """Her pozisyonu cycle-state tick + exit_monitor'dan geçir; tetiklenen exit'leri execute et."""
+        state = self.deps.state
+        exits_processed = 0
+        for cid in list(state.portfolio.positions.keys()):
+            pos = state.portfolio.positions.get(cid)
+            if pos is None:
+                continue
+
+            # Cycle state tick: peak, momentum, ever_in_profit, consecutive_down, cumulative_drop
+            state.portfolio.tick_position_state(cid)
+
+            result: MonitorResult = exit_monitor.evaluate(pos)
+
+            # FAV transition (state update)
+            self._apply_fav_transition(pos, result.fav_transition)
+
+            if result.exit_signal is not None:
+                self._execute_exit(pos, result.exit_signal)
+                exits_processed += 1
+
+        if exits_processed > 0:
+            self.deps.cycle_manager.signal_exit_happened()
+
+    def _apply_fav_transition(self, pos: Position, transition: FavoredTransition) -> None:
+        if transition.promote and not pos.favored:
+            pos.favored = True
+            logger.info("FAV PROMOTED: %s", pos.slug[:40])
+        elif transition.demote and pos.favored:
+            pos.favored = False
+            logger.info("FAV DEMOTED: %s", pos.slug[:40])
+
+    def _execute_exit(self, pos: Position, signal: ExitSignal) -> None:
+        """Exit sinyalini execute et — full veya partial (scale-out)."""
+        if signal.partial:
+            # Scale-out: pozisyon kalır, tier güncellenir, realized PnL kaydedilir.
+            # Realized = unrealized_pnl × sell_pct (Position computed property, token-native).
+            shares_to_sell = pos.shares * signal.sell_pct
+            realized = pos.unrealized_pnl_usdc * signal.sell_pct
+
+            pos.shares -= shares_to_sell
+            pos.size_usdc *= (1 - signal.sell_pct)
+            pos.scale_out_tier = signal.tier or pos.scale_out_tier
+            pos.scale_out_realized_usdc += realized
+            self.deps.state.portfolio.apply_partial_exit(pos.condition_id, realized_usdc=realized)
+
+            logger.info(
+                "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
+                pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
+            )
+            return
+
+        # Full exit
+        self.deps.executor.exit_position(pos, reason=signal.reason.value)
+
+        # Realized = unrealized_pnl (Position computed property, token-native).
+        realized = pos.unrealized_pnl_usdc
+
+        self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
+        self.deps.state.circuit_breaker.record_exit(
+            pnl_usd=realized, portfolio_value=self.deps.state.portfolio.bankroll + pos.size_usdc,
+        )
+        self.deps.cooldown.record_outcome(win=(realized >= 0))
+
+        # WS unsubscribe — bu token için artık fiyat akışına gerek yok
+        if self.deps.price_feed is not None and self._ws_started:
+            self.deps.price_feed.unsubscribe([pos.token_id])
+
+        pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
+        self.deps.trade_logger.update_on_exit(pos.condition_id, {
+            "exit_price": pos.current_price,
+            "exit_reason": signal.reason.value,
+            "exit_pnl_usdc": round(realized, 2),
+            "exit_pnl_pct": round(pnl_pct, 4),
+            "exit_timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+        logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
+                    pos.slug[:35], signal.reason.value, realized, signal.detail)
+
+    # ── Dashboard snapshot writers (presentation ayrı process) ──
+
+    def _log_skip(self, market: MarketData, reason: str) -> None:
+        """Gate skip → SkippedTradeLogger. Strategy'den çağrılmaz (Kural 1)."""
+        record = SkippedTradeRecord(
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            slug=market.slug,
+            sport_tag=market.sport_tag,
+            event_id=market.event_id or "",
+            entry_price=market.yes_price,
+            skip_reason=reason or "unknown",
+        )
+        try:
+            self.deps.skipped_logger.log(record)
+        except OSError as e:
+            logger.warning("Skipped logger write failed: %s", e)
+
+    def _dump_eligible_queue(self) -> None:
+        """Scanner eligible queue → disk snapshot (dashboard Stock tabı)."""
+        entries = [
+            EligibleQueueEntry(
+                slug=m.slug, sport_tag=m.sport_tag, question=m.question,
+                yes_price=m.yes_price, no_price=m.no_price,
+                liquidity=m.liquidity, volume_24h=m.volume_24h,
+                match_start_iso=m.match_start_iso,
+            )
+            for m in self.deps.scanner.eligible_markets()
+        ]
+        try:
+            self.deps.eligible_snapshot.dump(entries)
+        except OSError as e:
+            logger.warning("Eligible queue snapshot failed: %s", e)
+
+    def _write_bot_status(self, tick: CycleTick) -> None:
+        """Dashboard için anlık bot durumu — hangi cycle çalıştı + zaman."""
+        cycle = "heavy" if tick.run_heavy else "light" if tick.run_light else "idle"
+        try:
+            self.deps.bot_status_store.save({
+                "mode": self.deps.state.config.mode.value,
+                "last_cycle": cycle,
+                "last_cycle_at": datetime.now(timezone.utc).isoformat(),
+                "reason": tick.reason,
+            })
+        except OSError as e:
+            logger.warning("Bot status write failed: %s", e)
+
+    def _log_equity_snapshot(self) -> None:
+        """Heavy cycle sonunda bankroll snapshot → EquityHistoryLogger."""
+        portfolio = self.deps.state.portfolio
+        unrealized = 0.0
+        invested = 0.0
+        for pos in portfolio.positions.values():
+            invested += pos.size_usdc
+            unrealized += pos.unrealized_pnl_usdc
+        snap = EquitySnapshot(
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            bankroll=portfolio.bankroll,
+            realized_pnl=portfolio.realized_pnl,
+            unrealized_pnl=unrealized,
+            invested=invested,
+            open_positions=len(portfolio.positions),
+        )
+        try:
+            self.deps.equity_logger.log(snap)
+        except OSError as e:
+            logger.warning("Equity snapshot write failed: %s", e)

@@ -1,0 +1,149 @@
+# config.yaml — Polymarket Agent 2.0 v2 defaults (TDD §9)
+mode: dry_run  # dry_run | paper | live
+initial_bankroll: 1000.0
+
+cycle:
+  heavy_interval_min: 30
+  light_interval_sec: 5
+  night_interval_min: 60
+  night_hours: [8, 9, 10, 11, 12, 13]
+
+scanner:
+  min_liquidity: 1000
+  max_markets_per_cycle: 300
+  max_duration_days: 14
+  allowed_categories: ["sports"]
+  # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
+  # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.
+  allowed_sport_tags:
+    # Baseball
+    - mlb
+    - milb
+    - npb
+    - kbo
+    - baseball
+    # Basketball
+    - nba
+    - wnba
+    - ncaab
+    - cbb
+    - wncaab
+    - euroleague
+    - nbl
+    - basketball
+    # Ice Hockey
+    - nhl
+    - ahl
+    - liiga
+    - mestis
+    - shl
+    - allsvenskan
+    - hockey
+    # American Football (NFL regular season OT-tie %0.2 — TODO-001, MVP'de NFL dışarıda)
+    - ncaaf
+    - cfl
+    - ufl
+    # Tennis (wildcard — turnuva bazlı dinamik)
+    - tennis
+    - "atp*"
+    - "wta*"
+    # Golf (H2H)
+    - "lpga*"
+    - "liv*"
+    - "pga*"
+
+edge:
+  min_edge: 0.06
+  confidence_multipliers:
+    A: 1.25
+    B: 1.00
+
+risk:
+  max_single_bet_usdc: 75
+  max_bet_pct: 0.05
+  max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
+  max_exposure_pct: 0.50
+  consecutive_loss_cooldown: 3
+  cooldown_cycles: 2
+  stop_loss_pct: 0.30
+
+volatility_swing:
+  enabled: true
+  max_concurrent: 5
+  stop_loss_pct: 0.20
+  take_profit_pct: 0.60
+  max_token_price: 0.50
+  min_token_price: 0.10
+  max_hours_to_start: 24.0
+  bet_pct: 0.05
+
+early:
+  enabled: true
+  max_slots: 2
+  max_entry_price: 0.70
+  min_edge: 0.10
+  min_anchor_probability: 0.55
+  min_confidence: "B"
+  bookmaker_pre_screen_edge: 0.08
+  min_hours_to_start: 6.0
+  max_hours_to_start: 336.0
+  bet_pct: 0.05
+  stop_loss_pct: 0.30
+
+consensus:
+  enabled: true
+  min_price: 0.65
+  bet_pct: 0.05
+  max_slots: 5
+
+scale_out:
+  enabled: true
+  tiers:
+    - threshold: 0.25
+      sell_pct: 0.40
+    - threshold: 0.50
+      sell_pct: 0.50
+
+circuit_breaker:
+  daily_max_loss_pct: -0.08
+  hourly_max_loss_pct: -0.05
+  consecutive_loss_limit: 4
+  cooldown_after_daily_min: 120
+  cooldown_after_hourly_min: 60
+  cooldown_after_consecutive_min: 60
+  entry_block_threshold: -0.03
+  # Dashboard Loss Protection renk bölgeleri (drawdown %)
+  safe_drawdown_pct: 15.0
+  warn_drawdown_pct: 30.0
+
+manipulation:
+  min_liquidity_usd: 10000
+
+liquidity:
+  entry_min_depth_usdc: 100
+  entry_halve_threshold: 0.20
+  exit_min_fill_ratio: 0.80
+
+near_resolve:
+  threshold_cents: 94
+  pre_match_guard_minutes: 10   # WS spike guard — ilk 10dk'da 94¢ sinyali gerçek değil, spike
+
+a_conf_hold:
+  min_entry_price: 0.60
+  market_flip_threshold: 0.50
+  market_flip_elapsed_gate: 0.85
+
+favored:
+  promote_eff_price: 0.65
+  demote_eff_price: 0.65
+  conf_required: ["A", "B"]
+
+dashboard:
+  enabled: true
+  host: "127.0.0.1"
+  port: 5050
+
+telegram:
+  enabled: false
+  bot_token: ""
+  chat_id: ""

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PolyAgent · Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/gauges.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/feed.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/branches.css') }}" />
+</head>
+<body data-initial-bankroll="{{ initial_bankroll }}" data-max-positions="{{ max_positions }}" data-mode="{{ mode }}">
+
+  <div class="app">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="brand">Poly<span class="brand-accent">Agent</span></div>
+      <div class="topbar-spacer"></div>
+      <div class="cycle-bar" id="cycle-bar">
+        <div class="cycle-group hard" id="cg-hard">
+          <span class="cycle-dot"></span>
+          <span class="cycle-label">Hard cycle:</span>
+          <span class="cycle-value" id="cg-hard-status">--</span>
+        </div>
+        <div class="cycle-sep"></div>
+        <div class="cycle-group light" id="cg-light">
+          <span class="cycle-dot"></span>
+          <span class="cycle-label">Light cycle:</span>
+          <span class="cycle-value" id="cg-light-status">--</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- Metrics row (5 cards) -->
+      <section class="metrics-row">
+        <div class="card card-hero">
+          <div class="card-label"><span class="card-icon">💰</span> Balance</div>
+          <div class="card-value" id="m-balance">--</div>
+          <div class="card-sub" id="m-balance-sub"></div>
+        </div>
+        <div class="card">
+          <div class="card-label"><span class="card-icon">📊</span> Open P&amp;L</div>
+          <div class="card-value" id="m-open-pnl">--</div>
+          <div class="card-sub card-sub-faded" id="m-open-pnl-pct">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label"><span class="card-icon">✅</span> Realized P&amp;L</div>
+          <div class="card-value" id="m-realized-pnl">--</div>
+          <div class="card-sub card-sub-faded" id="m-wl">-- W / -- L</div>
+        </div>
+        <div class="card">
+          <div class="card-label"><span class="card-icon">🔒</span> Locked in Bets</div>
+          <div class="card-value" id="m-locked">--</div>
+          <div class="card-sub card-sub-faded" id="m-locked-sub">0 positions</div>
+        </div>
+        <div class="card">
+          <div class="card-label"><span class="card-icon">🏔️</span> Peak Balance</div>
+          <div class="card-value" id="m-peak">--</div>
+          <div class="card-sub card-sub-faded" id="m-drawdown"></div>
+        </div>
+      </section>
+
+      <!-- Middle row: API Usage · Loss Protection · Positions -->
+      <section class="middle-row">
+        <div class="card loss-protection">
+          <div class="panel-header"><span class="card-icon">🛡️</span> Loss Protection</div>
+          <div class="lp-body">
+            <div class="gauge-wrap">
+              <canvas id="lp-gauge" width="120" height="80"></canvas>
+              <div class="gauge-center">
+                <span id="lp-risk">0%</span>
+              </div>
+            </div>
+            <div class="lp-stats">
+              <div>Down <strong id="lp-down">0%</strong></div>
+              <div>Stop at <strong id="lp-stop" class="text-red">50%</strong></div>
+              <div>Status <strong id="lp-status" class="text-green">Safe</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card positions">
+          <div class="panel-header"><span class="card-icon">📍</span> Positions</div>
+          <div class="lp-body">
+            <div class="gauge-wrap">
+              <canvas id="slots-gauge" width="120" height="80"></canvas>
+              <div class="gauge-center">
+                <span class="gauge-num"><span id="slots-current">0</span>/<span id="slots-max">0</span></span>
+              </div>
+            </div>
+            <div class="slot-tags" id="slot-tags"></div>
+          </div>
+        </div>
+
+        <div class="card branches">
+          <div class="panel-header">
+            <span class="card-icon">🏆</span> Branches
+          </div>
+          <div class="branches-tree" id="branches-tree">
+            <div class="feed-empty">No closed trades yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts row -->
+      <section class="charts-row">
+        <div class="chart-panel">
+          <div class="panel-header"><span class="card-icon">📈</span> Total Equity</div>
+          <div class="chart-fixed"><canvas id="equity-chart"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <div class="panel-header"><span class="card-icon">📊</span> Per Trade PnL</div>
+          <div class="chart-fixed"><canvas id="waterfall-chart"></canvas></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Trade feed (right panel) -->
+    <aside class="trade-feed">
+      <div class="feed-header">
+        <span><span class="card-icon">⚡</span> Trades</span>
+        <span class="feed-count" id="feed-count">0</span>
+      </div>
+      <div class="feed-tabs">
+        <button class="feed-tab active" data-tab="active">Active</button>
+        <button class="feed-tab" data-tab="exited">Exited</button>
+        <button class="feed-tab" data-tab="skipped">Skipped</button>
+        <button class="feed-tab" data-tab="stock">Stock</button>
+      </div>
+      <div class="feed-scroll" id="feed-scroll">
+        <div class="feed-empty">Loading…</div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/feed.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/branches.js') }}"></script>
+</body>
+</html>

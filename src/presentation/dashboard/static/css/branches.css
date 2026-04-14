@@ -1,0 +1,77 @@
+/* Branches (Sport ROI Treemap) — dashboard.css değişkenlerini kullanır */
+
+.branches {
+  overflow: hidden;
+  min-height: 160px;
+}
+
+.branches .panel-header {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.branches-summary {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  display: flex;
+  gap: 10px;
+}
+
+.branches-summary strong {
+  color: var(--text);
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.branches-tree {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 6px;
+}
+
+.tree-block {
+  flex: 1 1 0;
+  min-width: 36px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+  cursor: help;
+  transition: filter 0.15s;
+}
+
+.tree-block:hover { filter: brightness(1.25); }
+
+.tree-block-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.tree-block-roi {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tree-block-sub {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+}

@@ -1,0 +1,313 @@
+/* PolyAgent Dashboard — dark theme, grid layout */
+
+:root {
+  /* Custom palette */
+  --bg: #090a05;
+  --panel: #151515;
+  --panel-raised: #1c1c1c;
+  --panel-hover: #1f1f1f;
+  --border: transparent;
+  --border-soft: rgba(255, 255, 255, 0.03);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --muted-dim: #64748b;
+
+  /* Brand accent (hero glow) */
+  --accent: #54c966;
+  --accent-dim: rgba(84, 201, 102, 0.14);
+
+  /* Functional colors */
+  --green: #98fe6b;
+  --green-dim: rgba(152, 254, 107, 0.14);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.14);
+  --amber: #f59e0b;
+  --blue: #3b82f6;
+  --blue-dim: rgba(59, 130, 246, 0.14);
+  --cyan: #06b6d4;
+  --teal: #14b8a6;
+  --teal-dim: rgba(20, 184, 166, 0.14);
+  --pink: #ec4899;
+  --orange: #f59c4a;
+  --purple: #a855f7;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --gap: 16px;
+  --feed-width: 360px;
+  --topbar-height: 56px;
+
+  /* Decimal opacity — tüm sayıların ondalık kısmı bunu kullanır */
+  --decimal-opacity: 0.3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr var(--feed-width);
+  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "main   feed";
+  height: 100vh;
+  gap: var(--gap);
+  padding: var(--gap);
+}
+
+/* ── Topbar ── */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+  background: var(--panel);
+  border: none;
+  border-radius: var(--radius);
+}
+
+.brand {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.brand-accent {
+  color: var(--accent);
+}
+
+/* Cycle bar — iki cycle yan yana (hard + light) */
+.cycle-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12px;
+}
+
+.cycle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cycle-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cycle-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted-dim);
+  flex-shrink: 0;
+}
+
+.cycle-dot.live {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.cycle-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cycle-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.cycle-group.hard .cycle-dot { background: var(--blue); }
+.cycle-group.hard .cycle-label { color: var(--blue); }
+
+.cycle-group.light .cycle-dot { background: var(--teal); }
+.cycle-group.light .cycle-label { color: var(--teal); }
+
+.cycle-group.offline .cycle-dot { background: var(--muted-dim); }
+.cycle-group.offline .cycle-label,
+.cycle-group.offline .cycle-value { color: var(--muted); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.topbar-spacer { flex: 1; }
+
+/* ── Main column ── */
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* ── Card base ── */
+.card {
+  background: var(--panel);
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-hero {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(84, 201, 102, 0.18) 0%, transparent 55%),
+    var(--panel);
+}
+
+.card-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.card-icon {
+  font-size: 21px;
+  line-height: 1;
+  opacity: 0.95;
+}
+
+.card-value {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card-hero .card-value {
+  font-size: 26px;
+}
+
+.card-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ── Rows ── */
+/* 10-kolonluk ortak grid: metrics ve middle-row aynı iskeletti paylaşır →
+   kartların kenarları pixel-pixel hizalanır, üstelik yarım-kolon granülitesi
+   sayesinde Positions "Realized P&L'in yarısına" kadar uzatılabiliyor. */
+.metrics-row,
+.middle-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1.6fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  gap: var(--gap);
+}
+
+/* Her metric kartı 2 sub-kolon kaplar (original 5-kart yapısı korunur). */
+.metrics-row > :nth-child(1) { grid-column: 1 / 3; }   /* Balance */
+.metrics-row > :nth-child(2) { grid-column: 3 / 5; }   /* Open P&L */
+.metrics-row > :nth-child(3) { grid-column: 5 / 7; }   /* Realized P&L */
+.metrics-row > :nth-child(4) { grid-column: 7 / 9; }   /* Locked */
+.metrics-row > :nth-child(5) { grid-column: 9 / 11; }  /* Peak */
+
+/* Middle-row: Loss = Balance genişliği; Positions, Realized P&L'in yarısına
+   kadar uzanır (col 6); Branches kalan alanı alır. */
+.middle-row > :nth-child(1) { grid-column: 1 / 3; }    /* Loss Protection */
+.middle-row > :nth-child(2) { grid-column: 3 / 6; }    /* Positions */
+.middle-row > :nth-child(3) { grid-column: 6 / 11; }   /* Branches */
+
+/* Grid intrinsic-sizing fix: içeriği geniş olan item (branches treemap vs)
+   kolonları fr oranından büyütmesin → ilk render → data gelince layout kayması. */
+.metrics-row > *,
+.middle-row > *,
+.charts-row > * {
+  min-width: 0;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Charts ── */
+.chart-panel {
+  background: var(--panel);
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.chart-panel .chart-fixed {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.chart-fixed {
+  position: relative;
+  min-height: 200px;
+}
+
+/* ── Number colors ── */
+/* Default rule: 0 → white; pozitif → yeşil; negatif → kırmızı. */
+.pnl-zero { color: var(--text); }
+.pnl-pos { color: var(--green); }
+.pnl-neg { color: var(--red); }
+
+/* Unrealized (Open PnL) özel: pozitif → mavi, negatif → kırmızı. */
+.unr-pos { color: var(--blue); }
+.unr-neg { color: var(--red); }
+
+/* Locked in bets — her zaman turuncu (kullanıcı isteği). */
+.locked-color { color: var(--orange); }
+
+.text-green { color: var(--green); }
+.text-red { color: var(--red); }
+.text-amber { color: var(--amber); }
+.text-muted { color: var(--muted); }
+
+/* Decimal kısmı opacity %50 — her sayının ondalık kısmında .dec span'i. */
+.dec { opacity: var(--decimal-opacity); }
+
+/* Realized PnL alt-yazı (W/L) — %50 opacity */
+.card-sub-faded { opacity: 0.5; }
+
+/* Scrollbar */
+.main::-webkit-scrollbar { width: 6px; }
+.main::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
