@@ -21,7 +21,6 @@ from src.infrastructure.persistence.eligible_queue_snapshot import (
     EligibleQueueSnapshot,
 )
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger, EquitySnapshot
-from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import (
     SkippedTradeLogger,
     SkippedTradeRecord,
@@ -30,7 +29,8 @@ from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, Trad
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.models.market import MarketData
 from src.models.position import Position
-from src.orchestration.cycle_manager import CycleManager, CycleTick
+from src.orchestration.bot_status_writer import BotStatusWriter
+from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.strategy.entry.gate import EntryGate
@@ -59,7 +59,7 @@ class AgentDeps:
     equity_logger: EquityHistoryLogger
     skipped_logger: SkippedTradeLogger
     eligible_snapshot: EligibleQueueSnapshot
-    bot_status_store: JsonStore
+    bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
 
 
@@ -96,7 +96,9 @@ class Agent:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
 
             persist(self.deps.state)
-            self._write_bot_status(tick)
+            self.deps.bot_status_writer.write_from_tick(
+                mode=self.deps.state.config.mode.value, tick=tick
+            )
 
             ticks += 1
             if max_ticks is not None and ticks >= max_ticks:
@@ -368,30 +370,6 @@ class Agent:
             self.deps.eligible_snapshot.dump(entries)
         except OSError as e:
             logger.warning("Eligible queue snapshot failed: %s", e)
-
-    def _write_bot_status_stage(self, cycle: str, stage: str) -> None:
-        """Dashboard için bot aşama snapshot'ı.
-
-        cycle: 'heavy' | 'light'
-        stage: 'scanning' | 'analyzing' | 'executing' | 'idle' | 'light'
-        """
-        try:
-            self.deps.bot_status_store.save({
-                "mode": self.deps.state.config.mode.value,
-                "cycle": cycle,
-                "stage": stage,
-                "stage_at": datetime.now(timezone.utc).isoformat(),
-                "next_heavy_at": self.deps.cycle_manager.next_heavy_at_iso(),
-                "light_alive": True,
-            })
-        except OSError as e:
-            logger.warning("Bot status stage write failed: %s", e)
-
-    def _write_bot_status(self, tick: CycleTick) -> None:
-        """Cycle sonu snapshot — light ise stage='light', heavy ise stage='idle'."""
-        cycle = "heavy" if tick.run_heavy else "light"
-        stage = "idle" if tick.run_heavy else "light"
-        self._write_bot_status_stage(cycle=cycle, stage=stage)
 
     def _log_equity_snapshot(self) -> None:
         """Heavy cycle sonunda bankroll snapshot → EquityHistoryLogger."""

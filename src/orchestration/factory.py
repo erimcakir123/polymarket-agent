@@ -20,6 +20,7 @@ from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogg
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.agent import Agent, AgentDeps
+from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState
@@ -54,6 +55,7 @@ def build_agent(state: RuntimeState) -> Agent:
     skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
     eligible_snapshot = EligibleQueueSnapshot("logs/eligible_queue.json")
     bot_status_store = JsonStore("logs/bot_status.json")
+    bot_status_writer = BotStatusWriter(bot_status_store, cycle_manager)
 
     # Gate: enricher + manipulation_check closure'ları
     def _enricher(market):
@@ -104,7 +106,7 @@ def build_agent(state: RuntimeState) -> Agent:
         executor=executor, odds_client=odds, trade_logger=trade_logger,
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
-        eligible_snapshot=eligible_snapshot, bot_status_store=bot_status_store,
+        eligible_snapshot=eligible_snapshot, bot_status_writer=bot_status_writer,
         price_feed=price_feed,
     )
     return Agent(deps)

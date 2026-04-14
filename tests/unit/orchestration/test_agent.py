@@ -15,6 +15,7 @@ from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.persistence.eligible_queue_snapshot import EligibleQueueSnapshot
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
+from src.orchestration.bot_status_writer import BotStatusWriter
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.models.market import MarketData
@@ -102,13 +103,14 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
     skipped_logger = SkippedTradeLogger(str(tmp_path / "skipped_trades.jsonl"))
     eligible_snapshot = EligibleQueueSnapshot(str(tmp_path / "eligible_queue.json"))
     bot_status_store = JsonStore(tmp_path / "bot_status.json")
+    bot_status_writer = BotStatusWriter(bot_status_store, cm)
 
     return AgentDeps(
         state=state, scanner=scanner, cycle_manager=cm,
         executor=executor, odds_client=odds_client, trade_logger=trade_logger,
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
-        eligible_snapshot=eligible_snapshot, bot_status_store=bot_status_store,
+        eligible_snapshot=eligible_snapshot, bot_status_writer=bot_status_writer,
     )
 
 
