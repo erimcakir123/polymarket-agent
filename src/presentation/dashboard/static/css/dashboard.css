@@ -287,9 +287,9 @@ html, body {
 .pnl-pos { color: var(--green); }
 .pnl-neg { color: var(--red); }
 
-/* Unrealized (Open PnL) özel: pozitif → mavi, negatif → kırmızı. */
-.unr-pos { color: var(--blue); }
-.unr-neg { color: var(--red); }
+/* Unrealized (Open PnL) özel: pozitif → lime, negatif → kırmızı. Bold. */
+.unr-pos { color: #a4d45a; font-weight: 600; }
+.unr-neg { color: var(--red); font-weight: 600; }
 
 /* Locked in bets — her zaman turuncu (kullanıcı isteği). */
 .locked-color { color: var(--orange); }
