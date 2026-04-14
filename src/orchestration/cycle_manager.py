@@ -92,3 +92,14 @@ class CycleManager:
     def sleep_seconds(self) -> int:
         """Tick'ten sonra bir sonraki tick'e kadar uyku süresi (light interval)."""
         return max(1, self.config.light_interval_sec)
+
+    def next_heavy_at_iso(self) -> str:
+        """Bir sonraki heavy cycle'ın ISO timestamp'i (UTC).
+
+        Cold start (_last_heavy_ts=0) ise = şimdi. Aksi halde = last_heavy + current interval.
+        Dashboard idle countdown için kullanılır.
+        """
+        if self._last_heavy_ts == 0.0:
+            return self._utc_now().isoformat()
+        next_ts = self._last_heavy_ts + self._current_heavy_interval_sec()
+        return datetime.fromtimestamp(next_ts, tz=timezone.utc).isoformat()
