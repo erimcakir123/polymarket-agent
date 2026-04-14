@@ -147,8 +147,8 @@
   flex-shrink: 0;
 }
 
-.badge-yes { background: var(--green-dim); color: var(--green); }
-.badge-no { background: var(--red-dim); color: var(--red); }
+.badge-yes { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }  /* mavi — pozitif PnL ile karışmasın */
+.badge-no  { background: rgba(249, 115, 22, 0.18); color: #fdba74; }  /* turuncu — negatif PnL ile karışmasın */
 
 .feed-details {
   display: flex;
@@ -247,6 +247,9 @@
   align-items: center;
   gap: 6px;
 }
-.feed-time .feed-entry-reason {
+.feed-entry-reason-row {
   color: #9ca3af;
+  font-size: 10px;
+  font-family: "Inter", system-ui, sans-serif;
+  margin-bottom: 16px;  /* details ile 2x boşluk (feed-top'ın 8px'i → 16px) */
 }

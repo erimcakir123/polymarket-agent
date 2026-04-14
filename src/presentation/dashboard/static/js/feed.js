@@ -106,6 +106,7 @@
             <span class="feed-market">${this._teamsTitle(p.question, p.slug)}</span></div>
           <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
+        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.entry_reason || "normal")}</div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(p.entry_price)}</span>
           <span>Now ${FMT.cents(p.current_price)}</span>
@@ -118,7 +119,6 @@
         </div>
         <div class="feed-time">
           <span>$${p.size_usdc.toFixed(0)}</span>
-          <span class="feed-entry-reason">${p.entry_reason || "normal"}</span>
           ${this._countdownPill(p.match_start_iso, p.match_live)}
         </div>
       </a>`;
