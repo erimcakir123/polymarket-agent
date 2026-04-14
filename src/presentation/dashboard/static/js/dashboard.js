@@ -14,6 +14,7 @@
     stageRecentSec: 15,         // stage_at kaç saniyeden yeniyse aktif sayılır
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
+    barRadius: 14,              // bar chart köşe yuvarlaması (kart --radius ile aynı)
   };
 
   const MODE = document.body.dataset.mode || "dry_run";
@@ -191,7 +192,8 @@
       const ctx = document.getElementById(canvasId).getContext("2d");
       this[key] = new Chart(ctx, {
         type: "bar",
-        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [],
+          borderRadius: CONFIG.barRadius, borderSkipped: false }] },
         options: this._baseOpts(true),
       });
     },
