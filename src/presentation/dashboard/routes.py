@@ -35,9 +35,11 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
         return jsonify({
             "mode": config.mode.value,
             "bot_alive": readers.bot_is_alive(logs_dir),
-            "last_cycle": status.get("last_cycle"),
-            "last_cycle_at": status.get("last_cycle_at"),
-            "reason": status.get("reason"),
+            "cycle": status.get("cycle"),
+            "stage": status.get("stage"),
+            "stage_at": status.get("stage_at"),
+            "next_heavy_at": status.get("next_heavy_at"),
+            "light_alive": status.get("light_alive", False),
         })
 
     @app.route("/api/summary")
