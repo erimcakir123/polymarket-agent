@@ -12,6 +12,10 @@ scanner:
   min_liquidity: 1000
   max_markets_per_cycle: 300
   max_duration_days: 14
+  # Maç bu kadar saatten uzaksa Odds API h2h verisi yok → scanner'da ele
+  max_hours_to_start: 24.0
+  # yes_price >= bu veya <= (1 - bu) → market sonucu belli, skip (Polymarket flag lag)
+  resolved_price_threshold: 0.98
   allowed_categories: ["sports"]
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.

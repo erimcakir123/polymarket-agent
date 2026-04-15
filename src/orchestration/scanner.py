@@ -80,6 +80,12 @@ class MarketScanner:
         if m.closed or m.resolved or not m.accepting_orders:
             return False
 
+        # Fiyat-based resolved detection — Polymarket flag lag (closed/resolved)
+        # güvenilmez; yes_price ~1.0 veya ~0.0 ise sonuç belli, market ölü.
+        th = self.config.resolved_price_threshold
+        if m.yes_price >= th or m.yes_price <= (1.0 - th):
+            return False
+
         # Sports market type — STRICT: sadece h2h moneyline kabul.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
         if m.sports_market_type != "moneyline":

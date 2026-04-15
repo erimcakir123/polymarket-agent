@@ -31,6 +31,9 @@ class ScannerConfig(BaseModel):
     # Odds API h2h penceresi — maç > bu kadar saat sonraysa bookmaker verisi
     # olmayacak, scanner'da ele.
     max_hours_to_start: float = 24.0
+    # Fiyat-based "resolved" detection: yes_price >= bu veya <= 1 - bu ise
+    # market sonucu belli (Polymarket flag lag'ini atlatır).
+    resolved_price_threshold: float = 0.98
     allowed_categories: List[str] = ["sports"]
     allowed_sport_tags: List[str] = []
 

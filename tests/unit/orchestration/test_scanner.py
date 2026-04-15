@@ -66,6 +66,29 @@ def test_non_moneyline_filtered() -> None:
     assert sc.scan() == []
 
 
+def test_resolved_by_price_filtered() -> None:
+    """yes_price ~1.0 veya ~0.0 → market sonucu belli, flag'i lag olsa da ele."""
+    now = datetime.now(timezone.utc)
+    for yes in (0.9995, 0.005, 0.9999, 0.0001):
+        m = _market(match_start=now + timedelta(hours=2),
+                    end_date=now + timedelta(hours=5))
+        m.yes_price = yes
+        m.no_price = 1.0 - yes
+        sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+        assert sc.scan() == [], f"yes_price={yes} geçti — beklenen: filtrelenmesi"
+
+
+def test_edge_price_below_threshold_kept() -> None:
+    """yes_price 0.97 → threshold altı (0.98), normal h2h → kalır."""
+    now = datetime.now(timezone.utc)
+    m = _market(match_start=now + timedelta(hours=2),
+                end_date=now + timedelta(hours=5))
+    m.yes_price = 0.97
+    m.no_price = 0.03
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
 def test_empty_sports_market_type_filtered() -> None:
     """PGA Top-N gibi marketlerde sports_market_type='' — strict reject."""
     now = datetime.now(timezone.utc)
