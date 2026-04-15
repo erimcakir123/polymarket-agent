@@ -33,16 +33,26 @@
       const parts = Math.abs(n).toFixed(d).split(".");
       return { intPart: parts[0], decPart: parts[1] || "" };
     },
-    usd(n, digits) {
-      const { intPart, decPart } = this._splitDecimal(n, digits);
-      return `$${intPart}<span class="dec">.${decPart}</span>`;
+    usd(n) {
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      return (n < 0 ? "-" : "") + "$" + Math.abs(n).toFixed(2);
     },
-    usdSigned(n, digits) {
-      const sign = n < 0 ? "-" : "+";
-      const { intPart, decPart } = this._splitDecimal(n, digits);
+    usdHtml(n) {
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      const { intPart, decPart } = this._splitDecimal(n, 2);
+      const sign = n < 0 ? "-" : "";
       return `${sign}$${intPart}<span class="dec">.${decPart}</span>`;
     },
-    usdSignedHtml(n) { return this.usdSigned(n, 2); },
+    usdSigned(n) {
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      return (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2);
+    },
+    usdSignedHtml(n) {
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      const { intPart, decPart } = this._splitDecimal(n, 2);
+      const sign = n >= 0 ? "+" : "-";
+      return `${sign}$${intPart}<span class="dec">.${decPart}</span>`;
+    },
     pctSignedHtml(n, digits) {
       if (n === null || n === undefined || isNaN(n)) return "--";
       const { intPart, decPart } = this._splitDecimal(n, digits);
