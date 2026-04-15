@@ -295,21 +295,7 @@ class Agent:
     def _execute_exit(self, pos: Position, signal: ExitSignal) -> None:
         """Exit sinyalini execute et — full veya partial (scale-out)."""
         if signal.partial:
-            # Scale-out: pozisyon kalır, tier güncellenir, realized PnL kaydedilir.
-            # Realized = unrealized_pnl × sell_pct (Position computed property, token-native).
-            shares_to_sell = pos.shares * signal.sell_pct
-            realized = pos.unrealized_pnl_usdc * signal.sell_pct
-
-            pos.shares -= shares_to_sell
-            pos.size_usdc *= (1 - signal.sell_pct)
-            pos.scale_out_tier = signal.tier or pos.scale_out_tier
-            pos.scale_out_realized_usdc += realized
-            self.deps.state.portfolio.apply_partial_exit(pos.condition_id, realized_usdc=realized)
-
-            logger.info(
-                "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
-                pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
-            )
+            self._execute_partial_exit(pos, signal)
             return
 
         # Full exit
@@ -339,4 +325,27 @@ class Agent:
 
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
+
+    def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
+        """Scale-out partial exit: pozisyon korunur, tier/shares/realized güncellenir,
+        trade_history'e partial kayıt yazılır.
+        """
+        shares_to_sell = pos.shares * signal.sell_pct
+        realized = pos.unrealized_pnl_usdc * signal.sell_pct
+        pos.shares -= shares_to_sell
+        pos.size_usdc *= (1 - signal.sell_pct)
+        pos.scale_out_tier = signal.tier or pos.scale_out_tier
+        pos.scale_out_realized_usdc += realized
+        self.deps.state.portfolio.apply_partial_exit(pos.condition_id, realized_usdc=realized)
+        self.deps.trade_logger.log_partial_exit(
+            condition_id=pos.condition_id,
+            tier=signal.tier or pos.scale_out_tier,
+            sell_pct=signal.sell_pct,
+            realized_pnl_usdc=realized,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        logger.info(
+            "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
+            pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
+        )
 
