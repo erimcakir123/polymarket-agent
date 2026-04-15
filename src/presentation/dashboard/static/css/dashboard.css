@@ -308,7 +308,8 @@ html, body {
 .unr-neg { color: var(--red); }
 
 /* Feed pozisyon kartlarında PnL: lime + bold (progress bar ile tutarlı). */
-.feed-item .unr-pos { color: var(--blue); font-weight: 600; }
+/* Active feed card: PnL text progress bar (.feed-impact-bar-fill) ile aynı renk. */
+.feed-item .unr-pos { color: var(--green); font-weight: 600; }
 .feed-item .unr-neg { color: var(--red); font-weight: 600; }
 
 /* Locked in bets — her zaman turuncu (kullanıcı isteği). */
