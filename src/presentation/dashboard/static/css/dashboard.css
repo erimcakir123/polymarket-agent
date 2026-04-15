@@ -22,7 +22,6 @@
      Negatif sayılar daima --red (parlak) — hover'da da parlak. */
   --green: #08D391;
   --green-dim: rgba(8, 211, 145, 0.14);
-  --green-deep: #0f6b4d;
   --red: #D7323C;
   --red-dim: rgba(215, 50, 60, 0.14);
   --red-strong: rgba(215, 50, 60, 0.6);
@@ -303,7 +302,8 @@ html, body {
 .pnl-neg { color: var(--red); }
 
 /* Unrealized (Open PnL) özel: pozitif → canlı açık mavi, negatif → kırmızı. */
-.unr-pos { color: var(--green); }
+/* Dashboard Open PnL card: unrealized pozitif = mavi (metric card context). */
+.unr-pos { color: var(--blue); }
 .unr-neg { color: var(--red); }
 
 /* Feed pozisyon kartlarında PnL: lime + bold (progress bar ile tutarlı). */

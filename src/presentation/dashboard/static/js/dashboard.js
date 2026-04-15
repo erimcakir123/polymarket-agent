@@ -57,7 +57,6 @@
   function _initColors() {
     Object.assign(COLORS, {
       green:     _cssVar("--green")      || "#08D391",
-      greenDeep: _cssVar("--green-deep") || "#0f6b4d",
       red:       _cssVar("--red")        || "#D7323C",
       redHover:  _cssVar("--red-hover")  || "#F4454F",
       blue:      _cssVar("--blue")       || "#0F9AB2",
@@ -156,11 +155,11 @@
       const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
       this.waterfall.data.datasets[0].data = data;
       // Default = dark tonlar; hover = parlak tonlar (palette kuralı).
-      // Solid default — yarı saydam yok. Pozitif = koyu yeşil (palette --green-deep).
+      // Solid default — yarı saydam yok. Hover'da renk değişmez.
       this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.greenDeep : COLORS.red));
+        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.greenDeep : COLORS.red));
+        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
       // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
       this.waterfall.options.plugins.tooltip = {
         enabled: true,

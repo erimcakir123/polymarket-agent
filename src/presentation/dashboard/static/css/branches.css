@@ -73,7 +73,7 @@
 /* Solid renk, hover'da renk değişmez — tooltip zaten bilgi verir. */
 .tree-block.tree-red   { background: var(--red); }
 .tree-block.tree-blue  { background: var(--blue-dark); }
-.tree-block.tree-green { background: var(--green-deep); }
+.tree-block.tree-green { background: var(--green); }
 
 .tree-block-label {
   font-size: 10px;
