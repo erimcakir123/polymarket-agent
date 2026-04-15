@@ -12,7 +12,7 @@
   const CONFIG = {
     pollIntervalMs: 5000,
     waterfallMaxBars: 40,
-    stageRecentSec: 15,         // stage_at kaç saniyeden yeniyse aktif sayılır
+    stageRecentSec: 180,        // stage_at kaç saniyeden yeniyse aktif sayılır (heavy cycle 1-2 dk)
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
     barRadius: 14,              // bar chart köşe yuvarlaması (kart --radius ile aynı)
