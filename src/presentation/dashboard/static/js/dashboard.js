@@ -176,7 +176,9 @@
         this._applyCycle("cg-hard", "offline", "Offline", false);
         return;
       }
-      this._applyCycle("cg-light", "light", "Online", true);
+      // Light her 5sn tick'liyor ama anlamlı "aktif iş" sadece heartbeat anı —
+      // sürekli pulse ile hard'ı gereksiz yere söndürmemek için static.
+      this._applyCycle("cg-light", "light", "Online", false);
       const stage = (data.stage || "").toLowerCase();
       const stageRecent = this._isRecent(data.stage_at, CONFIG.stageRecentSec);
       let label, live;
