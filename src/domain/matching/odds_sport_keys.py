@@ -105,10 +105,16 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "euroleague": "basketball_euroleague",
     # Hockey — non-NHL
     "ahl": "icehockey_ahl",
+    "liiga": "icehockey_liiga",
+    "shl": "icehockey_sweden_hockey_league",
+    "allsvenskan": "icehockey_sweden_allsvenskan",
     # American Football — non-NFL
     "ncaaf": "americanfootball_ncaaf",
-    # Boxing
+    "ufl": "americanfootball_ufl",
+    # Combat
     "box": "boxing_boxing",
+    "boxing": "boxing_boxing",
+    "mma": "mma_mixed_martial_arts",
     # Cricket
     "ipl": "cricket_ipl",
     "cric": "cricket_test_match",
@@ -131,6 +137,8 @@ _SLUG_TO_ODDS: dict[str, str] = {
     # Baseball — non-MLB
     "kbo": "baseball_kbo",
     "npb": "baseball_npb",
+    "milb": "baseball_milb",
+    "ncaab": "basketball_ncaab",
     # Canadian Football
     "cfl": "americanfootball_cfl",
     # Golf
@@ -203,15 +211,26 @@ _TAG_TO_ODDS: dict[str, str] = {
     "uefa-nations-league": "soccer_uefa_european_championship",
     # Non-soccer
     "mlb": "baseball_mlb",
+    "milb": "baseball_milb",
+    "kbo": "baseball_kbo",
+    "npb": "baseball_npb",
     "nba": "basketball_nba",
     "nhl": "icehockey_nhl",
     "nfl": "americanfootball_nfl",
     "wnba": "basketball_wnba",
     "ncaab": "basketball_ncaab",
     "ncaaf": "americanfootball_ncaaf",
+    "ufl": "americanfootball_ufl",
+    "ahl": "icehockey_ahl",
+    "liiga": "icehockey_liiga",
+    "shl": "icehockey_sweden_hockey_league",
     "afl": "aussierules_afl",
     "ipl": "cricket_ipl",
     "euroleague": "basketball_euroleague",
+    # Combat
+    "mma": "mma_mixed_martial_arts",
+    "ufc": "mma_mixed_martial_arts",
+    "boxing": "boxing_boxing",
     # Cricket — tournament tags
     "psl": "cricket_psl",
     "big-bash-league": "cricket_bbl",

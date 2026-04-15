@@ -47,6 +47,10 @@ scanner:
     - tennis
     - "atp*"
     - "wta*"
+    # Combat sports (2-outcome, draw yok — mevcut pipeline uyumlu)
+    - mma
+    - ufc
+    - boxing
     # Golf (H2H)
     - "lpga*"
     - "liv*"
