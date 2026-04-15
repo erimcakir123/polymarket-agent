@@ -40,26 +40,35 @@
   };
 
   // ── CHARTS (Chart.js) — palette CSS'ten okunur, hex literal YASAK ──
+  // Lazy init — script parse anında CSS henüz uygulanmamış olabilir.
+  // getComputedStyle boş dönerse null.map() crash → tüm IIFE düşer.
+  // COLORS ilk `initAll` çağrısında doldurulur (DOMContentLoaded sonrası).
   const _cssVar = (name) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const _rgba = (varName, alpha) => {
-    const hex = _cssVar(varName).replace("#", "");
-    const [r, g, b] = hex.match(/.{2}/g).map((h) => parseInt(h, 16));
+    const raw = _cssVar(varName);
+    const hex = raw.replace("#", "");
+    const match = hex.match(/.{2}/g);
+    if (!match) return `rgba(0, 0, 0, ${alpha})`;  // CSS henüz yok — güvenli fallback
+    const [r, g, b] = match.map((h) => parseInt(h, 16));
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
-  const COLORS = {
-    green:   _cssVar("--green"),
-    red:     _cssVar("--red"),
-    redHover: _cssVar("--red-hover"),
-    blue:    _cssVar("--blue"),
-    orange:  _cssVar("--orange"),
-    muted:   _cssVar("--muted-dim"),
-    greenFill: _rgba("--green", 0.14),
-    greenDim:  _rgba("--green", 0.5),
-    track: "rgba(148, 163, 184, 0.08)",
-    gridLine: "rgba(148, 163, 184, 0.06)",
-    axisLabel: "rgba(148, 163, 184, 0.5)",
-  };
+  const COLORS = {};
+  function _initColors() {
+    Object.assign(COLORS, {
+      green:    _cssVar("--green")    || "#08D391",
+      red:      _cssVar("--red")      || "#D7323C",
+      redHover: _cssVar("--red-hover") || "#F4454F",
+      blue:     _cssVar("--blue")     || "#0F9AB2",
+      orange:   _cssVar("--orange")   || "#FB971E",
+      muted:    _cssVar("--muted-dim") || "#64748b",
+      greenFill: _rgba("--green", 0.14),
+      greenDim:  _rgba("--green", 0.5),
+      track: "rgba(148, 163, 184, 0.08)",
+      gridLine: "rgba(148, 163, 184, 0.06)",
+      axisLabel: "rgba(148, 163, 184, 0.5)",
+    });
+  }
 
   const CHARTS = {
     equity: null, waterfall: null, lp: null, slots: null,
@@ -313,6 +322,7 @@
     },
 
     init() {
+      _initColors();
       document.getElementById("slots-max").textContent = MAX_POSITIONS;
       CHARTS.initAll();
       global.FEED.bindTabs();
