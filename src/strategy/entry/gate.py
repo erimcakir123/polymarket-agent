@@ -158,10 +158,11 @@ class EntryGate:
                               f"size_below_min ({adjusted_size:.2f} < {POLYMARKET_MIN_ORDER_USDC})",
                               manipulation=manip)
 
-        # 7. Exposure cap
+        # 7. Exposure cap — payda = nakit + açık pozisyonlar (toplam portföy).
+        total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
         if exceeds_exposure_limit(
             self.portfolio.positions, adjusted_size,
-            self.portfolio.bankroll, self.config.max_exposure_pct,
+            total_portfolio, self.config.max_exposure_pct,
         ):
             return GateResult(cid, None, "exposure_cap_reached", manipulation=manip)
 

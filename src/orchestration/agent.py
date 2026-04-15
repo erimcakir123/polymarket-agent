@@ -213,12 +213,12 @@ class Agent:
             if market is None:
                 continue
 
-            # Execution-time exposure re-check (gate-time statik check yetersiz)
+            # Execution-time exposure re-check — payda toplam portföy (nakit + invested)
+            pm = self.deps.state.portfolio
+            total_portfolio = pm.bankroll + pm.total_invested()
             if exceeds_exposure_limit(
-                self.deps.state.portfolio.positions,
-                r.signal.size_usdc,
-                self.deps.state.portfolio.bankroll,
-                max_exposure_pct,
+                pm.positions, r.signal.size_usdc,
+                total_portfolio, max_exposure_pct,
             ):
                 operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
                 self.deps.stock.add(market, "exposure_cap_reached")
@@ -287,6 +287,7 @@ class Agent:
             condition_id=market.condition_id,
             event_id=market.event_id or "",
             token_id=pos.token_id,
+            question=market.question,
             sport_tag=market.sport_tag,
             sport_category=category,
             league=league,

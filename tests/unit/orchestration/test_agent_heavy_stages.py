@@ -14,6 +14,7 @@ def _make_deps() -> AgentDeps:
     state.portfolio.positions = {}
     state.portfolio.count.return_value = 0
     state.portfolio.bankroll = 1000.0
+    state.portfolio.total_invested.return_value = 0.0
     return AgentDeps(
         state=state,
         scanner=MagicMock(),
