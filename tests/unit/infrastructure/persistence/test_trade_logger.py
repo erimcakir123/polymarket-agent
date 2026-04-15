@@ -179,3 +179,32 @@ def test_update_on_exit_no_match_returns_false(tmp_path: Path) -> None:
     log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
     log.log(_valid_record(condition_id="c1"))
     assert log.update_on_exit("nonexistent", {"exit_price": 0.5}) is False
+
+
+def test_trade_record_default_partial_exits_is_empty_list():
+    """Yeni TradeRecord oluşturulduğunda partial_exits varsayılan boş liste."""
+    from src.infrastructure.persistence.trade_logger import TradeRecord
+    record = TradeRecord(
+        slug="x", condition_id="cid", event_id="e", token_id="t",
+        sport_tag="mlb", sport_category="mlb", league="",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
+        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
+    )
+    assert record.partial_exits == []
+
+
+def test_trade_record_accepts_partial_exits():
+    """TradeRecord partial_exits listesi kabul etmeli."""
+    from src.infrastructure.persistence.trade_logger import TradeRecord
+    pe_data = [{"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+                "timestamp": "2026-04-15T01:00:00Z"}]
+    record = TradeRecord(
+        slug="x", condition_id="cid", event_id="e", token_id="t",
+        sport_tag="mlb", sport_category="mlb", league="",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
+        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
+        partial_exits=pe_data,
+    )
+    assert record.partial_exits == pe_data

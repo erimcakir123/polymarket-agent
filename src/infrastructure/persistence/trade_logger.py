@@ -72,6 +72,9 @@ class TradeRecord(BaseModel):
     exit_pnl_pct: float = 0.0
     exit_timestamp: str = ""
 
+    # ── Scale-out partial exit'ler (her tier için bir kayıt) ──
+    partial_exits: list[dict] = []
+
     # ── Resolution (Faz 5+'te doldurulur) ──
     final_outcome: str = "unresolved"
     we_were_right: bool | None = None
