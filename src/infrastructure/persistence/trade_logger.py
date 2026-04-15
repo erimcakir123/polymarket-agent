@@ -43,6 +43,7 @@ class TradeRecord(BaseModel):
     condition_id: str
     event_id: str
     token_id: str
+    question: str = ""
 
     # ── Branş & lig ──
     sport_tag: str

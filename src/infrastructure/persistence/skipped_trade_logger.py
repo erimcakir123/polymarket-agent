@@ -24,6 +24,7 @@ class SkippedTradeRecord(BaseModel):
     timestamp: str           # ISO 8601 UTC
     slug: str
     sport_tag: str
+    question: str = ""
     event_id: str = ""
     direction: str = ""      # BUY_YES / BUY_NO / "" (skip karar öncesi)
     entry_price: float = 0.0

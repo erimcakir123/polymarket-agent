@@ -27,6 +27,7 @@ def log_skip(skipped_logger: SkippedTradeLogger, market: MarketData, reason: str
         timestamp=datetime.now(timezone.utc).isoformat(),
         slug=market.slug,
         sport_tag=market.sport_tag,
+        question=market.question,
         event_id=market.event_id or "",
         entry_price=market.yes_price,
         skip_reason=reason or "unknown",
