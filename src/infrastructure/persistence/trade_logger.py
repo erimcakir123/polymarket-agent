@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -110,7 +110,7 @@ class TradeHistoryLogger:
                 continue
         return out
 
-    def _rewrite_matching(self, condition_id: str, mutator) -> bool:
+    def _rewrite_matching(self, condition_id: str, mutator: Callable[[dict[str, Any]], None]) -> bool:
         """En son açık (exit_price=None) kaydı bul, mutator(rec) çağır, atomic rewrite et.
 
         Atomic = tmp dosyaya yaz + replace. Crash-safe.
