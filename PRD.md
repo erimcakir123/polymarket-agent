@@ -88,6 +88,10 @@ Her 5 saniyede bir:
 2. Açık pozisyonlar için flat SL (`stop_loss.py`) ve scale-out (`scale_out.py`) kontrolü yapılır.
 3. Tetiklenen çıkış sinyali varsa `exit/monitor.py` üzerinden ilkine göre emir gönderilir.
 
+**Exposure cap enforcement:** hem gate-time (entry öncesi) hem execution-time
+(order öncesi) kontrol edilir, payda **toplam portföy değeri** (nakit + açık
+pozisyonlar) — nakit değil. Detay: TDD §6.15.
+
 ### 3.4 Exit Akışı (Heavy Cycle)
 Heavy cycle sırasında açık pozisyonlar için:
 1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).
