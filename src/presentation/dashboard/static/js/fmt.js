@@ -53,6 +53,19 @@
       const sign = n >= 0 ? "+" : "-";
       return `${sign}$${intPart}<span class="dec">.${decPart}</span>`;
     },
+    pct(n, digits) {
+      digits = digits == null ? 1 : digits;
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      return n.toFixed(digits) + "%";
+    },
+    pctHtml(n, digits) {
+      digits = digits == null ? 1 : digits;
+      if (n === null || n === undefined || isNaN(n)) return "--";
+      if (digits === 0) return n.toFixed(0) + "%";
+      const { intPart, decPart } = this._splitDecimal(n, digits);
+      const sign = n < 0 ? "-" : "";
+      return `${sign}${intPart}<span class="dec">.${decPart}</span>%`;
+    },
     pctSignedHtml(n, digits) {
       if (n === null || n === undefined || isNaN(n)) return "--";
       const { intPart, decPart } = this._splitDecimal(n, digits);
