@@ -99,9 +99,10 @@
         data: { labels: [], datasets: [{
           data: [], backgroundColor: [],
           borderRadius: CONFIG.barRadius, borderSkipped: false,
-          // Bar kalınlığı: slot'un %40'ı (çok kalın başlamasın).
-          barPercentage: 0.4,
+          // Fixed thickness — 3 bar ile 40 bar arasında genişlik sabit kalır.
+          barThickness: 28,
           categoryPercentage: 1.0,
+          barPercentage: 1.0,
         }] },
         options: this._baseOpts(true),
       });
@@ -150,16 +151,18 @@
     },
 
     setWaterfall(trades) {
-      const limited = trades.slice(0, CONFIG.waterfallMaxBars).reverse();
-      this.waterfall.data.labels = limited.map((t) => FMT.teamsText(t.question, t.slug));
+      const PAD = CONFIG.waterfallMaxBars;
+      const limited = trades.slice(0, PAD).reverse();
+      // Sola hizalı — gerçek trade'ler solda, kalan slotlar null (bar render edilmez).
+      const labels = limited.map((t) => FMT.teamsText(t.question, t.slug));
       const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
+      while (data.length < PAD) { data.push(null); labels.push(""); }
+      this.waterfall.data.labels = labels;
       this.waterfall.data.datasets[0].data = data;
-      // Default = dark tonlar; hover = parlak tonlar (palette kuralı).
-      // Solid default — yarı saydam yok. Hover'da renk değişmez.
       this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
       this.waterfall.options.plugins.tooltip = {
         enabled: true,
