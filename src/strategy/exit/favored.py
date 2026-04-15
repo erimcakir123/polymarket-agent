@@ -7,7 +7,7 @@ v1 verisi: 5 favored trade = +$42.90, %100 WR. Kural korunacak.
 """
 from __future__ import annotations
 
-from src.models.position import Position, effective_price
+from src.models.position import Position
 
 DEFAULT_PROMOTE_EFF_PRICE = 0.65
 DEFAULT_DEMOTE_EFF_PRICE = 0.65
@@ -27,8 +27,8 @@ def should_promote(
         return False
     if pos.confidence not in conf_required:
         return False
-    eff = effective_price(pos.current_price, pos.direction)
-    return eff >= promote_threshold
+    # current_price zaten token-native.
+    return pos.current_price >= promote_threshold
 
 
 def should_demote(
@@ -41,5 +41,5 @@ def should_demote(
     """
     if not pos.favored:
         return False
-    eff = effective_price(pos.current_price, pos.direction)
-    return eff < demote_threshold
+    # current_price zaten token-native.
+    return pos.current_price < demote_threshold

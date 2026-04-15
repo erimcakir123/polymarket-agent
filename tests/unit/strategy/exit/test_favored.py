@@ -42,9 +42,9 @@ def test_no_promote_already_favored() -> None:
     assert should_promote(p) is False
 
 
-def test_promote_buy_no_uses_effective() -> None:
-    # BUY_NO current 0.30 → eff 0.70 → promote
-    p = _pos(current_price=0.30, direction="BUY_NO", confidence="B")
+def test_promote_buy_no_uses_token_native() -> None:
+    # BUY_NO current_price = NO token fiyatı. 0.70 ≥ 0.65 → promote.
+    p = _pos(current_price=0.70, direction="BUY_NO", confidence="B")
     assert should_promote(p) is True
 
 

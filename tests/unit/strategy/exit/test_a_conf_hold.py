@@ -33,9 +33,9 @@ def test_b_conf_never_hold() -> None:
     assert is_a_conf_hold(_pos(confidence="B", entry_price=0.70)) is False
 
 
-def test_buy_no_uses_effective() -> None:
-    # BUY_NO entry 0.35 → eff_entry = 0.65 → hold
-    assert is_a_conf_hold(_pos(confidence="A", entry_price=0.35, direction="BUY_NO")) is True
+def test_buy_no_uses_token_native_entry() -> None:
+    # BUY_NO entry_price zaten NO token fiyatı (owned side). 0.65 ≥ 0.60 → hold.
+    assert is_a_conf_hold(_pos(confidence="A", entry_price=0.65, direction="BUY_NO")) is True
 
 
 # ── market_flip_exit ──
@@ -57,7 +57,7 @@ def test_late_match_no_flip_above_50c() -> None:
     assert market_flip_exit(p, elapsed_pct=0.90) is False
 
 
-def test_flip_buy_no_uses_effective() -> None:
-    # BUY_NO current 0.60 → eff = 0.40 → flip
-    p = _pos(entry_price=0.35, direction="BUY_NO", current_price=0.60)
+def test_flip_buy_no_uses_token_native() -> None:
+    # BUY_NO current_price = NO token fiyatı. 0.40 < 0.50 → owned flip'e düştü.
+    p = _pos(entry_price=0.65, direction="BUY_NO", current_price=0.40)
     assert market_flip_exit(p, elapsed_pct=0.90) is True

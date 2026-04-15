@@ -16,7 +16,7 @@ Elapsed gate eklenmesi early-match false positive'leri elediği için zorunlu.
 """
 from __future__ import annotations
 
-from src.models.position import Position, effective_price
+from src.models.position import Position
 
 DEFAULT_MIN_ENTRY_PRICE = 0.60
 DEFAULT_MARKET_FLIP_THRESHOLD = 0.50
@@ -25,8 +25,8 @@ DEFAULT_MARKET_FLIP_ELAPSED_GATE = 0.85
 
 def is_a_conf_hold(pos: Position, min_entry_price: float = DEFAULT_MIN_ENTRY_PRICE) -> bool:
     """Pozisyon A-conf strong-entry hold'a tabi mi?"""
-    eff_entry = effective_price(pos.entry_price, pos.direction)
-    return pos.confidence == "A" and eff_entry >= min_entry_price
+    # entry_price zaten token-native (owned side). effective_price UYGULANMAZ.
+    return pos.confidence == "A" and pos.entry_price >= min_entry_price
 
 
 def market_flip_exit(
@@ -42,5 +42,5 @@ def market_flip_exit(
     """
     if elapsed_pct < elapsed_gate:
         return False
-    eff_current = effective_price(pos.current_price, pos.direction)
-    return eff_current < flip_threshold
+    # current_price zaten token-native. Owned side threshold altına düştüyse flip.
+    return pos.current_price < flip_threshold

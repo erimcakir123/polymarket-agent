@@ -14,7 +14,7 @@ Katmanlar (öncelik sırasına göre):
 from __future__ import annotations
 
 from src.config.sport_rules import get_stop_loss
-from src.models.position import Position, effective_price
+from src.models.position import Position
 
 _ULTRA_LOW_THRESHOLD = 0.09
 _LOW_ENTRY_UPPER = 0.20
@@ -41,7 +41,8 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     if any(k in q or k in slug for k in _TOTALS_KEYWORDS):
         return None
 
-    eff_entry = effective_price(pos.entry_price, pos.direction)
+    # entry_price zaten token-native (owned side).
+    eff_entry = pos.entry_price
 
     # 3. Ultra-low entry — geniş %50 SL
     if eff_entry < _ULTRA_LOW_THRESHOLD:

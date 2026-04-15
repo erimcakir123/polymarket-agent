@@ -58,11 +58,18 @@ def test_after_10min_accepts() -> None:
     assert check(p) is True
 
 
-def test_buy_no_direction_uses_effective() -> None:
-    # BUY_NO: current_price=0.05 → eff = 0.95 → exit
+def test_buy_no_owned_token_near_resolve() -> None:
+    # BUY_NO: current_price = NO token fiyatı. 0.95 = NO token 95¢ → owned near-resolve → exit.
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = _pos(yes=0.95, direction="BUY_NO", match_start_iso=_iso(start))
+    assert check(p) is True
+
+
+def test_buy_no_losing_side_no_exit() -> None:
+    # BUY_NO ama NO token 5¢ → kaybediyoruz, near_resolve tetiklenmez.
     start = datetime.now(timezone.utc) - timedelta(minutes=30)
     p = _pos(yes=0.05, direction="BUY_NO", match_start_iso=_iso(start))
-    assert check(p) is True
+    assert check(p) is False
 
 
 def test_bad_iso_format_trusts_threshold() -> None:

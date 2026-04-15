@@ -71,17 +71,19 @@ def test_reentry_tightens_flat() -> None:
     assert abs(compute_stop_loss_pct(p) - 0.2625) < 1e-6
 
 
-def test_buy_no_uses_effective_entry() -> None:
-    # entry 0.80 BUY_NO → eff ≈ 0.20 (float precision). Low-entry graduated
-    # path'in alt sınırı %40. BUY_YES entry=0.20 ile tutarlı.
-    p = _pos(entry_price=0.80, direction="BUY_NO", current_price=0.80)
+def test_buy_no_uses_token_native_entry() -> None:
+    # BUY_NO entry_price = NO token fiyatı (owned side, zaten effective).
+    # entry=0.15 (NO token 15¢) → low-entry graduated path.
+    # t = (0.15 - 0.09) / (0.20 - 0.09) ≈ 0.545
+    # sl = 0.60 - 0.545 × 0.20 ≈ 0.491
+    p = _pos(entry_price=0.15, direction="BUY_NO", current_price=0.15)
     sl = compute_stop_loss_pct(p)
-    assert abs(sl - 0.40) < 1e-3
+    assert 0.40 < sl < 0.60  # low-entry graduated path aralığında
 
 
 def test_buy_no_favorite_sport_specific() -> None:
-    # BUY_NO entry 0.25 → eff 0.75 → sport-specific path
-    p = _pos(entry_price=0.25, direction="BUY_NO", current_price=0.25, sport_tag="nba")
+    # BUY_NO entry_price = NO token fiyatı. 0.75 (NO token 75¢) → sport-specific path.
+    p = _pos(entry_price=0.75, direction="BUY_NO", current_price=0.75, sport_tag="nba")
     assert compute_stop_loss_pct(p) == 0.35
 
 

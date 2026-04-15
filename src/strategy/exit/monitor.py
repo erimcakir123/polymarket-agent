@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 from src.config.sport_rules import get_match_duration_hours
 from src.models.enums import ExitReason
-from src.models.position import Position, effective_price
+from src.models.position import Position
 from src.strategy.exit import a_conf_hold, favored, graduated_sl, near_resolve, scale_out, stop_loss
 
 
@@ -70,8 +70,8 @@ def _never_in_profit_exit(
         return False
     if elapsed_pct < 0.70:
         return False
-    eff_entry = effective_price(pos.entry_price, pos.direction)
-    eff_current = effective_price(pos.current_price, pos.direction)
+    eff_entry = pos.entry_price
+    eff_current = pos.current_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
     if score_ahead:
         return False
@@ -84,8 +84,8 @@ def _never_in_profit_exit(
 
 def _ultra_low_guard_exit(pos: Position, elapsed_pct: float) -> bool:
     """Ultra-low guard (TDD §6.12). eff_entry<9¢ + elapsed≥%75 + eff_current<5¢."""
-    eff_entry = effective_price(pos.entry_price, pos.direction)
-    eff_current = effective_price(pos.current_price, pos.direction)
+    eff_entry = pos.entry_price
+    eff_current = pos.current_price
     return eff_entry < 0.09 and elapsed_pct >= 0.75 and eff_current < 0.05
 
 
@@ -104,8 +104,8 @@ def _hold_revocation_exit(
     if not is_hold_candidate:
         return False
 
-    eff_entry = effective_price(pos.entry_price, pos.direction)
-    eff_current = effective_price(pos.current_price, pos.direction)
+    eff_entry = pos.entry_price
+    eff_current = pos.current_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
     dip_is_temporary = pos.consecutive_down_cycles < 3 or pos.cumulative_drop < 0.05
 
@@ -183,8 +183,8 @@ def evaluate(
                     fav_transition=_fav_transition(pos),
                     elapsed_pct=elapsed_pct,
                 )
-            eff_entry = effective_price(pos.entry_price, pos.direction)
-            exit_grad, max_loss = graduated_sl.check(pos, elapsed_pct, eff_entry, score_info)
+            # entry_price zaten token-native (owned side).
+            exit_grad, max_loss = graduated_sl.check(pos, elapsed_pct, pos.entry_price, score_info)
             if exit_grad:
                 return MonitorResult(
                     exit_signal=ExitSignal(

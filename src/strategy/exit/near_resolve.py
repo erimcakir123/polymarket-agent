@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.models.position import Position, effective_price
+from src.models.position import Position
 
 DEFAULT_THRESHOLD_CENTS = 94
 DEFAULT_PRE_MATCH_GUARD_MIN = 10  # İlk 10dk'da 94¢ = WS spike (MVP sporlarında imkansız)
@@ -25,10 +25,9 @@ def check(
     eff_current ≥ threshold AND pozisyon yeterince eski (guard). Guard sanity'yi
     sağlar: maç daha başlamadıysa veya yeni başladıysa (< 5dk) spike olabilir.
     """
-    eff_current = effective_price(pos.current_price, pos.direction)
+    # current_price zaten token-native (owned side). effective_price UYGULANMAZ.
     threshold = threshold_cents / 100.0
-
-    if eff_current < threshold:
+    if pos.current_price < threshold:
         return False
 
     # Sanity: match_start_iso var mı ve >=5 dk geçti mi?
