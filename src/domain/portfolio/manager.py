@@ -9,13 +9,10 @@ Position cycle-state tick → `domain/portfolio/lifecycle.py`.
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 
 from src.domain.portfolio.bankroll import compute_bankroll
 from src.models.position import Position
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,16 +48,14 @@ class PortfolioManager:
     # ── Mutations ──
 
     def add_position(self, pos: Position) -> bool:
-        """Pozisyon ekle. Event/condition duplicate'te False döner (ARCH Kural 8)."""
+        """Pozisyon ekle. Event/condition duplicate'te False döner (ARCH Kural 8).
+
+        Defensive duplicate guard — gate.py'de event_already_held normal akışta
+        zaten reddediyor; buraya gelirse caller'ın loglaması beklenir.
+        """
         if pos.event_id and self.has_event(pos.event_id):
-            logger.warning(
-                "BLOCKED: same event already held — existing %s, attempted %s, event_id=%s",
-                next((p.slug[:35] for p in self.positions.values() if p.event_id == pos.event_id), "?"),
-                pos.slug[:35], pos.event_id,
-            )
             return False
         if pos.condition_id in self.positions:
-            logger.warning("BLOCKED duplicate add_position: %s already held", pos.slug[:35])
             return False
         self.positions[pos.condition_id] = pos
         self.bankroll -= pos.size_usdc

@@ -266,7 +266,11 @@ class Agent:
         )
 
         if not self.deps.state.portfolio.add_position(pos):
-            # Event guard / duplicate condition → zaten logged
+            # Defensive guard tetiklendi (gate normalde önler) — caller logla
+            logger.warning(
+                "BLOCKED add_position: %s (event=%s, cid=%s)",
+                pos.slug[:35], pos.event_id, pos.condition_id[:16],
+            )
             return
 
         # Anlık fiyat akışı için WS subscribe
