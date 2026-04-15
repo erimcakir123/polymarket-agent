@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.domain.portfolio.exposure import exceeds_exposure_limit
+from src.domain.portfolio.lifecycle import tick_position_state
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
@@ -311,7 +312,7 @@ class Agent:
                 continue
 
             # Cycle state tick: peak, momentum, ever_in_profit, consecutive_down, cumulative_drop
-            state.portfolio.tick_position_state(cid)
+            tick_position_state(pos)
 
             result: MonitorResult = exit_monitor.evaluate(pos)
 

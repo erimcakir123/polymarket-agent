@@ -19,6 +19,7 @@ from pathlib import Path
 
 from src.config.settings import AppConfig, Mode
 from src.domain.guards.blacklist import Blacklist
+from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
 from src.infrastructure.persistence.json_store import JsonStore
@@ -94,7 +95,7 @@ def _restore_portfolio(store: JsonStore, initial_bankroll: float) -> PortfolioMa
     if not data or not isinstance(data, dict):
         return PortfolioManager(initial_bankroll=initial_bankroll)
     try:
-        return PortfolioManager.from_snapshot(data, initial_bankroll=initial_bankroll)
+        return portfolio_snapshot.from_dict(data, initial_bankroll=initial_bankroll)
     except Exception as e:
         logger.warning("Portfolio restore failed (%s), starting fresh", e)
         return PortfolioManager(initial_bankroll=initial_bankroll)
@@ -159,6 +160,6 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
 
 def persist(state: RuntimeState) -> None:
     """Tüm state'i diske yaz. Light cycle sonunda çağrılır."""
-    state.positions_store.save(state.portfolio.to_snapshot())
+    state.positions_store.save(portfolio_snapshot.to_dict(state.portfolio))
     state.breaker_store.save(state.circuit_breaker.state.to_dict())
     state.blacklist_store.save(state.blacklist.to_dict())

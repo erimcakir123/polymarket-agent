@@ -1,6 +1,8 @@
 """portfolio/manager.py için birim testler."""
 from __future__ import annotations
 
+from src.domain.portfolio import snapshot as portfolio_snapshot
+from src.domain.portfolio.lifecycle import tick_position_state
 from src.domain.portfolio.manager import PortfolioManager
 from src.models.position import Position
 
@@ -99,8 +101,8 @@ def test_snapshot_roundtrip() -> None:
     m.add_position(_pos(cid="c2", event_id="evt_2"))
     m.remove_position("c1", realized_pnl_usdc=5.0)
 
-    snap = m.to_snapshot()
-    restored = PortfolioManager.from_snapshot(snap, initial_bankroll=1000.0)
+    snap = portfolio_snapshot.to_dict(m)
+    restored = portfolio_snapshot.from_dict(snap, initial_bankroll=1000.0)
     assert restored.count() == 1
     assert restored.realized_pnl == 5.0
     assert "c2" in restored.positions
@@ -164,7 +166,7 @@ def test_tick_position_state_updates_peak_and_ever_in_profit() -> None:
 
     # Fiyat yükseldi → peak update, ever_in_profit flag
     pos.current_price = 0.50  # pnl_pct = (100*0.50-40)/40 = 25%
-    m.tick_position_state("c1")
+    tick_position_state(pos)
     assert pos.peak_pnl_pct == 0.25
     assert pos.peak_price == 0.50
     assert pos.ever_in_profit is True
@@ -178,14 +180,14 @@ def test_tick_position_state_tracks_momentum_down() -> None:
 
     # Fiyat düştü: 0.45 → 0.40
     pos.current_price = 0.40
-    m.tick_position_state("c1")
+    tick_position_state(pos)
     assert pos.consecutive_down_cycles == 1
     assert abs(pos.cumulative_drop - 0.05) < 1e-9
     assert pos.previous_cycle_price == 0.40
 
     # Tekrar düştü: 0.40 → 0.35
     pos.current_price = 0.35
-    m.tick_position_state("c1")
+    tick_position_state(pos)
     assert pos.consecutive_down_cycles == 2
     assert abs(pos.cumulative_drop - 0.10) < 1e-9
 
@@ -200,7 +202,7 @@ def test_tick_position_state_resets_on_up_move() -> None:
 
     # Fiyat yükseldi → reset
     pos.current_price = 0.40
-    m.tick_position_state("c1")
+    tick_position_state(pos)
     assert pos.consecutive_down_cycles == 0
     assert pos.cumulative_drop == 0.0
 
@@ -208,16 +210,11 @@ def test_tick_position_state_resets_on_up_move() -> None:
 def test_tick_position_state_increments_cycles_held() -> None:
     m = PortfolioManager(initial_bankroll=1000.0)
     m.add_position(_pos(cid="c1"))
-    m.tick_position_state("c1")
-    m.tick_position_state("c1")
-    m.tick_position_state("c1")
-    assert m.positions["c1"].cycles_held == 3
-
-
-def test_tick_position_state_missing_condition_is_noop() -> None:
-    m = PortfolioManager(initial_bankroll=1000.0)
-    # Exception atmamalı
-    m.tick_position_state("nonexistent")
+    pos = m.positions["c1"]
+    tick_position_state(pos)
+    tick_position_state(pos)
+    tick_position_state(pos)
+    assert pos.cycles_held == 3
 
 
 # ── recalculate_bankroll (DRY extract: from_snapshot + reconcile) ──

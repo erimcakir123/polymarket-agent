@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0.0"]
+dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -30,4 +30,22 @@ include = ["src*"]
 # IDE'nin "src.*" import'larını çözebilmesi için kök dizin
 extraPaths = ["."]
 include = ["src", "tests"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "src/main.py",
+    "src/presentation/dashboard/static/*",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
 
