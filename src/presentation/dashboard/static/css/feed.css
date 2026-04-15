@@ -53,7 +53,7 @@
 .feed-tab:focus-visible { outline: none; }
 
 .feed-tab.active {
-  color: var(--teal);
+  color: var(--blue);
 }
 
 .feed-scroll {
@@ -96,7 +96,7 @@
 }
 
 .feed-item:hover .feed-market {
-  color: var(--teal);
+  color: var(--blue);
 }
 
 .feed-top {
@@ -147,8 +147,8 @@
   flex-shrink: 0;
 }
 
-.badge-yes { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }  /* mavi — pozitif PnL ile karışmasın */
-.badge-no  { background: rgba(249, 115, 22, 0.18); color: #fdba74; }  /* turuncu — negatif PnL ile karışmasın */
+.badge-yes { background: var(--blue-dim);   color: var(--blue); }
+.badge-no  { background: var(--orange-dim); color: var(--orange); }
 
 .feed-details {
   display: flex;
@@ -178,7 +178,7 @@
 
 .feed-impact-bar-fill {
   height: 100%;
-  background: #a4d45a;  /* pozitif — lime (YES mavisiyle karışmasın) */
+  background: var(--green);
   transition: width 0.25s ease;
 }
 
@@ -186,7 +186,7 @@
 
 .feed-exit-reason {
   margin-left: auto;
-  color: #9ca3af;
+  color: var(--muted-dim);
   font-size: 10px;
 }
 
@@ -221,22 +221,22 @@
   background: transparent;
   padding: 0 4px;
 }
-.feed-conf.conf-a   { color: #16c784; }                 /* A — yeşil */
-.feed-conf.conf-b   { color: #a4d45a; }                 /* B — lime (sarıya yakın yeşil) */
-.feed-conf.conf-c   { color: #e6c94d; }                 /* C — sarı */
-.feed-conf.conf-unk { color: #9ca3af; }                 /* bilinmiyor — gri */
+.feed-conf.conf-a   { color: var(--conf-a); }
+.feed-conf.conf-b   { color: var(--conf-b); }
+.feed-conf.conf-c   { color: var(--conf-c); }
+.feed-conf.conf-unk { color: var(--conf-unk); }
 
 .feed-countdown {
   display: inline-block;
   font-size: 10px;
   font-weight: 500;
   background: transparent;
-  color: #93c5fd;
+  color: var(--blue-dark);
   margin-left: auto;
   padding: 0 2px;
 }
 .feed-countdown.live {
-  color: rgba(239, 68, 68, 0.6);  /* tam kırmızı %60 opak */
+  color: var(--red-strong);
   animation: live-pulse 1.8s ease-in-out infinite;
 }
 .feed-countdown.live::before {
@@ -245,7 +245,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(239, 68, 68, 0.6);
+  background: var(--red-strong);
   margin-right: 5px;
   vertical-align: middle;
 }
@@ -275,7 +275,7 @@
   gap: 6px;
 }
 .feed-entry-reason-row {
-  color: #9ca3af;
+  color: var(--muted-dim);
   font-size: 10px;
   font-family: "Inter", system-ui, sans-serif;
   margin-bottom: 16px;  /* details ile 2x boşluk (feed-top'ın 8px'i → 16px) */

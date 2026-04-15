@@ -135,17 +135,51 @@ def closed_trades(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return closed
 
 
-def sport_roi_treemap(trades: list[dict[str, Any]]) -> dict[str, Any]:
-    """Trade history'den sport/league bazında ROI aggregate (dashboard Branşlar kartı).
+# Liglerden branşa map (treemap gruplaması için). Eski kayıtlarda sport_tag
+# sadece lig kodu (ör. "mlb") olabiliyor; doğru branşa eşle.
+_LEAGUE_TO_SPORT: dict[str, str] = {
+    "mlb": "baseball",
+    "nhl": "hockey", "ahl": "hockey", "khl": "hockey",
+    "nba": "basketball", "wnba": "basketball",
+    "nfl": "football", "cfl": "football",
+    "epl": "soccer", "ucl": "soccer", "mls": "soccer", "seriea": "soccer",
+    "wta": "tennis", "atp": "tennis",
+    "pga": "golf", "lpga": "golf", "rbc": "golf",
+}
 
-    Sadece kapanmış trade'ler (exit_price != null) sayılır. Hiç trade olmayan
-    branşlar listede yok. `league` yoksa `sport_tag` fallback.
+
+def _sport_category(trade: dict[str, Any]) -> str:
+    """Trade kaydından branş (sport category) türet: baseball, hockey, tennis, ...
+
+    Öncelik: sport_category (yeni kayıt) → sport_tag split ("baseball_mlb" →
+    "baseball") → lig→branş map (eski kayıt: "mlb" → "baseball") → sport_tag
+    olduğu gibi → "unknown".
+    """
+    tag = (trade.get("sport_tag") or "").lower()
+    # Yeni format: "baseball_mlb" — split'in ilk kısmı zaten branş.
+    if "_" in tag:
+        return tag.split("_", 1)[0]
+    cat = (trade.get("sport_category") or "").lower()
+    # sport_category gerçek branş mı yoksa (eski hatadan) lig kodu mu?
+    if cat and cat not in _LEAGUE_TO_SPORT:
+        return cat
+    # Eski kayıt: lig kodunu branşa map et.
+    if tag in _LEAGUE_TO_SPORT:
+        return _LEAGUE_TO_SPORT[tag]
+    return tag or "unknown"
+
+
+def sport_roi_treemap(trades: list[dict[str, Any]]) -> dict[str, Any]:
+    """Trade history'den BRANŞ (sport category) bazında ROI aggregate.
+
+    Sadece kapanmış trade'ler sayılır. Grup anahtarı: sport_category (baseball,
+    hockey, tennis, ...). Field yoksa sport_tag'den türetilir.
     """
     groups: dict[str, dict[str, Any]] = {}
     for t in trades:
         if t.get("exit_price") is None:
             continue
-        key = t.get("league") or t.get("sport_tag") or "unknown"
+        key = _sport_category(t)
         g = groups.setdefault(key, {
             "league": key, "trades": 0, "wins": 0, "losses": 0,
             "invested": 0.0, "net_pnl": 0.0,

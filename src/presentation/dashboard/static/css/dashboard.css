@@ -13,23 +13,30 @@
   --muted-dim: #64748b;
 
   /* Brand accent (hero glow) */
-  --accent: #54c966;
-  --accent-dim: rgba(84, 201, 102, 0.14);
+  --accent: var(--green);
+  --accent-dim: var(--green-dim);
 
-  /* Functional colors */
-  --green: #98fe6b;
-  --green-dim: rgba(152, 254, 107, 0.14);
-  --red: #ef4444;
-  --red-dim: rgba(239, 68, 68, 0.14);
-  --amber: #f59e0b;
-  --blue: #3b82f6;
-  --blue-dim: rgba(59, 130, 246, 0.14);
-  --cyan: #06b6d4;
-  --teal: #14b8a6;
-  --teal-dim: rgba(20, 184, 166, 0.14);
-  --pink: #ec4899;
-  --orange: #f59c4a;
-  --purple: #a855f7;
+  /* Functional colors — TEK kaynak. Hex literal başka yerde YASAK.
+     Açık tonlar = hover / aktif / pozitif sayılar.
+     Dark tonlar = default container (bloklar, bar default).
+     Negatif sayılar daima --red (parlak) — hover'da da parlak. */
+  --green: #08D391;
+  --green-dim: rgba(8, 211, 145, 0.14);
+  --red: #D7323C;
+  --red-dim: rgba(215, 50, 60, 0.14);
+  --red-strong: rgba(215, 50, 60, 0.6);
+  --red-hover: #F4454F;
+  --blue: #0F9AB2;
+  --blue-dim: rgba(15, 154, 178, 0.14);
+  --blue-dark: #086B91;
+  --orange: #FB971E;
+  --orange-dim: rgba(251, 151, 30, 0.18);
+
+  /* Confidence gradient (A→C, semantik — palette dışı izinli) */
+  --conf-a: var(--green);
+  --conf-b: var(--orange);
+  --conf-c: var(--red);
+  --conf-unk: var(--muted);
 
   --radius: 14px;
   --radius-sm: 10px;
@@ -133,14 +140,21 @@ html, body {
 }
 
 .cycle-group.hard .cycle-dot { background: var(--blue); }
-.cycle-group.hard .cycle-label { color: var(--blue); }
+.cycle-group.hard .cycle-label,
+.cycle-group.hard .cycle-value { color: var(--blue); }
 
-.cycle-group.light .cycle-dot { background: var(--teal); }
-.cycle-group.light .cycle-label { color: var(--teal); }
+.cycle-group.light .cycle-dot { background: var(--green); }
+.cycle-group.light .cycle-label,
+.cycle-group.light .cycle-value { color: var(--green); }
 
 .cycle-group.offline .cycle-dot { background: var(--muted-dim); }
 .cycle-group.offline .cycle-label,
 .cycle-group.offline .cycle-value { color: var(--muted); }
+
+/* Bir cycle aktif (live pulse) ise diğeri %50 opaklığa düşer. */
+.cycle-group { transition: opacity 0.25s; }
+.cycle-bar:has(.cycle-dot.live) .cycle-group { opacity: 0.5; }
+.cycle-bar .cycle-group:has(.cycle-dot.live) { opacity: 1; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -173,7 +187,7 @@ html, body {
 
 .card-hero {
   background:
-    radial-gradient(circle at 100% 0%, rgba(84, 201, 102, 0.18) 0%, transparent 55%),
+    radial-gradient(circle at 100% 0%, var(--accent-dim) 0%, transparent 55%),
     var(--panel);
 }
 
@@ -288,11 +302,11 @@ html, body {
 .pnl-neg { color: var(--red); }
 
 /* Unrealized (Open PnL) özel: pozitif → canlı açık mavi, negatif → kırmızı. */
-.unr-pos { color: #38bdf8; }
+.unr-pos { color: var(--blue); }
 .unr-neg { color: var(--red); }
 
 /* Feed pozisyon kartlarında PnL: lime + bold (progress bar ile tutarlı). */
-.feed-item .unr-pos { color: #a4d45a; font-weight: 600; }
+.feed-item .unr-pos { color: var(--blue); font-weight: 600; }
 .feed-item .unr-neg { color: var(--red); font-weight: 600; }
 
 /* Locked in bets — her zaman turuncu (kullanıcı isteği). */
@@ -300,8 +314,6 @@ html, body {
 
 .text-green { color: var(--green); }
 .text-red { color: var(--red); }
-.text-amber { color: var(--amber); }
-.text-muted { color: var(--muted); }
 
 /* Decimal kısmı opacity %50 — her sayının ondalık kısmında .dec span'i. */
 .dec { opacity: var(--decimal-opacity); }

@@ -32,7 +32,12 @@
 
     render() {
       const tab = this.state.tab;
-      const items = this.state.data[tab] || [];
+      // Her sekmede en erken maç başı yukarıda. match_start_iso yoksa en sona.
+      const items = (this.state.data[tab] || []).slice().sort((a, b) => {
+        const aKey = a.match_start_iso || "9999-12-31";
+        const bKey = b.match_start_iso || "9999-12-31";
+        return aKey.localeCompare(bKey);
+      });
       const scroll = document.getElementById("feed-scroll");
       document.getElementById("feed-count").textContent = items.length;
       if (items.length === 0) {
@@ -49,20 +54,8 @@
       return this._stockCard(it);
     },
 
-    _title(slug) {
-      return `<span class="feed-market">${FMT.escapeHtml(slug || "--")}</span>`;
-    },
-
-    _teamsTitle(question, slug) {
-      // "Arizona Diamondbacks vs. Baltimore Orioles" → "Diamondbacks vs Orioles"
-      if (!question) return FMT.escapeHtml(slug || "--");
-      const parts = question.split(/\s+vs\.?\s+/i);
-      if (parts.length !== 2) return FMT.escapeHtml(question);
-      const shortSide = (s) => {
-        const tokens = s.trim().split(/\s+/);
-        return tokens[tokens.length - 1] || s;
-      };
-      return FMT.escapeHtml(`${shortSide(parts[0])} vs ${shortSide(parts[1])}`);
+    _marketTitle(question, slug) {
+      return `<span class="feed-market">${FMT.teamsText(question, slug)}</span>`;
     },
 
     _confPill(conf) {
@@ -93,17 +86,21 @@
 
     _activeCard(p) {
       const icon = ICONS.getSportEmoji(p.sport_tag, p.slug);
-      const dir = p.direction === "BUY_YES" ? "YES" : "NO";
+      const dir = FMT.sideCode(p.direction, p.slug);
       const dirCls = p.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       // Token-native PnL: shares × current_price − size_usdc. Direction-agnostic
       // çünkü current_price pozisyonun token'ına aittir (YES/NO).
       const pnl = p.shares * p.current_price - p.size_usdc;
       const pnlPct = p.size_usdc > 0 ? (pnl / p.size_usdc) * 100 : 0;
-      const odds = Math.round((p.anchor_probability || 0) * 1000) / 10;
+      // Odds: direction-adjusted. BUY_NO → (1 − P(YES)). Entry/Now zaten
+      // token-native saklanıyor (BUY_NO pozisyonunda NO fiyatı).
+      const anchor = p.anchor_probability || 0;
+      const oddsRaw = p.direction === "BUY_NO" ? (1 - anchor) : anchor;
+      const odds = Math.round(oddsRaw * 1000) / 10;
       return `${this._cardOpen(p.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            <span class="feed-market">${this._teamsTitle(p.question, p.slug)}</span></div>
+            ${this._marketTitle(p.question, p.slug)}</div>
           <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
         <div class="feed-entry-reason-row">${FMT.escapeHtml(p.entry_reason || "normal")}</div>
@@ -126,13 +123,13 @@
 
     _exitedCard(t) {
       const icon = ICONS.getSportEmoji(t.sport_tag, t.slug);
-      const dir = t.direction === "BUY_YES" ? "YES" : "NO";
+      const dir = FMT.sideCode(t.direction, t.slug);
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._title(t.slug)}</div>
+            ${this._marketTitle(t.question, t.slug)}</div>
           <span class="feed-badge ${dirCls}">${dir}</span>
         </div>
         <div class="feed-details">
@@ -153,7 +150,7 @@
       return `${this._cardOpen(s.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._title(s.slug)}</div>
+            ${this._marketTitle(s.question, s.slug)}</div>
           <span class="feed-badge">SKIP</span>
         </div>
         <div class="feed-details"><span>${s.skip_reason || "?"}</span>
@@ -167,7 +164,7 @@
       return `${this._cardOpen(q.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._title(q.slug)}</div>
+            ${this._marketTitle(q.question, q.slug)}</div>
         </div>
         <div class="feed-details">
           <span>YES ${FMT.cents(q.yes_price)}</span>

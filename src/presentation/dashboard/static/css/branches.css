@@ -1,7 +1,6 @@
 /* Branches (Sport ROI Treemap) — dashboard.css değişkenlerini kullanır */
 
 .branches {
-  overflow: hidden;
   min-height: 160px;
 }
 
@@ -36,22 +35,48 @@
 }
 
 .tree-block {
+  position: relative;
   flex: 1 1 0;
-  min-width: 36px;
-  padding: 8px 10px;
+  min-width: 72px;
+  padding: 10px 12px;
   border-radius: 6px;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
   color: var(--text);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  overflow: hidden;
+  justify-content: flex-start;
+  gap: 4px;
   cursor: help;
-  transition: filter 0.15s;
+  transition: background 0.15s;
 }
 
-.tree-block:hover { filter: brightness(1.25); }
+/* Custom tooltip — Chart.js stilinde: koyu arka plan, border yok, yumuşak köşe.
+   Edge-aware: ilk blok solda, son blok sağda hizalanır → viewport dışına taşmaz. */
+.tree-block[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+.tree-block:last-child[data-tip]:hover::after  { left: auto; right: 0;  transform: none; }
+.tree-block:first-child[data-tip]:hover::after { left: 0;    transform: none; }
+
+/* Default = dark, hover = light. Renk kuralları dashboard.css palette'ine bağlı. */
+.tree-block.tree-red         { background: var(--red); }
+.tree-block.tree-red:hover   { background: var(--red-hover); }
+.tree-block.tree-blue        { background: var(--blue-dark); }
+.tree-block.tree-blue:hover  { background: var(--blue); }
+.tree-block.tree-green       { background: var(--green-dim); }
+.tree-block.tree-green:hover { background: var(--green); }
 
 .tree-block-label {
   font-size: 10px;
