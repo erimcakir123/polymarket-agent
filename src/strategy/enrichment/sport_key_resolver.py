@@ -34,14 +34,21 @@ def resolve_sport_key(
         return static
 
     # 2. Tennis: dinamik turnuva key matching
+    # Slug prefix otoritesi question text'ten önce — slug 'wta-...' ise WTA zorla
+    # (aksi halde WTA market'in ATP branch'ine kaçması bug'ı).
     slug_lower = (slug or "").lower()
     prefix = slug_lower.split("-")[0] if slug_lower else ""
     q_lower = (question or "").lower()
 
-    if prefix == "atp" or ("atp" in q_lower or ("tennis" in q_lower and "wta" not in q_lower)):
-        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
-    if prefix == "wta" or "wta" in q_lower or "women" in q_lower:
+    if prefix == "wta":
         return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+    if prefix == "atp":
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+    # Slug bilgi vermiyor — question text'ten kestir
+    if "wta" in q_lower or "women" in q_lower:
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+    if "atp" in q_lower or "tennis" in q_lower:
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
 
     # 3. Dinamik discovery — takım adlarıyla tüm sport'ların event'lerini ara
     team_a, team_b = extract_teams(question)

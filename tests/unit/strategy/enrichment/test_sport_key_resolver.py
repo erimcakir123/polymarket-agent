@@ -59,6 +59,21 @@ def test_tennis_wta_routing() -> None:
     assert result == "tennis_wta_miami_open"
 
 
+def test_tennis_wta_slug_prefix_wins_when_question_lacks_wta_token() -> None:
+    """Regression: slug 'wta-...' prefix'i, question'da 'tennis' geçip 'wta'
+    geçmese bile ATP'ye yönlendirmemeli. Bug: Porsche Tennis Grand Prix
+    (WTA Stuttgart) → ATP Barcelona key dönüyordu."""
+    client = _client(sports=[
+        {"key": "tennis_atp_barcelona_open", "active": True},
+        {"key": "tennis_wta_stuttgart_open", "active": True},
+    ])
+    result = resolve_sport_key(
+        "Porsche Tennis Grand Prix: Eva Lys vs Elina Svitolina",
+        "wta-lys-svitoli-2026-04-15", [], client,
+    )
+    assert result == "tennis_wta_stuttgart_open"
+
+
 def test_discovery_fallback() -> None:
     # Static yok, tennis değil, event listesinde takım ara
     client = _client(

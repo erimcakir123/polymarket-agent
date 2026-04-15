@@ -16,6 +16,25 @@ def test_vs_with_prefix() -> None:
     assert b == "Celtics"
 
 
+def test_tournament_prefix_stripped_from_team_a() -> None:
+    """Turnuva adı prefix'i (ATP/WTA whitelist dışı) team_a'yı kirletmemeli."""
+    a, b = extract_teams("Porsche Tennis Grand Prix: Eva Lys vs Elina Svitolina")
+    assert a == "Eva Lys"
+    assert b == "Elina Svitolina"
+
+
+def test_tournament_prefix_with_complex_name() -> None:
+    a, b = extract_teams("Open Capfinances Rouen Metropole: Katie Boulter vs Jaqueline Cristian")
+    assert a == "Katie Boulter"
+    assert b == "Jaqueline Cristian"
+
+
+def test_city_prefix_stripped() -> None:
+    a, b = extract_teams("Tallahassee: Alex Rybakov vs Pedro Boscardin Dias")
+    assert a == "Alex Rybakov"
+    assert b == "Pedro Boscardin Dias"
+
+
 def test_will_x_beat_y() -> None:
     a, b = extract_teams("Will Lakers beat Celtics?")
     assert a == "Lakers"
