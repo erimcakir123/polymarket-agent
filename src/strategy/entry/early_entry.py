@@ -6,7 +6,7 @@ ve max entry price (≤0.70 — kısa shot için yer bırak).
 
 Time window:
   match_start ∈ [now + min_hours_to_start, now + max_hours_to_start]
-  (default: 6h-336h = 6 saat ile 14 gün arası)
+  (default: 6h-24h = 6 ila 24 saat arası; amaç fırsatı oturmadan yakalamak)
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def evaluate(
     min_confidence: str = "B",
     max_entry_price: float = 0.70,
     min_hours_to_start: float = 6.0,
-    max_hours_to_start: float = 336.0,
+    max_hours_to_start: float = 24.0,
 ) -> Signal | None:
     """Early entry kararı. None döner: koşullar uymuyor."""
     # 1. Confidence eşiği (default B+; v2'de B veya A kabul)

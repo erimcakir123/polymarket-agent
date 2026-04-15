@@ -31,17 +31,6 @@ def test_spread_keyword_skip() -> None:
     assert compute_stop_loss_pct(p) is None
 
 
-def test_vs_position_uses_vs_sl() -> None:
-    p = _pos(volatility_swing=True)
-    assert compute_stop_loss_pct(p, vs_sl_pct=0.20) == 0.20
-
-
-def test_vs_reentry_tightens() -> None:
-    p = _pos(volatility_swing=True, sl_reentry_count=1)
-    # 0.20 × 0.75 = 0.15
-    assert abs(compute_stop_loss_pct(p, vs_sl_pct=0.20) - 0.15) < 1e-9
-
-
 def test_ultra_low_entry_wide_50pct() -> None:
     p = _pos(entry_price=0.08)  # < 9c
     assert compute_stop_loss_pct(p) == 0.50

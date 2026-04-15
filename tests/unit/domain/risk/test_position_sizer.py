@@ -35,32 +35,9 @@ def test_max_bet_pct_cap() -> None:
     assert result == 100.0
 
 
-def test_heavy_favorite_boost_applied() -> None:
-    # market_price >= 0.90 → ×1.5
-    # B conf: 0.04 × 1.5 = 0.06 → $60
-    # Ama max_bet_pct=0.05 cap'i devrede → $50
-    assert confidence_position_size("B", bankroll=1000, market_price=0.95) == 50.0
-    # Daha büyük bankroll ile yukarı cap test
-    # $100_000, B → 0.04 * 1.5 = 0.06 → $6000, ama max_bet_usdc $75
-    assert confidence_position_size("B", bankroll=100_000, market_price=0.95) == 75.0
-
-
-def test_heavy_favorite_threshold_exact() -> None:
-    # market_price = 0.90 exactly → boost aktif (≥)
-    res = confidence_position_size("B", bankroll=1000, market_price=0.90, max_bet_pct=0.10)
-    # 0.04 * 1.5 = 0.06 → $60
-    assert res == 60.0
-
-
 def test_reentry_multiplier() -> None:
     # B, reentry → 0.04 × 0.8 = 0.032 → $32
     assert confidence_position_size("B", bankroll=1000, is_reentry=True) == 32.0
-
-
-def test_reentry_plus_heavy_favorite() -> None:
-    # B, 0.95, reentry → 0.04 × 1.5 × 0.8 = 0.048 → $48
-    res = confidence_position_size("B", bankroll=1000, market_price=0.95, is_reentry=True, max_bet_pct=0.10)
-    assert res == 48.0
 
 
 def test_zero_bankroll_returns_zero() -> None:

@@ -89,7 +89,6 @@ def test_position_defaults() -> None:
     assert p.partial_exits == []
     assert p.sl_reentry_count == 0
     assert p.ever_in_profit is False
-    assert p.volatility_swing is False
     assert p.favored is False
     assert isinstance(p.entry_timestamp, datetime)
 

@@ -210,7 +210,7 @@
 .feed-badges {
   display: inline-flex;
   align-items: center;
-  gap: 6px;  /* A ↔ YES arası gap — volatility_swing ↔ $50 ile eşit */
+  gap: 6px;
 }
 
 .feed-conf {
@@ -269,7 +269,6 @@
   margin-bottom: 8px;
 }
 
-/* feed-time: $50 ↔ volatility_swing gap'i A ↔ YES (=6px) ile aynı */
 .feed-time {
   display: flex;
   align-items: center;

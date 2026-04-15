@@ -98,14 +98,14 @@ def test_slots_summary_counts_by_entry_reason() -> None:
             "a": {"entry_reason": "normal"},
             "b": {"entry_reason": "normal"},
             "c": {"entry_reason": "consensus"},
-            "d": {"entry_reason": "volatility_swing"},
+            "d": {"entry_reason": "early"},
         }
     }
     out = computed.slots_summary(blob, max_positions=20)
     assert out["current"] == 4
     assert out["by_reason"]["normal"] == 2
     assert out["by_reason"]["consensus"] == 1
-    assert out["by_reason"]["volatility_swing"] == 1
+    assert out["by_reason"]["early"] == 1
 
 
 def test_slots_summary_missing_reason_defaults_to_normal() -> None:

@@ -42,11 +42,6 @@ def test_no_promote_already_favored() -> None:
     assert should_promote(p) is False
 
 
-def test_no_promote_vs_position() -> None:
-    p = _pos(current_price=0.70, volatility_swing=True)
-    assert should_promote(p) is False
-
-
 def test_promote_buy_no_uses_effective() -> None:
     # BUY_NO current 0.30 → eff 0.70 → promote
     p = _pos(current_price=0.30, direction="BUY_NO", confidence="B")

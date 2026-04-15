@@ -19,7 +19,6 @@ class Confidence(str, Enum):
 class EntryReason(str, Enum):
     NORMAL = "normal"
     EARLY = "early"
-    VOLATILITY_SWING = "volatility_swing"
     CONSENSUS = "consensus"
 
 

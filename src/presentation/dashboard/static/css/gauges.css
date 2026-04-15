@@ -82,6 +82,5 @@
 }
 
 .slot-tag.tag-nor.active { background: var(--blue-dim); color: var(--blue); }
-.slot-tag.tag-vs.active  { background: rgba(245, 156, 74, 0.18); color: var(--orange); }
 .slot-tag.tag-con.active { background: rgba(168, 85, 247, 0.18); color: var(--purple); }
 .slot-tag.tag-ear.active { background: rgba(245, 158, 11, 0.18); color: var(--amber); }

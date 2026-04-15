@@ -73,6 +73,7 @@ def build_agent(state: RuntimeState) -> Agent:
         max_exposure_pct=cfg.risk.max_exposure_pct,
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,
+        max_entry_price=cfg.risk.max_entry_price,
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
@@ -84,12 +85,6 @@ def build_agent(state: RuntimeState) -> Agent:
         early_max_entry_price=cfg.early.max_entry_price,
         early_min_hours_to_start=cfg.early.min_hours_to_start,
         early_max_hours_to_start=cfg.early.max_hours_to_start,
-        # Volatility swing
-        vs_enabled=cfg.volatility_swing.enabled,
-        vs_min_token_price=cfg.volatility_swing.min_token_price,
-        vs_max_token_price=cfg.volatility_swing.max_token_price,
-        vs_max_hours_to_start=cfg.volatility_swing.max_hours_to_start,
-        vs_max_concurrent=cfg.volatility_swing.max_concurrent,
     )
     gate = EntryGate(
         config=gate_cfg,

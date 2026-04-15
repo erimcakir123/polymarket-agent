@@ -44,21 +44,10 @@ class RiskConfig(BaseModel):
     max_bet_pct: float = 0.05
     max_positions: int = 20
     max_exposure_pct: float = 0.50
+    max_entry_price: float = 0.88
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
-
-
-class VolatilitySwingConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    enabled: bool = True
-    max_concurrent: int = 5
-    stop_loss_pct: float = 0.20
-    take_profit_pct: float = 0.60
-    max_token_price: float = 0.50
-    min_token_price: float = 0.10
-    max_hours_to_start: float = 24.0
-    bet_pct: float = 0.05
 
 
 class EarlyEntryConfig(BaseModel):
@@ -71,7 +60,7 @@ class EarlyEntryConfig(BaseModel):
     min_confidence: str = "B"
     bookmaker_pre_screen_edge: float = 0.08
     min_hours_to_start: float = 6.0
-    max_hours_to_start: float = 336.0
+    max_hours_to_start: float = 24.0
     bet_pct: float = 0.05
     stop_loss_pct: float = 0.30
 
@@ -79,7 +68,7 @@ class EarlyEntryConfig(BaseModel):
 class ConsensusConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
-    min_price: float = 0.65
+    min_price: float = 0.60
     bet_pct: float = 0.05
     max_slots: int = 5
 
@@ -167,7 +156,6 @@ class AppConfig(BaseModel):
     scanner: ScannerConfig = ScannerConfig()
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
-    volatility_swing: VolatilitySwingConfig = VolatilitySwingConfig()
     early: EarlyEntryConfig = EarlyEntryConfig()
     consensus: ConsensusConfig = ConsensusConfig()
     scale_out: ScaleOutConfig = ScaleOutConfig()

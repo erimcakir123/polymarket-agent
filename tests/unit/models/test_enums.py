@@ -21,7 +21,6 @@ def test_confidence_values() -> None:
 def test_entry_reason_values() -> None:
     assert EntryReason.NORMAL.value == "normal"
     assert EntryReason.EARLY.value == "early"
-    assert EntryReason.VOLATILITY_SWING.value == "volatility_swing"
     assert EntryReason.CONSENSUS.value == "consensus"
 
 

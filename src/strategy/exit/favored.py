@@ -21,10 +21,9 @@ def should_promote(
 ) -> bool:
     """Pozisyon favored'a promote edilmeli mi?
 
-    Koşul: favored=False AND volatility_swing=False AND effective_current >= threshold
-           AND confidence ∈ {A, B}
+    Koşul: favored=False AND effective_current >= threshold AND confidence ∈ {A, B}
     """
-    if pos.favored or pos.volatility_swing:
+    if pos.favored:
         return False
     if pos.confidence not in conf_required:
         return False

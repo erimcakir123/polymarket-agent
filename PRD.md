@@ -113,7 +113,7 @@ Bot Polymarket Gamma API'dan canlı market'leri keşfeder. `allowed_sport_tags` 
 Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. TDD §6.1)
 
 ### F3. Entry Decision
-`strategy/entry/gate.py` giriş kararını orchestrate eder. 4 entry stratejisi: normal, early_entry (6+ saat öncesi), volatility_swing (düşük fiyatlı underdog), consensus (bookmaker+market aynı favori). Her strateji edge + confidence + guards'tan geçer. (bkz. TDD §6.4)
+`strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. TDD §6.4)
 
 ### F4. Position Sizing
 Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri uygulanır. (bkz. TDD §6.5)
@@ -134,7 +134,7 @@ Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap
 - **Özet metrikler** (5 kart): Balance, Open P&L, Realized P&L (W/L alt-yazı), Locked in Bets, Peak Balance (total equity peak'ten drawdown%)
 - **Koruma + analiz göstergeleri** (3 kart):
   - **Loss Protection** — RISK gauge + Down% + Stop at% (CB günlük eşik) + Status (Safe/Caution/Warning/Stopped)
-  - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/VS/CON/EAR)
+  - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/CON/EAR)
   - **Branches** — sport/league ROI treemap: alan ∝ invested USDC, renk ∝ ROI (yeşil+/kırmızı−/sıfıra yakın mavi), hover tooltip
 - **Grafikler** (2): Total Equity zaman serisi (total_equity = bankroll + invested + unrealized), Per-Trade PnL waterfall
 - **Trades feed** (sağ panel, 4 sekme): Active | Exited | Skipped | Stock — her kart tıklanabilir (Polymarket event sayfasını yeni sekmede açar), branş ikonlarıyla

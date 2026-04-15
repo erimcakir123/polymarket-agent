@@ -145,7 +145,6 @@ def evaluate(
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         unrealized_pnl_pct=pos.unrealized_pnl_pct,
-        volatility_swing=pos.volatility_swing,
     )
     if so is not None:
         return MonitorResult(

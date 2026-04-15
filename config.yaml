@@ -63,19 +63,10 @@ risk:
   max_bet_pct: 0.05
   max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
   max_exposure_pct: 0.50
+  max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   stop_loss_pct: 0.30
-
-volatility_swing:
-  enabled: true
-  max_concurrent: 5
-  stop_loss_pct: 0.20
-  take_profit_pct: 0.60
-  max_token_price: 0.50
-  min_token_price: 0.10
-  max_hours_to_start: 24.0
-  bet_pct: 0.05
 
 early:
   enabled: true
@@ -86,13 +77,13 @@ early:
   min_confidence: "B"
   bookmaker_pre_screen_edge: 0.08
   min_hours_to_start: 6.0
-  max_hours_to_start: 336.0
+  max_hours_to_start: 24.0
   bet_pct: 0.05
   stop_loss_pct: 0.30
 
 consensus:
   enabled: true
-  min_price: 0.65
+  min_price: 0.60
   bet_pct: 0.05
   max_slots: 5
 

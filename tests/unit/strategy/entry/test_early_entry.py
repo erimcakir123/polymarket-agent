@@ -47,8 +47,8 @@ def test_too_close_to_match_returns_none() -> None:
 
 
 def test_too_far_from_match_returns_none() -> None:
-    # 400 saat = 16+ gün → > 336h max → None
-    assert early_entry.evaluate(_market(yes=0.50, hours_ahead=400), _bm(prob=0.65)) is None
+    # 25 saat → > 24h max → None (fırsatı erken yakalama penceresi dışında)
+    assert early_entry.evaluate(_market(yes=0.50, hours_ahead=25), _bm(prob=0.65)) is None
 
 
 def test_low_anchor_returns_none() -> None:

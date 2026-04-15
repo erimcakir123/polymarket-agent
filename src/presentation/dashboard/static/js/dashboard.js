@@ -361,7 +361,6 @@
       CHARTS.setGauge("slots", pct, COLORS.blue);
       const tags = [
         { key: "normal", label: "NOR", cls: "tag-nor" },
-        { key: "volatility_swing", label: "VS", cls: "tag-vs" },
         { key: "consensus", label: "CON", cls: "tag-con" },
         { key: "early", label: "EAR", cls: "tag-ear" },
       ];

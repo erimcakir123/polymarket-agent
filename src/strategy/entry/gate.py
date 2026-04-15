@@ -1,10 +1,9 @@
-"""Entry orchestrator — 4 entry stratejisini koordine eder (TDD §11 Faz 3 + 6).
+"""Entry orchestrator — 3 entry stratejisini koordine eder (TDD §11 Faz 3 + 6).
 
 Strateji öncelik sırası (ilk Signal kazanır):
   1. Consensus  — book + market aynı favori (≥65¢) → 99¢ payout edge
   2. Early      — match_start 6h+ önce, yüksek edge (≥10%)
-  3. Volatility Swing — pre-match underdog scalp (10-50¢)
-  4. Normal     — bookmaker P(YES) vs market YES, edge ≥6%
+  3. Normal     — bookmaker P(YES) vs market YES, edge ≥6%
 
 Common pipeline (her market için):
   event_guard → blacklist → manipulation → enrich → strategies →
@@ -26,12 +25,12 @@ from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
 from src.domain.risk.position_sizer import POLYMARKET_MIN_ORDER_USDC, confidence_position_size
 from src.models.market import MarketData
+from src.models.position import effective_price
 from src.models.signal import Signal
 from src.strategy.entry import (
     consensus as consensus_entry,
     early_entry,
     normal as normal_entry,
-    volatility_swing as vs_entry,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +44,7 @@ class GateConfig:
     max_exposure_pct: float = 0.50
     max_single_bet_usdc: float = 75.0
     max_bet_pct: float = 0.05
+    max_entry_price: float = 0.88
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
@@ -55,13 +55,7 @@ class GateConfig:
     early_min_confidence: str = "B"
     early_max_entry_price: float = 0.70
     early_min_hours_to_start: float = 6.0
-    early_max_hours_to_start: float = 336.0
-    # Volatility swing
-    vs_enabled: bool = True
-    vs_min_token_price: float = 0.10
-    vs_max_token_price: float = 0.50
-    vs_max_hours_to_start: float = 24.0
-    vs_max_concurrent: int = 5
+    early_max_hours_to_start: float = 24.0
 
 
 @dataclass
@@ -144,13 +138,17 @@ class EntryGate:
         if signal is None:
             return GateResult(cid, None, "no_edge")
 
-        # 6. Position sizing
+        # 6. Entry price cap — 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
+        entry_price = effective_price(signal.market_price, signal.direction)
+        if entry_price >= self.config.max_entry_price:
+            return GateResult(cid, None, "entry_price_cap", manipulation=manip)
+
+        # 7. Position sizing
         raw_size = confidence_position_size(
             confidence=signal.confidence,
             bankroll=self.portfolio.bankroll,
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
-            market_price=market.yes_price,
         )
 
         # Manipulation medium risk → halve
@@ -172,9 +170,9 @@ class EntryGate:
         return GateResult(cid, approved, "", manipulation=manip)
 
     def _evaluate_strategies(self, market: MarketData, bm_prob: BookmakerProbability) -> Signal | None:
-        """4 stratejiyi öncelik sırasıyla dene. İlk Signal kazanır.
+        """3 stratejiyi öncelik sırasıyla dene. İlk Signal kazanır.
 
-        Sıra: Consensus (en güçlü) → Early (yüksek edge) → VS (underdog scalp) → Normal.
+        Sıra: Consensus (en güçlü) → Early (yüksek edge) → Normal.
         """
         # 1. Consensus — book + market aynı favori, ≥65¢
         if self.config.consensus_enabled:
@@ -196,21 +194,5 @@ class EntryGate:
             if sig is not None:
                 return sig
 
-        # 3. Volatility swing — pre-match underdog (slot limit'i için count kontrolü)
-        if self.config.vs_enabled and self._vs_slot_available():
-            sig = vs_entry.evaluate(
-                market, bm_prob_for_logging=bm_prob,
-                min_token_price=self.config.vs_min_token_price,
-                max_token_price=self.config.vs_max_token_price,
-                max_hours_to_start=self.config.vs_max_hours_to_start,
-            )
-            if sig is not None:
-                return sig
-
-        # 4. Normal — bookmaker P(YES) vs market YES, edge ≥6%
+        # 3. Normal — bookmaker P(YES) vs market YES, edge ≥6%
         return normal_entry.evaluate(market, bm_prob, min_edge=self.config.min_edge)
-
-    def _vs_slot_available(self) -> bool:
-        """Volatility swing aktif slot sayısı limit altında mı?"""
-        active_vs = sum(1 for p in self.portfolio.positions.values() if p.volatility_swing)
-        return active_vs < self.config.vs_max_concurrent

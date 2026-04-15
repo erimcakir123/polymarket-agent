@@ -135,6 +135,7 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 | book_favors_yes = False | `BUY_NO` | `1 − market.yes_price` |
 
 - Edge = `0.99 − entry_price` (Polymarket payout cap)
+- **Entry price aralığı:** `[0.60, 0.88)` — alt sınır consensus.min_price, üst sınır gate.max_entry_price (bkz. §6.5 R/R gerekçesi)
 
 **Consensus yoksa (Case B):** standart edge hesabı (§6.3) kullanılır.
 
@@ -152,8 +153,9 @@ Confidence + market koşullarına göre trade boyutu.
 **Çarpanlar (bet_pct üzerine uygulanır):**
 | Koşul | Çarpan |
 |---|---|
-| Ağır favori — `market_price ≥ 0.90` | × 1.50 |
 | Lossy reentry — `is_reentry = True` | × 0.80 |
+
+**Entry price cap:** `effective_entry ≥ 0.88` → gate reddeder (`entry_price_cap`). Gerekçe: 88¢+ girişlerde max payout `0.99 − entry ≤ 0.11` → $25 pozisyon max ~$2.75 kâr; SL tetiklenirse `-$7.50`. Risk/reward çürük olduğu için strateji bağımsız kesilir.
 
 **Formül:**
 ```
@@ -180,9 +182,7 @@ Kâr biriktikçe pozisyonun parçasını satmak.
 
 **Geçiş:** `tier 0 → 1 → 2` sırayla. Tier atlanmaz; ileri gider veya aynı kalır.
 
-**İstisna:** `volatility_swing = True` pozisyonlar scale-out'a girmez (kendi TP'sini kullanır).
-
-### 6.7 Flat Stop-Loss Helper (9-Katman Öncelik)
+### 6.7 Flat Stop-Loss Helper (7-Katman Öncelik)
 
 Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen döner. `None` dönerse flat SL uygulanmaz.
 
@@ -190,15 +190,13 @@ Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen d
 |---|---|---|---|
 | 1 | Stale price skip | `current_price ≤ 0.001` AND `current_price ≠ entry_price` | `None` (WS tick beklenir) |
 | 2 | Totals/spread skip | question veya slug "o/u", "total", "spread" içerir | `None` (resolution'a kadar tut) |
-| 3 | Volatility swing | `pos.volatility_swing = True` | `vs_sl_pct` (default `0.20`); `sl_reentry_count ≥ 1` ise `× 0.75` |
-| 4 | Ultra-low entry | `effective_entry < 0.09` | `0.50` (geniş tolerans) |
-| 5 | Low-entry graduated | `0.09 ≤ effective_entry < 0.20` | Linear: `sl = 0.60 − t × 0.20`, `t = (eff − 0.09) / (0.20 − 0.09)` — 60% → 40% |
-| 6 | B confidence | `pos.confidence == "B"` | `0.30` (tighter) |
-| 7 | Sport-specific (default) | Yukarıdakiler eşleşmedi | `get_stop_loss(sport_tag)` (§7) |
-| 8 | Lossy reentry modifier | `sl_reentry_count ≥ 1` | Yukarıdaki `sl × 0.75` |
-| 9 | Return | — | `sl` |
+| 3 | Ultra-low entry | `effective_entry < 0.09` | `0.50` (geniş tolerans) |
+| 4 | Low-entry graduated | `0.09 ≤ effective_entry < 0.20` | Linear: `sl = 0.60 − t × 0.20`, `t = (eff − 0.09) / (0.20 − 0.09)` — 60% → 40% |
+| 5 | B confidence | `pos.confidence == "B"` | `0.30` (tighter) |
+| 6 | Sport-specific (default) | Yukarıdakiler eşleşmedi | `get_stop_loss(sport_tag)` (§7) |
+| 7 | Lossy reentry modifier | `sl_reentry_count ≥ 1` | Yukarıdaki `sl × 0.75` |
 
-**Default parametreler:** `base_sl_pct = 0.30`, `vs_sl_pct = 0.20`.
+**Default parametreler:** `base_sl_pct = 0.30`.
 
 **Effective price:** `effective_price(entry_price, direction)` — direction BUY_NO ise `1 − entry_price`, aksi `entry_price`.
 
@@ -315,7 +313,6 @@ Holding sırasında dinamik favori statüsü. `effective_price(current_price, di
 
 **PROMOTE (favori hale gelme) — tüm koşullar:**
 - `not favored`
-- AND `not volatility_swing`
 - AND `effective_price ≥ 0.65`
 - AND `confidence ∈ {A, B}`
 

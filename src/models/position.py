@@ -60,7 +60,6 @@ class Position(BaseModel):
 
     # Durum flag'leri
     favored: bool = False
-    volatility_swing: bool = False
 
     # Scale-out state
     original_shares: float | None = None

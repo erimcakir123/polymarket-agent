@@ -3,8 +3,6 @@
 Tier 1 (Risk-Free):   PnL ≥ +25% → %40 sat
 Tier 2 (Profit-Lock): PnL ≥ +50% → kalan %50 sat
 Tier 3 (Final):       Resolution / trailing / exit → hepsini sat (PnL-triggered değil)
-
-VS (volatility_swing) pozisyonları kendi TP'sine sahip, scale-out skip.
 """
 from __future__ import annotations
 
@@ -26,12 +24,8 @@ class ScaleOutDecision:
 def check_scale_out(
     scale_out_tier: int,
     unrealized_pnl_pct: float,
-    volatility_swing: bool,
 ) -> ScaleOutDecision | None:
     """Pozisyon bir sonraki tier'a hak kazandı mı? None → hayır."""
-    if volatility_swing:
-        return None
-
     if scale_out_tier == 0 and unrealized_pnl_pct >= TIER1_TRIGGER_PNL:
         return ScaleOutDecision(
             tier=1,

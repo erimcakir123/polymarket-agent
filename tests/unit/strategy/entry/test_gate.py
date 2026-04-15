@@ -187,3 +187,19 @@ def test_size_below_min_skips() -> None:
     results = gate.run([_market()])
     assert results[0].signal is None
     assert "size_below_min" in results[0].skipped_reason
+
+
+def test_entry_price_cap_blocks_high_favorite() -> None:
+    # Consensus 0.90'da sinyal üretir (min_price 0.60) ama gate 0.88 cap ile reddeder.
+    # anchor 0.85, market yes 0.90 → is_consensus True (ikisi de YES favori), entry=0.90
+    gate = _make_gate(enricher=lambda m: _bm(prob=0.85, conf="A"))
+    results = gate.run([_market(yp=0.90)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "entry_price_cap"
+
+
+def test_entry_price_cap_allows_under_threshold() -> None:
+    # 0.87 eşiğin altında → geçer
+    gate = _make_gate(enricher=lambda m: _bm(prob=0.80, conf="A"))
+    results = gate.run([_market(yp=0.87)])
+    assert results[0].signal is not None
