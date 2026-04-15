@@ -56,7 +56,16 @@ def log_partial_exit(self, condition_id: str, tier: int,
     """
 ```
 
-**İmplementasyon:** `update_on_exit`'e benzer — `read_all` → matching record → `partial_exits.append(...)` → atomic rewrite. DRY için iki metod arasında private `_rewrite_record(condition_id, mutator_fn)` extract edilebilir (opsiyonel).
+**İmplementasyon:** `update_on_exit`'e benzer — `read_all` → matching record → `partial_exits.append(...)` → atomic rewrite.
+
+**DRY — zorunlu refactor:** İki metot arasındaki ortak "atomic rewrite" pattern'i private helper'a çekilir:
+
+```python
+def _rewrite_matching(self, condition_id: str, mutator: Callable[[dict], None]) -> bool:
+    """En son açık (exit_price=None) kaydı bul, mutator uygula, atomic rewrite et."""
+```
+
+`update_on_exit` ve `log_partial_exit` ikisi de bu helper'ı kullanır. Aynı atomic rewrite iki farklı yerde yazılmaz.
 
 ### 3.3 Agent scale-out branch güncellemesi
 
@@ -90,7 +99,16 @@ if signal.partial:
 
 **Çözüm:** Scale-out bloğu zaten okunması zor, `_execute_partial_exit(pos, signal)` adıyla ayrı bir metoda extract edilir. Bu hem limit sorununu çözer hem de okunabilirliği artırır. Yeni metod ~15 satır, ama `_execute_exit` ana metodu ~20 satır kısalır → net +5 satır, limit içi kalır (~405 → refactor ile 395).
 
-### 3.4 Startup reconciliation
+### 3.4 Portfolio.recalculate_bankroll() (DRY için yeni metod)
+
+`portfolio.from_dict`'te zaten şu formül var (satır 47):
+```python
+mgr.bankroll = initial_bankroll + mgr.realized_pnl - invested
+```
+
+Reconciliation'ın da ihtiyacı aynı formül. **DRY:** Bu mantık `PortfolioManager.recalculate_bankroll(initial_bankroll: float) -> None` adında public metoda çekilir; `from_dict` ve reconciliation ikisi de onu çağırır. Formül tek yerde tutulur.
+
+### 3.5 Startup reconciliation
 
 `src/orchestration/startup.py` — yeni fonksiyon + bootstrap çağrısı:
 
@@ -117,9 +135,8 @@ def _reconcile_realized_pnl(portfolio, trade_logger, initial_bankroll) -> None:
         "Realized PnL reconciliation: snapshot=%.2f, log=%.2f, delta=%+.2f — using log",
         portfolio.realized_pnl, true_realized, delta,
     )
-    invested = sum(p.size_usdc for p in portfolio.positions.values())
     portfolio.realized_pnl = true_realized
-    portfolio.bankroll = initial_bankroll + true_realized - invested
+    portfolio.recalculate_bankroll(initial_bankroll)
 ```
 
 `bootstrap()` içinde portfolio yüklendikten sonra çağrılır. Trade_logger tek yeni dependency.
@@ -147,12 +164,14 @@ Bootstrap:
 ## 4. Etkilenen Dosyalar
 
 **Backend:**
-- `src/infrastructure/persistence/trade_logger.py` — TradeRecord `partial_exits` field + `log_partial_exit` metod
+- `src/infrastructure/persistence/trade_logger.py` — TradeRecord `partial_exits` field + `log_partial_exit` metod + `_rewrite_matching` private helper (DRY: update_on_exit ile paylaşılır)
+- `src/domain/portfolio/manager.py` — `recalculate_bankroll(initial_bankroll)` public metod (DRY: from_dict ve reconcile paylaşır)
 - `src/orchestration/agent.py` — `_execute_partial_exit` extract + log çağrısı
 - `src/orchestration/startup.py` — `_reconcile_realized_pnl` + bootstrap çağrısı
 
 **Tests:**
 - `tests/unit/infrastructure/persistence/test_trade_logger.py` — `log_partial_exit` testleri (happy, missing record, backward-compat)
+- `tests/unit/domain/portfolio/test_manager.py` — `recalculate_bankroll` testleri (positions yok, multiple positions, realized değişimi)
 - `tests/unit/orchestration/test_startup_reconcile.py` (yeni) — reconcile senaryoları (snapshot eşit, snapshot düşük, empty log, partial dahil)
 - `tests/unit/orchestration/test_agent_scale_out_log.py` (yeni) — partial exit'te logger çağrıldığını doğrula
 
@@ -174,6 +193,7 @@ Bootstrap:
 - `Position.volatility_swing` flag bug'ı (VS entry'de False kalıyor). Ayrı iş, kullanıcı onayladı.
 - Dashboard exit event'ları için yeni UI (scale-out timeline gibi). Mevcut exited tab partial exit'leri zaten okumaz, bu ayrı iş.
 - Retroactive data fix: Mevcut `positions.json`'daki yanlış realized_pnl bootstrap'te otomatik düzeltilecek, manuel migration gerek yok.
+- **Dead code temizliği:** `Position.partial_exits` (hiç doldurulmuyor) ve `Position.scale_out_realized_usdc` (yazılıyor ama hiç okunmuyor) field'ları YAGNI ile şimdilik bırakılır. Bu spec single-source-of-truth olarak `TradeRecord.partial_exits`'i kullanır; Position field'ları geriye dönük dokunulmaz. Ayrı bir cleanup task'ı olarak TODO'ya alınabilir.
 
 ---
 
