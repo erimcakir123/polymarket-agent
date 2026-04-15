@@ -331,6 +331,10 @@ Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen d
 
 Zaman/fiyat/score'a duyarlı max allowed loss.
 
+> **Not:** PnL% hesaplamaları `pos.entry_price` ve `pos.current_price` ile direkt
+> yapılır — her iki alan da token-native (owned side). `effective_price()`
+> uygulanmaz. Bkz. §6.11 notu.
+
 **Formül:**
 ```
 max_loss = base × price_mult × score_adj
@@ -412,7 +416,12 @@ Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
 
 94¢ eşiğinde kâr alma — WebSocket path'te çalışır.
 
-**Tetikleyici:** `effective_current ≥ 0.94`
+**Tetikleyici:** `pos.current_price ≥ 0.94` (token-native, owned side)
+
+> **Not:** `current_price` alanı zaten owned token fiyatıdır (BUY_YES → YES token,
+> BUY_NO → NO token). `effective_price()` UYGULANMAZ — çift flip olur.
+> Exit modüllerinde `pos.current_price` ve `pos.entry_price` direkt kullanılır.
+> `effective_price()` sadece market-side YES input için (gate.py).
 
 **Sanity guard'ları (WS spike koruması):**
 | Koşul | Aksiyon |
