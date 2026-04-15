@@ -28,6 +28,9 @@ class ScannerConfig(BaseModel):
     min_liquidity: float = 1000
     max_markets_per_cycle: int = 300
     max_duration_days: int = 14
+    # Odds API h2h penceresi — maç > bu kadar saat sonraysa bookmaker verisi
+    # olmayacak, scanner'da ele.
+    max_hours_to_start: float = 24.0
     allowed_categories: List[str] = ["sports"]
     allowed_sport_tags: List[str] = []
 

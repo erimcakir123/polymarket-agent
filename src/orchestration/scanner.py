@@ -80,8 +80,9 @@ class MarketScanner:
         if m.closed or m.resolved or not m.accepting_orders:
             return False
 
-        # Sports market type — sadece moneyline (spread/totals SL-yasak bölgesi)
-        if m.sports_market_type and m.sports_market_type != "moneyline":
+        # Sports market type — STRICT: sadece h2h moneyline kabul.
+        # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
+        if m.sports_market_type != "moneyline":
             return False
 
         # Sport tag whitelist (MVP)
@@ -93,8 +94,13 @@ class MarketScanner:
         if m.liquidity < self.config.min_liquidity:
             return False
 
-        # Max süre (futures'ları ele — end_date 14 günden uzaktaysa atla)
+        # Max süre (futures'ları ele — end_date N günden uzaktaysa atla)
         if not self._within_duration(m):
+            return False
+
+        # Odds API h2h penceresi — maç > max_hours_to_start sonraysa bookmaker verisi
+        # alamayacağız; stock'a eklenip boşa beklemesin.
+        if _hours_to_start(m) > self.config.max_hours_to_start:
             return False
 
         # Stale match_start: maç 8+ saat önce başlamışsa atla

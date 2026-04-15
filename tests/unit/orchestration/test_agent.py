@@ -43,6 +43,7 @@ def _market(cid: str = "m1", yes: float = 0.50) -> MarketData:
         end_date_iso=_iso(now + timedelta(hours=3)),
         match_start_iso=_iso(now + timedelta(hours=1)),
         sport_tag="basketball_nba",
+        sports_market_type="moneyline",
         event_id=f"evt_{cid}",
     )
 

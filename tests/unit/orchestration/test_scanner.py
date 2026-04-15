@@ -66,6 +66,40 @@ def test_non_moneyline_filtered() -> None:
     assert sc.scan() == []
 
 
+def test_empty_sports_market_type_filtered() -> None:
+    """PGA Top-N gibi marketlerde sports_market_type='' — strict reject."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        market_type="",
+        match_start=now + timedelta(hours=12),
+        end_date=now + timedelta(hours=14),
+    )
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_match_start_beyond_24h_filtered() -> None:
+    """Odds API penceresi 24h — daha uzak maçlar scanner'da elenir."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        match_start=now + timedelta(hours=30),
+        end_date=now + timedelta(hours=32),
+    )
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_match_start_within_24h_kept() -> None:
+    """23h sonrası — kalır."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        match_start=now + timedelta(hours=23),
+        end_date=now + timedelta(hours=25),
+    )
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
 def test_not_allowed_sport_filtered() -> None:
     now = datetime.now(timezone.utc)
     m = _market(sport_tag="soccer_epl", end_date=now + timedelta(days=1))
@@ -142,6 +176,8 @@ def test_tennis_wildcard_matches() -> None:
 # ── Priority sort ──
 
 def test_imminent_before_midrange() -> None:
+    """Bucket sort (imminent → midrange → discovery) — config'i geniş tut
+    ki discovery (>24h default cap) de testi etkilemesin."""
     now = datetime.now(timezone.utc)
     imminent = _market(cid="imm", match_start=now + timedelta(hours=2),
                        end_date=now + timedelta(hours=5))
@@ -149,7 +185,7 @@ def test_imminent_before_midrange() -> None:
                        end_date=now + timedelta(hours=13))
     discovery = _market(cid="disc", match_start=now + timedelta(hours=48),
                         end_date=now + timedelta(days=3))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([discovery, midrange, imminent]))
+    sc = MarketScanner(_config(max_hours_to_start=72), gamma_client=_mock_gamma([discovery, midrange, imminent]))
     result = sc.scan()
     assert [m.condition_id for m in result] == ["imm", "mid", "disc"]
 
@@ -174,9 +210,9 @@ def test_unknown_time_bucket_after_imminent() -> None:
     now = datetime.now(timezone.utc)
     imm = _market(cid="imm", match_start=now + timedelta(hours=4),
                   end_date=now + timedelta(hours=7))
-    # No match_start, end_date 30h → bucket 1 (unknown ≤48h)
+    # No match_start, end_date 30h → bucket 1 (unknown ≤48h). Config'i geniş tut.
     unk = _market(cid="unk", end_date=now + timedelta(hours=30))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([unk, imm]))
+    sc = MarketScanner(_config(max_hours_to_start=48), gamma_client=_mock_gamma([unk, imm]))
     result = sc.scan()
     assert [m.condition_id for m in result] == ["imm", "unk"]
 
