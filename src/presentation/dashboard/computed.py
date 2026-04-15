@@ -63,6 +63,9 @@ def equity_summary(
     realized = float(positions_blob.get("realized_pnl", 0.0))
     invested = sum(float(p.get("size_usdc", 0.0)) for p in positions.values())
     open_pnl = sum(_position_unrealized(p) for p in positions.values())
+    # NOT: PortfolioManager.compute_bankroll bu modülde kullanılamaz —
+    # `test_computed_module_has_no_layer_imports` domain import'u yasaklar.
+    # Formül burada bilerek inline tutulur (yerel invariant > küresel DRY).
     bankroll = initial_bankroll + realized - invested
     total_equity = bankroll + invested + open_pnl
     peak = _peak_total_equity(equity_history, total_equity, initial_bankroll)

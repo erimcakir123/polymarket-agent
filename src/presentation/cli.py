@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from src.config.settings import load_config
+from src.domain.portfolio.manager import PortfolioManager
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.presentation.dashboard.computed import _position_unrealized
@@ -30,7 +31,7 @@ def cmd_status() -> int:
     positions = ps.get("positions", {}) or {}
     realized = ps.get("realized_pnl", 0.0)
     invested = sum((p.get("size_usdc", 0.0) or 0.0) for p in positions.values())
-    bankroll = cfg.initial_bankroll + realized - invested
+    bankroll = PortfolioManager.compute_bankroll(cfg.initial_bankroll, realized, invested)
     pid_file = _LOGS / "agent.pid"
     pid = pid_file.read_text(encoding="utf-8").strip() if pid_file.exists() else "—"
 

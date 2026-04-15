@@ -52,8 +52,18 @@ class PortfolioManager:
         Crash recovery sonrası state düzeltmeleri için kullanılır.
         """
         invested = sum(p.size_usdc for p in self.positions.values())
-        self.bankroll = initial_bankroll + self.realized_pnl - invested
+        self.bankroll = self.compute_bankroll(initial_bankroll, self.realized_pnl, invested)
         self.high_water_mark = max(self.high_water_mark, self.bankroll)
+
+    @staticmethod
+    def compute_bankroll(initial_bankroll: float, realized_pnl: float,
+                         total_invested: float) -> float:
+        """Bankroll formülü — tek yerde tutulur (DRY).
+
+        bankroll = initial + realized − açık pozisyon size'larının toplamı.
+        Hem PortfolioManager.recalculate_bankroll hem presentation katmanları kullanır.
+        """
+        return initial_bankroll + realized_pnl - total_invested
 
     # ── Event-level guard (ARCH Kural 8) ──
 
