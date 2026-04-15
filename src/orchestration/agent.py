@@ -16,19 +16,14 @@ from datetime import datetime, timezone
 from src.domain.portfolio.exposure import exceeds_exposure_limit
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.executor import Executor
-from src.infrastructure.persistence.eligible_queue_snapshot import (
-    EligibleQueueEntry,
-    EligibleQueueSnapshot,
-)
-from src.infrastructure.persistence.equity_history import EquityHistoryLogger, EquitySnapshot
-from src.infrastructure.persistence.skipped_trade_logger import (
-    SkippedTradeLogger,
-    SkippedTradeRecord,
-)
+from src.infrastructure.persistence.eligible_queue_snapshot import EligibleQueueSnapshot
+from src.infrastructure.persistence.equity_history import EquityHistoryLogger
+from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, TradeRecord, _split_sport_tag
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.models.market import MarketData
 from src.models.position import Position
+from src.orchestration import operational_writers
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
@@ -148,8 +143,8 @@ class Agent:
             markets = self.deps.scanner.scan()
             self._process_markets(markets)
         # Dashboard snapshot'ları (presentation ayrı process, disk üzerinden).
-        self._dump_eligible_queue()
-        self._log_equity_snapshot()
+        operational_writers.dump_eligible_queue(self.deps.scanner, self.deps.eligible_snapshot)
+        operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
 
     def _process_markets(self, markets: list[MarketData]) -> None:
@@ -169,7 +164,7 @@ class Agent:
             market = by_cid.get(r.condition_id)
             if r.signal is None:
                 if market is not None:
-                    self._log_skip(market, r.skipped_reason)
+                    operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
                     if r.skipped_reason in ("max_positions_reached", "exposure_cap_reached"):
                         self.deps.scanner.push_eligible(market)
                 continue
@@ -184,7 +179,7 @@ class Agent:
                 self.deps.state.portfolio.bankroll,
                 max_exposure_pct,
             ):
-                self._log_skip(market, "exposure_cap_reached")
+                operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
                 self.deps.scanner.push_eligible(market)
                 continue
 
@@ -345,56 +340,3 @@ class Agent:
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
 
-    # ── Dashboard snapshot writers (presentation ayrı process) ──
-
-    def _log_skip(self, market: MarketData, reason: str) -> None:
-        """Gate skip → SkippedTradeLogger. Strategy'den çağrılmaz (Kural 1)."""
-        record = SkippedTradeRecord(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            slug=market.slug,
-            sport_tag=market.sport_tag,
-            event_id=market.event_id or "",
-            entry_price=market.yes_price,
-            skip_reason=reason or "unknown",
-        )
-        try:
-            self.deps.skipped_logger.log(record)
-        except OSError as e:
-            logger.warning("Skipped logger write failed: %s", e)
-
-    def _dump_eligible_queue(self) -> None:
-        """Scanner eligible queue → disk snapshot (dashboard Stock tabı)."""
-        entries = [
-            EligibleQueueEntry(
-                slug=m.slug, sport_tag=m.sport_tag, question=m.question,
-                yes_price=m.yes_price, no_price=m.no_price,
-                liquidity=m.liquidity, volume_24h=m.volume_24h,
-                match_start_iso=m.match_start_iso,
-            )
-            for m in self.deps.scanner.eligible_markets()
-        ]
-        try:
-            self.deps.eligible_snapshot.dump(entries)
-        except OSError as e:
-            logger.warning("Eligible queue snapshot failed: %s", e)
-
-    def _log_equity_snapshot(self) -> None:
-        """Heavy cycle sonunda bankroll snapshot → EquityHistoryLogger."""
-        portfolio = self.deps.state.portfolio
-        unrealized = 0.0
-        invested = 0.0
-        for pos in portfolio.positions.values():
-            invested += pos.size_usdc
-            unrealized += pos.unrealized_pnl_usdc
-        snap = EquitySnapshot(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            bankroll=portfolio.bankroll,
-            realized_pnl=portfolio.realized_pnl,
-            unrealized_pnl=unrealized,
-            invested=invested,
-            open_positions=len(portfolio.positions),
-        )
-        try:
-            self.deps.equity_logger.log(snap)
-        except OSError as e:
-            logger.warning("Equity snapshot write failed: %s", e)
