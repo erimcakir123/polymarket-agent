@@ -42,11 +42,18 @@ class PortfolioManager:
         mgr.realized_pnl = data.get("realized_pnl", 0.0)
         for cid, pos_data in data.get("positions", {}).items():
             mgr.positions[cid] = Position(**pos_data)
-        # Bankroll: initial + realized − yatırılan
-        invested = sum(p.size_usdc for p in mgr.positions.values())
-        mgr.bankroll = initial_bankroll + mgr.realized_pnl - invested
-        mgr.high_water_mark = max(data.get("high_water_mark", initial_bankroll), mgr.bankroll)
+        mgr.high_water_mark = data.get("high_water_mark", initial_bankroll)
+        mgr.recalculate_bankroll(initial_bankroll)
         return mgr
+
+    def recalculate_bankroll(self, initial_bankroll: float) -> None:
+        """Bankroll'u baştan türet: initial + realized − açık pozisyonların toplam size'ı.
+
+        Crash recovery sonrası state düzeltmeleri için kullanılır.
+        """
+        invested = sum(p.size_usdc for p in self.positions.values())
+        self.bankroll = initial_bankroll + self.realized_pnl - invested
+        self.high_water_mark = max(self.high_water_mark, self.bankroll)
 
     # ── Event-level guard (ARCH Kural 8) ──
 

@@ -218,3 +218,23 @@ def test_tick_position_state_missing_condition_is_noop() -> None:
     m = PortfolioManager(initial_bankroll=1000.0)
     # Exception atmamalı
     m.tick_position_state("nonexistent")
+
+
+# ── recalculate_bankroll (DRY extract: from_snapshot + reconcile) ──
+
+def test_recalculate_bankroll_no_positions() -> None:
+    """Hiç pozisyon yok: bankroll = initial + realized."""
+    mgr = PortfolioManager(initial_bankroll=1000.0)
+    mgr.realized_pnl = -50.0
+    mgr.recalculate_bankroll(1000.0)
+    assert mgr.bankroll == 950.0
+
+
+def test_recalculate_bankroll_with_invested_positions() -> None:
+    """Açık pozisyon size_usdc'leri çıkarılır: bankroll = initial + realized - invested."""
+    mgr = PortfolioManager(initial_bankroll=1000.0)
+    mgr.realized_pnl = -20.0
+    mgr.positions["a"] = _pos(cid="a", event_id="e1", size=100.0)
+    mgr.recalculate_bankroll(1000.0)
+    # 1000 - 20 - 100 = 880
+    assert mgr.bankroll == 880.0
