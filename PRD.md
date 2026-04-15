@@ -101,7 +101,7 @@ marketler scanner seviyesinde elenir. Detay: TDD §5.7.5.
 Heavy cycle sırasında açık pozisyonlar için:
 1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).
 2. **Near-Resolve**: eff_price ≥ 94¢ + 5 dk pre-match guard → çık (TDD §6.11).
-3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → graduated SL atlanır; market_flip sadece elapsed ≥ %85'te tetiklenir (TDD §6.9).
+3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → **flat SL ve graduated SL atlanır**; sadece scale-out, near-resolve ve market_flip (elapsed ≥ %85'te `current_price < 0.50`) aktif (TDD §6.9).
 4. **Favored**: eff_price ≥ 65¢ + confidence ∈ {A, B} → promoted; altı demoted (TDD §6.13).
 5. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → daha agresif SL (TDD §6.10).
 

@@ -79,6 +79,25 @@ def test_flat_stop_loss_triggers() -> None:
 
 # ── A-conf hold branch ──
 
+def test_a_conf_hold_skips_flat_sl() -> None:
+    """Regression: A-conf hold flat SL'den muaf olmalı (TDD §6.9).
+    Bug: monitor.py layer 3'teki flat SL A-conf check'inden önce fire ediyordu.
+    Rangers-Lightning pozisyonu (2026-04-15) bu bug'la erken exit etmişti.
+    """
+    # A-conf, entry 0.65 (hold qualifier), NHL SL %30. pnl = -31% > -30% → flat SL threshold aşıldı.
+    # Elapsed %30 (erken maç) — market_flip henüz tetiklenmez (%85 gate).
+    start = datetime.now(timezone.utc) - timedelta(minutes=45)
+    p = _pos(
+        confidence="A", entry_price=0.65, current_price=0.45,
+        size_usdc=40, shares=61.5, match_start_iso=_iso(start),
+        sport_tag="nhl",
+    )
+    # pnl = (61.5*0.45 - 40)/40 = -30.8% — flat SL eşiği (%30) altında ama A-conf korumalı.
+    r = evaluate(p)
+    # A-conf hold: flat SL atla, market_flip elapsed gate sebebiyle fire etmez → None
+    assert r.exit_signal is None, f"A-conf flat SL'den muaf olmalı (exit={r.exit_signal})"
+
+
 def test_a_conf_hold_skips_graduated_sl() -> None:
     # A-conf, entry 0.65 (hold), elapsed 0.50, current 0.35
     # pnl = -46% — normalde graduated SL tetikler, ama A-hold atlar

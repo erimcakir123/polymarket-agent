@@ -383,8 +383,14 @@ Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda gen
 **Hold aktifken davranış:**
 | Elapsed | Atlanan kurallar | Aktif kurallar |
 |---|---|---|
-| < 0.85 (erken/orta) | Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11) |
-| ≥ 0.85 (geç) | — | **Graduated SL aktif** + **market_flip**: `effective_current < 0.50` → `exit("market_flip")` |
+| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11) |
+| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out |
+
+> **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
+> `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out → A-conf
+> hold dalı (market_flip only) → else branch (flat SL + graduated + vs). Flat SL
+> a-conf check'inden ÖNCE konursa A-conf koruması bozulur (regression:
+> Rangers-Lightning 2026-04-15, `test_a_conf_hold_skips_flat_sl`).
 
 **Veri dayanağı** (25 A-conf resolved trade analizi):
 | Senaryo | Sonuç |

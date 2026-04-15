@@ -156,18 +156,10 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
-    # 3. Flat stop-loss — her zaman aktif
-    if stop_loss.check(pos):
-        return MonitorResult(
-            exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
-            fav_transition=_fav_transition(pos),
-            elapsed_pct=elapsed_pct,
-        )
-
-    # 4. A-conf hold dalı
+    # 3. A-conf hold dalı — flat SL + graduated SL'den MUAF (TDD §6.9)
+    # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
     a_hold = a_conf_hold.is_a_conf_hold(pos) or pos.favored
     if a_hold:
-        # Sadece market flip (elapsed gate'li)
         if elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.MARKET_FLIP, detail="eff < 0.50 at elapsed >= 0.85"),
@@ -175,7 +167,14 @@ def evaluate(
                 elapsed_pct=elapsed_pct,
             )
     else:
-        # Non-A-hold: graduated SL + never-in-profit + hold-revocation + ultra-low
+        # 4. Non-A-hold flat stop-loss
+        if stop_loss.check(pos):
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
+        # 5. Non-A-hold: graduated SL + never-in-profit + hold-revocation + ultra-low
         if elapsed_pct >= 0:
             if _ultra_low_guard_exit(pos, elapsed_pct):
                 return MonitorResult(
