@@ -302,7 +302,7 @@ html, body {
 .pnl-neg { color: var(--red); }
 
 /* Unrealized (Open PnL) özel: pozitif → canlı açık mavi, negatif → kırmızı. */
-.unr-pos { color: var(--blue); }
+.unr-pos { color: var(--green); }
 .unr-neg { color: var(--red); }
 
 /* Feed pozisyon kartlarında PnL: lime + bold (progress bar ile tutarlı). */

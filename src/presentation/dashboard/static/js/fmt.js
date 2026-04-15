@@ -124,7 +124,10 @@
       if (!q) return null;
       const parts = String(q).split(/\s+vs\.?\s+/i);
       if (parts.length !== 2) return null;
-      return `${parts[0].trim()} vs ${parts[1].trim()}`;
+      // Turnuva prefix'i (Porsche Tennis Grand Prix: Eva Lys) — son ":" sonrasını al.
+      let a = parts[0].trim();
+      if (a.includes(":")) a = a.split(":").pop().trim();
+      return `${a} vs ${parts[1].trim()}`;
     },
     _fromSlug(slug) {
       if (!slug) return null;
