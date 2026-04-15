@@ -1,8 +1,9 @@
 /* PolyAgent Dashboard — core client logic.
  *
- * Modüller: CONFIG, FMT, ICONS, API, CHARTS, RENDER, MAIN.
+ * Modüller: CONFIG, ICONS, API, CHARTS, RENDER, MAIN.
+ * FMT namespace → fmt.js (ayrı dosya, önce yüklenir).
  * FEED modülü feed.js'te (ayrı dosya, 400-satır kuralı).
- * FMT + ICONS window'a expose edilir → feed.js kullanır.
+ * ICONS window'a expose edilir → feed.js kullanır.
  */
 (function (global) {
   "use strict";
@@ -19,93 +20,6 @@
 
   const MODE = document.body.dataset.mode || "dry_run";
   const MAX_POSITIONS = parseInt(document.body.dataset.maxPositions || "20", 10);
-
-  // ── FMT (formatters) ──
-  // HTML döndürenler (`*Html`) <span class="dec"> ile decimal kısmı %50 opacity.
-  const FMT = {
-    _splitDecimal(n, digits) {
-      const abs = Math.abs(n).toFixed(digits);
-      const [i, d] = abs.split(".");
-      return { intPart: i, decPart: d || "" };
-    },
-    usd(n) {
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      return (n < 0 ? "-" : "") + "$" + Math.abs(n).toFixed(2);
-    },
-    usdHtml(n) {
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      const { intPart, decPart } = this._splitDecimal(n, 2);
-      const sign = n < 0 ? "-" : "";
-      return `${sign}$${intPart}<span class="dec">.${decPart}</span>`;
-    },
-    usdSigned(n) {
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      return (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2);
-    },
-    usdSignedHtml(n) {
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      const { intPart, decPart } = this._splitDecimal(n, 2);
-      const sign = n >= 0 ? "+" : "-";
-      return `${sign}$${intPart}<span class="dec">.${decPart}</span>`;
-    },
-    pct(n, digits) {
-      digits = digits == null ? 1 : digits;
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      return n.toFixed(digits) + "%";
-    },
-    pctHtml(n, digits) {
-      digits = digits == null ? 1 : digits;
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      if (digits === 0) return n.toFixed(0) + "%";
-      const { intPart, decPart } = this._splitDecimal(n, digits);
-      const sign = n < 0 ? "-" : "";
-      return `${sign}${intPart}<span class="dec">.${decPart}</span>%`;
-    },
-    pnlClass(n) {
-      // 0 → beyaz, pozitif → yeşil, negatif → kırmızı.
-      if (n > 0.001) return "pnl-pos";
-      if (n < -0.001) return "pnl-neg";
-      return "pnl-zero";
-    },
-    unrealizedClass(n) {
-      // Open PnL: 0 → beyaz, pozitif → mavi, negatif → kırmızı.
-      if (n > 0.001) return "unr-pos";
-      if (n < -0.001) return "unr-neg";
-      return "pnl-zero";
-    },
-    time(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    },
-    relTime(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
-      if (diffMin < 1) return "just now";
-      if (diffMin < 60) return diffMin + "m ago";
-      const h = Math.floor(diffMin / 60);
-      if (h < 24) return h + "h ago";
-      return Math.floor(h / 24) + "d ago";
-    },
-    polyUrl(slug) {
-      if (!slug) return "#";
-      return "https://polymarket.com/event/" + encodeURIComponent(slug);
-    },
-    cents(price) { return Math.round(price * 100) + "¢"; },
-    pctSigned(n, digits) {
-      if (n === null || n === undefined || isNaN(n)) return "--";
-      const d = digits == null ? 0 : digits;
-      return (n >= 0 ? "+" : "") + n.toFixed(d) + "%";
-    },
-    escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
-        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    },
-  };
 
   // ── ICONS (sport → emoji/img) ──
   const ICONS = {
@@ -153,14 +67,23 @@
     sportRoi() { return this._json("/api/sport_roi"); },
   };
 
-  // ── CHARTS (Chart.js) ──
+  // ── CHARTS (Chart.js) — palette CSS'ten okunur, hex literal YASAK ──
+  const _cssVar = (name) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const _rgba = (varName, alpha) => {
+    const hex = _cssVar(varName).replace("#", "");
+    const [r, g, b] = hex.match(/.{2}/g).map((h) => parseInt(h, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
   const COLORS = {
-    green: "#22c55e",
-    red: "#ef4444",
-    amber: "#f59e0b",
-    blue: "#3b82f6",
-    teal: "#14b8a6",
-    muted: "#64748b",
+    green:   _cssVar("--green"),
+    red:     _cssVar("--red"),
+    redHover: _cssVar("--red-hover"),
+    blue:    _cssVar("--blue"),
+    orange:  _cssVar("--orange"),
+    muted:   _cssVar("--muted-dim"),
+    greenFill: _rgba("--green", 0.14),
+    greenDim:  _rgba("--green", 0.5),
     track: "rgba(148, 163, 184, 0.08)",
     gridLine: "rgba(148, 163, 184, 0.06)",
     axisLabel: "rgba(148, 163, 184, 0.5)",
@@ -170,7 +93,7 @@
     equity: null, waterfall: null, lp: null, slots: null,
 
     initAll() {
-      this._initLine("equity-chart", "equity", COLORS.green, "rgba(34, 197, 94, 0.14)");
+      this._initLine("equity-chart", "equity", COLORS.green, COLORS.greenFill);
       this._initBar("waterfall-chart", "waterfall");
       this._initGauge("lp-gauge", "lp", COLORS.green);
       this._initGauge("slots-gauge", "slots", COLORS.blue);
@@ -201,7 +124,8 @@
     _baseOpts(showY) {
       return {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true } },
+        plugins: { legend: { display: false },
+          tooltip: { enabled: true, bodyFont: { weight: "bold" } } },
         scales: {
           x: { display: false, grid: { display: false } },
           y: { display: showY, grid: { color: COLORS.gridLine },
@@ -241,15 +165,31 @@
 
     setWaterfall(trades) {
       const limited = trades.slice(0, CONFIG.waterfallMaxBars).reverse();
-      this.waterfall.data.labels = limited.map((_, i) => String(i + 1));
+      this.waterfall.data.labels = limited.map((t) => FMT.teamsText(t.question, t.slug));
       const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
       this.waterfall.data.datasets[0].data = data;
-      // Default: soluk (Branches paleti — hover'sız bar'lar daha koyu görünür)
+      // Default = dark tonlar; hover = parlak tonlar (palette kuralı).
       this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v >= 0 ? "rgba(34, 197, 94, 0.5)" : "rgba(239, 68, 68, 0.5)"));
-      // Hover: parlak full renk
+        data.map((v) => (v >= 0 ? COLORS.greenDim : COLORS.red));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v >= 0 ? COLORS.green : COLORS.redHover));
+      // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
+      this.waterfall.options.plugins.tooltip = {
+        enabled: true,
+        displayColors: false,
+        callbacks: {
+          label: (ctx) => {
+            const v = ctx.parsed.y;
+            const sign = v > 0 ? "+" : v < 0 ? "-" : "";
+            return `${sign}$${Math.abs(v).toFixed(2)}`;
+          },
+          labelTextColor: (ctx) => {
+            const v = ctx.parsed.y;
+            if (Math.abs(v) < 1e-9) return COLORS.blue;
+            return v > 0 ? COLORS.green : COLORS.red;
+          },
+        },
+      };
       this.waterfall.update("none");
     },
   };
@@ -257,16 +197,14 @@
   // ── RENDER (DOM updates) ──
   const RENDER = {
     status(data) {
-      // Light cycle: Online (bot canlı) / Offline
+      // Bot offline → her iki cycle de "offline" variant (muted).
       const botAlive = !!data.bot_alive;
-      this._applyCycle("cg-light", "light",
-        botAlive ? "Online" : "Offline", botAlive);
-
-      // Hard cycle: stage'e göre etiket
       if (!botAlive) {
+        this._applyCycle("cg-light", "offline", "Offline", false);
         this._applyCycle("cg-hard", "offline", "Offline", false);
         return;
       }
+      this._applyCycle("cg-light", "light", "Online", true);
       const stage = (data.stage || "").toLowerCase();
       const stageRecent = this._isRecent(data.stage_at, CONFIG.stageRecentSec);
       let label, live;
@@ -350,7 +288,7 @@
       const cls = data.status === "Safe" ? "green" : data.status === "Stopped" ? "red" : "amber";
       statusEl.className = "text-" + cls;
       const color = data.status === "Safe" ? COLORS.green
-        : data.status === "Stopped" ? COLORS.red : COLORS.amber;
+        : data.status === "Stopped" ? COLORS.red : COLORS.orange;
       CHARTS.setGauge("lp", data.risk_pct, color);
     },
 
@@ -410,7 +348,6 @@
   };
 
   // ── Expose for feed.js ──
-  global.FMT = FMT;
   global.ICONS = ICONS;
 
   // Idle countdown — /api/status cevabı cache'lenir, 1s'de bir label re-render edilir
