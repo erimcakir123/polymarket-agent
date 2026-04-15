@@ -149,13 +149,22 @@
 
     setWaterfall(trades) {
       const limited = trades.slice(0, CONFIG.waterfallMaxBars).reverse();
-      this.waterfall.data.labels = limited.map((t) => FMT.teamsText(t.question, t.slug));
-      const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
+      // Minimum 12 slot — az trade varsa bars sola yaslanır, sağ tarafta boşluk
+      // kalır. Yeni trade geldiğinde sağa eklenir (reverse: kronolojik eski→yeni).
+      const MIN_SLOTS = 12;
+      const slots = Math.max(limited.length, MIN_SLOTS);
+      const labels = new Array(slots).fill("");
+      const data = new Array(slots).fill(null);
+      limited.forEach((t, i) => {
+        labels[i] = FMT.teamsText(t.question, t.slug);
+        data[i] = Number(t.exit_pnl_usdc || 0);
+      });
+      this.waterfall.data.labels = labels;
       this.waterfall.data.datasets[0].data = data;
       this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
       this.waterfall.options.plugins.tooltip = {
         enabled: true,
