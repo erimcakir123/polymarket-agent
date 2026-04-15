@@ -137,3 +137,22 @@ class TradeHistoryLogger:
         Atomic rewrite. Return: güncellendi mi?
         """
         return self._rewrite_matching(condition_id, lambda rec: rec.update(exit_data))
+
+    def log_partial_exit(self, condition_id: str, tier: int, sell_pct: float,
+                         realized_pnl_usdc: float, timestamp: str) -> bool:
+        """En son açık trade kaydının partial_exits listesine bir partial ekle.
+        Atomic rewrite. Return: kayıt bulundu mu.
+        """
+        entry: dict[str, Any] = {
+            "tier": tier,
+            "sell_pct": sell_pct,
+            "realized_pnl_usdc": realized_pnl_usdc,
+            "timestamp": timestamp,
+        }
+
+        def append_partial(rec: dict[str, Any]) -> None:
+            existing = rec.get("partial_exits") or []
+            existing.append(entry)
+            rec["partial_exits"] = existing
+
+        return self._rewrite_matching(condition_id, append_partial)

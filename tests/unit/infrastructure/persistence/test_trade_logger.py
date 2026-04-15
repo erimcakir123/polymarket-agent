@@ -208,3 +208,66 @@ def test_trade_record_accepts_partial_exits():
         partial_exits=pe_data,
     )
     assert record.partial_exits == pe_data
+
+
+def test_log_partial_exit_appends_to_open_record(tmp_path):
+    """Açık trade kaydının partial_exits listesine yeni partial eklenir."""
+    from src.infrastructure.persistence.trade_logger import (
+        TradeHistoryLogger, TradeRecord,
+    )
+    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
+    open_rec = TradeRecord(
+        slug="x", condition_id="cid", event_id="e", token_id="t",
+        sport_tag="mlb", sport_category="mlb", league="",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
+        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
+    )
+    logger.log(open_rec)
+
+    ok = logger.log_partial_exit(
+        condition_id="cid", tier=1, sell_pct=0.4,
+        realized_pnl_usdc=5.0, timestamp="2026-04-15T01:00:00Z",
+    )
+    assert ok is True
+
+    records = logger.read_all()
+    assert len(records) == 1
+    assert records[0]["partial_exits"] == [
+        {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+         "timestamp": "2026-04-15T01:00:00Z"}
+    ]
+
+
+def test_log_partial_exit_appends_multiple_tiers(tmp_path):
+    """Aynı pozisyona iki kez partial exit (Tier1 + Tier2) eklenebilir."""
+    from src.infrastructure.persistence.trade_logger import (
+        TradeHistoryLogger, TradeRecord,
+    )
+    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
+    logger.log(TradeRecord(
+        slug="x", condition_id="cid", event_id="e", token_id="t",
+        sport_tag="mlb", sport_category="mlb", league="",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
+        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
+    ))
+    logger.log_partial_exit(condition_id="cid", tier=1, sell_pct=0.4,
+                            realized_pnl_usdc=5.0, timestamp="t1")
+    logger.log_partial_exit(condition_id="cid", tier=2, sell_pct=0.5,
+                            realized_pnl_usdc=8.0, timestamp="t2")
+    records = logger.read_all()
+    assert len(records[0]["partial_exits"]) == 2
+    assert records[0]["partial_exits"][0]["tier"] == 1
+    assert records[0]["partial_exits"][1]["tier"] == 2
+
+
+def test_log_partial_exit_returns_false_if_no_open_record(tmp_path):
+    """Eşleşen açık kayıt yoksa False döner, dosya değişmez."""
+    from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
+    ok = logger.log_partial_exit(
+        condition_id="missing", tier=1, sell_pct=0.4,
+        realized_pnl_usdc=5.0, timestamp="t1",
+    )
+    assert ok is False
