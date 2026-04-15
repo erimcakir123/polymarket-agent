@@ -242,9 +242,14 @@
     setWaterfall(trades) {
       const limited = trades.slice(0, CONFIG.waterfallMaxBars).reverse();
       this.waterfall.data.labels = limited.map((_, i) => String(i + 1));
-      this.waterfall.data.datasets[0].data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
+      const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
+      this.waterfall.data.datasets[0].data = data;
+      // Default: soluk (Branches paleti — hover'sız bar'lar daha koyu görünür)
       this.waterfall.data.datasets[0].backgroundColor =
-        this.waterfall.data.datasets[0].data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v >= 0 ? "rgba(34, 197, 94, 0.5)" : "rgba(239, 68, 68, 0.5)"));
+      // Hover: parlak full renk
+      this.waterfall.data.datasets[0].hoverBackgroundColor =
+        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
       this.waterfall.update("none");
     },
   };
