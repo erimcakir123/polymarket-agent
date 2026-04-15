@@ -22,12 +22,14 @@ from src.domain.guards.blacklist import Blacklist
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
 from src.infrastructure.persistence.json_store import JsonStore
+from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 
 logger = logging.getLogger(__name__)
 
 _POSITIONS_FILE = "logs/positions.json"
 _BREAKER_FILE = "logs/circuit_breaker_state.json"
 _BLACKLIST_FILE = "logs/blacklist.json"
+_TRADE_HISTORY_FILE = "logs/trade_history.jsonl"
 
 
 @dataclass
@@ -63,6 +65,10 @@ def bootstrap(config: AppConfig, logs_dir: Path | str = "logs") -> RuntimeState:
 
     # Blacklist restore
     blacklist = _restore_blacklist(blacklist_store)
+
+    # Reconcile realized PnL — trade_history.jsonl ground truth (crash recovery)
+    trade_logger = TradeHistoryLogger(str(logs / "trade_history.jsonl"))
+    _reconcile_realized_pnl(portfolio, trade_logger, config.initial_bankroll)
 
     logger.info(
         "Bootstrap complete: mode=%s bankroll=$%.2f positions=%d realized=$%.2f "
@@ -122,6 +128,33 @@ def _restore_blacklist(store: JsonStore) -> Blacklist:
         except Exception as e:
             logger.warning("Blacklist restore failed (%s), starting fresh", e)
     return Blacklist()
+
+
+def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger,
+                            initial_bankroll: float) -> None:
+    """trade_history.jsonl'dan true realized hesapla, portfolio snapshot'ıyla
+    uyumsuzsa düzelt + bankroll'u yeniden türet (crash recovery sonrası).
+
+    True realized = sum(full_exit.exit_pnl_usdc) + sum(partial_exits.realized_pnl_usdc).
+    """
+    records = trade_logger.read_all()
+    true_realized = 0.0
+    for rec in records:
+        for pe in rec.get("partial_exits") or []:
+            true_realized += float(pe.get("realized_pnl_usdc", 0.0))
+        if rec.get("exit_price") is not None:
+            true_realized += float(rec.get("exit_pnl_usdc", 0.0))
+
+    delta = true_realized - portfolio.realized_pnl
+    if abs(delta) < 0.01:  # floating noise — eşit kabul
+        return
+
+    logger.warning(
+        "Realized PnL reconciliation: snapshot=$%.2f, log=$%.2f, delta=$%+.2f — using log",
+        portfolio.realized_pnl, true_realized, delta,
+    )
+    portfolio.realized_pnl = true_realized
+    portfolio.recalculate_bankroll(initial_bankroll)
 
 
 def persist(state: RuntimeState) -> None:
