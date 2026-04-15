@@ -149,6 +149,7 @@
 
 .badge-yes { background: var(--blue-dim);   color: var(--blue); }
 .badge-no  { background: var(--orange-dim); color: var(--orange); }
+.badge-partial { background: var(--green-dim); color: var(--green); margin-right: 4px; }
 
 .feed-details {
   display: flex;

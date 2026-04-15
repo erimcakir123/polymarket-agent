@@ -135,6 +135,37 @@ def closed_trades(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return closed
 
 
+def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Full exit'ler + partial scale-out'ları tek liste olarak döner.
+
+    Her full-close TradeRecord bir event, her partial_exit ayrı bir event.
+    Exited tab source. Treemap aggregation `closed_trades` kullanmaya devam
+    (yalnız full close).
+    """
+    events: list[dict[str, Any]] = []
+    for t in trades:
+        for pe in (t.get("partial_exits") or []):
+            events.append({
+                "slug": t.get("slug", ""),
+                "sport_tag": t.get("sport_tag", ""),
+                "direction": t.get("direction", ""),
+                "entry_price": t.get("entry_price"),
+                "question": t.get("question", ""),
+                "exit_price": None,
+                "exit_pnl_usdc": pe.get("realized_pnl_usdc", 0.0),
+                "exit_reason": f"scale_out_tier_{pe.get('tier', '?')}",
+                "exit_timestamp": pe.get("timestamp", ""),
+                "partial": True,
+                "sell_pct": pe.get("sell_pct", 0.0),
+            })
+        if t.get("exit_price") is not None:
+            ev = dict(t)
+            ev["partial"] = False
+            events.append(ev)
+    events.sort(key=lambda e: e.get("exit_timestamp", ""), reverse=True)
+    return events
+
+
 # Liglerden branşa map (treemap gruplaması için). Eski kayıtlarda sport_tag
 # sadece lig kodu (ör. "mlb") olabiliyor; doğru branşa eşle.
 _LEAGUE_TO_SPORT: dict[str, str] = {

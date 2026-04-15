@@ -126,15 +126,24 @@
       const dir = FMT.sideCode(t.direction, t.slug);
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
+      // Partial scale-out event (pozisyon hâlâ açık) — Exit fiyatı yazılmaz,
+      // PARTIAL badge + sell_pct gösterilir.
+      const isPartial = !!t.partial;
+      const exitCell = isPartial
+        ? `<span>Partial ${Math.round((t.sell_pct || 0) * 100)}%</span>`
+        : `<span>Exit ${FMT.cents(t.exit_price || 0)}</span>`;
+      const partialBadge = isPartial
+        ? `<span class="feed-badge badge-partial">PARTIAL</span>`
+        : "";
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(t.question, t.slug)}</div>
-          <span class="feed-badge ${dirCls}">${dir}</span>
+          ${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span>
         </div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(t.entry_price)}</span>
-          <span>Exit ${FMT.cents(t.exit_price || 0)}</span>
+          ${exitCell}
         </div>
         <div class="feed-impact">
           <span class="${FMT.pnlClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>

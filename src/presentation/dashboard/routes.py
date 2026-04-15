@@ -72,7 +72,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     @app.route("/api/trades")
     def api_trades():
         trades = readers.read_trades(logs_dir, n=100)
-        return jsonify(computed.closed_trades(trades))
+        # Exited tab source: full close + partial scale-out event'leri flatten.
+        return jsonify(computed.exit_events(trades))
 
     @app.route("/api/skipped")
     def api_skipped():
