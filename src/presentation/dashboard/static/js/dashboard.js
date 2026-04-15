@@ -56,12 +56,13 @@
   const COLORS = {};
   function _initColors() {
     Object.assign(COLORS, {
-      green:    _cssVar("--green")    || "#08D391",
-      red:      _cssVar("--red")      || "#D7323C",
-      redHover: _cssVar("--red-hover") || "#F4454F",
-      blue:     _cssVar("--blue")     || "#0F9AB2",
-      orange:   _cssVar("--orange")   || "#FB971E",
-      muted:    _cssVar("--muted-dim") || "#64748b",
+      green:     _cssVar("--green")      || "#08D391",
+      greenDeep: _cssVar("--green-deep") || "#0f6b4d",
+      red:       _cssVar("--red")        || "#D7323C",
+      redHover:  _cssVar("--red-hover")  || "#F4454F",
+      blue:      _cssVar("--blue")       || "#0F9AB2",
+      orange:    _cssVar("--orange")     || "#FB971E",
+      muted:     _cssVar("--muted-dim")  || "#64748b",
       greenFill: _rgba("--green", 0.14),
       greenDim:  _rgba("--green", 0.5),
       track: "rgba(148, 163, 184, 0.08)",
@@ -96,8 +97,13 @@
       const ctx = document.getElementById(canvasId).getContext("2d");
       this[key] = new Chart(ctx, {
         type: "bar",
-        data: { labels: [], datasets: [{ data: [], backgroundColor: [],
-          borderRadius: CONFIG.barRadius, borderSkipped: false }] },
+        data: { labels: [], datasets: [{
+          data: [], backgroundColor: [],
+          borderRadius: CONFIG.barRadius, borderSkipped: false,
+          // Bar kalınlığı: slot'un %40'ı (çok kalın başlamasın).
+          barPercentage: 0.4,
+          categoryPercentage: 1.0,
+        }] },
         options: this._baseOpts(true),
       });
     },
@@ -150,11 +156,11 @@
       const data = limited.map((t) => Number(t.exit_pnl_usdc || 0));
       this.waterfall.data.datasets[0].data = data;
       // Default = dark tonlar; hover = parlak tonlar (palette kuralı).
-      // Solid default — yarı saydam yok. Hover'da renk değişmez.
+      // Solid default — yarı saydam yok. Pozitif = koyu yeşil (palette --green-deep).
       this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v >= 0 ? COLORS.greenDeep : COLORS.red));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v >= 0 ? COLORS.green : COLORS.red));
+        data.map((v) => (v >= 0 ? COLORS.greenDeep : COLORS.red));
       // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
       this.waterfall.options.plugins.tooltip = {
         enabled: true,
