@@ -384,6 +384,26 @@ Bankroll koruma — **yalnızca entry halt** eder, exit'i asla durdurmaz.
 
 **Kritik:** Exit kararları breaker'dan asla etkilenmez — zarar artıyorsa SL tetiklenmeli.
 
+**Exposure Cap (entry blok):**
+
+Formül:
+```
+exposure = (toplam_yatırılan + aday_size) / toplam_portföy_değeri
+toplam_portföy_değeri = portfolio.bankroll (nakit) + portfolio.total_invested()
+```
+
+`max_exposure_pct` (config `risk.max_exposure_pct`, default 0.50) aşılırsa
+entry reddedilir (`skip_reason: exposure_cap_reached`).
+
+**Kritik invariant:** payda TOPLAM portföy değeri — nakit değil. `portfolio.bankroll`
+açık pozisyonlar düşülmüş kullanılabilir nakit olduğundan, doğrudan payda
+yapılırsa pozisyon açıldıkça küçülüp cap erken tetikler.
+
+**Pure function:** `domain/portfolio/exposure.py::exceeds_exposure_limit`.
+**Caller:** `strategy/entry/gate.py` + `orchestration/agent.py` her ikisi de
+`pm.bankroll + pm.total_invested()` hesaplayıp geçer.
+**Test:** `tests/unit/domain/portfolio/test_exposure.py::test_exposure_real_scenario_regression`
+
 ### 6.16 Manipulation Guard
 
 Self-resolving marketler (kişi market sonucunu etkileyebilir) + düşük likidite tespiti.
