@@ -110,16 +110,17 @@ class TradeHistoryLogger:
                 continue
         return out
 
-    def update_on_exit(self, condition_id: str, exit_data: dict[str, Any]) -> bool:
-        """condition_id için en son açık (exit_price=None) kaydı exit verisiyle
-        günceller. Atomic rewrite (tmp + replace).
-        Return: güncellendi mi?
+    def _rewrite_matching(self, condition_id: str, mutator) -> bool:
+        """En son açık (exit_price=None) kaydı bul, mutator(rec) çağır, atomic rewrite et.
+
+        Atomic = tmp dosyaya yaz + replace. Crash-safe.
+        Return: matching record bulundu mu.
         """
         records = self.read_all()
         updated = False
         for rec in reversed(records):
             if rec.get("condition_id") == condition_id and rec.get("exit_price") is None:
-                rec.update(exit_data)
+                mutator(rec)
                 updated = True
                 break
         if not updated:
@@ -130,3 +131,9 @@ class TradeHistoryLogger:
                 f.write(json.dumps(rec) + "\n")
         tmp.replace(self.path)
         return True
+
+    def update_on_exit(self, condition_id: str, exit_data: dict[str, Any]) -> bool:
+        """condition_id için en son açık (exit_price=None) kaydı exit verisiyle günceller.
+        Atomic rewrite. Return: güncellendi mi?
+        """
+        return self._rewrite_matching(condition_id, lambda rec: rec.update(exit_data))
