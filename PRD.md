@@ -92,6 +92,11 @@ Her 5 saniyede bir:
 (order öncesi) kontrol edilir, payda **toplam portföy değeri** (nakit + açık
 pozisyonlar) — nakit değil. Detay: TDD §6.15.
 
+**Scanner filter scope (h2h only):** sadece moneyline markets, `match_start`
+≤ 24h (Odds API penceresi), `yes_price < 0.98` (fiyat-based resolved detection,
+Polymarket flag lag atlatması). PGA Top-N props + futures (>24h) + bitmiş
+marketler scanner seviyesinde elenir. Detay: TDD §5.7.5.
+
 ### 3.4 Exit Akışı (Heavy Cycle)
 Heavy cycle sırasında açık pozisyonlar için:
 1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).

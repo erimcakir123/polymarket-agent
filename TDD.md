@@ -143,6 +143,46 @@ getComputedStyle(document.documentElement).getPropertyValue("--green")
 
 Böylece palette değişimi tek yerden (`:root`).
 
+#### 5.7.5 Scanner Filter Suite (h2h scope)
+
+Bot sadece h2h moneyline + yakın pencere + live-olmayan markets alır. Filter
+sırası (`_passes_filters`):
+
+1. **Flag kontrolü:** `closed` / `resolved` / `not accepting_orders` → ele
+2. **Fiyat-based resolved detection:** `yes_price >= resolved_price_threshold`
+   (default 0.98) veya `<= (1 − threshold)` → ele. Polymarket'in `closed/resolved`
+   flag'leri lag'li; fiyat ~1.0/~0.0 ise sonuç kesin belli, market ölü.
+3. **Strict moneyline:** `sports_market_type == "moneyline"` zorunlu. Boş string
+   (PGA Top-N props) reddedilir — bookmaker h2h verisi yok, yapısal.
+4. **Sport whitelist:** `config.scanner.allowed_sport_tags` (wildcard support)
+5. **Min liquidity:** `min_liquidity` (default $1000)
+6. **Max duration:** `end_date ≤ max_duration_days` (default 14 gün)
+7. **Odds API penceresi:** `match_start ≤ max_hours_to_start` (default 24h) —
+   bookmaker h2h verisi bu pencereyle sınırlı, stok gürültüsünü önler
+8. **Stale match_start:** 8+ saat önce başlamış maçlar (season-long futures
+   artıfakt) reddedilir
+
+Lokasyon: `orchestration/scanner.py::MarketScanner._passes_filters`.
+Config: `config.yaml` altında `scanner:` bölümü.
+
+#### 5.7.6 Enrichment Layer — Tennis Matching
+
+Tennis markets'de iki yaygın bug için fix:
+
+1. **Tournament prefix strip** (`question_parser.py::extract_teams`):
+   "Porsche Tennis Grand Prix: Eva Lys vs Elina Svitolina" gibi formatta
+   vs-split sonrası `team_a = "Porsche Tennis Grand Prix: Eva Lys"` kirli
+   kalıyordu. Fix: team_a'da ":" varsa son ":"'den sonrasını al. ATP/WTA
+   prefix whitelist'i dışındaki turnuva adlarını da temizler.
+
+2. **Slug priority sport_key resolve** (`sport_key_resolver.py::resolve_sport_key`):
+   Slug `wta-*` olsa bile question'da "tennis" geçip "wta" geçmediği için
+   ATP branch'ine düşüyordu (WTA Stuttgart → ATP Barcelona key). Fix: slug
+   prefix otoritesi question text'ten ÖNCE kontrol edilir.
+
+Not: Odds API tennis kapsamı haftalık ~3 major turnuva; Challenger tour /
+minor events yapısal coverage gap, bu fix onları karşılamaz.
+
 ---
 
 
@@ -542,7 +582,13 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 - Ice Hockey: NHL, AHL, Liiga, Mestis, SHL, Allsvenskan
 - American Football: NCAAF, CFL, UFL
 - Tennis: Tüm ATP/WTA turnuvaları (dinamik matching)
-- Golf: LPGA Tour, LIV Tour (H2H)
+- Combat: MMA, UFC, Boxing (2-outcome, draw yok — mevcut pipeline uyumlu)
+
+**MVP dışı** (draw-possible, 3-way Kelly + exit logic gerektirir):
+- Soccer (tüm ligler) — `odds_enricher._parse_bookmaker_markets` 3-way aggregate
+  destekler ama strategy/gate/exit 2-outcome varsayar. Whitelist'e eklenmez.
+- Cricket — test match draw olasılığı
+- Golf outright / Top-N — yapısal h2h değil (PGA prop bahisleri scanner'da elenir)
 
 ### 7.2 Sport-Specific Kurallar (özet)
 
