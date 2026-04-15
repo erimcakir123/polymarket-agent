@@ -130,7 +130,7 @@ def _restore_blacklist(store: JsonStore) -> Blacklist:
     return Blacklist()
 
 
-def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger,
+def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHistoryLogger,
                             initial_bankroll: float) -> None:
     """trade_history.jsonl'dan true realized hesapla, portfolio snapshot'ıyla
     uyumsuzsa düzelt + bankroll'u yeniden türet (crash recovery sonrası).
