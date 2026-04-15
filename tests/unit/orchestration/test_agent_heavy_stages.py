@@ -25,18 +25,34 @@ def _make_deps() -> AgentDeps:
         cooldown=MagicMock(),
         equity_logger=MagicMock(),
         skipped_logger=MagicMock(),
-        eligible_snapshot=MagicMock(),
+        stock=MagicMock(),
         bot_status_writer=MagicMock(),
         price_feed=None,
     )
 
 
 def test_run_heavy_writes_scanning_then_analyzing_then_idle_when_no_signals():
-    """Boş scan: scanning → analyzing → idle; executing yazılmaz."""
+    """Sinyalsiz pipeline: scanning → analyzing → idle; executing yazılmaz."""
+    from src.models.market import MarketData
+
     deps = _make_deps()
-    deps.scanner.scan.return_value = []
-    deps.gate.run.return_value = []
+    m = MarketData(
+        condition_id="c", yes_token_id="y", no_token_id="n",
+        question="Q", slug="s", sport_tag="mlb",
+        yes_price=0.5, no_price=0.5, liquidity=1000.0, volume_24h=100.0,
+        match_start_iso="2026-04-15T23:00:00Z", end_date_iso="",
+        event_id="e", closed=False, resolved=False, accepting_orders=True,
+    )
+    deps.scanner.scan.return_value = [m]
+    gate_result = MagicMock()
+    gate_result.condition_id = "c"
+    gate_result.signal = None
+    gate_result.skipped_reason = "no_edge"
+    deps.gate.run.return_value = [gate_result]
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.max_positions = 50
+    deps.stock.top_n_by_match_start.return_value = []
+    deps.stock.has.return_value = False
 
     agent = Agent(deps)
     agent._run_heavy(prefer_eligible_queue=False)
@@ -95,6 +111,9 @@ def test_run_heavy_writes_executing_when_signal_exists():
     deps.scanner.scan.return_value = [market]
     deps.gate.run.return_value = [gate_result]
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.max_positions = 50
+    deps.stock.top_n_by_match_start.return_value = []
+    deps.stock.has.return_value = False
     deps.state.portfolio.positions = {}
     deps.state.portfolio.add_position.return_value = True
     deps.executor.place_order.return_value = {"status": "simulated", "price": 0.5}
@@ -112,6 +131,9 @@ def test_run_heavy_idle_is_last():
     deps.scanner.scan.return_value = []
     deps.gate.run.return_value = []
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.max_positions = 50
+    deps.stock.top_n_by_match_start.return_value = []
+    deps.stock.has.return_value = False
 
     agent = Agent(deps)
     agent._run_heavy(prefer_eligible_queue=False)

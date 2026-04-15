@@ -95,13 +95,13 @@ def test_read_eligible_queue_missing_empty(tmp_path: Path) -> None:
 
 def test_read_eligible_queue_list(tmp_path: Path) -> None:
     data = [{"slug": "a"}, {"slug": "b"}]
-    (tmp_path / "eligible_queue.json").write_text(json.dumps(data), encoding="utf-8")
+    (tmp_path / "stock_queue.json").write_text(json.dumps(data), encoding="utf-8")
     out = readers.read_eligible_queue(tmp_path)
     assert len(out) == 2
 
 
 def test_read_eligible_queue_non_list_returns_empty(tmp_path: Path) -> None:
-    (tmp_path / "eligible_queue.json").write_text('{"not": "list"}', encoding="utf-8")
+    (tmp_path / "stock_queue.json").write_text('{"not": "list"}', encoding="utf-8")
     assert readers.read_eligible_queue(tmp_path) == []
 
 

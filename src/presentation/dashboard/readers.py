@@ -85,9 +85,40 @@ def read_skipped(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
 
 
 def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
-    """eligible_queue.json snapshot (liste)."""
-    raw = _read_json(logs_dir / "eligible_queue.json", [])
-    return raw if isinstance(raw, list) else []
+    """stock_queue.json snapshot — dashboard Stock sekmesi.
+
+    Ad backward-compat için korundu; kaynak StockQueue.save() çıktısı.
+    Dashboard'un beklediği flat schema'ya projekte edilir:
+      {slug, sport_tag, question, yes_price, no_price, liquidity, volume_24h,
+       match_start_iso, first_seen_iso, last_skip_reason}
+    """
+    raw = _read_json(logs_dir / "stock_queue.json", [])
+    if not isinstance(raw, list):
+        return []
+    flat: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        market = row.get("market") or {}
+        if not isinstance(market, dict):
+            market = {}
+        # Backward-compat: eski flat format (sadece market fields)
+        if "slug" in row and "market" not in row:
+            flat.append(row)
+            continue
+        flat.append({
+            "slug": market.get("slug", ""),
+            "sport_tag": market.get("sport_tag", ""),
+            "question": market.get("question", ""),
+            "yes_price": market.get("yes_price", 0.0),
+            "no_price": market.get("no_price", 0.0),
+            "liquidity": market.get("liquidity", 0.0),
+            "volume_24h": market.get("volume_24h", 0.0),
+            "match_start_iso": market.get("match_start_iso", ""),
+            "first_seen_iso": row.get("first_seen_iso", ""),
+            "last_skip_reason": row.get("last_skip_reason", ""),
+        })
+    return flat
 
 
 def read_breaker(logs_dir: Path) -> dict[str, Any]:

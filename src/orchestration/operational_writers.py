@@ -11,17 +11,12 @@ import logging
 from datetime import datetime, timezone
 
 from src.domain.portfolio.manager import PortfolioManager
-from src.infrastructure.persistence.eligible_queue_snapshot import (
-    EligibleQueueEntry,
-    EligibleQueueSnapshot,
-)
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger, EquitySnapshot
 from src.infrastructure.persistence.skipped_trade_logger import (
     SkippedTradeLogger,
     SkippedTradeRecord,
 )
 from src.models.market import MarketData
-from src.orchestration.scanner import MarketScanner
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +35,6 @@ def log_skip(skipped_logger: SkippedTradeLogger, market: MarketData, reason: str
         skipped_logger.log(record)
     except OSError as e:
         logger.warning("Skipped logger write failed: %s", e)
-
-
-def dump_eligible_queue(scanner: MarketScanner, snapshot: EligibleQueueSnapshot) -> None:
-    """Scanner eligible queue → disk snapshot (dashboard Stock tabı)."""
-    entries = [
-        EligibleQueueEntry(
-            slug=m.slug, sport_tag=m.sport_tag, question=m.question,
-            yes_price=m.yes_price, no_price=m.no_price,
-            liquidity=m.liquidity, volume_24h=m.volume_24h,
-            match_start_iso=m.match_start_iso,
-        )
-        for m in scanner.eligible_markets()
-    ]
-    try:
-        snapshot.dump(entries)
-    except OSError as e:
-        logger.warning("Eligible queue snapshot failed: %s", e)
 
 
 def log_equity_snapshot(portfolio: PortfolioManager,

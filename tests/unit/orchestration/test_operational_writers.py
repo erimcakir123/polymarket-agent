@@ -34,16 +34,6 @@ def test_log_skip_swallows_oserror():
     # raise etmemeli
 
 
-def test_dump_eligible_queue_iterates_scanner():
-    scanner = MagicMock()
-    scanner.eligible_markets.return_value = [_make_market("a"), _make_market("b")]
-    snapshot = MagicMock()
-    operational_writers.dump_eligible_queue(scanner, snapshot)
-    assert snapshot.dump.called
-    entries = snapshot.dump.call_args.args[0]
-    assert len(entries) == 2
-
-
 def test_log_equity_snapshot_writes_snapshot():
     portfolio = MagicMock()
     portfolio.positions = {}

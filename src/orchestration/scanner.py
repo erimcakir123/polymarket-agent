@@ -7,14 +7,12 @@ Davranış (memory/project_scanner_behavior.md):
     midrange 6-24h → discovery >24h); bucket içinde hours ASC → volume_24h DESC
   - Top N (config.scanner.max_markets_per_cycle)
 
-Eligible-queue: gate tarafından "slot_full / exposure_cap" sebebiyle skip
-edilen market'leri scanner tutar; exit-triggered cycle'da önce bu queue
-değerlendirilir, sonra fresh scan.
+Stock pool StockQueue (orchestration/stock_queue.py) tarafından yönetilir —
+scanner yalnızca fresh fetch + filter + sort sorumluluğu taşır.
 """
 from __future__ import annotations
 
 import logging
-from collections import deque
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
@@ -22,8 +20,6 @@ from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
 logger = logging.getLogger(__name__)
-
-_ELIGIBLE_QUEUE_MAX = 500  # Bellek koruması
 
 
 def _hours_to_start(m: MarketData) -> float:
@@ -64,7 +60,6 @@ class MarketScanner:
     ) -> None:
         self.config = config
         self._gamma = gamma_client or GammaClient()
-        self._eligible_queue: deque[MarketData] = deque(maxlen=_ELIGIBLE_QUEUE_MAX)
 
     # ── Public API ──
 
@@ -77,27 +72,6 @@ class MarketScanner:
         logger.info("Scanner: %d raw → %d filtered → top %d",
                     len(raw), len(filtered), len(top))
         return top
-
-    def drain_eligible(self) -> list[MarketData]:
-        """Exit-triggered cycle'da: eligible-queue'daki pazarları boşalt ve döndür.
-
-        Bu pazarlar önceki cycle'da qualified ama slot/exposure yüzünden giremedi.
-        """
-        out: list[MarketData] = []
-        while self._eligible_queue:
-            out.append(self._eligible_queue.popleft())
-        return out
-
-    def push_eligible(self, market: MarketData) -> None:
-        """Gate tarafından slot/exposure sebebiyle reddedilen pazarı queue'ya geri koy."""
-        self._eligible_queue.append(market)
-
-    def eligible_count(self) -> int:
-        return len(self._eligible_queue)
-
-    def eligible_markets(self) -> list[MarketData]:
-        """Eligible queue'nun anlık read-only snapshot'ı (drain etmez)."""
-        return list(self._eligible_queue)
 
     # ── Filters ──
 

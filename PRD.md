@@ -73,12 +73,14 @@ Kâr alma tek mekanizma ile: 3-tier scale-out.
 
 ### 3.2 Entry Akışı (Heavy Cycle)
 1. **Scan**: `scanner.py` Polymarket Gamma'dan `allowed_sport_tags` filtreli market'ler çeker (bkz. `config.yaml` scanner bölümü).
-2. **Match**: `domain/matching/` modülleri Polymarket market'ini Odds API sport key'ine eşler.
-3. **Enrich**: `strategy/enrichment/odds_enricher.py` Odds API'dan bookmaker probability çeker.
-4. **Gate**: `strategy/entry/gate.py` event-guard + manipulation + liquidity + confidence + edge kontrolü yapar.
-5. **Size**: `domain/risk/position_sizer.py` confidence bazlı boyut üretir, cap'lere uygular.
-6. **Execute**: `infrastructure/executor.py` CLOB client üzerinden emri gönderir (dry_run modunda loglar).
-7. **Record**: Pozisyon JSON store'a yazılır, trade log JSONL'e eklenir.
+2. **Stock housekeeping**: `orchestration/stock_queue.py` persistent pool; taze scan sonucuyla refresh edilir, TTL ile expire edilir (match_start - 30dk, 24h idle, 3× no_edge, event açık).
+3. **JIT pipeline**: Stock top-N (match_start ASC) + fresh-only top-M → gate'e yalnızca bu batch girer. N ve M = `empty_slots × stock.jit_batch_multiplier` (default 3). Odds API kredisi sadece bu alt küme için harcanır.
+4. **Match**: `domain/matching/` modülleri Polymarket market'ini Odds API sport key'ine eşler.
+5. **Enrich**: `strategy/enrichment/odds_enricher.py` Odds API'dan bookmaker probability çeker.
+6. **Gate**: `strategy/entry/gate.py` event-guard + manipulation + liquidity + confidence + edge + entry_price_cap kontrolü yapar.
+7. **Size**: `domain/risk/position_sizer.py` confidence bazlı boyut üretir, cap'lere uygular.
+8. **Execute**: `infrastructure/executor.py` CLOB client üzerinden emri gönderir (dry_run modunda loglar).
+9. **Record**: Pozisyon JSON store'a yazılır, trade log JSONL'e eklenir. Reddedilenler (exposure_cap / max_positions / no_edge / no_bookmaker_data) stock'a push edilir.
 
 ### 3.3 Light Cycle İzleme (5 sn)
 Her 5 saniyede bir:
@@ -173,7 +175,7 @@ Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 - Trade history append + exit update (`TradeHistoryLogger.update_on_exit` atomic rewrite); dashboard Exited/Stats/Branches/Waterfall bu dosyadan beslenir
 - Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır; dashboard son 100 snapshot'ı grafikler; Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
 - Skipped adaylar `skipped_trades.jsonl`'e (orchestration'dan) yazılır; dashboard Skipped sekmesinde gösterir
-- Eligible queue her heavy cycle sonunda `eligible_queue.json`'a dump edilir; dashboard Stock sekmesinde gösterir
+- Stock queue her heavy cycle sonunda `stock_queue.json`'a dump edilir; dashboard Stock sekmesinde gösterir (persistent pool: restart sonrası restore edilir)
 - Telegram: entry/exit/CB olayları
 - JSONL trade log: audit için append + exit güncelleme (append-only değil artık)
 

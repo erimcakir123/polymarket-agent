@@ -155,7 +155,7 @@ def test_stock_empty(tmp_path: Path) -> None:
 
 
 def test_stock_returns_entries(tmp_path: Path) -> None:
-    (tmp_path / "eligible_queue.json").write_text(
+    (tmp_path / "stock_queue.json").write_text(
         json.dumps([{"slug": "q1", "sport_tag": "basketball_nba"}]), encoding="utf-8",
     )
     data = _client(tmp_path).get("/api/stock").get_json()

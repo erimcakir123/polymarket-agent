@@ -73,6 +73,15 @@ class ConsensusConfig(BaseModel):
     max_slots: int = 5
 
 
+class StockConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    jit_batch_multiplier: int = 3
+    ttl_hours: float = 24.0
+    pre_match_cutoff_min: float = 30.0
+    max_no_edge_attempts: int = 3
+
+
 class ScaleOutTier(BaseModel):
     model_config = ConfigDict(extra="ignore")
     threshold: float
@@ -158,6 +167,7 @@ class AppConfig(BaseModel):
     risk: RiskConfig = RiskConfig()
     early: EarlyEntryConfig = EarlyEntryConfig()
     consensus: ConsensusConfig = ConsensusConfig()
+    stock: StockConfig = StockConfig()
     scale_out: ScaleOutConfig = ScaleOutConfig()
     circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
     manipulation: ManipulationConfig = ManipulationConfig()

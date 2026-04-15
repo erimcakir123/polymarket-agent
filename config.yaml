@@ -87,6 +87,13 @@ consensus:
   bet_pct: 0.05
   max_slots: 5
 
+stock:
+  enabled: true
+  jit_batch_multiplier: 3       # empty_slots × bu = her cycle enrich edilecek tavan
+  ttl_hours: 24.0               # first_seen üzerinden stock'ta kalma limiti
+  pre_match_cutoff_min: 30.0    # match_start'a bu dk kala düş
+  max_no_edge_attempts: 3       # peş peşe bu kadar no_edge → düş
+
 scale_out:
   enabled: true
   tiers:

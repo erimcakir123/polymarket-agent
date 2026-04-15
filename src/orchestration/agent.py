@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 from src.domain.portfolio.exposure import exceeds_exposure_limit
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.executor import Executor
-from src.infrastructure.persistence.eligible_queue_snapshot import EligibleQueueSnapshot
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, TradeRecord, _split_sport_tag
@@ -28,6 +27,7 @@ from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
+from src.orchestration.stock_queue import StockQueue
 from src.strategy.entry.gate import EntryGate
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
@@ -53,7 +53,7 @@ class AgentDeps:
     cooldown: CooldownTracker
     equity_logger: EquityHistoryLogger
     skipped_logger: SkippedTradeLogger
-    eligible_snapshot: EligibleQueueSnapshot
+    stock: StockQueue
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
 
@@ -131,19 +131,60 @@ class Agent:
     # ── Heavy cycle ──
 
     def _run_heavy(self, prefer_eligible_queue: bool = False) -> None:
-        """Scan → enrich → gate → execute. Exit-triggered'da queue önce."""
+        """Stock-first heavy cycle:
+
+        1. Gamma scan (fresh markets + prices)
+        2. Stock refresh + TTL eviction
+        3. JIT batch: stock top-N (match_start ASC) enrich edilir, gate'e gider
+        4. Kalan slot varsa fresh-only (stock'ta olmayan) batch aynı pipeline'dan geçer
+        5. Stock snapshot disk'e yazılır
+
+        `prefer_eligible_queue` eski exit-triggered path'i tetikliyordu; stock
+        zaten her cycle match_start ASC önceliklendirdiği için informational kaldı.
+        """
+        del prefer_eligible_queue  # stock prioritization obsoletes the flag
         mode = self.deps.state.config.mode.value
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="scanning")
-        if prefer_eligible_queue:
-            queued = self.deps.scanner.drain_eligible()
-            if queued:
-                logger.info("Heavy (exit-triggered): %d eligible queue entries first", len(queued))
-                self._process_markets(queued)
-        else:
-            markets = self.deps.scanner.scan()
-            self._process_markets(markets)
-        # Dashboard snapshot'ları (presentation ayrı process, disk üzerinden).
-        operational_writers.dump_eligible_queue(self.deps.scanner, self.deps.eligible_snapshot)
+
+        scan_fresh = self.deps.scanner.scan()
+        scan_by_cid = {m.condition_id: m for m in scan_fresh}
+
+        # Stock housekeeping
+        open_event_ids = frozenset(
+            p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
+        )
+        self.deps.stock.refresh_from_scan(scan_by_cid)
+        self.deps.stock.evict_expired(open_event_ids=open_event_ids)
+
+        # Slot math
+        max_positions = self.deps.gate.config.max_positions
+        empty_slots = max_positions - self.deps.state.portfolio.count()
+        if empty_slots <= 0:
+            self.deps.stock.save()
+            operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
+            self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
+            return
+
+        jit_mult = self.deps.stock.config.jit_batch_multiplier
+
+        # Stock batch first (persistent pool, chronological)
+        stock_batch = self.deps.stock.top_n_by_match_start(empty_slots * jit_mult)
+        if stock_batch:
+            logger.info("Heavy: stock batch=%d (empty_slots=%d × %d)",
+                        len(stock_batch), empty_slots, jit_mult)
+            self._process_markets(stock_batch)
+
+        # Fresh candidates not in stock — fill remaining slots
+        still_empty = max_positions - self.deps.state.portfolio.count()
+        if still_empty > 0:
+            fresh_only = [m for m in scan_fresh if not self.deps.stock.has(m.condition_id)]
+            fresh_batch = fresh_only[: still_empty * jit_mult]
+            if fresh_batch:
+                logger.info("Heavy: fresh batch=%d (still_empty=%d × %d)",
+                            len(fresh_batch), still_empty, jit_mult)
+                self._process_markets(fresh_batch)
+
+        self.deps.stock.save()
         operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
 
@@ -165,8 +206,7 @@ class Agent:
             if r.signal is None:
                 if market is not None:
                     operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
-                    if r.skipped_reason in ("max_positions_reached", "exposure_cap_reached"):
-                        self.deps.scanner.push_eligible(market)
+                    self.deps.stock.add(market, r.skipped_reason)
                 continue
 
             if market is None:
@@ -180,13 +220,14 @@ class Agent:
                 max_exposure_pct,
             ):
                 operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
-                self.deps.scanner.push_eligible(market)
+                self.deps.stock.add(market, "exposure_cap_reached")
                 continue
 
             if not executing_written:
                 self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="executing")
                 executing_written = True
             self._execute_entry(market, r.signal)
+            self.deps.stock.remove(market.condition_id)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
         """Sim/live order → position open → trade record."""

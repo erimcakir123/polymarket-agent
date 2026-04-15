@@ -37,6 +37,22 @@ Bu TDD **LAYER 1** içerir: formüller, kalibrasyon sayıları, iş kuralları, 
 | 7     | Sport Rules                     | Spor-spesifik / sport tag işi            |
 | 13    | Açık Noktalar                   | Referans                                 |
 
+### Stock Queue (F1.5)
+
+Scanner ve gate arasında persistent eligible pool. Amaç: Odds API kredi israfını
+önlemek + fırsat kaybını engellemek.
+
+**Davranış:**
+- Gate `exposure_cap_reached` / `max_positions_reached` / `no_edge` / `no_bookmaker_data` ile reddettiği marketleri stock'a push eder.
+- Her heavy cycle'da Gamma scan → stock refresh (MarketData güncellenir, delist edilenler düşer) → TTL eviction.
+- **JIT batch:** `empty_slots × jit_batch_multiplier` (default 3) kadar stock item match_start ASC alınır, enrich + gate pipeline'a girer. Kalan slot varsa fresh-only (stock'ta olmayan) batch ekler.
+- **TTL evict:** first_seen + 24h | match_start − 30dk | event açık pozisyonda | no_edge ≥ 3.
+- **Persistent:** `logs/stock_queue.json` — restart'ta restore.
+
+**Rasyonel:** 300 market enrich yerine `3 × boş_slot` kadar enrich. Örnek: 4 boş slot = en yakın 12 market (stock öncelikli). Odds kredisi ~70% tasarruf + gece enrich edilmiş marketler gündüz slot açıldığında hâlâ kullanılabilir.
+
+---
+
 ### Güvenlik Ağı
 
 - **§6.x cluster:** Bir alt-bölüme bakacaksan, ilgili §6 komşularını gözden geçir (sizing ↔ confidence ↔ edge).

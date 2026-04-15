@@ -13,10 +13,10 @@ from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.infrastructure.apis.odds_client import OddsAPIClient
 from src.infrastructure.executor import Executor
-from src.infrastructure.persistence.eligible_queue_snapshot import EligibleQueueSnapshot
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
+from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.agent import Agent, AgentDeps
@@ -24,6 +24,7 @@ from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState
+from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.enrichment.odds_enricher import enrich_market
 
@@ -53,7 +54,18 @@ def build_agent(state: RuntimeState) -> Agent:
     trade_logger = TradeHistoryLogger("logs/trade_history.jsonl")
     equity_logger = EquityHistoryLogger("logs/equity_history.jsonl")
     skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
-    eligible_snapshot = EligibleQueueSnapshot("logs/eligible_queue.json")
+    stock_snapshot = StockSnapshot("logs/stock_queue.json")
+    stock = StockQueue(
+        config=StockConfig(
+            enabled=cfg.stock.enabled,
+            jit_batch_multiplier=cfg.stock.jit_batch_multiplier,
+            ttl_hours=cfg.stock.ttl_hours,
+            pre_match_cutoff_min=cfg.stock.pre_match_cutoff_min,
+            max_no_edge_attempts=cfg.stock.max_no_edge_attempts,
+        ),
+        snapshot=stock_snapshot,
+    )
+    stock.load()  # restart sonrası restore
     bot_status_store = JsonStore("logs/bot_status.json")
     bot_status_writer = BotStatusWriter(bot_status_store, cycle_manager)
 
@@ -101,7 +113,7 @@ def build_agent(state: RuntimeState) -> Agent:
         executor=executor, odds_client=odds, trade_logger=trade_logger,
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
-        eligible_snapshot=eligible_snapshot, bot_status_writer=bot_status_writer,
+        stock=stock, bot_status_writer=bot_status_writer,
         price_feed=price_feed,
     )
     return Agent(deps)

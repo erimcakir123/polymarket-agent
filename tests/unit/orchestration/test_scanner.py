@@ -194,21 +194,6 @@ def test_top_n_cap() -> None:
     assert len(sc.scan()) == 3
 
 
-# ── Eligible queue ──
-
-def test_push_and_drain_eligible() -> None:
-    now = datetime.now(timezone.utc)
-    m1 = _market(cid="e1", match_start=now, end_date=now + timedelta(hours=2))
-    m2 = _market(cid="e2", match_start=now, end_date=now + timedelta(hours=2))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([]))
-    sc.push_eligible(m1)
-    sc.push_eligible(m2)
-    assert sc.eligible_count() == 2
-    drained = sc.drain_eligible()
-    assert [m.condition_id for m in drained] == ["e1", "e2"]
-    assert sc.eligible_count() == 0
-
-
 def _mock_gamma(markets: list[MarketData]) -> MagicMock:
     g = MagicMock()
     g.fetch_events.return_value = markets

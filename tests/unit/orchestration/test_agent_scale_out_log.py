@@ -43,7 +43,7 @@ def _make_deps_with_position():
         cooldown=MagicMock(),
         equity_logger=MagicMock(),
         skipped_logger=MagicMock(),
-        eligible_snapshot=MagicMock(),
+        stock=MagicMock(),
         bot_status_writer=MagicMock(),
         price_feed=None,
     ), pos
