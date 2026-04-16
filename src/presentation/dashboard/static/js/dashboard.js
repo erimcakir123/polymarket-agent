@@ -15,7 +15,7 @@
     stageRecentSec: 180,        // stage_at kaç saniyeden yeniyse aktif sayılır (heavy cycle 1-2 dk)
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
-    barRadius: 8,               // bar chart köşe yuvarlaması
+    barRadius: 4,               // bar chart köşe yuvarlaması
   };
 
   const MODE = document.body.dataset.mode || "dry_run";
@@ -86,7 +86,10 @@
         type: "line",
         data: { labels: [], datasets: [{
           data: [], borderColor: border, backgroundColor: fill,
-          borderWidth: 2, tension: 0.3, fill: true, pointRadius: 0,
+          borderWidth: 2, fill: true, pointRadius: 0,
+          // Stepped — sadece exit/realize anında değişir, aralar düz plateau.
+          stepped: "before",
+          tension: 0,
         }] },
         options: this._baseOpts(true),
       });
@@ -142,8 +145,11 @@
 
     setEquity(series) {
       this.equity.data.labels = series.map((s) => s.timestamp || "");
+      // Realized-only: initial + realized_pnl. Açık pozisyon unrealized'ı hariç.
+      // Açık pozisyon dalgalanması chart'ı yanıltmaz; sadece exit/scale-out'ta zıplar.
+      // bankroll + invested = initial + realized (formül özdeşliği).
       this.equity.data.datasets[0].data = series.map((s) =>
-        (s.bankroll || 0) + (s.invested || 0) + (s.unrealized_pnl || 0));
+        (s.bankroll || 0) + (s.invested || 0));
       this.equity.update("none");
     },
 
