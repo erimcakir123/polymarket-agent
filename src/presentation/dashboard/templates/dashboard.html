@@ -114,12 +114,37 @@
       <!-- Charts row -->
       <section class="charts-row">
         <div class="chart-panel">
-          <div class="panel-header"><span class="card-icon">📈</span> Total Equity</div>
-          <div class="chart-fixed"><canvas id="equity-chart"></canvas></div>
+          <div class="panel-header">
+            <span><span class="card-icon">📈</span> Total Equity</span>
+            <div class="chart-tabs" data-chart="equity">
+              <button class="chart-tab" data-period="24h">24h</button>
+              <button class="chart-tab" data-period="7d">7d</button>
+              <button class="chart-tab active" data-period="30d">30d</button>
+              <button class="chart-tab" data-period="1y">1y</button>
+            </div>
+          </div>
+          <div class="chart-summary" id="equity-period-summary"></div>
+          <div class="chart-fixed">
+            <div class="chart-scroll">
+              <canvas id="equity-chart"></canvas>
+            </div>
+          </div>
         </div>
         <div class="chart-panel">
-          <div class="panel-header"><span class="card-icon">📊</span> Per Trade PnL</div>
-          <div class="chart-fixed"><canvas id="waterfall-chart"></canvas></div>
+          <div class="panel-header">
+            <span><span class="card-icon">📊</span> Per Trade PnL</span>
+            <div class="chart-tabs" data-chart="pnl">
+              <button class="chart-tab" data-period="24h">24h</button>
+              <button class="chart-tab" data-period="7d">7d</button>
+              <button class="chart-tab active" data-period="30d">30d</button>
+              <button class="chart-tab" data-period="1y">1y</button>
+            </div>
+          </div>
+          <div class="chart-fixed">
+            <div class="chart-scroll">
+              <canvas id="waterfall-chart"></canvas>
+            </div>
+          </div>
         </div>
       </section>
     </main>
