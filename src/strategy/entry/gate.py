@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
-from src.domain.portfolio.exposure import exceeds_exposure_limit
+from src.domain.portfolio.exposure import available_under_cap
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
@@ -42,6 +42,8 @@ class GateConfig:
     min_edge: float = 0.06
     max_positions: int = 50
     max_exposure_pct: float = 0.50
+    hard_cap_overflow_pct: float = 0.02
+    min_entry_size_pct: float = 0.015
     max_single_bet_usdc: float = 75.0
     max_bet_pct: float = 0.05
     max_entry_price: float = 0.88
@@ -158,16 +160,23 @@ class EntryGate:
                               f"size_below_min ({adjusted_size:.2f} < {POLYMARKET_MIN_ORDER_USDC})",
                               manipulation=manip)
 
-        # 7. Exposure cap — payda = nakit + açık pozisyonlar (toplam portföy).
+        # 7. Exposure cap — soft + hard buffer + size clipping.
         total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
-        if exceeds_exposure_limit(
-            self.portfolio.positions, adjusted_size,
-            total_portfolio, self.config.max_exposure_pct,
-        ):
+        available = available_under_cap(
+            self.portfolio.positions, total_portfolio,
+            self.config.max_exposure_pct, self.config.hard_cap_overflow_pct,
+        )
+        min_size = self.portfolio.bankroll * self.config.min_entry_size_pct
+        if available < min_size:
             return GateResult(cid, None, "exposure_cap_reached", manipulation=manip)
 
-        # Signal'a size yaz ve onayla
-        approved = signal.model_copy(update={"size_usdc": round(adjusted_size, 2)})
+        final_size = min(adjusted_size, available)
+        if final_size < POLYMARKET_MIN_ORDER_USDC:
+            return GateResult(cid, None,
+                              f"size_below_min ({final_size:.2f} < {POLYMARKET_MIN_ORDER_USDC})",
+                              manipulation=manip)
+
+        approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
         return GateResult(cid, approved, "", manipulation=manip)
 
     def _evaluate_strategies(self, market: MarketData, bm_prob: BookmakerProbability) -> Signal | None:

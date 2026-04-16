@@ -166,20 +166,6 @@ def test_max_positions_halts() -> None:
     assert results[0].skipped_reason == "max_positions_reached"
 
 
-def test_exposure_cap_blocks() -> None:
-    p = PortfolioManager(initial_bankroll=1000.0)
-    # %48 yatırılmış → 40 daha eklenirse %52 > %50 cap
-    p.add_position(Position(
-        condition_id="prev", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=480, shares=1200, current_price=0.4,
-        anchor_probability=0.55, event_id="eprev",
-    ))
-    gate = _make_gate(portfolio=p)
-    results = gate.run([_market(cid="new", event="enew")])
-    assert results[0].signal is None
-    assert results[0].skipped_reason == "exposure_cap_reached"
-
-
 def test_size_below_min_skips() -> None:
     # Bankroll $100 → B sizing $4 < $5 min
     p = PortfolioManager(initial_bankroll=100.0)
@@ -203,3 +189,49 @@ def test_entry_price_cap_allows_under_threshold() -> None:
     gate = _make_gate(enricher=lambda m: _bm(prob=0.80, conf="A"))
     results = gate.run([_market(yp=0.87)])
     assert results[0].signal is not None
+
+
+def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
+    # initial=$2000, invested=$1010 → bankroll_kalan=$990, total=$2000.
+    # hard=$2000×0.52=$1040, available=$1040-$1010=$30.
+    # A sizing = $990×0.05 = $49.5; min(49.5, 30) = $30 (clip).
+    p = PortfolioManager(initial_bankroll=2000.0)
+    p.add_position(Position(
+        condition_id="prev", token_id="t", direction="BUY_YES",
+        entry_price=0.4, size_usdc=1010.0, shares=2525.0, current_price=0.4,
+        anchor_probability=0.55, event_id="eprev",
+    ))
+    gate = _make_gate(portfolio=p, enricher=lambda m: _bm(prob=0.60, conf="A"))
+    results = gate.run([_market(cid="new", event="enew")])
+    assert results[0].signal is not None
+    assert abs(results[0].signal.size_usdc - 30.0) < 0.5
+
+
+def test_gate_skips_when_available_below_min_entry_size() -> None:
+    # initial=$2000, invested=$1035 → bankroll_kalan=$965, total=$2000.
+    # hard=$1040, available=$5. min_entry = $965×0.015 ≈ $14.48. $5 < $14.48 → skip.
+    p = PortfolioManager(initial_bankroll=2000.0)
+    p.add_position(Position(
+        condition_id="prev", token_id="t", direction="BUY_YES",
+        entry_price=0.4, size_usdc=1035.0, shares=2587.5, current_price=0.4,
+        anchor_probability=0.55, event_id="eprev",
+    ))
+    gate = _make_gate(portfolio=p)
+    results = gate.run([_market(cid="new", event="enew")])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "exposure_cap_reached"
+
+
+def test_gate_skips_when_hard_cap_fully_used() -> None:
+    # initial=$2000, invested=$1040 → bankroll_kalan=$960, total=$2000.
+    # hard=$1040, available=0. min_entry ≈ $14.40 > 0 → skip.
+    p = PortfolioManager(initial_bankroll=2000.0)
+    p.add_position(Position(
+        condition_id="prev", token_id="t", direction="BUY_YES",
+        entry_price=0.4, size_usdc=1040.0, shares=2600.0, current_price=0.4,
+        anchor_probability=0.55, event_id="eprev",
+    ))
+    gate = _make_gate(portfolio=p)
+    results = gate.run([_market(cid="new", event="enew")])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "exposure_cap_reached"
