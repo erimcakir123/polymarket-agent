@@ -185,7 +185,10 @@
     },
 
     setWaterfall(trades) {
-      const limited = trades.slice(0, CONFIG.waterfallMaxBars).reverse();
+      // Period filter (event-level; her bar = bir exit, bucketing yapılmaz).
+      const period = CHART_STATE.pnlPeriod;
+      const windowTrades = global.FILTER.filterByPeriod(trades, period);
+      const limited = windowTrades.slice(0, CONFIG.waterfallMaxBars).reverse();
       // Minimum 12 slot — az trade varsa bars sola yaslanır, sağ tarafta boşluk
       // kalır. Yeni trade geldiğinde sağa eklenir (reverse: kronolojik eski→yeni).
       const MIN_SLOTS = 12;
@@ -202,6 +205,10 @@
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
+
+      // Canvas min-width — yoğun dilimde horizontal scroll.
+      this.waterfall.canvas.style.minWidth = (slots * CONFIG.pnlBarMinPx) + "px";
+
       // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
       this.waterfall.options.plugins.tooltip = {
         enabled: true,
