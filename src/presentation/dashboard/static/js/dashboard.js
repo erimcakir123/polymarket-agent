@@ -230,6 +230,34 @@
     },
   };
 
+  // ── Tab binding (period filter) ──
+  const CHART_TAB_BINDING = {
+    equity: {
+      stateKey: "equityPeriod",
+      render: () => CHARTS.setEquity(LAST.trades, INITIAL_BANKROLL),
+    },
+    pnl: {
+      stateKey: "pnlPeriod",
+      render: () => CHARTS.setWaterfall(LAST.trades),
+    },
+  };
+
+  function _bindChartTabs() {
+    document.querySelectorAll(".chart-tabs").forEach((group) => {
+      const chart = group.dataset.chart;
+      const binding = CHART_TAB_BINDING[chart];
+      if (!binding) return;
+      group.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chart-tab");
+        if (!btn) return;
+        group.querySelectorAll(".chart-tab").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        CHART_STATE[binding.stateKey] = btn.dataset.period;
+        binding.render();
+      });
+    });
+  }
+
   // ── RENDER (DOM updates) ──
   const RENDER = {
     status(data) {
@@ -359,13 +387,14 @@
           API.positions(), API.trades(), API.skipped(), API.stock(),
           API.stats(), API.sportRoi(),
         ]);
+        LAST.trades = trades;  // cache for tab clicks (5sn polling)
         RENDER.status(status);
         RENDER.metrics(summary.equity);
         RENDER.wlStats(stats);
         RENDER.slots(summary.slots);
         RENDER.lossProtection(summary.loss_protection);
-        CHARTS.setEquity(trades, INITIAL_BANKROLL);
-        CHARTS.setWaterfall(trades);
+        CHARTS.setEquity(LAST.trades, INITIAL_BANKROLL);
+        CHARTS.setWaterfall(LAST.trades);
         global.FEED.update({
           active: Object.values(positions),
           exited: trades, skipped: skipped, stock: stock,
@@ -380,6 +409,7 @@
       _initColors();
       document.getElementById("slots-max").textContent = MAX_POSITIONS;
       CHARTS.initAll();
+      _bindChartTabs();
       global.FEED.bindTabs();
       this.refresh();
       setInterval(() => this.refresh(), CONFIG.pollIntervalMs);
