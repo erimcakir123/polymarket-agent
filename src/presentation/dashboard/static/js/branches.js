@@ -24,7 +24,8 @@
         return;
       }
       const totalInvested = leagues.reduce((sum, l) => sum + (l.invested || 0), 0);
-      tree.innerHTML = leagues.map((l) => {
+      const sorted = [...leagues].sort((a, b) => Math.abs(b.roi || 0) - Math.abs(a.roi || 0));
+      tree.innerHTML = sorted.map((l) => {
         const share = totalInvested > 0 ? (l.invested / totalInvested) : 0;
         return this._block(l, share);
       }).join("");
