@@ -16,11 +16,17 @@
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
     barRadius: 4,               // bar chart köşe yuvarlaması
+    equityBarMinPx: 18,         // Total Equity per-point min genişlik (scroll threshold)
+    pnlBarMinPx: 14,            // Per Trade per-bar min genişlik (scroll threshold)
   };
 
   const MODE = document.body.dataset.mode || "dry_run";
   const MAX_POSITIONS = parseInt(document.body.dataset.maxPositions || "20", 10);
   const INITIAL_BANKROLL = parseFloat(document.body.dataset.initialBankroll || "1000");
+
+  // ── Chart state (tab selection + trades cache) ──
+  const CHART_STATE = { equityPeriod: "30d", pnlPeriod: "30d" };
+  const LAST = { trades: [] };
 
   // ── API (fetch wrappers) ──
   const API = {
