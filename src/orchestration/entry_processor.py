@@ -82,7 +82,10 @@ class EntryProcessor:
                 continue
             market = by_cid.get(r.condition_id)
             if market is not None:
-                operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
+                operational_writers.log_skip(
+                    self.deps.skipped_logger, market,
+                    r.skipped_reason, detail=r.skip_detail,
+                )
                 self.deps.stock.add(market, r.skipped_reason)
 
         def _priority_key(r):
@@ -108,7 +111,11 @@ class EntryProcessor:
             )
             min_size = pm.bankroll * min_entry_pct
             if available < min_size:
-                operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
+                detail = f"available={available:.2f}, min={min_size:.2f}"
+                operational_writers.log_skip(
+                    self.deps.skipped_logger, market,
+                    "exposure_cap_reached", detail=detail,
+                )
                 self.deps.stock.add(market, "exposure_cap_reached")
                 continue
 
