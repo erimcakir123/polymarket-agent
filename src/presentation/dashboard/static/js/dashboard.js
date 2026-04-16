@@ -117,17 +117,17 @@
 
     _baseOpts(showY) {
       const tickStyle = { color: COLORS.axisLabel, font: { size: 10 } };
-      const dollarTick = (v) => (v < 0 ? "-" : "") + "$" + Math.abs(v).toFixed(0);
       return {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { enabled: true, bodyFont: { weight: "bold" } } },
         scales: {
           x: { display: true, grid: { display: false },
             ticks: { ...tickStyle, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
-          // y.afterFit: stable label kolonu — tab switch'te shift olmasın; $ prefix.
+          // Y-axis labels externalYAxis plugin tarafından DOM'a yazılır (sticky).
+          // Canvas'taki y-axis grid çizer ama kendi label'ı gizli; width=0.
           y: { display: showY, grid: { color: COLORS.gridLine },
-            ticks: { ...tickStyle, callback: dollarTick },
-            afterFit: (s) => { s.width = 52; } },
+            ticks: { ...tickStyle, display: false },
+            afterFit: (s) => { s.width = 0; } },
         },
       };
     },
@@ -163,7 +163,8 @@
       const baseline = Number(initialBankroll) || 0;
       this.equity.data.labels = [""].concat(points.map((p) => global.FILTER.periodLabel(p.timestamp, period)));
       this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
-      this.equity.canvas.style.minWidth = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
+      // Parent wrap width — Chart.js responsive observer → canvas internal senkron (hitbox).
+      this.equity.canvas.parentElement.style.width = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
 
       const sum = global.FILTER.periodSum(windowTrades);
       const sumEl = document.getElementById("equity-period-summary");
@@ -191,7 +192,7 @@
       const data = new Array(slots).fill(null);
       const teams = new Array(slots).fill("");  // tooltip title kaynağı
       limited.forEach((t, i) => {
-        labels[i] = global.FILTER.tradeLabel(t.exit_timestamp, period);
+        labels[i] = global.FILTER.periodLabel(t.exit_timestamp, period);
         data[i] = Number(t.exit_pnl_usdc || 0);
         teams[i] = FMT.teamsText(t.question, t.slug);
       });
@@ -203,7 +204,7 @@
       this.waterfall.data.datasets[0].hoverBackgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
 
-      this.waterfall.canvas.style.minWidth = (slots * CONFIG.pnlBarMinPx) + "px";
+      this.waterfall.canvas.parentElement.style.width = (slots * CONFIG.pnlBarMinPx) + "px";
       // Tooltip: title=takım adı, body=PnL; renk PnL işaretine göre.
       this.waterfall.options.plugins.tooltip = {
         enabled: true, displayColors: false,

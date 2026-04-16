@@ -125,8 +125,13 @@
           </div>
           <div class="chart-summary" id="equity-period-summary"></div>
           <div class="chart-fixed">
-            <div class="chart-scroll">
-              <canvas id="equity-chart"></canvas>
+            <div class="chart-row">
+              <div class="chart-y-axis" id="equity-y-axis"></div>
+              <div class="chart-scroll">
+                <div class="chart-canvas-wrap">
+                  <canvas id="equity-chart" data-y-axis-target="equity-y-axis"></canvas>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -141,8 +146,13 @@
             </div>
           </div>
           <div class="chart-fixed">
-            <div class="chart-scroll">
-              <canvas id="waterfall-chart"></canvas>
+            <div class="chart-row">
+              <div class="chart-y-axis" id="pnl-y-axis"></div>
+              <div class="chart-scroll">
+                <div class="chart-canvas-wrap">
+                  <canvas id="waterfall-chart" data-y-axis-target="pnl-y-axis"></canvas>
+                </div>
+              </div>
             </div>
           </div>
         </div>

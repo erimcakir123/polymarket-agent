@@ -366,16 +366,42 @@ html, body {
 .chart-summary .pnl-pos { color: var(--green); }
 .chart-summary .pnl-neg { color: var(--red); }
 .chart-summary strong { font-weight: 700; font-variant-numeric: tabular-nums; }
-.chart-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
+
+/* Sticky y-axis layout: fixed column left + scrollable chart right. */
+.chart-row {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+.chart-y-axis {
+  flex: 0 0 52px;
+  position: relative;
+  background: var(--panel);
+  z-index: 2;
+  pointer-events: none;
+}
+.chart-y-tick {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chart-canvas-wrap {
   width: 100%;
   height: 100%;
-  /* Scrollbar satırı her zaman rezerve (tab switch'te layout shift olmasın). */
+}
+.chart-scroll {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 100%;
   scrollbar-gutter: stable;
-  /* Scrollbar ve x-axis label'ları çakışmasın — alt boşluk. */
   padding-bottom: 8px;
   box-sizing: border-box;
+  scroll-behavior: smooth;
 }
 .chart-scroll::-webkit-scrollbar { height: 6px; }
 .chart-scroll::-webkit-scrollbar-track { background: transparent; }

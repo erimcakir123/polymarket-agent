@@ -11,9 +11,8 @@
 (function (global) {
   "use strict";
 
-  // Chart.js plugin: sticky scroll-right. Eğer kullanıcı en sağda idiyse
-  // (veya ilk render), güncelleme sonrası en sağa dayalı kalır. Kullanıcı
-  // sola kaydırdıysa pozisyon korunur.
+  // Chart.js plugin: sticky scroll-right. Kullanıcı en sağda idiyse (veya
+  // ilk render), güncelleme sonrası en sağda kalır; sola kaydırdıysa korunur.
   const _atRight = new WeakMap();
   global.Chart.register({
     id: "stickyScrollRight",
@@ -25,6 +24,29 @@
     afterUpdate(chart) {
       const sc = chart.canvas.closest(".chart-scroll");
       if (sc && _atRight.get(chart) !== false) sc.scrollLeft = sc.scrollWidth;
+    },
+  });
+
+  // Chart.js plugin: external y-axis. Chart'ın kendi y-label'ları gizli;
+  // canvas dışındaki `#{canvas.dataset.yAxisTarget}` elementine tick'leri
+  // mutlak konumlu div'ler olarak yazar → scroll'a rağmen sabit kalır.
+  const _fmtDollar = (v) => {
+    const abs = Math.abs(v);
+    const body = abs >= 1000 ? (abs / 1000).toFixed(2) + "k" : abs.toFixed(0);
+    return (v < 0 ? "-" : "") + "$" + body;
+  };
+  global.Chart.register({
+    id: "externalYAxis",
+    afterUpdate(chart) {
+      const targetId = chart.canvas.dataset.yAxisTarget;
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      const yScale = chart.scales && chart.scales.y;
+      if (!target || !yScale || !yScale.ticks) return;
+      target.innerHTML = yScale.ticks.map((t) => {
+        const y = yScale.getPixelForValue(t.value);
+        return `<div class="chart-y-tick" style="top:${y}px">${_fmtDollar(t.value)}</div>`;
+      }).join("");
     },
   });
 

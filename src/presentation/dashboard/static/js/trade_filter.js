@@ -98,22 +98,11 @@
     return "";
   }
 
-  // Per-trade bar label — always detailed enough to distinguish individual
-  // trades even within the same day (waterfall chart; bucketing yapılmaz).
-  function tradeLabel(isoTs, period) {
-    if (!isoTs) return "";
-    if (period === "24h" || period === "7d") return periodLabel(isoTs, period);
-    const d = new Date(isoTs);
-    if (Number.isNaN(d.getTime())) return "";
-    return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()} ${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
-  }
-
   global.FILTER = {
     filterByPeriod,
     cumulativeByResolution,
     periodSum,
     periodLabel,
-    tradeLabel,
     RESOLUTION_BY_PERIOD,
   };
 })(window);
