@@ -39,4 +39,3 @@
 ## Aktif Planlar
 
 *Tamamlanan planlar silinir.*
-
