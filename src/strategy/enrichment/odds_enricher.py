@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability, calculate_bookmaker_probability
 from src.domain.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
 from src.domain.matching.odds_sport_keys import is_soccer_key
@@ -79,27 +80,27 @@ def _parse_bookmaker_markets(
     return None
 
 
-def enrich_market(market: MarketData, odds_client) -> BookmakerProbability | None:
-    """MarketData + Odds API → BookmakerProbability (P(YES), conf, num_bookmakers, has_sharp).
+def enrich_market(market: MarketData, odds_client) -> EnrichResult:
+    """MarketData + Odds API → EnrichResult (probability veya fail_reason).
 
-    Başarısız olursa None. Caller None gelirse C-conf fallback (probability=0.5) kabul eder.
+    Her başarısız yol için EnrichFailReason döner. Caller fail_reason'a göre skip_detail yazar.
     """
     # 1. Sport key resolve
     sport_key = resolve_sport_key(market.question, market.slug, market.tags, odds_client)
     if not sport_key:
         logger.debug("No sport_key for %s", market.slug[:40])
-        return None
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.SPORT_KEY_UNRESOLVED)
 
     # 2. Team extraction
     team_a_name, team_b_name = extract_teams(market.question)
     if not team_a_name:
         logger.debug("Cannot extract teams from: %s", market.question[:80])
-        return None
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.TEAM_EXTRACT_FAILED)
 
     # 3. Fetch odds
     events = odds_client.get_odds(sport_key, _odds_query_params())
     if not events:
-        return None
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_EVENTS)
 
     # 4. Match event
     if team_b_name:
@@ -107,13 +108,13 @@ def enrich_market(market: MarketData, odds_client) -> BookmakerProbability | Non
         if not match_result:
             logger.debug("No event match for %s vs %s in %d events",
                          team_a_name, team_b_name, len(events))
-            return None
+            return EnrichResult(probability=None, fail_reason=EnrichFailReason.EVENT_NO_MATCH)
         best_event, _ = match_result
         home_is_a, _, _ = match_team(team_a_name, best_event.get("home_team", ""))
     else:
         single = find_best_single_team_match(team_a_name, events)
         if not single:
-            return None
+            return EnrichResult(probability=None, fail_reason=EnrichFailReason.EVENT_NO_MATCH)
         best_event, _, home_is_a = single
         team_b_name = best_event.get("away_team" if home_is_a else "home_team", "")
 
@@ -122,10 +123,13 @@ def enrich_market(market: MarketData, odds_client) -> BookmakerProbability | Non
     is_soccer = is_soccer_key(sport_key)
 
     # 5. Weighted bookmaker average
-    return _weighted_average(
+    prob = _weighted_average(
         best_event.get("bookmakers", []),
         home_team, away_team, home_is_a, is_soccer,
     )
+    if prob is None:
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
+    return EnrichResult(probability=prob, fail_reason=None)
 
 
 def _weighted_average(

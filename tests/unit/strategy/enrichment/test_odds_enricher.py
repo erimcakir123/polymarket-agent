@@ -57,10 +57,10 @@ def test_enrich_single_sharp_below_weight_threshold() -> None:
     )
     client = _client_returning([event])
     r = enrich_market(_market(), client)
-    assert r is not None
-    assert r.has_sharp is True
-    assert r.confidence == "C"  # weight 3.0 < 5 threshold
-    assert r.probability > 0.5
+    assert r.probability is not None
+    assert r.probability.has_sharp is True
+    assert r.probability.confidence == "C"  # weight 3.0 < 5 threshold
+    assert r.probability.probability > 0.5
 
 
 def test_enrich_multiple_books_reaches_A_conf() -> None:
@@ -76,10 +76,10 @@ def test_enrich_multiple_books_reaches_A_conf() -> None:
     )
     client = _client_returning([event])
     r = enrich_market(_market(), client)
-    assert r is not None
-    assert r.confidence == "A"
-    assert r.has_sharp is True
-    assert 0.55 < r.probability < 0.65  # Weighted ~60%
+    assert r.probability is not None
+    assert r.probability.confidence == "A"
+    assert r.probability.has_sharp is True
+    assert 0.55 < r.probability.probability < 0.65  # Weighted ~60%
 
 
 def test_enrich_filters_polymarket_bookie() -> None:
@@ -95,10 +95,10 @@ def test_enrich_filters_polymarket_bookie() -> None:
     )
     client = _client_returning([event])
     r = enrich_market(_market(), client)
-    assert r is not None
+    assert r.probability is not None
     # Polymarket atlandığı için probability 1.50 odds'u içermemeli
     # Sadece bet365/dk/fanduel → ~60%
-    assert 0.55 < r.probability < 0.65
+    assert 0.55 < r.probability.probability < 0.65
 
 
 def test_enrich_buy_no_direction_swapped() -> None:
@@ -117,9 +117,9 @@ def test_enrich_buy_no_direction_swapped() -> None:
     client = _client_returning([event])
     m = _market(question="Will Celtics beat Lakers?")
     r = enrich_market(m, client)
-    assert r is not None
+    assert r.probability is not None
     # Celtics (team_a) away position'da → prob_a = away_prob ~40%
-    assert 0.35 < r.probability < 0.45
+    assert 0.35 < r.probability.probability < 0.45
 
 
 def test_enrich_no_sport_key_returns_none() -> None:
@@ -127,7 +127,7 @@ def test_enrich_no_sport_key_returns_none() -> None:
     m = _market(question="Random non-sports question", slug="xyz-unknown", tags=[])
     # Slug unknown, tags empty, no tennis hint, discovery fallback → no events → None
     r = enrich_market(m, client)
-    assert r is None
+    assert r.probability is None
 
 
 def test_enrich_no_team_match_returns_none() -> None:
@@ -137,7 +137,7 @@ def test_enrich_no_team_match_returns_none() -> None:
     )
     client = _client_returning([event])
     r = enrich_market(_market(), client)
-    assert r is None
+    assert r.probability is None
 
 
 def test_enrich_soccer_requires_draw_outcome() -> None:
@@ -147,4 +147,65 @@ def test_enrich_soccer_requires_draw_outcome() -> None:
     m = _market(slug="epl-ars-che-2026-04-13", question="Arsenal vs Chelsea")
     # Events yok → None
     r = enrich_market(m, client)
-    assert r is None
+    assert r.probability is None
+
+
+# --- SPEC-001: EnrichResult + fail_reason taxonomy tests ---
+
+from src.domain.analysis.enrich_outcome import EnrichFailReason
+
+
+def test_enrich_market_no_sport_key_returns_sport_key_unresolved() -> None:
+    market = _market(slug="unknown-foo-bar-2026-01-01", question="X vs Y", tags=[])
+    client = _client_returning(odds_events=[], sports=[])
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.SPORT_KEY_UNRESOLVED
+
+
+def test_enrich_market_team_extract_fail_returns_team_extract_failed() -> None:
+    market = _market(question="")
+    client = _client_returning(odds_events=[], sports=[{"key":"basketball_nba","active":True}])
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.TEAM_EXTRACT_FAILED
+
+
+def test_enrich_market_empty_events_returns_empty_events() -> None:
+    market = _market()
+    client = _client_returning(odds_events=[])
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.EMPTY_EVENTS
+
+
+def test_enrich_market_no_event_match_returns_event_no_match() -> None:
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{"home_team":"Warriors","away_team":"Nuggets","bookmakers":[]}]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.EVENT_NO_MATCH
+
+
+def test_enrich_market_empty_bookmakers_returns_empty_bookmakers() -> None:
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{"home_team":"Lakers","away_team":"Celtics","bookmakers":[]}]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.EMPTY_BOOKMAKERS
+
+
+def test_enrich_market_ok_returns_probability_and_no_fail_reason() -> None:
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{
+        "home_team":"Lakers","away_team":"Celtics",
+        "bookmakers":[{"key":"fanduel","markets":[{"key":"h2h","outcomes":[
+            {"name":"Lakers","price":1.80},{"name":"Celtics","price":2.20}]}]}],
+    }]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.probability is not None
+    assert result.fail_reason is None
+    assert 0.0 < result.probability.probability < 1.0
