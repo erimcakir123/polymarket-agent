@@ -151,22 +151,36 @@
     },
 
     setEquity(trades, initialBankroll) {
-      // TDD §5.7.7: chart = initial + cumulative realized PnL from trade history.
-      // trades come from /api/trades (computed.exit_events) — sorted DESC by
-      // exit_timestamp. Reverse → chronological, then cumsum on exit_pnl_usdc
-      // (hem full-close hem partial scale-out event'leri).
-      // Identity-correct by construction: her adım tek bir realized event.
-      const chronological = [...(trades || [])].reverse();
-      let running = Number(initialBankroll) || 0;
-      const labels = [""];
-      const data = [running];
-      for (const t of chronological) {
-        running += Number(t.exit_pnl_usdc || 0);
-        labels.push(t.exit_timestamp || "");
-        data.push(running);
+      // TDD §5.7.7: chart = initial + cumulative realized PnL.
+      // Period + resolution: spec 2026-04-16 §3.
+      const period = CHART_STATE.equityPeriod;
+      const resolution = global.FILTER.RESOLUTION_BY_PERIOD[period] || "event";
+      const windowTrades = global.FILTER.filterByPeriod(trades, period);
+      const points = global.FILTER.cumulativeByResolution(
+        windowTrades, initialBankroll, resolution
+      );
+
+      const baseline = Number(initialBankroll) || 0;
+      this.equity.data.labels = [""].concat(points.map((p) => p.timestamp || ""));
+      this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
+
+      // Canvas min-width — yoğun dilimde horizontal scroll tetiklenir.
+      const minWidth = (points.length + 1) * CONFIG.equityBarMinPx;
+      this.equity.canvas.style.minWidth = minWidth + "px";
+
+      // Tab-altı period özeti.
+      const sum = global.FILTER.periodSum(windowTrades);
+      const sumEl = document.getElementById("equity-period-summary");
+      if (sumEl) {
+        const cls = sum >= 0 ? "pnl-pos" : "pnl-neg";
+        const sign = sum >= 0 ? "+" : "−";
+        const n = windowTrades.length;
+        sumEl.innerHTML =
+          `${period.toUpperCase()} PnL ` +
+          `<span class="${cls}">${sign}$${Math.abs(sum).toFixed(2)}</span> ` +
+          `· ${n} trade${n === 1 ? "" : "s"}`;
       }
-      this.equity.data.labels = labels;
-      this.equity.data.datasets[0].data = data;
+
       this.equity.update("none");
     },
 
