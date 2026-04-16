@@ -34,7 +34,7 @@ scanner:
     - wncaab
     - euroleague
     - nbl
-    - basketball
+    # "basketball" generic dropped: CBA/KBL/VTB no Odds API coverage (SPEC-003)
     # Ice Hockey
     - nhl
     - ahl
@@ -42,7 +42,7 @@ scanner:
     - mestis
     - shl
     - allsvenskan
-    - hockey
+    # "hockey" generic dropped: KHL no Odds API coverage (SPEC-003)
     # American Football (NFL regular season OT-tie %0.2 — TODO-001, MVP'de NFL dışarıda)
     - ncaaf
     - cfl
