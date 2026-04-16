@@ -227,16 +227,31 @@ Identity (her period için): son nokta = `initial + Σ exit_pnl_usdc`
 realized PnL toplamı.
 
 **Tab-altı PnL özeti** (yalnızca Total Equity kartında):
-Format: `{PERIOD} PnL {±$XX.XX} · {N} trades`. Pozitif yeşil, negatif
-kırmızı. Per Trade PnL kartında bu satır yok.
+Format: `<strong>±$XX.XX</strong> · N trades`. Pozitif yeşil, negatif
+kırmızı; rakam `tabular-nums` ile hizalı. Period prefix yok (aktif tab
+zaten seçili görünür). Per Trade PnL kartında bu satır yok.
 
 **Per Trade PnL chart:** Aynı 4 tab kullanılır; period filter uygulanır
 fakat bucketing YAPILMAZ — her bar bir exit event. `waterfallMaxBars = 40`
 üst limit + CSS scroll ile eski trade'lere erişim.
 
+**Sticky y-axis** (2026-04-16, review round 3):
+Canvas içindeki y-axis label'ları gizli (`scales.y.ticks.display: false`,
+`afterFit: s.width = 0`). Yerine canvas DIŞINDA sabit `.chart-y-axis` DOM
+element'i; Chart.js plugin `externalYAxis` her `afterUpdate`'te scale
+tick'lerini DOM'a yansıtır. Scroll yapılsa bile y-axis label'ları sabit
+kalır. $-prefix + kilo notation (`$1.00k`, `$20`) tabular-nums ile hizalı.
+Renk: CSS `--axis-label` (x-axis ile paylaşılan tek kaynak).
+
+**Hitbox doğruluğu:** Canvas'ın genişliği doğrudan `canvas.style.minWidth`
+ile değil, parent `.chart-canvas-wrap`'in `style.width` ile set edilir.
+Chart.js ResizeObserver parent wrap'i izleyip canvas internal pixel grid'i
+senkron tutar → tooltip hit-detection bar sınırlarında doğru tetiklenir.
+
 Lokasyon:
-- `static/js/trade_filter.js::FILTER.cumulativeByResolution`
+- `static/js/trade_filter.js::FILTER.cumulativeByResolution`, `.periodLabel`
 - `static/js/dashboard.js::CHARTS.setEquity(trades, initialBankroll)`
+- `static/js/chart_tabs.js` — `stickyScrollRight`, `externalYAxis` Chart.js plugin'leri
 
 ---
 

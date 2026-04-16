@@ -23,7 +23,9 @@
     },
     afterUpdate(chart) {
       const sc = chart.canvas.closest(".chart-scroll");
-      if (sc && _atRight.get(chart) !== false) sc.scrollLeft = sc.scrollWidth;
+      if (sc && _atRight.get(chart) !== false) {
+        sc.scrollTo({ left: sc.scrollWidth, behavior: "smooth" });
+      }
     },
   });
 

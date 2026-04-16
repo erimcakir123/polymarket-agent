@@ -147,7 +147,7 @@ Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap
   - **Loss Protection** — RISK gauge + Down% + Stop at% (CB günlük eşik) + Status (Safe/Caution/Warning/Stopped)
   - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/CON/EAR)
   - **Branches** — sport/league ROI treemap: alan ∝ invested USDC, renk ∝ ROI (yeşil+/kırmızı−/sıfıra yakın mavi), hover tooltip
-- **Grafikler** (2): Total Equity zaman serisi (total_equity = bankroll + invested + unrealized), Per-Trade PnL waterfall
+- **Grafikler** (2): Total Equity zaman serisi (realized-only: `initial + Σ exit_pnl_usdc`, stepped; period tabs 24h/7d/30d/1y + adaptif bucketing), Per-Trade PnL waterfall (aynı period tabs). Detay: TDD §5.7.7
 - **Trades feed** (sağ panel, 4 sekme): Active | Exited | Skipped | Stock — her kart tıklanabilir (Polymarket event sayfasını yeni sekmede açar), branş ikonlarıyla
 - **Cycle bar** (topbar): Hard cycle (mavi) + Light cycle (teal) durumu; bot offline/idle gri
 
@@ -182,7 +182,7 @@ Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 - Flask dashboard: pozisyonlar, PnL, circuit breaker durumu, < 3 sn gecikme, 5 sn polling
 - Bot durumu her tick `logs/bot_status.json`'a yazılır (mode, last_cycle, last_cycle_at, reason) → dashboard cycle bar
 - Trade history append + exit update (`TradeHistoryLogger.update_on_exit` atomic rewrite); dashboard Exited/Stats/Branches/Waterfall bu dosyadan beslenir
-- Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır; dashboard son 100 snapshot'ı grafikler; Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
+- Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır (audit + Peak Balance hesabı); Total Equity chart ise `/api/trades` cumsum'dan beslenir (PLAN-008/009, bkz. TDD §5.7.7). Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
 - Skipped adaylar `skipped_trades.jsonl`'e (orchestration'dan) yazılır; dashboard Skipped sekmesinde gösterir
 - Stock queue her heavy cycle sonunda `stock_queue.json`'a dump edilir; dashboard Stock sekmesinde gösterir (persistent pool: restart sonrası restore edilir)
 - Telegram: entry/exit/CB olayları

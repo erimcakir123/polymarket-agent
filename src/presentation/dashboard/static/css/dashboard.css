@@ -39,6 +39,10 @@
   --conf-c: var(--red);
   --conf-unk: var(--muted);
 
+  /* Chart axis label — x ve y eksenlerinde tutarlı tek kaynak.
+     Chart.js JS tarafında _cssVar("--axis-label") ile okur. */
+  --axis-label: rgba(148, 163, 184, 0.5);
+
   --radius: 14px;
   --radius-sm: 10px;
   --gap: 16px;
@@ -385,7 +389,7 @@ html, body {
   right: 8px;
   transform: translateY(-50%);
   font-size: 10px;
-  color: var(--muted);
+  color: var(--axis-label);  /* x-axis ile aynı tek kaynak */
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -401,7 +405,8 @@ html, body {
   scrollbar-gutter: stable;
   padding-bottom: 8px;
   box-sizing: border-box;
-  scroll-behavior: smooth;
+  /* scroll-behavior: smooth YOK — wheel event'leri smooth ile birikince jank
+     yaratır. Programmatic scrollTo explicit behavior: 'smooth' kullanır. */
 }
 .chart-scroll::-webkit-scrollbar { height: 6px; }
 .chart-scroll::-webkit-scrollbar-track { background: transparent; }

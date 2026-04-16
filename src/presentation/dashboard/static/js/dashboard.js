@@ -73,7 +73,7 @@
       greenDim:  _rgba("--green", 0.5),
       track: "rgba(148, 163, 184, 0.08)",
       gridLine: "rgba(148, 163, 184, 0.06)",
-      axisLabel: "rgba(148, 163, 184, 0.5)",
+      axisLabel: _cssVar("--axis-label") || "rgba(148, 163, 184, 0.5)",
     });
   }
 
