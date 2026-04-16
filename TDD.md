@@ -190,34 +190,53 @@ Tennis markets'de iki yaygın bug için fix:
 Not: Odds API tennis kapsamı haftalık ~3 major turnuva; Challenger tour /
 minor events yapısal coverage gap, bu fix onları karşılamaz.
 
-#### 5.7.7 Total Equity Chart — Realized-Only Stepped
+#### 5.7.7 Total Equity Chart — Realized-Only Stepped + Period Tabs
 
 Chart formülü: `initial_bankroll + Σ exit_pnl_usdc` (trade history üzerinden
 kümülatif). **Unrealized hariç** — açık pozisyonların anlık fiyat
 dalgalanması chart'ı kirletmez.
 
 **Veri kaynağı:** `/api/trades` (`computed.exit_events`) — full-close exit'ler
-+ partial scale-out event'leri. Client kronolojik sıraya çevirip `exit_pnl_usdc`
-üzerinde kümülatif toplam yapar.
++ partial scale-out event'leri. Client kronolojik sıraya çevirip
+`exit_pnl_usdc` üzerinde kümülatif toplam yapar.
+
+**Period tabs + adaptif bucketing (2026-04-16 fix, PLAN-009):**
+
+| Tab | Granularity | Her nokta ne? | Tipik max |
+|-----|------------|----------------|-----------|
+| 24h | Event | Her exit = 1 basamak | ~50 |
+| 7d  | Hourly | Saat sonu kümülatif | ~168 |
+| 30d | Daily | Gün sonu kümülatif | 30 |
+| 1y  | Weekly (ISO) | Hafta sonu kümülatif | 52 |
+
+Default tab: `30d`. "All" yok — sınırsız scroll'u önlemek için (lifetime PnL
+Balance kartında görünür). Yoğun dilimlerde (24h/7d) canvas `overflow-x: auto`
+ile scroll.
 
 Rendering: `stepped: "before"`, `tension: 0` — yumuşak eğri yerine
-basamaklı plateau. Her exit/partial event net bir zıplama.
+basamaklı plateau.
 
-**Neden snapshot değil trade-cumsum:** Eski implementasyon
-`equity_history.jsonl` snapshot'larının stored `bankroll + invested` değerini
-çiziyordu. Partial exit'te `apply_partial_exit` yalnızca realized PnL'i bankroll'a
-ekliyor, basis payını eklemiyordu → her partial'da identity
-`bankroll + invested = initial + realized_pnl` kırılıyordu (2026-04-16 fix,
-PLAN-008). Trade cumsum inşaat gereği identity-correct.
+**Neden trade-cumsum + bucketing:** Eski implementasyon `equity_history.jsonl`
+snapshot'larını çiziyordu; partial exit basis-leak'i (PLAN-008) nedeniyle
+identity kırılıyordu. Trade cumsum inşaat gereği identity-correct;
+bucketing ise geniş dilimlerde (30d/1y) nokta yoğunluğunu ekran-dostu
+seviyede tutar.
 
-**Not:** `apply_partial_exit(basis_returned, realized)` fix'iyle snapshot identity'si
-de artık korunuyor; snapshot dosyası Peak Balance hesabı için hâlâ okunur
-(`computed._peak_total_equity`). Chart sadece kendi kaynağına güvenir.
+Identity (her period için): son nokta = `initial + Σ exit_pnl_usdc`
+(dilim içindeki). `30d` tab'ında chart sonu = başlangıç + son 30 günün
+realized PnL toplamı.
 
-Identity doğrulama: `initial + Σ exit_pnl_usdc` ≈ `initial + portfolio.realized_pnl`
-(round-off hariç).
+**Tab-altı PnL özeti** (yalnızca Total Equity kartında):
+Format: `{PERIOD} PnL {±$XX.XX} · {N} trades`. Pozitif yeşil, negatif
+kırmızı. Per Trade PnL kartında bu satır yok.
 
-Lokasyon: `static/js/dashboard.js::CHARTS.setEquity(trades, initialBankroll)`.
+**Per Trade PnL chart:** Aynı 4 tab kullanılır; period filter uygulanır
+fakat bucketing YAPILMAZ — her bar bir exit event. `waterfallMaxBars = 40`
+üst limit + CSS scroll ile eski trade'lere erişim.
+
+Lokasyon:
+- `static/js/trade_filter.js::FILTER.cumulativeByResolution`
+- `static/js/dashboard.js::CHARTS.setEquity(trades, initialBankroll)`
 
 ---
 
