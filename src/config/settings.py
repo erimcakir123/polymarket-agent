@@ -1,6 +1,7 @@
 """Pydantic config loader (TDD §9)."""
 from __future__ import annotations
 
+import os
 from enum import Enum
 from pathlib import Path
 from typing import List
@@ -188,9 +189,22 @@ class AppConfig(BaseModel):
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:
-    """YAML'dan config yükle; dosya yoksa default'larla döner."""
+    """YAML'dan config yükle; dosya yoksa default'larla döner.
+
+    Telegram secret'ları .env'den okunur (config.yaml'a yazılmaz).
+    """
     if not path.exists():
         return AppConfig()
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
+
+    # Telegram: .env'den secret override (token/chat_id yaml'a yazılmaz)
+    tg = data.setdefault("telegram", {})
+    if not tg.get("bot_token"):
+        tg["bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not tg.get("chat_id"):
+        tg["chat_id"] = os.getenv("TELEGRAM_CHAT_ID", "")
+    if tg["bot_token"] and tg["chat_id"]:
+        tg["enabled"] = True
+
     return AppConfig(**data)
