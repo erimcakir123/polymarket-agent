@@ -315,3 +315,75 @@ def test_agent_without_ws_works(tmp_path: Path, monkeypatch) -> None:
     agent = Agent(deps)
     agent.run(max_ticks=1)  # Hata atmamalı
     assert deps.state.portfolio.count() == 1
+
+
+# ── Match-start priority ordering ──
+
+
+def test_agent_entry_loop_evaluates_in_match_start_ascending_order(tmp_path: Path, monkeypatch) -> None:
+    """3 aday: T+10h, T+1h, T+3h. Execute sırası: T+1h, T+3h, T+10h."""
+    now = datetime.now(timezone.utc)
+    m_10h = _market(cid="far", yes=0.50)
+    m_10h.match_start_iso = _iso(now + timedelta(hours=10))
+    m_10h.event_id = "evt_far"
+
+    m_1h = _market(cid="near", yes=0.50)
+    m_1h.match_start_iso = _iso(now + timedelta(hours=1))
+    m_1h.event_id = "evt_near"
+
+    m_3h = _market(cid="mid", yes=0.50)
+    m_3h.match_start_iso = _iso(now + timedelta(hours=3))
+    m_3h.event_id = "evt_mid"
+
+    deps = _build_deps(tmp_path, [m_10h, m_1h, m_3h], bm_result=_bm(prob=0.65, conf="A"))
+    monkeypatch.setattr(time, "sleep", lambda *a: None)
+
+    agent = Agent(deps)
+    executed_cids: list[str] = []
+    original_execute = agent._execute_entry
+
+    def _tracking_execute(market, signal):
+        executed_cids.append(market.condition_id)
+        return original_execute(market, signal)
+
+    agent._execute_entry = _tracking_execute
+    agent.run(max_ticks=1)
+
+    # 3 pozisyon açılmış olmalı
+    assert len(executed_cids) == 3
+    # Sıra: near (T+1h) → mid (T+3h) → far (T+10h)
+    assert executed_cids == ["near", "mid", "far"]
+
+
+def test_agent_entry_loop_tiebreak_by_volume24h_desc(tmp_path: Path, monkeypatch) -> None:
+    """Aynı match_start, farklı volume_24h → yüksek volume önce."""
+    now = datetime.now(timezone.utc)
+    same_start = _iso(now + timedelta(hours=2))
+
+    m_low = _market(cid="low_vol", yes=0.50)
+    m_low.match_start_iso = same_start
+    m_low.volume_24h = 5_000.0
+    m_low.event_id = "evt_low"
+
+    m_high = _market(cid="high_vol", yes=0.50)
+    m_high.match_start_iso = same_start
+    m_high.volume_24h = 50_000.0
+    m_high.event_id = "evt_high"
+
+    deps = _build_deps(tmp_path, [m_low, m_high], bm_result=_bm(prob=0.65, conf="A"))
+    monkeypatch.setattr(time, "sleep", lambda *a: None)
+
+    agent = Agent(deps)
+    executed_cids: list[str] = []
+    original_execute = agent._execute_entry
+
+    def _tracking_execute(market, signal):
+        executed_cids.append(market.condition_id)
+        return original_execute(market, signal)
+
+    agent._execute_entry = _tracking_execute
+    agent.run(max_ticks=1)
+
+    assert len(executed_cids) == 2
+    # Yüksek volume önce
+    assert executed_cids == ["high_vol", "low_vol"]

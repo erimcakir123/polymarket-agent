@@ -51,6 +51,8 @@ def test_run_heavy_writes_scanning_then_analyzing_then_idle_when_no_signals():
     gate_result.skipped_reason = "no_edge"
     deps.gate.run.return_value = [gate_result]
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.hard_cap_overflow_pct = 0.02
+    deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False
@@ -112,6 +114,8 @@ def test_run_heavy_writes_executing_when_signal_exists():
     deps.scanner.scan.return_value = [market]
     deps.gate.run.return_value = [gate_result]
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.hard_cap_overflow_pct = 0.02
+    deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False
@@ -132,6 +136,8 @@ def test_run_heavy_idle_is_last():
     deps.scanner.scan.return_value = []
     deps.gate.run.return_value = []
     deps.gate.config.max_exposure_pct = 0.30
+    deps.gate.config.hard_cap_overflow_pct = 0.02
+    deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False

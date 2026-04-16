@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.domain.portfolio.exposure import exceeds_exposure_limit
+from src.domain.portfolio.exposure import available_under_cap
 from src.domain.portfolio.lifecycle import tick_position_state
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.executor import Executor
@@ -201,33 +201,55 @@ class Agent:
         results = self.deps.gate.run(markets)
         by_cid = {m.condition_id: m for m in markets}
         max_exposure_pct = self.deps.gate.config.max_exposure_pct
+        overflow_pct = self.deps.gate.config.hard_cap_overflow_pct
+        min_entry_pct = self.deps.gate.config.min_entry_size_pct
         executing_written = False
-        for r in results:
-            market = by_cid.get(r.condition_id)
-            if r.signal is None:
-                if market is not None:
-                    operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
-                    self.deps.stock.add(market, r.skipped_reason)
-                continue
 
+        # Skip'leri (signal=None) önce işle — stock'a eklenir
+        for r in results:
+            if r.signal is not None:
+                continue
+            market = by_cid.get(r.condition_id)
+            if market is not None:
+                operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
+                self.deps.stock.add(market, r.skipped_reason)
+
+        # Approved signal'leri match_start ASC sırala (yakın maçlar önce cap alır)
+        def _priority_key(r):
+            market = by_cid.get(r.condition_id)
+            if market is None:
+                return ("9999-99-99", 0.0)
+            return (market.match_start_iso or "9999-99-99", -market.volume_24h)
+
+        approved_sorted = sorted(
+            [r for r in results if r.signal is not None],
+            key=_priority_key,
+        )
+
+        for r in approved_sorted:
+            market = by_cid.get(r.condition_id)
             if market is None:
                 continue
 
-            # Execution-time exposure re-check — payda toplam portföy (nakit + invested)
+            # Execution-time cap clipping — portfolio her add sonrası değişir
             pm = self.deps.state.portfolio
             total_portfolio = pm.bankroll + pm.total_invested()
-            if exceeds_exposure_limit(
-                pm.positions, r.signal.size_usdc,
-                total_portfolio, max_exposure_pct,
-            ):
+            available = available_under_cap(
+                pm.positions, total_portfolio, max_exposure_pct, overflow_pct,
+            )
+            min_size = pm.bankroll * min_entry_pct
+            if available < min_size:
                 operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
                 self.deps.stock.add(market, "exposure_cap_reached")
                 continue
 
+            final_size = min(r.signal.size_usdc, available)
+            clipped_signal = r.signal.model_copy(update={"size_usdc": round(final_size, 2)})
+
             if not executing_written:
                 self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="executing")
                 executing_written = True
-            self._execute_entry(market, r.signal)
+            self._execute_entry(market, clipped_signal)
             self.deps.stock.remove(market.condition_id)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
