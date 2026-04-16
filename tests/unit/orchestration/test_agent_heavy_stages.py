@@ -49,6 +49,7 @@ def test_run_heavy_writes_scanning_then_analyzing_then_idle_when_no_signals():
     gate_result.condition_id = "c"
     gate_result.signal = None
     gate_result.skipped_reason = "no_edge"
+    gate_result.skip_detail = ""
     deps.gate.run.return_value = [gate_result]
     deps.gate.config.max_exposure_pct = 0.30
     deps.gate.config.hard_cap_overflow_pct = 0.02

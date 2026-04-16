@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.config.settings import AppConfig
+from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.manipulation import ManipulationCheck
 from src.domain.risk.cooldown import CooldownTracker
@@ -91,7 +92,12 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
     odds_client.get_odds.return_value = []
 
     # Gate: enricher ve manipulation checker mock'la
-    enricher = lambda m: bm_result
+    # Enricher EnrichResult döndürür (SPEC-001: yeni API)
+    if bm_result is None:
+        _enrich_return = EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_EVENTS)
+    else:
+        _enrich_return = EnrichResult(probability=bm_result, fail_reason=None)
+    enricher = lambda m: _enrich_return
     manip = lambda question, liquidity: _safe_manip()
     gate = EntryGate(
         config=GateConfig(),
