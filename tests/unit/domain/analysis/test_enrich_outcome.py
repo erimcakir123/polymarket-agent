@@ -6,7 +6,10 @@ from src.domain.analysis.probability import BookmakerProbability
 
 
 def test_enrich_result_ok_has_probability_and_null_fail_reason() -> None:
-    prob = BookmakerProbability(probability=0.62, confidence="B", num_bookmakers=3.0, has_sharp=True)
+    prob = BookmakerProbability(
+        probability=0.62, confidence="B",
+        bookmaker_prob=0.62, num_bookmakers=3.0, has_sharp=True,
+    )
     result = EnrichResult(probability=prob, fail_reason=None)
     assert result.probability is prob
     assert result.fail_reason is None
