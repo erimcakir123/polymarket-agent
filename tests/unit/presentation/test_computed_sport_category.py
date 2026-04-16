@@ -10,6 +10,7 @@ def _trade(**kwargs):
         "exit_price": 0.5,  # kapalı trade (treemap'e dahil)
         "exit_pnl_usdc": 0.0,
         "size_usdc": 10.0,
+        "partial_exits": [],
     }
     base.update(kwargs)
     return base

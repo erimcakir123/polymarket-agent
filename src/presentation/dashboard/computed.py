@@ -203,26 +203,36 @@ def _sport_category(trade: dict[str, Any]) -> str:
 def sport_roi_treemap(trades: list[dict[str, Any]]) -> dict[str, Any]:
     """Trade history'den BRANŞ (sport category) bazında ROI aggregate.
 
-    Sadece kapanmış trade'ler sayılır. Grup anahtarı: sport_category (baseball,
-    hockey, tennis, ...). Field yoksa sport_tag'den türetilir.
+    Full-close trade'ler + partial scale-out event'leri ayrı ayrı sayılır.
+    Her partial bir event (invested = sell_pct × original size, pnl = realized).
+    Her full-close bir event. Win = pnl > 0, loss = pnl < 0.
     """
     groups: dict[str, dict[str, Any]] = {}
-    for t in trades:
-        if t.get("exit_price") is None:
-            continue
-        key = _sport_category(t)
+
+    def _bump(key: str, invested: float, pnl: float) -> None:
         g = groups.setdefault(key, {
             "league": key, "trades": 0, "wins": 0, "losses": 0,
             "invested": 0.0, "net_pnl": 0.0,
         })
-        pnl = float(t.get("exit_pnl_usdc") or 0.0)
         g["trades"] += 1
-        g["invested"] += float(t.get("size_usdc") or 0.0)
+        g["invested"] += invested
         g["net_pnl"] += pnl
         if pnl > 0:
             g["wins"] += 1
         elif pnl < 0:
             g["losses"] += 1
+
+    for t in trades:
+        key = _sport_category(t)
+        size = float(t.get("size_usdc") or 0.0)
+        # Partial scale-out event'ler — her biri tier × original size invested.
+        for pe in (t.get("partial_exits") or []):
+            tier_size = float(pe.get("sell_pct") or 0.0) * size
+            tier_pnl = float(pe.get("realized_pnl_usdc") or 0.0)
+            _bump(key, tier_size, tier_pnl)
+        # Full-close event (varsa)
+        if t.get("exit_price") is not None:
+            _bump(key, size, float(t.get("exit_pnl_usdc") or 0.0))
 
     leagues: list[dict[str, Any]] = []
     for g in groups.values():
