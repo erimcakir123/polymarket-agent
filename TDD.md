@@ -518,17 +518,37 @@ exposure = (toplam_yatırılan + aday_size) / toplam_portföy_değeri
 toplam_portföy_değeri = portfolio.bankroll (nakit) + portfolio.total_invested()
 ```
 
-`max_exposure_pct` (config `risk.max_exposure_pct`, default 0.50) aşılırsa
-entry reddedilir (`skip_reason: exposure_cap_reached`).
+`max_exposure_pct` (config `risk.max_exposure_pct`, default 0.50) **soft cap**'tir.
+Gate ve agent, cap aşımında entry'yi tamamen reddetmek yerine **size kırparak** girer:
+
+- `soft_cap = portfolio × max_exposure_pct` (default %50)
+- `hard_cap = portfolio × (max_exposure_pct + hard_cap_overflow_pct)` (default %52)
+- `available = max(0, hard_cap − total_invested)`
+- `min_size = bankroll × min_entry_size_pct` (default %1.5)
+
+**Akış:**
+1. `available ≤ 0` → skip (`exposure_cap_reached`)
+2. `available < min_size` → skip (tx-cost floor; komisyonla zararlı mini-pozisyon)
+3. diğer → `entry_size = min(kelly, available)` ile gir
+
+**Neden:** Kelly-sizing büyük-edge fırsatlarda cap'i aşar; tamamen reddetmek yakın
+yüksek-edge pozisyonları kaybettiriyordu (2026-04-15 SF-CIN live-edge kaybı).
+
+**Match-start ASC priority:** Agent entry loop'unda approved signal'ler
+`match_start ASC, volume_24h DESC` sıralanır. Erken başlayan maçlar cap'ten
+yerini önce alır; yakın maçlar cap dolmadan girer, 10h sonraki adaylar
+kalan yere bakar.
 
 **Kritik invariant:** payda TOPLAM portföy değeri — nakit değil. `portfolio.bankroll`
 açık pozisyonlar düşülmüş kullanılabilir nakit olduğundan, doğrudan payda
 yapılırsa pozisyon açıldıkça küçülüp cap erken tetikler.
 
-**Pure function:** `domain/portfolio/exposure.py::exceeds_exposure_limit`.
+**Pure function:** `domain/portfolio/exposure.py::available_under_cap`.
 **Caller:** `strategy/entry/gate.py` + `orchestration/agent.py` her ikisi de
 `pm.bankroll + pm.total_invested()` hesaplayıp geçer.
-**Test:** `tests/unit/domain/portfolio/test_exposure.py::test_exposure_real_scenario_regression`
+**Test:** `tests/unit/domain/portfolio/test_exposure.py` (5 test) +
+`tests/unit/strategy/entry/test_gate.py` (clip testleri) +
+`tests/unit/orchestration/test_agent.py` (priority testleri)
 
 ### 6.16 Manipulation Guard
 
