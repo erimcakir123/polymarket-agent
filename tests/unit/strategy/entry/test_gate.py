@@ -261,3 +261,202 @@ def test_evaluate_one_no_bookmaker_data_sets_skip_detail_fail_reason() -> None:
     result = gate._evaluate_one(_market())
     assert result.skipped_reason == "no_bookmaker_data"
     assert result.skip_detail == "sport_key_unresolved"
+
+
+# --- SPEC-001: skip_detail for the remaining 11 reasons + 2 reason normalizations ---
+
+
+def test_evaluate_one_event_already_held_sets_skip_detail_event_id() -> None:
+    """event_already_held → skip_detail='event_id=<event_id>'."""
+    from src.models.position import Position
+
+    p = PortfolioManager(initial_bankroll=1000.0)
+    p.add_position(Position(
+        condition_id="prev_c", token_id="t", direction="BUY_YES",
+        entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
+        anchor_probability=0.55, event_id="378836",
+    ))
+    gate = _make_gate(portfolio=p)
+    result = gate._evaluate_one(_market(cid="c2", event="378836"))
+    assert result.skipped_reason == "event_already_held"
+    assert result.skip_detail == "event_id=378836"
+
+
+def test_evaluate_one_blacklisted_condition_id_sets_skip_detail_match_condition_id() -> None:
+    """blacklist condition_id hit → skip_detail='match=condition_id'."""
+    bl = Blacklist()
+    bl.add_condition("c1")
+    gate = _make_gate(bl=bl)
+    result = gate._evaluate_one(_market(cid="c1"))
+    assert result.skipped_reason == "blacklisted"
+    assert result.skip_detail == "match=condition_id"
+
+
+def test_evaluate_one_blacklisted_event_id_sets_skip_detail_match_event_id() -> None:
+    """blacklist event_id hit (condition_id clean) → skip_detail='match=event_id'."""
+    bl = MagicMock(spec=Blacklist)
+    # condition_id check → False; event_id check → True
+    bl.is_blacklisted.side_effect = lambda **kwargs: bool(kwargs.get("event_id"))
+    gate = _make_gate(bl=bl)
+    result = gate._evaluate_one(_market(cid="c_clean", event="e_blocked"))
+    assert result.skipped_reason == "blacklisted"
+    assert result.skip_detail == "match=event_id"
+
+
+def test_evaluate_one_manipulation_high_risk_sets_skip_detail_reason() -> None:
+    """manipulation_high_risk → skip_detail=flags joined (or 'unknown')."""
+    manip = ManipulationCheck(safe=False, risk_level="high", flags=["viral_keyword"], recommendation="")
+    gate = _make_gate(manip=lambda question, liquidity: manip)
+    result = gate._evaluate_one(_market())
+    assert result.skipped_reason == "manipulation_high_risk"
+    assert result.skip_detail == "viral_keyword"
+
+
+def test_evaluate_one_confidence_c_sets_skip_detail_num_bookmakers() -> None:
+    """confidence_C → skip_detail='num_bookmakers=X.X'."""
+    bm = BookmakerProbability(
+        probability=0.55, confidence="C",
+        bookmaker_prob=0.55, num_bookmakers=1.5, has_sharp=False,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(_market())
+    assert result.skipped_reason == "confidence_C"
+    assert result.skip_detail == "num_bookmakers=1.5"
+
+
+def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
+    """no_edge → skip_detail contains edge/min/bm/yes values."""
+    # bm=0.63, yes=0.60 → raw_edge=0.03 < 0.06 → no signal
+    bm = _bm(prob=0.63, conf="B")
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(_market(yp=0.60))
+    assert result.skipped_reason == "no_edge"
+    assert "edge=0.030" in result.skip_detail
+    assert "min=0.06" in result.skip_detail
+    assert "bm=0.63" in result.skip_detail
+    assert "yes=0.60" in result.skip_detail
+
+
+def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
+    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX'."""
+    # anchor=0.85(A) + market=0.90 → consensus signal at 0.90 > 0.88 cap
+    bm = _bm(prob=0.85, conf="A")
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(_market(yp=0.90))
+    assert result.skipped_reason == "entry_price_cap"
+    assert "price=0.900" in result.skip_detail
+    assert "cap=0.88" in result.skip_detail
+
+
+def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
+    """size_below_min (raw adjusted_size < min) → normalized reason + detail."""
+    # Bankroll $100 → B sizing ≈ $4 < $5 POLYMARKET_MIN
+    p = PortfolioManager(initial_bankroll=100.0)
+    gate = _make_gate(portfolio=p)
+    result = gate._evaluate_one(_market())
+    assert result.skipped_reason == "size_below_min"
+    assert "size=" in result.skip_detail
+    assert "min=" in result.skip_detail
+    # reason must NOT embed numbers (normalized form)
+    assert "(" not in result.skipped_reason
+
+
+def test_evaluate_one_size_below_min_final_sets_skip_detail_size_min() -> None:
+    """size_below_min (final clipped size < min after exposure cap clip) → normalized reason."""
+    # We need: raw_size >= min but available < min after clip.
+    # Use bankroll=$5000 (A sizing = $250 raw), but cap available to just $3 by investing heavily.
+    # invested=$2535 → total=$5000, hard_cap=5000*0.52=$2600, available=$65.
+    # Actually easier: use a very small available so final_size < POLYMARKET_MIN_ORDER_USDC
+    # but available >= min_entry_size_pct*bankroll.
+    # POLYMARKET_MIN_ORDER_USDC = $5.
+    # min_entry_size_pct=0.015 → with bankroll=$300, min_size=$4.5.
+    # A sizing → 300*0.05=$15 raw, available < $5 but >= $4.5 → final=available < $5 → size_below_min
+    # hard_cap = total * 0.52; total = bankroll + invested
+    # If invested=$152 → total=$452, hard_cap=$235, available=$235-$152=$83 — too big.
+    # Use max_exposure_pct=0.10 to shrink. But GateConfig default=0.50.
+    # Simplest: mock available_under_cap via MagicMock on portfolio.
+    # Strategy: patch portfolio so available = $4 (< POLYMARKET_MIN_ORDER_USDC=$5)
+    #           but available ($4) >= min_size (bankroll*0.015)
+    #           → exposure_cap_reached NOT triggered, final_size = min(raw, $4) = $4 < $5 → size_below_min
+    p = MagicMock(spec=PortfolioManager)
+    p.count.return_value = 0
+    p.has_event.return_value = False
+    p.bankroll = 100.0
+    p.total_invested.return_value = 0.0
+    p.positions = []
+
+    import unittest.mock as _mock
+
+    with _mock.patch(
+        "src.strategy.entry.gate.available_under_cap",
+        return_value=4.0,  # < POLYMARKET_MIN_ORDER_USDC ($5) but >= min_size (100*0.015=$1.5)
+    ):
+        gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.65, conf="A")))
+        result = gate._evaluate_one(_market())
+
+    assert result.skipped_reason == "size_below_min"
+    assert "size=" in result.skip_detail
+    assert "min=" in result.skip_detail
+    assert "(" not in result.skipped_reason
+
+
+def test_evaluate_one_exposure_cap_sets_skip_detail_available_min() -> None:
+    """exposure_cap_reached → skip_detail='available=X.XX, min=X.XX'."""
+    # initial=$2000, invested=$1035 → available=$5 < min_entry=$14.48 → exposure_cap_reached
+    from src.models.position import Position
+
+    p = PortfolioManager(initial_bankroll=2000.0)
+    p.add_position(Position(
+        condition_id="prev", token_id="t", direction="BUY_YES",
+        entry_price=0.4, size_usdc=1035.0, shares=2587.5, current_price=0.4,
+        anchor_probability=0.55, event_id="eprev",
+    ))
+    gate = _make_gate(portfolio=p)
+    result = gate._evaluate_one(_market(cid="new", event="enew"))
+    assert result.skipped_reason == "exposure_cap_reached"
+    assert "available=" in result.skip_detail
+    assert "min=" in result.skip_detail
+
+
+def test_run_circuit_breaker_sets_skip_detail_breaker_reason_normalized() -> None:
+    """circuit_breaker (normalized) → reason='circuit_breaker', detail=raw breaker message."""
+    cb = MagicMock(spec=CircuitBreaker)
+    cb.should_halt_entries.return_value = (True, "Daily loss -3.1% exceeded soft limit -3%")
+    gate = _make_gate(cb=cb)
+    results = gate.run([_market()])
+    r = results[0]
+    assert r.skipped_reason == "circuit_breaker"
+    assert r.skip_detail == "Daily loss -3.1% exceeded soft limit -3%"
+
+
+def test_run_cooldown_sets_skip_detail_cycles_remaining() -> None:
+    """cooldown_active → skip_detail='cycles_remaining=N'."""
+    cd = CooldownTracker(trigger_threshold=1, cooldown_cycles=2)
+    cd.record_outcome(win=False)  # triggers cooldown: remaining=2
+    gate = _make_gate(cd=cd)
+    results = gate.run([_market()])
+    r = results[0]
+    assert r.skipped_reason == "cooldown_active"
+    # remaining starts at 2; is_active() decrements to 1, returns True (1>0)
+    # We capture before calling is_active(), so detail should show 2
+    assert r.skip_detail == "cycles_remaining=2"
+
+
+def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
+    """max_positions_reached → skip_detail='count=N/N'."""
+    from src.models.position import Position
+
+    p = PortfolioManager(initial_bankroll=10_000.0)
+    for i in range(5):
+        p.add_position(Position(
+            condition_id=f"c{i}", token_id=f"t{i}", direction="BUY_YES",
+            entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
+            anchor_probability=0.55, event_id=f"e{i}",
+        ))
+    gate = _make_gate(portfolio=p)
+    gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50,
+                             max_single_bet_usdc=75.0, max_bet_pct=0.05)
+    results = gate.run([_market(cid="new", event="enew")])
+    r = results[0]
+    assert r.skipped_reason == "max_positions_reached"
+    assert r.skip_detail == "count=5/5"

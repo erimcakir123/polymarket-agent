@@ -97,13 +97,18 @@ class EntryGate:
         halt, reason = self.breaker.should_halt_entries()
         if halt:
             logger.info("Entry gate halted: %s", reason)
-            return [GateResult(m.condition_id, None, f"breaker: {reason}") for m in markets]
+            detail = reason[len("breaker: "):] if reason.startswith("breaker: ") else reason
+            return [GateResult(m.condition_id, None, "circuit_breaker", skip_detail=detail) for m in markets]
 
+        remaining = self.cooldown.state.cooldown_remaining
         if self.cooldown.is_active():
-            return [GateResult(m.condition_id, None, "cooldown_active") for m in markets]
+            detail = f"cycles_remaining={remaining}"
+            return [GateResult(m.condition_id, None, "cooldown_active", skip_detail=detail) for m in markets]
 
-        if self.portfolio.count() >= self.config.max_positions:
-            return [GateResult(m.condition_id, None, "max_positions_reached") for m in markets]
+        count = self.portfolio.count()
+        if count >= self.config.max_positions:
+            detail = f"count={count}/{self.config.max_positions}"
+            return [GateResult(m.condition_id, None, "max_positions_reached", skip_detail=detail) for m in markets]
 
         results: list[GateResult] = []
         for m in markets:
@@ -115,11 +120,13 @@ class EntryGate:
 
         # 1. Event-level guard (ARCH Kural 8)
         if market.event_id and self.portfolio.has_event(market.event_id):
-            return GateResult(cid, None, "event_already_held")
+            return GateResult(cid, None, "event_already_held", skip_detail=f"event_id={market.event_id}")
 
-        # 2. Blacklist
-        if self.blacklist.is_blacklisted(condition_id=cid, event_id=market.event_id or ""):
-            return GateResult(cid, None, "blacklisted")
+        # 2. Blacklist — split checks to know which matched
+        if self.blacklist.is_blacklisted(condition_id=cid):
+            return GateResult(cid, None, "blacklisted", skip_detail="match=condition_id")
+        if market.event_id and self.blacklist.is_blacklisted(event_id=market.event_id):
+            return GateResult(cid, None, "blacklisted", skip_detail="match=event_id")
 
         # 3. Manipulation guard
         manip = self._manip_check(
@@ -127,7 +134,9 @@ class EntryGate:
             liquidity=market.liquidity,
         )
         if not manip.safe:
-            return GateResult(cid, None, "manipulation_high_risk", manipulation=manip)
+            manip_detail = ", ".join(manip.flags) if manip.flags else "unknown"
+            return GateResult(cid, None, "manipulation_high_risk",
+                              skip_detail=manip_detail, manipulation=manip)
 
         # 4. Enrichment (Odds API)
         enrich_result = self._enricher(market)
@@ -136,17 +145,24 @@ class EntryGate:
             return GateResult(cid, None, "no_bookmaker_data", skip_detail=detail)
         bm_prob = enrich_result.probability
         if bm_prob.confidence == "C":
-            return GateResult(cid, None, "confidence_C")
+            return GateResult(cid, None, "confidence_C",
+                              skip_detail=f"num_bookmakers={bm_prob.num_bookmakers:.1f}")
 
         # 5. Strateji önceliği — ilk Signal üreten kazanır
         signal = self._evaluate_strategies(market, bm_prob)
         if signal is None:
-            return GateResult(cid, None, "no_edge")
+            edge_raw = abs(bm_prob.probability - market.yes_price)
+            no_edge_detail = (
+                f"edge={edge_raw:.3f}, min={self.config.min_edge}, "
+                f"bm={bm_prob.probability:.2f}, yes={market.yes_price:.2f}"
+            )
+            return GateResult(cid, None, "no_edge", skip_detail=no_edge_detail)
 
         # 6. Entry price cap — 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
         entry_price = effective_price(signal.market_price, signal.direction)
         if entry_price >= self.config.max_entry_price:
-            return GateResult(cid, None, "entry_price_cap", manipulation=manip)
+            detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
+            return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
 
         # 7. Position sizing
         raw_size = confidence_position_size(
@@ -159,9 +175,8 @@ class EntryGate:
         # Manipulation medium risk → halve
         adjusted_size = adjust_position_size(raw_size, manip)
         if adjusted_size < POLYMARKET_MIN_ORDER_USDC:
-            return GateResult(cid, None,
-                              f"size_below_min ({adjusted_size:.2f} < {POLYMARKET_MIN_ORDER_USDC})",
-                              manipulation=manip)
+            detail = f"size={adjusted_size:.2f}, min={POLYMARKET_MIN_ORDER_USDC:.2f}"
+            return GateResult(cid, None, "size_below_min", skip_detail=detail, manipulation=manip)
 
         # 7. Exposure cap — soft + hard buffer + size clipping.
         total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
@@ -171,13 +186,13 @@ class EntryGate:
         )
         min_size = self.portfolio.bankroll * self.config.min_entry_size_pct
         if available < min_size:
-            return GateResult(cid, None, "exposure_cap_reached", manipulation=manip)
+            detail = f"available={available:.2f}, min={min_size:.2f}"
+            return GateResult(cid, None, "exposure_cap_reached", skip_detail=detail, manipulation=manip)
 
         final_size = min(adjusted_size, available)
         if final_size < POLYMARKET_MIN_ORDER_USDC:
-            return GateResult(cid, None,
-                              f"size_below_min ({final_size:.2f} < {POLYMARKET_MIN_ORDER_USDC})",
-                              manipulation=manip)
+            detail = f"size={final_size:.2f}, min={POLYMARKET_MIN_ORDER_USDC:.2f}"
+            return GateResult(cid, None, "size_below_min", skip_detail=detail, manipulation=manip)
 
         approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
         return GateResult(cid, approved, "", manipulation=manip)
