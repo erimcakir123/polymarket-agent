@@ -151,36 +151,26 @@
     },
 
     setEquity(trades, initialBankroll) {
-      // TDD §5.7.7: chart = initial + cumulative realized PnL.
-      // Period + resolution: spec 2026-04-16 §3.
+      // TDD §5.7.7: initial + cumulative realized PnL; period + resolution per spec §3.
       const period = CHART_STATE.equityPeriod;
       const resolution = global.FILTER.RESOLUTION_BY_PERIOD[period] || "event";
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
-      const points = global.FILTER.cumulativeByResolution(
-        windowTrades, initialBankroll, resolution
-      );
-
+      const points = global.FILTER.cumulativeByResolution(windowTrades, initialBankroll, resolution);
       const baseline = Number(initialBankroll) || 0;
       this.equity.data.labels = [""].concat(points.map((p) => p.timestamp || ""));
       this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
+      this.equity.canvas.style.minWidth = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
 
-      // Canvas min-width — yoğun dilimde horizontal scroll tetiklenir.
-      const minWidth = (points.length + 1) * CONFIG.equityBarMinPx;
-      this.equity.canvas.style.minWidth = minWidth + "px";
-
-      // Tab-altı period özeti.
       const sum = global.FILTER.periodSum(windowTrades);
       const sumEl = document.getElementById("equity-period-summary");
       if (sumEl) {
         const cls = sum >= 0 ? "pnl-pos" : "pnl-neg";
         const sign = sum >= 0 ? "+" : "−";
         const n = windowTrades.length;
-        sumEl.innerHTML =
-          `${period.toUpperCase()} PnL ` +
-          `<span class="${cls}">${sign}$${Math.abs(sum).toFixed(2)}</span> ` +
-          `· ${n} trade${n === 1 ? "" : "s"}`;
+        sumEl.innerHTML = `${period.toUpperCase()} PnL ` +
+          `<span class="${cls}">${sign}$${Math.abs(sum).toFixed(2)}</span> · ` +
+          `${n} trade${n === 1 ? "" : "s"}`;
       }
-
       this.equity.update("none");
     },
 
@@ -229,34 +219,6 @@
       this.waterfall.update("none");
     },
   };
-
-  // ── Tab binding (period filter) ──
-  const CHART_TAB_BINDING = {
-    equity: {
-      stateKey: "equityPeriod",
-      render: () => CHARTS.setEquity(LAST.trades, INITIAL_BANKROLL),
-    },
-    pnl: {
-      stateKey: "pnlPeriod",
-      render: () => CHARTS.setWaterfall(LAST.trades),
-    },
-  };
-
-  function _bindChartTabs() {
-    document.querySelectorAll(".chart-tabs").forEach((group) => {
-      const chart = group.dataset.chart;
-      const binding = CHART_TAB_BINDING[chart];
-      if (!binding) return;
-      group.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chart-tab");
-        if (!btn) return;
-        group.querySelectorAll(".chart-tab").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        CHART_STATE[binding.stateKey] = btn.dataset.period;
-        binding.render();
-      });
-    });
-  }
 
   // ── RENDER (DOM updates) ──
   const RENDER = {
@@ -387,7 +349,7 @@
           API.positions(), API.trades(), API.skipped(), API.stock(),
           API.stats(), API.sportRoi(),
         ]);
-        LAST.trades = trades;  // cache for tab clicks (5sn polling)
+        LAST.trades = Array.isArray(trades) ? trades : [];  // cache for tab clicks
         RENDER.status(status);
         RENDER.metrics(summary.equity);
         RENDER.wlStats(stats);
@@ -409,7 +371,12 @@
       _initColors();
       document.getElementById("slots-max").textContent = MAX_POSITIONS;
       CHARTS.initAll();
-      _bindChartTabs();
+      global.CHART_TABS.bind({
+        charts: CHARTS,
+        state: CHART_STATE,
+        cache: LAST,
+        initialBankroll: INITIAL_BANKROLL,
+      });
       global.FEED.bindTabs();
       this.refresh();
       setInterval(() => this.refresh(), CONFIG.pollIntervalMs);

@@ -32,6 +32,7 @@
 
   // ISO 8601 week key — Thursday-anchored, UTC-based.
   function _isoWeekKey(isoTs) {
+    if (isoTs == null) return null;
     const d = new Date(isoTs);
     if (Number.isNaN(d.getTime())) return null;
     const tmp = new Date(
