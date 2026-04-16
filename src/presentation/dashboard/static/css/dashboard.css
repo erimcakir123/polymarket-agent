@@ -330,3 +330,49 @@ html, body {
   background: var(--border);
   border-radius: 3px;
 }
+
+/* ── Chart period tabs + scroll + summary (spec 2026-04-16) ── */
+.chart-panel .panel-header {
+  justify-content: space-between;
+}
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+.chart-tab {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.chart-tab:hover { color: var(--text); }
+.chart-tab:focus-visible { outline: 1px solid var(--border-soft); }
+.chart-tab.active {
+  color: var(--blue);
+  background: var(--panel-hover);
+}
+.chart-summary {
+  padding: 6px 0 8px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.chart-summary .pnl-pos { color: var(--green); }
+.chart-summary .pnl-neg { color: var(--red); }
+.chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  height: 100%;
+}
+.chart-scroll::-webkit-scrollbar { height: 6px; }
+.chart-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
