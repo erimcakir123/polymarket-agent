@@ -91,7 +91,7 @@ def _match_tennis_key(gender: str, q_lower: str, slug_lower: str, odds_client) -
         if tourney and tourney in combined:
             return key
 
-    return keys[0]
+    return None
 
 
 def _discover_by_events(team_a: str, team_b: str, odds_client) -> str | None:

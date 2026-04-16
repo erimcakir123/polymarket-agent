@@ -89,3 +89,38 @@ def test_no_match_returns_none() -> None:
     result = resolve_sport_key("Random Q", "xyz-unknown", [], client)
     # Static yok, tennis yok, events empty → None
     assert result is None
+
+
+# --- SPEC-002: remove keys[0] fallback in _match_tennis_key ---
+
+
+def test_match_tennis_key_no_score_no_tourney_match_returns_none():
+    """Multiple active tennis_atp keys, nothing in question/slug matches → None.
+
+    Previously returned keys[0] (first active key), which mapped unknown
+    tournaments (Oeiras, Tallahassee, BMW Open) to Barcelona Open in April 2026
+    and caused misleading event_no_match skips. Fix: honest None signal.
+    """
+    from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
+
+    class FakeClient:
+        def get_sports(self, include_inactive=False):
+            return [
+                {"key": "tennis_atp_barcelona_open", "active": True},
+                {"key": "tennis_atp_monte_carlo", "active": True},
+            ]
+
+        def get_events(self, sport_key):
+            return []
+
+        def get_odds(self, sport_key, params=None):
+            return []
+
+    # Question and slug contain none of: barcelona, monte, carlo, open
+    result = resolve_sport_key(
+        question="Oeiras 3: Ali Veli vs Ahmet Mehmet",
+        slug="atp-ali-ahmet-2026-04-16",
+        tags=[],
+        odds_client=FakeClient(),
+    )
+    assert result is None
