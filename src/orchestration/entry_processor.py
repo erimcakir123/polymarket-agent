@@ -1,0 +1,191 @@
+"""Entry processor — heavy cycle entry flow (TDD §4).
+
+Scanner → gate → cap-clip → execute → persist.
+Agent bu class'ı composition ile kullanır.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+from src.domain.portfolio.exposure import available_under_cap
+from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
+from src.models.market import MarketData
+from src.models.position import Position
+from src.orchestration import operational_writers
+
+logger = logging.getLogger(__name__)
+
+
+class EntryProcessor:
+    """Heavy cycle entry: scan → stock → gate → clip → execute."""
+
+    def __init__(self, deps) -> None:
+        self.deps = deps
+
+    def run_heavy(self) -> None:
+        """Stock-first heavy cycle."""
+        mode = self.deps.state.config.mode.value
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="scanning")
+
+        scan_fresh = self.deps.scanner.scan()
+        scan_by_cid = {m.condition_id: m for m in scan_fresh}
+
+        open_event_ids = frozenset(
+            p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
+        )
+        self.deps.stock.refresh_from_scan(scan_by_cid)
+        self.deps.stock.evict_expired(open_event_ids=open_event_ids)
+
+        max_positions = self.deps.gate.config.max_positions
+        empty_slots = max_positions - self.deps.state.portfolio.count()
+        if empty_slots <= 0:
+            self.deps.stock.save()
+            operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
+            self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
+            return
+
+        jit_mult = self.deps.stock.config.jit_batch_multiplier
+
+        stock_batch = self.deps.stock.top_n_by_match_start(empty_slots * jit_mult)
+        if stock_batch:
+            logger.info("Heavy: stock batch=%d (empty_slots=%d × %d)",
+                        len(stock_batch), empty_slots, jit_mult)
+            self.process_markets(stock_batch)
+
+        still_empty = max_positions - self.deps.state.portfolio.count()
+        if still_empty > 0:
+            fresh_only = [m for m in scan_fresh if not self.deps.stock.has(m.condition_id)]
+            fresh_batch = fresh_only[: still_empty * jit_mult]
+            if fresh_batch:
+                logger.info("Heavy: fresh batch=%d (still_empty=%d × %d)",
+                            len(fresh_batch), still_empty, jit_mult)
+                self.process_markets(fresh_batch)
+
+        self.deps.stock.save()
+        operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
+
+    def process_markets(self, markets: list[MarketData]) -> None:
+        """Gate → cap-clip → match_start ASC priority → execute."""
+        mode = self.deps.state.config.mode.value
+        self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="analyzing")
+        results = self.deps.gate.run(markets)
+        by_cid = {m.condition_id: m for m in markets}
+        max_exposure_pct = self.deps.gate.config.max_exposure_pct
+        overflow_pct = self.deps.gate.config.hard_cap_overflow_pct
+        min_entry_pct = self.deps.gate.config.min_entry_size_pct
+        executing_written = False
+
+        for r in results:
+            if r.signal is not None:
+                continue
+            market = by_cid.get(r.condition_id)
+            if market is not None:
+                operational_writers.log_skip(self.deps.skipped_logger, market, r.skipped_reason)
+                self.deps.stock.add(market, r.skipped_reason)
+
+        def _priority_key(r):
+            market = by_cid.get(r.condition_id)
+            if market is None:
+                return ("9999-99-99", 0.0)
+            return (market.match_start_iso or "9999-99-99", -market.volume_24h)
+
+        approved_sorted = sorted(
+            [r for r in results if r.signal is not None],
+            key=_priority_key,
+        )
+
+        for r in approved_sorted:
+            market = by_cid.get(r.condition_id)
+            if market is None:
+                continue
+
+            pm = self.deps.state.portfolio
+            total_portfolio = pm.bankroll + pm.total_invested()
+            available = available_under_cap(
+                pm.positions, total_portfolio, max_exposure_pct, overflow_pct,
+            )
+            min_size = pm.bankroll * min_entry_pct
+            if available < min_size:
+                operational_writers.log_skip(self.deps.skipped_logger, market, "exposure_cap_reached")
+                self.deps.stock.add(market, "exposure_cap_reached")
+                continue
+
+            final_size = min(r.signal.size_usdc, available)
+            clipped_signal = r.signal.model_copy(update={"size_usdc": round(final_size, 2)})
+
+            if not executing_written:
+                self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="executing")
+                executing_written = True
+            self._execute_entry(market, clipped_signal)
+            self.deps.stock.remove(market.condition_id)
+
+    def _execute_entry(self, market: MarketData, signal) -> None:
+        """Sim/live order → position open → trade record."""
+        token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id
+        side = "BUY"
+        price = market.yes_price if signal.direction.value == "BUY_YES" else market.no_price
+        order = self.deps.executor.place_order(
+            token_id=token_id, side=side, price=price, size_usdc=signal.size_usdc,
+        )
+        if order.get("status") != "simulated" and order.get("status") != "placed":
+            logger.warning("Order rejected: %s", order.get("reason", "?"))
+            return
+
+        fill_price = order.get("price", price)
+        shares = signal.size_usdc / fill_price if fill_price > 0 else 0.0
+
+        pos = Position(
+            condition_id=market.condition_id,
+            token_id=token_id,
+            direction=signal.direction.value,
+            entry_price=fill_price,
+            size_usdc=signal.size_usdc,
+            shares=shares,
+            current_price=fill_price,
+            anchor_probability=signal.anchor_probability,
+            entry_reason=signal.entry_reason.value,
+            confidence=signal.confidence,
+            sport_tag=market.sport_tag,
+            event_id=market.event_id or "",
+            match_start_iso=market.match_start_iso,
+            question=market.question,
+            end_date_iso=market.end_date_iso,
+            slug=market.slug,
+            bookmaker_prob=signal.bookmaker_prob,
+        )
+
+        if not self.deps.state.portfolio.add_position(pos):
+            logger.warning(
+                "BLOCKED add_position: %s (event=%s, cid=%s)",
+                pos.slug[:35], pos.event_id, pos.condition_id[:16],
+            )
+            return
+
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.subscribe([token_id])
+
+        category, league = _split_sport_tag(market.sport_tag)
+        record = TradeRecord(
+            slug=market.slug,
+            condition_id=market.condition_id,
+            event_id=market.event_id or "",
+            token_id=pos.token_id,
+            question=market.question,
+            sport_tag=market.sport_tag,
+            sport_category=category,
+            league=league,
+            direction=signal.direction.value,
+            entry_price=pos.entry_price,
+            size_usdc=pos.size_usdc,
+            shares=pos.shares,
+            confidence=signal.confidence,
+            bookmaker_prob=signal.bookmaker_prob,
+            anchor_probability=signal.anchor_probability,
+            num_bookmakers=signal.num_bookmakers,
+            has_sharp=signal.has_sharp,
+            entry_reason=signal.entry_reason.value,
+            entry_timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.deps.trade_logger.log(record)
