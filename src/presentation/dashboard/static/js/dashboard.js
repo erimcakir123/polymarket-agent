@@ -117,15 +117,17 @@
 
     _baseOpts(showY) {
       const tickStyle = { color: COLORS.axisLabel, font: { size: 10 } };
+      const dollarTick = (v) => (v < 0 ? "-" : "") + "$" + Math.abs(v).toFixed(0);
       return {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { enabled: true, bodyFont: { weight: "bold" } } },
         scales: {
           x: { display: true, grid: { display: false },
             ticks: { ...tickStyle, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
-          // y.afterFit: stable label column width — tab switch'te chart shift olmasın.
-          y: { display: showY, grid: { color: COLORS.gridLine }, ticks: tickStyle,
-            afterFit: (s) => { s.width = 44; } },
+          // y.afterFit: stable label kolonu — tab switch'te shift olmasın; $ prefix.
+          y: { display: showY, grid: { color: COLORS.gridLine },
+            ticks: { ...tickStyle, callback: dollarTick },
+            afterFit: (s) => { s.width = 52; } },
         },
       };
     },
@@ -189,7 +191,7 @@
       const data = new Array(slots).fill(null);
       const teams = new Array(slots).fill("");  // tooltip title kaynağı
       limited.forEach((t, i) => {
-        labels[i] = global.FILTER.periodLabel(t.exit_timestamp, period);
+        labels[i] = global.FILTER.tradeLabel(t.exit_timestamp, period);
         data[i] = Number(t.exit_pnl_usdc || 0);
         teams[i] = FMT.teamsText(t.question, t.slug);
       });

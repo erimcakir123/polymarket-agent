@@ -91,8 +91,21 @@
     if (period === "24h") return `${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
     if (period === "7d")  return `${_WEEKDAY[d.getUTCDay()]} ${_pad2(d.getUTCHours())}h`;
     if (period === "30d") return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
-    if (period === "1y")  return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
+    if (period === "1y") {
+      const key = _isoWeekKey(isoTs);
+      return key ? "W" + key.slice(6) : "";  // "2026-W15" → "W15"
+    }
     return "";
+  }
+
+  // Per-trade bar label — always detailed enough to distinguish individual
+  // trades even within the same day (waterfall chart; bucketing yapılmaz).
+  function tradeLabel(isoTs, period) {
+    if (!isoTs) return "";
+    if (period === "24h" || period === "7d") return periodLabel(isoTs, period);
+    const d = new Date(isoTs);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()} ${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
   }
 
   global.FILTER = {
@@ -100,6 +113,7 @@
     cumulativeByResolution,
     periodSum,
     periodLabel,
+    tradeLabel,
     RESOLUTION_BY_PERIOD,
   };
 })(window);

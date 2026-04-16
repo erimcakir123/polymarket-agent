@@ -373,6 +373,9 @@ html, body {
   height: 100%;
   /* Scrollbar satırı her zaman rezerve (tab switch'te layout shift olmasın). */
   scrollbar-gutter: stable;
+  /* Scrollbar ve x-axis label'ları çakışmasın — alt boşluk. */
+  padding-bottom: 8px;
+  box-sizing: border-box;
 }
 .chart-scroll::-webkit-scrollbar { height: 6px; }
 .chart-scroll::-webkit-scrollbar-track { background: transparent; }

@@ -11,6 +11,23 @@
 (function (global) {
   "use strict";
 
+  // Chart.js plugin: sticky scroll-right. Eğer kullanıcı en sağda idiyse
+  // (veya ilk render), güncelleme sonrası en sağa dayalı kalır. Kullanıcı
+  // sola kaydırdıysa pozisyon korunur.
+  const _atRight = new WeakMap();
+  global.Chart.register({
+    id: "stickyScrollRight",
+    beforeUpdate(chart) {
+      const sc = chart.canvas.closest(".chart-scroll");
+      if (!sc) return;
+      _atRight.set(chart, (sc.scrollLeft + sc.clientWidth) >= (sc.scrollWidth - 10));
+    },
+    afterUpdate(chart) {
+      const sc = chart.canvas.closest(".chart-scroll");
+      if (sc && _atRight.get(chart) !== false) sc.scrollLeft = sc.scrollWidth;
+    },
+  });
+
   function bind(deps) {
     const { charts, state, cache, initialBankroll } = deps;
     const binding = {
