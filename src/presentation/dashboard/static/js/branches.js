@@ -42,7 +42,7 @@
       const tip = FMT.escapeHtml(
         `Win rate: ${wr}% · ${l.wins}W / ${l.losses}L` + (ties > 0 ? ` / ${ties}T` : "")
       );
-      return `<div class="tree-block ${cls}" style="flex-grow:${Math.max(1, share * 100)}" data-tip="${tip}">
+      return `<div class="tree-block ${cls}" style="flex-grow:${Math.abs(roi) * 100}" data-tip="${tip}">
         <div class="tree-block-label">${FMT.escapeHtml(l.league || "—")}</div>
         <div class="tree-block-roi">${roiStr}</div>
         <div class="tree-block-sub">${pnlStr}</div>
