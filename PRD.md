@@ -80,7 +80,7 @@ Kâr alma tek mekanizma ile: 3-tier scale-out.
 6. **Gate**: `strategy/entry/gate.py` event-guard + manipulation + liquidity + confidence + edge + entry_price_cap kontrolü yapar.
 7. **Size**: `domain/risk/position_sizer.py` confidence bazlı boyut üretir, cap'lere uygular.
 8. **Execute**: `infrastructure/executor.py` CLOB client üzerinden emri gönderir (dry_run modunda loglar).
-9. **Record**: Pozisyon JSON store'a yazılır, trade log JSONL'e eklenir. Reddedilenler (exposure_cap / max_positions / no_edge / no_bookmaker_data) stock'a push edilir.
+9. **Record**: Pozisyon JSON store'a yazılır, trade log JSONL'e eklenir. Exposure cap aşımında signal size kırpılarak girilir (soft+hard cap clipping); min_entry altında veya cap tamamen doluysa stock bekleme odasına push edilir. Diğer red sebepleri (max_positions / no_edge / no_bookmaker_data) de stock'a push edilir.
 
 ### 3.3 Light Cycle İzleme (5 sn)
 Her 5 saniyede bir:
