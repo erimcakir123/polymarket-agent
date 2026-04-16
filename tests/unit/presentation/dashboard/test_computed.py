@@ -168,18 +168,6 @@ def test_loss_protection_honors_custom_warn_threshold() -> None:
     assert out["status"] == "Warning"  # 22% >= 20% warn → Warning
 
 
-# ── closed_trades ──
-
-def test_closed_trades_filters_open() -> None:
-    trades = [
-        {"slug": "a", "exit_price": 0.60, "exit_timestamp": "2026-04-14T10:00Z"},
-        {"slug": "b", "exit_price": None, "exit_timestamp": ""},
-        {"slug": "c", "exit_price": 0.45, "exit_timestamp": "2026-04-14T12:00Z"},
-    ]
-    out = computed.closed_trades(trades)
-    assert len(out) == 2
-    assert out[0]["slug"] == "c"  # newest first
-    assert out[1]["slug"] == "a"
 
 
 # ── _position_unrealized (token-native, direction-agnostic) ──

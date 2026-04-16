@@ -128,19 +128,11 @@ def loss_protection(
     }
 
 
-def closed_trades(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sadece kapanmış trade'ler (exit_price != null), kronolojik DESC."""
-    closed = [t for t in trades if t.get("exit_price") is not None]
-    closed.sort(key=lambda t: t.get("exit_timestamp", ""), reverse=True)
-    return closed
-
-
 def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Full exit'ler + partial scale-out'ları tek liste olarak döner.
 
     Her full-close TradeRecord bir event, her partial_exit ayrı bir event.
-    Exited tab source. Treemap aggregation `closed_trades` kullanmaya devam
-    (yalnız full close).
+    Exited tab ve treemap aggregation source.
     """
     events: list[dict[str, Any]] = []
     for t in trades:
