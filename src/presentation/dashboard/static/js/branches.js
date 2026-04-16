@@ -8,7 +8,6 @@
 (function (global) {
   "use strict";
 
-  const LARGE_SHARE_THRESHOLD = 0.12;  // Blok >= %12 ise ekstra satır göster
   const NEAR_ZERO_ROI = 0.02;
 
   const BRANCHES = {
@@ -38,7 +37,6 @@
       const pnlStr = `${pnlSign}$${Math.abs(l.net_pnl).toFixed(0)} / $${(l.invested || 0).toFixed(0)}`;
       const wr = Math.round((l.win_rate || 0) * 100);
       const ties = Math.max(0, (l.trades || 0) - (l.wins || 0) - (l.losses || 0));
-      const showExtra = share >= LARGE_SHARE_THRESHOLD;
       const cls = this._classFor(roi);
       const tip = FMT.escapeHtml(
         `Win rate: ${wr}% · ${l.wins}W / ${l.losses}L` + (ties > 0 ? ` / ${ties}T` : "")
@@ -48,7 +46,7 @@
         <div class="tree-block-label">${FMT.escapeHtml(l.league || "—")}</div>
         <div class="tree-block-roi">${roiStr}</div>
         <div class="tree-block-sub">${pnlStr}</div>
-        ${showExtra ? `<div class="tree-block-sub">${l.trades} trades</div>` : ""}
+        <div class="tree-block-sub">${l.trades || 0} trades</div>
       </div>`;
     },
 
