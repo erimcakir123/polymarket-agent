@@ -71,6 +71,8 @@ risk:
   max_bet_pct: 0.05
   max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
   max_exposure_pct: 0.50
+  hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)
+  min_entry_size_pct: 0.015     # min pozisyon = bankroll × %1.5 (tx-cost floor)
   max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2

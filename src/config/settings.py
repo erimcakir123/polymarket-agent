@@ -50,6 +50,8 @@ class RiskConfig(BaseModel):
     max_bet_pct: float = 0.05
     max_positions: int = 20
     max_exposure_pct: float = 0.50
+    hard_cap_overflow_pct: float = 0.02
+    min_entry_size_pct: float = 0.015
     max_entry_price: float = 0.88
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
