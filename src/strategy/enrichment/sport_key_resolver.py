@@ -16,6 +16,17 @@ _GENERIC_TENNIS_WORDS: frozenset[str] = frozenset({
     "open", "grand", "prix", "cup", "championship", "masters", "series",
 })
 
+# SPEC-003: Polymarket sponsor-named tournaments → Odds API city-based keys.
+# Odds API guide (2026-04-04): tennis keys are strictly city/location-based
+# (e.g., tennis_atp_munich, tennis_wta_stuttgart_open). Polymarket question
+# text sometimes uses sponsor names (BMW Open, Porsche Tennis Grand Prix).
+# This alias table augments the combined string with the city token so the
+# existing score-based match in _match_tennis_key picks the right key.
+_TENNIS_SPONSOR_ALIASES: dict[str, str] = {
+    "bmw open": "munich",
+    "porsche tennis grand prix": "stuttgart",
+}
+
 
 def resolve_sport_key(
     question: str,
@@ -70,6 +81,11 @@ def _match_tennis_key(gender: str, q_lower: str, slug_lower: str, odds_client) -
         return keys[0]
 
     combined = f"{q_lower} {slug_lower}"
+
+    # SPEC-003: sponsor→city augmentation — conservative (append, don't replace)
+    for sponsor, city in _TENNIS_SPONSOR_ALIASES.items():
+        if sponsor in combined:
+            combined = f"{combined} {city}"
 
     # Her key için spesifik kelime eşleşmesi sayısını hesapla
     best_key: str | None = None

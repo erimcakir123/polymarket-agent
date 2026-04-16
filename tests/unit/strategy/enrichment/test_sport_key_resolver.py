@@ -124,3 +124,85 @@ def test_match_tennis_key_no_score_no_tourney_match_returns_none():
         odds_client=FakeClient(),
     )
     assert result is None
+
+
+# --- SPEC-003: sponsor→city alias augmentation ---
+
+
+def test_match_tennis_key_bmw_open_resolves_to_munich():
+    """Polymarket 'BMW Open: ...' → Odds API 'tennis_atp_munich' correctly mapped."""
+    from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
+
+    class FakeClient:
+        def get_sports(self, include_inactive=False):
+            return [
+                {"key": "tennis_atp_barcelona_open", "active": True},
+                {"key": "tennis_atp_munich", "active": True},
+            ]
+
+        def get_events(self, sport_key):
+            return []
+
+        def get_odds(self, sport_key, params=None):
+            return []
+
+    result = resolve_sport_key(
+        question="BMW Open: Alexander Zverev vs Gabriel Diallo",
+        slug="atp-zverev-diallo-2026-04-15",
+        tags=[],
+        odds_client=FakeClient(),
+    )
+    assert result == "tennis_atp_munich"
+
+
+def test_match_tennis_key_porsche_tt_resolves_to_stuttgart_open():
+    """Polymarket 'Porsche Tennis Grand Prix: ...' → 'tennis_wta_stuttgart_open'."""
+    from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
+
+    class FakeClient:
+        def get_sports(self, include_inactive=False):
+            return [
+                {"key": "tennis_wta_stuttgart_open", "active": True},
+                {"key": "tennis_wta_dubai", "active": True},
+            ]
+
+        def get_events(self, sport_key):
+            return []
+
+        def get_odds(self, sport_key, params=None):
+            return []
+
+    result = resolve_sport_key(
+        question="Porsche Tennis Grand Prix: Ekaterina Alexandrova vs Linda Noskova",
+        slug="wta-alexand-noskov-2026-04-16",
+        tags=[],
+        odds_client=FakeClient(),
+    )
+    assert result == "tennis_wta_stuttgart_open"
+
+
+def test_match_tennis_key_barcelona_open_still_resolves_without_alias():
+    """Regresyon: Barcelona Open already city-matches — augmentation is not
+    triggered by alias table, existing score-based match still wins."""
+    from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
+
+    class FakeClient:
+        def get_sports(self, include_inactive=False):
+            return [
+                {"key": "tennis_atp_barcelona_open", "active": True},
+                {"key": "tennis_atp_munich", "active": True},
+            ]
+
+        def get_events(self, sport_key):
+            return []
+
+        def get_odds(self, sport_key, params=None):
+            return []
+
+    result = resolve_sport_key(
+        question="Barcelona Open: Cameron Norrie vs Rafael Jodar",
+        slug="atp-norrie-jodar-2026-04-17",
+        tags=[],
+        odds_client=FakeClient(),
+    )
+    assert result == "tennis_atp_barcelona_open"
