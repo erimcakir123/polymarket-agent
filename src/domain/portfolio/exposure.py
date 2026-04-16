@@ -33,3 +33,23 @@ def fill_ratio(positions: dict, total_portfolio_value: float) -> float:
         return 0.0
     total_invested = sum(getattr(p, "size_usdc", 0.0) for p in positions.values())
     return total_invested / total_portfolio_value
+
+
+def available_under_cap(
+    positions: dict,
+    total_portfolio_value: float,
+    soft_cap_pct: float,
+    overflow_pct: float,
+) -> float:
+    """Hard cap altında yeni pozisyon için kalan tutar (USDC).
+
+    hard_cap = total_portfolio_value × (soft_cap_pct + overflow_pct)
+    available = max(0, hard_cap - mevcut_invested)
+
+    Dönüş 0 ise: skip. >0 ise: min(kelly_size, available) kırpılarak girilir.
+    """
+    if total_portfolio_value <= 0:
+        return 0.0
+    hard_cap = total_portfolio_value * (soft_cap_pct + overflow_pct)
+    total_invested = sum(getattr(p, "size_usdc", 0.0) for p in positions.values())
+    return max(0.0, hard_cap - total_invested)
