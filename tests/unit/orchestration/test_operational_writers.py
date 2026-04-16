@@ -45,3 +45,28 @@ def test_log_equity_snapshot_writes_snapshot():
     snap = equity_logger.log.call_args.args[0]
     assert snap.bankroll == 1000.0
     assert snap.invested == 0.0
+
+
+def test_log_skip_writes_skip_detail_field_when_provided() -> None:
+    """detail parametresi verildiğinde skip_detail alanına yazılır."""
+    skipped_logger = MagicMock()
+    market = _make_market()
+    operational_writers.log_skip(
+        skipped_logger,
+        market,
+        reason="no_edge",
+        detail="edge=0.042, min=0.06"
+    )
+    skipped_logger.log.assert_called_once()
+    record = skipped_logger.log.call_args.args[0]
+    assert record.skip_reason == "no_edge"
+    assert record.skip_detail == "edge=0.042, min=0.06"
+
+
+def test_log_skip_default_detail_is_empty_string() -> None:
+    """detail parametresi verilmediğinde skip_detail="" olur."""
+    skipped_logger = MagicMock()
+    market = _make_market()
+    operational_writers.log_skip(skipped_logger, market, reason="no_edge")
+    record = skipped_logger.log.call_args.args[0]
+    assert record.skip_detail == ""

@@ -21,7 +21,12 @@ from src.models.market import MarketData
 logger = logging.getLogger(__name__)
 
 
-def log_skip(skipped_logger: SkippedTradeLogger, market: MarketData, reason: str) -> None:
+def log_skip(
+    skipped_logger: SkippedTradeLogger,
+    market: MarketData,
+    reason: str,
+    detail: str = "",
+) -> None:
     """Gate skip kaydı → SkippedTradeLogger."""
     record = SkippedTradeRecord(
         timestamp=datetime.now(timezone.utc).isoformat(),
@@ -31,6 +36,7 @@ def log_skip(skipped_logger: SkippedTradeLogger, market: MarketData, reason: str
         event_id=market.event_id or "",
         entry_price=market.yes_price,
         skip_reason=reason or "unknown",
+        skip_detail=detail,
     )
     try:
         skipped_logger.log(record)
