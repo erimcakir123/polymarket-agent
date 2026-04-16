@@ -110,9 +110,11 @@
           <span>Odds ${odds.toFixed(1)}%</span>
         </div>
         <div class="feed-impact">
-          <div class="feed-impact-bar"><div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"
-            style="width:${Math.min(100, Math.abs(pnlPct))}%"></div></div>
-          <span class="${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)} <span class="feed-pnl-pct">${FMT.pctSigned(pnlPct, 1)}</span></span>
+          <div class="feed-impact-bar" style="--fill:${Math.min(100, Math.abs(pnlPct))}%">
+            <div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"></div>
+            <span class="feed-pnl-dollar ${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
+            <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
+          </div>
         </div>
         <div class="feed-time">
           <span>$${p.size_usdc.toFixed(0)}</span>

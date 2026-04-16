@@ -171,15 +171,20 @@
 
 .feed-impact-bar {
   flex: 1;
-  height: 4px;
-  background: var(--border-soft);
-  border-radius: 2px;
-  overflow: hidden;
+  height: 14px;
+  position: relative;
+  display: block;
 }
 
 .feed-impact-bar-fill {
-  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  width: min(var(--fill, 0%), calc(100% - 130px));
   background: var(--green);
+  border-radius: 2px;
   transition: width 0.25s ease;
 }
 
@@ -191,10 +196,26 @@
   font-size: 10px;
 }
 
+.feed-pnl-dollar {
+  position: absolute;
+  left: min(var(--fill, 0%), calc(100% - 130px));
+  top: 50%;
+  transform: translate(6px, -50%);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .feed-pnl-pct {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 10px;
   font-weight: 500;
-  margin-left: 2px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .feed-time {
