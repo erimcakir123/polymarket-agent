@@ -59,7 +59,7 @@ def test_execute_partial_exit_calls_trade_logger_with_tier_and_pnl():
         sell_pct=0.4,
         tier=1,
     )
-    agent._execute_exit(pos, signal)
+    agent._exit._execute_exit(pos, signal)
 
     assert deps.trade_logger.log_partial_exit.called
     kwargs = deps.trade_logger.log_partial_exit.call_args.kwargs
@@ -82,7 +82,7 @@ def test_execute_partial_exit_does_not_call_remove_position():
         sell_pct=0.4,
         tier=1,
     )
-    agent._execute_exit(pos, signal)
+    agent._exit._execute_exit(pos, signal)
 
     assert not deps.state.portfolio.remove_position.called
     assert deps.state.portfolio.apply_partial_exit.called

@@ -58,7 +58,7 @@ def test_run_heavy_writes_scanning_then_analyzing_then_idle_when_no_signals():
     deps.stock.has.return_value = False
 
     agent = Agent(deps)
-    agent._run_heavy(prefer_eligible_queue=False)
+    agent._entry.run_heavy()
 
     stages = [c.kwargs["stage"] for c in deps.bot_status_writer.write_stage.call_args_list]
     assert stages[0] == "scanning"
@@ -124,7 +124,7 @@ def test_run_heavy_writes_executing_when_signal_exists():
     deps.executor.place_order.return_value = {"status": "simulated", "price": 0.5}
 
     agent = Agent(deps)
-    agent._run_heavy(prefer_eligible_queue=False)
+    agent._entry.run_heavy()
 
     stages = [c.kwargs["stage"] for c in deps.bot_status_writer.write_stage.call_args_list]
     assert "executing" in stages
@@ -143,7 +143,7 @@ def test_run_heavy_idle_is_last():
     deps.stock.has.return_value = False
 
     agent = Agent(deps)
-    agent._run_heavy(prefer_eligible_queue=False)
+    agent._entry.run_heavy()
 
     stages = [c.kwargs["stage"] for c in deps.bot_status_writer.write_stage.call_args_list]
     assert stages[-1] == "idle"

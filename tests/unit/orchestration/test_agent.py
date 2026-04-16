@@ -340,13 +340,13 @@ def test_agent_entry_loop_evaluates_in_match_start_ascending_order(tmp_path: Pat
 
     agent = Agent(deps)
     executed_cids: list[str] = []
-    original_execute = agent._execute_entry
+    original_execute = agent._entry._execute_entry
 
     def _tracking_execute(market, signal):
         executed_cids.append(market.condition_id)
         return original_execute(market, signal)
 
-    agent._execute_entry = _tracking_execute
+    agent._entry._execute_entry = _tracking_execute
     agent.run(max_ticks=1)
 
     # 3 pozisyon açılmış olmalı
@@ -375,13 +375,13 @@ def test_agent_entry_loop_tiebreak_by_volume24h_desc(tmp_path: Path, monkeypatch
 
     agent = Agent(deps)
     executed_cids: list[str] = []
-    original_execute = agent._execute_entry
+    original_execute = agent._entry._execute_entry
 
     def _tracking_execute(market, signal):
         executed_cids.append(market.condition_id)
         return original_execute(market, signal)
 
-    agent._execute_entry = _tracking_execute
+    agent._entry._execute_entry = _tracking_execute
     agent.run(max_ticks=1)
 
     assert len(executed_cids) == 2
