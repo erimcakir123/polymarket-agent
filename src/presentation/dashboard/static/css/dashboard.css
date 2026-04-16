@@ -2,10 +2,10 @@
 
 :root {
   /* Custom palette */
-  --bg: #090a05;
-  --panel: #151515;
-  --panel-raised: #1c1c1c;
-  --panel-hover: #1f1f1f;
+  --bg: #05070F;
+  --panel: #0A0E1A;
+  --panel-raised: #0F1524;
+  --panel-hover: #151C30;
   --border: transparent;
   --border-soft: rgba(255, 255, 255, 0.03);
   --text: #f1f5f9;

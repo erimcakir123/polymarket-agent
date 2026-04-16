@@ -18,6 +18,7 @@ from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
@@ -108,6 +109,15 @@ def build_agent(state: RuntimeState) -> Agent:
         manipulation_checker=_manip,
     )
 
+    # Telegram command poller — /stop ile botu uzaktan durdurma
+    command_poller: TelegramCommandPoller | None = None
+    tg = cfg.telegram
+    if tg.enabled and tg.bot_token and tg.chat_id:
+        # on_stop callback agent oluşturulduktan sonra bağlanır (aşağıda)
+        command_poller = TelegramCommandPoller(
+            bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
+        )
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -115,8 +125,15 @@ def build_agent(state: RuntimeState) -> Agent:
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
         price_feed=price_feed,
+        command_poller=command_poller,
     )
-    return Agent(deps)
+    agent = Agent(deps)
+
+    # Callback'i agent oluştuktan sonra bağla
+    if command_poller is not None:
+        command_poller._on_stop = agent.request_stop
+
+    return agent
 
 
 def _build_executor(cfg: AppConfig) -> Executor:

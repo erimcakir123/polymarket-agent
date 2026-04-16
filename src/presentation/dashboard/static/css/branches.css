@@ -71,9 +71,9 @@
 .tree-block:first-child[data-tip]:hover::after { left: 0;    transform: none; }
 
 /* Solid renk, hover'da renk değişmez — tooltip zaten bilgi verir. */
-.tree-block.tree-red   { background: var(--red); }
+.tree-block.tree-red   { background: #8f1b25; }
 .tree-block.tree-blue  { background: var(--blue-dark); }
-.tree-block.tree-green { background: var(--green-deep); }
+.tree-block.tree-green { background: #048f55; }
 
 .tree-block-label {
   font-size: 10px;

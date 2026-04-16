@@ -27,6 +27,12 @@ class JsonStore:
 
     def save(self, data: Any) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(data, indent=2, default=str)
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
-        tmp.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-        tmp.replace(self.path)
+        tmp.write_text(payload, encoding="utf-8")
+        try:
+            tmp.replace(self.path)
+        except PermissionError:
+            # Windows/OneDrive: target locked — direct overwrite fallback
+            self.path.write_text(payload, encoding="utf-8")
+            tmp.unlink(missing_ok=True)

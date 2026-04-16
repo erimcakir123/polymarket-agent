@@ -17,6 +17,7 @@ from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
@@ -46,6 +47,7 @@ class AgentDeps:
     stock: StockQueue
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
+    command_poller: TelegramCommandPoller | None = None
 
 
 class Agent:
@@ -68,6 +70,7 @@ class Agent:
     def run(self, max_ticks: int | None = None) -> None:
         """Ana döngü. max_ticks=None → sonsuza kadar; test için sayılı tick."""
         self._start_ws_if_needed()
+        self._start_command_poller()
         ticks = 0
         while not self._stop_requested:
             tick = self.deps.cycle_manager.tick(has_positions=self.deps.state.portfolio.count() > 0)
@@ -99,6 +102,11 @@ class Agent:
             self.deps.price_feed.subscribe(tokens)
         self.deps.price_feed.start_background()
         self._ws_started = True
+
+    def _start_command_poller(self) -> None:
+        if self.deps.command_poller is None:
+            return
+        self.deps.command_poller.start()
 
     def _on_price_update(self, token_id: str, yes_price: float, bid_price: float, _ts: float) -> None:
         try:
