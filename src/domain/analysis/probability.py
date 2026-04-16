@@ -10,9 +10,9 @@ from src.domain.analysis.confidence import derive_confidence
 class BookmakerProbability:
     probability: float       # Son olasılık [0.05, 0.95]
     confidence: str          # "A" / "B" / "C"
-    bookmaker_prob: float    # Ham bookmaker olasılığı
     num_bookmakers: float    # Toplam bookmaker ağırlığı
     has_sharp: bool          # Pinnacle / Betfair Exchange var mı
+    bookmaker_prob: float = 0.0    # Ham bookmaker olasılığı (default: 0.0)
 
 
 def calculate_bookmaker_probability(
@@ -27,16 +27,16 @@ def calculate_bookmaker_probability(
         return BookmakerProbability(
             probability=0.5,
             confidence=confidence,
-            bookmaker_prob=0.0,
             num_bookmakers=num_bookmakers,
             has_sharp=has_sharp,
+            bookmaker_prob=0.0,
         )
 
     clamped = max(0.05, min(0.95, bookmaker_prob))
     return BookmakerProbability(
         probability=round(clamped, 4),
         confidence=confidence,
-        bookmaker_prob=round(bookmaker_prob, 4),
         num_bookmakers=num_bookmakers,
         has_sharp=has_sharp,
+        bookmaker_prob=round(bookmaker_prob, 4),
     )
