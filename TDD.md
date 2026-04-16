@@ -104,6 +104,13 @@ lig map (eski kayıt: `mlb`→baseball) → sport_tag as-is → `unknown`.
 
 Lokasyon: `presentation/dashboard/computed.py::_sport_category`.
 
+**Partial scale-out dahil:** Treemap hem full-close hem partial scale-out event'leri
+ayrı trade olarak sayar. Her partial: invested = `sell_pct × original_size_usdc`,
+pnl = `realized_pnl_usdc`. Win/Loss: pnl sign'a göre. Aynı trade'in full + partial'ı
+birlikte 2 event olarak görünür.
+
+Lokasyon: `computed.py::sport_roi_treemap` — `partial_exits` listesini iterate eder.
+
 #### 5.7.2 Direction-Adjusted Odds Display
 
 **Saklama invariantı** (ARCH Kural 7): `anchor_probability = P(YES)`;
@@ -182,6 +189,20 @@ Tennis markets'de iki yaygın bug için fix:
 
 Not: Odds API tennis kapsamı haftalık ~3 major turnuva; Challenger tour /
 minor events yapısal coverage gap, bu fix onları karşılamaz.
+
+#### 5.7.7 Total Equity Chart — Realized-Only Stepped
+
+Chart formülü: `bankroll + invested` (= `initial + realized_pnl`).
+**Unrealized hariç** — açık pozisyonların anlık fiyat dalgalanması
+chart'ı kirletmez.
+
+Rendering: `stepped: "before"`, `tension: 0` — yumuşak eğri yerine
+basamaklı plateau. Her exit/partial event net bir zıplama.
+
+Identity: `bankroll + invested = initial_bankroll + realized_pnl`.
+Eğer snapshot b+i bu identity'den saparsa snapshot bozuk.
+
+Lokasyon: `static/js/dashboard.js::CHARTS.setEquity`.
 
 ---
 
