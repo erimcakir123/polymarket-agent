@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck
@@ -47,12 +48,22 @@ def _medium_manip() -> ManipulationCheck:
     return ManipulationCheck(safe=True, risk_level="medium", flags=["Y"], recommendation="")
 
 
+def _enrich(bm: BookmakerProbability | None = None, *, prob: float = 0.60, conf: str = "B") -> EnrichResult:
+    """Başarılı bir EnrichResult döner (probability dolu)."""
+    return EnrichResult(probability=bm or _bm(prob=prob, conf=conf), fail_reason=None)
+
+
+def _enrich_fail(reason: EnrichFailReason = EnrichFailReason.SPORT_KEY_UNRESOLVED) -> EnrichResult:
+    """Başarısız bir EnrichResult döner (probability=None)."""
+    return EnrichResult(probability=None, fail_reason=reason)
+
+
 def _make_gate(**kwargs) -> EntryGate:
     portfolio = kwargs.get("portfolio") or PortfolioManager(initial_bankroll=1000.0)
     cb = kwargs.get("cb") or CircuitBreaker()
     cd = kwargs.get("cd") or CooldownTracker()
     bl = kwargs.get("bl") or Blacklist()
-    enricher = kwargs.get("enricher") or (lambda m: _bm())
+    enricher = kwargs.get("enricher") or (lambda m: _enrich())
     manip = kwargs.get("manip") or (lambda question, liquidity: _safe_manip())
     return EntryGate(
         config=GateConfig(),
@@ -110,14 +121,14 @@ def test_manipulation_medium_halves_size() -> None:
 
 
 def test_no_bookmaker_data_skips() -> None:
-    gate = _make_gate(enricher=lambda m: None)
+    gate = _make_gate(enricher=lambda m: _enrich_fail())
     results = gate.run([_market()])
     assert results[0].signal is None
     assert results[0].skipped_reason == "no_bookmaker_data"
 
 
 def test_c_confidence_skips() -> None:
-    gate = _make_gate(enricher=lambda m: _bm(conf="C"))
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(conf="C")))
     results = gate.run([_market()])
     assert results[0].signal is None
     assert results[0].skipped_reason == "confidence_C"
@@ -125,7 +136,7 @@ def test_c_confidence_skips() -> None:
 
 def test_no_edge_skips() -> None:
     # anchor=0.52, market=0.50 → raw=0.02 < threshold 0.06 → HOLD
-    gate = _make_gate(enricher=lambda m: _bm(prob=0.52, conf="B"))
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.52, conf="B")))
     results = gate.run([_market()])
     assert results[0].signal is None
     assert results[0].skipped_reason == "no_edge"
@@ -178,7 +189,7 @@ def test_size_below_min_skips() -> None:
 def test_entry_price_cap_blocks_high_favorite() -> None:
     # Consensus 0.90'da sinyal üretir (min_price 0.60) ama gate 0.88 cap ile reddeder.
     # anchor 0.85, market yes 0.90 → is_consensus True (ikisi de YES favori), entry=0.90
-    gate = _make_gate(enricher=lambda m: _bm(prob=0.85, conf="A"))
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.85, conf="A")))
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "entry_price_cap"
@@ -186,7 +197,7 @@ def test_entry_price_cap_blocks_high_favorite() -> None:
 
 def test_entry_price_cap_allows_under_threshold() -> None:
     # 0.87 eşiğin altında → geçer
-    gate = _make_gate(enricher=lambda m: _bm(prob=0.80, conf="A"))
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.80, conf="A")))
     results = gate.run([_market(yp=0.87)])
     assert results[0].signal is not None
 
@@ -201,7 +212,7 @@ def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
         entry_price=0.4, size_usdc=1010.0, shares=2525.0, current_price=0.4,
         anchor_probability=0.55, event_id="eprev",
     ))
-    gate = _make_gate(portfolio=p, enricher=lambda m: _bm(prob=0.60, conf="A"))
+    gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.60, conf="A")))
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is not None
     assert abs(results[0].signal.size_usdc - 30.0) < 0.5
@@ -235,3 +246,18 @@ def test_gate_skips_when_hard_cap_fully_used() -> None:
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is None
     assert results[0].skipped_reason == "exposure_cap_reached"
+
+
+# --- SPEC-001: skip_detail for no_bookmaker_data ---
+
+def test_evaluate_one_no_bookmaker_data_sets_skip_detail_fail_reason() -> None:
+    # Enricher fail_reason=SPORT_KEY_UNRESOLVED döner → skip_detail bu değeri taşımalı
+    gate = _make_gate(
+        enricher=lambda m: EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.SPORT_KEY_UNRESOLVED,
+        )
+    )
+    result = gate._evaluate_one(_market())
+    assert result.skipped_reason == "no_bookmaker_data"
+    assert result.skip_detail == "sport_key_unresolved"

@@ -66,6 +66,7 @@ class GateResult:
     condition_id: str
     signal: Signal | None
     skipped_reason: str = ""
+    skip_detail: str = ""
     manipulation: ManipulationCheck | None = None
 
 
@@ -129,9 +130,11 @@ class EntryGate:
             return GateResult(cid, None, "manipulation_high_risk", manipulation=manip)
 
         # 4. Enrichment (Odds API)
-        bm_prob: BookmakerProbability | None = self._enricher(market)
-        if bm_prob is None:
-            return GateResult(cid, None, "no_bookmaker_data")
+        enrich_result = self._enricher(market)
+        if enrich_result.probability is None:
+            detail = enrich_result.fail_reason.value if enrich_result.fail_reason else ""
+            return GateResult(cid, None, "no_bookmaker_data", skip_detail=detail)
+        bm_prob = enrich_result.probability
         if bm_prob.confidence == "C":
             return GateResult(cid, None, "confidence_C")
 
