@@ -41,9 +41,3 @@ def check_scale_out(
         )
 
     return None
-
-
-# Not: `apply_partial_exit` (remaining_shares/realized_pnl hesaplayıcı) YAGNI
-# ile çıkarıldı — Faz 5 orchestration'da executor fill response işleme ihtiyacı
-# ortaya çıkınca eklenir. Şu an PortfolioManager.apply_partial_exit(realized_usdc)
-# temel state güncellemesi için yeterli.

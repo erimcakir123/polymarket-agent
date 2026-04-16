@@ -71,11 +71,22 @@ class PortfolioManager:
         self.high_water_mark = max(self.high_water_mark, self.bankroll)
         return pos
 
-    def apply_partial_exit(self, condition_id: str, realized_usdc: float) -> None:
-        """Scale-out: partial exit realize et (bankroll güncellenir, pozisyon silinmez)."""
+    def apply_partial_exit(
+        self,
+        condition_id: str,
+        basis_returned_usdc: float,
+        realized_usdc: float,
+    ) -> None:
+        """Scale-out: partial exit realize et (bankroll güncellenir, pozisyon silinmez).
+
+        Caller `pos.size_usdc`'yi küçültmeden ÖNCE `basis_returned_usdc`'yi hesaplar
+        (`old_size × sell_pct`) ve buraya verir. Bankroll hem basis geri alımı hem
+        realized PnL ile kredilenir → `remove_position` pattern'iyle simetrik.
+        Böylece identity `bankroll + invested = initial + realized_pnl` korunur.
+        """
         if condition_id not in self.positions:
             return
-        self.bankroll += realized_usdc
+        self.bankroll += basis_returned_usdc + realized_usdc
         self.realized_pnl += realized_usdc
 
     # ── Queries ──

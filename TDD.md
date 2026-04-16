@@ -192,17 +192,32 @@ minor events yapısal coverage gap, bu fix onları karşılamaz.
 
 #### 5.7.7 Total Equity Chart — Realized-Only Stepped
 
-Chart formülü: `bankroll + invested` (= `initial + realized_pnl`).
-**Unrealized hariç** — açık pozisyonların anlık fiyat dalgalanması
-chart'ı kirletmez.
+Chart formülü: `initial_bankroll + Σ exit_pnl_usdc` (trade history üzerinden
+kümülatif). **Unrealized hariç** — açık pozisyonların anlık fiyat
+dalgalanması chart'ı kirletmez.
+
+**Veri kaynağı:** `/api/trades` (`computed.exit_events`) — full-close exit'ler
++ partial scale-out event'leri. Client kronolojik sıraya çevirip `exit_pnl_usdc`
+üzerinde kümülatif toplam yapar.
 
 Rendering: `stepped: "before"`, `tension: 0` — yumuşak eğri yerine
 basamaklı plateau. Her exit/partial event net bir zıplama.
 
-Identity: `bankroll + invested = initial_bankroll + realized_pnl`.
-Eğer snapshot b+i bu identity'den saparsa snapshot bozuk.
+**Neden snapshot değil trade-cumsum:** Eski implementasyon
+`equity_history.jsonl` snapshot'larının stored `bankroll + invested` değerini
+çiziyordu. Partial exit'te `apply_partial_exit` yalnızca realized PnL'i bankroll'a
+ekliyor, basis payını eklemiyordu → her partial'da identity
+`bankroll + invested = initial + realized_pnl` kırılıyordu (2026-04-16 fix,
+PLAN-008). Trade cumsum inşaat gereği identity-correct.
 
-Lokasyon: `static/js/dashboard.js::CHARTS.setEquity`.
+**Not:** `apply_partial_exit(basis_returned, realized)` fix'iyle snapshot identity'si
+de artık korunuyor; snapshot dosyası Peak Balance hesabı için hâlâ okunur
+(`computed._peak_total_equity`). Chart sadece kendi kaynağına güvenir.
+
+Identity doğrulama: `initial + Σ exit_pnl_usdc` ≈ `initial + portfolio.realized_pnl`
+(round-off hariç).
+
+Lokasyon: `static/js/dashboard.js::CHARTS.setEquity(trades, initialBankroll)`.
 
 ---
 

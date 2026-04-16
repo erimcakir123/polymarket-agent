@@ -81,14 +81,24 @@ class ExitProcessor:
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
 
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
-        """Scale-out partial exit."""
+        """Scale-out partial exit.
+
+        Basis payı (`old_size × sell_pct`) pozisyon küçültülmeden ÖNCE yakalanır
+        ve bankroll'a geri kredilenir — identity `bankroll + invested = initial +
+        realized_pnl` korunur (TDD §5.7.7).
+        """
         shares_to_sell = pos.shares * signal.sell_pct
         realized = pos.unrealized_pnl_usdc * signal.sell_pct
+        basis_returned = pos.size_usdc * signal.sell_pct
         pos.shares -= shares_to_sell
         pos.size_usdc *= (1 - signal.sell_pct)
         pos.scale_out_tier = signal.tier or pos.scale_out_tier
         pos.scale_out_realized_usdc += realized
-        self.deps.state.portfolio.apply_partial_exit(pos.condition_id, realized_usdc=realized)
+        self.deps.state.portfolio.apply_partial_exit(
+            pos.condition_id,
+            basis_returned_usdc=basis_returned,
+            realized_usdc=realized,
+        )
         self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=signal.tier or pos.scale_out_tier,

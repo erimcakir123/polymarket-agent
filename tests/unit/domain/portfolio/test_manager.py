@@ -85,14 +85,34 @@ def test_remove_missing_returns_none() -> None:
     assert m.remove_position("nonexistent") is None
 
 
-def test_apply_partial_exit() -> None:
+def test_apply_partial_exit_credits_basis_and_realized() -> None:
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.add_position(_pos(size=40))  # bankroll = 960
+    # 30% partial: caller returns basis 12 (= 40*0.3) + realized 8
+    m.apply_partial_exit("c1", basis_returned_usdc=12.0, realized_usdc=8.0)
+    # Pozisyon hala duruyor, bankroll +12+8=+20
+    assert m.count() == 1
+    assert m.bankroll == 980.0
+    assert m.realized_pnl == 8.0
+
+
+def test_apply_partial_exit_preserves_identity() -> None:
+    """Identity: bankroll + invested == initial + realized_pnl (TDD §5.7.7)."""
     m = PortfolioManager(initial_bankroll=1000.0)
     m.add_position(_pos(size=40))
-    m.apply_partial_exit("c1", realized_usdc=8.0)
-    # Pozisyon hala duruyor, bankroll +8
-    assert m.count() == 1
-    assert m.bankroll == 968.0
-    assert m.realized_pnl == 8.0
+    # Caller (orchestration) önce basis'i kapar, sonra pos.size_usdc'yi küçültür.
+    basis_returned = 40.0 * 0.3
+    m.positions["c1"].size_usdc = 40.0 * 0.7  # 28
+    m.apply_partial_exit("c1", basis_returned_usdc=basis_returned, realized_usdc=8.0)
+    invested = sum(p.size_usdc for p in m.positions.values())
+    assert m.bankroll + invested == 1000.0 + m.realized_pnl
+
+
+def test_apply_partial_exit_missing_condition_noop() -> None:
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.apply_partial_exit("nonexistent", basis_returned_usdc=5.0, realized_usdc=1.0)
+    assert m.bankroll == 1000.0
+    assert m.realized_pnl == 0.0
 
 
 def test_snapshot_roundtrip() -> None:

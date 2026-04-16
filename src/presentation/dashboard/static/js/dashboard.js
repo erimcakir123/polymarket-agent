@@ -20,6 +20,7 @@
 
   const MODE = document.body.dataset.mode || "dry_run";
   const MAX_POSITIONS = parseInt(document.body.dataset.maxPositions || "20", 10);
+  const INITIAL_BANKROLL = parseFloat(document.body.dataset.initialBankroll || "1000");
 
   // ── API (fetch wrappers) ──
   const API = {
@@ -143,13 +144,23 @@
       this[key].update("none");
     },
 
-    setEquity(series) {
-      this.equity.data.labels = series.map((s) => s.timestamp || "");
-      // Realized-only: initial + realized_pnl. Açık pozisyon unrealized'ı hariç.
-      // Açık pozisyon dalgalanması chart'ı yanıltmaz; sadece exit/scale-out'ta zıplar.
-      // bankroll + invested = initial + realized (formül özdeşliği).
-      this.equity.data.datasets[0].data = series.map((s) =>
-        (s.bankroll || 0) + (s.invested || 0));
+    setEquity(trades, initialBankroll) {
+      // TDD §5.7.7: chart = initial + cumulative realized PnL from trade history.
+      // trades come from /api/trades (computed.exit_events) — sorted DESC by
+      // exit_timestamp. Reverse → chronological, then cumsum on exit_pnl_usdc
+      // (hem full-close hem partial scale-out event'leri).
+      // Identity-correct by construction: her adım tek bir realized event.
+      const chronological = [...(trades || [])].reverse();
+      let running = Number(initialBankroll) || 0;
+      const labels = [""];
+      const data = [running];
+      for (const t of chronological) {
+        running += Number(t.exit_pnl_usdc || 0);
+        labels.push(t.exit_timestamp || "");
+        data.push(running);
+      }
+      this.equity.data.labels = labels;
+      this.equity.data.datasets[0].data = data;
       this.equity.update("none");
     },
 
@@ -315,10 +326,10 @@
   const MAIN = {
     async refresh() {
       try {
-        const [status, summary, equityHistory,
+        const [status, summary,
                positions, trades, skipped, stock, stats, sportRoi] = await Promise.all([
           API.status(), API.summary(),
-          API.equityHistory(), API.positions(), API.trades(), API.skipped(), API.stock(),
+          API.positions(), API.trades(), API.skipped(), API.stock(),
           API.stats(), API.sportRoi(),
         ]);
         RENDER.status(status);
@@ -326,7 +337,7 @@
         RENDER.wlStats(stats);
         RENDER.slots(summary.slots);
         RENDER.lossProtection(summary.loss_protection);
-        CHARTS.setEquity(equityHistory);
+        CHARTS.setEquity(trades, INITIAL_BANKROLL);
         CHARTS.setWaterfall(trades);
         global.FEED.update({
           active: Object.values(positions),
