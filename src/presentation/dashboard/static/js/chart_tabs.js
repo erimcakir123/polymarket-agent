@@ -37,6 +37,16 @@
         b.render();
       });
     });
+
+    // Mouse wheel → yatay scroll (yalnızca yatay taşma varsa).
+    document.querySelectorAll(".chart-scroll").forEach((el) => {
+      el.addEventListener("wheel", (e) => {
+        if (el.scrollWidth <= el.clientWidth) return;  // taşma yoksa sayfayı bırak
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }, { passive: false });
+    });
   }
 
   global.CHART_TABS = { bind };

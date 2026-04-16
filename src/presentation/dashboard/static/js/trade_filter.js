@@ -77,10 +77,29 @@
     );
   }
 
+  const _MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const _WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  function _pad2(n) { return String(n).padStart(2, "0"); }
+
+  // Period-aware x-axis label. UTC values used to stay consistent with ISO ts.
+  function periodLabel(isoTs, period) {
+    if (!isoTs) return "";
+    const d = new Date(isoTs);
+    if (Number.isNaN(d.getTime())) return "";
+    if (period === "24h") return `${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
+    if (period === "7d")  return `${_WEEKDAY[d.getUTCDay()]} ${_pad2(d.getUTCHours())}h`;
+    if (period === "30d") return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
+    if (period === "1y")  return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
+    return "";
+  }
+
   global.FILTER = {
     filterByPeriod,
     cumulativeByResolution,
     periodSum,
+    periodLabel,
     RESOLUTION_BY_PERIOD,
   };
 })(window);

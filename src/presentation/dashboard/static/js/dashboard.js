@@ -116,14 +116,16 @@
     },
 
     _baseOpts(showY) {
+      const tickStyle = { color: COLORS.axisLabel, font: { size: 10 } };
       return {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false },
-          tooltip: { enabled: true, bodyFont: { weight: "bold" } } },
+        plugins: { legend: { display: false }, tooltip: { enabled: true, bodyFont: { weight: "bold" } } },
         scales: {
-          x: { display: false, grid: { display: false } },
-          y: { display: showY, grid: { color: COLORS.gridLine },
-            ticks: { color: COLORS.axisLabel, font: { size: 10 } } },
+          x: { display: true, grid: { display: false },
+            ticks: { ...tickStyle, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+          // y.afterFit: stable label column width — tab switch'te chart shift olmasın.
+          y: { display: showY, grid: { color: COLORS.gridLine }, ticks: tickStyle,
+            afterFit: (s) => { s.width = 44; } },
         },
       };
     },
@@ -157,7 +159,7 @@
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
       const points = global.FILTER.cumulativeByResolution(windowTrades, initialBankroll, resolution);
       const baseline = Number(initialBankroll) || 0;
-      this.equity.data.labels = [""].concat(points.map((p) => p.timestamp || ""));
+      this.equity.data.labels = [""].concat(points.map((p) => global.FILTER.periodLabel(p.timestamp, period)));
       this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
       this.equity.canvas.style.minWidth = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
 
@@ -167,11 +169,12 @@
         const cls = sum >= 0 ? "pnl-pos" : "pnl-neg";
         const sign = sum >= 0 ? "+" : "−";
         const n = windowTrades.length;
-        sumEl.innerHTML = `${period.toUpperCase()} PnL ` +
-          `<span class="${cls}">${sign}$${Math.abs(sum).toFixed(2)}</span> · ` +
+        sumEl.innerHTML =
+          `<strong class="${cls}">${sign}$${Math.abs(sum).toFixed(2)}</strong> · ` +
           `${n} trade${n === 1 ? "" : "s"}`;
       }
       this.equity.update("none");
+      this.equity.resize();  // hitbox alignment — canvas internal size must track CSS minWidth
     },
 
     setWaterfall(trades) {
@@ -179,44 +182,40 @@
       const period = CHART_STATE.pnlPeriod;
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
       const limited = windowTrades.slice(0, CONFIG.waterfallMaxBars).reverse();
-      // Minimum 12 slot — az trade varsa bars sola yaslanır, sağ tarafta boşluk
-      // kalır. Yeni trade geldiğinde sağa eklenir (reverse: kronolojik eski→yeni).
+      // Minimum 12 slot — az trade varsa bars sola yaslanır.
       const MIN_SLOTS = 12;
       const slots = Math.max(limited.length, MIN_SLOTS);
       const labels = new Array(slots).fill("");
       const data = new Array(slots).fill(null);
+      const teams = new Array(slots).fill("");  // tooltip title kaynağı
       limited.forEach((t, i) => {
-        labels[i] = FMT.teamsText(t.question, t.slug);
+        labels[i] = global.FILTER.periodLabel(t.exit_timestamp, period);
         data[i] = Number(t.exit_pnl_usdc || 0);
+        teams[i] = FMT.teamsText(t.question, t.slug);
       });
       this.waterfall.data.labels = labels;
       this.waterfall.data.datasets[0].data = data;
+      this.waterfall.data.datasets[0]._teams = teams;
       this.waterfall.data.datasets[0].backgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
 
-      // Canvas min-width — yoğun dilimde horizontal scroll.
       this.waterfall.canvas.style.minWidth = (slots * CONFIG.pnlBarMinPx) + "px";
-
-      // Tooltip: color box yok, PnL renk kuralına göre (pozitif yeşil / 0 mavi / negatif kırmızı).
+      // Tooltip: title=takım adı, body=PnL; renk PnL işaretine göre.
       this.waterfall.options.plugins.tooltip = {
-        enabled: true,
-        displayColors: false,
+        enabled: true, displayColors: false,
         callbacks: {
-          label: (ctx) => {
-            const v = ctx.parsed.y;
-            const sign = v > 0 ? "+" : v < 0 ? "-" : "";
-            return `${sign}$${Math.abs(v).toFixed(2)}`;
-          },
-          labelTextColor: (ctx) => {
-            const v = ctx.parsed.y;
-            if (Math.abs(v) < 1e-9) return COLORS.blue;
-            return v > 0 ? COLORS.green : COLORS.red;
-          },
+          title: (items) => (items && items[0] && items[0].dataset._teams
+            && items[0].dataset._teams[items[0].dataIndex]) || "",
+          label: (ctx) => (ctx.parsed.y > 0 ? "+" : ctx.parsed.y < 0 ? "-" : "")
+            + `$${Math.abs(ctx.parsed.y).toFixed(2)}`,
+          labelTextColor: (ctx) => Math.abs(ctx.parsed.y) < 1e-9 ? COLORS.blue
+            : (ctx.parsed.y > 0 ? COLORS.green : COLORS.red),
         },
       };
       this.waterfall.update("none");
+      this.waterfall.resize();  // hitbox alignment after minWidth change
     },
   };
 
