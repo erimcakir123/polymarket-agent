@@ -468,17 +468,19 @@ A-conf hold hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkı
 
 Backtest (9 hockey trade): mevcut -$23.24 → score exit ile +$3.70 (+$26.94 iyileşme). Kazançlara ($76.84) sıfır dokunma.
 
-#### 6.9b Catastrophic Watch (Tüm Sporlar — SPEC-004)
+#### 6.9b Catastrophic Watch (Sadece NHL — SPEC-004 K5)
 
 Fiyat < `catastrophic_trigger` (0.25) → watch modu → bounce + ikinci düşüş → çıkış.
 Recovery 0.50+ geçerse iptal (gerçek comeback). Config: `config.yaml → exit` bölümü.
-A-conf hold dahil tüm pozisyonlara uygulanır (universal safety net).
+**Sadece NHL** pozisyonlarında aktif — tennis/diğer sporlarda set kaybı fiyatı düşürür
+ama maç dönebilir, false positive riski yüksek (regression: Fonseca-Shelton,
+Muchova-Gauff, Fernandez-Sonmez 2026-04-17).
 
 > **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
 > `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out →
-> catastrophic-watch → A-conf hold dalı (score_exit + market_flip) → else branch
-> (flat SL + graduated + vs). Flat SL a-conf check'inden ÖNCE konursa A-conf
-> koruması bozulur (regression: Rangers-Lightning 2026-04-15,
+> catastrophic-watch (NHL only) → A-conf hold dalı (score_exit + market_flip) →
+> else branch (flat SL + graduated + vs). Flat SL a-conf check'inden ÖNCE
+> konursa A-conf koruması bozulur (regression: Rangers-Lightning 2026-04-15,
 > `test_a_conf_hold_skips_flat_sl`).
 
 **Veri dayanağı** (25 A-conf resolved trade analizi):
@@ -730,11 +732,41 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
 | NHL (AHL/Liiga/...) | 0.30 | 2.5 | score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
-| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | set-based exit |
+| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | market_flip DISABLED + catastrophic DISABLED (set kaybı ≠ maç kaybı) |
 | Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |
 | DEFAULT | 0.30 | 2.0 | - |
 
 **Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Ertelenmiş branşların kuralları için bkz. `TODO.md` TODO-001.
+
+### 7.3 Sport Tag Doğrulama (Slug-Based Override)
+
+Gamma API event tag'leri güvenilmez: bir event birden fazla tag taşıyabiliyor ve
+ilk generic-olmayan tag seçiliyor. Tag sırası yanlışsa (ör. `ncaab` tag'i `atp-`
+slug'lu bir tennis market'e atanıyor) tüm downstream akış bozulur — yanlış exit
+kuralları, yanlış treemap kategorizasyonu, yanlış sport_rules seçimi.
+
+**Savunma mekanizması** (`gamma_client._parse_market`): Market slug prefix'i
+`_SLUG_PREFIX_SPORT` lookup tablosuna göre kontrol edilir. Slug prefix bilinen bir
+sporu işaret ediyorsa ve event tag farklıysa → slug prefix kazanır, WARNING loglanır.
+
+```
+Öncelik: slug prefix (en güvenilir) > event tag (Gamma API sırasına bağımlı)
+```
+
+**Tablo** (infrastructure/apis/gamma_client.py):
+
+| Slug prefix | Doğru sport_tag |
+|---|---|
+| atp, wta | tennis |
+| nhl, ahl | hockey |
+| nba, wnba | basketball |
+| mlb, kbo | baseball |
+| nfl, ncaaf | football |
+| ufc | mma |
+
+**Gerekçe**: 2026-04-17'de `atp-medjedo-borges` market'i Gamma'dan `ncaab` tag'iyle
+geldi. Sonuç: (1) market_flip tennis hariç tutması atlandı → gereksiz kayıp, (2)
+treemap'te yanlış kategori. Slug prefix override bu tür hataları kaynağında önler.
 
 ---
 

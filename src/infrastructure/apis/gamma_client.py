@@ -13,6 +13,18 @@ from src.models.market import MarketData
 logger = logging.getLogger(__name__)
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
+
+# Slug prefix → doğru sport_tag. Gamma API event tag sırası güvenilmez
+# (ör. ncaab tag'i atp- slug'lu market'e atanabiliyor). Slug prefix en
+# güvenilir kaynak — market ismi zaten sporu barındırır.
+_SLUG_PREFIX_SPORT: dict[str, str] = {
+    "atp": "tennis", "wta": "tennis",
+    "nhl": "hockey", "ahl": "hockey",
+    "nba": "basketball", "wnba": "basketball",
+    "mlb": "baseball", "kbo": "baseball",
+    "nfl": "football", "ncaaf": "football",
+    "ufc": "mma",
+}
 EVENTS_PER_PAGE = 200
 _SPORTS_CACHE_SEC = 21_600  # 6h
 PARENT_TAGS: list[tuple[str, int]] = [
@@ -127,10 +139,22 @@ class GammaClient:
                 prices = json.loads(prices)
             if not tokens or not prices or len(tokens) < 2 or len(prices) < 2:
                 return None
+            # Slug-prefix ile event tag tutarsızlığını düzelt (TDD §7.3)
+            slug_val = str(raw.get("slug", ""))
+            sport_tag_val = str(raw.get("_sport_tag", "") or "")
+            slug_prefix = slug_val.lower().split("-")[0] if slug_val else ""
+            corrected_sport = _SLUG_PREFIX_SPORT.get(slug_prefix)
+            if corrected_sport and corrected_sport != sport_tag_val:
+                logger.warning(
+                    "sport_tag override: slug=%s tag=%s -> %s",
+                    slug_val, sport_tag_val, corrected_sport,
+                )
+                sport_tag_val = corrected_sport
+
             return MarketData(
                 condition_id=str(raw.get("conditionId", "")),
                 question=str(raw.get("question", "")),
-                slug=str(raw.get("slug", "")),
+                slug=slug_val,
                 yes_token_id=str(tokens[0]),
                 no_token_id=str(tokens[1]),
                 yes_price=float(prices[0]),
@@ -150,7 +174,7 @@ class GammaClient:
                 event_id=raw.get("_event_id") or None,
                 event_live=bool(raw.get("_event_live", False)),
                 event_ended=bool(raw.get("_event_ended", False)),
-                sport_tag=str(raw.get("_sport_tag", "") or ""),
+                sport_tag=sport_tag_val,
                 sports_market_type=str(raw.get("sportsMarketType", "") or ""),
                 closed=bool(raw.get("closed", False)),
                 resolved=bool(raw.get("resolved", False)),

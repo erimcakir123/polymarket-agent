@@ -154,3 +154,66 @@ def test_sports_endpoint_caches() -> None:
     client.fetch_events()
     sports_calls2 = [c for c in http.call_args_list if "/sports" in str(c)]
     assert len(sports_calls2) == 0
+
+
+# ── Slug-based sport_tag override (TDD §7.3) ──
+
+
+def test_slug_override_atp_slug_ncaab_tag_becomes_tennis() -> None:
+    """atp- slug'lu market ncaab tag'iyle gelirse → tennis'e düzeltilmeli."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xatp")["markets"][0]
+    raw["slug"] = "atp-medjedo-borges-2026-04-17"
+    raw["_sport_tag"] = "ncaab"
+    raw["_event_id"] = "evt_atp"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "tennis"
+
+
+def test_slug_override_wta_slug_wrong_tag_becomes_tennis() -> None:
+    """wta- slug + yanlış tag → tennis."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xwta")["markets"][0]
+    raw["slug"] = "wta-swiatek-gauff-2026-04-17"
+    raw["_sport_tag"] = "basketball"
+    raw["_event_id"] = "evt_wta"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "tennis"
+
+
+def test_slug_override_nhl_slug_wrong_tag_becomes_hockey() -> None:
+    """nhl- slug + yanlış tag → hockey."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xnhl")["markets"][0]
+    raw["slug"] = "nhl-bos-tor-2026-04-17"
+    raw["_sport_tag"] = "soccer"
+    raw["_event_id"] = "evt_nhl"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "hockey"
+
+
+def test_slug_override_no_conflict_keeps_original() -> None:
+    """Slug prefix ve tag uyumluysa değişiklik yapılmaz."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xok")["markets"][0]
+    raw["slug"] = "atp-djokovic-nadal-2026-04-17"
+    raw["_sport_tag"] = "tennis"
+    raw["_event_id"] = "evt_ok"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "tennis"
+
+
+def test_slug_override_unknown_prefix_keeps_original() -> None:
+    """Slug prefix tabloda yoksa orijinal tag korunur."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xunk")["markets"][0]
+    raw["slug"] = "cricket-ind-aus-2026-04-17"
+    raw["_sport_tag"] = "cricket"
+    raw["_event_id"] = "evt_unk"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "cricket"

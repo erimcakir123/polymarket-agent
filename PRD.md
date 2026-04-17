@@ -225,6 +225,11 @@ Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 - Allowed categories: `sports` (yalnızca)
 - Allowed sport_tags: `baseball_*`, `basketball_*`, `icehockey_*`, `americanfootball_ncaaf|cfl|ufl`, `tennis_*` (dinamik), `golf_lpga_tour|liv_tour` (bkz. `config.yaml` scanner bölümü)
 
+### 6.5 Sport Tag Güvenilirlik
+- Gamma API event tag sırası güvenilmez — bir event birden fazla tag taşıyabilir ve yanlış tag önce gelebilir
+- **Slug-based override**: Market slug prefix'i (ör. `atp-`, `wta-`, `nhl-`) event tag'inden güvenilir kabul edilir; tutarsızlık varsa slug prefix kazanır (bkz. TDD §7.3)
+- Yanlış sport_tag tüm downstream'i bozar: exit kuralları (market_flip tennis hariç tutması), treemap kategorizasyonu, sport_rules seçimi
+
 ---
 
 ## 7. Savunma Mekanizmaları
