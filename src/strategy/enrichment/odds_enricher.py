@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability, calculate_bookmaker_probability
-from src.domain.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
+from src.domain.matching.bookmaker_weights import get_bookmaker_weight, is_exchange, is_sharp
 from src.domain.matching.odds_sport_keys import is_soccer_key
 from src.domain.matching.pair_matcher import (
     find_best_event_match,
@@ -43,11 +43,16 @@ def _parse_bookmaker_markets(
     home_team: str,
     away_team: str,
     is_soccer: bool,
+    *,
+    skip_vig_normalize: bool = False,
 ) -> tuple[float, float, float | None] | None:
     """Bir bookmaker'ın h2h market'ından (home_prob, away_prob, draw_prob) çıkar.
 
     Vig normalize (olasılıkları 1.0'a topla). Soccer için 3-way outcome gerekli;
     yoksa bu bookmaker atlanır (draw mass home/away'e absorbe olur → bias).
+
+    Exchange bookmaker'lar (Betfair, Matchbook) için ``skip_vig_normalize=True``:
+    vig yok, 1/price zaten gerçek olasılığa yakın — normalize suni sapma yaratır.
     """
     for market in markets:
         if market.get("key") != "h2h":
@@ -66,14 +71,19 @@ def _parse_bookmaker_markets(
         if not (home_odds and away_odds and home_odds > 1 and away_odds > 1):
             continue
 
+        hr, ar = 1.0 / home_odds, 1.0 / away_odds
+
         if is_soccer:
             if not (draw_odds and draw_odds > 1):
                 continue
-            hr, ar, dr = 1.0 / home_odds, 1.0 / away_odds, 1.0 / draw_odds
+            dr = 1.0 / draw_odds
+            if skip_vig_normalize:
+                return hr, ar, dr
             total = hr + ar + dr
             return hr / total, ar / total, dr / total
 
-        hr, ar = 1.0 / home_odds, 1.0 / away_odds
+        if skip_vig_normalize:
+            return hr, ar, None
         total = hr + ar
         return hr / total, ar / total, None
 
@@ -157,6 +167,7 @@ def _weighted_average(
             continue  # Circular data engelle
         parsed = _parse_bookmaker_markets(
             bookmaker.get("markets", []), home_team, away_team, is_soccer,
+            skip_vig_normalize=is_exchange(bm_key),
         )
         if parsed is None:
             continue

@@ -265,7 +265,7 @@ Bookmaker konsensüsünden olasılık türetir.
 **Girdi:**
 - `bookmaker_prob` — no-vig sonrası olasılık (0–1)
 - `num_bookmakers` — toplam bookmaker ağırlığı (her bookie weighted)
-- `has_sharp` — Pinnacle veya Betfair Exchange dahil mi
+- `has_sharp` — Pinnacle veya Betfair Exchange/Smarkets/Matchbook dahil mi
 
 **Kurallar:**
 - **Geçersiz girdi** → `probability = 0.5` fallback
@@ -283,7 +283,7 @@ Bookmaker ağırlığı + sharp var mı → A/B/C.
 
 | Confidence | Koşul |
 |---|---|
-| **A** | `has_sharp = True` (Pinnacle veya Betfair Exchange var) ve `bm_weight ≥ 5` |
+| **A** | `has_sharp = True` (Pinnacle / Betfair Exchange / Matchbook / Smarkets) ve `bm_weight ≥ 5` |
 | **B** | `bm_weight ≥ 5`, sharp yok |
 | **C** | `bm_weight` None VEYA < 5 — entry bloklanır |
 
@@ -300,13 +300,26 @@ Anchor probability (P(YES)) ile market YES fiyatı arasındaki fark; spread + sl
 
 **Confidence multipliers (default):**
 
-| Confidence | Multiplier | Not |
-|---|---|---|
-| A | 1.25 | Aşırı güven cezası (veride öğrenildi) |
-| B | 1.00 | Baz |
-| C | — | Entry bloklanır, sizing'e ulaşmaz |
+| Confidence | Multiplier | Efektif eşik | Not |
+|---|---|---|---|
+| A | 0.67 | %4 | Sharp data güvenilir → düşük eşik kabul |
+| B | 1.00 | %6 | Baz eşik, daha geniş güvenlik marjı |
+| C | — | — | Entry bloklanır, sizing'e ulaşmaz |
 
 **Default `min_edge`:** `0.06` (config.yaml `edge.min_edge`)
+
+**Exchange vig-free kuralı**: Betfair Exchange, Matchbook, Smarkets gibi exchange
+bookmaker'larda vig yok — `1/price` zaten gerçek olasılığa yakın. Bu bookmaker'lara
+vig normalize uygulanmaz (`odds_enricher._parse_bookmaker_markets` `skip_vig_normalize`).
+Geleneksel bookmaker'larda %4-8 overround → normalize gerekli.
+
+**Bookmaker tier'ları** (bookmaker_weights.py):
+
+| Tier | Ağırlık | Bookmaker'lar |
+|---|---|---|
+| Sharp | 3.0× | Pinnacle, Betfair Exchange (EU/UK/AU), Matchbook, Smarkets |
+| Reputable | 1.5× | Bet365, William Hill, Unibet, Betclic, Marathon |
+| Standard | 1.0× | Diğer hepsi |
 
 **Yön kararı:**
 

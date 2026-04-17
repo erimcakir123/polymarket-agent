@@ -63,8 +63,8 @@ scanner:
 edge:
   min_edge: 0.06
   confidence_multipliers:
-    A: 1.25
-    B: 1.00
+    A: 0.67    # sharp data güvenilir → düşük eşik (%4). Eski: 1.25
+    B: 1.00    # reputable-only → baz eşik (%6)
 
 risk:
   max_single_bet_usdc: 75

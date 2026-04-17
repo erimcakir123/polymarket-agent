@@ -1,12 +1,14 @@
 """Edge hesabı (TDD §6.3) — anchor P(YES) vs market price.
 
-v2 confidence multipliers: A=1.25 (daha ihtiyatlı), B=1.00 (baz). C girmez.
+Confidence multipliers: A=0.67 (sharp data güvenilir → düşük eşik %4),
+B=1.00 (baz %6). C girmez. Mantık: A-conf'ta Pinnacle/Betfair var →
+olasılık tahmini daha doğru → daha küçük edge kabul edilebilir.
 """
 from __future__ import annotations
 
 from src.models.enums import Direction
 
-DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 1.25, "B": 1.00}
+DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 0.67, "B": 1.00}
 
 
 def calculate_edge(

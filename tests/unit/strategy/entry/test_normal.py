@@ -61,14 +61,14 @@ def test_no_edge_returns_none() -> None:
     assert normal.evaluate(m, bm) is None
 
 
-def test_a_confidence_higher_threshold() -> None:
+def test_a_confidence_lower_threshold() -> None:
     m = _market(yes_price=0.50)
-    # A conf threshold = 0.06 × 1.25 = 0.075
-    # raw=0.07 → HOLD
-    bm_a = _bm(prob=0.57, conf="A")
+    # A conf threshold = 0.06 × 0.67 = 0.0402
+    # raw=0.03 → HOLD (below threshold)
+    bm_a = _bm(prob=0.53, conf="A")
     assert normal.evaluate(m, bm_a) is None
-    # raw=0.10 → BUY_YES
-    bm_a2 = _bm(prob=0.60, conf="A")
+    # raw=0.05 → BUY_YES (0.05 > 0.0402)
+    bm_a2 = _bm(prob=0.55, conf="A")
     sig = normal.evaluate(m, bm_a2)
     assert sig is not None
     assert sig.confidence == "A"

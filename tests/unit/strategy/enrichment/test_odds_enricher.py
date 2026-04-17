@@ -140,6 +140,31 @@ def test_enrich_no_team_match_returns_none() -> None:
     assert r.probability is None
 
 
+def test_exchange_bookmaker_skips_vig_normalize() -> None:
+    """Betfair Exchange fiyatları vig-free → normalize atlanmalı, raw 1/price kullanılmalı."""
+    from src.strategy.enrichment.odds_enricher import _parse_bookmaker_markets
+
+    markets = [{"key": "h2h", "outcomes": [
+        {"name": "Lakers", "price": 1.80},   # raw: 1/1.80 = 0.5556
+        {"name": "Celtics", "price": 2.20},   # raw: 1/2.20 = 0.4545
+    ]}]                                        # total = 1.0101 (%1 overround)
+
+    # Exchange: skip normalize → raw probabilities döner
+    home_ex, away_ex, _ = _parse_bookmaker_markets(
+        markets, "Lakers", "Celtics", False, skip_vig_normalize=True,
+    )
+    assert abs(home_ex - 1.0 / 1.80) < 1e-4   # 0.5556
+    assert abs(away_ex - 1.0 / 2.20) < 1e-4   # 0.4545
+
+    # Traditional: normalize → probabilities 1.0'a toplanır
+    home_trad, away_trad, _ = _parse_bookmaker_markets(
+        markets, "Lakers", "Celtics", False, skip_vig_normalize=False,
+    )
+    assert abs(home_trad + away_trad - 1.0) < 1e-9   # normalized
+    # Exchange raw prob > normalized prob (normalize aşağı çeker)
+    assert home_ex > home_trad
+
+
 def test_enrich_soccer_requires_draw_outcome() -> None:
     # Soccer market, bookmaker'ın draw outcome'ı yok → skip bookmaker
     # Bu testi basitçe bırakıyoruz — soccer için 3-way gerekiyor, 2-way atlanır

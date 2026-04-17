@@ -11,7 +11,9 @@ _SHARP: frozenset[str] = frozenset({
     "pinnacle",
     "betfair_ex_eu",
     "betfair_ex_uk",
+    "betfair_ex_au",
     "matchbook",
+    "smarkets",
 })
 
 # Tier 2 — reputable bookmakers (yüksek limit, Avrupa)
@@ -46,6 +48,22 @@ def get_bookmaker_weight(name: str) -> float:
     return STANDARD_WEIGHT
 
 
+# Exchange bookmaker'lar — vig yok, 1/price ≈ gerçek olasılık.
+# Vig normalize uygulanmamalı (TDD §6.1).
+_EXCHANGE: frozenset[str] = frozenset({
+    "betfair_ex_eu",
+    "betfair_ex_uk",
+    "betfair_ex_au",
+    "matchbook",
+    "smarkets",
+})
+
+
 def is_sharp(name: str) -> bool:
     """Sharp tier (Pinnacle / Betfair Ex / Matchbook) mi?"""
     return _normalize(name) in _SHARP
+
+
+def is_exchange(name: str) -> bool:
+    """Exchange bookmaker mı? (vig yok, normalize atlanmalı)."""
+    return _normalize(name) in _EXCHANGE

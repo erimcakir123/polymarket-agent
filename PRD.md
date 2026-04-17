@@ -34,7 +34,7 @@ Pozisyon boyutu confidence seviyesine göre belirlenir:
 Ek çarpanlar `max_single_bet_usdc` ve `max_bet_pct` cap'lerine tabidir. (bkz. TDD §6.5)
 
 ### 2.4 Bookmaker-Derived Probability
-P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair gibi sharp book'lar `bookmaker_weights` ile ağırlıklandırılır. (bkz. TDD §6.1)
+P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair/Smarkets gibi sharp book'lar 3.0× ağırlıkla, reputable book'lar (Bet365, William Hill vb.) 1.5× ağırlıkla, diğerleri 1.0× ağırlıkla ortalaması alınır. Exchange bookmaker'lara (Betfair, Matchbook, Smarkets) vig normalize uygulanmaz — fiyatları zaten gerçek olasılığa yakın. Edge eşiği confidence'a göre ölçeklenir: A-conf %4, B-conf %6. (bkz. TDD §6.1, §6.3)
 
 ### 2.5 3-Katmanlı Cycle
 Bot üç cycle seviyesinde çalışır:
