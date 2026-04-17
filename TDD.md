@@ -505,6 +505,17 @@ Muchova-Gauff, Fernandez-Sonmez 2026-04-17).
 
 Kural korunacak; elapsed gate early-match false positive'leri eler.
 
+#### 6.9c Score Polling Altyapısı (SPEC-005)
+
+**Primary:** ESPN public API (`site.api.espn.com`) — ücretsiz, API key gereksiz.
+Hockey (gol), Tennis (set+game), MLB (koşu), NBA (sayı) skor verir.
+
+**Fallback:** Odds API `/scores` — hockey/MLB/NBA için çalışır, tennis'te skor vermiyor.
+
+**Adaptif polling:** Normal 60s, fiyat ≤ 35¢ → 30s. Config: `config.yaml → score`.
+
+**Kill switch:** `score.enabled: false` → tüm skor polling durur.
+
 ### 6.10 Never-in-Profit Guard
 
 Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.

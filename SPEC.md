@@ -47,6 +47,12 @@ Modülün ne yaptığı, tek cümle.
 
 ## Aktif Spesifikasyonlar
 
+### SPEC-005: ESPN Score Client + Agent Loop Wire
+- **Durum**: IMPLEMENTED
+- **Tarih**: 2026-04-17
+- **Detay**: `docs/superpowers/specs/2026-04-17-espn-score-client-wire-design.md`
+- **Özet**: ESPN API primary skor kaynağı + Odds API fallback. Agent loop'a wire. Hockey K1-K4 aktif olur. Tennis/MLB/NBA score_info populate edilir.
+
 ### SPEC-004: NHL Score-Based Exit System
 - **Durum**: IMPLEMENTED
 - **Tarih**: 2026-04-17
@@ -175,7 +181,7 @@ KURAL 4 — Son Dakika Çıkışı
   Gerekçe: 1 gol bile geri + 5 dk kaldı = dönme ihtimali çok düşük.
            False positive riski: GK maçında deficit=1 olan an elapsed %37'de → tetiklenmez ✓
 
-KURAL 5 — Catastrophic Watch (Dead Cat Bounce Detector) [TÜM SPORLAR]
+KURAL 5 — Catastrophic Watch (Dead Cat Bounce Detector) [SADECE NHL]
   Koşul: fiyat < config[catastrophic_trigger]  → WATCH moduna gir
   Davranış:
     a. Fiyat yükselirse → recovery_peak'i güncelle
@@ -192,7 +198,7 @@ KURAL 5 — Catastrophic Watch (Dead Cat Bounce Detector) [TÜM SPORLAR]
 
 **Kapsam sınırı**: Bu kurallar SADECE `nhl` ve `hockey` sport_tag'li, A-conf hold pozisyonlara uygulanır. B-conf pozisyonlarda mevcut flat SL zaten aktif — skor çıkışı override etmez.
 
-**Kural 5 (catastrophic watch) istisnası**: Kural 5 tüm sport_tag'ler ve tüm confidence seviyeleri için geçerlidir (universal safety net). A-conf hold olmasına gerek yok.
+**Kural 5 (catastrophic watch)**: Kural 5 sadece NHL pozisyonlarında aktif (monitor.py sport gate). Tennis/diğer sporlarda set kaybı false positive yaratıyordu (regression: 2026-04-17).
 
 #### Bileşen 4: Monitor Entegrasyonu (`strategy/exit/monitor.py` güncelleme)
 
