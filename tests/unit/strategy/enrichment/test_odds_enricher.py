@@ -209,3 +209,48 @@ def test_enrich_market_ok_returns_probability_and_no_fail_reason() -> None:
     assert result.probability is not None
     assert result.fail_reason is None
     assert 0.0 < result.probability.probability < 1.0
+
+
+# --- commence_time extraction tests ---
+
+
+def test_enrich_market_extracts_odds_commence_time() -> None:
+    """Odds API event'indeki commence_time → EnrichResult.odds_commence_time."""
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{
+        "home_team": "Lakers", "away_team": "Celtics",
+        "commence_time": "2026-04-17T15:00:00Z",
+        "bookmakers": [{"key": "fanduel", "markets": [{"key": "h2h", "outcomes": [
+            {"name": "Lakers", "price": 1.80}, {"name": "Celtics", "price": 2.20}]}]}],
+    }]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.odds_commence_time == "2026-04-17T15:00:00Z"
+
+
+def test_enrich_market_missing_commence_time_returns_empty() -> None:
+    """commence_time yoksa odds_commence_time boş string."""
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{
+        "home_team": "Lakers", "away_team": "Celtics",
+        "bookmakers": [{"key": "fanduel", "markets": [{"key": "h2h", "outcomes": [
+            {"name": "Lakers", "price": 1.80}, {"name": "Celtics", "price": 2.20}]}]}],
+    }]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.odds_commence_time == ""
+
+
+def test_enrich_market_fail_still_returns_commence_time() -> None:
+    """Bookmakers boş → fail ama commence_time yine dönmeli."""
+    market = _market(question="Will Lakers beat Celtics?")
+    events = [{
+        "home_team": "Lakers", "away_team": "Celtics",
+        "commence_time": "2026-04-17T20:00:00Z",
+        "bookmakers": [],
+    }]
+    client = _client_returning(odds_events=events)
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.EMPTY_BOOKMAKERS
+    assert result.odds_commence_time == "2026-04-17T20:00:00Z"

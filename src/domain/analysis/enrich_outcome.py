@@ -24,3 +24,4 @@ class EnrichResult:
     """enrich_market sonucu — ya probability dolu ya fail_reason."""
     probability: BookmakerProbability | None
     fail_reason: EnrichFailReason | None
+    odds_commence_time: str = ""

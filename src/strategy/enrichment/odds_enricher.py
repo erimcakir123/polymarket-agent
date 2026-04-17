@@ -122,14 +122,20 @@ def enrich_market(market: MarketData, odds_client) -> EnrichResult:
     away_team = best_event.get("away_team", "")
     is_soccer = is_soccer_key(sport_key)
 
-    # 5. Weighted bookmaker average
+    # 5. Odds API commence_time — gerçek maç saati (Gamma startTime turnuva
+    #    başlangıcı olabiliyor, bkz. tennis/golf). Odds API her zaman maç-level.
+    odds_commence_time = str(best_event.get("commence_time", "") or "")
+
+    # 6. Weighted bookmaker average
     prob = _weighted_average(
         best_event.get("bookmakers", []),
         home_team, away_team, home_is_a, is_soccer,
     )
     if prob is None:
-        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
-    return EnrichResult(probability=prob, fail_reason=None)
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS,
+                            odds_commence_time=odds_commence_time)
+    return EnrichResult(probability=prob, fail_reason=None,
+                        odds_commence_time=odds_commence_time)
 
 
 def _weighted_average(

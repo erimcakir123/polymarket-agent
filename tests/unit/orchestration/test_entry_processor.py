@@ -167,3 +167,53 @@ def test_process_markets_exposure_cap_logs_detail_with_available_min():
         f"(available=X.XX, min=X.XX). "
         f"Got: {[(c[0][0].skip_reason, c[0][0].skip_detail) for c in calls]}"
     )
+
+
+# --- _sync_live_flag tests ---
+
+from src.models.position import Position
+
+
+def test_sync_live_flag_updates_match_live_from_scan() -> None:
+    """Gamma scan event_live=True → pozisyonun match_live True olur."""
+    pos = Position(
+        condition_id="0x1", token_id="t", direction="BUY_YES",
+        entry_price=0.5, size_usdc=30, shares=60, current_price=0.5,
+        anchor_probability=0.6, event_id="e1", match_live=False,
+    )
+    market = _make_market(cid="0x1")
+    market.event_live = True
+
+    deps = _make_deps(portfolio_positions={"0x1": pos})
+    processor = EntryProcessor(deps)
+    processor._sync_live_flag({"0x1": market})
+    assert pos.match_live is True
+
+
+def test_sync_live_flag_no_match_keeps_flag() -> None:
+    """Scan'de pozisyonun market'i yoksa match_live değişmemeli."""
+    pos = Position(
+        condition_id="0x1", token_id="t", direction="BUY_YES",
+        entry_price=0.5, size_usdc=30, shares=60, current_price=0.5,
+        anchor_probability=0.6, event_id="e1", match_live=False,
+    )
+    deps = _make_deps(portfolio_positions={"0x1": pos})
+    processor = EntryProcessor(deps)
+    processor._sync_live_flag({})  # boş scan
+    assert pos.match_live is False
+
+
+def test_sync_live_flag_updates_match_ended() -> None:
+    """Gamma scan event_ended=True → pozisyonun match_ended True olur."""
+    pos = Position(
+        condition_id="0x1", token_id="t", direction="BUY_YES",
+        entry_price=0.5, size_usdc=30, shares=60, current_price=0.5,
+        anchor_probability=0.6, event_id="e1", match_ended=False,
+    )
+    market = _make_market(cid="0x1")
+    market.event_ended = True
+
+    deps = _make_deps(portfolio_positions={"0x1": pos})
+    processor = EntryProcessor(deps)
+    processor._sync_live_flag({"0x1": market})
+    assert pos.match_ended is True

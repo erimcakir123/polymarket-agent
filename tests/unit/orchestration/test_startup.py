@@ -30,7 +30,7 @@ def test_persist_then_restore_roundtrip(tmp_path: Path) -> None:
         event_id="e1", slug="some-slug",
     )
     state1.portfolio.add_position(pos)
-    state1.circuit_breaker.record_exit(pnl_usd=-10, portfolio_value=1000)
+    state1.circuit_breaker.record_exit(pnl_usd=-10)
     state1.blacklist.add_condition("bad_cid")
 
     persist(state1)
@@ -41,7 +41,7 @@ def test_persist_then_restore_roundtrip(tmp_path: Path) -> None:
     assert "c1" in state2.portfolio.positions
     assert state2.blacklist.is_blacklisted(condition_id="bad_cid") is True
     # Circuit breaker state restored
-    assert state2.circuit_breaker.state.daily_realized_pnl_pct < 0
+    assert state2.circuit_breaker.state.daily_realized_pnl_usd < 0
 
 
 def test_corrupt_positions_file_safe_fallback(tmp_path: Path) -> None:

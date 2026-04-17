@@ -94,7 +94,8 @@ class EntryGate:
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         """Tüm marketleri değerlendir. Her biri için GateResult döner."""
         # Global halts — her market için tekrar kontrol etmek yerine bir kez
-        halt, reason = self.breaker.should_halt_entries()
+        total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
+        halt, reason = self.breaker.should_halt_entries(portfolio_value=total_portfolio)
         if halt:
             logger.info("Entry gate halted: %s", reason)
             detail = reason[len("breaker: "):] if reason.startswith("breaker: ") else reason
@@ -140,6 +141,9 @@ class EntryGate:
 
         # 4. Enrichment (Odds API)
         enrich_result = self._enricher(market)
+        # Odds API commence_time → gerçek maç saati (Gamma turnuva saati verebiliyor)
+        if enrich_result.odds_commence_time:
+            market.match_start_iso = enrich_result.odds_commence_time
         if enrich_result.probability is None:
             detail = enrich_result.fail_reason.value if enrich_result.fail_reason else ""
             return GateResult(cid, None, "no_bookmaker_data", skip_detail=detail)

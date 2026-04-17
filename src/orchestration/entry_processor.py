@@ -31,6 +31,10 @@ class EntryProcessor:
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
+        # Gamma scan'den gelen event_live flag'ini açık pozisyonlara yansıt
+        # (Odds API maliyeti yok — Gamma ücretsiz).
+        self._sync_live_flag(scan_by_cid)
+
         open_event_ids = frozenset(
             p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
         )
@@ -65,6 +69,17 @@ class EntryProcessor:
         self.deps.stock.save()
         operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
+
+    def _sync_live_flag(self, scan_by_cid: dict[str, MarketData]) -> None:
+        """Gamma scan'den event_live/event_ended → açık pozisyon match_live/match_ended."""
+        for pos in self.deps.state.portfolio.positions.values():
+            market = scan_by_cid.get(pos.condition_id)
+            if market is None:
+                continue
+            if market.event_live != pos.match_live:
+                pos.match_live = market.event_live
+            if market.event_ended != pos.match_ended:
+                pos.match_ended = market.event_ended
 
     def process_markets(self, markets: list[MarketData]) -> None:
         """Gate → cap-clip → match_start ASC priority → execute."""
@@ -157,6 +172,7 @@ class EntryProcessor:
             sport_tag=market.sport_tag,
             event_id=market.event_id or "",
             match_start_iso=market.match_start_iso,
+            match_live=market.event_live,
             question=market.question,
             end_date_iso=market.end_date_iso,
             slug=market.slug,

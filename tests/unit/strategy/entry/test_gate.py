@@ -144,7 +144,7 @@ def test_no_edge_skips() -> None:
 
 def test_circuit_breaker_halts_all() -> None:
     cb = CircuitBreaker()
-    cb.record_exit(pnl_usd=-100, portfolio_value=1000)  # -10% daily → halt
+    cb.record_exit(pnl_usd=-100)  # -$100 → portfolio $1000'de -%10 daily → halt
     gate = _make_gate(cb=cb)
     results = gate.run([_market(), _market(cid="c2", event="e2")])
     assert all(r.signal is None for r in results)
@@ -460,3 +460,34 @@ def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
     r = results[0]
     assert r.skipped_reason == "max_positions_reached"
     assert r.skip_detail == "count=5/5"
+
+
+# --- odds_commence_time → match_start_iso update ---
+
+
+def test_gate_updates_match_start_iso_from_odds_commence_time() -> None:
+    """Enrichment odds_commence_time doluysa market.match_start_iso güncellenmeli."""
+    m = _market()
+    m.match_start_iso = "2026-04-17T08:00:00Z"  # Gamma turnuva saati (yanlış)
+    odds_time = "2026-04-17T15:00:00Z"  # Odds API gerçek maç saati
+    enricher = lambda market: EnrichResult(
+        probability=_bm(), fail_reason=None,
+        odds_commence_time=odds_time,
+    )
+    gate = _make_gate(enricher=enricher)
+    gate.run([m])
+    assert m.match_start_iso == odds_time
+
+
+def test_gate_keeps_match_start_iso_when_no_commence_time() -> None:
+    """odds_commence_time boşsa mevcut match_start_iso korunmalı."""
+    m = _market()
+    original = "2026-04-17T08:00:00Z"
+    m.match_start_iso = original
+    enricher = lambda market: EnrichResult(
+        probability=_bm(), fail_reason=None,
+        odds_commence_time="",
+    )
+    gate = _make_gate(enricher=enricher)
+    gate.run([m])
+    assert m.match_start_iso == original
