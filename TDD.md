@@ -516,6 +516,19 @@ Hockey (gol), Tennis (set+game), MLB (koşu), NBA (sayı) skor verir.
 
 **Kill switch:** `score.enabled: false` → tüm skor polling durur.
 
+#### 6.9d Tennis Score-Based Exit (SPEC-006)
+
+ESPN set/game skoru ile tennis A-conf hold pozisyonlarda erken çıkış. BO3 only.
+
+**T1 — Straight set kaybı:** 0-1 set + current set deficit ≥ 3 + games_total ≥ 7 (veya deficit ≥ 4).
+Tiebreak buffer: 1. set dar kaybı (our ≥ 5 game, ör: 6-7) → deficit eşiği +1 (3→4).
+Blowout (our < 5, ör: 2-6) → buffer yok.
+
+**T2 — Decider set kaybı:** 1-1 set + 3. set deficit ≥ 3 + games_total ≥ 7 (veya deficit ≥ 4).
+Tiebreak buffer uygulanmaz (3. set decider, tolerans yok).
+
+Config: `sport_rules.py → tennis → set_exit_*`. Dönüş ihtimali %3-8.
+
 ### 6.10 Never-in-Profit Guard
 
 Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
@@ -756,7 +769,7 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
 | NHL (AHL/Liiga/...) | 0.30 | 2.5 | score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
-| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | market_flip DISABLED + catastrophic DISABLED (set kaybı ≠ maç kaybı) |
+| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED + catastrophic DISABLED |
 | Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |
 | DEFAULT | 0.30 | 2.0 | - |
 

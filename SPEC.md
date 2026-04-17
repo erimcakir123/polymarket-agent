@@ -47,6 +47,12 @@ Modülün ne yaptığı, tek cümle.
 
 ## Aktif Spesifikasyonlar
 
+### SPEC-006: Tennis Score-Based Exit (T1-T2)
+- **Durum**: IMPLEMENTED
+- **Tarih**: 2026-04-17
+- **Detay**: `docs/superpowers/specs/2026-04-17-tennis-score-exit-design.md`
+- **Özet**: ESPN set/game skoru ile tennis A-conf hold pozisyonlarda erken çıkış. T1: straight set kaybı yaklaşıyor. T2: decider set kaybı. Tiebreak buffer. Config-driven eşikler.
+
 ### SPEC-005: ESPN Score Client + Agent Loop Wire
 - **Durum**: IMPLEMENTED
 - **Tarih**: 2026-04-17
