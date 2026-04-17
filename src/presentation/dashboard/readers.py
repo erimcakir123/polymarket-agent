@@ -74,6 +74,56 @@ def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     return _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
 
 
+def read_trades_by_week(
+    logs_dir: Path, week_offset: int = 0,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    """ISO-week-aligned trade pagination.
+
+    week_offset=0 → current week (Mon 00:00 UTC – Sun 23:59 UTC).
+    week_offset=1 → previous week, etc.
+
+    Returns (trades_in_week, week_label, has_older_data).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    current_monday = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    week_start = current_monday - timedelta(weeks=week_offset)
+    week_end = week_start + timedelta(days=7)
+
+    buffer_weeks = week_offset + 2
+    n = 150 * buffer_weeks
+    all_trades = _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
+
+    week_trades: list[dict[str, Any]] = []
+    has_older = False
+    start_ts = week_start.isoformat()
+    end_ts = week_end.isoformat()
+
+    for t in all_trades:
+        ts = t.get("exit_timestamp", "")
+        if not ts:
+            continue
+        if ts < start_ts:
+            has_older = True
+        elif ts < end_ts:
+            week_trades.append(t)
+
+    _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    sun = week_start + timedelta(days=6)
+    if week_start.month == sun.month:
+        label = (f"{week_start.day} - {sun.day} "
+                 f"{_MONTHS[week_start.month - 1]} {week_start.year}")
+    else:
+        label = (f"{week_start.day} {_MONTHS[week_start.month - 1]} - "
+                 f"{sun.day} {_MONTHS[sun.month - 1]} {week_start.year}")
+
+    return week_trades, label, has_older
+
+
 def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """equity_history.jsonl son N snapshot."""
     return _read_jsonl_tail(logs_dir / "equity_history.jsonl", n, _BYTES_EQUITY)
