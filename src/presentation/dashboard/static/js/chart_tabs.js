@@ -53,7 +53,7 @@
   });
 
   function bind(deps) {
-    const { charts, state, cache, initialBankroll } = deps;
+    const { charts, state, cache, initialBankroll, render, idleTickMs } = deps;
     const binding = {
       equity: {
         stateKey: "equityPeriod",
@@ -82,12 +82,26 @@
     // Mouse wheel → yatay scroll (yalnızca yatay taşma varsa).
     document.querySelectorAll(".chart-scroll").forEach((el) => {
       el.addEventListener("wheel", (e) => {
-        if (el.scrollWidth <= el.clientWidth) return;  // taşma yoksa sayfayı bırak
+        if (el.scrollWidth <= el.clientWidth) return;
         if (e.deltaY === 0) return;
         e.preventDefault();
         el.scrollLeft += e.deltaY;
       }, { passive: false });
     });
+
+    // Idle countdown — status her 1s'de re-render (next heavy timer).
+    // dashboard.js'ten taşındı (ARCH_GUARD Kural 3: 400 satır limiti).
+    if (render && render.status && idleTickMs) {
+      let _lastStatusData = null;
+      const _origStatus = render.status.bind(render);
+      render.status = function (data) {
+        _lastStatusData = data;
+        _origStatus(data);
+      };
+      setInterval(() => {
+        if (_lastStatusData) _origStatus(_lastStatusData);
+      }, idleTickMs);
+    }
   }
 
   global.CHART_TABS = { bind };

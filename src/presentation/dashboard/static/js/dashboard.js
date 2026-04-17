@@ -11,7 +11,7 @@
   // ── CONFIG (sabitler — magic number yasağı) ──
   const CONFIG = {
     pollIntervalMs: 5000,
-    waterfallMaxBars: 40,
+    // waterfallMaxBars kaldırıldı — period filter yeterli, cap gereksiz overlap yaratıyordu.
     stageRecentSec: 180,        // stage_at kaç saniyeden yeniyse aktif sayılır (heavy cycle 1-2 dk)
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
@@ -79,7 +79,6 @@
 
   const CHARTS = {
     equity: null, waterfall: null, lp: null, slots: null,
-
     initAll() {
       this._initLine("equity-chart", "equity", COLORS.green, COLORS.greenFill);
       this._initBar("waterfall-chart", "waterfall");
@@ -161,7 +160,8 @@
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
       const points = global.FILTER.cumulativeByResolution(windowTrades, initialBankroll, resolution);
       const baseline = Number(initialBankroll) || 0;
-      this.equity.data.labels = [""].concat(points.map((p) => global.FILTER.periodLabel(p.timestamp, period)));
+      this.equity.data.labels = [""].concat(points.map((p, i) =>
+        period === "1y" ? "W" + (i + 1) : global.FILTER.periodLabel(p.timestamp, period)));
       this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
       // Parent wrap width — Chart.js responsive observer → canvas internal senkron (hitbox).
       this.equity.canvas.parentElement.style.width = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
@@ -181,36 +181,47 @@
     },
 
     setWaterfall(trades) {
-      // Period filter (event-level; her bar = bir exit, bucketing yapılmaz).
+      // Period filter + resolution bucketing (equity chart ile aynı mantık).
       const period = CHART_STATE.pnlPeriod;
+      const resolution = global.FILTER.RESOLUTION_BY_PERIOD[period] || "event";
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
-      const limited = windowTrades.slice(0, CONFIG.waterfallMaxBars).reverse();
-      // Minimum 12 slot — az trade varsa bars sola yaslanır.
+      const buckets = global.FILTER.pnlByResolution(windowTrades, resolution);
+      // Event modunda takım adları (chronological sıra — windowTrades reversed).
+      const chronTrades = resolution === "event" ? [...windowTrades].reverse() : [];
+      // Minimum 12 slot — az bar varsa sola yaslanır.
       const MIN_SLOTS = 12;
-      const slots = Math.max(limited.length, MIN_SLOTS);
+      const slots = Math.max(buckets.length, MIN_SLOTS);
       const labels = new Array(slots).fill("");
       const data = new Array(slots).fill(null);
-      const teams = new Array(slots).fill("");  // tooltip title kaynağı
-      limited.forEach((t, i) => {
-        labels[i] = global.FILTER.periodLabel(t.exit_timestamp, period);
-        data[i] = Number(t.exit_pnl_usdc || 0);
-        teams[i] = FMT.teamsText(t.question, t.slug);
+      const tooltips = new Array(slots).fill("");
+      buckets.forEach((b, i) => {
+        labels[i] = period === "1y" ? "W" + (i + 1) : global.FILTER.periodLabel(b.timestamp, period);
+        data[i] = Number(b.pnl || 0);
+        if (resolution === "event" && chronTrades[i]) {
+          tooltips[i] = FMT.teamsText(chronTrades[i].question, chronTrades[i].slug);
+        } else if (resolution !== "event") {
+          tooltips[i] = b.count + " trade";
+        }
       });
       this.waterfall.data.labels = labels;
       this.waterfall.data.datasets[0].data = data;
-      this.waterfall.data.datasets[0]._teams = teams;
+      this.waterfall.data.datasets[0]._tooltips = tooltips;
       this.waterfall.data.datasets[0].backgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
       this.waterfall.data.datasets[0].hoverBackgroundColor =
         data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
 
       this.waterfall.canvas.parentElement.style.width = (slots * CONFIG.pnlBarMinPx) + "px";
-      // Tooltip: title=takım adı, body=PnL; renk PnL işaretine göre.
+      // Tooltip: event modunda takım adı, bucket modunda trade sayısı.
       this.waterfall.options.plugins.tooltip = {
         enabled: true, displayColors: false,
         callbacks: {
-          title: (items) => (items && items[0] && items[0].dataset._teams
-            && items[0].dataset._teams[items[0].dataIndex]) || "",
+          title: (items) => {
+            if (!items || !items[0]) return "";
+            const idx = items[0].dataIndex;
+            const tip = items[0].dataset._tooltips && items[0].dataset._tooltips[idx];
+            return tip || "";
+          },
           label: (ctx) => (ctx.parsed.y > 0 ? "+" : ctx.parsed.y < 0 ? "-" : "")
             + `$${Math.abs(ctx.parsed.y).toFixed(2)}`,
           labelTextColor: (ctx) => Math.abs(ctx.parsed.y) < 1e-9 ? COLORS.blue
@@ -338,7 +349,6 @@
         return '<span class="slot-tag ' + t.cls + activeCls + '">' + t.label + " " + n + "</span>";
       }).join("");
     },
-
   };
 
   // ── MAIN ──
@@ -368,9 +378,9 @@
         console.error("Refresh error:", e);
       }
     },
-
     init() {
       _initColors();
+      global.COLORS = COLORS;  // modal JS needs palette access
       document.getElementById("slots-max").textContent = MAX_POSITIONS;
       CHARTS.initAll();
       global.CHART_TABS.bind({
@@ -378,23 +388,13 @@
         state: CHART_STATE,
         cache: LAST,
         initialBankroll: INITIAL_BANKROLL,
+        render: RENDER,
+        idleTickMs: CONFIG.idleTickMs,
       });
       global.FEED.bindTabs();
       this.refresh();
       setInterval(() => this.refresh(), CONFIG.pollIntervalMs);
     },
   };
-
-  // Idle countdown — /api/status cevabı cache'lenir, 1s'de bir label re-render edilir
-  let _lastStatusData = null;
-  const _origStatus = RENDER.status.bind(RENDER);
-  RENDER.status = function (data) {
-    _lastStatusData = data;
-    _origStatus(data);
-  };
-  setInterval(() => {
-    if (_lastStatusData) _origStatus(_lastStatusData);
-  }, CONFIG.idleTickMs);
-
   document.addEventListener("DOMContentLoaded", () => MAIN.init());
 })(window);
