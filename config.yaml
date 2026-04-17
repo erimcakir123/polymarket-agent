@@ -143,7 +143,9 @@ a_conf_hold:
 
 score:
   enabled: true
-  poll_interval_sec: 120
+  poll_normal_sec: 60
+  poll_critical_sec: 30
+  critical_price_threshold: 0.35
   match_window_hours: 4       # maç saati ± bu süre dışında skor çekilmez
 
 exit:

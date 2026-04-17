@@ -155,7 +155,9 @@ class FavoredConfig(BaseModel):
 class ScoreConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
-    poll_interval_sec: int = 120
+    poll_normal_sec: int = 60
+    poll_critical_sec: int = 30
+    critical_price_threshold: float = 0.35
     match_window_hours: float = 4.0
 
 
