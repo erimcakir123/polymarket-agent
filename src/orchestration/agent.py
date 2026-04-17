@@ -24,6 +24,7 @@ from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
 from src.orchestration.exit_processor import ExitProcessor
 from src.orchestration.scanner import MarketScanner
+from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
 from src.strategy.entry.gate import EntryGate
@@ -47,6 +48,7 @@ class AgentDeps:
     stock: StockQueue
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
+    score_enricher: ScoreEnricher | None = None
     command_poller: TelegramCommandPoller | None = None
 
 
@@ -80,7 +82,12 @@ class Agent:
                 if tick.run_heavy:
                     self._entry.run_heavy()
                 if tick.run_light:
-                    self._exit.run_light()
+                    score_map = {}
+                    if self.deps.score_enricher is not None:
+                        score_map = self.deps.score_enricher.get_scores_if_due(
+                            self.deps.state.portfolio.positions,
+                        )
+                    self._exit.run_light(score_map=score_map)
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
 

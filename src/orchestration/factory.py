@@ -20,8 +20,10 @@ from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
+from src.infrastructure.apis.espn_client import fetch_scoreboard
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
+from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState
@@ -118,6 +120,24 @@ def build_agent(state: RuntimeState) -> Agent:
             bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
         )
 
+    # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
+    score_enricher: ScoreEnricher | None = None
+    if cfg.score.enabled:
+        class _ESPNBridge:
+            """Thin bridge: wraps module function for DI."""
+            @staticmethod
+            def fetch(sport: str, league: str, date: str | None = None) -> list:
+                return fetch_scoreboard(sport, league, date)
+
+        score_enricher = ScoreEnricher(
+            espn_client=_ESPNBridge(),
+            odds_client=odds,
+            poll_normal_sec=cfg.score.poll_normal_sec,
+            poll_critical_sec=cfg.score.poll_critical_sec,
+            critical_price_threshold=cfg.score.critical_price_threshold,
+            match_window_hours=cfg.score.match_window_hours,
+        )
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -125,6 +145,7 @@ def build_agent(state: RuntimeState) -> Agent:
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
         price_feed=price_feed,
+        score_enricher=score_enricher,
         command_poller=command_poller,
     )
     agent = Agent(deps)
