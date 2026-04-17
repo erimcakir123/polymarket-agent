@@ -25,6 +25,10 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours": 2.5,
         "period_exit": True,
         "period_exit_deficit": 3,
+        "late_deficit": 2,
+        "late_elapsed_gate": 0.67,
+        "score_price_confirm": 0.35,
+        "final_elapsed_gate": 0.92,
     },
     "mlb": {
         "stop_loss_pct": 0.30,

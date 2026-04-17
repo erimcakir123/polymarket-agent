@@ -152,6 +152,20 @@ class FavoredConfig(BaseModel):
     conf_required: List[str] = ["A", "B"]
 
 
+class ScoreConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    poll_interval_sec: int = 120
+    match_window_hours: float = 4.0
+
+
+class ExitExtrasConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    catastrophic_trigger: float = 0.25
+    catastrophic_drop_pct: float = 0.10
+    catastrophic_cancel: float = 0.50
+
+
 class DashboardConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
@@ -184,6 +198,8 @@ class AppConfig(BaseModel):
     near_resolve: NearResolveConfig = NearResolveConfig()
     a_conf_hold: AConfHoldConfig = AConfHoldConfig()
     favored: FavoredConfig = FavoredConfig()
+    score: ScoreConfig = ScoreConfig()
+    exit: ExitExtrasConfig = ExitExtrasConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
 

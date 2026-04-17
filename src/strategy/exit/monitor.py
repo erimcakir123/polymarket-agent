@@ -16,10 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.sport_rules import get_match_duration_hours
+from src.config.sport_rules import get_match_duration_hours, _normalize
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, favored, graduated_sl, near_resolve, scale_out, stop_loss
+from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, score_exit, stop_loss
 
 
 @dataclass
@@ -125,6 +125,7 @@ def evaluate(
     score_info: dict | None = None,
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
+    catastrophic_config: dict | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
@@ -132,6 +133,10 @@ def evaluate(
     """
     score_info = score_info or {}
     elapsed_pct = compute_elapsed_pct(pos)
+    cat_cfg = catastrophic_config or {}
+    cat_trigger = cat_cfg.get("trigger", 0.25)
+    cat_drop = cat_cfg.get("drop_pct", 0.10)
+    cat_cancel = cat_cfg.get("cancel", 0.50)
 
     # 1. Near-resolve — en yüksek öncelik
     if near_resolve.check(pos, near_resolve_threshold_cents, near_resolve_guard_min):
@@ -156,10 +161,37 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
+    # 2.5 Catastrophic watch — tüm sporlar, tüm confidence (K5, SPEC-004)
+    catastrophic_watch.tick(pos, trigger=cat_trigger, cancel=cat_cancel)
+    cat_result = catastrophic_watch.check(pos, trigger=cat_trigger, drop_pct=cat_drop)
+    if cat_result is not None:
+        return MonitorResult(
+            exit_signal=ExitSignal(reason=cat_result.reason, detail=cat_result.detail),
+            fav_transition=_fav_transition(pos),
+            elapsed_pct=elapsed_pct,
+        )
+
     # 3. A-conf hold dalı — flat SL + graduated SL'den MUAF (TDD §6.9)
     # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
     a_hold = a_conf_hold.is_a_conf_hold(pos) or pos.favored
     if a_hold:
+        # 3a. Score-based exit — hockey A-conf only (SPEC-004 K1-K4)
+        if _normalize(pos.sport_tag) == "nhl" and score_info.get("available"):
+            sc_result = score_exit.check(
+                sport_tag=pos.sport_tag,
+                confidence=pos.confidence,
+                score_info=score_info,
+                elapsed_pct=elapsed_pct,
+                current_price=pos.current_price,
+            )
+            if sc_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=sc_result.reason, detail=sc_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3b. Market flip (mevcut — değişmez)
         if elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.MARKET_FLIP, detail="eff < 0.50 at elapsed >= 0.85"),

@@ -63,6 +63,11 @@ class OddsAPIClient:
         merged = dict(params or {})
         return self._cached_get(f"/sports/{sport_key}/odds", merged, ttl=self._current_refresh_sec())
 
+    def get_scores(self, sport_key: str, days_from: int = 1) -> list[dict] | None:
+        """/v4/sports/{key}/scores — canlı skorlar. ~0.3 credit."""
+        params = {"daysFrom": str(days_from)}
+        return self._cached_get(f"/sports/{sport_key}/scores", params, ttl=90)
+
     # ── HTTP + cache ──
 
     def _cached_get(self, endpoint: str, params: dict, ttl: int) -> Any:

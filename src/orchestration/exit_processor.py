@@ -22,9 +22,11 @@ class ExitProcessor:
     def __init__(self, deps) -> None:
         self.deps = deps
 
-    def run_light(self) -> None:
+    def run_light(self, score_map: dict[str, dict] | None = None) -> None:
         """Her pozisyonu cycle-state tick + exit_monitor'dan geçir."""
+        score_map = score_map or {}
         state = self.deps.state
+        cat_cfg = self._catastrophic_config()
         exits_processed = 0
         for cid in list(state.portfolio.positions.keys()):
             pos = state.portfolio.positions.get(cid)
@@ -32,7 +34,10 @@ class ExitProcessor:
                 continue
 
             tick_position_state(pos)
-            result: MonitorResult = exit_monitor.evaluate(pos)
+            score_info = score_map.get(cid, {})
+            result: MonitorResult = exit_monitor.evaluate(
+                pos, score_info=score_info, catastrophic_config=cat_cfg,
+            )
             self._apply_fav_transition(pos, result.fav_transition)
 
             if result.exit_signal is not None:
@@ -41,6 +46,17 @@ class ExitProcessor:
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()
+
+    def _catastrophic_config(self) -> dict:
+        """Config'den catastrophic watch eşiklerini oku."""
+        cfg = getattr(self.deps, "config", None)
+        if cfg and hasattr(cfg, "exit"):
+            return {
+                "trigger": cfg.exit.catastrophic_trigger,
+                "drop_pct": cfg.exit.catastrophic_drop_pct,
+                "cancel": cfg.exit.catastrophic_cancel,
+            }
+        return {}
 
     def _apply_fav_transition(self, pos: Position, transition: FavoredTransition) -> None:
         if transition.promote and not pos.favored:
@@ -60,9 +76,7 @@ class ExitProcessor:
         realized = pos.unrealized_pnl_usdc
 
         self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
-        self.deps.state.circuit_breaker.record_exit(
-            pnl_usd=realized, portfolio_value=self.deps.state.portfolio.bankroll + pos.size_usdc,
-        )
+        self.deps.state.circuit_breaker.record_exit(pnl_usd=realized)
         self.deps.cooldown.record_outcome(win=(realized >= 0))
 
         if self.deps.price_feed is not None:
@@ -99,6 +113,7 @@ class ExitProcessor:
             basis_returned_usdc=basis_returned,
             realized_usdc=realized,
         )
+        self.deps.state.circuit_breaker.record_exit(pnl_usd=realized)
         self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=signal.tier or pos.scale_out_tier,

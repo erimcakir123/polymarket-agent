@@ -32,4 +32,6 @@ class ExitReason(str, Enum):
     HOLD_REVOKED = "hold_revoked"
     ULTRA_LOW_GUARD = "ultra_low_guard"
     CIRCUIT_BREAKER = "circuit_breaker"
+    SCORE_EXIT = "score_exit"
+    CATASTROPHIC_BOUNCE = "catastrophic_bounce"
     MANUAL = "manual"

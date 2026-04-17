@@ -141,6 +141,16 @@ a_conf_hold:
   market_flip_threshold: 0.50
   market_flip_elapsed_gate: 0.85
 
+score:
+  enabled: true
+  poll_interval_sec: 120
+  match_window_hours: 4       # maç saati ± bu süre dışında skor çekilmez
+
+exit:
+  catastrophic_trigger: 0.25
+  catastrophic_drop_pct: 0.10
+  catastrophic_cancel: 0.50
+
 favored:
   promote_eff_price: 0.65
   demote_eff_price: 0.65

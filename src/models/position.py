@@ -71,6 +71,10 @@ class Position(BaseModel):
     # Lossy reentry
     sl_reentry_count: int = 0
 
+    # Catastrophic watch state (SPEC-004 K5)
+    catastrophic_watch: bool = False
+    catastrophic_recovery_peak: float = 0.0
+
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
 

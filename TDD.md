@@ -453,14 +453,33 @@ Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda gen
 **Hold aktifken davranış:**
 | Elapsed | Atlanan kurallar | Aktif kurallar |
 |---|---|---|
-| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11) |
-| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out |
+| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11), **Score exit (hockey only, §6.9a)**, Catastrophic watch (§6.9b) |
+| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out; **Score exit (hockey)**; Catastrophic watch |
+
+#### 6.9a Score-Based Exit (Hockey Only — SPEC-004)
+
+A-conf hold hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkış:
+| Kural | Koşul | Config key |
+|---|---|---|
+| K1 Ağır yenilgi | deficit ≥ `period_exit_deficit` (3) | sport_rules |
+| K2 Geç dezavantaj | deficit ≥ `late_deficit` (2) + elapsed ≥ `late_elapsed_gate` (0.67) | sport_rules |
+| K3 Skor+fiyat | deficit ≥ `late_deficit` (2) + fiyat < `score_price_confirm` (0.35) | sport_rules |
+| K4 Son dakika | deficit ≥ 1 + elapsed ≥ `final_elapsed_gate` (0.92) | sport_rules |
+
+Backtest (9 hockey trade): mevcut -$23.24 → score exit ile +$3.70 (+$26.94 iyileşme). Kazançlara ($76.84) sıfır dokunma.
+
+#### 6.9b Catastrophic Watch (Tüm Sporlar — SPEC-004)
+
+Fiyat < `catastrophic_trigger` (0.25) → watch modu → bounce + ikinci düşüş → çıkış.
+Recovery 0.50+ geçerse iptal (gerçek comeback). Config: `config.yaml → exit` bölümü.
+A-conf hold dahil tüm pozisyonlara uygulanır (universal safety net).
 
 > **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
-> `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out → A-conf
-> hold dalı (market_flip only) → else branch (flat SL + graduated + vs). Flat SL
-> a-conf check'inden ÖNCE konursa A-conf koruması bozulur (regression:
-> Rangers-Lightning 2026-04-15, `test_a_conf_hold_skips_flat_sl`).
+> `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out →
+> catastrophic-watch → A-conf hold dalı (score_exit + market_flip) → else branch
+> (flat SL + graduated + vs). Flat SL a-conf check'inden ÖNCE konursa A-conf
+> koruması bozulur (regression: Rangers-Lightning 2026-04-15,
+> `test_a_conf_hold_skips_flat_sl`).
 
 **Veri dayanağı** (25 A-conf resolved trade analizi):
 | Senaryo | Sonuç |
@@ -562,20 +581,28 @@ Non-favored, non-A-conf-hold pozisyonlar için hold iptali — ciddi fiyat düş
 
 Bankroll koruma — **yalnızca entry halt** eder, exit'i asla durdurmaz.
 
+**NET PnL Takibi:** Günlük/saatlik PnL **USD cinsinden** (kazanç + kayıp net)
+biriktirilir. Kontrol anında güncel `portfolio_value`'ya bölünerek yüzdeye çevrilir.
+Partial exit kârları da dahildir — tüm realized PnL sayılır.
+
+**Neden USD:** Eski yöntemde her exit'te farklı `portfolio_value`'ya bölünüp
+yüzde toplanıyordu — net kârlı günlerde bile circuit breaker tetikleniyordu.
+USD birikimi + anlık yüzde dönüşümü doğru net PnL verir.
+
 **Eşikler:**
 | Parametre | Değer | Etki |
 |---|---|---|
-| Günlük max loss (hard halt) | -8% | Halt + 120 dk cooldown |
-| Saatlik max loss (hard halt) | -5% | Halt + 60 dk cooldown |
+| Günlük max NET loss (hard halt) | -8% | Halt + 120 dk cooldown |
+| Saatlik max NET loss (hard halt) | -5% | Halt + 60 dk cooldown |
 | Ardışık kayıp limiti | 4 trade | Halt + 60 dk cooldown |
 | Günlük entry soft block | -3% | Soft block (entry askıya alınır ama hard halt değil) |
 
-**`should_halt_entries` kontrol sırası:**
+**`should_halt_entries(portfolio_value)` kontrol sırası:**
 1. Cooldown aktif mi? → halt (kalan dk gösterilir)
-2. Günlük loss ≤ -8% → halt 120 dk ("Daily limit hit")
-3. Saatlik loss ≤ -5% → halt 60 dk ("Hourly limit hit")
+2. Günlük NET loss ≤ -8% → halt 120 dk ("Daily limit hit")
+3. Saatlik NET loss ≤ -5% → halt 60 dk ("Hourly limit hit")
 4. Ardışık kayıp ≥ 4 → halt 60 dk ("Consecutive loss limit")
-5. Günlük loss ≤ -3% → soft block ("Soft block (-3%)")
+5. Günlük NET loss ≤ -3% → soft block ("Soft block (-3%)")
 6. Aksi → devam
 
 **Kritik:** Exit kararları breaker'dan asla etkilenmez — zarar artıyorsa SL tetiklenmeli.
@@ -701,7 +728,7 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 |---|---|---|---|
 | NBA | 0.35 | 2.5 | halftime_exit @ -15 pts |
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
-| NHL (AHL/Liiga/...) | 0.30 | 2.5 | period_exit @ -3 goals after P2 |
+| NHL (AHL/Liiga/...) | 0.30 | 2.5 | score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
 | Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | set-based exit |
 | Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |
