@@ -142,6 +142,7 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "sport_tag": t.get("sport_tag", ""),
                 "direction": t.get("direction", ""),
                 "entry_price": t.get("entry_price"),
+                "entry_timestamp": t.get("entry_timestamp", ""),
                 "question": t.get("question", ""),
                 "exit_price": None,
                 "exit_pnl_usdc": pe.get("realized_pnl_usdc", 0.0),

@@ -1,0 +1,203 @@
+/* Trade History Modal — full-screen overlay + weekly trade viewer.
+ * Renk referansları var(--*) ile — hex literal yasak (TDD §5.7.4).
+ */
+
+/* ── Overlay ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.modal-overlay.visible { opacity: 1; }
+
+/* ── Container ── */
+.modal-container {
+  width: 94vw;
+  max-width: 1400px;
+  max-height: 90vh;
+  background: var(--panel);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-close:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
+/* ── Week navigation ── */
+.modal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.modal-nav-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-nav-btn:hover { color: var(--text); background: var(--panel-hover); }
+.modal-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.modal-nav-btn:disabled:hover { color: var(--muted); background: none; }
+.modal-nav-label { font-weight: 600; color: var(--text); }
+
+/* ── Hero metrics ── */
+.modal-hero {
+  display: flex;
+  gap: 12px;
+  padding: 8px 24px 12px;
+}
+.modal-hero-card {
+  flex: 1;
+  background: var(--panel-raised);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  text-align: center;
+}
+.modal-hero-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.modal-hero-label {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Chart area ── */
+.modal-chart-wrap {
+  padding: 0 24px;
+  min-height: 160px;
+  max-height: 200px;
+}
+
+/* ── Trade table ── */
+.modal-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 20px;
+}
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.modal-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.modal-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text);
+}
+.modal-table tr:hover td { background: var(--panel-raised); }
+
+/* ── Reason badge ── */
+.modal-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.modal-reason--green { color: var(--green); background: var(--green-dim); }
+.modal-reason--red   { color: var(--red);   background: var(--red-dim); }
+.modal-reason--orange { color: var(--orange); background: var(--orange-dim); }
+.modal-reason--blue  { color: var(--blue);  background: var(--blue-dim); }
+.modal-reason--muted { color: var(--muted); background: rgba(148,163,184,0.08); }
+
+/* ── Direction badge ── */
+.modal-dir {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.modal-dir--yes { color: var(--green); background: var(--green-dim); }
+.modal-dir--no  { color: var(--red);   background: var(--red-dim); }
+
+/* ── "All" trigger button ── */
+.modal-trigger {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--blue);
+  background: var(--blue-dim);
+  border: none;
+  border-radius: 100px;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.15s;
+}
+.modal-trigger:hover { background: var(--panel-hover); }
+
+/* ── Empty state ── */
+.modal-empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Scrollbar ── */
+.modal-table-wrap::-webkit-scrollbar { width: 6px; }
+.modal-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
