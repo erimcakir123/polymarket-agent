@@ -133,6 +133,10 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
 
     deficit = opp_score - our_score  # pozitif = gerideyiz
     linescores: list = getattr(ms, "linescores", []) or []
+
+    # Direction-aware: our side = home?
+    our_is_home = (pos.direction == "BUY_YES") == a_is_home
+
     return {
         "available": True,
         "our_score": our_score,
@@ -141,6 +145,7 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "period": ms.period,
         "map_diff": -deficit,   # graduated_sl uyumu: pozitif = öndeyiz
         "linescores": linescores,
+        "our_is_home": our_is_home,
     }
 
 

@@ -58,6 +58,11 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "tennis",
         "espn_league": "atp",
+        "set_exit_deficit": 3,
+        "set_exit_games_total": 7,
+        "set_exit_blowout_deficit": 4,
+        "set_exit_close_set_threshold": 5,
+        "set_exit_close_set_buffer": 1,
     },
     "golf": {
         "stop_loss_pct": 0.30,
