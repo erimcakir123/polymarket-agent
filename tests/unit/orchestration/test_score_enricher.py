@@ -1,8 +1,9 @@
-"""Score enricher testleri (SPEC-004 Adım 4)."""
+"""Score enricher testleri (SPEC-005 Task 4 — ESPN primary + Odds API fallback)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore
 from src.models.position import Position
 from src.orchestration.score_enricher import (
@@ -48,6 +49,45 @@ def _ms(
     )
 
 
+def _espn_score(
+    home: str = "New York Rangers",
+    away: str = "Tampa Bay Lightning",
+    h_score: int = 3,
+    a_score: int = 1,
+) -> ESPNMatchScore:
+    return ESPNMatchScore(
+        event_id="e1", home_name=home, away_name=away,
+        home_score=h_score, away_score=a_score,
+        period="2nd", is_completed=False, is_live=True,
+        last_updated="", linescores=[],
+    )
+
+
+# ── Fake clients ──
+
+class _FakeESPN:
+    def __init__(self, scores: list[ESPNMatchScore] | None = None, fail: bool = False) -> None:
+        self.call_count = 0
+        self._scores = scores or []
+        self._fail = fail
+
+    def fetch(self, sport: str, league: str, date: str | None = None) -> list[ESPNMatchScore]:
+        self.call_count += 1
+        if self._fail:
+            return []
+        return self._scores
+
+
+class _FakeClient:
+    def __init__(self, data: list[dict] | None = None) -> None:
+        self.call_count = 0
+        self._data = data
+
+    def get_scores(self, sport_key: str, days_from: int = 1) -> list[dict] | None:
+        self.call_count += 1
+        return self._data
+
+
 # ── team matching ──
 
 def test_team_match_exact() -> None:
@@ -78,7 +118,7 @@ def test_outside_match_window() -> None:
     assert not _is_within_match_window(pos, window_hours=4.0)
 
 
-# ── find_match ──
+# ── find_match (Odds API MatchScore) ──
 
 def test_find_match_by_team_name() -> None:
     pos = _pos(question="Rangers vs. Lightning")
@@ -125,37 +165,99 @@ def test_build_score_info_no_score_yet() -> None:
     assert not info["available"]
 
 
-# ── ScoreEnricher polling ──
-
-class _FakeClient:
-    def __init__(self, data: list[dict] | None = None) -> None:
-        self.call_count = 0
-        self._data = data
-
-    def get_scores(self, sport_key: str, days_from: int = 1) -> list[dict] | None:
-        self.call_count += 1
-        return self._data
-
+# ── ScoreEnricher polling (new constructor) ──
 
 def test_enricher_polls_only_when_due() -> None:
-    client = _FakeClient([])
-    enricher = ScoreEnricher(client, poll_interval_sec=120, match_window_hours=4.0)
+    espn = _FakeESPN([])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=120, poll_critical_sec=120,
+    )
     pos = _pos(hours_ago=1.0)
-    positions = {"c1": pos}
-
-    enricher.get_scores_if_due(positions)
-    assert client.call_count == 1
+    enricher.get_scores_if_due({"c1": pos})
+    assert espn.call_count >= 1
+    old_count = espn.call_count
 
     # 120 sn geçmeden tekrar çağır — API çağrılmamalı
-    enricher.get_scores_if_due(positions)
-    assert client.call_count == 1  # cache'den döner
+    enricher.get_scores_if_due({"c1": pos})
+    assert espn.call_count == old_count
 
 
 def test_enricher_no_live_positions_no_call() -> None:
-    client = _FakeClient([])
-    enricher = ScoreEnricher(client, poll_interval_sec=120, match_window_hours=4.0)
+    espn = _FakeESPN([])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=120, poll_critical_sec=120,
+    )
     pos = _pos(hours_ago=10.0)  # pencere dışı
-    positions = {"c1": pos}
+    enricher.get_scores_if_due({"c1": pos})
+    assert espn.call_count == 0  # API hiç çağrılmadı
 
-    enricher.get_scores_if_due(positions)
-    assert client.call_count == 0  # API hiç çağrılmadı
+
+# ── NEW: ESPN dispatch ──
+
+def test_enricher_uses_espn_for_nhl() -> None:
+    espn = _FakeESPN([_espn_score()])
+    odds = _FakeClient()
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=odds,
+        poll_normal_sec=0, poll_critical_sec=0,
+    )
+    pos = _pos(cid="c1", question="Rangers vs. Lightning", sport_tag="nhl", hours_ago=1.0)
+    result = enricher.get_scores_if_due({"c1": pos})
+    assert espn.call_count >= 1
+    assert odds.call_count == 0
+    assert "c1" in result
+    assert result["c1"]["available"]
+
+
+def test_enricher_falls_back_to_odds_api() -> None:
+    espn = _FakeESPN(fail=True)
+    odds_data = [
+        {
+            "id": "e1",
+            "home_team": "New York Rangers",
+            "away_team": "Tampa Bay Lightning",
+            "scores": [
+                {"name": "New York Rangers", "score": "3"},
+                {"name": "Tampa Bay Lightning", "score": "1"},
+            ],
+            "completed": False,
+            "last_update": "",
+        },
+    ]
+    odds = _FakeClient(data=odds_data)
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=odds,
+        poll_normal_sec=0, poll_critical_sec=0,
+    )
+    pos = _pos(cid="c1", question="Rangers vs. Lightning", sport_tag="nhl", hours_ago=1.0)
+    result = enricher.get_scores_if_due({"c1": pos})
+    assert espn.call_count >= 1
+    assert odds.call_count >= 1
+    assert "c1" in result
+
+
+def test_enricher_tennis_no_fallback() -> None:
+    espn = _FakeESPN(fail=True)
+    odds = _FakeClient()
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=odds,
+        poll_normal_sec=0, poll_critical_sec=0,
+    )
+    pos = _pos(cid="c1", question="Muchova vs. Gauff", sport_tag="tennis", hours_ago=1.0)
+    result = enricher.get_scores_if_due({"c1": pos})
+    assert odds.call_count == 0
+    assert "c1" not in result
+
+
+def test_enricher_adaptif_polling_critical() -> None:
+    espn = _FakeESPN([_espn_score()])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=60, poll_critical_sec=30, critical_price_threshold=0.35,
+    )
+    pos = _pos(cid="c1", sport_tag="nhl", hours_ago=1.0)
+    pos.current_price = 0.20
+    enricher.get_scores_if_due({"c1": pos})
+    assert enricher._poll_sec == 30
