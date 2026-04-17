@@ -13,12 +13,18 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours": 2.5,
         "halftime_exit": True,
         "halftime_exit_deficit": 15,
+        "score_source": "espn",
+        "espn_sport": "basketball",
+        "espn_league": "nba",
     },
     "nfl": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 3.25,
         "halftime_exit": True,
         "halftime_exit_deficit": 14,
+        "score_source": "espn",
+        "espn_sport": "football",
+        "espn_league": "nfl",
     },
     "nhl": {
         "stop_loss_pct": 0.30,
@@ -29,6 +35,9 @@ SPORT_RULES: dict[str, dict] = {
         "late_elapsed_gate": 0.67,
         "score_price_confirm": 0.35,
         "final_elapsed_gate": 0.92,
+        "score_source": "espn",
+        "espn_sport": "hockey",
+        "espn_league": "nhl",
     },
     "mlb": {
         "stop_loss_pct": 0.30,
@@ -36,6 +45,9 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit": True,
         "inning_exit_deficit": 5,
         "inning_exit_after": 6,
+        "score_source": "espn",
+        "espn_sport": "baseball",
+        "espn_league": "mlb",
     },
     "tennis": {
         "stop_loss_pct": 0.35,
@@ -43,11 +55,15 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours_bo3": 1.75,
         "match_duration_hours_bo5": 3.5,
         "set_exit": True,
+        "score_source": "espn",
+        "espn_sport": "tennis",
+        "espn_league": "atp",
     },
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
         "playoff_aware": True,
+        # score_source intentionally absent — ESPN golf scores not available
     },
 }
 

@@ -78,3 +78,28 @@ def test_get_sport_rule_inning_exit_deficit_mlb() -> None:
 
 def test_get_sport_rule_missing_key_returns_default_arg() -> None:
     assert get_sport_rule("nba", "nonexistent_key", default=42) == 42
+
+
+# ── ESPN mapping tests (SPEC-005 Task 2) ──
+
+def test_get_score_source_nhl() -> None:
+    assert get_sport_rule("nhl", "score_source") == "espn"
+
+
+def test_get_espn_mapping_nhl() -> None:
+    assert get_sport_rule("nhl", "espn_sport") == "hockey"
+    assert get_sport_rule("nhl", "espn_league") == "nhl"
+
+
+def test_get_espn_mapping_tennis() -> None:
+    assert get_sport_rule("tennis", "score_source") == "espn"
+    assert get_sport_rule("tennis", "espn_sport") == "tennis"
+    assert get_sport_rule("tennis", "espn_league") == "atp"
+
+
+def test_get_score_source_mlb() -> None:
+    assert get_sport_rule("mlb", "score_source") == "espn"
+
+
+def test_get_score_source_golf_none() -> None:
+    assert get_sport_rule("golf", "score_source") is None
