@@ -68,6 +68,7 @@ _PUSHABLE_REASONS: frozenset[str] = frozenset({
     "max_positions_reached",
     "no_edge",
     "no_bookmaker_data",
+    "circuit_breaker",
 })
 
 
