@@ -138,6 +138,84 @@ def test_a_conf_market_flip_at_late_match() -> None:
     assert r2.exit_signal.reason == ExitReason.MARKET_FLIP
 
 
+def test_tennis_immune_to_market_flip() -> None:
+    """Regression: tennis'te market_flip tetiklenmemeli (set kaybı ≠ maç kaybı).
+    Bug: Fonseca-Shelton, Muchova-Gauff, Fernandez-Sonmez (2026-04-17)
+    elapsed gate geçtikten sonra set kaybında market_flip tetiklendi.
+    Tennis'te set kaybı normal — maç dönebilir, market_flip olmamalı.
+    """
+    # Tennis default duration 2.5h → 2.5h elapsed = %100 → gate kesinlikle geçer
+    # current 0.41 < 0.50 → market_flip koşulları sağlanıyor
+    # AMA tennis'te market_flip OLMAMALI
+    start = datetime.now(timezone.utc) - timedelta(hours=3)
+    p = _pos(
+        confidence="A", entry_price=0.64, current_price=0.41,
+        size_usdc=56, shares=87.5, match_start_iso=_iso(start),
+        sport_tag="tennis",
+    )
+    r = evaluate(p)
+    assert r.exit_signal is None, (
+        f"Tennis'te market_flip tetiklenmemeli (exit={r.exit_signal})"
+    )
+
+
+def test_tennis_immune_to_catastrophic_watch() -> None:
+    """Regression: catastrophic watch sadece NHL — tennis'te çalışmamalı.
+    Bug: SPEC-004 K5 'tüm sporlar' olarak implement edildi, tennis'te
+    bounce+drop pattern'i yanlış exit tetikliyordu.
+    """
+    # Fiyat 0.22 < trigger (0.25) → catastrophic watch aktif
+    # Bounce 0.35 → drop 0.30 (%14 > %10) → normalde CATASTROPHIC_BOUNCE
+    # AMA tennis'te çalışmamalı
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = _pos(
+        confidence="A", entry_price=0.60, current_price=0.22,
+        size_usdc=50, shares=83, match_start_iso=_iso(start),
+        sport_tag="tennis",
+    )
+    cat_cfg = {"trigger": 0.25, "drop_pct": 0.10, "cancel": 0.50}
+    # tick ile watch aktif et
+    r1 = evaluate(p, catastrophic_config=cat_cfg)
+    assert p.catastrophic_watch is False, "Tennis'te catastrophic watch aktif olmamalı"
+
+    # NHL'de aynı senaryo → watch aktif olmalı (kontrol)
+    p2 = _pos(
+        confidence="A", entry_price=0.60, current_price=0.22,
+        size_usdc=50, shares=83, match_start_iso=_iso(start),
+        sport_tag="nhl",
+    )
+    r2 = evaluate(p2, catastrophic_config=cat_cfg)
+    assert p2.catastrophic_watch is True, "NHL'de catastrophic watch aktif olmalı"
+
+
+def test_dead_token_exit_at_near_zero() -> None:
+    """Token 2¢ veya altına düştüyse pozisyon ölü — çık.
+    BUY_NO kaybedince token 0¢'a gider, hiçbir exit tetiklenmiyordu.
+    Regression: Muchova-Gauff 2026-04-17 (A-conf tennis, token 0.1¢, çıkış yok).
+    """
+    start = datetime.now(timezone.utc) - timedelta(hours=2)
+    p = _pos(
+        confidence="A", entry_price=0.68, current_price=0.01,
+        size_usdc=22, shares=32, match_start_iso=_iso(start),
+        sport_tag="tennis", direction="BUY_NO",
+    )
+    r = evaluate(p)
+    assert r.exit_signal is not None, "Token 1¢ → dead, çıkmalı"
+    assert r.exit_signal.reason == ExitReason.NEAR_RESOLVE
+
+
+def test_dead_token_no_false_positive_at_5cents() -> None:
+    """5¢ henüz ölü değil — çıkmamalı (tennis A-conf hold)."""
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    p = _pos(
+        confidence="A", entry_price=0.68, current_price=0.05,
+        size_usdc=22, shares=32, match_start_iso=_iso(start),
+        sport_tag="tennis", direction="BUY_NO",
+    )
+    r = evaluate(p)
+    assert r.exit_signal is None, "5¢ henüz ölü değil"
+
+
 # ── Graduated SL (non-A-hold) ──
 
 def test_graduated_sl_triggers_late_match() -> None:
@@ -226,4 +304,46 @@ def test_no_exit_when_position_calm() -> None:
     # shares entry_price ile tutarlı: 40/0.50=80. pnl +4% → hiç tetiklenme
     p = _pos(entry_price=0.50, current_price=0.52, size_usdc=40, shares=80, confidence="B")
     r = evaluate(p)
+    assert r.exit_signal is None
+
+
+def test_tennis_score_exit_t1_in_monitor() -> None:
+    """Tennis T1 score exit monitor.py'den tetiklenir."""
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    p = _pos(
+        confidence="A", entry_price=0.64, current_price=0.25,
+        size_usdc=56, shares=87, match_start_iso=_iso(start),
+        sport_tag="tennis",
+    )
+    score_info = {
+        "available": True,
+        "our_score": 0, "opp_score": 1,
+        "deficit": 1, "period": "In Progress",
+        "map_diff": -1,
+        "linescores": [[3, 6], [2, 5]],
+        "our_is_home": True,
+    }
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+    assert "T1" in r.exit_signal.detail
+
+
+def test_tennis_score_no_exit_when_winning() -> None:
+    """Tennis 1-0 set + öndeyiz → exit yok."""
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    p = _pos(
+        confidence="A", entry_price=0.64, current_price=0.75,
+        size_usdc=56, shares=87, match_start_iso=_iso(start),
+        sport_tag="tennis",
+    )
+    score_info = {
+        "available": True,
+        "our_score": 1, "opp_score": 0,
+        "deficit": -1, "period": "In Progress",
+        "map_diff": 1,
+        "linescores": [[6, 3], [4, 2]],
+        "our_is_home": True,
+    }
+    r = evaluate(p, score_info=score_info)
     assert r.exit_signal is None
