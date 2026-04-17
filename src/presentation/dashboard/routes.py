@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 from src.config.settings import AppConfig
 from src.presentation.dashboard import computed, readers
@@ -92,3 +92,16 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_sport_roi():
         trades = readers.read_trades(logs_dir, n=5000)
         return jsonify(computed.sport_roi_treemap(trades))
+
+    @app.route("/api/trades/history")
+    def api_trades_history():
+        offset = request.args.get("week_offset", 0, type=int)
+        raw, label, has_older = readers.read_trades_by_week(logs_dir, offset)
+        events = computed.exit_events(raw)
+        return jsonify({
+            "trades": events,
+            "week_label": label,
+            "week_offset": offset,
+            "has_older": has_older,
+            "total_in_week": len(events),
+        })
