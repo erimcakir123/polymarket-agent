@@ -131,9 +131,9 @@
             ticks: { color: C.axisLabel || "rgba(148,163,184,0.5)",
               font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
           y: { display: true, grid: { color: C.gridLine || "rgba(148,163,184,0.06)" },
-            ticks: { display: false, maxTicksLimit: 5, padding: 8 },
-            afterFit: (s) => { s.width = 0; },
-            grace: "10%" },
+            suggestedMin: -75, suggestedMax: 75,
+            ticks: { display: false, stepSize: 25 },
+            afterFit: (s) => { s.width = 0; } },
         },
       },
       plugins: [{
