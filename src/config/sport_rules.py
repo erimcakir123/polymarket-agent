@@ -45,6 +45,8 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit": True,
         "inning_exit_deficit": 5,
         "inning_exit_after": 6,
+        "comeback_thresholds": {3: 6, 5: 5, 7: 4, 8: 3, 9: 2},
+        "extra_inning_threshold": 1,
         "score_source": "espn",
         "espn_sport": "baseball",
         "espn_league": "mlb",
