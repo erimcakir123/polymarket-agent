@@ -227,6 +227,46 @@ Her PLAN adımında:
 
 ---
 
+## Trade Silme / Düzeltme Protokolü
+
+Kullanıcı "bu trade'i sil" veya "şu trade'de X olsaydı, onu yansıt" dediğinde
+aşağıdaki dosyaların **HEPSİ** güncellenir. Eksik dosya = veri tutarsızlığı.
+
+### Etkilenen Dosyalar
+
+| # | Dosya | Ne yapılır |
+|---|---|---|
+| 1 | `logs/positions.json` | Açık pozisyonsa sil. `realized_pnl`'i trade PnL kadar düzelt. |
+| 2 | `logs/trade_history.jsonl` | İlgili satırı sil (slug + entry_timestamp). |
+| 3 | `logs/equity_history.jsonl` | entry_timestamp sonrası TÜM snapshot'larda realized_pnl düzelt. |
+| 4 | `logs/positions.json` → `high_water_mark` | Düzeltilmiş snapshot'lardan yeniden hesapla. |
+| 5 | `logs/circuit_breaker_state.json` | Trade PnL'i günlük/saatlik toplamdan çıkar. |
+| 6 | `logs/bot.log` | DEĞİŞTİRME (audit trail). |
+
+### İşlem Türleri
+
+**Tam Silme** ("hiç olmamış gibi"):
+1. trade_history.jsonl'den sil
+2. positions.json'dan sil (açıksa) + realized_pnl düzelt
+3. equity_history.jsonl retroaktif düzelt
+4. HWM yeniden hesapla
+5. circuit_breaker_state güncelle
+
+**What-If Düzeltme** ("SL tetiklenseydi"):
+1. trade_history.jsonl'de exit_price/exit_pnl_usdc güncelle
+2. delta = yeni_pnl - eski_pnl
+3. positions.json realized_pnl'e delta ekle
+4. equity_history.jsonl'de exit_timestamp sonrası düzelt
+5. HWM yeniden hesapla
+
+### Doğrulama (her işlem sonrası)
+
+1. `SUM(trade_history exit_pnl + partial_pnl) == positions.json realized_pnl`
+2. Silinen trade'in slug'ı hiçbir JSON'da kalmamalı (bot.log hariç)
+3. equity_history son snapshot ile positions.json uyumlu olmalı
+
+---
+
 ## Restart Protokolü
 
 Kullanıcı "restart" dediğinde **her seferinde** sor: **Reload mu Reboot mu?**
