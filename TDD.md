@@ -272,6 +272,34 @@ Lokasyon:
 - `static/js/dashboard.js::CHARTS.setEquity(trades, initialBankroll)`
 - `static/js/chart_tabs.js` — `stickyScrollRight`, `externalYAxis` Chart.js plugin'leri
 
+### 5.8 Restart Protokolleri
+
+İki mod. Her ikisi de bot (`src.main`) + dashboard (`src.presentation.dashboard.app`) kapsar.
+
+#### Reload (veri korunur)
+
+1. Bot + Dashboard PID bul → `taskkill`
+2. `process.lock` sil
+3. `pytest -q` → FAIL varsa **DURDUR**
+4. `python -m src.main --mode dry_run &`
+5. `python -m src.presentation.dashboard.app &`
+6. `bot_status.json` kontrol + dashboard erişim doğrula
+
+Korunan dosyalar: `positions.json`, `trade_history.jsonl`, `circuit_breaker_state.json`, `stock_queue.json`, `equity_history.jsonl`, `skipped_trades.jsonl`.
+
+#### Reboot (tam sıfırlama)
+
+**Onay zorunlu.** Kullanıcıya uyarı göster: açık pozisyonlar silinecek, trade geçmişi arşivlenecek, circuit breaker sıfırlanacak. Geri alınamaz.
+
+1. Bot + Dashboard PID bul → `taskkill`
+2. `process.lock` sil
+3. Arşivle: `trade_history.jsonl` → `.bak` (timestamp'li), `equity_history.jsonl` → `.bak`
+4. Sıfırla: `positions.json` → `{"positions":{}, "realized_pnl":0.0, "high_water_mark":0.0}`, `circuit_breaker_state.json` / `stock_queue.json` / `skipped_trades.jsonl` sil
+5. `pytest -q` → FAIL varsa **DURDUR**
+6. `python -m src.main --mode dry_run &`
+7. `python -m src.presentation.dashboard.app &`
+8. Doğrula
+
 ---
 
 

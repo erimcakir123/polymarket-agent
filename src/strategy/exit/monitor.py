@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from src.config.sport_rules import get_match_duration_hours, _normalize
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, score_exit, stop_loss
+from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, score_exit, stop_loss, tennis_exit
 
 
 @dataclass
@@ -161,15 +161,17 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
-    # 2.5 Catastrophic watch — tüm sporlar, tüm confidence (K5, SPEC-004)
-    catastrophic_watch.tick(pos, trigger=cat_trigger, cancel=cat_cancel)
-    cat_result = catastrophic_watch.check(pos, trigger=cat_trigger, drop_pct=cat_drop)
-    if cat_result is not None:
-        return MonitorResult(
-            exit_signal=ExitSignal(reason=cat_result.reason, detail=cat_result.detail),
-            fav_transition=_fav_transition(pos),
-            elapsed_pct=elapsed_pct,
-        )
+    # 2.5 Catastrophic watch — sadece NHL (SPEC-004 K5)
+    # Tennis'te set kaybı fiyatı düşürür ama maç dönebilir → false positive.
+    if _normalize(pos.sport_tag) == "nhl":
+        catastrophic_watch.tick(pos, trigger=cat_trigger, cancel=cat_cancel)
+        cat_result = catastrophic_watch.check(pos, trigger=cat_trigger, drop_pct=cat_drop)
+        if cat_result is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=cat_result.reason, detail=cat_result.detail),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     # 3. A-conf hold dalı — flat SL + graduated SL'den MUAF (TDD §6.9)
     # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
@@ -191,8 +193,22 @@ def evaluate(
                     elapsed_pct=elapsed_pct,
                 )
 
-        # 3b. Market flip (mevcut — değişmez)
-        if elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
+        # 3a-tennis. Score-based exit — tennis (SPEC-006 T1/T2)
+        if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
+            t_result = tennis_exit.check(
+                score_info=score_info,
+                current_price=pos.current_price,
+                sport_tag=pos.sport_tag,
+            )
+            if t_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=t_result.reason, detail=t_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3b. Market flip — tennis hariç (set kaybı ≠ maç kaybı, dönebilir)
+        if _normalize(pos.sport_tag) != "tennis" and elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.MARKET_FLIP, detail="eff < 0.50 at elapsed >= 0.85"),
                 fav_transition=_fav_transition(pos),

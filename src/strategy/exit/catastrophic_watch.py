@@ -1,6 +1,6 @@
 """Catastrophic watch — dead cat bounce detector (SPEC-004 K5).
 
-Tüm sporlar ve tüm confidence seviyeleri için geçerli (universal safety net).
+Sadece NHL pozisyonları için aktif (monitor.py sport gate uygular).
 Pure fonksiyon: I/O yok.
 Eşikler config'den okunur (ExitExtrasConfig).
 

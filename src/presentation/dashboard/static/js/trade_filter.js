@@ -98,9 +98,40 @@
     return "";
   }
 
+  // PnL bar chart bucketing — resolution'a göre trade'leri gruplar, her bucket net PnL.
+  // Input: trades DESC-sorted. Output: [{timestamp, pnl, count}] chronological.
+  function pnlByResolution(trades, resolution) {
+    const chron = [...(trades || [])].reverse();
+    if (resolution === "event") {
+      return chron.map((t) => ({
+        timestamp: t.exit_timestamp,
+        pnl: Number(t.exit_pnl_usdc || 0),
+        count: 1,
+      }));
+    }
+    const byKey = new Map();
+    for (const t of chron) {
+      const key = _bucketKey(t.exit_timestamp, resolution);
+      if (!key) continue;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.pnl += Number(t.exit_pnl_usdc || 0);
+        existing.count += 1;
+      } else {
+        byKey.set(key, {
+          timestamp: t.exit_timestamp,
+          pnl: Number(t.exit_pnl_usdc || 0),
+          count: 1,
+        });
+      }
+    }
+    return Array.from(byKey.values());
+  }
+
   global.FILTER = {
     filterByPeriod,
     cumulativeByResolution,
+    pnlByResolution,
     periodSum,
     periodLabel,
     RESOLUTION_BY_PERIOD,

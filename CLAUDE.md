@@ -224,3 +224,13 @@ Her PLAN adımında:
 - [ ] Sessiz hata yutma (bare except: pass)
 - [ ] Scope creep (istenmeyeni ekleme)
 - [ ] Eski projeden kod kopyalama (referans okunur, taze yazılır)
+
+---
+
+## Restart Protokolü
+
+Kullanıcı "restart" dediğinde **her seferinde** sor: **Reload mu Reboot mu?**
+- **Reload**: Kod güncellenir, veri korunur
+- **Reboot**: Her şey sıfırlanır — **onay zorunlu** (uyarı mesajı göster)
+
+Her ikisi de bot + dashboard'u kapsar. Adımlar: TDD §5.8.

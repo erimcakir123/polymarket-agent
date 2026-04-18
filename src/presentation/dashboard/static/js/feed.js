@@ -70,12 +70,7 @@
       if (isNaN(start)) return "";
       const diff = start - Date.now();
       if (diff <= 0) {
-        // Sadece API match_live=true ise LIVE göster; aksi halde Gamma
-        // turnuva saati vermiş olabilir — yanlış LIVE önlenir.
-        if (matchLive) {
-          return `<span class="feed-countdown live">LIVE</span>`;
-        }
-        return `<span class="feed-countdown">Started</span>`;
+        return `<span class="feed-countdown live">LIVE</span>`;
       }
       const mins = Math.floor(diff / MS_PER_MIN);
       const hours = Math.floor(mins / 60);

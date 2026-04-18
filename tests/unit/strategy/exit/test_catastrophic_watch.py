@@ -83,9 +83,13 @@ def test_catastrophic_watch_no_bounce_no_exit() -> None:
     assert sig is None
 
 
-# ── Tüm sporlar ──
+# ── Sport gating monitor.py'de — tick/check pure, sport-agnostic ──
 
-def test_catastrophic_watch_all_sports() -> None:
+def test_catastrophic_watch_pure_functions_sport_agnostic() -> None:
+    """tick/check pure fonksiyonlar, sport filtresi yok.
+    Sport gating monitor.py evaluate() içinde yapılır (sadece NHL).
+    """
     pos = _make(price=0.22, sport="mlb")
     tick(pos, trigger=_TRIGGER, cancel=_CANCEL)
-    assert pos.catastrophic_watch is True  # mlb'de de çalışır
+    # Pure fonksiyon sport bakmaz — monitor.py NHL filtresi uygular
+    assert pos.catastrophic_watch is True

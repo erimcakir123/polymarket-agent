@@ -67,22 +67,21 @@ class ExitProcessor:
             logger.info("FAV DEMOTED: %s", pos.slug[:40])
 
     def _execute_exit(self, pos: Position, signal: ExitSignal) -> None:
-        """Exit sinyalini execute et — full veya partial."""
+        """Exit sinyalini execute et — full veya partial.
+
+        Operasyon sırası: trade_logger (disk) → portfolio mutation (in-memory).
+        Crash durumunda trade_history güncellenmişse orphan oluşmaz;
+        pozisyon hâlâ portfolio'daysa sonraki cycle tekrar exit tetikler.
+        """
         if signal.partial:
             self._execute_partial_exit(pos, signal)
             return
 
         self.deps.executor.exit_position(pos, reason=signal.reason.value)
         realized = pos.unrealized_pnl_usdc
-
-        self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
-        self.deps.state.circuit_breaker.record_exit(pnl_usd=realized)
-        self.deps.cooldown.record_outcome(win=(realized >= 0))
-
-        if self.deps.price_feed is not None:
-            self.deps.price_feed.unsubscribe([pos.token_id])
-
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
+
+        # 1. Disk — trade_logger ÖNCE (crash-safe sıralama)
         self.deps.trade_logger.update_on_exit(pos.condition_id, {
             "exit_price": pos.current_price,
             "exit_reason": signal.reason.value,
@@ -91,12 +90,21 @@ class ExitProcessor:
             "exit_timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+        # 2. In-memory — portfolio mutation SONRA
+        self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
+        self.deps.state.circuit_breaker.record_exit(pnl_usd=realized)
+        self.deps.cooldown.record_outcome(win=(realized >= 0))
+
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.unsubscribe([pos.token_id])
+
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
 
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
         """Scale-out partial exit.
 
+        Operasyon sırası: hesapla → trade_logger (disk) → pos/portfolio mutation.
         Basis payı (`old_size × sell_pct`) pozisyon küçültülmeden ÖNCE yakalanır
         ve bankroll'a geri kredilenir — identity `bankroll + invested = initial +
         realized_pnl` korunur (TDD §5.7.7).
@@ -104,9 +112,21 @@ class ExitProcessor:
         shares_to_sell = pos.shares * signal.sell_pct
         realized = pos.unrealized_pnl_usdc * signal.sell_pct
         basis_returned = pos.size_usdc * signal.sell_pct
+        tier = signal.tier or pos.scale_out_tier
+
+        # 1. Disk — trade_logger ÖNCE (crash-safe sıralama)
+        self.deps.trade_logger.log_partial_exit(
+            condition_id=pos.condition_id,
+            tier=tier,
+            sell_pct=signal.sell_pct,
+            realized_pnl_usdc=realized,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+
+        # 2. In-memory — pos + portfolio mutation SONRA
         pos.shares -= shares_to_sell
         pos.size_usdc *= (1 - signal.sell_pct)
-        pos.scale_out_tier = signal.tier or pos.scale_out_tier
+        pos.scale_out_tier = tier
         pos.scale_out_realized_usdc += realized
         self.deps.state.portfolio.apply_partial_exit(
             pos.condition_id,
@@ -114,13 +134,6 @@ class ExitProcessor:
             realized_usdc=realized,
         )
         self.deps.state.circuit_breaker.record_exit(pnl_usd=realized)
-        self.deps.trade_logger.log_partial_exit(
-            condition_id=pos.condition_id,
-            tier=signal.tier or pos.scale_out_tier,
-            sell_pct=signal.sell_pct,
-            realized_pnl_usdc=realized,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
         logger.info(
             "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
             pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,

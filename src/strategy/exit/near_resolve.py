@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from src.models.position import Position
 
 DEFAULT_THRESHOLD_CENTS = 94
+DEFAULT_DEAD_TOKEN_CENTS = 2  # Token ≤2¢ → ölü, maç fiilen bitti (kayıp tarafı)
 DEFAULT_PRE_MATCH_GUARD_MIN = 10  # İlk 10dk'da 94¢ = WS spike (MVP sporlarında imkansız)
 
 
@@ -27,6 +28,12 @@ def check(
     """
     # current_price zaten token-native (owned side). effective_price UYGULANMAZ.
     threshold = threshold_cents / 100.0
+    dead_threshold = DEFAULT_DEAD_TOKEN_CENTS / 100.0
+
+    # Dead token: ≤2¢ → maç fiilen bitti, token ölü (kayıp tarafı resolve)
+    if pos.current_price <= dead_threshold:
+        return True
+
     if pos.current_price < threshold:
         return False
 
