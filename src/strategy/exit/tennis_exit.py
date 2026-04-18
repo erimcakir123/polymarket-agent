@@ -63,9 +63,17 @@ def check(
     blowout_deficit = int(get_sport_rule(sport_tag, "set_exit_blowout_deficit", 4))
     close_threshold = int(get_sport_rule(sport_tag, "set_exit_close_set_threshold", 5))
     close_buffer = int(get_sport_rule(sport_tag, "set_exit_close_set_buffer", 1))
+    sfm_games = int(get_sport_rule(sport_tag, "set_exit_serve_for_match_games", 5))
 
     # T1 — Straight set loss (0-1 + current set bad)
     if sets_won == 0 and sets_lost == 1:
+        # Serve-for-match: rakip seti/maçı bitirmeye yakın
+        if current_opp >= sfm_games:
+            return TennisExitResult(
+                reason=ExitReason.SCORE_EXIT,
+                detail=f"T1-SFM: sets=0-1 game={current_our}-{current_opp}",
+            )
+
         effective_deficit = exit_deficit
         if _was_close_set(completed[0], close_threshold):
             effective_deficit += close_buffer
@@ -78,6 +86,13 @@ def check(
 
     # T2 — Decider set loss (1-1 + 3rd set bad)
     if sets_won == 1 and sets_lost == 1:
+        # Serve-for-match: rakip maçı bitirmeye yakın
+        if current_opp >= sfm_games:
+            return TennisExitResult(
+                reason=ExitReason.SCORE_EXIT,
+                detail=f"T2-SFM: sets=1-1 game={current_our}-{current_opp}",
+            )
+
         if _should_exit(deficit, games_total, exit_deficit, exit_games_total, blowout_deficit):
             return TennisExitResult(
                 reason=ExitReason.SCORE_EXIT,

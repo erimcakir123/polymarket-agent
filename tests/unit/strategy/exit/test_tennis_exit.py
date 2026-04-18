@@ -46,10 +46,11 @@ def test_t1_deficit_4_any_total() -> None:
 
 
 def test_t1_close_set_buffer() -> None:
-    """1. set 6-7 tiebreak + 2. set 2-5 → HOLD (close set buffer: 3→4)."""
+    """1. set 6-7 tiebreak + 2. set 2-5 → EXIT (SFM overrides buffer: opp=5)."""
     info = _info(linescores=[[6, 7], [2, 5]], our_is_home=True)
     result = check(info, current_price=0.30, sport_tag="tennis")
-    assert result is None
+    assert result is not None
+    assert "T1-SFM" in result.detail
 
 
 def test_t1_blowout_no_buffer() -> None:
@@ -70,11 +71,12 @@ def test_t2_decider_2_5() -> None:
     assert "T2" in result.detail
 
 
-def test_t2_decider_deficit_2_hold() -> None:
-    """1-1 set + 3. sette 3-5 (deficit 2) → HOLD."""
+def test_t2_decider_deficit_2_sfm_exits() -> None:
+    """1-1 set + 3. sette 3-5 (deficit 2, opp=5) → EXIT (SFM)."""
     info = _info(linescores=[[6, 3], [4, 6], [3, 5]], our_is_home=True)
     result = check(info, current_price=0.30, sport_tag="tennis")
-    assert result is None
+    assert result is not None
+    assert "T2-SFM" in result.detail
 
 
 # ── Edge cases ──
