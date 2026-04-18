@@ -120,6 +120,7 @@
   align-items: center;
   gap: 0;
   padding: 0 24px 0;
+  margin-bottom: 16px;
   border-bottom: 1px solid var(--border-soft);
 }
 .modal-view-tab {
@@ -157,12 +158,12 @@
   height: 100%;
 }
 .modal-chart-yaxis {
-  flex: 0 0 56px;
+  flex: 0 0 52px;
   position: relative;
   background: var(--panel);
   z-index: 2;
   pointer-events: none;
-  padding-right: 8px;
+  margin-right: 12px;
 }
 .modal-chart-wrap {
   flex: 1 1 auto;
