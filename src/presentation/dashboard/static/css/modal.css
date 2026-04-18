@@ -161,6 +161,8 @@
   border-bottom: 1px solid var(--border-soft);
   color: var(--text);
 }
+.modal-table td.pnl-pos { color: var(--green); }
+.modal-table td.pnl-neg { color: var(--red); }
 .modal-table tr:hover td { background: var(--panel-raised); }
 
 /* ── Reason badge ── */

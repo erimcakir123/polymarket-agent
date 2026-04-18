@@ -137,10 +137,14 @@
     _chart.data.datasets[0].backgroundColor = bg;
     _chart.data.datasets[0].hoverBackgroundColor = bg;
     _chart.data.datasets[0]._tooltips = tooltips;
-    // Scrollable width — min 14px per bar, like main dashboard PnL chart.
-    const minPx = 14;
+    // Scrollable: fixed min-width per bar (like main dashboard 30d chart).
+    // Chart fills with trades; excess scrolls right.
+    const barMinPx = 14;
     const inner = _chart.canvas.parentElement;
-    if (inner) inner.style.width = Math.max(chron.length * minPx, inner.parentElement.clientWidth) + "px";
+    if (inner) {
+      const containerW = inner.parentElement ? inner.parentElement.clientWidth : 800;
+      inner.style.width = Math.max(chron.length * barMinPx, containerW) + "px";
+    }
     _chart.update("none");
     _chart.resize();
   }
