@@ -65,7 +65,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 6px 24px;
+  padding: 4px 24px;
   font-size: 13px;
 }
 .modal-nav-btn {
@@ -96,18 +96,18 @@
 /* ── Hero metrics ── */
 .modal-hero {
   display: flex;
-  gap: 20px;
-  padding: 2px 24px 6px;
+  gap: 16px;
+  padding: 0 24px 4px;
   justify-content: center;
 }
 .modal-hero-card {
-  flex: 0 1 160px;
+  flex: 0 1 140px;
   background: none;
-  padding: 4px 0;
+  padding: 2px 0;
   text-align: center;
 }
 .modal-hero-value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -154,11 +154,23 @@
   flex-direction: column;
 }
 
-/* ── Chart area (scrollable like main dashboard charts) ── */
-.modal-chart-wrap {
-  padding: 0 24px 0 0;
+/* ── Chart row: sticky y-axis + scrollable chart ── */
+.modal-chart-row {
+  display: flex;
   flex: 1;
   min-height: 0;
+  height: 100%;
+}
+.modal-chart-yaxis {
+  flex: 0 0 48px;
+  position: relative;
+  background: var(--panel);
+  z-index: 2;
+  pointer-events: none;
+}
+.modal-chart-wrap {
+  flex: 1 1 auto;
+  padding: 0 16px 0 0;
   overflow-x: auto;
   overflow-y: hidden;
 }

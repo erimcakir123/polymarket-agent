@@ -55,7 +55,10 @@
           <button class="modal-view-tab" data-view="list">List</button>
         </div>
         <div class="modal-view" id="modal-view-chart">
-          <div class="modal-chart-wrap"><div class="modal-chart-inner"><canvas id="modal-chart"></canvas></div></div>
+          <div class="modal-chart-row">
+            <div class="modal-chart-yaxis" id="modal-chart-yaxis"></div>
+            <div class="modal-chart-wrap"><div class="modal-chart-inner"><canvas id="modal-chart"></canvas></div></div>
+          </div>
         </div>
         <div class="modal-view" id="modal-view-list" style="display:none">
           <div class="modal-table-wrap" id="modal-table-wrap"></div>
@@ -90,13 +93,21 @@
     return ov;
   }
 
+  // Dollar format for y-axis ticks
+  const _fmtDollar = (v) => {
+    const abs = Math.abs(v);
+    const body = abs >= 1000 ? (abs / 1000).toFixed(2) + "k" : abs.toFixed(0);
+    return (v < 0 ? "-" : "") + "$" + body;
+  };
+
   function _initChart() {
     const C = global.COLORS || {};
     const ctx = document.getElementById("modal-chart").getContext("2d");
     return new Chart(ctx, {
       type: "bar",
       data: { labels: [], datasets: [{ data: [], backgroundColor: [],
-        borderRadius: 4, borderSkipped: false, maxBarThickness: 28 }] },
+        borderRadius: 4, borderSkipped: false, maxBarThickness: 22,
+        categoryPercentage: 0.6, barPercentage: 0.7 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
@@ -121,10 +132,22 @@
             ticks: { color: C.axisLabel || "rgba(148,163,184,0.5)",
               font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
           y: { display: true, grid: { color: C.gridLine || "rgba(148,163,184,0.06)" },
-            ticks: { color: C.axisLabel || "rgba(148,163,184,0.5)",
-              font: { size: 10 }, callback: (v) => "$" + v } },
+            ticks: { display: false },
+            afterFit: (s) => { s.width = 0; } },
         },
       },
+      plugins: [{
+        id: "modalYAxis",
+        afterUpdate(chart) {
+          const target = document.getElementById("modal-chart-yaxis");
+          const yScale = chart.scales && chart.scales.y;
+          if (!target || !yScale || !yScale.ticks) return;
+          target.innerHTML = yScale.ticks.map((t) => {
+            const y = yScale.getPixelForValue(t.value);
+            return `<div class="chart-y-tick" style="top:${y}px">${_fmtDollar(t.value)}</div>`;
+          }).join("");
+        },
+      }],
     });
   }
 
