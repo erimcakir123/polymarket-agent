@@ -70,6 +70,8 @@ def bootstrap(config: AppConfig, logs_dir: Path | str = "logs") -> RuntimeState:
     # Reconcile realized PnL — trade_history.jsonl ground truth (crash recovery)
     trade_logger = TradeHistoryLogger(str(logs / "trade_history.jsonl"))
     _reconcile_realized_pnl(portfolio, trade_logger, config.initial_bankroll)
+    # Reconciliation sonrası hemen persist — düzeltilmiş değer diske yazılsın
+    positions_store.save(portfolio_snapshot.to_dict(portfolio))
 
     logger.info(
         "Bootstrap complete: mode=%s bankroll=$%.2f positions=%d realized=$%.2f "
