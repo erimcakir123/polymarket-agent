@@ -27,6 +27,7 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
             mode=config.mode.value,
             initial_bankroll=config.initial_bankroll,
             max_positions=config.risk.max_positions,
+            big_win_roi_pct=config.dashboard.big_win_roi_pct,
         )
 
     @app.route("/api/status")

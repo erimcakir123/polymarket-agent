@@ -26,8 +26,31 @@
     },
 
     update({ active, exited, skipped, stock }) {
+      this._detectNewExits(exited);
       this.state.data = { active, exited, skipped, stock };
       this.render();
+    },
+
+    _prevExitIds: new Set(),
+
+    _detectNewExits(exited) {
+      if (!exited || !exited.length) return;
+      const currentIds = new Set(exited.map((t) => t.condition_id + "|" + (t.exit_timestamp || "")));
+      if (this._prevExitIds.size === 0) {
+        // İlk yükleme — ses çalma
+        this._prevExitIds = currentIds;
+        return;
+      }
+      for (const t of exited) {
+        const key = t.condition_id + "|" + (t.exit_timestamp || "");
+        if (!this._prevExitIds.has(key) && typeof SOUNDS !== "undefined") {
+          const pnl = Number(t.exit_pnl_usdc || 0);
+          const size = Number(t.size_usdc || 1);
+          SOUNDS.playExit(pnl, size);
+          break; // Aynı anda birden fazla ses çalmayı önle
+        }
+      }
+      this._prevExitIds = currentIds;
     },
 
     render() {

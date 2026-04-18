@@ -173,6 +173,7 @@ class DashboardConfig(BaseModel):
     enabled: bool = True
     host: str = "127.0.0.1"
     port: int = 5050
+    big_win_roi_pct: float = 30.0
 
 
 class TelegramConfig(BaseModel):
