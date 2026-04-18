@@ -13,6 +13,7 @@
   const REASON_MAP = {
     tp_hit:              { emoji: "\uD83C\uDFAF", label: "Take Profit", color: "green" },
     sl_hit:              { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
+    stop_loss:           { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
     graduated_sl:        { emoji: "\uD83D\uDED1", label: "Grad. SL",    color: "red" },
     scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "green" },
     scale_out_tier_2:    { emoji: "\uD83D\uDCCA", label: "Scale T2",    color: "green" },
@@ -39,15 +40,13 @@
     ov.innerHTML = `
       <div class="modal-container">
         <div class="modal-header">
+          <div class="modal-header-spacer"></div>
           <h2>Trade History</h2>
           <button class="modal-close" id="modal-close">&times;</button>
         </div>
         <div class="modal-nav">
           <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
-          <div class="modal-nav-center">
-            <span class="modal-nav-label" id="modal-week-label">--</span>
-            <span class="modal-nav-year" id="modal-week-year"></span>
-          </div>
+          <span class="modal-nav-label" id="modal-week-label">--</span>
           <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
         </div>
         <div class="modal-hero" id="modal-hero"></div>
@@ -246,17 +245,13 @@
       const r = await fetch("/api/trades/history?week_offset=" + _offset + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
-      // Split label "13 - 19 Apr 2026" → top: "13 - 19 Apr", bottom: "2026"
-      const lbl = data.week_label || "";
-      const yearMatch = lbl.match(/(\d{4})$/);
-      const dayMonth = yearMatch ? lbl.slice(0, -yearMatch[1].length).trim() : lbl;
-      const year = yearMatch ? yearMatch[1] : "";
-      document.getElementById("modal-week-label").textContent = dayMonth;
-      document.getElementById("modal-week-year").textContent = year;
+      document.getElementById("modal-week-label").textContent = data.week_label || "--";
       // ◄ hidden when no older trades exist
       document.getElementById("modal-prev").style.visibility = data.has_older ? "visible" : "hidden";
+      // ► always visible; disabled (opacity 40%) at current week
       const nextBtn = document.getElementById("modal-next");
-      nextBtn.style.visibility = _offset === 0 ? "hidden" : "visible";
+      nextBtn.disabled = _offset === 0;
+      nextBtn.style.visibility = "visible";
       _renderHero(data.trades);
       // Always render both — visible view depends on active tab.
       _renderChart(data.trades);
