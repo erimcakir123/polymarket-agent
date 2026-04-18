@@ -157,11 +157,12 @@
   height: 100%;
 }
 .modal-chart-yaxis {
-  flex: 0 0 48px;
+  flex: 0 0 56px;
   position: relative;
   background: var(--panel);
   z-index: 2;
   pointer-events: none;
+  padding-right: 8px;
 }
 .modal-chart-wrap {
   flex: 1 1 auto;
