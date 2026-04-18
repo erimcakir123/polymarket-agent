@@ -14,7 +14,7 @@ Iş mantığı YOK — sadece "hangi sırada" koordinasyonu.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
@@ -23,7 +23,10 @@ from src.domain.portfolio.exposure import available_under_cap
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
-from src.domain.risk.position_sizer import POLYMARKET_MIN_ORDER_USDC, confidence_position_size
+from src.domain.risk.position_sizer import (
+    POLYMARKET_MIN_ORDER_USDC,
+    confidence_position_size,
+)
 from src.models.market import MarketData
 from src.models.position import effective_price
 from src.models.signal import Signal
@@ -44,7 +47,7 @@ class GateConfig:
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015
-    max_single_bet_usdc: float = 75.0
+    confidence_bet_pct: dict[str, float] = field(default_factory=lambda: {"A": 0.05, "B": 0.04})
     max_bet_pct: float = 0.05
     max_entry_price: float = 0.88
     # Consensus
@@ -172,7 +175,7 @@ class EntryGate:
         raw_size = confidence_position_size(
             confidence=signal.confidence,
             bankroll=self.portfolio.bankroll,
-            max_bet_usdc=self.config.max_single_bet_usdc,
+            confidence_bet_pct=self.config.confidence_bet_pct,
             max_bet_pct=self.config.max_bet_pct,
         )
 

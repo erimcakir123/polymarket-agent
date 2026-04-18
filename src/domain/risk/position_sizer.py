@@ -1,15 +1,9 @@
 """Confidence-based position sizing (TDD §6.5) — pure, no I/O.
 
-v2: A=%5, B=%4, C=blok (girmez). Lossy reentry × 0.8.
-Tek trade max $75, max bankroll %5, Polymarket min $5.
+Confidence bet yuzdeleri config'den gelir (ARCH_GUARD Kural 6).
+Sabit tavan (max_single_bet_usdc) KALDIRILDI — yuzde bazli cap yeterli.
 """
 from __future__ import annotations
-
-CONF_BET_PCT: dict[str, float] = {
-    "A": 0.05,
-    "B": 0.04,
-    # C → 0 (girmez)
-}
 
 REENTRY_MULTIPLIER = 0.80
 POLYMARKET_MIN_ORDER_USDC = 5.0
@@ -18,23 +12,23 @@ POLYMARKET_MIN_ORDER_USDC = 5.0
 def confidence_position_size(
     confidence: str,
     bankroll: float,
-    max_bet_usdc: float = 75.0,
+    confidence_bet_pct: dict[str, float],
     max_bet_pct: float = 0.05,
     is_reentry: bool = False,
 ) -> float:
-    """Confidence tier bazlı pozisyon boyutu. C → 0 (entry bloklanır).
+    """Confidence tier bazli pozisyon boyutu.
 
-    Cap'ler: tek trade max_bet_usdc, bankroll × max_bet_pct, bankroll.
-    Polymarket min_order: 5 USDC altı → caller blocked.
+    confidence_bet_pct: config'den gelen {"A": 0.05, "B": 0.04} dict.
+    Tabloda olmayan confidence → 0 (entry bloklanir).
+    Cap: bankroll × max_bet_pct. Sabit USDC tavan YOK.
     """
-    if confidence == "C":
+    bet_pct = confidence_bet_pct.get(confidence, 0.0)
+    if bet_pct == 0.0:
         return 0.0
-
-    bet_pct = CONF_BET_PCT.get(confidence, 0.04)
 
     if is_reentry:
         bet_pct *= REENTRY_MULTIPLIER
 
     size = bankroll * bet_pct
-    size = min(size, max_bet_usdc, bankroll * max_bet_pct, bankroll)
+    size = min(size, bankroll * max_bet_pct, bankroll)
     return max(0.0, round(size, 2))

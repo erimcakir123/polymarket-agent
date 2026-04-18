@@ -207,7 +207,7 @@ def test_slot_full_market_goes_to_stock(tmp_path: Path, monkeypatch) -> None:
     # max_positions 1 — pozisyon açınca slot dolar
     deps.gate.config = GateConfig(
         min_edge=0.06, max_positions=1, max_exposure_pct=0.50,
-        max_single_bet_usdc=75.0, max_bet_pct=0.05,
+        confidence_bet_pct={"A": 0.05, "B": 0.04}, max_bet_pct=0.05,
     )
 
     agent = Agent(deps)

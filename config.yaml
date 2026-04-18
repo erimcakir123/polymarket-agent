@@ -67,8 +67,10 @@ edge:
     B: 1.00    # reputable-only → baz eşik (%6)
 
 risk:
-  max_single_bet_usdc: 75
   max_bet_pct: 0.05
+  confidence_bet_pct:
+    A: 0.05
+    B: 0.04
   max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
   max_exposure_pct: 0.50
   hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)

@@ -47,8 +47,8 @@ class EdgeConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
+    confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}
     max_positions: int = 20
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02

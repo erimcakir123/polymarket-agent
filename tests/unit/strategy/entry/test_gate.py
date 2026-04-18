@@ -171,7 +171,7 @@ def test_max_positions_halts() -> None:
         ))
     gate = _make_gate(portfolio=p)
     gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50,
-                             max_single_bet_usdc=75.0, max_bet_pct=0.05)
+                             confidence_bet_pct={"A": 0.05, "B": 0.04}, max_bet_pct=0.05)
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is None
     assert results[0].skipped_reason == "max_positions_reached"
@@ -455,7 +455,7 @@ def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
         ))
     gate = _make_gate(portfolio=p)
     gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50,
-                             max_single_bet_usdc=75.0, max_bet_pct=0.05)
+                             confidence_bet_pct={"A": 0.05, "B": 0.04}, max_bet_pct=0.05)
     results = gate.run([_market(cid="new", event="enew")])
     r = results[0]
     assert r.skipped_reason == "max_positions_reached"
