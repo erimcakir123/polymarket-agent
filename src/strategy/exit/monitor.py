@@ -126,12 +126,14 @@ def evaluate(
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
     catastrophic_config: dict | None = None,
+    scale_out_tiers: list[dict] | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
     FAV transition ayrı (exit değil, pos.favored state update).
     """
     score_info = score_info or {}
+    scale_out_tiers = scale_out_tiers or []
     elapsed_pct = compute_elapsed_pct(pos)
     # MMA/combat: card saati ≠ maç saati, elapsed güvenilmez → -1 (devre dışı)
     if get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled"):
@@ -153,6 +155,7 @@ def evaluate(
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         unrealized_pnl_pct=pos.unrealized_pnl_pct,
+        tiers=scale_out_tiers,
     )
     if so is not None:
         return MonitorResult(

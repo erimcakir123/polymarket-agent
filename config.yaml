@@ -107,8 +107,8 @@ stock:
 scale_out:
   enabled: true
   tiers:
-    - threshold: 0.25
-      sell_pct: 0.40
+    - threshold: 0.35
+      sell_pct: 0.25
     - threshold: 0.50
       sell_pct: 0.50
 

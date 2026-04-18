@@ -28,6 +28,7 @@ class ExitProcessor:
         score_map = score_map or {}
         state = self.deps.state
         cat_cfg = self._catastrophic_config()
+        scale_out_tiers = self._scale_out_tiers()
         exits_processed = 0
         for cid in list(state.portfolio.positions.keys()):
             pos = state.portfolio.positions.get(cid)
@@ -42,6 +43,7 @@ class ExitProcessor:
                 pos.match_start_iso = espn_start
             result: MonitorResult = exit_monitor.evaluate(
                 pos, score_info=score_info, catastrophic_config=cat_cfg,
+                scale_out_tiers=scale_out_tiers,
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -62,6 +64,16 @@ class ExitProcessor:
                 "cancel": cfg.exit.catastrophic_cancel,
             }
         return {}
+
+    def _scale_out_tiers(self) -> list[dict]:
+        """Config'den scale-out tier listesini dict olarak döndür."""
+        cfg = getattr(self.deps, "config", None)
+        if cfg and hasattr(cfg, "scale_out"):
+            return [
+                {"threshold": t.threshold, "sell_pct": t.sell_pct}
+                for t in cfg.scale_out.tiers
+            ]
+        return []
 
     def _apply_fav_transition(self, pos: Position, transition: FavoredTransition) -> None:
         if transition.promote and not pos.favored:

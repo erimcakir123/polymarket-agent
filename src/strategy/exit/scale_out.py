@@ -1,43 +1,35 @@
-"""3-tier scale-out (TDD §6.6) — pure.
+"""Config-driven scale-out (TDD §6.6) — pure.
 
-Tier 1 (Risk-Free):   PnL ≥ +25% → %40 sat
-Tier 2 (Profit-Lock): PnL ≥ +50% → kalan %50 sat
-Tier 3 (Final):       Resolution / trailing / exit → hepsini sat (PnL-triggered değil)
+Tier'lar config.yaml'dan okunur. Hardcoded sabit YOK (ARCH_GUARD Kural 6).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-TIER1_TRIGGER_PNL = 0.25
-TIER1_SELL_PCT = 0.40
-TIER2_TRIGGER_PNL = 0.50
-TIER2_SELL_PCT = 0.50
-
 
 @dataclass
 class ScaleOutDecision:
-    tier: int          # 1, 2 — hangi tier tetiklendi
-    sell_pct: float    # Pozisyonun ne kadarını sat
+    tier: int
+    sell_pct: float
     reason: str
 
 
 def check_scale_out(
     scale_out_tier: int,
     unrealized_pnl_pct: float,
+    tiers: list[dict],
 ) -> ScaleOutDecision | None:
-    """Pozisyon bir sonraki tier'a hak kazandı mı? None → hayır."""
-    if scale_out_tier == 0 and unrealized_pnl_pct >= TIER1_TRIGGER_PNL:
-        return ScaleOutDecision(
-            tier=1,
-            sell_pct=TIER1_SELL_PCT,
-            reason=f"Tier 1 (risk-free) at +{unrealized_pnl_pct:.0%}",
-        )
+    """Pozisyon bir sonraki tier'a hak kazandi mi? None → hayir.
 
-    if scale_out_tier == 1 and unrealized_pnl_pct >= TIER2_TRIGGER_PNL:
-        return ScaleOutDecision(
-            tier=2,
-            sell_pct=TIER2_SELL_PCT,
-            reason=f"Tier 2 (profit-lock) at +{unrealized_pnl_pct:.0%}",
-        )
-
+    tiers: config'den gelen [{"threshold": 0.35, "sell_pct": 0.25}, ...] listesi.
+    scale_out_tier: pozisyonun su an gecmis oldugu tier (0 = hic, 1 = ilk tier, ...).
+    """
+    for i, tier in enumerate(tiers):
+        tier_num = i + 1
+        if scale_out_tier < tier_num and unrealized_pnl_pct >= tier["threshold"]:
+            return ScaleOutDecision(
+                tier=tier_num,
+                sell_pct=tier["sell_pct"],
+                reason=f"Tier {tier_num} at +{unrealized_pnl_pct:.0%}",
+            )
     return None

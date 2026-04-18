@@ -50,10 +50,16 @@ def test_near_resolve_priority_over_scale_out() -> None:
 
 # ── Scale-out ──
 
-def test_scale_out_tier1_at_25pct() -> None:
-    # entry 0.40, current 0.50 → pnl 25%
-    p = _pos(current_price=0.50, entry_price=0.40, size_usdc=40, shares=100)
-    r = evaluate(p)
+_SCALE_OUT_TIERS = [
+    {"threshold": 0.35, "sell_pct": 0.25},
+    {"threshold": 0.50, "sell_pct": 0.50},
+]
+
+
+def test_scale_out_tier1_at_35pct() -> None:
+    # entry 0.40, current 0.54 → pnl = (100*0.54 - 40)/40 = 35%
+    p = _pos(current_price=0.54, entry_price=0.40, size_usdc=40, shares=100)
+    r = evaluate(p, scale_out_tiers=_SCALE_OUT_TIERS)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.SCALE_OUT
     assert r.exit_signal.partial is True
@@ -63,7 +69,7 @@ def test_scale_out_tier1_at_25pct() -> None:
 def test_scale_out_tier2_after_tier1() -> None:
     # scale_out_tier=1, current 0.60 → pnl 50%
     p = _pos(current_price=0.60, entry_price=0.40, scale_out_tier=1, size_usdc=40, shares=100)
-    r = evaluate(p)
+    r = evaluate(p, scale_out_tiers=_SCALE_OUT_TIERS)
     assert r.exit_signal.tier == 2
 
 
