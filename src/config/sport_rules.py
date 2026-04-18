@@ -63,6 +63,7 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_blowout_deficit": 4,
         "set_exit_close_set_threshold": 5,
         "set_exit_close_set_buffer": 1,
+        "set_exit_serve_for_match_games": 5,
     },
     "golf": {
         "stop_loss_pct": 0.30,

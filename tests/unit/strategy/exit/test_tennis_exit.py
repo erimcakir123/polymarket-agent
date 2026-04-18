@@ -96,3 +96,50 @@ def test_buy_no_direction_mapping() -> None:
     result = check(info, current_price=0.30, sport_tag="tennis")
     assert result is not None
     assert "T1" in result.detail
+
+
+# ── Serve-for-match (SFM) ──
+
+def test_t2_sfm_opp_5_deficit_1_exits() -> None:
+    """T2: 1-1 set, 3. sette 4-5 (deficit 1, opp ≥ 5) → ÇIK."""
+    info = _info(linescores=[[6, 3], [4, 6], [4, 5]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is not None
+    assert "T2-SFM" in result.detail
+
+
+def test_t2_sfm_opp_5_deficit_2_exits() -> None:
+    """T2: 1-1 set, 3. sette 3-5 (deficit 2, opp ≥ 5) → ÇIK."""
+    info = _info(linescores=[[6, 3], [4, 6], [3, 5]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is not None
+    assert "T2-SFM" in result.detail
+
+
+def test_t2_sfm_opp_4_deficit_1_holds() -> None:
+    """T2: 1-1 set, 3. sette 3-4 (opp < 5) → HOLD."""
+    info = _info(linescores=[[6, 3], [4, 6], [3, 4]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is None
+
+
+def test_t2_sfm_5_5_holds() -> None:
+    """T2: 1-1 set, 3. sette 5-5 (deficit 0) → HOLD."""
+    info = _info(linescores=[[6, 3], [4, 6], [5, 5]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is None
+
+
+def test_t1_sfm_opp_5_deficit_1_exits() -> None:
+    """T1: 0-1 set, 2. sette 4-5 (deficit 1, opp ≥ 5) → ÇIK."""
+    info = _info(linescores=[[3, 6], [4, 5]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is not None
+    assert "T1-SFM" in result.detail
+
+
+def test_t1_sfm_opp_4_holds() -> None:
+    """T1: 0-1 set, 2. sette 2-4 (opp < 5) → HOLD."""
+    info = _info(linescores=[[3, 6], [2, 4]], our_is_home=True)
+    result = check(info, current_price=0.30, sport_tag="tennis")
+    assert result is None
