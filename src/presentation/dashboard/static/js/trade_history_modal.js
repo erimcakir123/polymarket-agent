@@ -14,9 +14,9 @@
     tp_hit:              { emoji: "\uD83C\uDFAF", label: "Take Profit", color: "green" },
     sl_hit:              { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
     graduated_sl:        { emoji: "\uD83D\uDED1", label: "Grad. SL",    color: "red" },
-    scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "orange" },
-    scale_out_tier_2:    { emoji: "\uD83D\uDCCA", label: "Scale T2",    color: "orange" },
-    near_resolve:        { emoji: "\u23F0",       label: "Near Resolve", color: "blue" },
+    scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "green" },
+    scale_out_tier_2:    { emoji: "\uD83D\uDCCA", label: "Scale T2",    color: "green" },
+    near_resolve:        { emoji: "\u23F0",       label: "Near Resolve", color: "green" },
     market_flip:         { emoji: "\uD83D\uDD04", label: "Market Flip",  color: "red" },
     score_exit:          { emoji: "\u26A1",       label: "Score Exit",   color: "red" },
     hold_revoked:        { emoji: "\u26A0\uFE0F", label: "Hold Revoked", color: "red" },
@@ -43,11 +43,12 @@
           <button class="modal-close" id="modal-close">&times;</button>
         </div>
         <div class="modal-nav">
-          <button class="modal-nav-btn" id="modal-prev">&laquo;</button>
+          <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
           <div class="modal-nav-center">
             <span class="modal-nav-label" id="modal-week-label">--</span>
+            <span class="modal-nav-year" id="modal-week-year"></span>
           </div>
-          <button class="modal-nav-btn" id="modal-next">&raquo;</button>
+          <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
         </div>
         <div class="modal-hero" id="modal-hero"></div>
         <div class="modal-view-tabs">
@@ -141,7 +142,7 @@
     const wrColor = wr >= 50 ? (C.green || "#08D391") : (C.red || "#D7323C");
     el.innerHTML =
       `<div class="modal-hero-card">` +
-        `<div class="modal-hero-value" style="color:${pnlColor}">${FMT.usdSigned(pnl)}</div>` +
+        `<div class="modal-hero-value" style="color:${pnlColor}">${FMT.usdSignedHtml(pnl)}</div>` +
         `<div class="modal-hero-label">Weekly PnL</div></div>` +
       `<div class="modal-hero-card">` +
         `<div class="modal-hero-value" style="color:${wrColor}">${wr}%</div>` +
@@ -223,7 +224,7 @@
         <td>${FMT.teamsText(t.question, t.slug)}</td>
         <td>${_dirBadge(t.direction)}</td>
         <td>${_holdTime(t.entry_timestamp, t.exit_timestamp)}</td>
-        <td class="${cls}">${FMT.usdSigned(pnl)}</td>
+        <td class="${cls}">${FMT.usdSignedHtml(pnl)}</td>
         <td>${_reasonBadge(t.exit_reason)}</td>
       </tr>`;
     }).join("");
@@ -245,9 +246,15 @@
       const r = await fetch("/api/trades/history?week_offset=" + _offset + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
-      document.getElementById("modal-week-label").textContent = data.week_label;
-      // ◄ always visible — navigating into empty weeks is OK (shows "no trades")
-      document.getElementById("modal-prev").disabled = false;
+      // Split label "13 - 19 Apr 2026" → top: "13 - 19 Apr", bottom: "2026"
+      const lbl = data.week_label || "";
+      const yearMatch = lbl.match(/(\d{4})$/);
+      const dayMonth = yearMatch ? lbl.slice(0, -yearMatch[1].length).trim() : lbl;
+      const year = yearMatch ? yearMatch[1] : "";
+      document.getElementById("modal-week-label").textContent = dayMonth;
+      document.getElementById("modal-week-year").textContent = year;
+      // ◄ hidden when no older trades exist
+      document.getElementById("modal-prev").style.visibility = data.has_older ? "visible" : "hidden";
       const nextBtn = document.getElementById("modal-next");
       nextBtn.style.visibility = _offset === 0 ? "hidden" : "visible";
       _renderHero(data.trades);
