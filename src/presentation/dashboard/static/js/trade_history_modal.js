@@ -48,8 +48,16 @@
           <button class="modal-nav-btn" id="modal-next">&raquo;</button>
         </div>
         <div class="modal-hero" id="modal-hero"></div>
-        <div class="modal-chart-wrap"><div class="modal-chart-inner"><canvas id="modal-chart"></canvas></div></div>
-        <div class="modal-table-wrap" id="modal-table-wrap"></div>
+        <div class="modal-view-tabs">
+          <button class="modal-view-tab active" data-view="chart">Chart</button>
+          <button class="modal-view-tab" data-view="list">List</button>
+        </div>
+        <div class="modal-view" id="modal-view-chart">
+          <div class="modal-chart-wrap"><div class="modal-chart-inner"><canvas id="modal-chart"></canvas></div></div>
+        </div>
+        <div class="modal-view" id="modal-view-list" style="display:none">
+          <div class="modal-table-wrap" id="modal-table-wrap"></div>
+        </div>
       </div>`;
     document.body.appendChild(ov);
     // Close handlers
@@ -57,6 +65,26 @@
     ov.querySelector("#modal-close").addEventListener("click", _close);
     ov.querySelector("#modal-prev").addEventListener("click", () => _navigate(1));
     ov.querySelector("#modal-next").addEventListener("click", () => _navigate(-1));
+    // View tab switching (Chart / List)
+    ov.querySelectorAll(".modal-view-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        ov.querySelectorAll(".modal-view-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const view = tab.dataset.view;
+        ov.querySelector("#modal-view-chart").style.display = view === "chart" ? "" : "none";
+        ov.querySelector("#modal-view-list").style.display = view === "list" ? "" : "none";
+      });
+    });
+    // Mouse wheel → horizontal scroll on chart area
+    const chartWrap = ov.querySelector(".modal-chart-wrap");
+    if (chartWrap) {
+      chartWrap.addEventListener("wheel", (e) => {
+        if (chartWrap.scrollWidth <= chartWrap.clientWidth) return;
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        chartWrap.scrollLeft += e.deltaY;
+      }, { passive: false });
+    }
     return ov;
   }
 
@@ -220,12 +248,8 @@
       const nextBtn = document.getElementById("modal-next");
       nextBtn.style.visibility = _offset === 0 ? "hidden" : "visible";
       _renderHero(data.trades);
-      if (data.trades.length) {
-        document.querySelector(".modal-chart-wrap").style.display = "";
-        _renderChart(data.trades);
-      } else {
-        document.querySelector(".modal-chart-wrap").style.display = "none";
-      }
+      // Always render both — visible view depends on active tab.
+      _renderChart(data.trades);
       _renderTable(data.trades);
     } catch (e) {
       console.error("Trade history load error:", e);
