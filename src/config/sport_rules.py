@@ -65,6 +65,14 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_close_set_buffer": 1,
         "set_exit_serve_for_match_games": 5,
     },
+    "mma": {
+        "stop_loss_pct": 0.35,
+        "match_duration_hours": 0.5,
+        "elapsed_exit_disabled": True,
+        "score_source": "espn",
+        "espn_sport": "mma",
+        "espn_league": "ufc",
+    },
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
@@ -111,6 +119,10 @@ _ALIASES: dict[str, str] = {
     # Tennis
     "tennis_atp": "tennis",
     "tennis_wta": "tennis",
+    # Combat sports
+    "mma_ufc": "mma",
+    "ufc": "mma",
+    "boxing": "mma",
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",

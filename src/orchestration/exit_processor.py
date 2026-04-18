@@ -36,6 +36,10 @@ class ExitProcessor:
 
             tick_position_state(pos)
             score_info = score_map.get(cid, {})
+            # ESPN start time ile match_start_iso düzelt (card vs maç saati farkı)
+            espn_start = score_info.get("espn_start", "")
+            if espn_start and espn_start != pos.match_start_iso:
+                pos.match_start_iso = espn_start
             result: MonitorResult = exit_monitor.evaluate(
                 pos, score_info=score_info, catastrophic_config=cat_cfg,
             )

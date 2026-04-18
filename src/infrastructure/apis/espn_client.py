@@ -36,6 +36,7 @@ class ESPNMatchScore:
     is_live: bool
     last_updated: str
     linescores: list[list[int]] = field(default_factory=list)  # [[home, away], ...] per period
+    commence_time: str = ""  # ISO start time (ESPN competition date)
 
 
 def _is_tennis(linescores: list[list[int]]) -> bool:
@@ -119,6 +120,7 @@ def _parse_competition(comp: dict) -> ESPNMatchScore | None:
         is_live=is_live,
         last_updated="",
         linescores=linescores,
+        commence_time=str(comp.get("date", "") or ""),
     )
 
 

@@ -146,6 +146,7 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "map_diff": -deficit,   # graduated_sl uyumu: pozitif = öndeyiz
         "linescores": linescores,
         "our_is_home": our_is_home,
+        "espn_start": getattr(ms, "commence_time", ""),
     }
 
 

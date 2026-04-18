@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.sport_rules import get_match_duration_hours, _normalize
+from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, score_exit, stop_loss, tennis_exit
@@ -133,6 +133,9 @@ def evaluate(
     """
     score_info = score_info or {}
     elapsed_pct = compute_elapsed_pct(pos)
+    # MMA/combat: card saati ≠ maç saati, elapsed güvenilmez → -1 (devre dışı)
+    if get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled"):
+        elapsed_pct = -1.0
     cat_cfg = catastrophic_config or {}
     cat_trigger = cat_cfg.get("trigger", 0.25)
     cat_drop = cat_cfg.get("drop_pct", 0.10)
