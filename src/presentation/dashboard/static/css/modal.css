@@ -84,14 +84,14 @@
 /* ── Hero metrics ── */
 .modal-hero {
   display: flex;
-  gap: 12px;
-  padding: 8px 24px 12px;
+  gap: 24px;
+  padding: 4px 24px 12px;
+  justify-content: center;
 }
 .modal-hero-card {
-  flex: 1;
-  background: var(--panel-raised);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
+  flex: 0 1 200px;
+  background: none;
+  padding: 8px 0;
   text-align: center;
 }
 .modal-hero-value {
@@ -108,11 +108,30 @@
   letter-spacing: 0.04em;
 }
 
-/* ── Chart area ── */
+/* ── Chart area (scrollable like main dashboard charts) ── */
 .modal-chart-wrap {
   padding: 0 24px;
+  height: 180px;
   min-height: 160px;
   max-height: 200px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.modal-chart-wrap::-webkit-scrollbar { height: 6px; }
+.modal-chart-wrap::-webkit-scrollbar-track { background: transparent; }
+.modal-chart-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
+.modal-chart-inner {
+  width: 100%;
+  height: 100%;
+}
+/* Tennis icon in table — same size as emoji icons */
+.modal-table td img {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
 }
 
 /* ── Trade table ── */
@@ -168,8 +187,8 @@
   padding: 1px 5px;
   border-radius: 3px;
 }
-.modal-dir--yes { color: var(--green); background: var(--green-dim); }
-.modal-dir--no  { color: var(--red);   background: var(--red-dim); }
+.modal-dir--yes { color: var(--blue);   background: var(--blue-dim); }
+.modal-dir--no  { color: var(--orange); background: var(--orange-dim); }
 
 /* ── "All" trigger button ── */
 .modal-trigger {

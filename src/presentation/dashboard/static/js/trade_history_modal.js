@@ -48,7 +48,7 @@
           <button class="modal-nav-btn" id="modal-next">&raquo;</button>
         </div>
         <div class="modal-hero" id="modal-hero"></div>
-        <div class="modal-chart-wrap"><canvas id="modal-chart"></canvas></div>
+        <div class="modal-chart-wrap"><div class="modal-chart-inner"><canvas id="modal-chart"></canvas></div></div>
         <div class="modal-table-wrap" id="modal-table-wrap"></div>
       </div>`;
     document.body.appendChild(ov);
@@ -137,7 +137,12 @@
     _chart.data.datasets[0].backgroundColor = bg;
     _chart.data.datasets[0].hoverBackgroundColor = bg;
     _chart.data.datasets[0]._tooltips = tooltips;
+    // Scrollable width — min 14px per bar, like main dashboard PnL chart.
+    const minPx = 14;
+    const inner = _chart.canvas.parentElement;
+    if (inner) inner.style.width = Math.max(chron.length * minPx, inner.parentElement.clientWidth) + "px";
     _chart.update("none");
+    _chart.resize();
   }
 
   function _holdTime(entry, exit) {
@@ -221,7 +226,7 @@
     } catch (e) {
       console.error("Trade history load error:", e);
       document.getElementById("modal-table-wrap").innerHTML =
-        '<div class="modal-empty">Failed to load trades.</div>';
+        '<div class="modal-empty">Failed to load trades.<br><small>' + String(e) + '</small></div>';
     }
   }
 
