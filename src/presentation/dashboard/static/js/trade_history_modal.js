@@ -44,7 +44,9 @@
         </div>
         <div class="modal-nav">
           <button class="modal-nav-btn" id="modal-prev">&laquo;</button>
-          <span class="modal-nav-label" id="modal-week-label">--</span>
+          <div class="modal-nav-center">
+            <span class="modal-nav-label" id="modal-week-label">--</span>
+          </div>
           <button class="modal-nav-btn" id="modal-next">&raquo;</button>
         </div>
         <div class="modal-hero" id="modal-hero"></div>
@@ -244,7 +246,8 @@
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
       document.getElementById("modal-week-label").textContent = data.week_label;
-      document.getElementById("modal-prev").disabled = !data.has_older;
+      // ◄ always visible — navigating into empty weeks is OK (shows "no trades")
+      document.getElementById("modal-prev").disabled = false;
       const nextBtn = document.getElementById("modal-next");
       nextBtn.style.visibility = _offset === 0 ? "hidden" : "visible";
       _renderHero(data.trades);

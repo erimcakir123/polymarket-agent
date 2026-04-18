@@ -16,11 +16,11 @@
 }
 .modal-overlay.visible { opacity: 1; }
 
-/* ── Container ── */
+/* ── Container — fixed height so tab switch doesn't resize ── */
 .modal-container {
   width: 94vw;
   max-width: 1400px;
-  max-height: 90vh;
+  height: 88vh;
   background: var(--panel);
   border-radius: var(--radius);
   display: flex;
@@ -79,7 +79,13 @@
 .modal-nav-btn:hover { color: var(--text); background: var(--panel-hover); }
 .modal-nav-btn:disabled { opacity: 0.3; cursor: default; }
 .modal-nav-btn:disabled:hover { color: var(--muted); background: none; }
-.modal-nav-label { font-weight: 600; color: var(--text); }
+.modal-nav-center { text-align: center; }
+.modal-nav-label {
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.4;
+  font-size: 12px;
+}
 
 /* ── Hero metrics ── */
 .modal-hero {
@@ -144,7 +150,7 @@
 .modal-chart-wrap {
   padding: 0 24px;
   flex: 1;
-  min-height: 0;
+  min-height: 200px;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -158,11 +164,17 @@
   width: 100%;
   height: 100%;
 }
-/* Tennis icon in table — same size as emoji icons */
+/* Sport icons in table — tennis img same size as emoji text */
 .modal-table td img {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   vertical-align: middle;
+  object-fit: contain;
+}
+.modal-table td:nth-child(2) {
+  font-size: 14px;
+  width: 24px;
+  text-align: center;
 }
 
 /* ── Trade table ── */
