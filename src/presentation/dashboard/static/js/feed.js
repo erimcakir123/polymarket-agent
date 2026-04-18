@@ -45,8 +45,7 @@
         const key = t.condition_id + "|" + (t.exit_timestamp || "");
         if (!this._prevExitIds.has(key) && typeof SOUNDS !== "undefined") {
           const pnl = Number(t.exit_pnl_usdc || 0);
-          const size = Number(t.size_usdc || 1);
-          SOUNDS.playExit(pnl, size);
+          SOUNDS.playExit(pnl);
           break; // Aynı anda birden fazla ses çalmayı önle
         }
       }

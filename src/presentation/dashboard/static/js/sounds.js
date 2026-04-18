@@ -1,18 +1,16 @@
-/* Trade exit sound notifications — win / big win / loss with fade-out.
+/* Trade exit sound notifications — win / loss with fade-out.
  *
- * Config: data-big-win-roi-pct on <body> (default 30).
  * Depends on: nothing (standalone namespace).
  */
 (function (global) {
   "use strict";
 
-  const BIG_WIN_ROI = parseFloat(document.body.dataset.bigWinRoiPct || "30") / 100;
   const FADE_DURATION_MS = 2000;
   const FADE_STEPS = 20;
+  const BASE_VOLUME = 0.65;
 
   const _audio = {
     win: new Audio("/static/sounds/win.mp3"),
-    bigWin: new Audio("/static/sounds/big_win.mp3"),
     loss: new Audio("/static/sounds/loss.mp3"),
   };
 
@@ -24,7 +22,7 @@
         audio.volume = 0;
         audio.pause();
         audio.currentTime = 0;
-        audio.volume = 1;
+        audio.volume = BASE_VOLUME;
         clearInterval(timer);
         return;
       }
@@ -34,7 +32,7 @@
 
   function _play(audio) {
     audio.currentTime = 0;
-    audio.volume = 1;
+    audio.volume = BASE_VOLUME;
     audio.play().catch(() => {});
     const durationMs = (audio.duration || 5) * 1000;
     const fadeStart = Math.max(0, durationMs - FADE_DURATION_MS);
@@ -42,15 +40,10 @@
   }
 
   const SOUNDS = {
-    /** PnL ve size'dan ses tipi belirle ve çal. */
-    playExit(pnl, sizeUsdc) {
+    /** PnL'den ses tipi belirle ve çal. */
+    playExit(pnl) {
       if (pnl < 0) {
         _play(_audio.loss);
-        return;
-      }
-      const roi = sizeUsdc > 0 ? pnl / sizeUsdc : 0;
-      if (roi >= BIG_WIN_ROI) {
-        _play(_audio.bigWin);
       } else {
         _play(_audio.win);
       }

@@ -162,7 +162,6 @@ dashboard:
   enabled: true
   host: "127.0.0.1"
   port: 5050
-  big_win_roi_pct: 30       # ROI >= %30 → big win sesi, altı → normal win
 
 telegram:
   enabled: false
