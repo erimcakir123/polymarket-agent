@@ -106,8 +106,7 @@
     return new Chart(ctx, {
       type: "bar",
       data: { labels: [], datasets: [{ data: [], backgroundColor: [],
-        borderRadius: 4, borderSkipped: false, maxBarThickness: 22,
-        categoryPercentage: 0.6, barPercentage: 0.7 }] },
+        borderRadius: 4, borderSkipped: false, maxBarThickness: 28 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
