@@ -57,23 +57,28 @@
   background: var(--panel-hover);
 }
 
-/* ── Week navigation ── */
+/* ── Subheader: date left + stats right ── */
+.modal-subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 24px 8px;
+}
+
+/* ── Week navigation (left side) ── */
 .modal-nav {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 4px 24px;
-  font-size: 13px;
+  gap: 10px;
 }
 .modal-nav-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--panel-raised);
   border: none;
   color: var(--text);
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -85,34 +90,29 @@
 .modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
 .modal-nav-btn:disabled:hover { background: var(--panel-raised); opacity: 0.25; }
 .modal-nav-label {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
-  opacity: 0.4;
-  font-size: 12px;
+  font-size: 16px;
 }
 
-/* ── Hero metrics ── */
+/* ── Hero metrics (right side, inline) ── */
 .modal-hero {
   display: flex;
-  gap: 16px;
-  padding: 0 24px 4px;
-  justify-content: flex-start;
+  gap: 24px;
+  align-items: center;
 }
 .modal-hero-card {
-  flex: 0 1 140px;
-  background: none;
-  padding: 2px 0;
   text-align: center;
 }
 .modal-hero-value {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .modal-hero-label {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;

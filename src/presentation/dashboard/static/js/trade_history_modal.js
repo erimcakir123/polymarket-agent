@@ -43,12 +43,14 @@
           <h2>Trade History</h2>
           <button class="modal-close" id="modal-close">&times;</button>
         </div>
-        <div class="modal-nav">
-          <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
-          <span class="modal-nav-label" id="modal-week-label">--</span>
-          <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
+        <div class="modal-subheader">
+          <div class="modal-nav">
+            <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
+            <span class="modal-nav-label" id="modal-week-label">--</span>
+            <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
+          </div>
+          <div class="modal-hero" id="modal-hero"></div>
         </div>
-        <div class="modal-hero" id="modal-hero"></div>
         <div class="modal-view-tabs">
           <button class="modal-view-tab active" data-view="chart">Chart</button>
           <button class="modal-view-tab" data-view="list">List</button>
