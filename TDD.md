@@ -548,6 +548,11 @@ Tiebreak buffer uygulanmaz (3. set decider, tolerans yok).
 
 Config: `sport_rules.py → tennis → set_exit_*`. Dönüş ihtimali %3-8.
 
+**Serve-for-match (SFM):** Maç bitirici sette (T1: set 2 when 0-1, T2: set 3
+when 1-1) rakip ≥ 5 game + gerideyiz → çık. Config: `set_exit_serve_for_match_games`.
+Deficit eşiği ve games_total kontrolü bu durumda atlanır — rakip seti/maçı
+bitirmek için 1 game uzakta, dönüş ihtimali %8-15.
+
 ### 6.10 Never-in-Profit Guard
 
 Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
