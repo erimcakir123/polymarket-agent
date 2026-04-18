@@ -400,7 +400,7 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 
 Confidence + market koşullarına göre trade boyutu.
 
-**Base sizing (`CONF_BET_PCT`):**
+**Base sizing (`confidence_bet_pct` — config.yaml'dan):**
 | Confidence | Yüzde | Uygulama |
 |---|---|---|
 | A | 5% | bankroll × 0.05 |
@@ -417,13 +417,12 @@ Confidence + market koşullarına göre trade boyutu.
 **Formül:**
 ```
 size = bankroll × bet_pct × multiplier(s)
-size = min(size, max_bet_usdc, bankroll × max_bet_pct, bankroll)
+size = min(size, bankroll × max_bet_pct, bankroll)
 size = max(0, round(size, 2))
 ```
 
 **Kaplar:**
-- `max_bet_usdc` = $75 (tek trade üst sınırı)
-- `max_bet_pct` = 5% bankroll
+- `max_bet_pct` = 5% bankroll (tek cap; config.yaml'dan)
 - Bankroll üst sınırı (sanity)
 - Polymarket minimum: $5 — altında reddet
 
@@ -433,11 +432,13 @@ Kâr biriktikçe pozisyonun parçasını satmak.
 
 | Tier | Tetikleyici (unrealized PnL) | Satış oranı | Amaç |
 |---|---|---|---|
-| 1 | ≥ +25% | 40% | Risk-free |
+| 1 | ≥ +35% | 25% | Risk azaltma |
 | 2 | ≥ +50% | 50% | Profit lock |
 | 3 | Resolution / trailing | — | PnL-tetikli değil; §6.9-6.14 |
 
 **Geçiş:** `tier 0 → 1 → 2` sırayla. Tier atlanmaz; ileri gider veya aynı kalır.
+
+**Config:** Tier eşikleri ve satış oranları `config.yaml` altındaki `scale_out.tiers` listesinden okunur — hardcoded değil.
 
 ### 6.7 Flat Stop-Loss Helper (7-Katman Öncelik)
 
@@ -538,7 +539,7 @@ Muchova-Gauff, Fernandez-Sonmez 2026-04-17).
 
 > **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
 > `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out →
-> catastrophic-watch (NHL only) → A-conf hold dalı (score_exit + market_flip) →
+> catastrophic-watch (NHL only) → A-conf hold dalı (hockey_score_exit + market_flip) →
 > else branch (flat SL + graduated + vs). Flat SL a-conf check'inden ÖNCE
 > konursa A-conf koruması bozulur (regression: Rangers-Lightning 2026-04-15,
 > `test_a_conf_hold_skips_flat_sl`).
@@ -819,7 +820,7 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 |---|---|---|---|
 | NBA | 0.35 | 2.5 | halftime_exit @ -15 pts |
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
-| NHL (AHL/Liiga/...) | 0.30 | 2.5 | score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
+| NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
 | Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED + catastrophic DISABLED |
 | Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |

@@ -31,7 +31,7 @@ Pozisyon boyutu confidence seviyesine göre belirlenir:
 - **B**: bankroll × %4
 - **C**: giriş yapılmaz (blok)
 
-Ek çarpanlar `max_single_bet_usdc` ve `max_bet_pct` cap'lerine tabidir. (bkz. TDD §6.5)
+Ek çarpanlar `max_bet_pct` cap'ine tabidir (tek cap, config.yaml'dan). (bkz. TDD §6.5)
 
 ### 2.4 Bookmaker-Derived Probability
 P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair/Smarkets gibi sharp book'lar 3.0× ağırlıkla, reputable book'lar (Bet365, William Hill vb.) 1.5× ağırlıkla, diğerleri 1.0× ağırlıkla ortalaması alınır. Exchange bookmaker'lara (Betfair, Matchbook, Smarkets) vig normalize uygulanmaz — fiyatları zaten gerçek olasılığa yakın. Edge eşiği confidence'a göre ölçeklenir: A-conf %4, B-conf %6. (bkz. TDD §6.1, §6.3)
@@ -127,7 +127,7 @@ Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri 
 `strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. TDD §6.4)
 
 ### F4. Position Sizing
-Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri uygulanır. (bkz. TDD §6.5)
+Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). (bkz. TDD §6.5)
 
 ### F5. Execute
 `executor.py` 3 modda çalışır: `dry_run` (log-only), `paper` (mock fills), `live` (gerçek CLOB emri). Her emir trade log'a JSONL formatında yazılır. (bkz. `src/infrastructure/executor.py`)
