@@ -9,6 +9,7 @@ from src.models.position import Position
 from src.orchestration.score_enricher import (
     ScoreEnricher,
     _build_score_info,
+    _find_espn_match,
     _find_match,
     _is_within_match_window,
     _team_match,
@@ -261,3 +262,66 @@ def test_enricher_adaptif_polling_critical() -> None:
     pos.current_price = 0.20
     enricher.get_scores_if_due({"c1": pos})
     assert enricher._poll_sec == 30
+
+
+# ── _find_espn_match ──
+
+def test_find_espn_match_skips_wrong_match_same_player() -> None:
+    """Two-team position must not match ESPN entry with only one matching player."""
+    pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
+    old_match = ESPNMatchScore(
+        event_id="old", home_name="Cameron Norrie", away_name="Rafael Jodar",
+        home_score=0, away_score=2, period="Final", is_completed=True,
+        is_live=False, last_updated="", linescores=[[3, 6], [3, 6]],
+    )
+    assert _find_espn_match(pos, [old_match]) is None
+
+
+def test_find_espn_match_correct_two_team() -> None:
+    """Two-team position matches when both players found."""
+    pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
+    correct = ESPNMatchScore(
+        event_id="new", home_name="Rafael Jodar", away_name="Arthur Fils",
+        home_score=0, away_score=0, period="In Progress", is_completed=False,
+        is_live=True, last_updated="", linescores=[[3, 3]],
+    )
+    result = _find_espn_match(pos, [correct])
+    assert result is not None
+    assert result.event_id == "new"
+
+
+def test_find_espn_match_single_team_fallback() -> None:
+    """Single-team position (no team_b) still uses fallback matching."""
+    pos = _pos(question="Will Tiger Woods win?", sport_tag="golf")
+    espn = ESPNMatchScore(
+        event_id="g1", home_name="Tiger Woods", away_name="Rory McIlroy",
+        home_score=None, away_score=None, period="", is_completed=False,
+        is_live=False, last_updated="",
+    )
+    result = _find_espn_match(pos, [espn])
+    assert result is not None
+    assert result.event_id == "g1"
+
+
+def test_find_espn_match_prefers_correct_over_old() -> None:
+    """When both old and correct matches exist, correct one matches regardless of order."""
+    pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
+    old_match = ESPNMatchScore(
+        event_id="old", home_name="Cameron Norrie", away_name="Rafael Jodar",
+        home_score=0, away_score=2, period="Final", is_completed=True,
+        is_live=False, last_updated="", linescores=[[3, 6], [3, 6]],
+    )
+    correct = ESPNMatchScore(
+        event_id="new", home_name="Rafael Jodar", away_name="Arthur Fils",
+        home_score=0, away_score=0, period="In Progress", is_completed=False,
+        is_live=True, last_updated="", linescores=[[3, 3]],
+    )
+    # Correct listed first
+    result = _find_espn_match(pos, [correct, old_match])
+    assert result is not None
+    assert result.event_id == "new"
+
+    # Old listed first — skipped, correct matches
+    result2 = _find_espn_match(pos, [old_match, correct])
+    assert result2 is not None
+    assert result2.event_id == "new"

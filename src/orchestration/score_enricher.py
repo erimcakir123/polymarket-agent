@@ -82,7 +82,7 @@ def _find_espn_match(pos: Position, scores: list[ESPNMatchScore]) -> ESPNMatchSc
         home_b = _team_match(team_b or "", ms.home_name) if team_b else False
         away_a = _team_match(team_a, ms.away_name)
         away_b = _team_match(team_b or "", ms.away_name) if team_b else False
-        if (home_a and away_b) or (home_b and away_a) or (home_a or away_a):
+        if (home_a and away_b) or (home_b and away_a) or (not team_b and (home_a or away_a)):
             return ms
     return None
 
