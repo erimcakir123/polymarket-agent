@@ -13,7 +13,9 @@ Katmanlar (öncelik sırasına göre):
 """
 from __future__ import annotations
 
-from src.config.sport_rules import get_stop_loss
+import re
+
+from src.config.sport_rules import get_sport_rule, get_stop_loss
 from src.models.position import Position
 
 _ULTRA_LOW_THRESHOLD = 0.09
@@ -22,6 +24,19 @@ _LOW_ENTRY_SL_HIGH = 0.60
 _LOW_ENTRY_SL_LOW = 0.40
 _REENTRY_MULT = 0.75
 _TOTALS_KEYWORDS = ("o/u", "total", "spread")
+_INNING_RE = re.compile(r"(\d+)(?:st|nd|rd|th)")
+
+
+def parse_baseball_inning(period: str) -> int | None:
+    """ESPN period string'inden inning numarası çıkar.
+
+    "Top 1st" → 1, "Bot 5th" → 5, "Mid 9th" → 9.
+    Parse edilemezse None döner.
+    """
+    if not period:
+        return None
+    m = _INNING_RE.search(period)
+    return int(m.group(1)) if m else None
 
 
 def compute_stop_loss_pct(pos: Position) -> float | None:
