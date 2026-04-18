@@ -57,19 +57,13 @@
   background: var(--panel-hover);
 }
 
-/* ── Subheader: date left + stats right ── */
-.modal-subheader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 24px 8px;
-}
-
-/* ── Week navigation (left side) ── */
+/* ── Week navigation (centered) ── */
 .modal-nav {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  padding: 4px 24px 6px;
 }
 .modal-nav-btn {
   width: 24px;
@@ -90,22 +84,24 @@
 .modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
 .modal-nav-btn:disabled:hover { background: var(--panel-raised); opacity: 0.25; }
 .modal-nav-label {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
-  font-size: 16px;
+  font-size: 13px;
 }
+.modal-nav-year { opacity: 0.4; }
 
-/* ── Hero metrics (right side, inline) ── */
+/* ── Hero metrics (right side of tab bar) ── */
 .modal-hero {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   align-items: center;
+  margin-left: auto;
 }
 .modal-hero-card {
   text-align: center;
 }
 .modal-hero-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -121,6 +117,7 @@
 /* ── View tabs (Notion-style toggle: Chart | List) ── */
 .modal-view-tabs {
   display: flex;
+  align-items: center;
   gap: 0;
   padding: 0 24px 0;
   border-bottom: 1px solid var(--border-soft);

@@ -43,17 +43,15 @@
           <h2>Trade History</h2>
           <button class="modal-close" id="modal-close">&times;</button>
         </div>
-        <div class="modal-subheader">
-          <div class="modal-nav">
-            <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
-            <span class="modal-nav-label" id="modal-week-label">--</span>
-            <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
-          </div>
-          <div class="modal-hero" id="modal-hero"></div>
+        <div class="modal-nav">
+          <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
+          <span class="modal-nav-label" id="modal-week-label">--</span>
+          <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
         </div>
         <div class="modal-view-tabs">
           <button class="modal-view-tab active" data-view="chart">Chart</button>
           <button class="modal-view-tab" data-view="list">List</button>
+          <div class="modal-hero" id="modal-hero"></div>
         </div>
         <div class="modal-view" id="modal-view-chart">
           <div class="modal-chart-row">
@@ -268,7 +266,15 @@
       const r = await fetch("/api/trades/history?week_offset=" + _offset + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
-      document.getElementById("modal-week-label").textContent = data.week_label || "--";
+      // Split "13 - 19 Apr 2026" → "13 - 19 Apr" bold + "2026" dim
+      const lbl = data.week_label || "--";
+      const ym = lbl.match(/^(.+?)(\d{4})$/);
+      if (ym) {
+        document.getElementById("modal-week-label").innerHTML =
+          ym[1].trim() + ' <span class="modal-nav-year">' + ym[2] + '</span>';
+      } else {
+        document.getElementById("modal-week-label").textContent = lbl;
+      }
       // ◄ hidden when no older trades exist
       document.getElementById("modal-prev").style.visibility = data.has_older ? "visible" : "hidden";
       // ► always visible; disabled (opacity 40%) at current week
