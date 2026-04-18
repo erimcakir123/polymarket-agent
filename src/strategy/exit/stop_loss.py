@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from src.config.sport_rules import get_sport_rule, get_stop_loss
+from src.config.sport_rules import get_sport_rule, get_stop_loss, _normalize
 from src.models.position import Position
 
 _ULTRA_LOW_THRESHOLD = 0.09
@@ -61,12 +61,12 @@ def is_baseball_alive(inning: int, deficit: int) -> bool:
     return deficit < extra_thresh
 
 
-def compute_stop_loss_pct(pos: Position) -> float | None:
+def compute_stop_loss_pct(pos: Position, score_info: dict | None = None) -> float | None:
     """Pozisyon için doğru SL yüzdesini hesapla.
 
     Returns:
         float: SL yüzdesi (örn. 0.30 = %30).
-        None: bu pozisyonda flat SL UYGULANMAZ (totals/spread veya stale price).
+        None: bu pozisyonda flat SL UYGULANMAZ (totals/spread, stale price veya canlı maç).
     """
     # 1. Stale price — WS tick hiç gelmemiş gibi
     if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
@@ -77,6 +77,15 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     slug = (pos.slug or "").lower()
     if any(k in q or k in slug for k in _TOTALS_KEYWORDS):
         return None
+
+    # 2.5 Baseball inning guard — canlı maçta SL devre dışı (SPEC-008)
+    if _normalize(pos.sport_tag) == "mlb" and score_info and score_info.get("available"):
+        period = score_info.get("period", "")
+        inning = parse_baseball_inning(period)
+        if inning is not None:
+            deficit = score_info.get("deficit", 0)
+            if is_baseball_alive(inning, deficit):
+                return None
 
     # entry_price zaten token-native (owned side).
     eff_entry = pos.entry_price
@@ -99,12 +108,12 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     return sl
 
 
-def check(pos: Position) -> bool:
+def check(pos: Position, score_info: dict | None = None) -> bool:
     """Flat SL tetiklendi mi? True → exit sinyali.
 
     unrealized_pnl_pct < -sl_pct tetikler. None sl_pct → False (muaf).
     """
-    sl = compute_stop_loss_pct(pos)
+    sl = compute_stop_loss_pct(pos, score_info)
     if sl is None:
         return False
     return pos.unrealized_pnl_pct < -sl
