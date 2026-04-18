@@ -190,6 +190,25 @@ Tennis markets'de iki yaygın bug için fix:
 Not: Odds API tennis kapsamı haftalık ~3 major turnuva; Challenger tour /
 minor events yapısal coverage gap, bu fix onları karşılamaz.
 
+#### 5.7.8 match_start_iso Kaynağı ve Date-Aware Matching
+
+**Tek kaynak: Gamma API `event.startTime`**. Bu alan per-match doğru saati
+verir (MLB, UFC prelim/main ayrımı, tenis). Odds API `commence_time`
+override **yapılmaz** — UFC'de kart saati (3-4h yanlış), MLB seri
+maçlarında yanlış güne eşleşme riski var.
+
+**Date-aware matching** (`pair_matcher.find_best_event_match`):
+Odds API'den bookmaker probability çekerken aynı takım çifti birden fazla
+event'te eşleşebilir (MLB/KBO seri maçları). `expected_start` parametresi
+(Gamma'dan gelen `match_start_iso`) ile `commence_time`'ı beklenen tarihe
+en yakın event seçilir. Tek eşleşmede etkisiz.
+
+**Immediate persist** (`entry_processor._execute_entry`):
+`add_position()` başarılı olduktan hemen sonra, `trade_logger.log()`'dan
+ÖNCE `positions.json` persist edilir. Crash + restart'ta event_guard
+(ARCH Kural 8) tutarlılığını korur — trade_history'de kayıt var ama
+positions'ta yok senaryosunu engeller.
+
 #### 5.7.7 Total Equity Chart — Realized-Only Stepped + Period Tabs
 
 Chart formülü: `initial_bankroll + Σ exit_pnl_usdc` (trade history üzerinden

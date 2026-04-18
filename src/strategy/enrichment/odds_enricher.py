@@ -27,14 +27,20 @@ logger = logging.getLogger(__name__)
 
 
 def _odds_query_params() -> dict:
-    """24h içinde başlayan event'ler için h2h market parametreleri."""
+    """30h içinde başlayan event'ler için h2h market parametreleri.
+
+    30h pencere: scanner max_hours_to_start (24h) + 6h buffer.
+    UFC/MMA gibi sporlarda Odds API commence_time, event card saatinden
+    birkaç saat sonra olabilir — 24h pencere bu maçları sınırda kaçırır.
+    Kredi maliyeti event sayısından bağımsız (markets × regions).
+    """
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     return {
         "regions": "us,uk,eu",
         "markets": "h2h",
         "oddsFormat": "decimal",
         "commenceTimeFrom": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "commenceTimeTo": (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "commenceTimeTo": (now + timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 
@@ -112,9 +118,12 @@ def enrich_market(market: MarketData, odds_client) -> EnrichResult:
     if not events:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_EVENTS)
 
-    # 4. Match event
+    # 4. Match event (date-aware: seri maçlarda doğru günü seç)
     if team_b_name:
-        match_result = find_best_event_match(team_a_name, team_b_name, events)
+        match_result = find_best_event_match(
+            team_a_name, team_b_name, events,
+            expected_start=market.match_start_iso,
+        )
         if not match_result:
             logger.debug("No event match for %s vs %s in %d events",
                          team_a_name, team_b_name, len(events))

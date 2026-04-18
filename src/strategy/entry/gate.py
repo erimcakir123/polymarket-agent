@@ -141,9 +141,9 @@ class EntryGate:
 
         # 4. Enrichment (Odds API)
         enrich_result = self._enricher(market)
-        # Odds API commence_time → gerçek maç saati (Gamma turnuva saati verebiliyor)
-        if enrich_result.odds_commence_time:
-            market.match_start_iso = enrich_result.odds_commence_time
+        # Gamma event.startTime per-match doğru saati veriyor; Odds API
+        # commence_time UFC'de kart saati (3-4h yanlış), MLB'de seri maçı
+        # karışıklığı yapıyor. Override kaldırıldı — Gamma saati korunur.
         if enrich_result.probability is None:
             detail = enrich_result.fail_reason.value if enrich_result.fail_reason else ""
             return GateResult(cid, None, "no_bookmaker_data", skip_detail=detail)

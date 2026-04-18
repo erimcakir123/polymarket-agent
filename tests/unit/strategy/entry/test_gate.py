@@ -462,21 +462,22 @@ def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
     assert r.skip_detail == "count=5/5"
 
 
-# --- odds_commence_time → match_start_iso update ---
+# --- Gamma startTime korunur, Odds API commence_time override etmez ---
 
 
-def test_gate_updates_match_start_iso_from_odds_commence_time() -> None:
-    """Enrichment odds_commence_time doluysa market.match_start_iso güncellenmeli."""
+def test_gate_preserves_gamma_start_time_ignoring_odds_commence() -> None:
+    """Gamma startTime korunur, Odds API commence_time override etmez."""
     m = _market()
-    m.match_start_iso = "2026-04-17T08:00:00Z"  # Gamma turnuva saati (yanlış)
-    odds_time = "2026-04-17T15:00:00Z"  # Odds API gerçek maç saati
+    gamma_time = "2026-04-17T19:00:00Z"  # Gamma doğru maç saati
+    m.match_start_iso = gamma_time
+    odds_time = "2026-04-17T22:00:00Z"  # Odds API kart saati (yanlış)
     enricher = lambda market: EnrichResult(
         probability=_bm(), fail_reason=None,
         odds_commence_time=odds_time,
     )
     gate = _make_gate(enricher=enricher)
     gate.run([m])
-    assert m.match_start_iso == odds_time
+    assert m.match_start_iso == gamma_time
 
 
 def test_gate_keeps_match_start_iso_when_no_commence_time() -> None:

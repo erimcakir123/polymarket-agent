@@ -91,6 +91,97 @@ def test_find_best_event_no_match() -> None:
     assert find_best_event_match("Lakers", "Celtics", events) is None
 
 
+def test_find_best_event_match_date_aware_picks_closest_day() -> None:
+    """MLB seri maçı: aynı takımlar iki farklı gün. expected_start ile doğru gün seçilmeli."""
+    events = [
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-17T22:46:00Z",  # dünkü maç
+        },
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-18T18:11:00Z",  # bugünkü maç
+        },
+    ]
+    # Gamma'dan gelen beklenen saat bugüne yakın
+    result = find_best_event_match(
+        "Cincinnati Reds", "Minnesota Twins", events,
+        expected_start="2026-04-18T20:00:00Z",
+    )
+    assert result is not None
+    event, _ = result
+    assert event["commence_time"] == "2026-04-18T18:11:00Z"
+
+
+def test_find_best_event_match_date_aware_picks_yesterday() -> None:
+    """expected_start düne yakınsa dünkü maçı seçmeli."""
+    events = [
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-17T22:46:00Z",
+        },
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-18T18:11:00Z",
+        },
+    ]
+    result = find_best_event_match(
+        "Cincinnati Reds", "Minnesota Twins", events,
+        expected_start="2026-04-17T23:00:00Z",
+    )
+    assert result is not None
+    event, _ = result
+    assert event["commence_time"] == "2026-04-17T22:46:00Z"
+
+
+def test_find_best_event_match_no_expected_start_uses_confidence() -> None:
+    """expected_start verilmezse eski davranış: en yüksek confidence kazanır."""
+    events = [
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-17T22:46:00Z",
+        },
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-18T18:11:00Z",
+        },
+    ]
+    result = find_best_event_match("Cincinnati Reds", "Minnesota Twins", events)
+    assert result is not None
+    # Her iki event de aynı confidence'ta olmalı, biri döner
+    _, conf = result
+    assert conf >= 0.80
+
+
+def test_find_best_event_match_single_match_ignores_expected_start() -> None:
+    """Tek eşleşme varsa expected_start etkisiz."""
+    events = [
+        {
+            "home_team": "Minnesota Twins",
+            "away_team": "Cincinnati Reds",
+            "commence_time": "2026-04-17T22:46:00Z",
+        },
+        {
+            "home_team": "Los Angeles Lakers", "away_team": "Boston Celtics",
+            "commence_time": "2026-04-18T20:00:00Z",
+        },
+    ]
+    result = find_best_event_match(
+        "Cincinnati Reds", "Minnesota Twins", events,
+        expected_start="2026-04-18T20:00:00Z",
+    )
+    assert result is not None
+    event, _ = result
+    # Tek eşleşme: 17 Nisan'ınki, expected_start farklı olsa bile
+    assert event["commence_time"] == "2026-04-17T22:46:00Z"
+
+
 def test_find_best_single_team_home() -> None:
     events = [
         {"home_team": "Los Angeles Lakers", "away_team": "Boston Celtics"},

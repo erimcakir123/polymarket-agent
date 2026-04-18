@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.exposure import available_under_cap
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
 from src.models.market import MarketData
@@ -185,6 +186,14 @@ class EntryProcessor:
                 pos.slug[:35], pos.event_id, pos.condition_id[:16],
             )
             return
+
+        # Immediate persist: crash sonrası event_guard tutarlılığı için
+        # trade_logger'dan ÖNCE positions.json güncellenmeli — aksi halde
+        # crash + restart'ta trade_history'de kayıt var ama positions'ta yok
+        # → event_guard bypass edilir → duplicate entry (ARCH Kural 8).
+        self.deps.state.positions_store.save(
+            portfolio_snapshot.to_dict(self.deps.state.portfolio)
+        )
 
         if self.deps.price_feed is not None:
             self.deps.price_feed.subscribe([token_id])
