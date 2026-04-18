@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from src.models.enums import ExitReason
-from src.strategy.exit.score_exit import check
+from src.strategy.exit.hockey_score_exit import check
 
 
 def _info(deficit: int = 0, available: bool = True) -> dict:

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from src.models.enums import ExitReason
-from src.strategy.exit.tennis_exit import check, TennisExitResult
+from src.strategy.exit.tennis_score_exit import check, TennisExitResult
 
 
 def _info(

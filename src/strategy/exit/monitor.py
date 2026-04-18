@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, score_exit, stop_loss, tennis_exit
+from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
 
 
 @dataclass
@@ -185,7 +185,7 @@ def evaluate(
     if a_hold:
         # 3a. Score-based exit — hockey A-conf only (SPEC-004 K1-K4)
         if _normalize(pos.sport_tag) == "nhl" and score_info.get("available"):
-            sc_result = score_exit.check(
+            sc_result = hockey_score_exit.check(
                 sport_tag=pos.sport_tag,
                 confidence=pos.confidence,
                 score_info=score_info,
@@ -201,7 +201,7 @@ def evaluate(
 
         # 3a-tennis. Score-based exit — tennis (SPEC-006 T1/T2)
         if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
-            t_result = tennis_exit.check(
+            t_result = tennis_score_exit.check(
                 score_info=score_info,
                 current_price=pos.current_price,
                 sport_tag=pos.sport_tag,
