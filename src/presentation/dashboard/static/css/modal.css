@@ -173,6 +173,8 @@
   z-index: 2;
   pointer-events: none;
   margin-right: 12px;
+  overflow: hidden;
+  padding: 16px 0 24px;
 }
 .modal-chart-wrap {
   flex: 1 1 auto;
