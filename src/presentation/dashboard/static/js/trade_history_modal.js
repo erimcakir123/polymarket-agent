@@ -40,7 +40,6 @@
     ov.innerHTML = `
       <div class="modal-container">
         <div class="modal-header">
-          <div class="modal-header-spacer"></div>
           <h2>Trade History</h2>
           <button class="modal-close" id="modal-close">&times;</button>
         </div>

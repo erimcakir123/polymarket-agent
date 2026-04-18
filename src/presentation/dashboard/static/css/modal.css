@@ -35,14 +35,12 @@
   justify-content: space-between;
   padding: 16px 24px 0;
 }
-.modal-header-spacer { width: 32px; } /* matches close button width */
 .modal-header h2 {
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
   margin: 0;
   flex: 1;
-  text-align: center;
 }
 .modal-close {
   background: none;
@@ -63,7 +61,7 @@
 .modal-nav {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 12px;
   padding: 4px 24px;
   font-size: 13px;
@@ -98,7 +96,7 @@
   display: flex;
   gap: 16px;
   padding: 0 24px 4px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .modal-hero-card {
   flex: 0 1 140px;
