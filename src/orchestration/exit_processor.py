@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from src.domain.portfolio.lifecycle import tick_position_state
+from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
 from src.models.position import Position
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
@@ -82,13 +83,16 @@ class ExitProcessor:
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
 
         # 1. Disk — trade_logger ÖNCE (crash-safe sıralama)
-        self.deps.trade_logger.update_on_exit(pos.condition_id, {
+        exit_data = {
             "exit_price": pos.current_price,
             "exit_reason": signal.reason.value,
             "exit_pnl_usdc": round(realized, 2),
             "exit_pnl_pct": round(pnl_pct, 4),
             "exit_timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        }
+        if not self.deps.trade_logger.update_on_exit(pos.condition_id, exit_data):
+            logger.warning("EXIT record missing for %s — writing fallback entry+exit", pos.slug[:35])
+            self._write_fallback_entry(pos, exit_data)
 
         # 2. In-memory — portfolio mutation SONRA
         self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
@@ -115,13 +119,16 @@ class ExitProcessor:
         tier = signal.tier or pos.scale_out_tier
 
         # 1. Disk — trade_logger ÖNCE (crash-safe sıralama)
-        self.deps.trade_logger.log_partial_exit(
+        partial_written = self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=tier,
             sell_pct=signal.sell_pct,
             realized_pnl_usdc=realized,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
+        if not partial_written:
+            logger.warning("PARTIAL record missing for %s — writing fallback entry", pos.slug[:35])
+            self._write_fallback_entry(pos, {})
 
         # 2. In-memory — pos + portfolio mutation SONRA
         pos.shares -= shares_to_sell
@@ -138,3 +145,22 @@ class ExitProcessor:
             "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
             pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
         )
+
+    def _write_fallback_entry(self, pos: Position, exit_data: dict) -> None:
+        """Entry kaydı kayıpsa pozisyondan oluştur + varsa exit verisini ekle."""
+        cat, league = _split_sport_tag(pos.sport_tag)
+        record = TradeRecord(
+            slug=pos.slug, condition_id=pos.condition_id,
+            event_id=getattr(pos, "event_id", ""),
+            token_id=pos.token_id, question=pos.question,
+            sport_tag=pos.sport_tag, sport_category=cat, league=league,
+            direction=pos.direction, entry_price=pos.entry_price,
+            size_usdc=pos.size_usdc, shares=pos.shares,
+            confidence=pos.confidence,
+            bookmaker_prob=pos.anchor_probability,
+            anchor_probability=pos.anchor_probability,
+            entry_reason=getattr(pos, "entry_reason", ""),
+            entry_timestamp=getattr(pos, "entry_timestamp", ""),
+            **exit_data,
+        )
+        self.deps.trade_logger.log(record)
