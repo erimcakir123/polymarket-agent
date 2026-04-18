@@ -249,13 +249,7 @@
       </tr>`;
     }).join("");
     wrap.innerHTML =
-      `<table class="modal-table">
-        <thead><tr>
-          <th>Date</th><th></th><th>Match</th><th>Dir</th>
-          <th>Hold</th><th>PnL</th><th>Reason</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      `<table class="modal-table"><tbody>${rows}</tbody></table>`;
   }
 
   // ── Data + navigation ──
