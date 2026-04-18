@@ -108,6 +108,7 @@
         borderRadius: 4, borderSkipped: false, maxBarThickness: 28 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 24, bottom: 24 } },
         plugins: {
           legend: { display: false },
           tooltip: {
