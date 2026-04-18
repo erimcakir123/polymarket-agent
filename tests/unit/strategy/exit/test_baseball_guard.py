@@ -53,3 +53,83 @@ def test_parse_inning_final_returns_none() -> None:
 
 def test_parse_inning_in_progress_returns_none() -> None:
     assert parse_baseball_inning("In Progress") is None
+
+
+from src.strategy.exit.stop_loss import is_baseball_alive
+
+
+def test_alive_deficit_0_any_inning() -> None:
+    """Eşit skor → her zaman canlı."""
+    assert is_baseball_alive(inning=1, deficit=0) is True
+    assert is_baseball_alive(inning=9, deficit=0) is True
+
+
+def test_alive_leading_any_inning() -> None:
+    """Önde → her zaman canlı."""
+    assert is_baseball_alive(inning=9, deficit=-3) is True
+
+
+def test_alive_inning_1_deficit_5() -> None:
+    """1. inning, 5 run geride ama eşik 6 → canlı."""
+    assert is_baseball_alive(inning=1, deficit=5) is True
+
+
+def test_dead_inning_1_deficit_6() -> None:
+    """1. inning, 6 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=1, deficit=6) is False
+
+
+def test_dead_inning_3_deficit_7() -> None:
+    """3. inning, 7 run geride > eşik 6 → ölü."""
+    assert is_baseball_alive(inning=3, deficit=7) is False
+
+
+def test_alive_inning_4_deficit_4() -> None:
+    """4. inning, 4 run geride < eşik 5 → canlı."""
+    assert is_baseball_alive(inning=4, deficit=4) is True
+
+
+def test_dead_inning_5_deficit_5() -> None:
+    """5. inning, 5 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=5, deficit=5) is False
+
+
+def test_alive_inning_6_deficit_3() -> None:
+    """6. inning, 3 run geride < eşik 4 → canlı."""
+    assert is_baseball_alive(inning=6, deficit=3) is True
+
+
+def test_dead_inning_7_deficit_4() -> None:
+    """7. inning, 4 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=7, deficit=4) is False
+
+
+def test_alive_inning_8_deficit_2() -> None:
+    """8. inning, 2 run geride < eşik 3 → canlı."""
+    assert is_baseball_alive(inning=8, deficit=2) is True
+
+
+def test_dead_inning_8_deficit_3() -> None:
+    """8. inning, 3 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=8, deficit=3) is False
+
+
+def test_alive_inning_9_deficit_1() -> None:
+    """9. inning, 1 run geride < eşik 2 → canlı."""
+    assert is_baseball_alive(inning=9, deficit=1) is True
+
+
+def test_dead_inning_9_deficit_2() -> None:
+    """9. inning, 2 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=9, deficit=2) is False
+
+
+def test_dead_extra_deficit_1() -> None:
+    """Uzatma (10+), 1 run geride = eşik → ölü."""
+    assert is_baseball_alive(inning=10, deficit=1) is False
+    assert is_baseball_alive(inning=12, deficit=1) is False
+
+
+def test_alive_extra_deficit_0() -> None:
+    """Uzatma, eşit → canlı."""
+    assert is_baseball_alive(inning=10, deficit=0) is True

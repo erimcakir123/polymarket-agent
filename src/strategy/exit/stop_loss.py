@@ -39,6 +39,28 @@ def parse_baseball_inning(period: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def is_baseball_alive(inning: int, deficit: int) -> bool:
+    """Canlılık matrisi — maç hala kazanılabilir mi?
+
+    True=canlı (SL devre dışı), False=ölü (SL aktif).
+    deficit = opp_score - our_score (pozitif = gerideyiz).
+    """
+    if deficit <= 0:
+        return True
+
+    thresholds: dict[int, int] = get_sport_rule("mlb", "comeback_thresholds", {})
+    extra_thresh: int = get_sport_rule("mlb", "extra_inning_threshold", 1)
+
+    if inning > 9:
+        return deficit < extra_thresh
+
+    for max_inning in sorted(thresholds):
+        if inning <= max_inning:
+            return deficit < thresholds[max_inning]
+
+    return deficit < extra_thresh
+
+
 def compute_stop_loss_pct(pos: Position) -> float | None:
     """Pozisyon için doğru SL yüzdesini hesapla.
 
