@@ -151,6 +151,7 @@ class EntryProcessor:
         price = market.yes_price if signal.direction.value == "BUY_YES" else market.no_price
         order = self.deps.executor.place_order(
             token_id=token_id, side=side, price=price, size_usdc=signal.size_usdc,
+            max_entry_price=self.deps.gate.config.max_entry_price,
         )
         if order.get("status") != "simulated" and order.get("status") != "placed":
             logger.warning("Order rejected: %s", order.get("reason", "?"))
