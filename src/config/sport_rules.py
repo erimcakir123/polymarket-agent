@@ -119,11 +119,11 @@ for _key in (
 SPORT_RULES["cricket_odi"] = {
     **_CRICKET_BASE,
     "match_duration_hours": 8.0,
-    "score_exit_c1_balls": 60,
-    "score_exit_c1_rate": 12.0,
+    "score_exit_c1_balls": 60,     # son 10 over
+    "score_exit_c1_rate": 12.0,    # ODI RRR > 12 imkansiz
     "score_exit_c2_wickets": 8,
     "score_exit_c2_runs": 40,
-    "score_exit_c3_balls": 30,
+    "score_exit_c3_balls": 30,     # son 5 over
     "score_exit_c3_runs": 30,
 }
 
@@ -174,6 +174,10 @@ _ALIASES: dict[str, str] = {
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",
+    # Cricket Polymarket/OddsAPI aliases (SPEC-011)
+    "indian-premier-league": "cricket_ipl",
+    "international-cricket": "cricket_international_t20",
+    "cricket_test": "cricket",  # defensive — test cricket not directly supported
 }
 
 

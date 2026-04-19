@@ -76,6 +76,14 @@ def test_config_scale_out_tiers_defaults() -> None:
     assert tiers[1].sell_pct == 0.50
 
 
+def test_config_cricket_defaults() -> None:
+    cfg = AppConfig()
+    assert cfg.cricket.enabled is True
+    assert cfg.cricket.daily_limit == 100
+    assert cfg.cricket.cache_ttl_sec == 240
+    assert cfg.cricket.timeout_sec == 15
+
+
 def test_repo_config_yaml_parses() -> None:
     """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli."""
     cfg = load_config()  # default Path("config.yaml")
