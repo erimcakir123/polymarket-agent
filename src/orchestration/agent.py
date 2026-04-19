@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 
 from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.apis.cricket_client import CricketAPIClient
 from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
@@ -52,6 +53,7 @@ class AgentDeps:
     price_feed: PriceFeed | None = None
     score_enricher: ScoreEnricher | None = None
     command_poller: TelegramCommandPoller | None = None
+    cricket_client: CricketAPIClient | None = None  # SPEC-011
 
 
 class Agent:

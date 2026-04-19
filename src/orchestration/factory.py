@@ -21,6 +21,7 @@ from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
+from src.infrastructure.apis.cricket_client import CricketAPIClient
 from src.infrastructure.apis.espn_client import fetch_scoreboard
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
@@ -123,6 +124,21 @@ def build_agent(state: RuntimeState) -> Agent:
             bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
         )
 
+    # CricAPI (SPEC-011) — conditional on config + env key
+    cricket_client: CricketAPIClient | None = None
+    if cfg.cricket.enabled:
+        import os
+        cricapi_key = os.getenv("CRICAPI_KEY", "")
+        if cricapi_key:
+            cricket_client = CricketAPIClient(
+                api_key=cricapi_key,
+                daily_limit=cfg.cricket.daily_limit,
+                cache_ttl_sec=cfg.cricket.cache_ttl_sec,
+                timeout_sec=cfg.cricket.timeout_sec,
+            )
+        else:
+            logger.warning("CRICAPI_KEY env missing — cricket disabled")
+
     # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
     score_enricher: ScoreEnricher | None = None
     if cfg.score.enabled:
@@ -140,6 +156,7 @@ def build_agent(state: RuntimeState) -> Agent:
             critical_price_threshold=cfg.score.critical_price_threshold,
             match_window_hours=cfg.score.match_window_hours,
             archive_logger=archive_logger,  # SPEC-009
+            cricket_client=cricket_client,  # SPEC-011
         )
 
     deps = AgentDeps(
@@ -152,6 +169,7 @@ def build_agent(state: RuntimeState) -> Agent:
         price_feed=price_feed,
         score_enricher=score_enricher,
         command_poller=command_poller,
+        cricket_client=cricket_client,  # SPEC-011
     )
     agent = Agent(deps)
 

@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from src.config.sport_rules import _normalize, get_sport_rule
 from src.domain.matching.pair_matcher import match_pair, match_team
+from src.infrastructure.apis.cricket_client import CricketAPIClient, CricketMatchScore
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore, fetch_scores
 from src.infrastructure.persistence.archive_logger import (
@@ -26,6 +27,7 @@ from src.infrastructure.persistence.archive_logger import (
     ArchiveScoreEvent,
 )
 from src.models.position import Position
+from src.orchestration.cricket_score_builder import build_cricket_score_info, find_cricket_match
 from src.strategy.enrichment.question_parser import extract_teams
 
 logger = logging.getLogger(__name__)
@@ -153,6 +155,18 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "our_is_home": our_is_home,
         "espn_start": getattr(ms, "commence_time", ""),
     }
+# ── Cricket helpers (SPEC-011) ────────────────────────────────────────────────
+
+_CRICKET_TAGS = frozenset({
+    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
+    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
+    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
+})
+
+
+def _is_cricket(sport_tag: str) -> bool:
+    tag = _normalize(sport_tag)
+    return tag in _CRICKET_TAGS or tag.startswith("cricket")
 
 
 # ── ScoreEnricher ─────────────────────────────────────────────────────────────
@@ -169,6 +183,7 @@ class ScoreEnricher:
         critical_price_threshold: float = 0.35,
         match_window_hours: float = 4.0,
         archive_logger: ArchiveLogger | None = None,
+        cricket_client: CricketAPIClient | None = None,
     ) -> None:
         self._espn = espn_client
         self._odds = odds_client
@@ -182,6 +197,8 @@ class ScoreEnricher:
         self._cached_espn: dict[str, list[ESPNMatchScore]] = {}
         self._cached_odds: dict[str, list[MatchScore]] = {}
         self._archive_logger = archive_logger
+        self._cricket_client = cricket_client
+        self._cached_cricket: list[CricketMatchScore] = []
         # event_id → last known score string (skor degisikligi tespiti icin — SPEC-009)
         self._prev_score_by_event: dict[str, str] = {}
         # event_id set'i — daha once match_result log'landi mi? Startup'ta
@@ -234,6 +251,13 @@ class ScoreEnricher:
         self._cached_espn.clear()
         self._cached_odds.clear()
 
+        # Cricket (SPEC-011)
+        has_cricket = any(_is_cricket(pos.sport_tag) for pos in positions.values())
+        if has_cricket and self._cricket_client is not None:
+            matches = self._cricket_client.get_current_matches()
+            if matches is not None:
+                self._cached_cricket = matches
+
         for tag, sport_positions in sports.items():
             score_source: str | None = get_sport_rule(tag, "score_source")
             if score_source != "espn":
@@ -277,6 +301,14 @@ class ScoreEnricher:
         """Cached skor verisiyle pozisyonları eşleştir."""
         result: dict[str, dict] = {}
         for cid, pos in positions.items():
+            # Cricket (SPEC-011)
+            if _is_cricket(pos.sport_tag):
+                if self._cached_cricket:
+                    match = find_cricket_match(pos, self._cached_cricket)
+                    if match is not None:
+                        result[cid] = build_cricket_score_info(pos, match)
+                continue
+
             tag = _normalize(pos.sport_tag)
             matched_score_obj = None
 
