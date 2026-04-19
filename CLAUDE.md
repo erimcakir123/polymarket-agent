@@ -274,8 +274,18 @@ Kullanıcı "restart" dediğinde **her seferinde** sor: **Reload mu Reboot mu?**
 - **Reload**: Kod güncellenir, veri korunur
 - **Reboot**: `logs/` kökündeki aktif state dosyaları sıfırlanır — **onay zorunlu**
 
+**Reboot'ta SIFIRLANAN dosyalar (TAM LİSTE):**
+- `logs/positions.json` → boş state
+- `logs/trade_history.jsonl` → boşalt
+- `logs/equity_history.jsonl` → boşalt
+- `logs/circuit_breaker_state.json` → sıfırla
+- `logs/stock_queue.json` → boşalt
+- `logs/skipped_trades.jsonl` → **boşalt** (atlanırsa eski skip kayıtları kalır)
+
 **ARCHIVE ASLA SİLİNMEZ**: `logs/archive/` dizini (exits.jsonl, score_events.jsonl,
 match_results.jsonl) **reboot'ta dahi dokunulmaz**. Geçmiş trade'lerin retrospektif
 analizi için korunur (SPEC-009).
+
+**Bot.log da silinmez** (audit trail, rotation kendisi yapar).
 
 Her ikisi de bot + dashboard'u kapsar. Adımlar: TDD §5.8.
