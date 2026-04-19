@@ -52,4 +52,99 @@
 
 ---
 
-## TODO-002: [sonraki eklenecekler]
+## TODO-002: Sharp-Only Anchor — Non-Sharp Dilution Kuralı (Veri Bekliyor)
+
+- **Durum**: DEFERRED — veri biriktirilecek, sonra karar verilecek
+- **Tarih**: 2026-04-19
+- **Öncelik**: P2 — potansiyel edge keskinleştirmesi, ama hacim kaybı riski var
+
+### Kullanıcı Hipotezi
+
+Polymarket anchor şu an tüm bookmaker'lardan weighted consensus ile hesaplanıyor
+(sharp 3.0×, reputable 1.5×, standard 1.0× — bkz. TDD §6.2). Kullanıcı sezgisi:
+**sharp book'lar (Pinnacle, Betfair Exchange, Matchbook, Smarkets) en isabetli
+forecaster'lar; reputable+standard bookmaker'lar "public bias" taşıyor ve sharp
+sinyalini dilute ediyor olabilir**. Özellikle sharp book sayısı azken (tek sharp +
+birkaç reputable karışımı), non-sharp dilution sharp edge'ini bozuyor olabilir.
+
+### Önerilen Kural
+
+| Sharp book sayısı | Anchor hesabı |
+|---|---|
+| ≥3 | Normal consensus (herkes dahil, mevcut davranış) |
+| 2 | Sadece sharp anchor (reputable/standard yok sayılır) |
+| 1 | **Skip** (tek-book outlier riski yüksek) |
+| 0 | TBD — ya mevcut B-tier akışı ya skip (kullanıcıya sorulacak) |
+
+### Neden Beklemede
+
+Kural mantıklı ama **veriyle doğrulama şart**. Tradeoff net değil:
+
+- **Lehine**: 2-sharp maçlarda anchor keskinleşir → bazı yeni edge'ler açılabilir.
+  Ayrıca 1-sharp maçlarda outlier trade riski azalır.
+- **Aleyhine**: Polymarket'te 1-sharp maçlar çok yaygın (niş turnuvalar,
+  küçük ligler). Skip kuralı trade hacmini ciddi düşürebilir. Ayrıca ≥3 sharp
+  durumunda non-sharp'lar hâlâ outlier koruması sağlıyor — tamamen çıkarmak
+  yılda 2-3 hatalı trade'e açık hale getirebilir.
+
+### Karar İçin Gereken Analiz (trade_history + skipped_trades biriktiğinde)
+
+1. Şu ana kadar trade'lerin sharp-sayısı dağılımı (1, 2, ≥3)?
+2. 2-sharp maçlarda non-sharp dilution ortalama kaç basis-point anchor'ı kaydırmış?
+3. **Kritik**: 1-sharp maçlarda PnL pozitif mi negatif mi? Pozitifse skip kuralı
+   para kaybettirir; negatifse kural net kazanç.
+4. 2-sharp maçlarda "sharp-only anchor" ile "mevcut consensus anchor" arasındaki
+   edge farkının işareti ve dağılımı?
+
+### Önkoşullar
+
+- [ ] En az **50 resolved trade** biriktirilmeli (şu an yeterli değil)
+- [ ] Analiz scripti yazılıp 4 soruya sayısal cevap üretilmeli
+- [ ] Sonuçlara göre: kuralı spec'e yaz / modifiye et / iptal et
+
+### İlgili Dosyalar (kural uygulanırsa değişecekler)
+
+- `src/domain/bookmaker_probability.py` — anchor hesaplama mantığı
+- `src/domain/confidence_grading.py` — sharp-sayısı bazlı tier kuralı
+- `src/strategy/entry_gate.py` — 1-sharp skip kuralı
+- `TDD.md` §6.1, §6.2 — formül + "neden" notu güncelleme
+- `config.yaml` — varsa yeni eşik parametresi
+
+---
+
+## TODO-003: CricAPI Paid Tier Upgrade
+
+- **Durum**: DEFERRED — v1 cricket ile free tier (100/gün) ile başlanıyor
+- **Tarih**: 2026-04-19
+- **Öncelik**: P2 — cricket hacmi arttığında, özellikle ODI eklerken gerekli
+
+### Bağlam
+
+SPEC-011 cricket integration CricAPI free tier (100 hit/gün) ile başladı.
+T20 için yeterli (1 maç ≈ 42 poll), ama:
+- ODI (8 saat maç): tek maç ≈ 96 poll — limit dolar
+- 3+ eşzamanlı T20: limit aşılır
+- Limit dolduğunda: cricket entry'ler o günlük skip (skip_reason: `cricapi_limit_exhausted`)
+
+### Opsiyonlar
+
+1. **CricAPI Standard — ~$10/ay, 1000+ hit/gün**
+   - ODI dahil rahatça 7 cricket ligi
+   - Return on investment: ~1-2 cricket trade/ay + 10$ kapatır
+
+2. **CricAPI Basic — ~$5/ay** (fiyat/quota kontrol gerekli)
+   - Mid-tier. $5/500 hit gibi olabilir. Site'da kontrol edilecek.
+
+### Önkoşul
+- Cricket v1 (SPEC-011) 2-4 hafta canlı çalıştıktan sonra
+- Günlük `cricapi_limit_exhausted` skip sayısı > 2 ise upgrade zorunlu
+- Aylık cricket profit > $20 ise upgrade kendini öder
+
+### Uygulama
+- `config.yaml` → `cricket.api_key` env'den okunuyor, sadece key değişiyor
+- Daily limit config'i güncelle (1000 veya 500 hit)
+- Kod değişikliği minimal (hit tracking zaten var)
+
+---
+
+## TODO-004: [sonraki eklenecekler]
