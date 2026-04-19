@@ -13,6 +13,7 @@ from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.infrastructure.apis.odds_client import OddsAPIClient
 from src.infrastructure.executor import Executor
+from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
@@ -57,6 +58,7 @@ def build_agent(state: RuntimeState) -> Agent:
     trade_logger = TradeHistoryLogger("logs/trade_history.jsonl")
     equity_logger = EquityHistoryLogger("logs/equity_history.jsonl")
     skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
+    archive_logger = ArchiveLogger("logs/archive")  # SPEC-009
     stock_snapshot = StockSnapshot("logs/stock_queue.json")
     stock = StockQueue(
         config=StockConfig(
@@ -144,6 +146,7 @@ def build_agent(state: RuntimeState) -> Agent:
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
+        archive_logger=archive_logger,
         price_feed=price_feed,
         score_enricher=score_enricher,
         command_poller=command_poller,

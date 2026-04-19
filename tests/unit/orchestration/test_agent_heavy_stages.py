@@ -28,6 +28,7 @@ def _make_deps() -> AgentDeps:
         skipped_logger=MagicMock(),
         stock=MagicMock(),
         bot_status_writer=MagicMock(),
+        archive_logger=MagicMock(),
         price_feed=None,
     )
 

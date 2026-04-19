@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.executor import Executor
+from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
@@ -47,6 +48,7 @@ class AgentDeps:
     skipped_logger: SkippedTradeLogger
     stock: StockQueue
     bot_status_writer: BotStatusWriter
+    archive_logger: ArchiveLogger  # SPEC-009
     price_feed: PriceFeed | None = None
     score_enricher: ScoreEnricher | None = None
     command_poller: TelegramCommandPoller | None = None

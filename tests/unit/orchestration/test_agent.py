@@ -13,6 +13,7 @@ from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.manipulation import ManipulationCheck
 from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
@@ -109,6 +110,7 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
     trade_logger = TradeHistoryLogger(str(tmp_path / "trade_history.jsonl"))
     equity_logger = EquityHistoryLogger(str(tmp_path / "equity_history.jsonl"))
     skipped_logger = SkippedTradeLogger(str(tmp_path / "skipped_trades.jsonl"))
+    archive_logger = ArchiveLogger(str(tmp_path / "archive"))
     stock_snapshot = StockSnapshot(str(tmp_path / "stock_queue.json"))
     stock = StockQueue(config=StockConfig(), snapshot=stock_snapshot)
     bot_status_store = JsonStore(tmp_path / "bot_status.json")
@@ -120,6 +122,7 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
+        archive_logger=archive_logger,
     )
 
 
