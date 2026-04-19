@@ -524,8 +524,8 @@ Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda gen
 **Hold aktifken davranış:**
 | Elapsed | Atlanan kurallar | Aktif kurallar |
 |---|---|---|
-| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11), **Score exit (hockey only, §6.9a)**, Catastrophic watch (§6.9b) |
-| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out; **Score exit (hockey)**; Catastrophic watch |
+| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11), **Score exit (hockey §6.9a, tennis §6.9d, baseball §6.9e)**, Catastrophic watch (§6.9b) |
+| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out; **Score exit (hockey/tennis/baseball)**; Catastrophic watch |
 
 #### 6.9a Score-Based Exit (Hockey Only — SPEC-004)
 
@@ -591,6 +591,30 @@ Config: `sport_rules.py → tennis → set_exit_*`. Dönüş ihtimali %3-8.
 when 1-1) rakip ≥ 5 game + gerideyiz → çık. Config: `set_exit_serve_for_match_games`.
 Deficit eşiği ve games_total kontrolü bu durumda atlanır — rakip seti/maçı
 bitirmek için 1 game uzakta, dönüş ihtimali %8-15.
+
+#### 6.9e Baseball Score Exit (SPEC-010)
+
+Tennis T1/T2 ve hockey K1-K4 ile simetrik: A-conf baseball pozisyonlarda FORCED exit.
+Kurallar (`baseball_score_exit.py`):
+
+| Kural | Koşul | Açıklama |
+|---|---|---|
+| M1 | `inning >= 7 AND deficit >= 5` | Blowout — geri dönülemez açık |
+| M2 | `inning >= 8 AND deficit >= 3` | Geç aşama büyük açık |
+| M3 | `inning >= 9 AND deficit >= 1` | Son inning, her deficit |
+
+Config (`sport_rules.py`):
+- `score_exit_m1_inning`, `score_exit_m1_deficit`
+- `score_exit_m2_inning`, `score_exit_m2_deficit`
+- `score_exit_m3_inning`, `score_exit_m3_deficit`
+
+Sport tags: `mlb`, `kbo`, `npb`, `baseball` (hepsi aynı kurallar, default'lar).
+Tetiklendiğinde `ExitReason.SCORE_EXIT` döner.
+
+`deficit = opp_score - our_score` (pozitif = geride).
+
+**Eski sistem (SPEC-008)**: defensive guard (SL ertele), A-conf'ta çalışmıyordu.
+SPEC-010 ile kaldırıldı, yerine bu FORCED exit geldi.
 
 ### 6.10 Never-in-Profit Guard
 
@@ -831,7 +855,7 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 | NBA | 0.35 | 2.5 | halftime_exit @ -15 pts |
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
 | NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
-| MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
+| MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | baseball_score_exit M1-M3 (inning+deficit combo — SPEC-010) |
 | Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED + catastrophic DISABLED |
 | Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |
 | DEFAULT | 0.30 | 2.0 | - |

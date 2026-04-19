@@ -1,6 +1,6 @@
 # SPEC-010: Score Matching Fix + Baseball Symmetry + Partial Rollback
 
-> **Durum**: DRAFT
+> **Durum**: IMPLEMENTED
 > **Tarih**: 2026-04-19
 > **Katman**: orchestration (score_enricher) + strategy (baseball_score_exit yeni, baseball guard sil) + config
 > **Scope**: Phantom matchup bug fix + A-conf symmetry + kontrollu rollback

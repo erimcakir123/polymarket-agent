@@ -175,6 +175,19 @@ geriye dönük veriyle değerlendirmek.
 **Analiz örneği**: "MLB'de 2-1 gerideyken çıktığımız maçların kaçı geri dönüp
 kazandı?" sorusu event_id JOIN ile cevaplanabilir.
 
+### F10: Baseball Score Exit (SPEC-010)
+
+**Amaç**: A-conf baseball pozisyonlarda maç tersine giderken full wipeout
+önlenir. Tennis T1/T2 ve hockey K1-K4 ile simetrik FORCED exit.
+
+**Kurallar**:
+- M1: 7. inning+ ve ≥5 run deficit → exit (blowout)
+- M2: 8. inning+ ve ≥3 run deficit → exit (late big deficit)
+- M3: 9. inning+ ve ≥1 run deficit → exit (final inning)
+
+**Eski sistem (SPEC-008)**: defensive guard (SL ertele), A-conf'ta
+çalışmıyordu. SPEC-010 ile kaldırıldı.
+
 ---
 
 ## 5. Non-Fonksiyonel Gereksinimler

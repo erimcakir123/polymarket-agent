@@ -1,7 +1,7 @@
 # SPEC-008: Baseball Inning Guard — Skor+İnning Aware SL
 
 > **Tarih:** 2026-04-18 (güncelleme: 2026-04-19)
-> **Durum:** DRAFT
+> **Durum:** SUPERSEDED_BY SPEC-010 (baseball guard kaldirildi, yerine baseball_score_exit.py FORCED exit geldi)
 > **Bağımlılık:** SPEC-005 (ESPN Score Client — IMPLEMENTED)
 > **Kapsam:** Strategy katmanı — `stop_loss.py` + `monitor.py`
 
