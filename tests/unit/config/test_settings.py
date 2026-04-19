@@ -88,8 +88,11 @@ def test_repo_config_yaml_parses() -> None:
     assert "lpga*" in cfg.scanner.allowed_sport_tags
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
     # Not: MMA/Boxing 2-outcome (draw yok) → MVP'ye dahil.
-    for banned in ("soccer_epl", "soccer_laliga", "cricket"):
+    for banned in ("soccer_epl", "soccer_laliga"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
     # MMA + Boxing 2-outcome, eklenmiş olmalı
     assert "mma" in cfg.scanner.allowed_sport_tags
     assert "boxing" in cfg.scanner.allowed_sport_tags
+    # Cricket (SPEC-011) — eklenmis olmali
+    assert "cricket" in cfg.scanner.allowed_sport_tags
+    assert "cricket_ipl" in cfg.scanner.allowed_sport_tags

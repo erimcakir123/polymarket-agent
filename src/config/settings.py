@@ -181,6 +181,14 @@ class TelegramConfig(BaseModel):
     chat_id: str = ""
 
 
+class CricketConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    daily_limit: int = 100          # SPEC-011 free tier; TODO-003 paid 1000
+    cache_ttl_sec: int = 240        # 4dk bulk cache
+    timeout_sec: int = 15           # HTTP timeout
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     mode: Mode = Mode.DRY_RUN
@@ -203,6 +211,7 @@ class AppConfig(BaseModel):
     exit: ExitExtrasConfig = ExitExtrasConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
+    cricket: CricketConfig = CricketConfig()  # SPEC-011
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:

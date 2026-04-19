@@ -57,6 +57,17 @@ scanner:
     - "lpga*"
     - "liv*"
     - "pga*"
+    # Cricket (SPEC-011) — 7 ligi + Polymarket tag'leri
+    - cricket
+    - cricket_ipl
+    - cricket_odi
+    - cricket_international_t20
+    - cricket_psl
+    - cricket_big_bash
+    - cricket_caribbean_premier_league
+    - cricket_t20_blast
+    - indian-premier-league
+    - international-cricket
 
 edge:
   min_edge: 0.06
@@ -168,3 +179,10 @@ telegram:
   enabled: false
   bot_token: ""
   chat_id: ""
+
+# Cricket cluster (SPEC-011)
+cricket:
+  enabled: true
+  daily_limit: 100       # CricAPI free tier; TODO-003 paid tier 1000
+  cache_ttl_sec: 240     # 4dk bulk cache
+  timeout_sec: 15        # HTTP timeout

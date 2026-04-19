@@ -88,6 +88,47 @@ SPORT_RULES: dict[str, dict] = {
     },
 }
 
+# ── Cricket (SPEC-011) ──────────────────────────────────────
+# T20 formatlari ayni C1/C2/C3 threshold'lari paylasir.
+# ODI icin daha gevsek threshold (daha uzun mac, daha fazla ball).
+
+_T20_SCORE_EXIT = {
+    "score_exit_c1_balls": 30,    # son 5 over
+    "score_exit_c1_rate": 18.0,   # RRR > 18 imkansiz
+    "score_exit_c2_wickets": 8,
+    "score_exit_c2_runs": 20,
+    "score_exit_c3_balls": 6,     # son 1 over
+    "score_exit_c3_runs": 10,
+}
+
+_CRICKET_BASE = {
+    "stop_loss_pct": 0.30,
+    "score_source": "cricapi",    # ESPN yok, Odds API aggregate only
+}
+
+for _key in (
+    "cricket_ipl", "cricket_big_bash", "cricket_caribbean_premier_league",
+    "cricket_t20_blast", "cricket_international_t20", "cricket_psl",
+):
+    SPORT_RULES[_key] = {
+        **_CRICKET_BASE,
+        "match_duration_hours": 3.5,
+        **_T20_SCORE_EXIT,
+    }
+
+SPORT_RULES["cricket_odi"] = {
+    **_CRICKET_BASE,
+    "match_duration_hours": 8.0,
+    "score_exit_c1_balls": 60,
+    "score_exit_c1_rate": 12.0,
+    "score_exit_c2_wickets": 8,
+    "score_exit_c2_runs": 40,
+    "score_exit_c3_balls": 30,
+    "score_exit_c3_runs": 30,
+}
+
+SPORT_RULES["cricket"] = SPORT_RULES["cricket_ipl"]  # default T20 fallback
+
 DEFAULT_RULES: dict[str, Any] = {
     "stop_loss_pct": 0.30,
     "match_duration_hours": 2.0,
