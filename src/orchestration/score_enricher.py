@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from src.config.sport_rules import _normalize, get_sport_rule
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore, fetch_scores
+from src.infrastructure.persistence.archive_logger import ArchiveLogger, ArchiveScoreEvent
 from src.models.position import Position
 from src.strategy.enrichment.question_parser import extract_teams
 
@@ -163,6 +164,7 @@ class ScoreEnricher:
         poll_critical_sec: int = 30,
         critical_price_threshold: float = 0.35,
         match_window_hours: float = 4.0,
+        archive_logger: ArchiveLogger | None = None,
     ) -> None:
         self._espn = espn_client
         self._odds = odds_client
@@ -175,6 +177,9 @@ class ScoreEnricher:
         # sport_tag → list (ESPNMatchScore | MatchScore)
         self._cached_espn: dict[str, list[ESPNMatchScore]] = {}
         self._cached_odds: dict[str, list[MatchScore]] = {}
+        self._archive_logger = archive_logger
+        # event_id → last known score string (skor degisikligi tespiti icin — SPEC-009)
+        self._prev_score_by_event: dict[str, str] = {}
 
     def get_scores_if_due(self, positions: dict[str, Position]) -> dict[str, dict]:
         """Zamanlama uygunsa skor çek, pozisyonlarla eşleştir.
@@ -263,6 +268,7 @@ class ScoreEnricher:
         result: dict[str, dict] = {}
         for cid, pos in positions.items():
             tag = _normalize(pos.sport_tag)
+            matched_score_obj = None
 
             # ESPN cache öncelikli
             espn_scores = self._cached_espn.get(tag, [])
@@ -270,13 +276,50 @@ class ScoreEnricher:
                 em = _find_espn_match(pos, espn_scores)
                 if em:
                     result[cid] = _build_score_info(pos, em)
-                    continue
+                    matched_score_obj = em
 
-            # Odds API fallback cache
-            odds_scores = self._cached_odds.get(tag, [])
-            if odds_scores:
-                ms = _find_match(pos, odds_scores)
-                if ms:
-                    result[cid] = _build_score_info(pos, ms)
+            # Odds API fallback cache (ESPN yoksa)
+            if matched_score_obj is None:
+                odds_scores = self._cached_odds.get(tag, [])
+                if odds_scores:
+                    ms = _find_match(pos, odds_scores)
+                    if ms:
+                        result[cid] = _build_score_info(pos, ms)
+                        matched_score_obj = ms
+
+            # Archive: skor degisikligi varsa log'la (SPEC-009)
+            if matched_score_obj is not None:
+                self._maybe_log_score_event(pos, matched_score_obj)
 
         return result
+
+    def _maybe_log_score_event(self, pos: Position, ms: object) -> None:
+        """Skor degisikligini tespit edip archive'a yaz (SPEC-009)."""
+        if self._archive_logger is None:
+            return
+        event_id = getattr(pos, "event_id", "") or ""
+        if not event_id:
+            return
+        home_score = getattr(ms, "home_score", None)
+        away_score = getattr(ms, "away_score", None)
+        if home_score is None or away_score is None:
+            return
+        new_score = f"{home_score}-{away_score}"
+        prev_score = self._prev_score_by_event.get(event_id, "")
+        # Ilk sefer (prev yok) → log atma, sadece kaydet
+        if prev_score == "":
+            self._prev_score_by_event[event_id] = new_score
+            return
+        if new_score == prev_score:
+            return
+        # Degisiklik var → archive'a yaz
+        self._archive_logger.log_score_event(ArchiveScoreEvent(
+            event_id=event_id,
+            slug=pos.slug,
+            sport_tag=pos.sport_tag,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            prev_score=prev_score,
+            new_score=new_score,
+            period=getattr(ms, "period", "") or "",
+        ))
+        self._prev_score_by_event[event_id] = new_score

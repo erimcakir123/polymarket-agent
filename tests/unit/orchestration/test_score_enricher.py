@@ -325,3 +325,85 @@ def test_find_espn_match_prefers_correct_over_old() -> None:
     result2 = _find_espn_match(pos, [old_match, correct])
     assert result2 is not None
     assert result2.event_id == "new"
+
+
+# ── SPEC-009: Archive score events ──
+
+def _pos_with_event(
+    event_id: str = "E1",
+    slug: str = "rangers-lightning",
+    sport_tag: str = "nhl",
+    hours_ago: float = 1.0,
+) -> Position:
+    """event_id ve slug dolu pozisyon — archive testleri icin."""
+    start = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return Position(
+        condition_id="cid1", token_id="t", direction="BUY_YES",
+        entry_price=0.55, size_usdc=50, shares=90,
+        current_price=0.55, anchor_probability=0.55,
+        confidence="B", sport_tag=sport_tag,
+        question="Rangers vs. Lightning",
+        match_start_iso=_iso(start),
+        event_id=event_id,
+        slug=slug,
+    )
+
+
+def test_score_change_logs_to_archive(tmp_path) -> None:
+    """Skor degisince score_events.jsonl'e yazilir (SPEC-009)."""
+    import json
+    from src.infrastructure.persistence.archive_logger import ArchiveLogger
+
+    archive = ArchiveLogger(str(tmp_path / "archive"))
+    pos = _pos_with_event()
+
+    # Ilk poll: skor 1-0
+    espn = _FakeESPN([_espn_score(h_score=1, a_score=0)])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=archive,
+    )
+    enricher.get_scores_if_due({"cid1": pos})
+
+    score_file = tmp_path / "archive" / "score_events.jsonl"
+    # Ilk gorunum — sadece kaydedilir, yazilmaz
+    assert not score_file.exists() or score_file.read_text().strip() == ""
+
+    # Skoru degistir: 2-0; poll interval = 0 → hemen yeniden çek
+    enricher._espn = _FakeESPN([_espn_score(h_score=2, a_score=0)])
+    enricher._last_poll_ts = 0.0  # zorla refresh
+    enricher.get_scores_if_due({"cid1": pos})
+
+    assert score_file.exists()
+    lines = [l for l in score_file.read_text().splitlines() if l.strip()]
+    assert len(lines) == 1
+    event = json.loads(lines[0])
+    assert event["event_id"] == "E1"
+    assert event["prev_score"] == "1-0"
+    assert event["new_score"] == "2-0"
+
+
+def test_same_score_no_archive_log(tmp_path) -> None:
+    """Skor degismezse score_events.jsonl'e yazilmaz (SPEC-009)."""
+    from src.infrastructure.persistence.archive_logger import ArchiveLogger
+
+    archive = ArchiveLogger(str(tmp_path / "archive"))
+    pos = _pos_with_event()
+
+    espn = _FakeESPN([_espn_score(h_score=1, a_score=0)])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=archive,
+    )
+
+    # Ayni skorla 3 kez poll
+    for _ in range(3):
+        enricher._last_poll_ts = 0.0
+        enricher.get_scores_if_due({"cid1": pos})
+
+    score_file = tmp_path / "archive" / "score_events.jsonl"
+    # Dosya ya yok ya da bos
+    if score_file.exists():
+        assert score_file.read_text().strip() == ""

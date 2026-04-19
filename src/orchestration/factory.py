@@ -138,6 +138,7 @@ def build_agent(state: RuntimeState) -> Agent:
             poll_critical_sec=cfg.score.poll_critical_sec,
             critical_price_threshold=cfg.score.critical_price_threshold,
             match_window_hours=cfg.score.match_window_hours,
+            archive_logger=archive_logger,  # SPEC-009
         )
 
     deps = AgentDeps(
