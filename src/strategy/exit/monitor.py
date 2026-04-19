@@ -236,7 +236,7 @@ def evaluate(
             )
     else:
         # 4. Non-A-hold flat stop-loss
-        if stop_loss.check(pos, score_info):
+        if stop_loss.check(pos):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
                 fav_transition=_fav_transition(pos),
