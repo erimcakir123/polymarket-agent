@@ -68,6 +68,30 @@ _STATIC_ABBREVS: dict[str, str] = {
     "mtl": "montreal canadiens", "nyr": "new york rangers",
     "edm": "edmonton oilers", "cgy": "calgary flames",
     "van": "vancouver canucks", "col": "colorado avalanche",
+    # Cricket — IPL (SPEC-011; unique keys only)
+    "csk": "chennai super kings",
+    "mi": "mumbai indians",
+    "rcb": "royal challengers bengaluru",
+    "kkr": "kolkata knight riders",
+    "srh": "sunrisers hyderabad",
+    "dc_ipl": "delhi capitals",         # 'dc' not used by existing, disambiguate for safety
+    "pk_ipl": "punjab kings",           # 'pk' not used, disambiguate
+    "rr_ipl": "rajasthan royals",       # 'rr' not used, disambiguate
+    "lsg": "lucknow super giants",
+    "gt_ipl": "gujarat titans",
+    # Cricket — International (suffix-disambiguated; 'ind' already = indiana pacers)
+    "ind_cric": "india",
+    "aus_cric": "australia",
+    "eng_cric": "england",
+    "pak_cric": "pakistan",
+    "nz_cric": "new zealand",
+    "sa_cric": "south africa",
+    "wi_cric": "west indies",
+    "ban_cric": "bangladesh",
+    "sl_cric": "sri lanka",
+    "afg_cric": "afghanistan",
+    "zim_cric": "zimbabwe",
+    "ire_cric": "ireland",
 }
 
 

@@ -236,6 +236,8 @@ _TAG_TO_ODDS: dict[str, str] = {
     "big-bash-league": "cricket_bbl",
     "caribbean-premier-league": "cricket_cpl",
     "t20-blast": "cricket_t20_blast",
+    "indian-premier-league": "cricket_ipl",         # SPEC-011 Task 3
+    "international-cricket": "cricket_international_t20",  # SPEC-011 Task 3
 }
 
 
