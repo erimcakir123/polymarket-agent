@@ -103,3 +103,26 @@ def test_get_score_source_mlb() -> None:
 
 def test_get_score_source_golf_none() -> None:
     assert get_sport_rule("golf", "score_source") is None
+
+
+# ── AHL hockey family (SPEC-014) ──
+
+def test_ahl_inherits_nhl_thresholds() -> None:
+    """SPEC-014: AHL K1-K4 esikleri NHL ile ayni."""
+    for key in ("period_exit_deficit", "late_deficit"):
+        nhl_val = get_sport_rule("nhl", key)
+        ahl_val = get_sport_rule("ahl", key)
+        if nhl_val is not None:
+            assert ahl_val == nhl_val, f"AHL should inherit NHL's {key}"
+
+
+def test_ahl_has_own_espn_league() -> None:
+    """SPEC-014: AHL kendi ESPN endpoint'i (nhl != ahl)."""
+    assert get_sport_rule("ahl", "espn_league") == "ahl"
+
+
+def test_ahl_espn_sport_inherits_hockey() -> None:
+    """SPEC-014: AHL NHL'in espn_sport'unu paylasir (hockey)."""
+    nhl_sport = get_sport_rule("nhl", "espn_sport")
+    if nhl_sport:
+        assert get_sport_rule("ahl", "espn_sport") == nhl_sport

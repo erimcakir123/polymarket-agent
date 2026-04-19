@@ -129,6 +129,12 @@ SPORT_RULES["cricket_odi"] = {
 
 SPORT_RULES["cricket"] = SPORT_RULES["cricket_ipl"]  # default T20 fallback
 
+# SPEC-014: AHL hockey family — NHL K1-K4 eşiklerini paylaşır, sadece ESPN endpoint farklı
+SPORT_RULES["ahl"] = {
+    **SPORT_RULES["nhl"],
+    "espn_league": "ahl",
+}
+
 DEFAULT_RULES: dict[str, Any] = {
     "stop_loss_pct": 0.30,
     "match_duration_hours": 2.0,

@@ -78,3 +78,36 @@ def test_score_exit_not_hockey_no_exit() -> None:
 def test_score_exit_b_conf_no_exit() -> None:
     sig = check("nhl", "B", _info(deficit=4), elapsed_pct=0.90, current_price=0.10)
     assert sig is None
+
+
+# ── SPEC-014: hockey family (_is_hockey_family) ──
+
+def test_is_hockey_family_nhl() -> None:
+    from src.strategy.exit.hockey_score_exit import _is_hockey_family
+    assert _is_hockey_family("nhl") is True
+
+
+def test_is_hockey_family_ahl() -> None:
+    from src.strategy.exit.hockey_score_exit import _is_hockey_family
+    assert _is_hockey_family("ahl") is True
+
+
+def test_is_hockey_family_not_mlb() -> None:
+    from src.strategy.exit.hockey_score_exit import _is_hockey_family
+    assert _is_hockey_family("mlb") is False
+    assert _is_hockey_family("basketball") is False
+
+
+def test_ahl_k1_triggers_score_exit() -> None:
+    """SPEC-014: AHL sport_tag ile K1 tetiklenir (NHL gibi)."""
+    sig = check("ahl", "A", _info(deficit=3), elapsed_pct=0.30, current_price=0.40)
+    assert sig is not None
+    assert sig.reason == ExitReason.SCORE_EXIT
+    assert "K1" in sig.detail
+
+
+def test_ahl_k4_triggers_score_exit() -> None:
+    """SPEC-014: AHL K4 final elapsed gate."""
+    sig = check("ahl", "A", _info(deficit=1), elapsed_pct=0.93, current_price=0.45)
+    assert sig is not None
+    assert "K4" in sig.detail

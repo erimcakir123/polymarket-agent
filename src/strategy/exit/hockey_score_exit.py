@@ -20,8 +20,16 @@ class ScoreExitResult:
     detail: str
 
 
-def _is_hockey(sport_tag: str) -> bool:
-    return _normalize(sport_tag) == "nhl"
+_HOCKEY_FAMILY: frozenset[str] = frozenset({"nhl", "ahl"})
+
+
+def _is_hockey_family(sport_tag: str) -> bool:
+    """NHL + AHL — aynı K1-K4 kuralları (SPEC-014)."""
+    return _normalize(sport_tag) in _HOCKEY_FAMILY
+
+
+# Backward-compat alias — existing callers
+_is_hockey = _is_hockey_family
 
 
 def check(

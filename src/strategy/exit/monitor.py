@@ -20,6 +20,7 @@ from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _no
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
+from src.strategy.exit.hockey_score_exit import _is_hockey_family
 
 
 @dataclass
@@ -185,8 +186,8 @@ def evaluate(
     # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
     a_hold = a_conf_hold.is_a_conf_hold(pos) or pos.favored
     if a_hold:
-        # 3a. Score-based exit — hockey A-conf only (SPEC-004 K1-K4)
-        if _normalize(pos.sport_tag) == "nhl" and score_info.get("available"):
+        # 3a. Score-based exit — hockey family A-conf only (SPEC-004 K1-K4, SPEC-014 AHL)
+        if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
             sc_result = hockey_score_exit.check(
                 sport_tag=pos.sport_tag,
                 confidence=pos.confidence,

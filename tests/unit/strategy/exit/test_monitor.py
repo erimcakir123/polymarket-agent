@@ -398,6 +398,26 @@ def test_baseball_score_exit_triggers_for_a_conf_mlb() -> None:
     assert "M2" in r.exit_signal.detail or "M3" in r.exit_signal.detail
 
 
+def test_monitor_triggers_score_exit_for_ahl() -> None:
+    """SPEC-014: AHL sport_tag + K1 deficit -> SCORE_EXIT (hockey family fix)."""
+    p = _pos(
+        confidence="A", entry_price=0.65, current_price=0.30,
+        size_usdc=45, shares=69.2,
+        slug="ahl-leh-cha-2026",
+        sport_tag="ahl",
+        question="Lehigh Valley Phantoms vs Charlotte Checkers",
+    )
+    score_info = {
+        "available": True,
+        "deficit": 3,   # K1: deficit >= period_exit_deficit(3) → immediate exit
+        "map_diff": -3,
+    }
+    r = evaluate(p, score_info=score_info, scale_out_tiers=[])
+    assert r.exit_signal is not None, "AHL K1 SCORE_EXIT tetiklenmeli"
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+    assert "K1" in r.exit_signal.detail
+
+
 def test_baseball_score_exit_doesnt_fire_for_nba() -> None:
     """NBA sport_tag → baseball_score_exit skip."""
     start = datetime.now(timezone.utc) - timedelta(hours=1)
