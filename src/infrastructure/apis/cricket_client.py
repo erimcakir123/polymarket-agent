@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -59,7 +60,7 @@ class CricketAPIClient:
         daily_limit: int = 100,
         cache_ttl_sec: int = 240,
         timeout_sec: int = 15,
-        http_get=None,
+        http_get: Callable[..., Any] | None = None,
     ) -> None:
         self._api_key = api_key
         self._http = http_get or self._default_get
@@ -115,6 +116,9 @@ class CricketAPIClient:
     def _parse_match(self, raw: dict) -> CricketMatchScore | None:
         """Raw dict → CricketMatchScore. Bozuk kayit None doner."""
         try:
+            raw_id = str(raw.get("id", "")).strip()
+            if not raw_id:
+                return None
             innings: list[dict] = []
             for s in raw.get("score", []) or []:
                 inning_str = s.get("inning", "") or ""
@@ -134,7 +138,7 @@ class CricketAPIClient:
                     "inning_num": inning_num,
                 })
             return CricketMatchScore(
-                match_id=str(raw.get("id", "")),
+                match_id=raw_id,
                 name=str(raw.get("name", "")),
                 match_type=str(raw.get("matchType", "")).lower(),
                 teams=list(raw.get("teams", [])),

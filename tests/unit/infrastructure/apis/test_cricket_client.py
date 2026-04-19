@@ -116,15 +116,14 @@ def test_http_exception_returns_none():
     assert matches is None
 
 
-def test_parse_match_missing_fields_returns_none():
-    raw_bad = {"id": "x"}  # missing name, teams, etc.
+def test_parse_match_missing_id_filtered_out():
+    raw_bad = {"name": "X vs Y"}  # missing id
     http = MagicMock(return_value=_mock_response(matches=[raw_bad, _sample_raw_match()]))
     client = CricketAPIClient(api_key="test-key", http_get=http)
     matches = client.get_current_matches()
-    # Bad one filtered out, good one parses
     assert matches is not None
-    # Bad match parse'ed to defaults (empty strings) — still returned; that's ok
-    # Just check no crash
+    assert len(matches) == 1  # bad record filtered, good one kept
+    assert matches[0].match_id == "abc-123"
 
 
 def test_inning_number_parsed_from_string():
