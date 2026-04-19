@@ -53,12 +53,22 @@ Aşağıdaki eşiklerden birinde bot yeni giriş yapmaz:
 
 Circuit breaker her entry öncesi kontrol edilir ve devre dışı bırakılamaz. (bkz. TDD §6.15)
 
-### 2.7 Scale-Out Profit-Taking
+### 2.7 Scale-Out Profit-Taking (Midpoint) — SPEC-013
 Kâr alma tek mekanizma ile: 1-tier scale-out.
-- **Tier 1**: PnL ≥ %15 → pozisyonun %40'ını sat
+- **Tier 1**: Entry fiyatı ile resolution (0.99) arasındaki yolun yarısına geldiğinde pozisyonun %40'ını sat.
+  - Entry 43¢ → 71¢ tetik, Entry 70¢ → 84.5¢ tetik
 - Kalan pozisyon near-resolve (94¢) veya SL'ye kalır.
 
+Eski PnL% bazlı semantik (entry fiyatına bağımlı adaletsiz) değişti — şimdi
+"kalan mesafe" bazında her entry için adil tetikleme.
+
 (bkz. TDD §6.6)
+
+### 2.8 Favorite Filter — SPEC-013
+Bot **sadece favori taraflara** girer: normal + early entry'de bookmaker'ın
+bizim tarafa verdiği olasılık %55'ten az ise trade atlanır (`min_favorite_probability`).
+Underdog value bet'leri (low market price + yüksek bookmaker) artık alınmıyor —
+varyans düşürme amacıyla. Consensus stratejisi zaten EV guard ile favori-biased.
 
 ---
 

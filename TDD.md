@@ -392,6 +392,20 @@ Geleneksel bookmaker'larda %4-8 overround → normalize gerekli.
 | `raw < 0` AND `effective > threshold` | `BUY_NO`, edge = effective |
 | Aksi | `HOLD`, edge = 0 |
 
+**Favorite Filter (SPEC-013)**:
+
+Edge hesabı direction belirledikten sonra ek guard:
+```
+our_side_prob = bm_prob.probability if direction == BUY_YES else (1 - bm_prob.probability)
+if our_side_prob < min_favorite_probability (default 0.55): SKIP
+```
+
+**Gerekçe**: Bookmaker bizim tarafa %55+ vermiyorsa bet underdog — uzun vadede
+EV+ olsa bile yüksek varyans. SPEC-013: rasyonel sistem sadece "beklenen kazanan"
+tarafa girer. Underdog value bet'leri (TEX-SEA 30¢ %14 edge gibi) reddedilir.
+
+Konfig: `edge.min_favorite_probability` (normal) + `early.min_favorite_probability` (early).
+
 ### 6.4 Consensus Entry (Special Case)
 
 Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır (standart edge yerine).
@@ -447,18 +461,39 @@ size = max(0, round(size, 2))
 - Bankroll üst sınırı (sanity)
 - Polymarket minimum: $5 — altında reddet
 
-### 6.6 Scale-Out (1-tier)
+### 6.6 Scale-Out (Midpoint-to-Resolution) — SPEC-013
 
-Kâr biriktikçe pozisyonun parçasını satmak. Near-resolve (§6.11, 94¢) priority olduğundan
-tier eşiği near-resolve'den düşük tutulur; aksi halde sıçrayan spor fiyatlarında by-pass olur.
+Config-driven tier listesi. Her tier'da:
+- `threshold`: entry ile 0.99 arasındaki mesafenin fraction'ı. 0.50 = midpoint.
+- `sell_pct`: tier tetiklendiğinde satılacak pozisyon %'si.
 
-| Tier | Tetikleyici (unrealized PnL) | Satış oranı | Amaç |
-|---|---|---|---|
-| 1 | ≥ +15% | 40% | Erken kâr lock — near-resolve altı |
+**Trigger formülü** (pure, `scale_out.py`):
+```
+max_distance = 0.99 - entry_price
+current_distance = current_price - entry_price
+distance_fraction = current_distance / max_distance
+if distance_fraction >= tier.threshold AND not yet triggered: SELL
+```
+
+**Örnek** (default threshold 0.50, 40% sell):
+| Entry | Trigger price | Locked PnL ($45 stake) |
+|---|---|---|
+| 0.30 | 0.645 | ≈$14 |
+| 0.43 | 0.71 | ≈$11 |
+| 0.70 | 0.845 | ≈$8 |
+| 0.80 | 0.895 | ≈$4 |
 
 **Geçiş:** `tier 0 → 1`. Tier 1 tetiklendikten sonra kalan pozisyon near-resolve veya SL'ye kalır.
 
-**Config:** Tier eşikleri ve satış oranları `config.yaml` altındaki `scale_out.tiers` listesinden okunur — hardcoded değil. `check_scale_out` fonksiyonu N-tier listeyi destekler; gelecekte tier eklenebilir.
+**Eski semantik**: `unrealized_pnl_pct >= threshold` — entry fiyatına göre
+adaletsizdi (43¢ entry'de +%15 PnL = 49¢ fiyat, 70¢ entry'de = 80¢ fiyat).
+Yeni semantik her entry için adil (distance-based).
+
+**Direction-aware**: `entry_price` ve `current_price` effective prices
+(BUY_YES için yes_price, BUY_NO için no_price). Position model'de zaten
+böyle saklanır (`src/models/position.py`).
+
+**Config:** Tier eşikleri ve satış oranları `config.yaml` altındaki `scale_out.tiers` listesinden okunur — hardcoded değil. `check_scale_out` fonksiyonu N-tier listeyi destekler; gelecekte tier eklenebilir. Near-resolve (§6.11, 94¢) priority olduğundan tier eşiği near-resolve'den düşük tutulur; aksi halde sıçrayan spor fiyatlarında by-pass olur.
 
 ### 6.7 Flat Stop-Loss Helper (7-Katman Öncelik)
 
