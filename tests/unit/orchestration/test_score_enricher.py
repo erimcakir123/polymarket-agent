@@ -9,10 +9,8 @@ from src.models.position import Position
 from src.orchestration.score_enricher import (
     ScoreEnricher,
     _build_score_info,
-    _find_espn_match,
-    _find_match,
+    _find_match_via_pair,
     _is_within_match_window,
-    _team_match,
 )
 
 
@@ -89,24 +87,6 @@ class _FakeClient:
         return self._data
 
 
-# ── team matching ──
-
-def test_team_match_exact() -> None:
-    assert _team_match("Rangers", "Rangers")
-
-
-def test_team_match_substring() -> None:
-    assert _team_match("Rangers", "New York Rangers")
-
-
-def test_team_match_last_word() -> None:
-    assert _team_match("New York Rangers", "NY Rangers")
-
-
-def test_team_match_no_match() -> None:
-    assert not _team_match("Sharks", "New York Rangers")
-
-
 # ── match window ──
 
 def test_within_match_window() -> None:
@@ -117,22 +97,6 @@ def test_within_match_window() -> None:
 def test_outside_match_window() -> None:
     pos = _pos(hours_ago=6.0)
     assert not _is_within_match_window(pos, window_hours=4.0)
-
-
-# ── find_match (Odds API MatchScore) ──
-
-def test_find_match_by_team_name() -> None:
-    pos = _pos(question="Rangers vs. Lightning")
-    ms = _ms(home="New York Rangers", away="Tampa Bay Lightning")
-    result = _find_match(pos, [ms])
-    assert result is not None
-    assert result.event_id == "e1"
-
-
-def test_find_match_no_match() -> None:
-    pos = _pos(question="Sharks vs. Jets")
-    ms = _ms(home="New York Rangers", away="Tampa Bay Lightning")
-    assert _find_match(pos, [ms]) is None
 
 
 # ── build_score_info ──
@@ -264,9 +228,9 @@ def test_enricher_adaptif_polling_critical() -> None:
     assert enricher._poll_sec == 30
 
 
-# ── _find_espn_match ──
+# ── _find_match_via_pair ──
 
-def test_find_espn_match_skips_wrong_match_same_player() -> None:
+def test_find_match_via_pair_skips_wrong_match_same_player() -> None:
     """Two-team position must not match ESPN entry with only one matching player."""
     pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
     old_match = ESPNMatchScore(
@@ -274,10 +238,10 @@ def test_find_espn_match_skips_wrong_match_same_player() -> None:
         home_score=0, away_score=2, period="Final", is_completed=True,
         is_live=False, last_updated="", linescores=[[3, 6], [3, 6]],
     )
-    assert _find_espn_match(pos, [old_match]) is None
+    assert _find_match_via_pair(pos, [old_match], "home_name", "away_name") is None
 
 
-def test_find_espn_match_correct_two_team() -> None:
+def test_find_match_via_pair_correct_two_team() -> None:
     """Two-team position matches when both players found."""
     pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
     correct = ESPNMatchScore(
@@ -285,12 +249,12 @@ def test_find_espn_match_correct_two_team() -> None:
         home_score=0, away_score=0, period="In Progress", is_completed=False,
         is_live=True, last_updated="", linescores=[[3, 3]],
     )
-    result = _find_espn_match(pos, [correct])
+    result = _find_match_via_pair(pos, [correct], "home_name", "away_name")
     assert result is not None
     assert result.event_id == "new"
 
 
-def test_find_espn_match_single_team_fallback() -> None:
+def test_find_match_via_pair_single_team_fallback() -> None:
     """Single-team position (no team_b) still uses fallback matching."""
     pos = _pos(question="Will Tiger Woods win?", sport_tag="golf")
     espn = ESPNMatchScore(
@@ -298,12 +262,12 @@ def test_find_espn_match_single_team_fallback() -> None:
         home_score=None, away_score=None, period="", is_completed=False,
         is_live=False, last_updated="",
     )
-    result = _find_espn_match(pos, [espn])
+    result = _find_match_via_pair(pos, [espn], "home_name", "away_name")
     assert result is not None
     assert result.event_id == "g1"
 
 
-def test_find_espn_match_prefers_correct_over_old() -> None:
+def test_find_match_via_pair_prefers_correct_over_old() -> None:
     """When both old and correct matches exist, correct one matches regardless of order."""
     pos = _pos(question="Rafael Jodar vs Arthur Fils", sport_tag="tennis")
     old_match = ESPNMatchScore(
@@ -317,12 +281,12 @@ def test_find_espn_match_prefers_correct_over_old() -> None:
         is_live=True, last_updated="", linescores=[[3, 3]],
     )
     # Correct listed first
-    result = _find_espn_match(pos, [correct, old_match])
+    result = _find_match_via_pair(pos, [correct, old_match], "home_name", "away_name")
     assert result is not None
     assert result.event_id == "new"
 
     # Old listed first — skipped, correct matches
-    result2 = _find_espn_match(pos, [old_match, correct])
+    result2 = _find_match_via_pair(pos, [old_match, correct], "home_name", "away_name")
     assert result2 is not None
     assert result2.event_id == "new"
 
@@ -334,6 +298,7 @@ def _pos_with_event(
     slug: str = "rangers-lightning",
     sport_tag: str = "nhl",
     hours_ago: float = 1.0,
+    question: str = "Rangers vs. Lightning",
 ) -> Position:
     """event_id ve slug dolu pozisyon — archive testleri icin."""
     start = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
@@ -342,7 +307,7 @@ def _pos_with_event(
         entry_price=0.55, size_usdc=50, shares=90,
         current_price=0.55, anchor_probability=0.55,
         confidence="B", sport_tag=sport_tag,
-        question="Rangers vs. Lightning",
+        question=question,
         match_start_iso=_iso(start),
         event_id=event_id,
         slug=slug,
@@ -545,3 +510,85 @@ def test_match_result_no_archive_logger_does_not_crash() -> None:
     # Crassh olmamali
     result = enricher.get_scores_if_due({"cid1": pos})
     assert isinstance(result, dict)
+
+
+# ── SPEC-010 Task 1: _find_match_via_pair yeni testler ──
+
+def test_find_match_via_pair_exact_names() -> None:
+    """pair_matcher: tam isim eslesmesi."""
+    pos = _pos_with_event(
+        event_id="E1",
+        question="Boston Red Sox vs. New York Yankees",
+        sport_tag="mlb",
+    )
+    scores = [
+        ESPNMatchScore(
+            event_id="x", home_name="Boston Red Sox", away_name="New York Yankees",
+            home_score=1, away_score=0, period="Top 5th",
+            is_completed=False, is_live=True, last_updated="",
+            linescores=[], commence_time="",
+        ),
+    ]
+    result = _find_match_via_pair(pos, scores, "home_name", "away_name")
+    assert result is not None
+    assert result.home_name == "Boston Red Sox"
+
+
+def test_find_match_via_pair_swapped_order() -> None:
+    """pair_matcher: home/away ters olsa bile eslesme."""
+    pos = _pos_with_event(
+        event_id="E1",
+        question="Boston Red Sox vs. New York Yankees",
+        sport_tag="mlb",
+    )
+    # ESPN home=Yankees, away=Red Sox (ters)
+    scores = [
+        ESPNMatchScore(
+            event_id="x", home_name="New York Yankees", away_name="Boston Red Sox",
+            home_score=3, away_score=2, period="Top 5th",
+            is_completed=False, is_live=True, last_updated="",
+            linescores=[], commence_time="",
+        ),
+    ]
+    result = _find_match_via_pair(pos, scores, "home_name", "away_name")
+    assert result is not None
+
+
+def test_find_match_via_pair_phantom_no_match() -> None:
+    """Phantom matchup: Polymarket slug gercek ESPN maciyla eslesmiyor."""
+    pos = _pos_with_event(
+        event_id="E1",
+        question="Tampa Bay Rays vs. Pittsburgh Pirates",
+        sport_tag="mlb",
+    )
+    # ESPN'de Tampa vs Yankees (Pittsburgh yok)
+    scores = [
+        ESPNMatchScore(
+            event_id="x", home_name="Tampa Bay Rays", away_name="New York Yankees",
+            home_score=0, away_score=1, period="Top 9th",
+            is_completed=True, is_live=False, last_updated="",
+            linescores=[], commence_time="",
+        ),
+    ]
+    # Pittsburgh yok → match_pair False → None
+    result = _find_match_via_pair(pos, scores, "home_name", "away_name")
+    assert result is None
+
+
+def test_find_match_via_pair_low_confidence_rejected() -> None:
+    """Confidence < 0.80 → None."""
+    pos = _pos_with_event(
+        event_id="E1",
+        question="Abc vs. Xyz",
+        sport_tag="mlb",
+    )
+    scores = [
+        ESPNMatchScore(
+            event_id="x", home_name="Unrelated Team", away_name="Another Team",
+            home_score=0, away_score=0, period="",
+            is_completed=False, is_live=False, last_updated="",
+            linescores=[], commence_time="",
+        ),
+    ]
+    result = _find_match_via_pair(pos, scores, "home_name", "away_name")
+    assert result is None

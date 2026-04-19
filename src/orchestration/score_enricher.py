@@ -17,6 +17,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from src.config.sport_rules import _normalize, get_sport_rule
+from src.domain.matching.pair_matcher import match_pair, match_team
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore, fetch_scores
 from src.infrastructure.persistence.archive_logger import (
@@ -55,56 +56,55 @@ def _is_within_match_window(pos: Position, window_hours: float) -> bool:
     return diff_hours <= window_hours
 
 
-def _team_match(pos_team: str, api_team: str) -> bool:
-    """Polymarket team name ile API team name fuzzy eşleşmesi."""
-    if not pos_team or not api_team:
-        return False
-    p = pos_team.lower().strip()
-    a = api_team.lower().strip()
-    if p == a:
-        return True
-    # Substring match: "Rangers" in "New York Rangers"
-    if p in a or a in p:
-        return True
-    # Son kelime eşleşmesi: "New York Rangers" → "Rangers"
-    p_last = p.rsplit(maxsplit=1)[-1] if " " in p else p
-    a_last = a.rsplit(maxsplit=1)[-1] if " " in a else a
-    return p_last == a_last and len(p_last) >= 3
-
-
 def _resolve_tennis_league(slug: str) -> str:
     """WTA/ATP league resolver: slug "wta-*" ise "wta", aksi halde "atp"."""
     return "wta" if (slug or "").lower().startswith("wta") else "atp"
 
 
-def _find_espn_match(pos: Position, scores: list[ESPNMatchScore]) -> ESPNMatchScore | None:
-    """Pozisyonu ESPN skor listesiyle eşleştir (home_name/away_name)."""
+def _find_match_via_pair(
+    pos: Position,
+    scores: list,
+    home_attr: str,
+    away_attr: str,
+    min_confidence: float = 0.80,
+) -> object | None:
+    """pair_matcher kullanarak skor listesinden eslesen event'i bul.
+
+    home_attr/away_attr: ESPN icin "home_name"/"away_name", Odds API icin
+    "home_team"/"away_team". Ayni logic her iki kaynakta calisir.
+
+    Pair matching: team_a + team_b verildi → her iki takim da eslemeli
+    (swap destekli). Sadece team_a verildi → single-team fallback.
+    """
     team_a, team_b = extract_teams(pos.question)
     if not team_a:
         return None
-    for ms in scores:
-        home_a = _team_match(team_a, ms.home_name)
-        home_b = _team_match(team_b or "", ms.home_name) if team_b else False
-        away_a = _team_match(team_a, ms.away_name)
-        away_b = _team_match(team_b or "", ms.away_name) if team_b else False
-        if (home_a and away_b) or (home_b and away_a) or (not team_b and (home_a or away_a)):
-            return ms
-    return None
 
+    best_match = None
+    best_conf = 0.0
 
-def _find_match(pos: Position, scores: list[MatchScore]) -> MatchScore | None:
-    """Pozisyonu Odds API skor listesiyle eşleştir (home_team/away_team)."""
-    team_a, team_b = extract_teams(pos.question)
-    if not team_a:
-        return None
     for ms in scores:
-        home_a = _team_match(team_a, ms.home_team)
-        home_b = _team_match(team_b or "", ms.home_team) if team_b else False
-        away_a = _team_match(team_a, ms.away_team)
-        away_b = _team_match(team_b or "", ms.away_team) if team_b else False
-        if (home_a and away_b) or (home_b and away_a) or (home_a or away_a):
-            return ms
-    return None
+        home = getattr(ms, home_attr, "") or ""
+        away = getattr(ms, away_attr, "") or ""
+        if not home or not away:
+            continue
+
+        if team_b:
+            # Pair matching: HER IKI takim da eslemeli (normal + swap)
+            is_match, conf = match_pair((team_a, team_b), (home, away))
+            if is_match and conf > best_conf:
+                best_match = ms
+                best_conf = conf
+        else:
+            # Single team fallback
+            mh, ch, _ = match_team(team_a, home)
+            ma, ca, _ = match_team(team_a, away)
+            best_side = max(ch, ca)
+            if (mh or ma) and best_side > best_conf:
+                best_match = ms
+                best_conf = best_side
+
+    return best_match if best_conf >= min_confidence else None
 
 
 # MatchScore-like protocol: both MatchScore and ESPNMatchScore share home/away score fields.
@@ -123,7 +123,7 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
 
     # home_name (ESPN) veya home_team (Odds API)
     home_field: str = getattr(ms, "home_name", None) or getattr(ms, "home_team", "")
-    a_is_home = _team_match(team_a or "", home_field)
+    a_is_home, _, _ = match_team(team_a or "", home_field)
 
     if a_is_home:
         yes_score, no_score = ms.home_score, ms.away_score
@@ -283,7 +283,7 @@ class ScoreEnricher:
             # ESPN cache öncelikli
             espn_scores = self._cached_espn.get(tag, [])
             if espn_scores:
-                em = _find_espn_match(pos, espn_scores)
+                em = _find_match_via_pair(pos, espn_scores, "home_name", "away_name")
                 if em:
                     result[cid] = _build_score_info(pos, em)
                     matched_score_obj = em
@@ -292,7 +292,7 @@ class ScoreEnricher:
             if matched_score_obj is None:
                 odds_scores = self._cached_odds.get(tag, [])
                 if odds_scores:
-                    ms = _find_match(pos, odds_scores)
+                    ms = _find_match_via_pair(pos, odds_scores, "home_team", "away_team")
                     if ms:
                         result[cid] = _build_score_info(pos, ms)
                         matched_score_obj = ms
