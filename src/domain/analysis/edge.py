@@ -1,14 +1,19 @@
 """Edge hesabı (TDD §6.3) — anchor P(YES) vs market price.
 
-Confidence multipliers: A=0.67 (sharp data güvenilir → düşük eşik %4),
-B=1.00 (baz %6). C girmez. Mantık: A-conf'ta Pinnacle/Betfair var →
-olasılık tahmini daha doğru → daha küçük edge kabul edilebilir.
+Confidence multipliers: config.yaml.edge.confidence_multipliers'tan gelir.
+Mevcut (SPEC-010 rollback + Bug #2 fix): A=1.00, B=1.00 — her ikisi de %6 eşik.
+
+Geçmiş: A=0.67 (A-conf için %4) kullanıldı ama data-driven karar ile %6 unified'a
+geçildi (kötü dönem A-conf %4 entry'leri hacim attırdı ama PnL düşürdü).
+
+DEFAULT_CONFIDENCE_MULTIPLIERS: GateConfig bağlanmadan çağrılırsa fallback.
+Gate üzerinden geçen path'te config'deki değerler kullanılır.
 """
 from __future__ import annotations
 
 from src.models.enums import Direction
 
-DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 0.67, "B": 1.00}
+DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 1.00, "B": 1.00}
 
 
 def calculate_edge(

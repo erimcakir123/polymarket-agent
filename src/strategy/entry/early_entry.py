@@ -28,6 +28,7 @@ def evaluate(
     max_entry_price: float = 0.70,
     min_hours_to_start: float = 6.0,
     max_hours_to_start: float = 24.0,
+    confidence_multipliers: dict[str, float] | None = None,
 ) -> Signal | None:
     """Early entry kararı. None döner: koşullar uymuyor."""
     # 1. Confidence eşiği (default B+; v2'de B veya A kabul)
@@ -52,6 +53,7 @@ def evaluate(
         market_yes_price=market.yes_price,
         min_edge=min_edge,
         confidence=bm_prob.confidence,
+        confidence_multipliers=confidence_multipliers,
     )
     if direction == Direction.SKIP:
         return None

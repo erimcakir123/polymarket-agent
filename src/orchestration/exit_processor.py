@@ -56,8 +56,11 @@ class ExitProcessor:
             self.deps.cycle_manager.signal_exit_happened()
 
     def _catastrophic_config(self) -> dict:
-        """Config'den catastrophic watch eşiklerini oku."""
-        cfg = getattr(self.deps, "config", None)
+        """Config'den catastrophic watch eşiklerini oku.
+
+        Config path: deps.state.config (AgentDeps.state: RuntimeState; RuntimeState.config: AppConfig).
+        """
+        cfg = getattr(self.deps.state, "config", None)
         if cfg and hasattr(cfg, "exit"):
             return {
                 "trigger": cfg.exit.catastrophic_trigger,
@@ -67,8 +70,11 @@ class ExitProcessor:
         return {}
 
     def _scale_out_tiers(self) -> list[dict]:
-        """Config'den scale-out tier listesini dict olarak döndür."""
-        cfg = getattr(self.deps, "config", None)
+        """Config'den scale-out tier listesini dict olarak döndür.
+
+        Config path: deps.state.config (AgentDeps.state: RuntimeState; RuntimeState.config: AppConfig).
+        """
+        cfg = getattr(self.deps.state, "config", None)
         if cfg and hasattr(cfg, "scale_out"):
             return [
                 {"threshold": t.threshold, "sell_pct": t.sell_pct}

@@ -40,7 +40,8 @@ class ScannerConfig(BaseModel):
 class EdgeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_edge: float = 0.06
-    confidence_multipliers: dict = {"A": 1.25, "B": 1.00}
+    # SPEC-010 + Bug #2 fix: A=1.00, B=1.00 (her ikisi de %6 eşik, unified)
+    confidence_multipliers: dict = {"A": 1.00, "B": 1.00}
 
 
 class RiskConfig(BaseModel):
@@ -77,6 +78,7 @@ class ConsensusConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
     min_price: float = 0.60
+    max_price: float = 0.80
     bet_pct: float = 0.05
     max_slots: int = 5
 
@@ -100,8 +102,7 @@ class ScaleOutConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
     tiers: List[ScaleOutTier] = [
-        ScaleOutTier(threshold=0.25, sell_pct=0.40),
-        ScaleOutTier(threshold=0.50, sell_pct=0.50),
+        ScaleOutTier(threshold=0.15, sell_pct=0.40),
     ]
 
 

@@ -359,11 +359,17 @@ Anchor probability (P(YES)) ile market YES fiyatı arasındaki fark; spread + sl
 
 | Confidence | Multiplier | Efektif eşik | Not |
 |---|---|---|---|
-| A | 0.67 | %4 | Sharp data güvenilir → düşük eşik kabul |
-| B | 1.00 | %6 | Baz eşik, daha geniş güvenlik marjı |
+| A | 1.00 | %6 | SPEC-010 rollback + Bug #2 fix — unified eşik |
+| B | 1.00 | %6 | Baz eşik |
 | C | — | — | Entry bloklanır, sizing'e ulaşmaz |
 
 **Default `min_edge`:** `0.06` (config.yaml `edge.min_edge`)
+
+**Unified %6 eşik — neden**: A-conf eski çarpan 0.67 (%4) denendi ama PnL'e
+kalıcı katkı sağlamadı (hacim artışı hatalı trade'lere yol açtı). SPEC-010'da
+A=1.00'e rollback edildi, Bug #2 fix ile config'in gerçekten uygulanması
+sağlandı. Gerekirse yeniden kalibrasyon için `config.yaml.edge.confidence_multipliers`
+değişiyor (kod dokunmadan).
 
 **Exchange vig-free kuralı**: Betfair Exchange, Matchbook, Smarkets gibi exchange
 bookmaker'larda vig yok — `1/price` zaten gerçek olasılığa yakın. Bu bookmaker'lara

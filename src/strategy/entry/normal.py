@@ -15,6 +15,7 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_edge: float = 0.06,
+    confidence_multipliers: dict[str, float] | None = None,
     spread: float = 0.0,
     slippage: float = 0.0,
 ) -> Signal | None:
@@ -30,6 +31,7 @@ def evaluate(
         market_yes_price=market.yes_price,
         min_edge=min_edge,
         confidence=bm_prob.confidence,
+        confidence_multipliers=confidence_multipliers,
         spread=spread,
         slippage=slippage,
     )

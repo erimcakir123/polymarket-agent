@@ -87,6 +87,7 @@ def build_agent(state: RuntimeState) -> Agent:
 
     gate_cfg = GateConfig(
         min_edge=cfg.edge.min_edge,
+        confidence_multipliers=cfg.edge.confidence_multipliers,
         max_positions=cfg.risk.max_positions,
         max_exposure_pct=cfg.risk.max_exposure_pct,
         confidence_bet_pct=cfg.risk.confidence_bet_pct,
@@ -96,6 +97,7 @@ def build_agent(state: RuntimeState) -> Agent:
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
+        consensus_max_price=cfg.consensus.max_price,
         # Early entry
         early_enabled=cfg.early.enabled,
         early_min_edge=cfg.early.min_edge,

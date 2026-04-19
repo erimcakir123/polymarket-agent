@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
     min_edge: float = 0.06
+    confidence_multipliers: dict[str, float] = field(
+        default_factory=lambda: {"A": 1.00, "B": 1.00},
+    )
     max_positions: int = 50
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
@@ -55,6 +58,7 @@ class GateConfig:
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
+    consensus_max_price: float = 0.80
     # Early entry
     early_enabled: bool = True
     early_min_edge: float = 0.10
@@ -222,7 +226,11 @@ class EntryGate:
         """
         # 1. Consensus — book + market aynı favori, ≥65¢
         if self.config.consensus_enabled:
-            sig = consensus_entry.evaluate(market, bm_prob, min_price=self.config.consensus_min_price)
+            sig = consensus_entry.evaluate(
+                market, bm_prob,
+                min_price=self.config.consensus_min_price,
+                max_price=self.config.consensus_max_price,
+            )
             if sig is not None:
                 return sig
 
@@ -236,9 +244,14 @@ class EntryGate:
                 max_entry_price=self.config.early_max_entry_price,
                 min_hours_to_start=self.config.early_min_hours_to_start,
                 max_hours_to_start=self.config.early_max_hours_to_start,
+                confidence_multipliers=self.config.confidence_multipliers,
             )
             if sig is not None:
                 return sig
 
         # 3. Normal — bookmaker P(YES) vs market YES, edge ≥6%
-        return normal_entry.evaluate(market, bm_prob, min_edge=self.config.min_edge)
+        return normal_entry.evaluate(
+            market, bm_prob,
+            min_edge=self.config.min_edge,
+            confidence_multipliers=self.config.confidence_multipliers,
+        )
