@@ -407,3 +407,141 @@ def test_same_score_no_archive_log(tmp_path) -> None:
     # Dosya ya yok ya da bos
     if score_file.exists():
         assert score_file.read_text().strip() == ""
+
+
+# ── SPEC-009 Task 5: match_result logging ──
+
+def _espn_score_completed(
+    event_id: str = "E1",
+    home: str = "Red Sox",
+    away: str = "Yankees",
+    h_score: int = 5,
+    a_score: int = 3,
+) -> ESPNMatchScore:
+    """is_completed=True olan final skor nesnesi — match_result testleri icin."""
+    return ESPNMatchScore(
+        event_id=event_id,
+        home_name=home, away_name=away,
+        home_score=h_score, away_score=a_score,
+        period="Final", is_completed=True,
+        is_live=False, last_updated="", linescores=[],
+        commence_time="",
+    )
+
+
+def _pos_with_event_mlb(
+    event_id: str = "E1",
+    slug: str = "red-sox-yankees",
+    question: str = "Red Sox vs Yankees",
+    hours_ago: float = 1.0,
+) -> Position:
+    """MLB pozisyonu event_id + slug dolu — match_result testleri icin."""
+    start = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return Position(
+        condition_id="cid1", token_id="t", direction="BUY_YES",
+        entry_price=0.55, size_usdc=50, shares=90,
+        current_price=0.55, anchor_probability=0.55,
+        confidence="B", sport_tag="mlb",
+        question=question,
+        match_start_iso=_iso(start),
+        event_id=event_id,
+        slug=slug,
+    )
+
+
+def test_match_completion_logs_result(tmp_path) -> None:
+    """Mac bittiginde match_results.jsonl'e yazilir (SPEC-009 Task 5)."""
+    import json
+    from src.infrastructure.persistence.archive_logger import ArchiveLogger
+
+    archive = ArchiveLogger(str(tmp_path / "archive"))
+    pos = _pos_with_event_mlb()
+
+    espn = _FakeESPN([_espn_score_completed()])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=archive,
+    )
+    enricher.get_scores_if_due({"cid1": pos})
+
+    results_file = tmp_path / "archive" / "match_results.jsonl"
+    assert results_file.exists()
+    lines = [ln for ln in results_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+    data = json.loads(lines[0])
+    assert data["event_id"] == "E1"
+    assert data["final_score"] == "5-3"
+    assert data["winner_home"] is True
+
+
+def test_match_completion_winner_home_false(tmp_path) -> None:
+    """Away kazaninca winner_home=False yazilir (SPEC-009 Task 5)."""
+    import json
+    from src.infrastructure.persistence.archive_logger import ArchiveLogger
+
+    archive = ArchiveLogger(str(tmp_path / "archive"))
+    pos = _pos_with_event_mlb()
+
+    # Away (Yankees) kazaniyor: 2-5
+    espn = _FakeESPN([_espn_score_completed(h_score=2, a_score=5)])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=archive,
+    )
+    enricher.get_scores_if_due({"cid1": pos})
+
+    results_file = tmp_path / "archive" / "match_results.jsonl"
+    assert results_file.exists()
+    lines = [ln for ln in results_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+    data = json.loads(lines[0])
+    assert data["winner_home"] is False
+
+
+def test_match_result_not_duplicated_on_restart(tmp_path) -> None:
+    """Startup'ta archive'dan existing event_id'ler yuklenir - duplicate atilmaz (SPEC-009 Task 5)."""
+    import json
+    from src.infrastructure.persistence.archive_logger import (
+        ArchiveLogger, ArchiveMatchResult,
+    )
+
+    archive_dir = tmp_path / "archive"
+
+    # Onceden 1 match_result yazmis ol (restart oncesi)
+    archive1 = ArchiveLogger(str(archive_dir))
+    archive1.log_match_result(ArchiveMatchResult(
+        event_id="E1", slug="red-sox-yankees", sport_tag="mlb", final_score="5-3",
+        winner_home=True, completed_timestamp="2026-04-19T18:00:00Z",
+    ))
+
+    # Yeni enricher (restart sonrasi) — load_logged_match_event_ids() cagrilmali
+    archive2 = ArchiveLogger(str(archive_dir))
+    pos = _pos_with_event_mlb()
+    espn = _FakeESPN([_espn_score_completed()])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=archive2,
+    )
+    # Ayni event_id'yi tekrar gor — duplicate olmamali
+    enricher.get_scores_if_due({"cid1": pos})
+
+    results_file = archive_dir / "match_results.jsonl"
+    lines = [ln for ln in results_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1  # duplicate yok
+
+
+def test_match_result_no_archive_logger_does_not_crash() -> None:
+    """archive_logger=None durumunda hata vermez (SPEC-009 Task 5 defensive)."""
+    pos = _pos_with_event_mlb()
+    espn = _FakeESPN([_espn_score_completed()])
+    enricher = ScoreEnricher(
+        espn_client=espn, odds_client=None,
+        poll_normal_sec=0, poll_critical_sec=0,
+        archive_logger=None,
+    )
+    # Crassh olmamali
+    result = enricher.get_scores_if_due({"cid1": pos})
+    assert isinstance(result, dict)

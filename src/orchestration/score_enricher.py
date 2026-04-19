@@ -19,7 +19,11 @@ from datetime import datetime, timezone
 from src.config.sport_rules import _normalize, get_sport_rule
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore, fetch_scores
-from src.infrastructure.persistence.archive_logger import ArchiveLogger, ArchiveScoreEvent
+from src.infrastructure.persistence.archive_logger import (
+    ArchiveLogger,
+    ArchiveMatchResult,
+    ArchiveScoreEvent,
+)
 from src.models.position import Position
 from src.strategy.enrichment.question_parser import extract_teams
 
@@ -180,6 +184,12 @@ class ScoreEnricher:
         self._archive_logger = archive_logger
         # event_id → last known score string (skor degisikligi tespiti icin — SPEC-009)
         self._prev_score_by_event: dict[str, str] = {}
+        # event_id set'i — daha once match_result log'landi mi? Startup'ta
+        # archive'dan yuklenir (duplicate engellemesi).
+        self._logged_match_event_ids: set[str] = (
+            archive_logger.load_logged_match_event_ids()
+            if archive_logger is not None else set()
+        )
 
     def get_scores_if_due(self, positions: dict[str, Position]) -> dict[str, dict]:
         """Zamanlama uygunsa skor çek, pozisyonlarla eşleştir.
@@ -287,9 +297,10 @@ class ScoreEnricher:
                         result[cid] = _build_score_info(pos, ms)
                         matched_score_obj = ms
 
-            # Archive: skor degisikligi varsa log'la (SPEC-009)
+            # Archive: skor degisikligi + match result (SPEC-009)
             if matched_score_obj is not None:
                 self._maybe_log_score_event(pos, matched_score_obj)
+                self._maybe_log_match_result(pos, matched_score_obj)
 
         return result
 
@@ -323,3 +334,34 @@ class ScoreEnricher:
             period=getattr(ms, "period", "") or "",
         ))
         self._prev_score_by_event[event_id] = new_score
+
+    def _maybe_log_match_result(self, pos: Position, ms: object) -> None:
+        """Mac tamamlandiysa match_result log'la (SPEC-009). Duplicate atma."""
+        if self._archive_logger is None:
+            return
+        is_completed = getattr(ms, "is_completed", False)
+        if not is_completed:
+            return
+        event_id = getattr(pos, "event_id", "") or ""
+        if not event_id or event_id in self._logged_match_event_ids:
+            return
+        home_score = getattr(ms, "home_score", None)
+        away_score = getattr(ms, "away_score", None)
+        if home_score is None or away_score is None:
+            return
+        winner_home: bool | None = None
+        if home_score > away_score:
+            winner_home = True
+        elif away_score > home_score:
+            winner_home = False
+        # esit skor (draw) → None kalir
+
+        self._archive_logger.log_match_result(ArchiveMatchResult(
+            event_id=event_id,
+            slug=pos.slug,
+            sport_tag=pos.sport_tag,
+            final_score=f"{home_score}-{away_score}",
+            winner_home=winner_home,
+            completed_timestamp=datetime.now(timezone.utc).isoformat(),
+        ))
+        self._logged_match_event_ids.add(event_id)
