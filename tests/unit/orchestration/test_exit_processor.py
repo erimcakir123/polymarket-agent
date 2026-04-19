@@ -124,3 +124,71 @@ def test_partial_exit_trade_logger_before_portfolio_mutation() -> None:
         f"trade_logger ({logger_idx}) must be called BEFORE apply_partial_exit ({portfolio_idx}). "
         f"Call order: {recorder.calls}"
     )
+
+
+# ── Archive tests (SPEC-009) ──
+
+def _make_deps_with_archive(recorder: _CallRecorder, tmp_path) -> MagicMock:
+    """_make_deps'in archive_logger eklenmiş versiyonu."""
+    from src.infrastructure.persistence.archive_logger import ArchiveLogger
+    deps = _make_deps(recorder)
+    deps.archive_logger = ArchiveLogger(str(tmp_path / "archive"))
+    return deps
+
+
+def test_full_exit_writes_to_archive(tmp_path) -> None:
+    """Full exit → exits.jsonl'e yazilir (SPEC-009)."""
+    import json
+    recorder = _CallRecorder()
+    deps = _make_deps_with_archive(recorder, tmp_path)
+    proc = ExitProcessor(deps)
+
+    pos = _pos(current_price=0.95, slug="team-a-wins")
+    signal = ExitSignal(reason=ExitReason.NEAR_RESOLVE, detail="test")
+    proc._execute_exit(pos, signal)
+
+    exits_file = deps.archive_logger.dir / "exits.jsonl"
+    assert exits_file.exists(), "exits.jsonl olusturulmadi"
+    lines = exits_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1, f"1 satir beklendi, {len(lines)} satir bulundu"
+    data = json.loads(lines[0])
+    assert data["exit_reason"] == "near_resolve"
+    assert data["exit_price"] == pytest.approx(0.95)
+    assert data["slug"] == "team-a-wins"
+
+
+def test_partial_exit_writes_to_archive(tmp_path) -> None:
+    """Scale-out partial exit → exits.jsonl'e yazilir (SPEC-009)."""
+    import json
+    recorder = _CallRecorder()
+    deps = _make_deps_with_archive(recorder, tmp_path)
+    proc = ExitProcessor(deps)
+
+    pos = _pos(unrealized_pnl_usdc=45.0, current_price=0.80, slug="team-b-wins")
+    signal = ExitSignal(
+        reason=ExitReason.SCALE_OUT, partial=True,
+        sell_pct=0.4, tier=1, detail="test",
+    )
+    proc._execute_exit(pos, signal)
+
+    exits_file = deps.archive_logger.dir / "exits.jsonl"
+    assert exits_file.exists(), "exits.jsonl olusturulmadi"
+    lines = exits_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1, f"1 satir beklendi, {len(lines)} satir bulundu"
+    data = json.loads(lines[0])
+    assert data["exit_reason"] == "scale_out"
+    assert data["slug"] == "team-b-wins"
+    assert data["exit_price"] == pytest.approx(0.80)
+
+
+def test_no_archive_logger_does_not_crash() -> None:
+    """archive_logger yoksa (None) sessizce atlar — hata vermez (SPEC-009)."""
+    recorder = _CallRecorder()
+    deps = _make_deps(recorder)
+    deps.archive_logger = None
+    proc = ExitProcessor(deps)
+
+    pos = _pos(current_price=0.95)
+    signal = ExitSignal(reason=ExitReason.NEAR_RESOLVE, detail="test")
+    # Hata vermeden tamamlanmali
+    proc._execute_exit(pos, signal)

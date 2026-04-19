@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from src.domain.portfolio.lifecycle import tick_position_state
+from src.infrastructure.persistence.archive_logger import ArchiveExitRecord
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
 from src.models.position import Position
 from src.strategy.exit import monitor as exit_monitor
@@ -48,7 +49,7 @@ class ExitProcessor:
             self._apply_fav_transition(pos, result.fav_transition)
 
             if result.exit_signal is not None:
-                self._execute_exit(pos, result.exit_signal)
+                self._execute_exit(pos, result.exit_signal, elapsed_pct=result.elapsed_pct)
                 exits_processed += 1
 
         if exits_processed > 0:
@@ -83,7 +84,7 @@ class ExitProcessor:
             pos.favored = False
             logger.info("FAV DEMOTED: %s", pos.slug[:40])
 
-    def _execute_exit(self, pos: Position, signal: ExitSignal) -> None:
+    def _execute_exit(self, pos: Position, signal: ExitSignal, elapsed_pct: float = -1.0) -> None:
         """Exit sinyalini execute et — full veya partial.
 
         Operasyon sırası: trade_logger (disk) → portfolio mutation (in-memory).
@@ -91,16 +92,17 @@ class ExitProcessor:
         pozisyon hâlâ portfolio'daysa sonraki cycle tekrar exit tetikler.
         """
         if signal.partial:
-            self._execute_partial_exit(pos, signal)
+            self._execute_partial_exit(pos, signal, elapsed_pct)
             return
 
         self.deps.executor.exit_position(pos, reason=signal.reason.value)
         realized = pos.unrealized_pnl_usdc
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
+        exit_price = pos.current_price
 
         # 1. Disk — trade_logger ÖNCE (crash-safe sıralama)
         exit_data = {
-            "exit_price": pos.current_price,
+            "exit_price": exit_price,
             "exit_reason": signal.reason.value,
             "exit_pnl_usdc": round(realized, 2),
             "exit_pnl_pct": round(pnl_pct, 4),
@@ -109,6 +111,9 @@ class ExitProcessor:
         if not self.deps.trade_logger.update_on_exit(pos.condition_id, exit_data):
             logger.warning("EXIT record missing for %s — writing fallback entry+exit", pos.slug[:35])
             self._write_fallback_entry(pos, exit_data)
+
+        # Archive — SPEC-009 retrospektif analiz
+        self._log_exit_to_archive(pos, signal, realized, exit_price, elapsed_pct)
 
         # 2. In-memory — portfolio mutation SONRA
         self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
@@ -121,7 +126,7 @@ class ExitProcessor:
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
 
-    def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
+    def _execute_partial_exit(self, pos: Position, signal: ExitSignal, elapsed_pct: float = -1.0) -> None:
         """Scale-out partial exit.
 
         Operasyon sırası: hesapla → trade_logger (disk) → pos/portfolio mutation.
@@ -161,6 +166,43 @@ class ExitProcessor:
             "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
             pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
         )
+
+        # Archive — SPEC-009
+        self._log_exit_to_archive(pos, signal, realized, pos.current_price, elapsed_pct)
+
+    def _log_exit_to_archive(
+        self, pos: Position, signal: ExitSignal, realized: float,
+        exit_price: float, elapsed_pct: float,
+    ) -> None:
+        """Exit'i arsive yaz — retrospektif analiz icin (SPEC-009)."""
+        archive_logger = getattr(self.deps, "archive_logger", None)
+        if archive_logger is None:
+            return
+        record = ArchiveExitRecord(
+            slug=pos.slug,
+            condition_id=pos.condition_id,
+            event_id=getattr(pos, "event_id", "") or "",
+            token_id=pos.token_id,
+            sport_tag=pos.sport_tag,
+            question=pos.question,
+            direction=pos.direction,
+            entry_price=pos.entry_price,
+            entry_timestamp=str(getattr(pos, "entry_timestamp", "")),
+            size_usdc=pos.size_usdc,
+            shares=pos.shares,
+            confidence=pos.confidence,
+            anchor_probability=pos.anchor_probability,
+            entry_reason=getattr(pos, "entry_reason", ""),
+            exit_price=exit_price,
+            exit_pnl_usdc=round(realized, 2),
+            exit_reason=signal.reason.value,
+            exit_timestamp=datetime.now(timezone.utc).isoformat(),
+            partial_exits=list(getattr(pos, "partial_exits", [])),
+            score_at_exit=pos.match_score or "",
+            period_at_exit=pos.match_period or "",
+            elapsed_pct_at_exit=elapsed_pct,
+        )
+        archive_logger.log_exit(record)
 
     def _write_fallback_entry(self, pos: Position, exit_data: dict) -> None:
         """Entry kaydı kayıpsa pozisyondan oluştur + varsa exit verisini ekle."""
