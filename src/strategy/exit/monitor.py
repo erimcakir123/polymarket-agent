@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize
+from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
@@ -43,17 +43,6 @@ class MonitorResult:
     fav_transition: FavoredTransition
     elapsed_pct: float
 
-
-_CRICKET_TAGS = frozenset({
-    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
-    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
-    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
-})
-
-
-def _is_cricket_sport(sport_tag: str) -> bool:
-    tag = _normalize(sport_tag)
-    return tag in _CRICKET_TAGS or tag.startswith("cricket")
 
 
 def compute_elapsed_pct(pos: Position) -> float:
@@ -240,7 +229,7 @@ def evaluate(
                 )
 
         # 3a-cricket. Score-based exit — cricket (SPEC-011 C1/C2/C3)
-        if _is_cricket_sport(pos.sport_tag) and score_info.get("available"):
+        if is_cricket_sport(pos.sport_tag) and score_info.get("available"):
             c_result = cricket_score_exit.check(
                 score_info=score_info,
                 current_price=pos.current_price,

@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from src.config.sport_rules import is_cricket_sport
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
@@ -37,17 +38,6 @@ from src.strategy.entry import (
 )
 
 logger = logging.getLogger(__name__)
-
-_CRICKET_MARKET_TAGS = frozenset({
-    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
-    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
-    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
-})
-
-
-def _is_cricket_market_sport(sport_tag: str) -> bool:
-    t = (sport_tag or "").lower().strip()
-    return t in _CRICKET_MARKET_TAGS or t.startswith("cricket")
 
 
 @dataclass
@@ -170,7 +160,7 @@ class EntryGate:
                               skip_detail=f"num_bookmakers={bm_prob.num_bookmakers:.1f}")
 
         # SPEC-011: Cricket entries need CricAPI availability
-        if _is_cricket_market_sport(market.sport_tag) and self._cricket_client is not None:
+        if is_cricket_sport(market.sport_tag) and self._cricket_client is not None:
             if self._cricket_client.quota.exhausted:
                 detail = f"quota={self._cricket_client.quota.used_today}/{self._cricket_client.quota.daily_limit}"
                 return GateResult(cid, None, "cricapi_unavailable", skip_detail=detail, manipulation=manip)

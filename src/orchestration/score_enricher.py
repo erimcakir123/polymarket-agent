@@ -3,10 +3,10 @@
 Light cycle içinde periyodik çağrılır (poll_normal_sec / poll_critical_sec).
 Sadece maç penceresindeki pozisyonlar için API çağrısı yapar.
 
-Dispatch kuralı:
-  - sport_rules'dan score_source okunur
-  - score_source == "espn" → ESPN önce, Odds API fallback (tennis hariç)
-  - score_source yok → skor yok, geç
+Dispatch table:
+- score_source="espn": ESPN primary + Odds API fallback (tennis hariç)
+- score_source="cricapi": CricketAPIClient via cricket_score_builder (SPEC-011)
+- missing: skip silently
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from collections import defaultdict
 
 from datetime import datetime, timezone
 
-from src.config.sport_rules import _normalize, get_sport_rule
+from src.config.sport_rules import _normalize, get_sport_rule, is_cricket_sport
 from src.domain.matching.pair_matcher import match_pair, match_team
 from src.infrastructure.apis.cricket_client import CricketAPIClient, CricketMatchScore
 from src.infrastructure.apis.espn_client import ESPNMatchScore
@@ -155,20 +155,6 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "our_is_home": our_is_home,
         "espn_start": getattr(ms, "commence_time", ""),
     }
-# ── Cricket helpers (SPEC-011) ────────────────────────────────────────────────
-
-_CRICKET_TAGS = frozenset({
-    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
-    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
-    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
-})
-
-
-def _is_cricket(sport_tag: str) -> bool:
-    tag = _normalize(sport_tag)
-    return tag in _CRICKET_TAGS or tag.startswith("cricket")
-
-
 # ── ScoreEnricher ─────────────────────────────────────────────────────────────
 
 class ScoreEnricher:
@@ -252,7 +238,11 @@ class ScoreEnricher:
         self._cached_odds.clear()
 
         # Cricket (SPEC-011)
-        has_cricket = any(_is_cricket(pos.sport_tag) for pos in positions.values())
+        has_cricket = any(
+            is_cricket_sport(pos.sport_tag)
+            for pos in positions.values()
+            if _is_within_match_window(pos, self._window_hours)
+        )
         if has_cricket and self._cricket_client is not None:
             matches = self._cricket_client.get_current_matches()
             if matches is not None:
@@ -302,7 +292,7 @@ class ScoreEnricher:
         result: dict[str, dict] = {}
         for cid, pos in positions.items():
             # Cricket (SPEC-011)
-            if _is_cricket(pos.sport_tag):
+            if is_cricket_sport(pos.sport_tag):
                 if self._cached_cricket:
                     match = find_cricket_match(pos, self._cached_cricket)
                     if match is not None:

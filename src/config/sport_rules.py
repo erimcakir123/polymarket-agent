@@ -210,3 +210,16 @@ def get_stop_loss(sport_tag: str) -> float:
 
 def get_match_duration_hours(sport_tag: str) -> float:
     return float(get_sport_rule(sport_tag, "match_duration_hours", 2.0))
+
+
+CRICKET_SPORT_TAGS: frozenset[str] = frozenset({
+    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
+    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
+    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
+})
+
+
+def is_cricket_sport(sport_tag: str) -> bool:
+    """Cricket sport_tag mi? Explicit lig tag'leri + cricket_* prefix."""
+    tag = _normalize(sport_tag)
+    return tag in CRICKET_SPORT_TAGS or tag.startswith("cricket")
