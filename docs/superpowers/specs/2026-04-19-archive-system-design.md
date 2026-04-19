@@ -1,6 +1,6 @@
 # SPEC-009: Archive System — Retrospective Rule Analysis
 
-> **Durum**: DRAFT
+> **Durum**: IMPLEMENTED
 > **Tarih**: 2026-04-19
 > **Katman**: infrastructure (archive_logger) + orchestration (exit_processor, score_enricher)
 > **Scope**: append-only archive katmani + reboot/reload koruma + dokuman
