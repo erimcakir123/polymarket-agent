@@ -26,12 +26,14 @@
     },
 
     update({ active, exited, skipped, stock }) {
+      this._detectNewEntries(active);
       this._detectNewExits(exited);
       this.state.data = { active, exited, skipped, stock };
       this.render();
     },
 
     _prevExitIds: new Set(),
+    _prevActiveIds: new Set(),
 
     _detectNewExits(exited) {
       if (!exited || !exited.length) return;
@@ -50,6 +52,24 @@
         }
       }
       this._prevExitIds = currentIds;
+    },
+
+    _detectNewEntries(active) {
+      if (!active) return;
+      const currentIds = new Set(active.map((p) => p.condition_id + "|" + (p.entry_timestamp || "")));
+      if (this._prevActiveIds.size === 0) {
+        // İlk yükleme — ses çalma
+        this._prevActiveIds = currentIds;
+        return;
+      }
+      // Her yeni giriş için bir kez çağır — SOUNDS kuyruğa alır, seri çalar
+      for (const p of active) {
+        const key = p.condition_id + "|" + (p.entry_timestamp || "");
+        if (!this._prevActiveIds.has(key) && typeof SOUNDS !== "undefined") {
+          SOUNDS.playEntry();
+        }
+      }
+      this._prevActiveIds = currentIds;
     },
 
     render() {
