@@ -21,16 +21,44 @@ def test_C_confidence_returns_zero() -> None:
     assert confidence_position_size("C", bankroll=1000, confidence_bet_pct=BET_PCT) == 0.0
 
 
-def test_no_hard_cap() -> None:
-    """max_single_bet_usdc kaldirildi — $75 cap yok."""
-    result = confidence_position_size("A", bankroll=10_000, confidence_bet_pct=BET_PCT)
-    assert result == 500.0
+def test_max_bet_usdc_cap_applied() -> None:
+    """max_bet_usdc cap: bankroll*pct > cap olsa bile cap devrede (SPEC-010)."""
+    result = confidence_position_size(
+        "A", bankroll=10_000,
+        confidence_bet_pct=BET_PCT,
+        max_bet_usdc=50.0,
+    )
+    # 10_000 × 5% = 500, ama cap 50 → 50
+    assert result == 50.0
+
+
+def test_max_bet_usdc_below_cap_not_clipped() -> None:
+    """bankroll dusukse cap devrede degil."""
+    result = confidence_position_size(
+        "A", bankroll=500,
+        confidence_bet_pct=BET_PCT,
+        max_bet_usdc=50.0,
+    )
+    # 500 × 5% = 25, cap 50 → 25
+    assert result == 25.0
+
+
+def test_max_bet_usdc_default_cap_50() -> None:
+    """SPEC-010: default max_bet_usdc=50."""
+    result = confidence_position_size(
+        "A", bankroll=10_000, confidence_bet_pct=BET_PCT,
+    )
+    # Default max_bet_usdc=50, 10_000 × 5% = 500 → capped at 50
+    assert result == 50.0
 
 
 def test_max_bet_pct_cap() -> None:
+    """max_bet_pct cap: pct-tavan, max_bet_usdc=200 ile usdc cap devrede degil."""
     result = confidence_position_size(
-        "A", bankroll=10_000, confidence_bet_pct=BET_PCT, max_bet_pct=0.01,
+        "A", bankroll=10_000, confidence_bet_pct=BET_PCT,
+        max_bet_usdc=200.0, max_bet_pct=0.01,
     )
+    # 10_000 × 5% = 500, pct cap 0.01 → 100, usdc cap 200 → 100
     assert result == 100.0
 
 

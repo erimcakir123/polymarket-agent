@@ -20,8 +20,6 @@ class CycleConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     heavy_interval_min: int = 30
     light_interval_sec: int = 5
-    night_interval_min: int = 60
-    night_hours: List[int] = [8, 9, 10, 11, 12, 13]
 
 
 class ScannerConfig(BaseModel):
@@ -47,6 +45,7 @@ class EdgeConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    max_single_bet_usdc: float = 50    # SPEC-010: bet tavani
     max_bet_pct: float = 0.05
     confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}
     max_positions: int = 20

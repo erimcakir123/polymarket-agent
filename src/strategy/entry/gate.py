@@ -48,6 +48,7 @@ class GateConfig:
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015
     confidence_bet_pct: dict[str, float] = field(default_factory=lambda: {"A": 0.05, "B": 0.04})
+    max_single_bet_usdc: float = 50.0    # SPEC-010: bet tavani
     max_bet_pct: float = 0.05
     max_entry_price: float = 0.88
     # Consensus
@@ -176,6 +177,7 @@ class EntryGate:
             confidence=signal.confidence,
             bankroll=self.portfolio.bankroll,
             confidence_bet_pct=self.config.confidence_bet_pct,
+            max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
         )
 

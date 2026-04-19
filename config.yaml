@@ -5,8 +5,6 @@ initial_bankroll: 1000.0
 cycle:
   heavy_interval_min: 30
   light_interval_sec: 5
-  night_interval_min: 60
-  night_hours: [8, 9, 10, 11, 12, 13]
 
 scanner:
   min_liquidity: 1000
@@ -63,10 +61,11 @@ scanner:
 edge:
   min_edge: 0.06
   confidence_multipliers:
-    A: 0.67    # sharp data güvenilir → düşük eşik (%4). Eski: 1.25
+    A: 1.00    # SPEC-010: iyi donem degeri (%6 eşik). Onceki: 0.67 (%4)
     B: 1.00    # reputable-only → baz eşik (%6)
 
 risk:
+  max_single_bet_usdc: 50           # SPEC-010: bet tavani geri, iyi donemde max $56'da kalmıştı
   max_bet_pct: 0.05
   confidence_bet_pct:
     A: 0.05
@@ -109,8 +108,8 @@ stock:
 scale_out:
   enabled: true
   tiers:
-    - threshold: 0.35
-      sell_pct: 0.25
+    - threshold: 0.25    # SPEC-010: iyi donem — agresif erken kar kilitle
+      sell_pct: 0.40
     - threshold: 0.50
       sell_pct: 0.50
 
