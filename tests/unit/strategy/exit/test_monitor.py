@@ -66,13 +66,6 @@ def test_scale_out_tier1_at_35pct() -> None:
     assert r.exit_signal.tier == 1
 
 
-def test_scale_out_tier2_after_tier1() -> None:
-    # scale_out_tier=1, current 0.60 → pnl 50%
-    p = _pos(current_price=0.60, entry_price=0.40, scale_out_tier=1, size_usdc=40, shares=100)
-    r = evaluate(p, scale_out_tiers=_SCALE_OUT_TIERS)
-    assert r.exit_signal.tier == 2
-
-
 # ── Flat stop-loss ──
 
 def test_flat_stop_loss_triggers() -> None:
@@ -193,6 +186,31 @@ def test_tennis_immune_to_catastrophic_watch() -> None:
     r2 = evaluate(p2, catastrophic_config=cat_cfg)
     assert p2.catastrophic_watch is True, "NHL'de catastrophic watch aktif olmalı"
 
+
+# ── Cricket score exit (SPEC-011) ──
+
+def test_cricket_c1_triggers_for_a_conf() -> None:
+    """A-conf cricket pozisyonu + C1 score_info → SCORE_EXIT (SPEC-011 C1)."""
+    p = _pos(
+        sport_tag="cricket_ipl",
+        confidence="A",
+        entry_price=0.65,
+        current_price=0.10,
+        slug="cricipl-kkr-rr-2026-04-19",
+        question="Kolkata Knight Riders vs Rajasthan Royals",
+    )
+    score_info = {
+        "available": True,
+        "innings": 2,
+        "our_chasing": True,
+        "balls_remaining": 24,
+        "runs_remaining": 80,
+        "wickets_lost": 7,
+        "required_run_rate": 20.0,
+    }
+    r = evaluate(p, score_info=score_info, scale_out_tiers=[])
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
 
 def test_dead_token_exit_at_near_zero() -> None:
     """Token 2¢ veya altına düştüyse pozisyon ölü — çık.

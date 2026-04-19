@@ -105,15 +105,6 @@ def build_agent(state: RuntimeState) -> Agent:
         early_min_hours_to_start=cfg.early.min_hours_to_start,
         early_max_hours_to_start=cfg.early.max_hours_to_start,
     )
-    gate = EntryGate(
-        config=gate_cfg,
-        portfolio=state.portfolio,
-        circuit_breaker=state.circuit_breaker,
-        cooldown=cooldown,
-        blacklist=state.blacklist,
-        odds_enricher=_enricher,
-        manipulation_checker=_manip,
-    )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma
     command_poller: TelegramCommandPoller | None = None
@@ -138,6 +129,18 @@ def build_agent(state: RuntimeState) -> Agent:
             )
         else:
             logger.warning("CRICAPI_KEY env missing — cricket disabled")
+
+    # Gate: cricket_client hazır olduktan sonra inşa edilir (SPEC-011)
+    gate = EntryGate(
+        config=gate_cfg,
+        portfolio=state.portfolio,
+        circuit_breaker=state.circuit_breaker,
+        cooldown=cooldown,
+        blacklist=state.blacklist,
+        odds_enricher=_enricher,
+        manipulation_checker=_manip,
+        cricket_client=cricket_client,  # SPEC-011
+    )
 
     # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
     score_enricher: ScoreEnricher | None = None

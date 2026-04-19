@@ -38,6 +38,17 @@ from src.strategy.entry import (
 
 logger = logging.getLogger(__name__)
 
+_CRICKET_MARKET_TAGS = frozenset({
+    "cricket", "cricket_ipl", "cricket_odi", "cricket_international_t20",
+    "cricket_psl", "cricket_big_bash", "cricket_caribbean_premier_league",
+    "cricket_t20_blast", "cricket_bbl", "cricket_cpl",
+})
+
+
+def _is_cricket_market_sport(sport_tag: str) -> bool:
+    t = (sport_tag or "").lower().strip()
+    return t in _CRICKET_MARKET_TAGS or t.startswith("cricket")
+
 
 @dataclass
 class GateConfig:
@@ -86,6 +97,7 @@ class EntryGate:
         blacklist: Blacklist,
         odds_enricher,
         manipulation_checker,
+        cricket_client=None,  # SPEC-011
     ) -> None:
         self.config = config
         self.portfolio = portfolio
@@ -94,6 +106,7 @@ class EntryGate:
         self.blacklist = blacklist
         self._enricher = odds_enricher
         self._manip_check = manipulation_checker
+        self._cricket_client = cricket_client
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         """Tüm marketleri değerlendir. Her biri için GateResult döner."""
@@ -155,6 +168,12 @@ class EntryGate:
         if bm_prob.confidence == "C":
             return GateResult(cid, None, "confidence_C",
                               skip_detail=f"num_bookmakers={bm_prob.num_bookmakers:.1f}")
+
+        # SPEC-011: Cricket entries need CricAPI availability
+        if _is_cricket_market_sport(market.sport_tag) and self._cricket_client is not None:
+            if self._cricket_client.quota.exhausted:
+                detail = f"quota={self._cricket_client.quota.used_today}/{self._cricket_client.quota.daily_limit}"
+                return GateResult(cid, None, "cricapi_unavailable", skip_detail=detail, manipulation=manip)
 
         # 5. Strateji önceliği — ilk Signal üreten kazanır
         signal = self._evaluate_strategies(market, bm_prob)

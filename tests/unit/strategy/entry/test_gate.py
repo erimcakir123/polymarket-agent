@@ -202,6 +202,65 @@ def test_entry_price_cap_allows_under_threshold() -> None:
     assert results[0].signal is not None
 
 
+# ── Cricket entry skip (SPEC-011) ──
+
+def _cricket_market(cid: str = "cc1", event: str = "ec1", yp: float = 0.50) -> MarketData:
+    return MarketData(
+        condition_id=cid,
+        question="Will KKR beat RR?",
+        slug="cricket-ipl-kkr-rr-2026",
+        yes_token_id="y", no_token_id="n",
+        yes_price=yp, no_price=1 - yp,
+        liquidity=50_000, volume_24h=10_000, tags=[],
+        end_date_iso="2026-04-19T00:00:00Z",
+        sport_tag="cricket_ipl",
+        event_id=event,
+    )
+
+
+def test_cricket_entry_skipped_when_cricapi_quota_exhausted() -> None:
+    """CricAPI quota dolu → cricket entry cricapi_unavailable ile skip edilir (SPEC-011)."""
+    cricket_client = MagicMock()
+    cricket_client.quota.exhausted = True
+    cricket_client.quota.used_today = 100
+    cricket_client.quota.daily_limit = 100
+
+    gate = EntryGate(
+        config=GateConfig(),
+        portfolio=PortfolioManager(initial_bankroll=1000.0),
+        circuit_breaker=CircuitBreaker(),
+        cooldown=CooldownTracker(),
+        blacklist=Blacklist(),
+        odds_enricher=lambda m: _enrich(),
+        manipulation_checker=lambda question, liquidity: _safe_manip(),
+        cricket_client=cricket_client,
+    )
+    results = gate.run([_cricket_market()])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "cricapi_unavailable"
+
+
+def test_cricket_entry_proceeds_when_quota_available() -> None:
+    """CricAPI quota dolmamış → cricket entry normal devam eder (SPEC-011)."""
+    cricket_client = MagicMock()
+    cricket_client.quota.exhausted = False
+    cricket_client.quota.used_today = 50
+    cricket_client.quota.daily_limit = 100
+
+    gate = EntryGate(
+        config=GateConfig(),
+        portfolio=PortfolioManager(initial_bankroll=1000.0),
+        circuit_breaker=CircuitBreaker(),
+        cooldown=CooldownTracker(),
+        blacklist=Blacklist(),
+        odds_enricher=lambda m: _enrich(),
+        manipulation_checker=lambda question, liquidity: _safe_manip(),
+        cricket_client=cricket_client,
+    )
+    results = gate.run([_cricket_market()])
+    assert results[0].signal is not None
+
+
 def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
     # initial=$2000, invested=$1010 → bankroll_kalan=$990, total=$2000.
     # hard=$2000×0.52=$1040, available=$1040-$1010=$30.
