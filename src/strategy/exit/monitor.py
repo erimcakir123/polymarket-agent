@@ -155,7 +155,8 @@ def evaluate(
     # 2. Scale-out (partial exit)
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
-        unrealized_pnl_pct=pos.unrealized_pnl_pct,
+        entry_price=pos.entry_price,
+        current_price=pos.current_price,
         tiers=scale_out_tiers,
     )
     if so is not None:

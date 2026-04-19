@@ -51,19 +51,20 @@ def test_near_resolve_priority_over_scale_out() -> None:
 # ── Scale-out ──
 
 _SCALE_OUT_TIERS = [
-    {"threshold": 0.35, "sell_pct": 0.25},
-    {"threshold": 0.50, "sell_pct": 0.50},
+    {"threshold": 0.50, "sell_pct": 0.40},  # SPEC-013: midpoint-to-resolution semantigi
 ]
 
 
-def test_scale_out_tier1_at_35pct() -> None:
-    # entry 0.40, current 0.54 → pnl = (100*0.54 - 40)/40 = 35%
-    p = _pos(current_price=0.54, entry_price=0.40, size_usdc=40, shares=100)
+def test_scale_out_tier1_at_threshold() -> None:
+    # entry 0.40, threshold 0.50 → trigger = 0.40 + 0.50*(0.99-0.40) = 0.695
+    # current 0.70 → fraction = (0.70-0.40)/(0.99-0.40) = 0.508 >= 0.50 → tetiklenir
+    p = _pos(current_price=0.70, entry_price=0.40, size_usdc=40, shares=100)
     r = evaluate(p, scale_out_tiers=_SCALE_OUT_TIERS)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.SCALE_OUT
     assert r.exit_signal.partial is True
     assert r.exit_signal.tier == 1
+    assert r.exit_signal.sell_pct == 0.40
 
 
 # ── Flat stop-loss ──

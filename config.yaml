@@ -120,8 +120,10 @@ stock:
 
 scale_out:
   enabled: true
+  # SPEC-013: threshold = entry ile 0.99 arasindaki mesafenin fraction'i
+  # 0.50 = yari yol (43c entry -> 71c tetik; 70c entry -> 84.5c tetik)
   tiers:
-    - threshold: 0.15    # tek tier — near-resolve 94c altinda kalmak icin dusuk esik
+    - threshold: 0.50    # SPEC-013: midpoint to resolution (eski: 0.15 PnL%)
       sell_pct: 0.40
 
 circuit_breaker:
