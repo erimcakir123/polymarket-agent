@@ -353,3 +353,48 @@ def test_tennis_score_no_exit_when_winning() -> None:
     }
     r = evaluate(p, score_info=score_info)
     assert r.exit_signal is None
+
+
+# ── Baseball score exit ──
+
+def test_baseball_score_exit_triggers_for_a_conf_mlb() -> None:
+    """A-conf MLB pozisyonu + M3 score_info → SCORE_EXIT tetiklenir."""
+    start = datetime.now(timezone.utc) - timedelta(hours=2)
+    p = _pos(
+        confidence="A", entry_price=0.65, current_price=0.15,
+        size_usdc=50, shares=76.92, match_start_iso=_iso(start),
+        sport_tag="mlb",
+    )
+    score_info = {
+        "available": True,
+        "period": "Top 9th",
+        "deficit": 3,  # 3 run geride, 9. inning → M2 (inning>=8 AND deficit>=3) önce tetiklenir
+        "our_score": 2,
+        "opp_score": 5,
+    }
+    r = evaluate(p, score_info=score_info, scale_out_tiers=[])
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+    # inning=9 deficit=3 → M2 fires (inning>=8 AND deficit>=3), M2 is checked before M3
+    assert "M2" in r.exit_signal.detail or "M3" in r.exit_signal.detail
+
+
+def test_baseball_score_exit_doesnt_fire_for_nba() -> None:
+    """NBA sport_tag → baseball_score_exit skip."""
+    start = datetime.now(timezone.utc) - timedelta(hours=1)
+    p = _pos(
+        confidence="A", entry_price=0.65, current_price=0.55,
+        size_usdc=50, shares=76.92, match_start_iso=_iso(start),
+        sport_tag="nba",
+    )
+    score_info = {
+        "available": True,
+        "period": "Top 9th",  # NBA period format farklıdır ama burada test amaçlı
+        "deficit": 5,
+        "our_score": 0,
+        "opp_score": 5,
+    }
+    r = evaluate(p, score_info=score_info, scale_out_tiers=[])
+    # NBA baseball_score_exit'i skip eder — SCORE_EXIT tetiklenmemeli
+    if r.exit_signal is not None:
+        assert r.exit_signal.reason != ExitReason.SCORE_EXIT

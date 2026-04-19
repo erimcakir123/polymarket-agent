@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
+from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
 
 
 @dataclass
@@ -209,6 +209,20 @@ def evaluate(
             if t_result is not None:
                 return MonitorResult(
                     exit_signal=ExitSignal(reason=t_result.reason, detail=t_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3a-baseball. Score-based exit — baseball (SPEC-010 M1/M2/M3)
+        if _normalize(pos.sport_tag) in ("mlb", "kbo", "npb", "baseball") and score_info.get("available"):
+            b_result = baseball_score_exit.check(
+                score_info=score_info,
+                current_price=pos.current_price,
+                sport_tag=pos.sport_tag,
+            )
+            if b_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=b_result.reason, detail=b_result.detail),
                     fav_transition=_fav_transition(pos),
                     elapsed_pct=elapsed_pct,
                 )
