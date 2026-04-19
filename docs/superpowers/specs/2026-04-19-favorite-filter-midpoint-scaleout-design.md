@@ -27,7 +27,7 @@ if our_side_prob < min_favorite_probability:
     return None
 ```
 
-Default 0.55. config.yaml'da `edge.min_favorite_probability` + `early.min_favorite_probability`.
+Default 0.52 (SPEC-013 rev, 0.55→0.52 DET-BOS 1-puan-marj fix). config.yaml'da `edge.min_favorite_probability` + `early.min_favorite_probability`.
 
 **NOT**: Eski `early.min_anchor_probability` yalnız P(YES) kontrol ediyordu —
 BUY_NO durumunda yanlış mantık. Yeni unified filter tüm direction'lara adil.

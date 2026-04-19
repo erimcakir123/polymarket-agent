@@ -1,7 +1,7 @@
 """Early entry — maç başlamadan ≥6 saat önce yüksek edge fırsatı (TDD §9 `early`).
 
 Bookmaker line'ları Polymarket'ten önce hareket eder; bot bu pencereyi yakalar.
-Sıkı eşikler: yüksek min_edge (%10), favorite filter (≥0.55 our side), B+ confidence,
+Sıkı eşikler: yüksek min_edge (%10), favorite filter (≥0.52 our side), B+ confidence,
 ve max entry price (≤0.70 — kısa shot için yer bırak).
 
 Time window:
@@ -23,7 +23,7 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_edge: float = 0.10,
-    min_favorite_probability: float = 0.55,
+    min_favorite_probability: float = 0.52,
     min_confidence: str = "B",
     max_entry_price: float = 0.70,
     min_hours_to_start: float = 6.0,

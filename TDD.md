@@ -397,7 +397,7 @@ Geleneksel bookmaker'larda %4-8 overround → normalize gerekli.
 Edge hesabı direction belirledikten sonra ek guard:
 ```
 our_side_prob = bm_prob.probability if direction == BUY_YES else (1 - bm_prob.probability)
-if our_side_prob < min_favorite_probability (default 0.55): SKIP
+if our_side_prob < min_favorite_probability (default 0.52, SPEC-013 rev): SKIP
 ```
 
 **Gerekçe**: Bookmaker bizim tarafa %55+ vermiyorsa bet underdog — uzun vadede

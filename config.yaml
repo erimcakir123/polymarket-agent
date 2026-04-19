@@ -74,7 +74,7 @@ edge:
   confidence_multipliers:
     A: 1.00    # SPEC-010: iyi donem degeri (%6 eşik). Onceki: 0.67 (%4)
     B: 1.00    # reputable-only → baz eşik (%6)
-  min_favorite_probability: 0.55   # SPEC-013: sadece favori tarafa gir (bizim taraf >= %55)
+  min_favorite_probability: 0.52   # SPEC-013 rev: %55 1 puan marjı engelliyordu (DET-BOS bug), %52 yumuşatma
 
 risk:
   max_single_bet_usdc: 50           # SPEC-010: bet tavani geri, iyi donemde max $56'da kalmıştı
@@ -96,7 +96,7 @@ early:
   max_slots: 2
   max_entry_price: 0.70
   min_edge: 0.10
-  min_favorite_probability: 0.55   # SPEC-013: early entry için de aynı kural
+  min_favorite_probability: 0.52   # SPEC-013 rev: %52 unified with normal entry
   min_confidence: "B"
   bookmaker_pre_screen_edge: 0.08
   min_hours_to_start: 6.0

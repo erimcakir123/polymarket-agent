@@ -42,7 +42,7 @@ class EdgeConfig(BaseModel):
     min_edge: float = 0.06
     # SPEC-010 + Bug #2 fix: A=1.00, B=1.00 (her ikisi de %6 eşik, unified)
     confidence_multipliers: dict = {"A": 1.00, "B": 1.00}
-    min_favorite_probability: float = 0.55  # SPEC-013: underdog bet yasak
+    min_favorite_probability: float = 0.52  # SPEC-013 rev: %55 1 puan marjını engelliyordu (DET-BOS bug)
 
 
 class RiskConfig(BaseModel):
@@ -66,7 +66,7 @@ class EarlyEntryConfig(BaseModel):
     max_slots: int = 2
     max_entry_price: float = 0.70
     min_edge: float = 0.10
-    min_favorite_probability: float = 0.55  # SPEC-013: unified with normal entry
+    min_favorite_probability: float = 0.52  # SPEC-013 rev: unified with normal entry
     min_confidence: str = "B"
     bookmaker_pre_screen_edge: float = 0.08
     min_hours_to_start: float = 6.0
