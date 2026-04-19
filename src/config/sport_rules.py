@@ -45,8 +45,16 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit": True,
         "inning_exit_deficit": 5,
         "inning_exit_after": 6,
+        # SPEC-008 liveness guard (Task 4'te silinecek)
         "comeback_thresholds": {3: 6, 5: 5, 7: 4, 8: 3, 9: 2},
         "extra_inning_threshold": 1,
+        # SPEC-010: M1/M2/M3 forced exit (tennis T1/T2, hockey K1-K4 simetrik)
+        "score_exit_m1_inning": 7,     # M1 tetik inning (blowout)
+        "score_exit_m1_deficit": 5,    # M1 run deficit threshold
+        "score_exit_m2_inning": 8,     # M2 tetik inning (late big deficit)
+        "score_exit_m2_deficit": 3,    # M2 run deficit threshold
+        "score_exit_m3_inning": 9,     # M3 tetik inning (final inning)
+        "score_exit_m3_deficit": 1,    # M3 run deficit threshold
         "score_source": "espn",
         "espn_sport": "baseball",
         "espn_league": "mlb",
