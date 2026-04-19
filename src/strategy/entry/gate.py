@@ -59,7 +59,7 @@ class GateConfig:
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
-    consensus_max_price: float = 0.75    # Spurs 84¢ bug fix — drift buffer + EV guard
+    consensus_max_price: float = 0.80    # 80¢ cap — EV guard Spurs 84¢'yi bloklar
     # Early entry
     early_enabled: bool = True
     early_min_edge: float = 0.10

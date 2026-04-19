@@ -26,7 +26,7 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_price: float = 0.65,
-    max_price: float = 0.75,
+    max_price: float = 0.80,
 ) -> Signal | None:
     """Consensus entry kararı. None döner: koşullar uymuyor."""
     if bm_prob.confidence == "C":

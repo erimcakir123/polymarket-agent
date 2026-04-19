@@ -422,7 +422,7 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 | book_favors_yes = False | `BUY_NO` | `1 − market.yes_price` |
 
 - Edge = `0.99 − entry_price` (Polymarket payout cap)
-- **Entry price aralığı:** `[0.60, 0.75]` — alt sınır consensus.min_price, üst sınır consensus.max_price (Spurs 84¢ bug fix — drift buffer + R/R koruması)
+- **Entry price aralığı:** `[0.60, 0.80]` — alt sınır consensus.min_price, üst sınır consensus.max_price. Spurs 84¢ tarzı negatif-EV entry'leri **EV guard** engeller (aşağıda); max_price 0.80 ise R/R koruması için ikinci katman (79¢ DET favorisi geçer, 84¢ SAS yüksek favori bloklu).
 
 **EV guard** (Spurs 84¢ bug fix):
 - `our_side_prob = bm_prob.probability if BUY_YES else (1 − bm_prob.probability)`

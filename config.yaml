@@ -107,7 +107,7 @@ early:
 consensus:
   enabled: true
   min_price: 0.60
-  max_price: 0.75          # Spurs 84¢ bug fix — 75¢ cap + EV guard + drift buffer
+  max_price: 0.80          # 80¢ cap — DET 79¢ gecer, SAS 84¢ bloklu (EV guard Spurs korumaya devam)
   bet_pct: 0.05
   max_slots: 5
 
