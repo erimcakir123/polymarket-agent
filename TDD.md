@@ -300,6 +300,16 @@ Korunan dosyalar: `positions.json`, `trade_history.jsonl`, `circuit_breaker_stat
 7. `python -m src.presentation.dashboard.app &`
 8. Doğrula
 
+**Archive Koruma (SPEC-009)**:
+
+Reboot aşağıdaki dosyalara ASLA dokunmaz (active logs sıfırlansa bile):
+- `logs/archive/exits.jsonl`
+- `logs/archive/score_events.jsonl`
+- `logs/archive/match_results.jsonl`
+
+Archive retrospektif rule analysis için kullanılır. Reboot sonrası bot yeni
+trade'leri bu dosyalara appending devam eder.
+
 ---
 
 

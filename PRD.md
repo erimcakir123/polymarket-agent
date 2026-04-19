@@ -160,6 +160,21 @@ Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). 
 
 Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 
+### F9: Retrospektif Analiz Arşivi (SPEC-009)
+
+**Amaç**: Kural (scale-out, exit threshold'ları, near_resolve) etkinliğini
+geriye dönük veriyle değerlendirmek.
+
+**Ne tutulur**:
+- `logs/archive/exits.jsonl` — her exit tam snapshot + o anki skor
+- `logs/archive/score_events.jsonl` — maç içindeki her skor değişikliği
+- `logs/archive/match_results.jsonl` — maç final result
+
+**Koruma**: Reboot/reload/trade silme archive'a dokunmaz. Append-only.
+
+**Analiz örneği**: "MLB'de 2-1 gerideyken çıktığımız maçların kaçı geri dönüp
+kazandı?" sorusu event_id JOIN ile cevaplanabilir.
+
 ---
 
 ## 5. Non-Fonksiyonel Gereksinimler
