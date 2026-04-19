@@ -386,7 +386,7 @@ def test_baseball_score_exit_triggers_for_a_conf_mlb() -> None:
     )
     score_info = {
         "available": True,
-        "period": "Top 9th",
+        "inning": 9,  # SPEC-014: int field (ESPN status.period'dan gelir)
         "deficit": 3,  # 3 run geride, 9. inning → M2 (inning>=8 AND deficit>=3) önce tetiklenir
         "our_score": 2,
         "opp_score": 5,
@@ -408,7 +408,7 @@ def test_baseball_score_exit_doesnt_fire_for_nba() -> None:
     )
     score_info = {
         "available": True,
-        "period": "Top 9th",  # NBA period format farklıdır ama burada test amaçlı
+        "inning": 9,  # SPEC-014: int; NBA'da baseball_score_exit tetiklenmemeli
         "deficit": 5,
         "our_score": 0,
         "opp_score": 5,

@@ -1,9 +1,9 @@
-"""ESPN scoreboard client testleri (SPEC-005 Task 1)."""
+"""ESPN scoreboard client testleri (SPEC-005 Task 1 + SPEC-014)."""
 from __future__ import annotations
 
 import pytest
 
-from src.infrastructure.apis.espn_client import ESPNMatchScore, _parse_scoreboard
+from src.infrastructure.apis.espn_client import ESPNMatchScore, _parse_competition, _parse_scoreboard
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -181,6 +181,71 @@ def test_parse_empty_response_returns_empty_list() -> None:
     """Empty dict and events:[] both return []."""
     assert _parse_scoreboard({}) == []
     assert _parse_scoreboard({"events": []}) == []
+
+
+# ---------------------------------------------------------------------------
+# SPEC-014: MLB inning from status.period
+# ---------------------------------------------------------------------------
+
+
+def test_parse_competition_extracts_mlb_inning() -> None:
+    """MLB event: status.period int -> ESPNMatchScore.inning."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Yankees"}, "score": "3",
+             "athlete": {"displayName": "Yankees"}, "linescores": [{"value": 3.0}]},
+            {"homeAway": "away", "team": {"displayName": "Red Sox"}, "score": "2",
+             "athlete": {"displayName": "Red Sox"}, "linescores": [{"value": 2.0}]},
+        ],
+        "status": {
+            "period": 7,
+            "type": {"description": "Top 7th", "state": "in", "completed": False},
+        },
+        "startDate": "2026-04-20T18:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="baseball")
+    assert ms is not None
+    assert ms.inning == 7
+
+
+def test_parse_competition_mlb_inning_none_pregame() -> None:
+    """Pregame: status.period 0 -> inning None."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Yankees"}, "score": "0",
+             "athlete": {"displayName": "Yankees"}, "linescores": []},
+            {"homeAway": "away", "team": {"displayName": "Red Sox"}, "score": "0",
+             "athlete": {"displayName": "Red Sox"}, "linescores": []},
+        ],
+        "status": {
+            "period": 0,
+            "type": {"description": "Scheduled", "state": "pre", "completed": False},
+        },
+        "startDate": "2026-04-20T18:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="baseball")
+    assert ms is not None
+    assert ms.inning is None
+
+
+def test_parse_competition_non_baseball_no_inning() -> None:
+    """Non-baseball: status.period int mevcut ama inning None olmali."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Rangers"}, "score": "2",
+             "athlete": {"displayName": "Rangers"}, "linescores": [{"value": 1.0}, {"value": 1.0}]},
+            {"homeAway": "away", "team": {"displayName": "Bruins"}, "score": "1",
+             "athlete": {"displayName": "Bruins"}, "linescores": [{"value": 1.0}, {"value": 0.0}]},
+        ],
+        "status": {
+            "period": 2,
+            "type": {"description": "2nd Period", "state": "in", "completed": False},
+        },
+        "startDate": "2026-04-20T19:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="hockey")
+    assert ms is not None
+    assert ms.inning is None
 
 
 def test_parse_no_competitors_skips_competition() -> None:
