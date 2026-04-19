@@ -572,7 +572,7 @@ Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda gen
 | < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11), **Score exit (hockey §6.9a, tennis §6.9d, baseball §6.9e)**, Catastrophic watch (§6.9b) |
 | ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out; **Score exit (hockey/tennis/baseball)**; Catastrophic watch |
 
-#### 6.9a Score-Based Exit (Hockey Only — SPEC-004)
+#### 6.9a Score-Based Exit (Hockey Family — SPEC-004, SPEC-014)
 
 A-conf hold hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkış:
 | Kural | Koşul | Config key |
@@ -583,6 +583,11 @@ A-conf hold hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkı
 | K4 Son dakika | deficit ≥ 1 + elapsed ≥ `final_elapsed_gate` (0.92) | sport_rules |
 
 Backtest (9 hockey trade): mevcut -$23.24 → score exit ile +$3.70 (+$26.94 iyileşme). Kazançlara ($76.84) sıfır dokunma.
+
+**NHL / AHL Hockey Ailesi (SPEC-014):** `SPORT_RULES["ahl"]` NHL eşiklerini spread ile
+paylaşır; sadece `espn_league` farklı. `hockey_score_exit._is_hockey_family` tek set
+(`{"nhl", "ahl"}`) ile kontrol eder. `monitor.py` AHL + NHL için aynı çağrıyı yapar.
+Eşik drift imkansız: NHL K1-K4 değişirse AHL otomatik takip eder.
 
 #### 6.9b Catastrophic Watch (Sadece NHL — SPEC-004 K5)
 
@@ -618,6 +623,11 @@ Hockey (gol), Tennis (set+game), MLB (koşu), NBA (sayı) skor verir.
 **Adaptif polling:** Normal 60s, fiyat ≤ 35¢ → 30s. Config: `config.yaml → score`.
 
 **Kill switch:** `score.enabled: false` → tüm skor polling durur.
+
+**Archive score_at_exit (SPEC-014):** `score_enricher._match_cached` eşleşme bulunca
+`pos.match_score` ve `pos.match_period` yazar. `exit_processor._log_exit_to_archive`
+zaten `pos.match_score or ""` okuyordu; SPEC-014 öncesi yazan yoktu → 13/13 archive
+kaydı boştu. Şimdi dolu, retrospektif score-exit analizi kullanılabilir.
 
 #### 6.9d Tennis Score-Based Exit (SPEC-006)
 
@@ -660,6 +670,13 @@ Tetiklendiğinde `ExitReason.SCORE_EXIT` döner.
 
 **Eski sistem (SPEC-008)**: defensive guard (SL ertele), A-conf'ta çalışmıyordu.
 SPEC-010 ile kaldırıldı, yerine bu FORCED exit geldi.
+
+**Inning Kaynağı (SPEC-014):** ESPN response `status.period` field'ı inning'i int olarak
+verir (1-9+, 0=pregame). `status.type.description` dilsel ("Top of 5th", "In Progress") —
+format değişken, regex parse güvensiz. SPEC-014 öncesi `_parse_inning` regex `(\d+)(?:st|nd|rd|th)`
+M1/M2/M3'ü tetiklemiyordu (audit: 13 exit kaydında tek score-exit yok).
+Fix: `ESPNMatchScore.inning: int | None` (baseball dışında None); `_parse_inning` ve
+`_INNING_RE` kaldırıldı (dead code).
 
 #### 6.9f Cricket Score Exit (SPEC-011)
 
