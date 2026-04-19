@@ -187,9 +187,12 @@ def test_size_below_min_skips() -> None:
 
 
 def test_entry_price_cap_blocks_high_favorite() -> None:
-    # Consensus 0.90'da sinyal üretir (min_price 0.60) ama gate 0.88 cap ile reddeder.
-    # anchor 0.85, market yes 0.90 → is_consensus True (ikisi de YES favori), entry=0.90
-    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.85, conf="A")))
+    # Consensus 0.90'da sinyal üretir (EV guard: bm 0.92 >= entry 0.90 ✓)
+    # ama gate 0.88 cap ile reddeder.
+    # consensus_max_price=0.95 override: gate'in entry_price_cap'ini test etmek için
+    # consensus'un 0.90'da sinyal üretmesi gerekir.
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.92, conf="A")))
+    gate.config = GateConfig(consensus_max_price=0.95)
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "entry_price_cap"
@@ -398,9 +401,11 @@ def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
 
 def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
     """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX'."""
-    # anchor=0.85(A) + market=0.90 → consensus signal at 0.90 > 0.88 cap
-    bm = _bm(prob=0.85, conf="A")
+    # EV guard icin bm >= entry, ama entry > 0.88 cap olmali.
+    # bm=0.92(A) + market=0.90 → consensus pass (EV +2¢) → entry_price_cap blocklar.
+    bm = _bm(prob=0.92, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
+    gate.config = GateConfig(consensus_max_price=0.95)
     result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "entry_price_cap"
     assert "price=0.900" in result.skip_detail

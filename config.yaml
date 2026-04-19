@@ -106,6 +106,7 @@ early:
 consensus:
   enabled: true
   min_price: 0.60
+  max_price: 0.75          # Spurs 84¢ bug fix — 75¢ cap + EV guard + drift buffer
   bet_pct: 0.05
   max_slots: 5
 
@@ -119,10 +120,8 @@ stock:
 scale_out:
   enabled: true
   tiers:
-    - threshold: 0.25    # SPEC-010: iyi donem — agresif erken kar kilitle
+    - threshold: 0.15    # tek tier — near-resolve 94c altinda kalmak icin dusuk esik
       sell_pct: 0.40
-    - threshold: 0.50
-      sell_pct: 0.50
 
 circuit_breaker:
   daily_max_loss_pct: -0.08

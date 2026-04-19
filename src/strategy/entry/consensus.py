@@ -9,6 +9,10 @@ Mantık:
 
 Bu strateji "iki bağımsız kaynak da X'i favori görüyor" güvencesiyle çalışır.
 Edge "neredeyse kesin kazanır → 99¢'e doğru ilerler" varsayımına dayanır.
+
+**EV guard** (84¢ Spurs bug'ı fix'i): Bookmaker'in bizim tarafımıza verdiği
+olasılık entry_price'in altındaysa trade NEGATIF EV — reddedilir.
+Örnek: book Spurs %82, PM Spurs 84¢ → break-even %84.8 gerekli → SKIP.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_price: float = 0.65,
+    max_price: float = 0.75,
 ) -> Signal | None:
     """Consensus entry kararı. None döner: koşullar uymuyor."""
     if bm_prob.confidence == "C":
@@ -45,6 +50,18 @@ def evaluate(
     # min_price eşiği — 65¢+ "ciddi favori" göstergesi
     if entry_price < min_price:
         return None
+
+    # max_price tavanı — 75¢+ girişlerde R/R dar (near-resolve 94¢ → ≤19¢ potansiyel)
+    # Sinir dahil red: entry_price > max_price (> degil >= cunku 0.80 tam sinirda drift
+    # riskli; max_price = 0.75 ile zaten ~5¢ buffer var)
+    if entry_price > max_price:
+        return None
+
+    # EV guard — bookmaker'in bizim tarafa olasiligi entry'den yuksek olmali
+    # (Aksi takdirde payout < stake * win_prob → negatif EV)
+    our_side_prob = bm_prob.probability if direction == Direction.BUY_YES else 1.0 - bm_prob.probability
+    if our_side_prob < entry_price:
+        return None  # Negatif EV — bet reddedilir
 
     edge = max(0.0, 0.99 - entry_price)
 

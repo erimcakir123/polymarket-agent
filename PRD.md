@@ -123,7 +123,7 @@ Bot Polymarket Gamma API'dan canlı market'leri keşfeder. `allowed_sport_tags` 
 Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. TDD §6.1)
 
 ### F3. Entry Decision
-`strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. TDD §6.4)
+`strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori, 60-75¢ aralığı + EV guard), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). Consensus'e EV guard: bookmaker'in bizim tarafa olasılığı entry price'tan düşükse skip (negatif EV koruması). (bkz. TDD §6.4)
 
 ### F4. Position Sizing
 Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). (bkz. TDD §6.5)

@@ -77,8 +77,9 @@ class EarlyEntryConfig(BaseModel):
 class ConsensusConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
+    # Spurs 84¢ bug fix: max_price 0.80 → 0.75, drift buffer + EV guard
     min_price: float = 0.60
-    max_price: float = 0.80
+    max_price: float = 0.75
     bet_pct: float = 0.05
     max_slots: int = 5
 

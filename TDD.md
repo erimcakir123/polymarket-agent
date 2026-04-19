@@ -408,7 +408,12 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 | book_favors_yes = False | `BUY_NO` | `1 − market.yes_price` |
 
 - Edge = `0.99 − entry_price` (Polymarket payout cap)
-- **Entry price aralığı:** `[0.60, 0.88)` — alt sınır consensus.min_price, üst sınır gate.max_entry_price (bkz. §6.5 R/R gerekçesi)
+- **Entry price aralığı:** `[0.60, 0.75]` — alt sınır consensus.min_price, üst sınır consensus.max_price (Spurs 84¢ bug fix — drift buffer + R/R koruması)
+
+**EV guard** (Spurs 84¢ bug fix):
+- `our_side_prob = bm_prob.probability if BUY_YES else (1 − bm_prob.probability)`
+- `our_side_prob < entry_price` → **SKIP** (negatif EV)
+- Gerekçe: consensus stratejisi "iki kaynak aynı favori" diyerek yeterli saymazdı; book %82 + PM 84¢ → bizim tarafa book %82 ama ödediğimiz 84¢ → break-even %84.8 gerekli → eksi EV. Bu pozisyonlara artık girmiyor.
 
 **Consensus yoksa (Case B):** standart edge hesabı (§6.3) kullanılır.
 
