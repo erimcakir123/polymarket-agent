@@ -1,7 +1,7 @@
 """Early entry — maç başlamadan ≥6 saat önce yüksek edge fırsatı (TDD §9 `early`).
 
 Bookmaker line'ları Polymarket'ten önce hareket eder; bot bu pencereyi yakalar.
-Sıkı eşikler: yüksek min_edge (%10), min anchor (≥0.55), B+ confidence,
+Sıkı eşikler: yüksek min_edge (%10), favorite filter (≥0.55 our side), B+ confidence,
 ve max entry price (≤0.70 — kısa shot için yer bırak).
 
 Time window:
@@ -23,7 +23,7 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_edge: float = 0.10,
-    min_anchor_probability: float = 0.55,
+    min_favorite_probability: float = 0.55,
     min_confidence: str = "B",
     max_entry_price: float = 0.70,
     min_hours_to_start: float = 6.0,
@@ -35,19 +35,15 @@ def evaluate(
     if not _confidence_meets(bm_prob.confidence, min_confidence):
         return None
 
-    # 2. Anchor probability eşiği — bookmaker güvenilir bir favori demeli
-    if bm_prob.probability < min_anchor_probability:
-        return None
-
-    # 3. Market entry price eşiği
+    # 2. Market entry price eşiği
     if market.yes_price > max_entry_price:
         return None
 
-    # 4. Time window — match_start gerekli
+    # 3. Time window — match_start gerekli
     if not _within_time_window(market, min_hours_to_start, max_hours_to_start):
         return None
 
-    # 5. Edge hesabı (yüksek eşik 0.10)
+    # 4. Edge hesabı (yüksek eşik 0.10)
     direction, edge = calculate_edge(
         anchor_prob=bm_prob.probability,
         market_yes_price=market.yes_price,
@@ -56,6 +52,11 @@ def evaluate(
         confidence_multipliers=confidence_multipliers,
     )
     if direction == Direction.SKIP:
+        return None
+
+    # 5. Favorite filter (SPEC-013) — our side bookmaker prob >= threshold
+    our_side_prob = bm_prob.probability if direction == Direction.BUY_YES else (1.0 - bm_prob.probability)
+    if our_side_prob < min_favorite_probability:
         return None
 
     return Signal(

@@ -51,8 +51,8 @@ def test_too_far_from_match_returns_none() -> None:
     assert early_entry.evaluate(_market(yes=0.50, hours_ahead=25), _bm(prob=0.65)) is None
 
 
-def test_low_anchor_returns_none() -> None:
-    # 0.55 min anchor; bm 0.50 → atla
+def test_low_favorite_prob_returns_none() -> None:
+    # BUY_YES: bm 0.50 < min_favorite_probability 0.55 → atla (SPEC-013)
     assert early_entry.evaluate(_market(yes=0.40, hours_ahead=12), _bm(prob=0.50)) is None
 
 

@@ -82,3 +82,39 @@ def test_signal_copies_sport_tag_and_event_id() -> None:
     assert sig.sport_tag == "basketball_nba"
     assert sig.event_id == "evt_1"
     assert sig.bookmaker_prob == 0.60
+
+
+# --- SPEC-013: min_favorite_probability guard ---
+
+def test_normal_entry_underdog_rejected_by_favorite_filter() -> None:
+    """Bookmaker bizim tarafa %44 -> our_side < 0.55 -> favorite filter skip."""
+    m = _market(yes_price=0.30)
+    bm = _bm(prob=0.44, conf="A")
+    sig = normal.evaluate(m, bm, min_edge=0.06, min_favorite_probability=0.55)
+    assert sig is None
+
+
+def test_normal_entry_favorite_accepted_by_filter() -> None:
+    """Bookmaker bizim tarafa %60 (BUY_YES) -> our_side >= 0.55 -> girer."""
+    m = _market(yes_price=0.50)
+    bm = _bm(prob=0.60, conf="A")
+    sig = normal.evaluate(m, bm, min_edge=0.06, min_favorite_probability=0.55)
+    assert sig is not None
+    assert sig.direction == Direction.BUY_YES
+
+
+def test_normal_entry_buy_no_favorite_side_accepted() -> None:
+    """BUY_NO: our_side_prob = 1 - bm_prob; bm YES 0.30 -> NO 0.70 >= 0.55 -> girer."""
+    m = _market(yes_price=0.45)
+    bm = _bm(prob=0.30, conf="A")
+    sig = normal.evaluate(m, bm, min_edge=0.06, min_favorite_probability=0.55)
+    assert sig is not None
+    assert sig.direction == Direction.BUY_NO
+
+
+def test_normal_entry_buy_no_underdog_side_rejected() -> None:
+    """BUY_NO'da our_side_prob = 1 - 0.48 = 0.52 < 0.55 -> skip."""
+    m = _market(yes_price=0.55)
+    bm = _bm(prob=0.48, conf="A")
+    sig = normal.evaluate(m, bm, min_edge=0.06, min_favorite_probability=0.55)
+    assert sig is None

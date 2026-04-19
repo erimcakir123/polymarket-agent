@@ -47,6 +47,7 @@ class GateConfig:
     confidence_multipliers: dict[str, float] = field(
         default_factory=lambda: {"A": 1.00, "B": 1.00},
     )
+    min_favorite_probability: float = 0.55    # SPEC-013: normal entry underdog filter
     max_positions: int = 50
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
@@ -62,7 +63,7 @@ class GateConfig:
     # Early entry
     early_enabled: bool = True
     early_min_edge: float = 0.10
-    early_min_anchor_probability: float = 0.55
+    early_min_favorite_probability: float = 0.55    # SPEC-013: early entry underdog filter
     early_min_confidence: str = "B"
     early_max_entry_price: float = 0.70
     early_min_hours_to_start: float = 6.0
@@ -239,7 +240,7 @@ class EntryGate:
             sig = early_entry.evaluate(
                 market, bm_prob,
                 min_edge=self.config.early_min_edge,
-                min_anchor_probability=self.config.early_min_anchor_probability,
+                min_favorite_probability=self.config.early_min_favorite_probability,
                 min_confidence=self.config.early_min_confidence,
                 max_entry_price=self.config.early_max_entry_price,
                 min_hours_to_start=self.config.early_min_hours_to_start,
@@ -254,4 +255,5 @@ class EntryGate:
             market, bm_prob,
             min_edge=self.config.min_edge,
             confidence_multipliers=self.config.confidence_multipliers,
+            min_favorite_probability=self.config.min_favorite_probability,
         )

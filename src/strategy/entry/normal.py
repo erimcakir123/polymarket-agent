@@ -16,6 +16,7 @@ def evaluate(
     bm_prob: BookmakerProbability,
     min_edge: float = 0.06,
     confidence_multipliers: dict[str, float] | None = None,
+    min_favorite_probability: float = 0.0,
     spread: float = 0.0,
     slippage: float = 0.0,
 ) -> Signal | None:
@@ -36,6 +37,11 @@ def evaluate(
         slippage=slippage,
     )
     if direction == Direction.SKIP:
+        return None
+
+    # Favorite filter (SPEC-013) — our side bookmaker prob >= threshold
+    our_side_prob = bm_prob.probability if direction == Direction.BUY_YES else (1.0 - bm_prob.probability)
+    if our_side_prob < min_favorite_probability:
         return None
 
     return Signal(

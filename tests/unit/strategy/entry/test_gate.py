@@ -199,8 +199,8 @@ def test_entry_price_cap_blocks_high_favorite() -> None:
 
 
 def test_entry_price_cap_allows_under_threshold() -> None:
-    # 0.87 eşiğin altında → geçer
-    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.80, conf="A")))
+    # 0.87 eşiğin altında → geçer (SPEC-013: bm=0.93 favorite, our_side >= 0.55)
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.93, conf="A")))
     results = gate.run([_market(yp=0.87)])
     assert results[0].signal is not None
 

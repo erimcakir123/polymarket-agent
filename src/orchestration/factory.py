@@ -88,6 +88,7 @@ def build_agent(state: RuntimeState) -> Agent:
     gate_cfg = GateConfig(
         min_edge=cfg.edge.min_edge,
         confidence_multipliers=cfg.edge.confidence_multipliers,
+        min_favorite_probability=cfg.edge.min_favorite_probability,  # SPEC-013
         max_positions=cfg.risk.max_positions,
         max_exposure_pct=cfg.risk.max_exposure_pct,
         confidence_bet_pct=cfg.risk.confidence_bet_pct,
@@ -101,7 +102,7 @@ def build_agent(state: RuntimeState) -> Agent:
         # Early entry
         early_enabled=cfg.early.enabled,
         early_min_edge=cfg.early.min_edge,
-        early_min_anchor_probability=cfg.early.min_anchor_probability,
+        early_min_favorite_probability=cfg.early.min_favorite_probability,  # SPEC-013
         early_min_confidence=cfg.early.min_confidence,
         early_max_entry_price=cfg.early.max_entry_price,
         early_min_hours_to_start=cfg.early.min_hours_to_start,
