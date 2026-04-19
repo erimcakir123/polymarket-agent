@@ -322,6 +322,11 @@ class ScoreEnricher:
 
             # Archive: skor degisikligi + match result (SPEC-009)
             if matched_score_obj is not None:
+                # SPEC-014: Pozisyon state mutasyonu — match_score/period yaz
+                pos.match_score = (
+                    f"{matched_score_obj.home_score}-{matched_score_obj.away_score}"
+                )
+                pos.match_period = getattr(matched_score_obj, "period", "") or ""
                 self._maybe_log_score_event(pos, matched_score_obj)
                 self._maybe_log_match_result(pos, matched_score_obj)
 

@@ -655,3 +655,53 @@ def test_cricket_without_client_skips_silently() -> None:
     # Should not raise; cricket position simply yields no result
     result = enricher.get_scores_if_due({"cid1": pos})
     assert "cid1" not in result
+
+
+# ── SPEC-014 Task 3: match_score/period yazimi ──
+
+def test_score_enricher_writes_match_score_to_position() -> None:
+    """SPEC-014: _match_cached eslesme bulunca pos.match_score/period yazar."""
+    enricher = ScoreEnricher(espn_client=None, odds_client=None, match_window_hours=999)
+
+    espn_score = ESPNMatchScore(
+        event_id="E1",
+        home_name="New York Rangers", away_name="Boston Bruins",
+        home_score=3, away_score=1,
+        period="End of 2nd Period",
+        is_completed=False, is_live=True, last_updated="",
+        commence_time="2026-04-20T18:00:00Z",
+    )
+    enricher._cached_espn = {"nhl": [espn_score]}
+
+    pos = _pos_with_event(
+        event_id="E1",
+        question="New York Rangers vs. Boston Bruins",
+        sport_tag="nhl",
+    )
+    pos.match_score = ""
+    pos.match_period = ""
+
+    result = enricher._match_cached({"cid1": pos})
+
+    assert "cid1" in result
+    assert pos.match_score == "3-1"
+    assert pos.match_period == "End of 2nd Period"
+
+
+def test_score_enricher_no_match_leaves_position_fields_unchanged() -> None:
+    """SPEC-014: Eslesme yoksa pos.match_score dokunulmaz."""
+    enricher = ScoreEnricher(espn_client=None, odds_client=None, match_window_hours=999)
+    enricher._cached_espn = {"nhl": []}
+
+    pos = _pos_with_event(
+        event_id="E1",
+        question="Rangers vs. Bruins",
+        sport_tag="nhl",
+    )
+    pos.match_score = "previous_value"
+    pos.match_period = "previous_period"
+
+    enricher._match_cached({"cid1": pos})
+
+    assert pos.match_score == "previous_value"
+    assert pos.match_period == "previous_period"
