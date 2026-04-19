@@ -1,6 +1,6 @@
 # SPEC-011: Cricket Cluster Integration
 
-> **Durum**: DRAFT
+> **Durum**: IMPLEMENTED
 > **Tarih**: 2026-04-19
 > **Katman**: infrastructure (cricket_client) + strategy (cricket_score_exit) + orchestration (score_enricher integration) + config
 > **Scope**: 7 cricket ligi + CricAPI entegrasyonu + tennis simetrik C1/C2/C3 score exit

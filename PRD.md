@@ -54,10 +54,9 @@ Aşağıdaki eşiklerden birinde bot yeni giriş yapmaz:
 Circuit breaker her entry öncesi kontrol edilir ve devre dışı bırakılamaz. (bkz. TDD §6.15)
 
 ### 2.7 Scale-Out Profit-Taking
-Kâr alma tek mekanizma ile: 3-tier scale-out.
-- **Tier 1**: PnL ≥ %25 → pozisyonun %40'ını sat
-- **Tier 2**: PnL ≥ %50 → kalan pozisyonun %50'sini sat
-- **Tier 3**: Resolution'a kadar hold
+Kâr alma tek mekanizma ile: 1-tier scale-out.
+- **Tier 1**: PnL ≥ %15 → pozisyonun %40'ını sat
+- Kalan pozisyon near-resolve (94¢) veya SL'ye kalır.
 
 (bkz. TDD §6.6)
 
@@ -187,6 +186,26 @@ kazandı?" sorusu event_id JOIN ile cevaplanabilir.
 
 **Eski sistem (SPEC-008)**: defensive guard (SL ertele), A-conf'ta
 çalışmıyordu. SPEC-010 ile kaldırıldı.
+
+### F11: Cricket Cluster (SPEC-011)
+
+**Amaç**: 7 cricket ligi entegre — IPL (aktif Nisan-Haziran), ODI (yıl boyu),
+International T20, PSL, Big Bash, CPL, T20 Blast.
+
+**Veri Kaynakları**:
+- Odds API (bookmaker consensus, sharp 3-5)
+- Polymarket (event markets)
+- CricAPI free tier (canlı skor — runs, wickets, overs; 100 hit/gün)
+
+**Score Exit (C1/C2/C3)**:
+Tennis T1/T2, hockey K1-K4, baseball M1/M2/M3 ile simetrik. Sadece 2. innings
+chase + biz chasing iken tetiklenir. ESPN cricket yok, CricAPI kullanılır.
+
+**Rate Limit**: CricAPI quota dolunca (100/gün) cricket entry'ler
+`cricapi_unavailable` skip_reason ile atlanır, log'a yazılır.
+
+**TODO-003**: Paid tier upgrade ($10/ay, 1000+ hit/gün) — cricket hacmi
+arttığında gerekli.
 
 ---
 
