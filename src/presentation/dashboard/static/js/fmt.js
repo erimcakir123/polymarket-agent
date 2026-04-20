@@ -198,26 +198,22 @@
         : code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
     },
     // Raw exit_reason → { text, emoji, tone }. Tek kaynak — map burada yaşar.
+    // Producer: src/models/enums.py::ExitReason + computed.py scale_out_tier_N synth.
+    // Python tarafında yeni reason eklendiğinde bu map'e de branch eklenmeli.
     // tone ∈ { "pos", "neg", "neutral" } → CSS class seçimi.
     exitReasonLabel(raw) {
       const r = String(raw || "");
       if (!r) return { text: "", emoji: "", tone: "neutral" };
-      // Scale-out: scale_out_tier_N → TP{N}
+      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → TP{N}
       const tp = r.match(/^scale_out_tier_(\d+)$/);
       if (tp) return { text: "TP" + tp[1], emoji: "🎯", tone: "pos" };
-      // Stop loss: stop_loss_lN → SL L{N}
-      const sl = r.match(/^stop_loss_l(\d+)$/);
-      if (sl) return { text: "SL L" + sl[1], emoji: "🛑", tone: "neg" };
-      // Score exit (sport-agnostic + home/away suffixes)
-      if (r.startsWith("score_exit")) {
-        if (r.endsWith("_home_goal")) return { text: "Score against (home)", emoji: "⚠️", tone: "neg" };
-        if (r.endsWith("_away_goal")) return { text: "Score against (away)", emoji: "⚠️", tone: "neg" };
-        return { text: "Score against", emoji: "⚠️", tone: "neg" };
-      }
+      if (r === "scale_out") return { text: "Scale-out", emoji: "🎯", tone: "pos" };
+      if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
       if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
-      if (r === "time_exit") return { text: "Time exit", emoji: "⏱", tone: "neutral" };
-      if (r === "directional_reversal") return { text: "Direction reversed", emoji: "↩️", tone: "neg" };
-      if (r === "manual_override") return { text: "Manual", emoji: "👤", tone: "neutral" };
+      if (r === "score_exit") return { text: "Score against", emoji: "⚠️", tone: "neg" };
+      if (r === "hold_revoked") return { text: "Hold revoked", emoji: "🔓", tone: "neg" };
+      if (r === "never_in_profit") return { text: "Never profited", emoji: "🥀", tone: "neg" };
+      if (r === "ultra_low_guard") return { text: "Ultra-low guard", emoji: "🛡️", tone: "neg" };
       // Fallback — raw string, neutral
       return { text: r, emoji: "", tone: "neutral" };
     },
