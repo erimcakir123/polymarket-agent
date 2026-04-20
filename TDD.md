@@ -371,7 +371,7 @@ Edge-tabanlı karar yok. Tek strateji:
 
 3. **Price cap (üst outlier)**: `effective_entry_price <= max_entry_price`
    - effective = BUY_YES ? yes_price : 1 - yes_price
-   - Default üst: 85¢
+   - Default üst: 80¢
    - Üstte: R/R kötü (max payout 99¢ - entry)
    - **Alt taban YOK** (post-tuning): bookmaker güçlü favori dediği maça market 30¢ fiyat verse
      bile gireriz (undervalue → pozitif edge). Tek gerçek filtre bookmaker %60 şartı.
@@ -397,7 +397,7 @@ gruplanır. `three_way.evaluate()` karar verir:
 2. Tie-break: eşitlik → SKIP
 3. Absolute threshold: `favorite_prob >= 0.40` (3-way için kalibre, 2-way'deki %55'in karşılığı)
 4. Relative margin: `favorite - second_highest >= 0.07` (tossup'ları eler)
-5. Price cap (üst outlier): `favorite market yes_price <= max_entry_price (0.85)` — alt taban yok (directional entry ile aynı mantık)
+5. Price cap (üst outlier): `favorite market yes_price <= max_entry_price (0.80)` — alt taban yok (directional entry ile aynı mantık)
 
 **Live direction switch yok** — pozisyon açıldıktan sonra outcome değiştirme yok.
 **Underdog/draw value bet yok** — sadece favori tarafa gir (varyans azaltma).

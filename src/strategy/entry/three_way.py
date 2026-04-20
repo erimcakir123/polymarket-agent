@@ -56,7 +56,7 @@ def evaluate(
     probs: dict[str, BookmakerProbability],
     favorite_threshold: float = 0.40,
     favorite_margin: float = 0.07,
-    max_entry_price: float = 0.85,
+    max_entry_price: float = 0.80,
 ) -> Signal | None:
     """3-way entry kararı. None → koşul sağlanmadı."""
     if any(p.confidence == "C" for p in probs.values()):

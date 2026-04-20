@@ -60,7 +60,7 @@ class EntryConfig(BaseModel):
     """
     model_config = ConfigDict(extra="ignore")
     min_favorite_probability: float = 0.60  # güçlü favori eşiği (bookmaker)
-    max_entry_price: float = 0.85           # aşırı pahalı girişi engelle (R/R outlier cap)
+    max_entry_price: float = 0.80           # aşırı pahalı girişi engelle (R/R outlier cap)
 
 
 class StockConfig(BaseModel):

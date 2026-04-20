@@ -150,7 +150,7 @@ risk:
 
 entry:
   min_favorite_probability: 0.60   # SPEC-017: bookmaker güçlü favori eşiği (tek gerçek filtre)
-  max_entry_price: 0.85            # SPEC-017: pahalı outlier cap (R/R koruma). Alt taban YOK — undervalue girişlere açık.
+  max_entry_price: 0.80            # SPEC-017: pahalı outlier cap (R/R koruma). Alt taban YOK — undervalue girişlere açık.
 
 stock:
   enabled: true

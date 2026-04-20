@@ -44,7 +44,7 @@ _NON_MVP_SPORTS: frozenset[str] = frozenset({"mma", "golf"})
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
     min_favorite_probability: float = 0.60    # directional: bookmaker favori eşiği (tek gerçek filtre)
-    max_entry_price: float = 0.85             # directional: pahalı outlier cap (alt taban YOK)
+    max_entry_price: float = 0.80             # directional: pahalı outlier cap (alt taban YOK)
     max_positions: int = 50
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02

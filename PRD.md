@@ -83,7 +83,7 @@ Underdog value bet'leri alınmıyor — varyans düşürme amacıyla.
 
 ### 2.9 Directional Entry (SPEC-017)
 
-**Demir kural:** Bot, bookmaker'ın güçlü favori gördüğü takıma (min %60 güven) market fiyatı pahalı outlier değilse (≤ 85¢, alt taban yok — undervalue girişlere açık) doğrudan giriş yapar. Edge hesabı yok. Stake, kazanma olasılığı ile orantılı (SPEC-016). Tüm exit kuralları, risk cap'leri, event guard ve manipulation/liquidity filter'ları korunur.
+**Demir kural:** Bot, bookmaker'ın güçlü favori gördüğü takıma (min %60 güven) market fiyatı pahalı outlier değilse (≤ 80¢, alt taban yok — undervalue girişlere açık) doğrudan giriş yapar. Edge hesabı yok. Stake, kazanma olasılığı ile orantılı (SPEC-016). Tüm exit kuralları, risk cap'leri, event guard ve manipulation/liquidity filter'ları korunur.
 
 **Etkisi:** Market efficient olan dönemlerde (Polymarket ≈ bookmaker) edge-based filtre sıfıra yakın hacim veriyor; directional entry bu engeli kaldırır. Polymarket retail vs bookmaker pro asimetri varsayımıyla pozitif EV beklenir.
 
@@ -152,7 +152,7 @@ Bot Polymarket Gamma API'dan canlı market'leri keşfeder. `allowed_sport_tags` 
 Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. TDD §6.1)
 
 ### F3. Entry Decision
-`strategy/entry/gate.py` giriş kararını orchestrate eder. Tek strateji: **directional entry** (SPEC-017) — bookmaker anchor'dan yön belirle, win_prob ≥ %60 (min_favorite_probability) + market effective price ≤ 85¢ (pahalı outlier cap, alt taban yok — undervalue girişlere açık) şartını sağlayan favoriye giriş yap. Edge hesabı yok. Tüm guards (event, liquidity, manipulation, confidence, exposure cap) korunur. (bkz. TDD §6.3)
+`strategy/entry/gate.py` giriş kararını orchestrate eder. Tek strateji: **directional entry** (SPEC-017) — bookmaker anchor'dan yön belirle, win_prob ≥ %60 (min_favorite_probability) + market effective price ≤ 80¢ (pahalı outlier cap, alt taban yok — undervalue girişlere açık) şartını sağlayan favoriye giriş yap. Edge hesabı yok. Tüm guards (event, liquidity, manipulation, confidence, exposure cap) korunur. (bkz. TDD §6.3)
 
 ### F4. Position Sizing
 Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). (bkz. TDD §6.5)
@@ -256,7 +256,7 @@ DRY pattern ile çalışır.
 
 **Entry kuralları**:
 - Favorite threshold: %40 absolute + 7pp margin (tossup eler)
-- Price cap: yes_price ≤ 85¢ (pahalı outlier, alt taban yok — directional entry ile aynı mantık)
+- Price cap: yes_price ≤ 80¢ (pahalı outlier, alt taban yok — directional entry ile aynı mantık)
 - Sum filter: 3 market yes_price toplamı 0.95-1.05 (double chance eler)
 - Excluded competitions: international/club friendly, preseason, testimonial
 

@@ -44,7 +44,7 @@ def test_clear_home_favorite_passes() -> None:
 
 
 def test_three_way_skips_when_favorite_price_out_of_range() -> None:
-    """Favorite market yes_price 0.90 > max_entry_price 0.85 → SKIP."""
+    """Favorite market yes_price 0.90 > max_entry_price 0.80 → SKIP."""
     sig = three_way_evaluate(
         home_market=_market(yes=0.90, q="Will Arsenal win?", cid="h"),  # too expensive
         draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),

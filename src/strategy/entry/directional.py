@@ -23,7 +23,7 @@ def evaluate_directional(
     anchor: float,
     confidence: str,
     min_favorite_probability: float = 0.60,
-    max_entry_price: float = 0.85,
+    max_entry_price: float = 0.80,
 ) -> Signal | None:
     """Directional entry kararı.
 

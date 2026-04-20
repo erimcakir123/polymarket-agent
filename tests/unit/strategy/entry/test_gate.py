@@ -145,7 +145,7 @@ def test_below_fav_prob_skips() -> None:
 
 
 def test_price_out_of_range_skips() -> None:
-    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, but yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
+    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, but yes_price=0.90 > max_entry_price=0.80 → price_out_of_range
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.60, conf="B")))
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
@@ -206,7 +206,7 @@ def test_size_below_min_skips() -> None:
 
 
 def test_price_out_of_range_blocks_high_price() -> None:
-    # anchor=0.92, win_prob=0.92 >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
+    # anchor=0.92, win_prob=0.92 >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.80 → price_out_of_range
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.92, conf="A")))
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
@@ -428,7 +428,7 @@ def test_evaluate_one_below_fav_prob_sets_skip_detail_values() -> None:
 
 def test_evaluate_one_price_out_of_range_sets_skip_detail_values() -> None:
     """price_out_of_range → skip_detail contains price/max values (pahalı outlier)."""
-    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
+    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, yes_price=0.90 > max_entry_price=0.80 → price_out_of_range
     bm = _bm(prob=0.60, conf="B")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.90))
@@ -439,13 +439,13 @@ def test_evaluate_one_price_out_of_range_sets_skip_detail_values() -> None:
 
 def test_evaluate_one_price_out_of_range_high_price_sets_skip_detail() -> None:
     """price_out_of_range (high) → skip_detail contains price/min/max values."""
-    # anchor=0.92, win_prob >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
+    # anchor=0.92, win_prob >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.80 → price_out_of_range
     bm = _bm(prob=0.92, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "price_out_of_range"
     assert "price=0.900" in result.skip_detail
-    assert "max=0.85" in result.skip_detail
+    assert "max=0.8" in result.skip_detail
 
 
 def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
@@ -669,7 +669,7 @@ def test_gate_directional_skips_with_below_fav_prob_when_anchor_too_low() -> Non
 
 
 def test_gate_directional_skips_with_price_out_of_range_when_effective_price_above_max() -> None:
-    """anchor=0.70, win_prob=0.70 >= 0.55 ✓, yes_price=0.88 > max_entry_price=0.85 → price_out_of_range."""
+    """anchor=0.70, win_prob=0.70 >= 0.55 ✓, yes_price=0.88 > max_entry_price=0.80 → price_out_of_range."""
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="B")))
     results = gate.run([_market(yp=0.88)])
     assert results[0].signal is None
