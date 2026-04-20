@@ -124,3 +124,11 @@ def test_effective_win_prob_boundary_one_buy_no() -> None:
 def test_effective_win_prob_invalid_direction_raises() -> None:
     with pytest.raises(ValueError):
         effective_win_prob(anchor=0.5, direction="HOLD")
+
+
+def test_effective_win_prob_boundary_zero_buy_no():
+    assert effective_win_prob(anchor=0.0, direction="BUY_NO") == pytest.approx(1.0)
+
+
+def test_effective_win_prob_boundary_one_buy_yes():
+    assert effective_win_prob(anchor=1.0, direction="BUY_YES") == 1.0
