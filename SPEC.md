@@ -628,3 +628,4 @@ Bu yan etkiler **tasarımla uyumlu** — TDD §6.8/6.10/6.14 zaten bu davranış
 - [ ] Mevcut testler hâlâ geçiyor mu? (`pytest -q`)
 - [ ] `positions.json` backward compat doğrulandı mı?
 - [ ] Eski `match_score`/`match_period` Position alanları boş kalıyor mu?
+

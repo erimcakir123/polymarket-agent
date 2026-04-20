@@ -13,24 +13,30 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "basketball",
         "espn_league": "nba",
-        # Score exit N1: Q3 sonu + ağır fark
+        # Score exit N1: Q3 sonu + ağır fark (SPEC-A4: 20→18, modern NBA regime change payı)
         "score_exit_n1_elapsed": 0.75,
-        "score_exit_n1_deficit": 20,
-        # Score exit N2: son dakikalar + iki possession
+        "score_exit_n1_deficit": 18,
+        # Score exit N2: son 4dk + anlamlı fark (SPEC-A4: 10→8, hala %8-10 safe)
         "score_exit_n2_elapsed": 0.92,
-        "score_exit_n2_deficit": 10,
+        "score_exit_n2_deficit": 8,
+        # Score exit N3 (SPEC-A4): son 2dk + one-score+ deficit → matematiksel bitik
+        "score_exit_n3_clock_seconds": 120,
+        "score_exit_n3_deficit": 5,
     },
     "nfl": {
         "match_duration_hours": 3.25,
         "score_source": "espn",
         "espn_sport": "football",
         "espn_league": "nfl",
-        # Score exit N1: Q3 sonu + 3-skor farkı
+        # Score exit N1: Q3 sonu + 2.5-skor farkı (SPEC-A4: 21→17, σ-model %99 güven)
         "score_exit_n1_elapsed": 0.75,
-        "score_exit_n1_deficit": 21,
-        # Score exit N2: son 5dk + 2-possession
+        "score_exit_n1_deficit": 17,
+        # Score exit N2: son 5dk + 2-possession (SPEC-A4: 11→9, hala %3-4 safe)
         "score_exit_n2_elapsed": 0.92,
-        "score_exit_n2_deficit": 11,
+        "score_exit_n2_deficit": 9,
+        # Score exit N3 (SPEC-A4): son 2.5dk + one-score deficit → possession belirsiz
+        "score_exit_n3_clock_seconds": 150,
+        "score_exit_n3_deficit": 4,
     },
     "nhl": {
         "match_duration_hours": 2.5,

@@ -879,8 +879,8 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 
 | Sport | stop_loss_pct | match_duration_hours | Özel exit |
 |---|---|---|---|
-| NBA | 0.35 | 2.5 | nba_score_exit N1/N2 (elapsed + deficit — A3) |
-| NFL | 0.30 | 3.25 | nfl_score_exit N1/N2 (elapsed + deficit — A3) |
+| NBA | 0.35 | 2.5 | nba_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
+| NFL | 0.30 | 3.25 | nfl_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
 | American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | late-game deficit exit |
 | NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | baseball_score_exit M1-M3 (inning+deficit combo — SPEC-010) |
@@ -900,19 +900,27 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 
 **Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Soccer/rugby_union/afl/handball SPEC-015 ile eklendi. Ertelenmiş branşlar için bkz. `TODO.md` TODO-001.
 
-#### 7.2.1 NBA Score Exit (A3)
+#### 7.2.1 NBA Score Exit (A3 + SPEC-A4)
 
-- N1: elapsed ≥ 0.75 + deficit ≥ 20 (Q3 sonu + ağır fark)
-- N2: elapsed ≥ 0.92 + deficit ≥ 10 (son dakikalar + 2 possession)
+- **N1**: elapsed ≥ 0.75 + deficit ≥ **18** (Q3 sonu + ağır fark; SPEC-A4: 20→18, modern NBA regime change payı — 17pt comeback %2-3 olduğundan 18 güvenli orta nokta)
+- **N2**: elapsed ≥ 0.92 + deficit ≥ **8** (son 4dk + anlamlı fark; SPEC-A4: 10→8, hala %8-10 safe)
+- **N3 (YENİ — SPEC-A4)**: period_number == 4 AND clock_seconds ≤ 120 AND deficit ≥ 5 (son 2dk + one-score+; %3-5 comeback bölgesi, ESPN displayClock parse)
 
-Threshold'lar sport_rules.py'den okunur.
+Öncelik: N3 > N2 > N1 (en spesifik önce). Threshold'lar sport_rules.py'den okunur.
 
-#### 7.2.2 NFL Score Exit (A3)
+#### 7.2.2 NFL Score Exit (A3 + SPEC-A4)
 
-- N1: elapsed ≥ 0.75 + deficit ≥ 21 (3-skor farkı)
-- N2: elapsed ≥ 0.92 + deficit ≥ 11 (2-possession, son 5dk)
+- **N1**: elapsed ≥ 0.75 + deficit ≥ **17** (Q3 sonu + 2.5-skor; SPEC-A4: 21→17, σ-model %99 güven — 21 aşırı conservative)
+- **N2**: elapsed ≥ 0.92 + deficit ≥ **9** (son 5dk + 2-possession; SPEC-A4: 11→9, hala %3-4 safe)
+- **N3 (YENİ — SPEC-A4)**: period_number == 4 AND clock_seconds ≤ 150 AND deficit ≥ 4 (son 2.5dk + one-score; possession belirsiz bölge)
 
-Threshold'lar sport_rules.py'den okunur.
+Öncelik: N3 > N2 > N1. Threshold'lar sport_rules.py'den okunur.
+
+#### 7.2.3 Period + Clock Infrastructure (SPEC-A4)
+
+NBA/NFL exit'leri `score_info["period_number"]` (int 1-4, 5+=OT) + `score_info["clock_seconds"]` (ESPN displayClock "M:SS" parse) kullanır. Parse başarısızsa (`clock_seconds = None`) N3 fire etmez (fail-safe), N1/N2 elapsed_pct ile çalışmaya devam eder (backward compat).
+
+Diğer sporlar (Hockey, Baseball, Tennis, Cricket, Soccer) halen `elapsed_pct` kullanır. Tam period/clock refactor SPEC-A5'e ertelendi — NBA/NFL canlı gözlem sonrası.
 
 ### 7.3 Sport Tag Doğrulama (Slug-Based Override)
 

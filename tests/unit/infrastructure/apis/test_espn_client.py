@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.infrastructure.apis.espn_client import ESPNMatchScore, _parse_competition, _parse_scoreboard
+from src.infrastructure.apis.espn_client import (
+    ESPNMatchScore,
+    _parse_clock_to_seconds,
+    _parse_competition,
+    _parse_scoreboard,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -390,3 +395,129 @@ def test_parse_no_competitors_skips_competition() -> None:
         }],
     }
     assert _parse_scoreboard(response) == []
+
+
+# ---------------------------------------------------------------------------
+# SPEC-A4: displayClock → clock_seconds parse
+# ---------------------------------------------------------------------------
+
+
+def test_parse_clock_mm_ss_format_returns_seconds() -> None:
+    assert _parse_clock_to_seconds("5:30") == 330
+
+
+def test_parse_clock_mmm_ss_format_returns_seconds() -> None:
+    assert _parse_clock_to_seconds("12:45") == 765
+
+
+def test_parse_clock_zero_returns_zero() -> None:
+    assert _parse_clock_to_seconds("0:00") == 0
+
+
+def test_parse_clock_malformed_returns_none() -> None:
+    assert _parse_clock_to_seconds("END") is None
+    assert _parse_clock_to_seconds("") is None
+    assert _parse_clock_to_seconds("abc:def") is None
+    assert _parse_clock_to_seconds("5") is None
+
+
+def test_parse_clock_invalid_seconds_returns_none() -> None:
+    """Saniye 60+ olamaz — format hatası."""
+    assert _parse_clock_to_seconds("5:99") is None
+
+
+def test_parse_clock_negative_returns_none() -> None:
+    assert _parse_clock_to_seconds("-1:00") is None
+
+
+# ---------------------------------------------------------------------------
+# SPEC-A4: NBA/NFL period_number + clock_seconds parse entegrasyonu
+# ---------------------------------------------------------------------------
+
+
+def test_basketball_parses_period_number_and_clock() -> None:
+    """NBA Q4 2:15 kala deficit durumu."""
+    comp = {
+        "id": "nba_1",
+        "status": {
+            "period": 4,
+            "displayClock": "2:15",
+            "type": {"description": "In Progress", "completed": False, "state": "in"},
+        },
+        "competitors": [
+            {"homeAway": "home", "athlete": {"displayName": "Lakers"},
+             "linescores": [{"value": 28}, {"value": 25}, {"value": 22}, {"value": 15}]},
+            {"homeAway": "away", "athlete": {"displayName": "Celtics"},
+             "linescores": [{"value": 30}, {"value": 28}, {"value": 25}, {"value": 25}]},
+        ],
+    }
+    result = _parse_competition(comp, sport="basketball")
+    assert result is not None
+    assert result.period_number == 4
+    assert result.clock_seconds == 135  # 2:15
+
+
+def test_football_parses_period_number_and_clock() -> None:
+    """NFL Q4 1:30 kala."""
+    comp = {
+        "id": "nfl_1",
+        "status": {
+            "period": 4,
+            "displayClock": "1:30",
+            "type": {"description": "In Progress", "completed": False, "state": "in"},
+        },
+        "competitors": [
+            {"homeAway": "home", "athlete": {"displayName": "Chiefs"},
+             "linescores": [{"value": 7}, {"value": 3}, {"value": 7}, {"value": 3}]},
+            {"homeAway": "away", "athlete": {"displayName": "Eagles"},
+             "linescores": [{"value": 10}, {"value": 7}, {"value": 7}, {"value": 0}]},
+        ],
+    }
+    result = _parse_competition(comp, sport="football")
+    assert result is not None
+    assert result.period_number == 4
+    assert result.clock_seconds == 90
+
+
+def test_basketball_malformed_clock_returns_none_clock() -> None:
+    """Bozuk displayClock → clock_seconds None, period_number hala parse edilir."""
+    comp = {
+        "id": "nba_2",
+        "status": {
+            "period": 3,
+            "displayClock": "END",
+            "type": {"description": "End of 3rd", "completed": False, "state": "in"},
+        },
+        "competitors": [
+            {"homeAway": "home", "athlete": {"displayName": "A"},
+             "linescores": [{"value": 25}, {"value": 25}, {"value": 25}]},
+            {"homeAway": "away", "athlete": {"displayName": "B"},
+             "linescores": [{"value": 20}, {"value": 20}, {"value": 20}]},
+        ],
+    }
+    result = _parse_competition(comp, sport="basketball")
+    assert result is not None
+    assert result.period_number == 3
+    assert result.clock_seconds is None  # fail-safe
+
+
+def test_non_basketball_football_skips_period_clock_parse() -> None:
+    """Hockey gibi sporlarda period_number + clock_seconds None kalır."""
+    comp = {
+        "id": "nhl_1",
+        "status": {
+            "period": 2,
+            "displayClock": "8:45",
+            "type": {"description": "2nd Period", "completed": False, "state": "in"},
+        },
+        "competitors": [
+            {"homeAway": "home", "athlete": {"displayName": "Rangers"},
+             "linescores": [{"value": 1}, {"value": 2}]},
+            {"homeAway": "away", "athlete": {"displayName": "Bruins"},
+             "linescores": [{"value": 0}, {"value": 1}]},
+        ],
+    }
+    result = _parse_competition(comp, sport="hockey")
+    assert result is not None
+    assert result.period_number is None  # NBA/NFL parse YOK
+    assert result.clock_seconds is None

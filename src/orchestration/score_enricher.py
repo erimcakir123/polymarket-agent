@@ -160,6 +160,8 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "regulation_state": getattr(ms, "regulation_state", ""),
         "our_outcome": _soccer_our_outcome(pos),
         "knockout": _soccer_is_knockout(pos),
+        "period_number": getattr(ms, "period_number", None),   # SPEC-A4: NBA/NFL int period
+        "clock_seconds": getattr(ms, "clock_seconds", None),   # SPEC-A4: NBA/NFL kalan saniye
     }
 # ── ScoreEnricher ─────────────────────────────────────────────────────────────
 

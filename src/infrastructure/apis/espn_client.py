@@ -40,6 +40,29 @@ class ESPNMatchScore:
     inning: int | None = None  # SPEC-014: MLB/beyzbol inning (status.period int); None = beyzbol degil veya pregame
     minute: int | None = None  # SPEC-015: futbol dakikası (status.displayClock parse); None = futbol değil veya pre
     regulation_state: str = ""  # SPEC-015: futbol "pre" | "in" | "post"
+    period_number: int | None = None  # SPEC-A4: NBA/NFL çeyrek int (1-4, 5+=OT); None = NBA/NFL değil veya pre
+    clock_seconds: int | None = None  # SPEC-A4: NBA/NFL kalan saniye (status.displayClock "M:SS" parse); None = parse başarısız
+
+
+def _parse_clock_to_seconds(clock: str) -> int | None:
+    """SPEC-A4: ESPN displayClock stringini saniyeye çevir.
+
+    Format: "M:SS" veya "MM:SS" (örn. "5:30" → 330, "12:45" → 765, "0:00" → 0).
+    Malformed input veya boş string → None (fail-safe, exit fire etmez).
+    """
+    if not clock or not isinstance(clock, str):
+        return None
+    parts = clock.strip().split(":")
+    if len(parts) != 2:
+        return None
+    try:
+        minutes = int(parts[0])
+        seconds = int(parts[1])
+    except (ValueError, TypeError):
+        return None
+    if minutes < 0 or seconds < 0 or seconds >= 60:
+        return None
+    return minutes * 60 + seconds
 
 
 def _is_tennis(linescores: list[list[int]]) -> bool:
@@ -123,6 +146,16 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         if isinstance(raw_period, int) and raw_period > 0:
             inning = raw_period
 
+    # SPEC-A4: NBA/NFL period (int 1-4, 5+=OT) + clock_seconds (displayClock "M:SS" parse)
+    period_number: int | None = None
+    clock_seconds: int | None = None
+    if sport in ("basketball", "football"):
+        raw_period = status_block.get("period")
+        if isinstance(raw_period, int) and raw_period > 0:
+            period_number = raw_period
+        raw_clock = status_block.get("displayClock", "") or ""
+        clock_seconds = _parse_clock_to_seconds(raw_clock)
+
     # SPEC-015: Soccer minute parse from displayClock ("67'", "45+2'", "90'+13'")
     minute: int | None = None
     regulation_state = ""
@@ -159,6 +192,8 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         inning=inning,
         minute=minute,
         regulation_state=regulation_state,
+        period_number=period_number,
+        clock_seconds=clock_seconds,
     )
 
 

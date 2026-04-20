@@ -72,17 +72,23 @@ def test_ahl_espn_sport_inherits_hockey() -> None:
         assert get_sport_rule("ahl", "espn_sport") == nhl_sport
 
 
-def test_nba_has_score_exit_n1_n2_thresholds() -> None:
+def test_nba_has_score_exit_n1_n2_n3_thresholds() -> None:
+    """SPEC-A4: NBA N1=18 (regime change payı), N2=8, N3 Q4-son2dk + def5."""
     from src.config.sport_rules import get_sport_rule
     assert get_sport_rule("nba", "score_exit_n1_elapsed") == 0.75
-    assert get_sport_rule("nba", "score_exit_n1_deficit") == 20
+    assert get_sport_rule("nba", "score_exit_n1_deficit") == 18
     assert get_sport_rule("nba", "score_exit_n2_elapsed") == 0.92
-    assert get_sport_rule("nba", "score_exit_n2_deficit") == 10
+    assert get_sport_rule("nba", "score_exit_n2_deficit") == 8
+    assert get_sport_rule("nba", "score_exit_n3_clock_seconds") == 120
+    assert get_sport_rule("nba", "score_exit_n3_deficit") == 5
 
 
-def test_nfl_has_score_exit_n1_n2_thresholds() -> None:
+def test_nfl_has_score_exit_n1_n2_n3_thresholds() -> None:
+    """SPEC-A4: NFL N1=17 (σ-model %99 güven), N2=9, N3 Q4-son150s + def4."""
     from src.config.sport_rules import get_sport_rule
     assert get_sport_rule("nfl", "score_exit_n1_elapsed") == 0.75
-    assert get_sport_rule("nfl", "score_exit_n1_deficit") == 21
+    assert get_sport_rule("nfl", "score_exit_n1_deficit") == 17
     assert get_sport_rule("nfl", "score_exit_n2_elapsed") == 0.92
-    assert get_sport_rule("nfl", "score_exit_n2_deficit") == 11
+    assert get_sport_rule("nfl", "score_exit_n2_deficit") == 9
+    assert get_sport_rule("nfl", "score_exit_n3_clock_seconds") == 150
+    assert get_sport_rule("nfl", "score_exit_n3_deficit") == 4
