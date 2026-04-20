@@ -8,10 +8,14 @@
 
 ---
 
-## TODO-001: Draw-Possible Sports — Her Branş için Ayrı Kural Yazılacak
+## TODO-001: Draw-Possible Sports [IMPLEMENTED via SPEC-015]
 
-- **Durum**: DEFERRED — v2 MVP dışı
-- **Tarih**: 2026-04-13
+- **Durum**: ~~DEFERRED~~ → **IMPLEMENTED (2026-04-20 SPEC-015)**
+- **Tarih**: 2026-04-13 (defer) → 2026-04-20 (implementation)
+- Soccer (60+ lig), Rugby, AFL, Handball 3-way market desteği eklendi
+- Mimari: EventGrouper + ThreeWayEntry + SoccerScoreExit + sport_configs DRY
+- Kapsam dışı kalanlar (Cricket Test, Rugby League subleague, Boxing draws):
+  nadir durumlar, ayrı SPEC gerekiyorsa ileride
 - **Öncelik**: P1 — çok fırsat var (özellikle Draw market'leri underpriced)
 - **Yaklaşım**: Her branş kendine özgü kurallar gerektirir. MVP stabil olduğunda **sırayla** her branşa özel strateji geliştirilecek.
 

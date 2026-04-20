@@ -431,6 +431,23 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 
 **Consensus yoksa (Case B):** standart edge hesabı (§6.3) kullanılır.
 
+### 6.4b ThreeWayEntry (SPEC-015)
+
+Soccer/rugby/AFL/handball: event_id paylaşan 3 market (Home/Draw/Away) `EventGrouper` ile
+gruplanır. `three_way.evaluate()` karar verir:
+
+1. Bookmaker'ın 3 outcome arasında en yüksek olasılığına göre favori seç
+2. Tie-break: eşitlik → SKIP
+3. Absolute threshold: `favorite_prob >= 0.40` (3-way için kalibre, 2-way'deki %52'nin karşılığı)
+4. Relative margin: `favorite - second_highest >= 0.07` (tossup'ları eler)
+5. Edge: `bookmaker_prob - market_yes_price >= min_edge (0.06)` (favori market'ta BUY_YES)
+
+**Live direction switch yok** — pozisyon açıldıktan sonra outcome değiştirme yok.
+**Underdog/draw value bet yok** — sadece favori tarafa gir (varyans azaltma).
+
+Scanner'a `sum_filter` (3 market'in yes_price toplamı 0.95-1.05) eklendi —
+double chance/handicap/special market'leri eler.
+
 ### 6.5 Position Sizing
 
 Confidence + market koşullarına göre trade boyutu.
@@ -701,6 +718,31 @@ Limit dolunca entry gate `cricapi_unavailable` skip eder.
 Defending tarafındaysak (our_chasing=False) C1/C2/C3 skip — chase çökmek
 BİZİM lehimize.
 
+#### 6.9g Soccer Score Exit (SPEC-015)
+
+Tennis T1/T2, hockey K1-K4, baseball M1/M2/M3, cricket C1/C2/C3 ile simetrik.
+A-conf pozisyonlar için FORCED exit. Sport config (SOCCER_CONFIG) parametrelerini
+kullanır (DRY — aynı fonksiyon rugby/AFL/handball için de çalışır, sadece
+config farklı).
+
+**HOME/AWAY pozisyon**:
+- 0-65' HOLD (comeback potential korunur)
+- 65'+ 2 gol geride → EXIT
+- 75'+ 1 gol geride → EXIT
+
+**DRAW pozisyon**:
+- 0-70' 0-0 → HOLD (draw değeri zirvede)
+- 75'+ herhangi gol → EXIT (draw cliff)
+- Knockout + 90+stoppage → AUTO-EXIT (uzatma+pen draw'ı bitirir)
+
+**Tasarım kararları**:
+- Red card özel exit YOK — ESPN reliability belirsiz + gol sonrası zaten
+  market flip yaşanır, score exit yakalar.
+- First-half lock 0-65': soccer comeback rate (0-1 HT) ~%25-30, erken çıkmak
+  EV'den zarar.
+- Knockout flag: position.tags veya question'dan tespit ("Cup", "Champions
+  League", "Final", vs.).
+
 ### 6.10 Never-in-Profit Guard
 
 Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
@@ -950,9 +992,13 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 | cricket_big_bash | 0.30 | 3.5 | C1/C2/C3 (T20) |
 | cricket_caribbean_premier_league | 0.30 | 3.5 | C1/C2/C3 (T20) |
 | cricket_t20_blast | 0.30 | 3.5 | C1/C2/C3 (T20) |
+| soccer | 0.30 | 2.0 | soccer_score_exit (HOME/AWAY 65'+ + DRAW 70'+) — SPEC-015 |
+| rugby_union | 0.30 | 1.75 | blowout 50'+ 14pt, late 70'+ 7pt |
+| afl | 0.30 | 2.0 | blowout 60'+ 30pt, late 75'+ 15pt |
+| handball | 0.30 | 1.5 | blowout 45'+ 8goals, late 55'+ 4goals |
 | DEFAULT | 0.30 | 2.0 | - |
 
-**Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Ertelenmiş branşların kuralları için bkz. `TODO.md` TODO-001.
+**Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Soccer/rugby_union/afl/handball SPEC-015 ile eklendi. Ertelenmiş branşlar için bkz. `TODO.md` TODO-001.
 
 ### 7.3 Sport Tag Doğrulama (Slug-Based Override)
 
@@ -997,5 +1043,5 @@ filtreleniyordu. Değerlerin config whitelist'iyle hizalanması bu bug'ı çöze
 1. **Golf outright futures**: Sadece H2H (`golf_lpga_tour`, `golf_liv_tour`) MVP'de. `golf_masters_tournament_winner` vb. outright'lar scope dışı.
 2. **Tennis dinamik matching**: `odds_client.py`'de `_get_active_tennis_keys` + `_match_tennis_key` migrate edilecek.
 3. **Baseball preseason**: `baseball_mlb_preseason` aktif ama preseason maçlarında motivasyon düşük — potansiyel bir `allow_preseason: false` flag eklenebilir.
-4. **Draw-possible sporlar**: Tümü TODO-001'de. MVP'de scanner bu sport_tag'leri filter'lar.
+4. **Draw-possible sporlar**: Soccer/rugby/AFL/handball SPEC-015 ile eklendi. Kalan (Cricket Test, Boxing, NFL draw) TODO-001'de.
 

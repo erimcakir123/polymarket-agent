@@ -217,6 +217,43 @@ chase + biz chasing iken tetiklenir. ESPN cricket yok, CricAPI kullanılır.
 **TODO-003**: Paid tier upgrade ($10/ay, 1000+ hit/gün) — cricket hacmi
 arttığında gerekli.
 
+### F12: 3-Way Market Support (SPEC-015)
+
+**Amaç**: Polymarket'in en yüksek hacimli market kategorisi (soccer, rugby,
+AFL, handball) için 3-way binary market (Home/Draw/Away) desteği.
+
+**Kapsam**:
+- 60+ soccer ligi (EPL, La Liga, Serie A, Bundesliga, Ligue 1, Champions
+  League, Europa, MLS, Süper Lig, Eredivisie, Brasileirão, Liga MX, 40+ ülke
+  ligi)
+- Rugby Union + Rugby League
+- AFL
+- Handball
+
+**Mimari**: `EventGrouper` 3 binary market'i event_id ile grupluyor. `ThreeWayEntry`
+direction seçimi yapar (favori = en yüksek bookmaker olasılığı). `SoccerScoreExit`
+DRAW ve HOME/AWAY için ayrı kurallar (65'+ lock). Aynı altyapı tüm 3-way sporlara
+DRY pattern ile çalışır.
+
+**Entry kuralları**:
+- Favorite threshold: %40 absolute + 7pp margin (tossup eler)
+- Edge: %6 unified (mevcut sistemle aynı)
+- Sum filter: 3 market yes_price toplamı 0.95-1.05 (double chance eler)
+- Excluded competitions: international/club friendly, preseason, testimonial
+
+**Exit kuralları**:
+- First-half lock (0-65'): HOLD (comeback potential)
+- 65'+ 2 gol geride → EXIT
+- 75'+ 1 gol geride → EXIT
+- DRAW: 0-70' HOLD, 75'+ gol EXIT, knockout 90+ AUTO-EXIT
+
+**Credit budget**: SPEC-015 günlük cap 800 credit (20K aylık bütçeden %4 tampon).
+Aşılırsa fetch'ler skip, mevcut pozisyonlar etkilenmez.
+
+**Kapsam dışı**:
+- Live direction switch (pozisyon outcome değiştirme) — SPEC-016 ileride
+- Underdog/draw value bet yakalama — SPEC-017 ileride (100+ favori trade sonrası)
+
 ---
 
 ## 5. Non-Fonksiyonel Gereksinimler
