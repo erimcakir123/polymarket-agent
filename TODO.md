@@ -151,4 +151,26 @@ T20 için yeterli (1 maç ≈ 42 poll), ama:
 
 ---
 
-## TODO-004: [sonraki eklenecekler]
+## TODO-004: MMA / UFC Skor-Tabanlı Exit Kuralları
+
+- **Durum**: DEFERRED
+- **Tarih**: 2026-04-20
+- **Sebep**: MMA'da canlı skor sistemi yok; judge decision maç sonunda gelir. Round-by-round kontrol data var mı araştırılmalı (ESPN MMA endpoint, alternatif provider).
+- **Önkoşul**: Canlı skor source bulunmalı. ESPN MMA ham veride round winner, strike count, control time gibi field'lar incelenmeli.
+- **Öncelik**: P2 (MVP stabil olduktan sonra)
+- **Mevcut durum**: MMA entry gate'te "sport_not_in_mvp" reason ile reddediliyor. sport_rules.py'dan entry silindi.
+
+---
+
+## TODO-005: Golf Skor-Tabanlı Exit Kuralları
+
+- **Durum**: DEFERRED
+- **Tarih**: 2026-04-20
+- **Sebep**: ESPN golf canlı leaderboard endpoint'i yok.
+- **Önkoşul**: Canlı leaderboard provider araştırılmalı (alternatif: PGA.com, Golf Channel API). Playoff-aware config (ham veride hole-by-hole data) gerekli.
+- **Öncelik**: P3 (niş spor, volume düşük)
+- **Mevcut durum**: Golf entry gate'te "sport_not_in_mvp" reason ile reddediliyor. sport_rules.py'dan entry silindi.
+
+---
+
+## TODO-006: [sonraki eklenecekler]
