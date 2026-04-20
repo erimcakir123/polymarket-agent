@@ -45,4 +45,4 @@ def confidence_position_size(
 
     if size < POLYMARKET_MIN_ORDER_USDC:
         return 0.0
-    return max(0.0, size)
+    return size

@@ -147,3 +147,14 @@ def test_position_size_probability_weighted_with_reentry_multiplier():
         is_reentry=True,
     )
     assert size == 20.0
+
+
+def test_position_size_probability_weighted_at_exact_floor_is_included():
+    # base=$50 × 0.10 = $5.00 exactly. Floor is strict "<" not "<=" → $5.00 passes.
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.10,
+    )
+    assert size == 5.0
