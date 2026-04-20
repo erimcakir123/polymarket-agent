@@ -33,7 +33,7 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _market(cid: str = "m1", yes: float = 0.50) -> MarketData:
+def _market(cid: str = "m1", yes: float = 0.65) -> MarketData:
     now = datetime.now(timezone.utc)
     return MarketData(
         condition_id=cid,
@@ -79,8 +79,8 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
     resp.status_code = 200
     resp.raise_for_status = MagicMock(return_value=None)
     resp.json.return_value = {
-        "asks": [{"price": "0.99", "size": "10"}, {"price": "0.50", "size": "100"}],
-        "bids": [{"price": "0.01", "size": "10"}, {"price": "0.49", "size": "100"}],
+        "asks": [{"price": "0.99", "size": "10"}, {"price": "0.65", "size": "100"}],
+        "bids": [{"price": "0.01", "size": "10"}, {"price": "0.64", "size": "100"}],
     }
     exec_http.return_value = resp
     from src.infrastructure.executor import Executor
@@ -129,8 +129,8 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
 # ── Heavy cycle ──
 
 def test_heavy_cycle_opens_position_when_signal(tmp_path: Path, monkeypatch) -> None:
-    # Edge'li pazar — enricher A conf + %65 prob → market 0.50 → raw edge 0.15
-    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    # Directional pazar — enricher A conf + %65 prob → market 0.65 in [0.60, 0.85] ✓
+    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)  # test hızlı
 
     agent = Agent(deps)
@@ -150,7 +150,7 @@ def test_heavy_cycle_no_enrichment_no_position(tmp_path: Path, monkeypatch) -> N
 
 
 def test_trade_logger_records_entry(tmp_path: Path, monkeypatch) -> None:
-    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)
@@ -165,7 +165,7 @@ def test_trade_logger_records_entry(tmp_path: Path, monkeypatch) -> None:
 def test_trade_record_carries_num_bookmakers_and_has_sharp(tmp_path: Path, monkeypatch) -> None:
     """Entry kaydı bookmaker sayısını ve sharp flag'i gate'ten taşımalı."""
     deps = _build_deps(
-        tmp_path, [_market(cid="m1", yes=0.50)],
+        tmp_path, [_market(cid="m1", yes=0.65)],
         bm_result=BookmakerProbability(
             probability=0.65, confidence="A",
             bookmaker_prob=0.65, num_bookmakers=12.0, has_sharp=True,
@@ -183,7 +183,7 @@ def test_trade_record_carries_num_bookmakers_and_has_sharp(tmp_path: Path, monke
 
 def test_light_cycle_triggers_near_resolve_exit(tmp_path: Path, monkeypatch) -> None:
     # Pozisyon aç (heavy) + fiyatı manipüle et (current 0.95) → near-resolve exit
-    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)  # Pozisyon açıldı
@@ -204,12 +204,12 @@ def test_light_cycle_triggers_near_resolve_exit(tmp_path: Path, monkeypatch) -> 
 # ── Exit-triggered heavy + eligible queue ──
 
 def test_slot_full_market_goes_to_stock(tmp_path: Path, monkeypatch) -> None:
-    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
 
     # max_positions 1 — pozisyon açınca slot dolar
     deps.gate.config = GateConfig(
-        min_edge=0.06, max_positions=1, max_exposure_pct=0.50,
+        max_positions=1, max_exposure_pct=0.50,
         confidence_bet_pct={"A": 0.05, "B": 0.04}, max_bet_pct=0.05,
     )
 
@@ -218,8 +218,8 @@ def test_slot_full_market_goes_to_stock(tmp_path: Path, monkeypatch) -> None:
     assert deps.state.portfolio.count() == 1
 
     # Şimdi 2. market ekle — slot dolu, stock'a düşmeli
-    new_market = _market(cid="m2", yes=0.50)
-    deps.scanner._gamma.fetch_events.return_value = [_market(cid="m1", yes=0.50), new_market]
+    new_market = _market(cid="m2", yes=0.65)
+    deps.scanner._gamma.fetch_events.return_value = [_market(cid="m1", yes=0.65), new_market]
     deps.cycle_manager._last_heavy_ts = 0
     agent.run(max_ticks=1)
 
@@ -263,7 +263,7 @@ def test_agent_run_starts_ws_background(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_agent_subscribes_on_entry(tmp_path: Path, monkeypatch) -> None:
-    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)
@@ -274,7 +274,7 @@ def test_agent_subscribes_on_entry(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_agent_unsubscribes_on_full_exit(tmp_path: Path, monkeypatch) -> None:
-    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)  # Pozisyon aç
@@ -294,7 +294,7 @@ def test_agent_unsubscribes_on_full_exit(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_agent_price_callback_updates_portfolio(tmp_path: Path, monkeypatch) -> None:
-    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps, feed = _deps_with_ws(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)
@@ -318,7 +318,7 @@ def test_agent_request_stop_stops_ws(tmp_path: Path) -> None:
 
 def test_agent_without_ws_works(tmp_path: Path, monkeypatch) -> None:
     """Eski davranış korunuyor — price_feed=None ile çalışır."""
-    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
+    deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.65)], bm_result=_bm(prob=0.65, conf="A"))
     assert deps.price_feed is None  # _build_deps default
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
@@ -332,15 +332,15 @@ def test_agent_without_ws_works(tmp_path: Path, monkeypatch) -> None:
 def test_agent_entry_loop_evaluates_in_match_start_ascending_order(tmp_path: Path, monkeypatch) -> None:
     """3 aday: T+10h, T+1h, T+3h. Execute sırası: T+1h, T+3h, T+10h."""
     now = datetime.now(timezone.utc)
-    m_10h = _market(cid="far", yes=0.50)
+    m_10h = _market(cid="far", yes=0.65)
     m_10h.match_start_iso = _iso(now + timedelta(hours=10))
     m_10h.event_id = "evt_far"
 
-    m_1h = _market(cid="near", yes=0.50)
+    m_1h = _market(cid="near", yes=0.65)
     m_1h.match_start_iso = _iso(now + timedelta(hours=1))
     m_1h.event_id = "evt_near"
 
-    m_3h = _market(cid="mid", yes=0.50)
+    m_3h = _market(cid="mid", yes=0.65)
     m_3h.match_start_iso = _iso(now + timedelta(hours=3))
     m_3h.event_id = "evt_mid"
 
@@ -369,12 +369,12 @@ def test_agent_entry_loop_tiebreak_by_volume24h_desc(tmp_path: Path, monkeypatch
     now = datetime.now(timezone.utc)
     same_start = _iso(now + timedelta(hours=2))
 
-    m_low = _market(cid="low_vol", yes=0.50)
+    m_low = _market(cid="low_vol", yes=0.65)
     m_low.match_start_iso = same_start
     m_low.volume_24h = 5_000.0
     m_low.event_id = "evt_low"
 
-    m_high = _market(cid="high_vol", yes=0.50)
+    m_high = _market(cid="high_vol", yes=0.65)
     m_high.match_start_iso = same_start
     m_high.volume_24h = 50_000.0
     m_high.event_id = "evt_high"

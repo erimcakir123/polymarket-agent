@@ -30,9 +30,9 @@ def _bm_probs(h: float, d: float, a: float, conf: str = "A") -> dict:
 
 
 def test_clear_home_favorite_passes() -> None:
-    """Home 45%/Draw 27%/Away 28% → home favori (margin 17pp), PM 37c, edge 8c ✓."""
+    """Home 45%/Draw 27%/Away 28% → home favori (margin 17pp), PM 65c in [0.60, 0.85] ✓."""
     sig = three_way_evaluate(
-        home_market=_market(yes=0.37, q="Will Arsenal win?", cid="h"),
+        home_market=_market(yes=0.65, q="Will Arsenal win?", cid="h"),
         draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
         away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
         probs=_bm_probs(0.45, 0.27, 0.28),
@@ -40,16 +40,27 @@ def test_clear_home_favorite_passes() -> None:
     assert sig is not None
     assert sig.direction == Direction.BUY_YES
     assert sig.condition_id == "h"
-    assert abs(sig.edge - (0.45 - 0.37)) < 1e-9
+    assert sig.edge == 0.0  # SPEC-017 transitional placeholder
 
 
-def test_edge_below_threshold_skipped() -> None:
-    """Favorite filter geçer ama edge düşük (0.01 < 0.06) → SKIP."""
+def test_three_way_skips_when_favorite_price_out_of_range() -> None:
+    """Favorite market yes_price 0.90 > max_entry_price 0.85 → SKIP."""
     sig = three_way_evaluate(
-        home_market=_market(yes=0.40),  # edge = 0.41 - 0.40 = 0.01
-        draw_market=_market(yes=0.30),
-        away_market=_market(yes=0.30),
-        probs=_bm_probs(0.41, 0.30, 0.29),
+        home_market=_market(yes=0.90, q="Will Arsenal win?", cid="h"),  # too expensive
+        draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
+        away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
+        probs=_bm_probs(0.45, 0.27, 0.28),
+    )
+    assert sig is None
+
+
+def test_three_way_skips_when_favorite_price_below_min() -> None:
+    """Favorite market yes_price 0.50 < min_entry_price 0.60 → SKIP."""
+    sig = three_way_evaluate(
+        home_market=_market(yes=0.50, q="Will Arsenal win?", cid="h"),  # too cheap
+        draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
+        away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
+        probs=_bm_probs(0.45, 0.27, 0.28),
     )
     assert sig is None
 
@@ -88,11 +99,11 @@ def test_tie_break_equal_probs() -> None:
 
 
 def test_away_favorite_selects_away_market() -> None:
-    """Away favori → signal away market'a yönelir."""
+    """Away favori → signal away market'a yönelir. yes=0.65 in price range [0.60, 0.85]."""
     sig = three_way_evaluate(
         home_market=_market(yes=0.30, cid="h"),
         draw_market=_market(yes=0.25, cid="d"),
-        away_market=_market(yes=0.40, q="Will Real Madrid win?", cid="a"),
+        away_market=_market(yes=0.65, q="Will Real Madrid win?", cid="a"),
         probs=_bm_probs(0.25, 0.25, 0.50),
     )
     assert sig is not None
@@ -103,12 +114,12 @@ def test_draw_favorite_rare_case() -> None:
     """Draw favori (nadir) — Bayern vs Dortmund tipi dengeli."""
     sig = three_way_evaluate(
         home_market=_market(yes=0.32, cid="h"),
-        draw_market=_market(yes=0.30, q="Will the match end in a draw?", cid="d"),
+        draw_market=_market(yes=0.65, q="Will the match end in a draw?", cid="d"),
         away_market=_market(yes=0.32, cid="a"),
         probs=_bm_probs(0.32, 0.40, 0.28),
     )
     # Draw 0.40 >= 0.40 threshold ✓; margin 0.40-0.32=0.08 >= 0.07 ✓
-    # Edge: 0.40 - 0.30 = 0.10 >= 0.06 ✓
+    # Price: 0.65 in [0.60, 0.85] ✓
     assert sig is not None
     assert sig.condition_id == "d"
 
@@ -162,7 +173,7 @@ def test_three_way_logs_enter_decision(caplog) -> None:
 
     with caplog.at_level(logging.INFO, logger="src.strategy.entry.three_way"):
         sig = three_way_evaluate(
-            home_market=_market(yes=0.37, q="Will Arsenal win?", cid="h"),
+            home_market=_market(yes=0.65, q="Will Arsenal win?", cid="h"),
             draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
             away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
             probs=_bm_probs(0.45, 0.27, 0.28),

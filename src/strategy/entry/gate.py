@@ -1,15 +1,13 @@
-"""Entry orchestrator — 3 entry stratejisini koordine eder (TDD §11 Faz 3 + 6).
+"""Entry orchestrator — directional entry (SPEC-017).
 
-Strateji öncelik sırası (ilk Signal kazanır):
-  1. Consensus  — book + market aynı favori (≥65¢) → 99¢ payout edge
-  2. Early      — match_start 6h+ önce, yüksek edge (≥10%)
-  3. Normal     — bookmaker P(YES) vs market YES, edge ≥6%
+Directional entry: bookmaker konsensüs favorisi + fiyat aralığında giriş.
+Edge hesabı yok.
 
 Common pipeline (her market için):
-  event_guard → blacklist → manipulation → enrich → strategies →
+  event_guard → blacklist → manipulation → enrich → directional →
   exposure → sizing → result.
 
-Iş mantığı YOK — sadece "hangi sırada" koordinasyonu.
+İş mantığı YOK — sadece pipeline koordinasyonu.
 """
 from __future__ import annotations
 
@@ -20,6 +18,7 @@ from src.config.sport_rules import is_cricket_sport
 from src.domain.analysis.probability import BookmakerProbability
 from src.orchestration.event_grouper import EventGroup, group_markets_by_event
 from src.strategy.entry import three_way as three_way_entry
+from src.strategy.entry.directional import evaluate_directional
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
 from src.domain.portfolio.exposure import available_under_cap
@@ -33,11 +32,6 @@ from src.domain.risk.position_sizer import (
 from src.models.market import MarketData
 from src.models.position import effective_price, effective_win_prob
 from src.models.signal import Signal
-from src.strategy.entry import (
-    consensus as consensus_entry,
-    early_entry,
-    normal as normal_entry,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -45,31 +39,16 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
-    min_edge: float = 0.06
-    confidence_multipliers: dict[str, float] = field(
-        default_factory=lambda: {"A": 1.00, "B": 1.00},
-    )
-    min_favorite_probability: float = 0.52    # SPEC-013 rev: normal entry underdog filter (%55 -> %52 DET-BOS fix)
+    min_favorite_probability: float = 0.55    # directional: güçlü favori eşiği
+    min_entry_price: float = 0.60             # directional: çok düşük fiyatlı girişi engelle
+    max_entry_price: float = 0.85             # directional: aşırı pahalı girişi engelle
     max_positions: int = 50
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015
     confidence_bet_pct: dict[str, float] = field(default_factory=lambda: {"A": 0.05, "B": 0.04})
-    max_single_bet_usdc: float = 50.0    # SPEC-010: bet tavani
+    max_single_bet_usdc: float = 50.0
     max_bet_pct: float = 0.05
-    max_entry_price: float = 0.88
-    # Consensus
-    consensus_enabled: bool = True
-    consensus_min_price: float = 0.65
-    consensus_max_price: float = 0.80    # 80¢ cap — EV guard Spurs 84¢'yi bloklar
-    # Early entry
-    early_enabled: bool = True
-    early_min_edge: float = 0.10
-    early_min_favorite_probability: float = 0.52    # SPEC-013 rev: early entry underdog filter (%52)
-    early_min_confidence: str = "B"
-    early_max_entry_price: float = 0.70
-    early_min_hours_to_start: float = 6.0
-    early_max_hours_to_start: float = 24.0
     # SPEC-016: stake = base × win_prob (direction-adjusted)
     probability_weighted: bool = True
 
@@ -150,9 +129,9 @@ class EntryGate:
                 if tw_result is not None:
                     results.append(tw_result)
                 else:
-                    # 3-way grubu signal üretmedi → her market için no_edge
+                    # 3-way grubu signal üretmedi → her market için price_out_of_range
                     for m in g.markets:
-                        results.append(GateResult(m.condition_id, None, "no_edge"))
+                        results.append(GateResult(m.condition_id, None, "price_out_of_range"))
             else:
                 # BINARY group: her market _evaluate_one
                 for m in g.markets:
@@ -202,23 +181,25 @@ class EntryGate:
                 detail = f"quota={self._cricket_client.quota.used_today}/{self._cricket_client.quota.daily_limit}"
                 return GateResult(cid, None, "cricapi_unavailable", skip_detail=detail, manipulation=manip)
 
-        # 5. Strateji önceliği — ilk Signal üreten kazanır
-        signal = self._evaluate_strategies(market, bm_prob)
+        # 5. Directional entry evaluation (SPEC-017)
+        signal = evaluate_directional(
+            market=market,
+            anchor=bm_prob.probability,
+            confidence=bm_prob.confidence,
+            min_favorite_probability=self.config.min_favorite_probability,
+            min_entry_price=self.config.min_entry_price,
+            max_entry_price=self.config.max_entry_price,
+        )
         if signal is None:
-            edge_raw = abs(bm_prob.probability - market.yes_price)
-            no_edge_detail = (
-                f"edge={edge_raw:.3f}, min={self.config.min_edge}, "
-                f"bm={bm_prob.probability:.2f}, yes={market.yes_price:.2f}"
-            )
-            return GateResult(cid, None, "no_edge", skip_detail=no_edge_detail)
+            return self._directional_skip_result(cid, market, bm_prob, manip)
 
-        # 6. Entry price cap — 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
-        entry_price = effective_price(signal.market_price, signal.direction)
-        if entry_price >= self.config.max_entry_price:
-            detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
-            return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
+        # Patch bookmaker metadata onto signal (directional doesn't receive these)
+        signal = signal.model_copy(update={
+            "num_bookmakers": bm_prob.num_bookmakers,
+            "has_sharp": bm_prob.has_sharp,
+        })
 
-        # 7. Position sizing
+        # 6. Position sizing
         win_prob = (
             effective_win_prob(signal.anchor_probability, signal.direction)
             if self.config.probability_weighted
@@ -258,13 +239,42 @@ class EntryGate:
         approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
         return GateResult(cid, approved, "", manipulation=manip)
 
+    def _directional_skip_result(
+        self,
+        cid: str,
+        market: MarketData,
+        bm_prob: BookmakerProbability,
+        manip: ManipulationCheck,
+    ) -> GateResult:
+        """Directional skip sebebini belirle: fav_prob yetersiz mi, fiyat aralığı dışında mı."""
+        from src.models.enums import Direction
+        anchor = bm_prob.probability
+        direction = Direction.BUY_YES if anchor >= 0.50 else Direction.BUY_NO
+        win_prob = effective_win_prob(anchor, direction.value)
+        if win_prob < self.config.min_favorite_probability:
+            detail = (
+                f"win_prob={win_prob:.3f}, min={self.config.min_favorite_probability}, "
+                f"bm={anchor:.2f}"
+            )
+            return GateResult(cid, None, "below_fav_prob", skip_detail=detail, manipulation=manip)
+        # Price out of range
+        ep = (
+            market.yes_price if direction == Direction.BUY_YES
+            else 1.0 - market.yes_price
+        )
+        detail = (
+            f"price={ep:.3f}, min={self.config.min_entry_price}, "
+            f"max={self.config.max_entry_price}"
+        )
+        return GateResult(cid, None, "price_out_of_range", skip_detail=detail, manipulation=manip)
+
     def _evaluate_three_way(self, group: EventGroup) -> GateResult | None:
         """3-way event değerlendirmesi (SPEC-015).
 
         1. classify_outcomes → home/draw/away market'leri
         2. Her market için enricher → BookmakerProbability
         3. three_way.evaluate → Signal (veya None)
-        4. Signal varsa: event_guard + blacklist + entry_price_cap + sizing + exposure → GateResult
+        4. Signal varsa: event_guard + blacklist + sizing + exposure → GateResult
         """
         home, draw, away = group.classify_outcomes()
         if home is None or draw is None or away is None:
@@ -278,15 +288,16 @@ class EntryGate:
                 return None
             probs[outcome] = enrich_result.probability
 
-        # 3-way signal değerlendirmesi
+        # 3-way signal değerlendirmesi (edge-free, SPEC-017)
         signal = three_way_entry.evaluate(
             home_market=home,
             draw_market=draw,
             away_market=away,
             probs=probs,
-            min_edge=self.config.min_edge,
             favorite_threshold=0.40,
             favorite_margin=0.07,
+            min_entry_price=self.config.min_entry_price,
+            max_entry_price=self.config.max_entry_price,
         )
         if signal is None:
             return None
@@ -311,12 +322,6 @@ class EntryGate:
         if fav_market.event_id and self.blacklist.is_blacklisted(event_id=fav_market.event_id):
             return GateResult(fav_market.condition_id, None, "blacklisted",
                               skip_detail="match=event_id")
-
-        # Entry price cap — 88c+ girişlerde R/R kötü
-        entry_price = effective_price(signal.market_price, signal.direction)
-        if entry_price >= self.config.max_entry_price:
-            return GateResult(fav_market.condition_id, None, "entry_price_cap",
-                              skip_detail=f"price={entry_price:.3f}, cap={self.config.max_entry_price}")
 
         # Sizing
         win_prob_3w = (
@@ -354,41 +359,3 @@ class EntryGate:
 
         approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
         return GateResult(fav_market.condition_id, approved, "")
-
-    def _evaluate_strategies(self, market: MarketData, bm_prob: BookmakerProbability) -> Signal | None:
-        """3 stratejiyi öncelik sırasıyla dene. İlk Signal kazanır.
-
-        Sıra: Consensus (en güçlü) → Early (yüksek edge) → Normal.
-        """
-        # 1. Consensus — book + market aynı favori, ≥65¢
-        if self.config.consensus_enabled:
-            sig = consensus_entry.evaluate(
-                market, bm_prob,
-                min_price=self.config.consensus_min_price,
-                max_price=self.config.consensus_max_price,
-            )
-            if sig is not None:
-                return sig
-
-        # 2. Early entry — match_start ≥6h önce, yüksek edge
-        if self.config.early_enabled:
-            sig = early_entry.evaluate(
-                market, bm_prob,
-                min_edge=self.config.early_min_edge,
-                min_favorite_probability=self.config.early_min_favorite_probability,
-                min_confidence=self.config.early_min_confidence,
-                max_entry_price=self.config.early_max_entry_price,
-                min_hours_to_start=self.config.early_min_hours_to_start,
-                max_hours_to_start=self.config.early_max_hours_to_start,
-                confidence_multipliers=self.config.confidence_multipliers,
-            )
-            if sig is not None:
-                return sig
-
-        # 3. Normal — bookmaker P(YES) vs market YES, edge ≥6%
-        return normal_entry.evaluate(
-            market, bm_prob,
-            min_edge=self.config.min_edge,
-            confidence_multipliers=self.config.confidence_multipliers,
-            min_favorite_probability=self.config.min_favorite_probability,
-        )

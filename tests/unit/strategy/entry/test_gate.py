@@ -73,8 +73,9 @@ def _make_gate(**kwargs) -> EntryGate:
 
 
 def test_happy_path_produces_signal() -> None:
+    # yp=0.65: anchor=0.60 → BUY_YES, win_prob=0.60 >= 0.55, price=0.65 in [0.60, 0.85] ✓
     gate = _make_gate()
-    results = gate.run([_market()])
+    results = gate.run([_market(yp=0.65)])
     assert len(results) == 1
     r = results[0]
     assert r.signal is not None
@@ -112,9 +113,10 @@ def test_manipulation_high_blocks() -> None:
 
 
 def test_manipulation_medium_halves_size() -> None:
+    # yp=0.65: anchor=0.60 → BUY_YES, win_prob=0.60 >= 0.55 ✓, price in range ✓
     p = PortfolioManager(initial_bankroll=1000.0)
     gate = _make_gate(portfolio=p, manip=lambda question, liquidity: _medium_manip())
-    results = gate.run([_market()])
+    results = gate.run([_market(yp=0.65)])
     assert results[0].signal is not None
     # B sizing: 1000 * 0.04 * win_prob(0.60) = 24; medium × 0.5 = 12 (SPEC-016)
     assert results[0].signal.size_usdc == 12.0
@@ -134,12 +136,20 @@ def test_c_confidence_skips() -> None:
     assert results[0].skipped_reason == "confidence_C"
 
 
-def test_no_edge_skips() -> None:
-    # anchor=0.52, market=0.50 → raw=0.02 < threshold 0.06 → HOLD
+def test_below_fav_prob_skips() -> None:
+    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.55 → below_fav_prob
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.52, conf="B")))
-    results = gate.run([_market()])
+    results = gate.run([_market(yp=0.65)])
     assert results[0].signal is None
-    assert results[0].skipped_reason == "no_edge"
+    assert results[0].skipped_reason == "below_fav_prob"
+
+
+def test_price_out_of_range_skips() -> None:
+    # anchor=0.60, win_prob=0.60 >= 0.55 ✓, but yes_price=0.50 < min_entry_price=0.60 → price_out_of_range
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.60, conf="B")))
+    results = gate.run([_market(yp=0.50)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "price_out_of_range"
 
 
 def test_circuit_breaker_halts_all() -> None:
@@ -178,30 +188,26 @@ def test_max_positions_halts() -> None:
 
 
 def test_size_below_min_skips() -> None:
-    # Bankroll $100 → B sizing $4 < $5 min
+    # yp=0.65: passes directional; Bankroll $100 → B sizing ≈ $2.4 < $5 min
     p = PortfolioManager(initial_bankroll=100.0)
     gate = _make_gate(portfolio=p)
-    results = gate.run([_market()])
+    results = gate.run([_market(yp=0.65)])
     assert results[0].signal is None
     assert "size_below_min" in results[0].skipped_reason
 
 
-def test_entry_price_cap_blocks_high_favorite() -> None:
-    # Consensus 0.90'da sinyal üretir (EV guard: bm 0.92 >= entry 0.90 ✓)
-    # ama gate 0.88 cap ile reddeder.
-    # consensus_max_price=0.95 override: gate'in entry_price_cap'ini test etmek için
-    # consensus'un 0.90'da sinyal üretmesi gerekir.
+def test_price_out_of_range_blocks_high_price() -> None:
+    # anchor=0.92, win_prob=0.92 >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.92, conf="A")))
-    gate.config = GateConfig(consensus_max_price=0.95)
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
-    assert results[0].skipped_reason == "entry_price_cap"
+    assert results[0].skipped_reason == "price_out_of_range"
 
 
-def test_entry_price_cap_allows_under_threshold() -> None:
-    # 0.87 eşiğin altında → geçer (SPEC-013: bm=0.93 favorite, our_side >= 0.55)
+def test_directional_allows_price_within_range() -> None:
+    # anchor=0.93, win_prob=0.93 >= 0.55 ✓, yes_price=0.80 in [0.60, 0.85] ✓ → enters
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.93, conf="A")))
-    results = gate.run([_market(yp=0.87)])
+    results = gate.run([_market(yp=0.80)])
     assert results[0].signal is not None
 
 
@@ -260,7 +266,8 @@ def test_cricket_entry_proceeds_when_quota_available() -> None:
         manipulation_checker=lambda question, liquidity: _safe_manip(),
         cricket_client=cricket_client,
     )
-    results = gate.run([_cricket_market()])
+    # yp=0.65: passes directional price range check [0.60, 0.85]
+    results = gate.run([_cricket_market(yp=0.65)])
     assert results[0].signal is not None
 
 
@@ -275,7 +282,7 @@ def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.60, conf="A")))
-    results = gate.run([_market(cid="new", event="enew")])
+    results = gate.run([_market(cid="new", event="enew", yp=0.65)])
     assert results[0].signal is not None
     assert abs(results[0].signal.size_usdc - 30.0) < 0.5
 
@@ -290,7 +297,7 @@ def test_gate_skips_when_available_below_min_entry_size() -> None:
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
-    results = gate.run([_market(cid="new", event="enew")])
+    results = gate.run([_market(cid="new", event="enew", yp=0.65)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "exposure_cap_reached"
 
@@ -305,7 +312,7 @@ def test_gate_skips_when_hard_cap_fully_used() -> None:
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
-    results = gate.run([_market(cid="new", event="enew")])
+    results = gate.run([_market(cid="new", event="enew", yp=0.65)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "exposure_cap_reached"
 
@@ -386,38 +393,47 @@ def test_evaluate_one_confidence_c_sets_skip_detail_num_bookmakers() -> None:
     assert result.skip_detail == "num_bookmakers=1.5"
 
 
-def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
-    """no_edge → skip_detail contains edge/min/bm/yes values."""
-    # bm=0.63, yes=0.60 → raw_edge=0.03 < 0.06 → no signal
-    bm = _bm(prob=0.63, conf="B")
+def test_evaluate_one_below_fav_prob_sets_skip_detail_values() -> None:
+    """below_fav_prob → skip_detail contains win_prob/min/bm values."""
+    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.55 → below_fav_prob
+    bm = _bm(prob=0.52, conf="B")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
-    result = gate._evaluate_one(_market(yp=0.60))
-    assert result.skipped_reason == "no_edge"
-    assert "edge=0.030" in result.skip_detail
-    assert "min=0.06" in result.skip_detail
-    assert "bm=0.63" in result.skip_detail
-    assert "yes=0.60" in result.skip_detail
+    result = gate._evaluate_one(_market(yp=0.65))
+    assert result.skipped_reason == "below_fav_prob"
+    assert "win_prob=" in result.skip_detail
+    assert "min=" in result.skip_detail
+    assert "bm=0.52" in result.skip_detail
 
 
-def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
-    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX'."""
-    # EV guard icin bm >= entry, ama entry > 0.88 cap olmali.
-    # bm=0.92(A) + market=0.90 → consensus pass (EV +2¢) → entry_price_cap blocklar.
+def test_evaluate_one_price_out_of_range_sets_skip_detail_values() -> None:
+    """price_out_of_range → skip_detail contains price/min/max values."""
+    # anchor=0.60, win_prob=0.60 >= 0.55 ✓, yes_price=0.50 < min_entry_price=0.60 → price_out_of_range
+    bm = _bm(prob=0.60, conf="B")
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(_market(yp=0.50))
+    assert result.skipped_reason == "price_out_of_range"
+    assert "price=" in result.skip_detail
+    assert "min=" in result.skip_detail
+    assert "max=" in result.skip_detail
+
+
+def test_evaluate_one_price_out_of_range_high_price_sets_skip_detail() -> None:
+    """price_out_of_range (high) → skip_detail contains price/min/max values."""
+    # anchor=0.92, win_prob >= 0.55 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
     bm = _bm(prob=0.92, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
-    gate.config = GateConfig(consensus_max_price=0.95)
     result = gate._evaluate_one(_market(yp=0.90))
-    assert result.skipped_reason == "entry_price_cap"
+    assert result.skipped_reason == "price_out_of_range"
     assert "price=0.900" in result.skip_detail
-    assert "cap=0.88" in result.skip_detail
+    assert "max=0.85" in result.skip_detail
 
 
 def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
     """size_below_min (raw adjusted_size < min) → normalized reason + detail."""
-    # Bankroll $100 → B sizing ≈ $4 < $5 POLYMARKET_MIN
+    # yp=0.65: passes directional; Bankroll $100 → B sizing ≈ $2.4 < $5 POLYMARKET_MIN
     p = PortfolioManager(initial_bankroll=100.0)
     gate = _make_gate(portfolio=p)
-    result = gate._evaluate_one(_market())
+    result = gate._evaluate_one(_market(yp=0.65))
     assert result.skipped_reason == "size_below_min"
     assert "size=" in result.skip_detail
     assert "min=" in result.skip_detail
@@ -456,7 +472,7 @@ def test_evaluate_one_size_below_min_final_sets_skip_detail_size_min() -> None:
         return_value=4.0,  # < POLYMARKET_MIN_ORDER_USDC ($5) but >= min_size (100*0.015=$1.5)
     ):
         gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.65, conf="A")))
-        result = gate._evaluate_one(_market())
+        result = gate._evaluate_one(_market(yp=0.65))
 
     assert result.skipped_reason == "size_below_min"
     assert "size=" in result.skip_detail
@@ -476,7 +492,7 @@ def test_evaluate_one_exposure_cap_sets_skip_detail_available_min() -> None:
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
-    result = gate._evaluate_one(_market(cid="new", event="enew"))
+    result = gate._evaluate_one(_market(cid="new", event="enew", yp=0.65))
     assert result.skipped_reason == "exposure_cap_reached"
     assert "available=" in result.skip_detail
     assert "min=" in result.skip_detail
@@ -563,6 +579,7 @@ def test_gate_keeps_match_start_iso_when_no_commence_time() -> None:
 
 def test_gate_passes_win_prob_when_flag_enabled() -> None:
     """BUY_YES, anchor=0.70, flag=on → stake = 1000 × 0.05 × 0.70 = $35 (A-grade)."""
+    # yp=0.65: anchor=0.70 → BUY_YES, win_prob=0.70 >= 0.55 ✓, price=0.65 in [0.60, 0.85] ✓
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="A")))
     gate.config = GateConfig(
         probability_weighted=True,
@@ -570,7 +587,7 @@ def test_gate_passes_win_prob_when_flag_enabled() -> None:
         max_single_bet_usdc=200.0,  # high cap so win_prob drives the result
         max_bet_pct=0.20,
     )
-    results = gate.run([_market(yp=0.50)])
+    results = gate.run([_market(yp=0.65)])
     assert results[0].signal is not None
     # Expected: 1000 × 0.05 × 0.70 = 35.0
     assert abs(results[0].signal.size_usdc - 35.0) < 0.5
@@ -578,6 +595,7 @@ def test_gate_passes_win_prob_when_flag_enabled() -> None:
 
 def test_gate_skips_win_prob_when_flag_disabled() -> None:
     """Flag=off → win_probability=1.0 → stake = 1000 × 0.05 × 1.0 = $50 (A-grade)."""
+    # yp=0.65: anchor=0.70 → BUY_YES, win_prob=0.70 >= 0.55 ✓, price=0.65 in [0.60, 0.85] ✓
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="A")))
     gate.config = GateConfig(
         probability_weighted=False,
@@ -585,17 +603,17 @@ def test_gate_skips_win_prob_when_flag_disabled() -> None:
         max_single_bet_usdc=200.0,
         max_bet_pct=0.20,
     )
-    results = gate.run([_market(yp=0.50)])
+    results = gate.run([_market(yp=0.65)])
     assert results[0].signal is not None
     # Expected: 1000 × 0.05 × 1.0 = 50.0
     assert abs(results[0].signal.size_usdc - 50.0) < 0.5
 
 
 def test_gate_buy_no_uses_inverse_prob() -> None:
-    """BUY_NO, anchor=0.20, flag=on → win_prob=1-0.20=0.80 → stake = 1000 × 0.05 × 0.80 = $40."""
-    # anchor=0.20 → BUY_NO edge = 1-0.20 - market_no_price
-    # market yes_price=0.85 → no_price=0.15 → BUY_NO bm=0.80 vs market_no=0.15 → edge=0.65 (consensus)
-    # Use A-grade bookmaker with anchor 0.20 (P(YES)=0.20 → P(NO)=0.80)
+    """BUY_NO, anchor=0.20, flag=on → win_prob=0.80 → stake = 1000 × 0.05 × 0.80 = $40."""
+    # anchor=0.20 → BUY_NO; effective_price = 1 - yes_price.
+    # yp=0.25 → effective BUY_NO price = 0.75 in [0.60, 0.85] ✓
+    # win_prob = effective_win_prob(0.20, "BUY_NO") = 0.80 >= 0.55 ✓
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.20, conf="A")))
     gate.config = GateConfig(
         probability_weighted=True,
@@ -603,9 +621,36 @@ def test_gate_buy_no_uses_inverse_prob() -> None:
         max_single_bet_usdc=200.0,
         max_bet_pct=0.20,
     )
-    results = gate.run([_market(yp=0.85)])
+    results = gate.run([_market(yp=0.25)])
     assert results[0].signal is not None
     assert results[0].signal.direction == "BUY_NO"
     # win_prob = effective_win_prob(0.20, "BUY_NO") = 0.80
     # stake = 1000 × 0.05 × 0.80 = 40.0
     assert abs(results[0].signal.size_usdc - 40.0) < 0.5
+
+
+# --- SPEC-017: directional gate tests ---
+
+
+def test_gate_directional_enters_when_favorite_and_price_in_range() -> None:
+    """anchor=0.65, win_prob=0.65 >= 0.55 ✓, yes_price=0.70 in [0.60, 0.85] ✓ → signal."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.65, conf="B")))
+    results = gate.run([_market(yp=0.70)])
+    assert results[0].signal is not None
+    assert results[0].signal.direction == "BUY_YES"
+
+
+def test_gate_directional_skips_with_below_fav_prob_when_anchor_too_low() -> None:
+    """anchor=0.52, win_prob=0.52 < min_fav_prob=0.55 → below_fav_prob skip."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.52, conf="B")))
+    results = gate.run([_market(yp=0.70)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "below_fav_prob"
+
+
+def test_gate_directional_skips_with_price_out_of_range_when_effective_price_above_max() -> None:
+    """anchor=0.70, win_prob=0.70 >= 0.55 ✓, yes_price=0.88 > max_entry_price=0.85 → price_out_of_range."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="B")))
+    results = gate.run([_market(yp=0.88)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "price_out_of_range"

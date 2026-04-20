@@ -1,13 +1,12 @@
-"""3-way entry strategy — Soccer/Rugby/AFL/Handball (SPEC-015).
+"""3-way entry strategy — Soccer/Rugby/AFL/Handball (SPEC-015, SPEC-017).
 
 Bookmaker'ın 3 outcome arasında en yüksek olasılığa sahip outcome'u (favori) seçer.
 Filter:
   - Absolute threshold: favorite_prob >= favorite_threshold (default 0.40)
   - Relative margin: favorite - second_highest >= favorite_margin (default 0.07)
+  - Price range: favorite market yes_price in [min_entry_price, max_entry_price]
 
-Edge: |bookmaker_prob - market_yes_price| >= min_edge on favorite market.
-
-Direction: BUY_YES on favorite outcome's own market (her outcome'un ayri market'i var).
+Edge hesabı YOK (SPEC-017). Direction: BUY_YES on favorite outcome's own market.
 Tie-break: eşit olasılıklar → None (skip).
 """
 from __future__ import annotations
@@ -55,9 +54,10 @@ def evaluate(
     draw_market: MarketData | None,
     away_market: MarketData | None,
     probs: dict[str, BookmakerProbability],
-    min_edge: float = 0.06,
     favorite_threshold: float = 0.40,
     favorite_margin: float = 0.07,
+    min_entry_price: float = 0.60,
+    max_entry_price: float = 0.85,
 ) -> Signal | None:
     """3-way entry kararı. None → koşul sağlanmadı."""
     if any(p.confidence == "C" for p in probs.values()):
@@ -95,21 +95,21 @@ def evaluate(
         return None
 
     market_yes = fav_market.yes_price
-    edge = fav_prob - market_yes
-    if edge < min_edge:
+    if not (min_entry_price <= market_yes <= max_entry_price):
         logger.info(
-            "[three-way] SKIP reason=no_edge fav=%s edge=%.3f min=%.3f (prob=%.3f yes=%.3f)",
-            fav_outcome, edge, min_edge, fav_prob, market_yes,
+            "[three-way] SKIP reason=price_out_of_range fav=%s yes=%.3f range=[%.2f, %.2f]",
+            fav_outcome, market_yes, min_entry_price, max_entry_price,
         )
         return None
 
     fav_prob_obj = probs[fav_outcome]
     logger.info(
-        "[three-way] ENTER event_id=%s fav=%s probs=%s selected_edge=%.3f margin=%.3f confidence=%s",
+        "[three-way] ENTER event_id=%s fav=%s probs=%s fav_prob=%.3f yes=%.3f margin=%.3f confidence=%s",
         fav_market.event_id or "",
         fav_outcome,
         {k: round(v.probability, 3) for k, v in probs.items()},
-        edge,
+        fav_prob,
+        market_yes,
         fav_prob - max(p.probability for k, p in probs.items() if k != fav_outcome),
         fav_prob_obj.confidence,
     )
@@ -118,7 +118,7 @@ def evaluate(
         direction=Direction.BUY_YES,
         anchor_probability=fav_prob,
         market_price=market_yes,
-        edge=edge,
+        edge=0.0,  # SPEC-017 transitional — Signal.edge removed in Task 3
         confidence=fav_prob_obj.confidence,
         size_usdc=0.0,
         entry_reason=EntryReason.NORMAL,

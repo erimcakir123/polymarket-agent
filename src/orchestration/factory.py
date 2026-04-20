@@ -86,28 +86,15 @@ def build_agent(state: RuntimeState) -> Agent:
         )
 
     gate_cfg = GateConfig(
-        min_edge=cfg.edge.min_edge,
-        confidence_multipliers=cfg.edge.confidence_multipliers,
-        min_favorite_probability=cfg.edge.min_favorite_probability,  # SPEC-013
+        min_favorite_probability=cfg.entry.min_favorite_probability,  # SPEC-017
+        min_entry_price=cfg.entry.min_entry_price,
+        max_entry_price=cfg.entry.max_entry_price,
         max_positions=cfg.risk.max_positions,
         max_exposure_pct=cfg.risk.max_exposure_pct,
         confidence_bet_pct=cfg.risk.confidence_bet_pct,
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,
-        max_entry_price=cfg.risk.max_entry_price,
         probability_weighted=cfg.risk.probability_weighted,  # SPEC-016
-        # Consensus
-        consensus_enabled=cfg.consensus.enabled,
-        consensus_min_price=cfg.consensus.min_price,
-        consensus_max_price=cfg.consensus.max_price,
-        # Early entry
-        early_enabled=cfg.early.enabled,
-        early_min_edge=cfg.early.min_edge,
-        early_min_favorite_probability=cfg.early.min_favorite_probability,  # SPEC-013
-        early_min_confidence=cfg.early.min_confidence,
-        early_max_entry_price=cfg.early.max_entry_price,
-        early_min_hours_to_start=cfg.early.min_hours_to_start,
-        early_max_hours_to_start=cfg.early.max_hours_to_start,
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma
