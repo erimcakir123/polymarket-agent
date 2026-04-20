@@ -124,6 +124,27 @@ class AConfHoldConfig(BaseModel):
     market_flip_elapsed_gate: float = 0.85
 
 
+class ExitMonitorConfig(BaseModel):
+    """Fiyat-tabanlı exit guard eşikleri (never_in_profit, ultra_low, hold_revocation)."""
+    model_config = ConfigDict(extra="ignore")
+    # Never-in-profit guard (TDD §6.10)
+    never_in_profit_elapsed_gate: float = 0.70   # maç bu kadar ilerlemediyse fire etmez
+    never_in_profit_recovery_ratio: float = 0.90  # current >= entry * bu → fire etmez
+    never_in_profit_drop_ratio: float = 0.75      # current < entry * bu → fire eder
+    # Ultra-low guard (TDD §6.12)
+    ultra_low_entry_cap: float = 0.09    # entry < bu → ultra-low zone
+    ultra_low_elapsed_gate: float = 0.75  # elapsed bu veya üstü gerekir
+    ultra_low_current_cap: float = 0.05  # current < bu → exit
+    # Hold-revocation guard (TDD §6.14)
+    hold_anchor_prob_gate: float = 0.65   # anchor_probability >= bu → hold candidate
+    hold_dip_min_cycles: int = 3          # consecutive_down_cycles eşiği
+    hold_dip_min_drop: float = 0.05       # cumulative_drop eşiği
+    hold_ever_profit_price_ratio: float = 0.70   # ever_in_profit durumunda price drop gate
+    hold_ever_profit_elapsed_gate: float = 0.60  # ever_in_profit durumunda elapsed gate
+    hold_no_profit_price_ratio: float = 0.75     # never_in_profit durumunda price drop gate
+    hold_no_profit_elapsed_gate: float = 0.70    # never_in_profit durumunda elapsed gate
+
+
 class FavoredConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     promote_eff_price: float = 0.65
@@ -182,6 +203,7 @@ class AppConfig(BaseModel):
     liquidity: LiquidityConfig = LiquidityConfig()
     near_resolve: NearResolveConfig = NearResolveConfig()
     a_conf_hold: AConfHoldConfig = AConfHoldConfig()
+    exit_monitor: ExitMonitorConfig = ExitMonitorConfig()
     favored: FavoredConfig = FavoredConfig()
     score: ScoreConfig = ScoreConfig()
     dashboard: DashboardConfig = DashboardConfig()

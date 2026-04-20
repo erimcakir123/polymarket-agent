@@ -71,7 +71,7 @@ def test_notify_exit_uses_win_emoji_on_profit() -> None:
 def test_notify_exit_uses_loss_emoji_on_negative() -> None:
     http = MagicMock(return_value=_resp(200))
     n = TelegramNotifier(enabled=True, bot_token="t", chat_id="c", http_post=http)
-    n.notify_exit("slug", 0.30, realized_pnl=-10.0, reason="stop_loss")
+    n.notify_exit("slug", 0.30, realized_pnl=-10.0, reason="never_in_profit")
     text = http.call_args.kwargs["json"]["text"]
     assert "🔴" in text
 

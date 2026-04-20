@@ -195,6 +195,24 @@ a_conf_hold:
   market_flip_threshold: 0.50
   market_flip_elapsed_gate: 0.85
 
+exit_monitor:
+  # Never-in-profit guard (TDD §6.10)
+  never_in_profit_elapsed_gate: 0.70   # maç bu kadar ilerlemediyse fire etmez
+  never_in_profit_recovery_ratio: 0.90  # current >= entry * bu → fire etmez
+  never_in_profit_drop_ratio: 0.75      # current < entry * bu → fire eder
+  # Ultra-low guard (TDD §6.12)
+  ultra_low_entry_cap: 0.09    # entry < bu → ultra-low zone
+  ultra_low_elapsed_gate: 0.75  # elapsed bu veya üstü gerekir
+  ultra_low_current_cap: 0.05  # current < bu → exit
+  # Hold-revocation guard (TDD §6.14)
+  hold_anchor_prob_gate: 0.65   # anchor_probability >= bu → hold candidate
+  hold_dip_min_cycles: 3
+  hold_dip_min_drop: 0.05
+  hold_ever_profit_price_ratio: 0.70
+  hold_ever_profit_elapsed_gate: 0.60
+  hold_no_profit_price_ratio: 0.75
+  hold_no_profit_elapsed_gate: 0.70
+
 score:
   enabled: true
   poll_normal_sec: 60

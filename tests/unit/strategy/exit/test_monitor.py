@@ -201,7 +201,7 @@ def test_never_in_profit_fires_when_dropped_late_no_score_ahead() -> None:
         size_usdc=40, shares=100, match_start_iso=_iso(start),
         sport_tag="nba",
     )
-    # No score_info → never_in_profit fires (graduated_sl kaldırıldı, artık önünde guard yok)
+    # No score_info → never_in_profit fires (önünde başka guard yok)
     r = evaluate(p)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.NEVER_IN_PROFIT

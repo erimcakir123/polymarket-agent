@@ -49,7 +49,7 @@ def test_partial_yields_separate_event_with_partial_flag():
 
 def test_full_plus_partial_both_yielded():
     t = _trade(
-        exit_price=0.75, exit_pnl_usdc=7.5, exit_reason="graduated_sl",
+        exit_price=0.75, exit_pnl_usdc=7.5, exit_reason="never_in_profit",
         exit_timestamp="2026-04-15T12:00:00+00:00",
         partial_exits=[
             {"tier": 1, "sell_pct": 0.40, "realized_pnl_usdc": 3.0,

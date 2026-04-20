@@ -15,11 +15,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from src.config.settings import ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, baseball_score_exit, cricket_score_exit, favored, nba_score_exit, near_resolve, nfl_score_exit, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
+
+_DEFAULT_MONITOR_CFG = ExitMonitorConfig()
 
 _SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
 
@@ -72,42 +75,52 @@ def _never_in_profit_exit(
     pos: Position,
     elapsed_pct: float,
     score_info: dict,
+    cfg: ExitMonitorConfig = _DEFAULT_MONITOR_CFG,
 ) -> bool:
-    """Never-in-profit guard (TDD §6.10). pos hiç kâra geçmedi + maç ≥ %70 + fiyat çok düştü."""
+    """Never-in-profit guard (TDD §6.10). pos hiç kâra geçmedi + maç ≥ elapsed_gate + fiyat çok düştü."""
     if pos.ever_in_profit or pos.peak_pnl_pct > 0.01:
         return False
-    if elapsed_pct < 0.70:
+    if elapsed_pct < cfg.never_in_profit_elapsed_gate:
         return False
     eff_entry = pos.entry_price
     eff_current = pos.current_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
     if score_ahead:
         return False
-    if eff_current >= eff_entry * 0.90:
+    if eff_current >= eff_entry * cfg.never_in_profit_recovery_ratio:
         return False
-    if eff_current < eff_entry * 0.75:
+    if eff_current < eff_entry * cfg.never_in_profit_drop_ratio:
         return True
-    return False  # 0.75-0.90 aralığı graduated SL'ye bırakılır
+    return False  # recovery_ratio ~ drop_ratio aralığı: bekle
 
 
-def _ultra_low_guard_exit(pos: Position, elapsed_pct: float) -> bool:
-    """Ultra-low guard (TDD §6.12). eff_entry<9¢ + elapsed≥%75 + eff_current<5¢."""
+def _ultra_low_guard_exit(
+    pos: Position,
+    elapsed_pct: float,
+    cfg: ExitMonitorConfig = _DEFAULT_MONITOR_CFG,
+) -> bool:
+    """Ultra-low guard (TDD §6.12). eff_entry<entry_cap + elapsed≥elapsed_gate + eff_current<current_cap."""
     eff_entry = pos.entry_price
     eff_current = pos.current_price
-    return eff_entry < 0.09 and elapsed_pct >= 0.75 and eff_current < 0.05
+    return (
+        eff_entry < cfg.ultra_low_entry_cap
+        and elapsed_pct >= cfg.ultra_low_elapsed_gate
+        and eff_current < cfg.ultra_low_current_cap
+    )
 
 
 def _hold_revocation_exit(
     pos: Position,
     elapsed_pct: float,
     score_info: dict,
+    cfg: ExitMonitorConfig = _DEFAULT_MONITOR_CFG,
 ) -> bool:
     """Hold-to-resolve pozisyon için revocation + exit (TDD §6.14).
 
-    Sadece hold-candidate pozisyonlar için (favored veya anchor_prob ≥ 0.65 + A/B).
+    Sadece hold-candidate pozisyonlar için (favored veya anchor_prob ≥ hold_anchor_prob_gate + A/B).
     """
     is_hold_candidate = pos.favored or (
-        pos.anchor_probability >= 0.65 and pos.confidence in ("A", "B")
+        pos.anchor_probability >= cfg.hold_anchor_prob_gate and pos.confidence in ("A", "B")
     )
     if not is_hold_candidate:
         return False
@@ -115,13 +128,24 @@ def _hold_revocation_exit(
     eff_entry = pos.entry_price
     eff_current = pos.current_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
-    dip_is_temporary = pos.consecutive_down_cycles < 3 or pos.cumulative_drop < 0.05
+    dip_is_temporary = (
+        pos.consecutive_down_cycles < cfg.hold_dip_min_cycles
+        or pos.cumulative_drop < cfg.hold_dip_min_drop
+    )
 
-    if pos.ever_in_profit and eff_current < eff_entry * 0.70 and elapsed_pct > 0.60:
+    if (
+        pos.ever_in_profit
+        and eff_current < eff_entry * cfg.hold_ever_profit_price_ratio
+        and elapsed_pct > cfg.hold_ever_profit_elapsed_gate
+    ):
         if not score_ahead and not dip_is_temporary:
             return True  # revoke only; caller kararı vermeli (burada exit değil)
 
-    if not pos.ever_in_profit and eff_current < eff_entry * 0.75 and elapsed_pct > 0.70:
+    if (
+        not pos.ever_in_profit
+        and eff_current < eff_entry * cfg.hold_no_profit_price_ratio
+        and elapsed_pct > cfg.hold_no_profit_elapsed_gate
+    ):
         if not score_ahead and not dip_is_temporary:
             return True  # revoke + exit
 
@@ -134,6 +158,7 @@ def evaluate(
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
     scale_out_tiers: list[dict] | None = None,
+    monitor_cfg: ExitMonitorConfig | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir (A3 score-only, tek-dal akış).
 
@@ -142,6 +167,7 @@ def evaluate(
     """
     score_info = score_info or {}
     scale_out_tiers = scale_out_tiers or []
+    cfg = monitor_cfg if monitor_cfg is not None else _DEFAULT_MONITOR_CFG
     elapsed_pct = compute_elapsed_pct(pos)
     # MMA/combat: card saati ≠ maç saati, elapsed güvenilmez → -1 (devre dışı)
     if get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled"):
@@ -272,19 +298,19 @@ def evaluate(
 
     # 5. Fiyat-tabanlı geç guard'lar (ultra-low, never-in-profit, hold-revocation)
     if elapsed_pct >= 0:
-        if _ultra_low_guard_exit(pos, elapsed_pct):
+        if _ultra_low_guard_exit(pos, elapsed_pct, cfg):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.ULTRA_LOW_GUARD, detail="ultra-low dead"),
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        if _never_in_profit_exit(pos, elapsed_pct, score_info):
+        if _never_in_profit_exit(pos, elapsed_pct, score_info, cfg):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.NEVER_IN_PROFIT, detail="never profited + late + dropped"),
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        if _hold_revocation_exit(pos, elapsed_pct, score_info):
+        if _hold_revocation_exit(pos, elapsed_pct, score_info, cfg):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.HOLD_REVOKED, detail="hold revoked + exit"),
                 fav_transition=_fav_transition(pos),

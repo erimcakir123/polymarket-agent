@@ -19,6 +19,11 @@ from src.domain.matching.team_resolver import canonicalize, normalize
 
 _NOISE: frozenset[str] = frozenset({"team", "the", "of", "de", "fc", "sc", "city", "united"})
 
+# Matching algorithm eşikleri — kalibre edilmiş sabitler (literaturden, config'e taşınmaz)
+_FUZZY_MATCH_THRESHOLD: float = 0.80       # L3a: SequenceMatcher min ratio
+_RF_TOKEN_SORT_THRESHOLD: float = 0.85     # L3b: rapidfuzz token_sort_ratio min score
+_RF_PARTIAL_RATIO_THRESHOLD: float = 0.80  # L3c: rapidfuzz partial_ratio min score
+
 
 def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
     """İki takım adını karşılaştır. (is_match, confidence, method)."""
@@ -48,20 +53,20 @@ def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
 
     # L3a: Fuzzy SequenceMatcher
     score = SequenceMatcher(None, q, c).ratio()
-    if score >= 0.80:
+    if score >= _FUZZY_MATCH_THRESHOLD:
         return True, score, "fuzzy"
 
     # L3b: rapidfuzz token_sort (uzun isimler)
     if len(q) >= 4 and len(c) >= 4:
         rf_score = fuzz.token_sort_ratio(q, c) / 100.0
-        if rf_score >= 0.85:
+        if rf_score >= _RF_TOKEN_SORT_THRESHOLD:
             return True, rf_score, "fuzzy_token_sort"
 
     # L3c: rapidfuzz partial_ratio + token overlap guard
     if len(q) >= 4 and len(c) >= 4:
         partial = fuzz.partial_ratio(q, c) / 100.0
         overlap = q_tokens & c_tokens
-        if partial >= 0.80 and overlap:
+        if partial >= _RF_PARTIAL_RATIO_THRESHOLD and overlap:
             return True, partial, "fuzzy_partial"
 
     return False, max(score, 0.0), "no_match"
