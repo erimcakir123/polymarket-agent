@@ -197,6 +197,8 @@ _TAG_TO_ODDS: dict[str, str] = {
     "ukrainian-premier-league": "soccer_ukraine_premier_league",
     "croatian-football-league": "soccer_croatia_hnl",
     "primera-divisin-argentina": "soccer_argentina_primera_division",
+    "argentine-primera-division": "soccer_argentina_primera_division",
+    "nwsl": "soccer_usa_nwsl",
     "colombian-primera-a": "soccer_colombia_primera_a",
     "peruvian-liga-1": "soccer_peru_primera_division",
     "uruguayan-primera-division": "soccer_uruguay_primera_division",
@@ -209,6 +211,15 @@ _TAG_TO_ODDS: dict[str, str] = {
     "egyptian-premier-league": "soccer_egypt_premier_league",
     "concacaf-champions-cup": "soccer_concacaf_gold_cup",
     "uefa-nations-league": "soccer_uefa_european_championship",
+    # Rugby (SPEC-015)
+    "rugby": "rugbyunion_premiership",
+    "rugby-union": "rugbyunion_premiership",
+    "rugby-league": "rugbyleague_nrl",
+    "six-nations": "rugbyunion_six_nations",
+    "premiership-rugby": "rugbyunion_premiership",
+    "nrl": "rugbyleague_nrl",
+    # Handball (SPEC-015)
+    "handball": "handball_euro_championship",
     # Non-soccer
     "mlb": "baseball_mlb",
     "milb": "baseball_milb",

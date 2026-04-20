@@ -68,6 +68,70 @@ scanner:
     - cricket_t20_blast
     - indian-premier-league
     - international-cricket
+    # Soccer (SPEC-015) — 3-way support, TODO-001 defer kaldirildi
+    - soccer
+    - epl
+    - premier-league
+    - la-liga
+    - la-liga-2
+    - bundesliga
+    - serie-a
+    - ligue-1
+    - champions-league
+    - europa-league
+    - conference-league
+    - mls
+    - eredivisie
+    - primeira-liga
+    - super-lig
+    - brasileirao
+    - argentine-primera-division
+    - liga-mx
+    - scottish-premiership
+    - belgian-pro-league
+    - danish-superliga
+    - eliteserien
+    - allsvenskan
+    - greek-super-league
+    - austrian-bundesliga
+    - russian-premier-league
+    - saudi-professional-league
+    - k-league
+    - j1-league
+    - a-league
+    - chinese-super-league
+    - thai-league
+    - indian-super-league
+    - egyptian-premier-league
+    - polish-ekstraklasa
+    - czech-first-league
+    - romanian-liga-i
+    - ukrainian-premier-league
+    - croatian-football-league
+    - colombian-primera-a
+    - peruvian-liga-1
+    - uruguayan-primera-division
+    - ecuadorian-ligapro
+    - fa-cup
+    - efl-cup
+    - dfb-pokal
+    - copa-del-rey
+    - coppa-italia
+    - coupe-de-france
+    - copa-libertadores
+    - copa-sudamericana
+    - nwsl
+    # Rugby (SPEC-015 3-way ayni altyapi)
+    - rugby
+    - rugby-union
+    - rugby-league
+    - six-nations
+    - premiership-rugby
+    - nrl
+    # AFL (SPEC-015 3-way)
+    - afl
+    # Handball (SPEC-015 3-way)
+    - handball
 
 edge:
   min_edge: 0.06
