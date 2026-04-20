@@ -13,6 +13,7 @@ scanner yalnızca fresh fetch + filter + sort sorumluluğu taşır.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
@@ -20,6 +21,36 @@ from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
 logger = logging.getLogger(__name__)
+
+# SPEC-015: 3-way sum filter constants
+_THREE_WAY_SUM_MIN = 0.95
+_THREE_WAY_SUM_MAX = 1.05
+_THREE_WAY_SPORTS = frozenset({"soccer", "rugby", "afl", "handball"})
+
+
+def _is_three_way_sport(sport_tag: str) -> bool:
+    s = (sport_tag or "").lower()
+    return any(tw in s for tw in _THREE_WAY_SPORTS)
+
+
+def _passes_three_way_sum_filter(markets: list[MarketData], event_id: str) -> bool:
+    """SPEC-015: 3-way sport için event'teki market'lerin yes_price toplamı 0.95-1.05.
+
+    2-way sporlar (event başına tek market) → her zaman geçer.
+    3-way sport + 3 market → toplam check.
+    3-way sport + 2 market → sum check (eksik market henüz listelenmemiş olabilir).
+    3-way sport + 1 market → geçer (outlier, grup eksik, sum anlamsız).
+    """
+    if not markets or not event_id:
+        return True
+    sport = (markets[0].sport_tag or "").lower()
+    if not _is_three_way_sport(sport):
+        return True
+    event_markets = [m for m in markets if m.event_id == event_id]
+    if len(event_markets) < 2:
+        return True  # tek market, sum check anlamsız
+    total = sum(m.yes_price for m in event_markets)
+    return _THREE_WAY_SUM_MIN <= total <= _THREE_WAY_SUM_MAX
 
 
 def _hours_to_start(m: MarketData) -> float:
@@ -64,9 +95,29 @@ class MarketScanner:
     # ── Public API ──
 
     def scan(self) -> list[MarketData]:
-        """Tüm flow: Gamma fetch → filter → sort → top N."""
+        """Tüm flow: Gamma fetch → filter → 3-way sum filter → sort → top N."""
         raw = self._gamma.fetch_events()
         filtered = [m for m in raw if self._passes_filters(m)]
+
+        # SPEC-015: 3-way sum filter (soccer/rugby/afl/handball double-chance/handicap eler)
+        event_groups: dict[str, list[MarketData]] = defaultdict(list)
+        for m in filtered:
+            if m.event_id:
+                event_groups[m.event_id].append(m)
+
+        dropped_event_ids: set[str] = set()
+        for eid, ems in event_groups.items():
+            if not _passes_three_way_sum_filter(ems, eid):
+                dropped_event_ids.add(eid)
+
+        if dropped_event_ids:
+            before = len(filtered)
+            filtered = [m for m in filtered if m.event_id not in dropped_event_ids]
+            logger.info(
+                "Scanner: %d market dropped by three_way_sum_filter (%d events)",
+                before - len(filtered), len(dropped_event_ids),
+            )
+
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
         logger.info("Scanner: %d raw → %d filtered → top %d",

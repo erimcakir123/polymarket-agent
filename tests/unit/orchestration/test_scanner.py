@@ -6,7 +6,11 @@ from unittest.mock import MagicMock
 
 from src.config.settings import ScannerConfig
 from src.models.market import MarketData
-from src.orchestration.scanner import MarketScanner, _sort_key
+from src.orchestration.scanner import (
+    MarketScanner,
+    _passes_three_way_sum_filter,
+    _sort_key,
+)
 
 
 def _iso(dt: datetime) -> str:
@@ -257,3 +261,76 @@ def _mock_gamma(markets: list[MarketData]) -> MagicMock:
     g = MagicMock()
     g.fetch_events.return_value = markets
     return g
+
+
+# ── SPEC-015: 3-way sum filter ──
+
+def test_scanner_three_way_sum_in_range_passes() -> None:
+    """Soccer: 0.45+0.27+0.28=1.00 → geçer."""
+    markets = [
+        MarketData(
+            condition_id=f"c{i}", question="Q", slug="s",
+            yes_token_id="y", no_token_id="n",
+            yes_price=price, no_price=round(1 - price, 4),
+            liquidity=50000, volume_24h=10000, tags=[],
+            end_date_iso="2026-04-25T00:00:00Z",
+            sport_tag="soccer", event_id="evt1",
+        )
+        for i, price in enumerate([0.45, 0.27, 0.28])
+    ]
+    assert _passes_three_way_sum_filter(markets, "evt1") is True
+
+
+def test_scanner_three_way_sum_out_of_range_rejected() -> None:
+    """0.50+0.50+0.20=1.20 → double chance gibi, skip."""
+    markets = [
+        MarketData(
+            condition_id=f"c{i}", question="Q", slug="s",
+            yes_token_id="y", no_token_id="n",
+            yes_price=price, no_price=round(1 - price, 4),
+            liquidity=50000, volume_24h=10000, tags=[],
+            end_date_iso="2026-04-25T00:00:00Z",
+            sport_tag="soccer", event_id="evt2",
+        )
+        for i, price in enumerate([0.50, 0.50, 0.20])
+    ]
+    assert _passes_three_way_sum_filter(markets, "evt2") is False
+
+
+def test_scanner_two_way_sport_bypasses_filter() -> None:
+    """MLB tek market: filter atlanır, True."""
+    markets = [MarketData(
+        condition_id="c1", question="Yankees vs Red Sox", slug="mlb-nyy-bos",
+        yes_token_id="y", no_token_id="n",
+        yes_price=0.65, no_price=0.35,
+        liquidity=50000, volume_24h=10000, tags=[],
+        end_date_iso="2026-04-25T00:00:00Z",
+        sport_tag="mlb", event_id="evt3",
+    )]
+    assert _passes_three_way_sum_filter(markets, "evt3") is True
+
+
+def test_scanner_three_way_single_market_passes() -> None:
+    """Soccer tek market gelmişse (eksik), sum check yapma → geçer."""
+    markets = [MarketData(
+        condition_id="c1", question="Will X win?", slug="soccer-x-y",
+        yes_token_id="y", no_token_id="n",
+        yes_price=0.50, no_price=0.50,
+        liquidity=50000, volume_24h=10000, tags=[],
+        end_date_iso="2026-04-25T00:00:00Z",
+        sport_tag="soccer", event_id="evt4",
+    )]
+    assert _passes_three_way_sum_filter(markets, "evt4") is True
+
+
+def test_scanner_empty_event_id_passes() -> None:
+    """event_id boşsa skip etme."""
+    markets = [MarketData(
+        condition_id="c1", question="Q", slug="s",
+        yes_token_id="y", no_token_id="n",
+        yes_price=0.50, no_price=0.50,
+        liquidity=50000, volume_24h=10000, tags=[],
+        end_date_iso="2026-04-25T00:00:00Z",
+        sport_tag="soccer", event_id="",
+    )]
+    assert _passes_three_way_sum_filter(markets, "") is True
