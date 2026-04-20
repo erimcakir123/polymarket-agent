@@ -10,8 +10,6 @@ from typing import Any
 SPORT_RULES: dict[str, dict] = {
     "nba": {
         "match_duration_hours": 2.5,
-        "halftime_exit": True,
-        "halftime_exit_deficit": 15,
         "score_source": "espn",
         "espn_sport": "basketball",
         "espn_league": "nba",
@@ -24,8 +22,6 @@ SPORT_RULES: dict[str, dict] = {
     },
     "nfl": {
         "match_duration_hours": 3.25,
-        "halftime_exit": True,
-        "halftime_exit_deficit": 14,
         "score_source": "espn",
         "espn_sport": "football",
         "espn_league": "nfl",
@@ -38,7 +34,6 @@ SPORT_RULES: dict[str, dict] = {
     },
     "nhl": {
         "match_duration_hours": 2.5,
-        "period_exit": True,
         "period_exit_deficit": 3,
         "late_deficit": 2,
         "late_elapsed_gate": 0.67,
@@ -50,9 +45,6 @@ SPORT_RULES: dict[str, dict] = {
     },
     "mlb": {
         "match_duration_hours": 3.0,
-        "inning_exit": True,
-        "inning_exit_deficit": 5,
-        "inning_exit_after": 6,
         # SPEC-010: M1/M2/M3 forced exit (tennis T1/T2, hockey K1-K4 simetrik)
         "score_exit_m1_inning": 7,     # M1 tetik inning (blowout)
         "score_exit_m1_deficit": 5,    # M1 run deficit threshold
@@ -68,7 +60,6 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours": 2.5,
         "match_duration_hours_bo3": 1.75,
         "match_duration_hours_bo5": 3.5,
-        "set_exit": True,
         "score_source": "espn",
         "espn_sport": "tennis",
         "espn_league": "atp",

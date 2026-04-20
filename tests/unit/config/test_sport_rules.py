@@ -20,16 +20,8 @@ def test_get_match_duration_unknown_returns_default() -> None:
     assert get_match_duration_hours("unknown_sport") == DEFAULT_RULES["match_duration_hours"]
 
 
-def test_get_sport_rule_halftime_deficit_nba() -> None:
-    assert get_sport_rule("nba", "halftime_exit_deficit") == 15
-
-
 def test_get_sport_rule_period_exit_deficit_nhl() -> None:
     assert get_sport_rule("nhl", "period_exit_deficit") == 3
-
-
-def test_get_sport_rule_inning_exit_deficit_mlb() -> None:
-    assert get_sport_rule("mlb", "inning_exit_deficit") == 5
 
 
 def test_get_sport_rule_missing_key_returns_default_arg() -> None:
