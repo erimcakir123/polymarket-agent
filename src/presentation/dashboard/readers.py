@@ -103,12 +103,24 @@ def read_trades_by_week(
     end_ts = week_end.isoformat()
 
     for t in all_trades:
-        ts = t.get("exit_timestamp", "")
-        if not ts:
+        # Trade'in hafta içinde olup olmadığını belirlemek için hem tam-close
+        # exit_timestamp'i hem partial_exits[*].timestamp'lerini kontrol et.
+        # Sadece tam-close bakılırsa, partial-only açık pozisyonlar haftadan
+        # dışarı düşüyor → Trade History modal boş gözüküyor.
+        timestamps = []
+        top_ts = t.get("exit_timestamp") or ""
+        if top_ts:
+            timestamps.append(top_ts)
+        for pe in (t.get("partial_exits") or []):
+            pe_ts = pe.get("timestamp") or ""
+            if pe_ts:
+                timestamps.append(pe_ts)
+        if not timestamps:
             continue
-        if ts < start_ts:
+        latest = max(timestamps)
+        if latest < start_ts:
             has_older = True
-        elif ts < end_ts:
+        elif latest < end_ts:
             week_trades.append(t)
 
     _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
