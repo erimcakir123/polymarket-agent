@@ -31,7 +31,7 @@ from src.domain.risk.position_sizer import (
     confidence_position_size,
 )
 from src.models.market import MarketData
-from src.models.position import effective_price
+from src.models.position import effective_price, effective_win_prob
 from src.models.signal import Signal
 from src.strategy.entry import (
     consensus as consensus_entry,
@@ -70,6 +70,8 @@ class GateConfig:
     early_max_entry_price: float = 0.70
     early_min_hours_to_start: float = 6.0
     early_max_hours_to_start: float = 24.0
+    # SPEC-016: stake = base × win_prob (direction-adjusted)
+    probability_weighted: bool = True
 
 
 @dataclass
@@ -217,12 +219,18 @@ class EntryGate:
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
 
         # 7. Position sizing
+        win_prob = (
+            effective_win_prob(signal.anchor_probability, signal.direction)
+            if self.config.probability_weighted
+            else 1.0
+        )
         raw_size = confidence_position_size(
             confidence=signal.confidence,
             bankroll=self.portfolio.bankroll,
             confidence_bet_pct=self.config.confidence_bet_pct,
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
+            win_probability=win_prob,
         )
 
         # Manipulation medium risk → halve
@@ -311,12 +319,18 @@ class EntryGate:
                               skip_detail=f"price={entry_price:.3f}, cap={self.config.max_entry_price}")
 
         # Sizing
+        win_prob_3w = (
+            effective_win_prob(signal.anchor_probability, signal.direction)
+            if self.config.probability_weighted
+            else 1.0
+        )
         raw_size = confidence_position_size(
             confidence=signal.confidence,
             bankroll=self.portfolio.bankroll,
             confidence_bet_pct=self.config.confidence_bet_pct,
             max_bet_usdc=self.config.max_single_bet_usdc,
             max_bet_pct=self.config.max_bet_pct,
+            win_probability=win_prob_3w,
         )
         if raw_size < POLYMARKET_MIN_ORDER_USDC:
             return GateResult(fav_market.condition_id, None, "size_below_min",

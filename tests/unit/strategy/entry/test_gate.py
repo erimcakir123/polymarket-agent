@@ -116,8 +116,8 @@ def test_manipulation_medium_halves_size() -> None:
     gate = _make_gate(portfolio=p, manip=lambda question, liquidity: _medium_manip())
     results = gate.run([_market()])
     assert results[0].signal is not None
-    # B sizing: 1000 * 0.04 = 40; medium × 0.5 = 20
-    assert results[0].signal.size_usdc == 20.0
+    # B sizing: 1000 * 0.04 * win_prob(0.60) = 24; medium × 0.5 = 12 (SPEC-016)
+    assert results[0].signal.size_usdc == 12.0
 
 
 def test_no_bookmaker_data_skips() -> None:
@@ -556,3 +556,56 @@ def test_gate_keeps_match_start_iso_when_no_commence_time() -> None:
     gate = _make_gate(enricher=enricher)
     gate.run([m])
     assert m.match_start_iso == original
+
+
+# --- SPEC-016: win_prob wiring ---
+
+
+def test_gate_passes_win_prob_when_flag_enabled() -> None:
+    """BUY_YES, anchor=0.70, flag=on → stake = 1000 × 0.05 × 0.70 = $35 (A-grade)."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="A")))
+    gate.config = GateConfig(
+        probability_weighted=True,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        max_single_bet_usdc=200.0,  # high cap so win_prob drives the result
+        max_bet_pct=0.20,
+    )
+    results = gate.run([_market(yp=0.50)])
+    assert results[0].signal is not None
+    # Expected: 1000 × 0.05 × 0.70 = 35.0
+    assert abs(results[0].signal.size_usdc - 35.0) < 0.5
+
+
+def test_gate_skips_win_prob_when_flag_disabled() -> None:
+    """Flag=off → win_probability=1.0 → stake = 1000 × 0.05 × 1.0 = $50 (A-grade)."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.70, conf="A")))
+    gate.config = GateConfig(
+        probability_weighted=False,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        max_single_bet_usdc=200.0,
+        max_bet_pct=0.20,
+    )
+    results = gate.run([_market(yp=0.50)])
+    assert results[0].signal is not None
+    # Expected: 1000 × 0.05 × 1.0 = 50.0
+    assert abs(results[0].signal.size_usdc - 50.0) < 0.5
+
+
+def test_gate_buy_no_uses_inverse_prob() -> None:
+    """BUY_NO, anchor=0.20, flag=on → win_prob=1-0.20=0.80 → stake = 1000 × 0.05 × 0.80 = $40."""
+    # anchor=0.20 → BUY_NO edge = 1-0.20 - market_no_price
+    # market yes_price=0.85 → no_price=0.15 → BUY_NO bm=0.80 vs market_no=0.15 → edge=0.65 (consensus)
+    # Use A-grade bookmaker with anchor 0.20 (P(YES)=0.20 → P(NO)=0.80)
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.20, conf="A")))
+    gate.config = GateConfig(
+        probability_weighted=True,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        max_single_bet_usdc=200.0,
+        max_bet_pct=0.20,
+    )
+    results = gate.run([_market(yp=0.85)])
+    assert results[0].signal is not None
+    assert results[0].signal.direction == "BUY_NO"
+    # win_prob = effective_win_prob(0.20, "BUY_NO") = 0.80
+    # stake = 1000 × 0.05 × 0.80 = 40.0
+    assert abs(results[0].signal.size_usdc - 40.0) < 0.5

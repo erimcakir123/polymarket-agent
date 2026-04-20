@@ -95,6 +95,7 @@ def build_agent(state: RuntimeState) -> Agent:
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,
         max_entry_price=cfg.risk.max_entry_price,
+        probability_weighted=cfg.risk.probability_weighted,  # SPEC-016
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
