@@ -16,7 +16,6 @@
     stop_loss:           { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
     graduated_sl:        { emoji: "\uD83D\uDED1", label: "Grad. SL",    color: "red" },
     scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "green" },
-    scale_out_tier_2:    { emoji: "\uD83D\uDCCA", label: "Scale T2",    color: "green" },
     near_resolve:        { emoji: "\u23F0",       label: "Near Resolve", color: "green" },
     market_flip:         { emoji: "\uD83D\uDD04", label: "Market Flip",  color: "red" },
     score_exit:          { emoji: "\u26A1",       label: "Score Exit",   color: "red" },

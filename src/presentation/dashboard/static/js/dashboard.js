@@ -253,23 +253,26 @@
       else if (stage === "analyzing" && stageRecent) { label = "Analyzing"; live = true; }
       else if (stage === "executing" && stageRecent) { label = "Executing"; live = true; }
       else if (stage === "idle" || !stageRecent) {
-        label = this._idleLabel(data.next_heavy_at);
+        label = this._countdownLabel(data.next_heavy_at);
         live = false;
       }
-      else { label = "Waiting"; live = false; }
+      else {
+        label = this._countdownLabel(data.next_heavy_at);
+        live = false;
+      }
       this._applyCycle("cg-hard", "hard", label, live);
     },
 
-    _idleLabel(nextHeavyIso) {
-      if (!nextHeavyIso) return "Idle";
+    _countdownLabel(nextHeavyIso) {
+      if (!nextHeavyIso) return "--:--";
       const target = new Date(nextHeavyIso).getTime();
-      if (isNaN(target)) return "Idle";
+      if (isNaN(target)) return "--:--";
       const diff = Math.max(0, target - Date.now());
       const mins = Math.floor(diff / CONFIG.msPerMin);
       const secs = Math.floor((diff % CONFIG.msPerMin) / 1000);
       const mm = String(mins).padStart(2, "0");
       const ss = String(secs).padStart(2, "0");
-      return `Idle - next ${mm}:${ss}`;
+      return `${mm}:${ss}`;
     },
 
     _applyCycle(id, variant, label, live) {

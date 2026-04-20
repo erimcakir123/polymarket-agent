@@ -25,6 +25,41 @@
     nsh: "Nashville", nj: "NJ Devils", njd: "NJ Devils", nyi: "NY Islanders",
     nyr: "NY Rangers", ott: "Ottawa", sj: "San Jose", sjs: "San Jose",
     tbl: "Tampa Bay", van: "Vancouver", vgk: "Vegas", wpg: "Winnipeg",
+    // Soccer team codes (SPEC-015 3-way). Slug'dan isim üretimi; draw+home+away
+    // sub-market'lerin ortak event başlığı için.
+    // Argentina (Primera)
+    ban: "CA Banfield", bar: "CA Barracas Central", bel: "CA Belgrano",
+    cah: "CA Huracán", pla: "CA Platense", rie: "CD Riestra",
+    slo: "CA San Lorenzo", tal: "CA Talleres", vel: "CA Vélez Sarsfield",
+    riv1: "River Plate",
+    // Chile (Primera)
+    cuc: "U. Católica", cul: "U. La Calera",
+    // Colombia (Primera A)
+    ad1: "América de Cali", mif: "Millonarios", onc: "Once Caldas",
+    // Denmark (Superliga)
+    agf: "Aarhus GF", mid: "FC Midtjylland",
+    // England (EPL)
+    cry: "Crystal Palace", wes: "West Ham",
+    // Spain (Segunda)
+    dep: "Dep. La Coruña", mir: "CD Mirandés",
+    // France (Ligue 2)
+    lav: "Stade Lavallois", usd: "USL Dunkerque",
+    // India (Super League)
+    pun: "Punjab FC",
+    // Peru (Liga 1)
+    cs1: "CS Cienciano",
+    // Portugal (Primeira)
+    est: "Estoril Praia", mor: "Moreirense FC",
+    // Romania (Liga 1)
+    fcb: "FC Botoşani", fcs: "FCSB", ffc: "Farul Constanţa",
+    fmb: "FC Metaloglobus",
+    // Italy (Serie A) — "sea" league code
+    fio: "Fiorentina", lec: "US Lecce",
+    // Turkey (Süper Lig)
+    gfk: "Gaziantep FK", kay: "Kayserispor",
+    // Ukraine (Premier League)
+    ole: "Oleksandriya", pol: "FK Polissia",
+    shd: "Shakhtar Donetsk", ver: "Veres Rivne",
   };
 
   const FMT = {
@@ -101,7 +136,13 @@
     },
     polyUrl(slug) {
       if (!slug) return "#";
-      return "https://polymarket.com/event/" + encodeURIComponent(slug);
+      // 3-way market slug (<league>-<home>-<away>-<date>-<outcome>) → parent
+      // event slug = outcome suffix'i at. Aksi halde 2-way slug aynen geçer.
+      const threeWay = String(slug).match(
+        /^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})-[a-z0-9]+$/i
+      );
+      const base = threeWay ? threeWay[1] : slug;
+      return "https://polymarket.com/event/" + encodeURIComponent(base);
     },
     cents(price) { return Math.round(price * 100) + "¢"; },
     pctSigned(n, digits) {
@@ -122,18 +163,26 @@
     },
     _fromQuestion(q) {
       if (!q) return null;
+      // Soccer 3-way: "Will X vs. Y end in a draw?" → "X vs Y"
+      const draw = String(q).match(/^Will\s+(.+?)\s+vs\.?\s+(.+?)\s+end\s+in\s+a\s+draw\??$/i);
+      if (draw) return `${draw[1].trim()} vs ${draw[2].trim()}`;
+      // Soccer 3-way home/away: "Will X win?" tek takım — slug'a devret
+      if (/^Will\s+.+\s+win\??$/i.test(q)) return null;
       const parts = String(q).split(/\s+vs\.?\s+/i);
       if (parts.length !== 2) return null;
       // Turnuva prefix'i (Porsche Tennis Grand Prix: Eva Lys) — son ":" sonrasını al.
       let a = parts[0].trim();
       if (a.includes(":")) a = a.split(":").pop().trim();
-      return `${a} vs ${parts[1].trim()}`;
+      return `${a} vs ${parts[1].trim().replace(/\?$/, "").trim()}`;
     },
     _fromSlug(slug) {
       if (!slug) return null;
       const s = String(slug);
-      const team = s.match(/^[a-z]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}$/i);
+      const team = s.match(/^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}$/i);
       if (team) return `${this._expandCode(team[1])} vs ${this._expandCode(team[2])}`;
+      // Soccer 3-way: <league>-<home>-<away>-<date>-<outcome> (outcome = home/away code or "draw")
+      const threeWay = s.match(/^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}-[a-z0-9]+$/i);
+      if (threeWay) return `${this._expandCode(threeWay[1])} vs ${this._expandCode(threeWay[2])}`;
       const winner = s.match(/winner-([a-z-]+)$/i);
       if (winner) {
         return winner[1].split("-").map(
