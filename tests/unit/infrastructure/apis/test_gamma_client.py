@@ -183,8 +183,8 @@ def test_slug_override_wta_slug_wrong_tag_becomes_tennis() -> None:
     assert m.sport_tag == "tennis"
 
 
-def test_slug_override_nhl_slug_wrong_tag_becomes_hockey() -> None:
-    """nhl- slug + yanlış tag → hockey."""
+def test_slug_override_nhl_slug_wrong_tag_becomes_nhl() -> None:
+    """nhl- slug + yanlış tag → nhl (config.allowed_sport_tags'ta specific lig)."""
     client = GammaClient(http_get=MagicMock())
     raw = _event("0xnhl")["markets"][0]
     raw["slug"] = "nhl-bos-tor-2026-04-17"
@@ -192,7 +192,31 @@ def test_slug_override_nhl_slug_wrong_tag_becomes_hockey() -> None:
     raw["_event_id"] = "evt_nhl"
     m = client._parse_market(raw)
     assert m is not None
-    assert m.sport_tag == "hockey"
+    assert m.sport_tag == "nhl"
+
+
+def test_slug_override_nba_team_tag_becomes_nba() -> None:
+    """nba- slug + team tag (raptors vb.) → nba (whitelist ile uyumlu)."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xnba")["markets"][0]
+    raw["slug"] = "nba-tor-cle-2026-04-18"
+    raw["_sport_tag"] = "raptors"
+    raw["_event_id"] = "evt_nba"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "nba"
+
+
+def test_slug_override_ncaaf_wrong_tag_becomes_ncaaf() -> None:
+    """ncaaf- slug + yanlış tag → ncaaf."""
+    client = GammaClient(http_get=MagicMock())
+    raw = _event("0xncaaf")["markets"][0]
+    raw["slug"] = "ncaaf-ala-uga-2026-01-01"
+    raw["_sport_tag"] = "basketball"
+    raw["_event_id"] = "evt_ncaaf"
+    m = client._parse_market(raw)
+    assert m is not None
+    assert m.sport_tag == "ncaaf"
 
 
 def test_slug_override_no_conflict_keeps_original() -> None:
