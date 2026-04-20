@@ -79,3 +79,71 @@ def test_unknown_confidence_returns_zero() -> None:
 
 def test_polymarket_min_constant() -> None:
     assert POLYMARKET_MIN_ORDER_USDC == 5.0
+
+
+def test_position_size_probability_weighted_scales_by_win_prob():
+    # bankroll=1000, bet_pct=0.05 → base=$50. win_prob=0.60 → $30.
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.60,
+    )
+    assert size == 30.0
+
+
+def test_position_size_probability_weighted_high_prob_respects_cap():
+    # base=$50 × 0.95 = $47.50 < cap $50 → $47.50
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.95,
+        max_bet_usdc=50.0,
+    )
+    assert size == 47.50
+
+
+def test_position_size_probability_weighted_below_min_order_returns_zero():
+    # base=$50 × 0.05 = $2.50 < POLYMARKET_MIN_ORDER_USDC ($5) → 0
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.05,
+    )
+    assert size == 0.0
+
+
+def test_position_size_default_win_prob_preserves_legacy_behavior():
+    # win_probability default = 1.0 → eski davranışla aynı ($50)
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+    )
+    assert size == 50.0
+
+
+def test_position_size_probability_weighted_buy_no_case():
+    # BUY_NO caller effective_win_prob ile 1-anchor verir.
+    # 0.80 input → $40.
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.80,
+    )
+    assert size == 40.0
+
+
+def test_position_size_probability_weighted_with_reentry_multiplier():
+    # is_reentry=True: bet_pct *= 0.80 → 0.04. base=$40. win_prob=0.50 → $20.
+    size = confidence_position_size(
+        confidence="A",
+        bankroll=1000.0,
+        confidence_bet_pct={"A": 0.05, "B": 0.04},
+        win_probability=0.50,
+        is_reentry=True,
+    )
+    assert size == 20.0
