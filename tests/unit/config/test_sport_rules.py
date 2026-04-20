@@ -49,10 +49,6 @@ def test_get_score_source_mlb() -> None:
     assert get_sport_rule("mlb", "score_source") == "espn"
 
 
-def test_get_score_source_golf_none() -> None:
-    assert get_sport_rule("golf", "score_source") is None
-
-
 # ── AHL hockey family (SPEC-014) ──
 
 def test_ahl_inherits_nhl_thresholds() -> None:

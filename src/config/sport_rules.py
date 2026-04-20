@@ -70,18 +70,6 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_close_set_buffer": 1,
         "set_exit_serve_for_match_games": 5,
     },
-    "mma": {
-        "match_duration_hours": 0.5,
-        "elapsed_exit_disabled": True,
-        "score_source": "espn",
-        "espn_sport": "mma",
-        "espn_league": "ufc",
-    },
-    "golf": {
-        "match_duration_hours": 4.0,
-        "playoff_aware": True,
-        # score_source intentionally absent — ESPN golf scores not available
-    },
 }
 
 # ── Cricket (SPEC-011) ──────────────────────────────────────
