@@ -126,3 +126,19 @@ def test_ahl_espn_sport_inherits_hockey() -> None:
     nhl_sport = get_sport_rule("nhl", "espn_sport")
     if nhl_sport:
         assert get_sport_rule("ahl", "espn_sport") == nhl_sport
+
+
+def test_nba_has_score_exit_n1_n2_thresholds() -> None:
+    from src.config.sport_rules import get_sport_rule
+    assert get_sport_rule("nba", "score_exit_n1_elapsed") == 0.75
+    assert get_sport_rule("nba", "score_exit_n1_deficit") == 20
+    assert get_sport_rule("nba", "score_exit_n2_elapsed") == 0.92
+    assert get_sport_rule("nba", "score_exit_n2_deficit") == 10
+
+
+def test_nfl_has_score_exit_n1_n2_thresholds() -> None:
+    from src.config.sport_rules import get_sport_rule
+    assert get_sport_rule("nfl", "score_exit_n1_elapsed") == 0.75
+    assert get_sport_rule("nfl", "score_exit_n1_deficit") == 21
+    assert get_sport_rule("nfl", "score_exit_n2_elapsed") == 0.92
+    assert get_sport_rule("nfl", "score_exit_n2_deficit") == 11

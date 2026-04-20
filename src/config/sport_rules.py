@@ -16,6 +16,12 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "basketball",
         "espn_league": "nba",
+        # Score exit N1: Q3 sonu + ağır fark
+        "score_exit_n1_elapsed": 0.75,
+        "score_exit_n1_deficit": 20,
+        # Score exit N2: son dakikalar + iki possession
+        "score_exit_n2_elapsed": 0.92,
+        "score_exit_n2_deficit": 10,
     },
     "nfl": {
         "stop_loss_pct": 0.30,
@@ -25,6 +31,12 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "football",
         "espn_league": "nfl",
+        # Score exit N1: Q3 sonu + 3-skor farkı
+        "score_exit_n1_elapsed": 0.75,
+        "score_exit_n1_deficit": 21,
+        # Score exit N2: son 5dk + 2-possession
+        "score_exit_n2_elapsed": 0.92,
+        "score_exit_n2_deficit": 11,
     },
     "nhl": {
         "stop_loss_pct": 0.30,
