@@ -248,6 +248,118 @@ def test_parse_competition_non_baseball_no_inning() -> None:
     assert ms.inning is None
 
 
+# ---------------------------------------------------------------------------
+# SPEC-015: Soccer minute + regulation_state
+# ---------------------------------------------------------------------------
+
+
+def test_parse_competition_extracts_soccer_minute() -> None:
+    """SPEC-015: status.displayClock '67'' -> ESPNMatchScore.minute=67."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Arsenal"}, "score": "1",
+             "athlete": {"displayName": "Arsenal"}},
+            {"homeAway": "away", "team": {"displayName": "Chelsea"}, "score": "0",
+             "athlete": {"displayName": "Chelsea"}},
+        ],
+        "status": {
+            "period": 2,
+            "displayClock": "67'",
+            "type": {"description": "2nd Half", "state": "in", "completed": False},
+        },
+        "startDate": "2026-04-20T15:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="soccer")
+    assert ms is not None
+    assert ms.minute == 67
+    assert ms.regulation_state == "in"
+
+
+def test_parse_competition_soccer_stoppage_time() -> None:
+    """displayClock '45+2'' -> minute=45 (base, ignore stoppage)."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "X"}, "score": "0",
+             "athlete": {"displayName": "X"}},
+            {"homeAway": "away", "team": {"displayName": "Y"}, "score": "0",
+             "athlete": {"displayName": "Y"}},
+        ],
+        "status": {
+            "period": 1,
+            "displayClock": "45+2'",
+            "type": {"description": "1st Half", "state": "in"},
+        },
+        "startDate": "2026-04-20T15:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="soccer")
+    assert ms is not None
+    assert ms.minute == 45
+
+
+def test_parse_competition_soccer_full_time_stoppage() -> None:
+    """displayClock '90'+13'' -> minute=90."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "X"}, "score": "1",
+             "athlete": {"displayName": "X"}},
+            {"homeAway": "away", "team": {"displayName": "Y"}, "score": "1",
+             "athlete": {"displayName": "Y"}},
+        ],
+        "status": {
+            "period": 2,
+            "displayClock": "90'+13'",
+            "type": {"description": "2nd Half", "state": "in"},
+        },
+        "startDate": "2026-04-20T15:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="soccer")
+    assert ms is not None
+    assert ms.minute == 90
+
+
+def test_parse_competition_soccer_pregame() -> None:
+    """state='pre' -> minute=None, regulation_state='pre'."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "X"}, "score": "0",
+             "athlete": {"displayName": "X"}},
+            {"homeAway": "away", "team": {"displayName": "Y"}, "score": "0",
+             "athlete": {"displayName": "Y"}},
+        ],
+        "status": {
+            "period": 0,
+            "displayClock": "0'",
+            "type": {"description": "Scheduled", "state": "pre"},
+        },
+        "startDate": "2026-04-20T15:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="soccer")
+    assert ms is not None
+    assert ms.minute is None
+    assert ms.regulation_state == "pre"
+
+
+def test_parse_competition_non_soccer_no_minute() -> None:
+    """Non-soccer (baseball): minute default None, inning still parsed."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "X"}, "score": "2",
+             "athlete": {"displayName": "X"}, "linescores": [{"value": 2.0}]},
+            {"homeAway": "away", "team": {"displayName": "Y"}, "score": "1",
+             "athlete": {"displayName": "Y"}, "linescores": [{"value": 1.0}]},
+        ],
+        "status": {
+            "period": 7,
+            "type": {"description": "Top 7th", "state": "in"},
+        },
+        "startDate": "2026-04-20T18:00:00Z",
+    }
+    ms = _parse_competition(comp, sport="baseball")
+    assert ms is not None
+    assert ms.minute is None  # non-soccer
+    assert ms.inning == 7  # baseball still works
+
+
 def test_parse_no_competitors_skips_competition() -> None:
     """Competition with <2 competitors is skipped."""
     response = {

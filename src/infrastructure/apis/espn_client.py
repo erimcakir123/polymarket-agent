@@ -38,6 +38,8 @@ class ESPNMatchScore:
     linescores: list[list[int]] = field(default_factory=list)  # [[home, away], ...] per period
     commence_time: str = ""  # ISO start time (ESPN competition date)
     inning: int | None = None  # SPEC-014: MLB/beyzbol inning (status.period int); None = beyzbol degil veya pregame
+    minute: int | None = None  # SPEC-015: futbol dakikası (status.displayClock parse); None = futbol değil veya pre
+    regulation_state: str = ""  # SPEC-015: futbol "pre" | "in" | "post"
 
 
 def _is_tennis(linescores: list[list[int]]) -> bool:
@@ -121,6 +123,27 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         if isinstance(raw_period, int) and raw_period > 0:
             inning = raw_period
 
+    # SPEC-015: Soccer minute parse from displayClock ("67'", "45+2'", "90'+13'")
+    minute: int | None = None
+    regulation_state = ""
+    if sport == "soccer":
+        clock_state: str = type_block.get("state", "")
+        regulation_state = clock_state if isinstance(clock_state, str) else ""
+        if clock_state == "in":
+            clock = status_block.get("displayClock", "") or ""
+            # "67'" → 67, "45+2'" → 45, "90'+13'" → 90 (base minute, stoppage ignored)
+            clock_stripped = clock.rstrip("'").strip()
+            # Handle "90'+13'" → "90+13"
+            clock_stripped = clock_stripped.replace("'", "")
+            if "+" in clock_stripped:
+                base = clock_stripped.split("+")[0]
+            else:
+                base = clock_stripped
+            try:
+                minute = int(base)
+            except (ValueError, TypeError):
+                minute = None
+
     return ESPNMatchScore(
         event_id=str(comp.get("id", "")),
         home_name=home.get("athlete", {}).get("displayName", ""),
@@ -134,6 +157,8 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         linescores=linescores,
         commence_time=str(comp.get("date", "") or ""),
         inning=inning,
+        minute=minute,
+        regulation_state=regulation_state,
     )
 
 
