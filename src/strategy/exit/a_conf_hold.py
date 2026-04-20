@@ -1,12 +1,4 @@
-"""A-conf strong-entry hold-to-resolve davranışı (TDD §6.9).
-
-Koşul: pos.confidence == 'A' AND effective_entry ≥ 60¢.
-
-A-conf hold pozisyonları:
-  - Graduated SL atlanır (erken/orta maçta)
-  - Never-in-profit guard atlanır
-  - Hold revocation atlanır
-  - SADECE scale-out + near-resolve + market-flip (elapsed ≥ %85) aktif
+"""Market-flip exit (A3 sonrasi sadelesmis).
 
 Market flip rule (elapsed ≥ 85%):
   effective_current < 0.50 → çık (market artık tarafımızda değil)
@@ -18,15 +10,8 @@ from __future__ import annotations
 
 from src.models.position import Position
 
-DEFAULT_MIN_ENTRY_PRICE = 0.60
 DEFAULT_MARKET_FLIP_THRESHOLD = 0.50
 DEFAULT_MARKET_FLIP_ELAPSED_GATE = 0.85
-
-
-def is_a_conf_hold(pos: Position, min_entry_price: float = DEFAULT_MIN_ENTRY_PRICE) -> bool:
-    """Pozisyon A-conf strong-entry hold'a tabi mi?"""
-    # entry_price zaten token-native (owned side). effective_price UYGULANMAZ.
-    return pos.confidence == "A" and pos.entry_price >= min_entry_price
 
 
 def market_flip_exit(
@@ -35,7 +20,7 @@ def market_flip_exit(
     flip_threshold: float = DEFAULT_MARKET_FLIP_THRESHOLD,
     elapsed_gate: float = DEFAULT_MARKET_FLIP_ELAPSED_GATE,
 ) -> bool:
-    """Market flip exit tetiklendi mi? (A-conf hold pozisyonları için).
+    """Market flip exit tetiklendi mi?
 
     Sadece elapsed ≥ gate AND effective_current < threshold durumunda aktif.
     Erken/orta maçta tetiklenmez (false positive elenir).
