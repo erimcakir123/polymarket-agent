@@ -137,7 +137,7 @@ def test_c_confidence_skips() -> None:
 
 
 def test_below_fav_prob_skips() -> None:
-    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.55 → below_fav_prob
+    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.60 → below_fav_prob
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.52, conf="B")))
     results = gate.run([_market(yp=0.65)])
     assert results[0].signal is None
@@ -407,7 +407,7 @@ def test_evaluate_one_confidence_c_sets_skip_detail_num_bookmakers() -> None:
 
 def test_evaluate_one_below_fav_prob_sets_skip_detail_values() -> None:
     """below_fav_prob → skip_detail contains win_prob/min/bm values."""
-    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.55 → below_fav_prob
+    # anchor=0.52, win_prob=0.52 < min_favorite_probability=0.60 → below_fav_prob
     bm = _bm(prob=0.52, conf="B")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.65))

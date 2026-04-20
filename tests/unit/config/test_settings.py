@@ -84,7 +84,7 @@ def test_risk_config_probability_weighted_explicit_false():
 
 def test_entry_config_defaults():
     cfg = EntryConfig()
-    assert cfg.min_favorite_probability == 0.55
+    assert cfg.min_favorite_probability == 0.60
     assert cfg.min_entry_price == 0.60
     assert cfg.max_entry_price == 0.85
 

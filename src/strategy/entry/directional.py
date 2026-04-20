@@ -20,7 +20,7 @@ def evaluate_directional(
     market: MarketData,
     anchor: float,
     confidence: str,
-    min_favorite_probability: float = 0.55,
+    min_favorite_probability: float = 0.60,
     min_entry_price: float = 0.60,
     max_entry_price: float = 0.85,
 ) -> Signal | None:
@@ -42,14 +42,11 @@ def evaluate_directional(
     if not (min_entry_price <= effective_price <= max_entry_price):
         return None
 
-    # Task 1 transitional: Signal still has `edge` field (removed in Task 3).
-    # Use 0.0 placeholder.
     return Signal(
         condition_id=market.condition_id,
         direction=direction,
         anchor_probability=anchor,
         market_price=market.yes_price,
-        edge=0.0,  # SPEC-017 transitional — Signal.edge removed in Task 3
         confidence=confidence,
         size_usdc=0.0,  # Gate sizing uygulayacak
         entry_reason=EntryReason.DIRECTIONAL,

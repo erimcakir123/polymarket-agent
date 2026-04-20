@@ -367,7 +367,7 @@ Edge-tabanlı karar yok. Tek strateji:
    - `anchor >= 0.50` → BUY_YES, `win_prob = anchor`
    - `anchor < 0.50` → BUY_NO, `win_prob = 1 - anchor`
 
-2. **Favorite filter**: `win_prob >= min_favorite_probability` (default %55)
+2. **Favorite filter**: `win_prob >= min_favorite_probability` (default %60, price floor 60¢ ile tutarlı)
    Toss-up'lar bloklu.
 
 3. **Price range**: `min_entry_price <= effective_entry_price <= max_entry_price`

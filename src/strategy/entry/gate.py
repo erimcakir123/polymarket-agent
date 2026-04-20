@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
-    min_favorite_probability: float = 0.55    # directional: güçlü favori eşiği
+    min_favorite_probability: float = 0.60    # directional: güçlü favori eşiği (price floor ile tutarlı)
     min_entry_price: float = 0.60             # directional: çok düşük fiyatlı girişi engelle
     max_entry_price: float = 0.85             # directional: aşırı pahalı girişi engelle
     max_positions: int = 50

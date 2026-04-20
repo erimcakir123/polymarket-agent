@@ -56,7 +56,7 @@ class RiskConfig(BaseModel):
 class EntryConfig(BaseModel):
     """Directional entry (SPEC-017) — edge-free entry kararı."""
     model_config = ConfigDict(extra="ignore")
-    min_favorite_probability: float = 0.55  # güçlü favori eşiği
+    min_favorite_probability: float = 0.60  # güçlü favori eşiği (price floor ile tutarlı)
     min_entry_price: float = 0.60           # çok düşük fiyatlı girişi engelle
     max_entry_price: float = 0.85           # aşırı pahalı girişi engelle
 

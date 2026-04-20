@@ -150,7 +150,7 @@ risk:
   probability_weighted: true  # SPEC-016: stake win_prob ile çarpılır (false = eski davranış)
 
 entry:
-  min_favorite_probability: 0.55   # SPEC-017: güçlü favori eşiği
+  min_favorite_probability: 0.60   # SPEC-017: güçlü favori eşiği (0.55 → 0.60, price floor ile tutarlı)
   min_entry_price: 0.60            # SPEC-017: min effective entry price
   max_entry_price: 0.85            # SPEC-017: max effective entry price
 
