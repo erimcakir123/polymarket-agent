@@ -134,7 +134,7 @@ scanner:
     - handball
 
 risk:
-  max_single_bet_usdc: 50           # SPEC-010: bet tavani geri, iyi donemde max $56'da kalmıştı
+  max_single_bet_usdc: 75           # SPEC-016 probability-weighted: efektif tavan ~$56 ($75×0.75), A-conf güçlü favorilerde $50+ bet'e alan verir
   max_bet_pct: 0.05
   confidence_bet_pct:
     A: 0.05

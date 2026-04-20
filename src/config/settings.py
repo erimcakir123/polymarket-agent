@@ -39,7 +39,7 @@ class ScannerConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    max_single_bet_usdc: float = 50    # SPEC-010: bet tavani
+    max_single_bet_usdc: float = 75    # SPEC-010 + SPEC-016: bet tavani (probability-weighted ile efektif ~$56)
     max_bet_pct: float = 0.05
     confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}
     max_positions: int = 20

@@ -50,7 +50,7 @@ class GateConfig:
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015
     confidence_bet_pct: dict[str, float] = field(default_factory=lambda: {"A": 0.05, "B": 0.04})
-    max_single_bet_usdc: float = 50.0
+    max_single_bet_usdc: float = 75.0
     max_bet_pct: float = 0.05
     # SPEC-016: stake = base × win_prob (direction-adjusted)
     probability_weighted: bool = True

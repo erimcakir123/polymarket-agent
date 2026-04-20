@@ -410,7 +410,7 @@ double chance/handicap/special market'leri eler.
 Stake hesabı:
 ```
 stake = bankroll × confidence_bet_pct × win_prob   (SPEC-016)
-      capped by max_single_bet_usdc ($50)
+      capped by max_single_bet_usdc ($75)
       capped by bankroll × max_bet_pct (%5)
       floored by Polymarket $5 min-order
 ```
