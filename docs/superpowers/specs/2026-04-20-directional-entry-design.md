@@ -203,4 +203,4 @@ Cevap: Directional'de zaten bookmaker favori yönünde gidiyoruz. Market'ın ayn
 - T2: `3c2d82f` refactor(entry): gate uses directional only, three_way edge-free
 - T3: `8461ea4` refactor(entry): delete edge/normal/early/consensus, cleanup references
 - T3 polish: `4f4f510` polish(spec-017): migration comment + notifier P(book) + stronger gate assertion
-- T4: `<this-commit-sha>` docs(tdd/prd): sync docs with SPEC-017
+- T4: `274b057` docs(tdd/prd): sync docs with SPEC-017
