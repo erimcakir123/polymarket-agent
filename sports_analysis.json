@@ -1,0 +1,344 @@
+[
+  {
+    "key": "cricket_ipl",
+    "display": "Cricket IPL (T20)",
+    "status": "OK",
+    "events": 4,
+    "books": 32,
+    "sharp": 5,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk",
+      "matchbook",
+      "pinnacle"
+    ],
+    "has_draw": false
+  },
+  {
+    "key": "icehockey_liiga",
+    "display": "Liiga",
+    "status": "OK",
+    "events": 2,
+    "books": 30,
+    "sharp": 5,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_uk",
+      "pinnacle",
+      "smarkets",
+      "sport888"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "cricket_psl",
+    "display": "Cricket PSL (Pakistan)",
+    "status": "OK",
+    "events": 2,
+    "books": 20,
+    "sharp": 4,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk",
+      "pinnacle"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "basketball_euroleague",
+    "display": "Euroleague (covered mu kontrol)",
+    "status": "OK",
+    "events": 2,
+    "books": 34,
+    "sharp": 4,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk",
+      "sport888"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "cricket_odi",
+    "display": "Cricket ODI",
+    "status": "OK",
+    "events": 1,
+    "books": 34,
+    "sharp": 4,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk",
+      "pinnacle"
+    ],
+    "has_draw": false
+  },
+  {
+    "key": "aussierules_afl",
+    "display": "AFL (Aussie Rules)",
+    "status": "OK",
+    "events": 9,
+    "books": 22,
+    "sharp": 3,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk"
+    ],
+    "has_draw": false
+  },
+  {
+    "key": "cricket_international_t20",
+    "display": "Cricket International T20",
+    "status": "OK",
+    "events": 1,
+    "books": 18,
+    "sharp": 3,
+    "sharp_names": [
+      "betfair_ex_au",
+      "betfair_ex_eu",
+      "betfair_ex_uk"
+    ],
+    "has_draw": false
+  },
+  {
+    "key": "icehockey_sweden_allsvenskan",
+    "display": "Allsvenskan",
+    "status": "OK",
+    "events": 1,
+    "books": 19,
+    "sharp": 2,
+    "sharp_names": [
+      "pinnacle",
+      "smarkets"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "baseball_ncaa",
+    "display": "NCAA Baseball",
+    "status": "OK",
+    "events": 39,
+    "books": 7,
+    "sharp": 1,
+    "sharp_names": [
+      "sport888"
+    ],
+    "has_draw": false
+  },
+  {
+    "key": "rugbyleague_nrl",
+    "display": "NRL (Australia)",
+    "status": "OK",
+    "events": 8,
+    "books": 24,
+    "sharp": 1,
+    "sharp_names": [
+      "betfair_ex_au"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "icehockey_sweden_hockey_league",
+    "display": "SHL",
+    "status": "OK",
+    "events": 1,
+    "books": 21,
+    "sharp": 1,
+    "sharp_names": [
+      "sport888"
+    ],
+    "has_draw": true
+  },
+  {
+    "key": "lacrosse_ncaa",
+    "display": "Lacrosse NCAA",
+    "status": "OK",
+    "events": 3,
+    "books": 1,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "cricket_test_match",
+    "display": "Cricket Test Match",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "cricket_big_bash",
+    "display": "Cricket Big Bash (AUS)",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "cricket_caribbean_premier_league",
+    "display": "Cricket CPL",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "cricket_t20_blast",
+    "display": "Cricket T20 Blast (UK)",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "americanfootball_nfl",
+    "display": "NFL",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "americanfootball_nfl_preseason",
+    "display": "NFL Preseason",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "americanfootball_nfl_super_bowl_winner",
+    "display": "NFL Super Bowl Winner",
+    "status": "HTTP_422",
+    "sharp": 0,
+    "events": 0
+  },
+  {
+    "key": "rugbyleague_nrl_state_of_origin",
+    "display": "NRL State of Origin",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "rugbyleague_super_league",
+    "display": "Rugby League Super League (UK)",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "rugbyunion_six_nations",
+    "display": "Rugby Union Six Nations",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "rugbyunion_top_14",
+    "display": "Rugby Union Top 14 (France)",
+    "status": "HTTP_404",
+    "sharp": 0,
+    "events": 0
+  },
+  {
+    "key": "rugbyunion_english_premiership",
+    "display": "Rugby Premiership (UK)",
+    "status": "HTTP_404",
+    "sharp": 0,
+    "events": 0
+  },
+  {
+    "key": "rugbyunion_united_rugby_championship",
+    "display": "United Rugby Championship",
+    "status": "HTTP_404",
+    "sharp": 0,
+    "events": 0
+  },
+  {
+    "key": "rugbyunion_super_rugby",
+    "display": "Super Rugby",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "rugbyunion_world_cup",
+    "display": "Rugby World Cup",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "lacrosse_pll",
+    "display": "Lacrosse PLL",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "basketball_nbl",
+    "display": "Australian NBL",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "basketball_ncaab",
+    "display": "NCAAB",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  },
+  {
+    "key": "icehockey_mestis",
+    "display": "Mestis",
+    "status": "OK",
+    "events": 0,
+    "books": 0,
+    "sharp": 0,
+    "sharp_names": [],
+    "has_draw": false
+  }
+]

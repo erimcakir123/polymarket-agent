@@ -4,7 +4,7 @@ Bookmaker'ın 3 outcome arasında en yüksek olasılığa sahip outcome'u (favor
 Filter:
   - Absolute threshold: favorite_prob >= favorite_threshold (default 0.40)
   - Relative margin: favorite - second_highest >= favorite_margin (default 0.07)
-  - Price range: favorite market yes_price in [min_entry_price, max_entry_price]
+  - Price cap: favorite market yes_price <= max_entry_price (pahalı outlier)
 
 Edge hesabı YOK (SPEC-017). Direction: BUY_YES on favorite outcome's own market.
 Tie-break: eşit olasılıklar → None (skip).
@@ -56,7 +56,6 @@ def evaluate(
     probs: dict[str, BookmakerProbability],
     favorite_threshold: float = 0.40,
     favorite_margin: float = 0.07,
-    min_entry_price: float = 0.60,
     max_entry_price: float = 0.85,
 ) -> Signal | None:
     """3-way entry kararı. None → koşul sağlanmadı."""
@@ -95,10 +94,10 @@ def evaluate(
         return None
 
     market_yes = fav_market.yes_price
-    if not (min_entry_price <= market_yes <= max_entry_price):
+    if market_yes > max_entry_price:
         logger.info(
-            "[three-way] SKIP reason=price_out_of_range fav=%s yes=%.3f range=[%.2f, %.2f]",
-            fav_outcome, market_yes, min_entry_price, max_entry_price,
+            "[three-way] SKIP reason=price_out_of_range fav=%s yes=%.3f max=%.2f",
+            fav_outcome, market_yes, max_entry_price,
         )
         return None
 

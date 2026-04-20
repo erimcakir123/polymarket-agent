@@ -145,11 +145,20 @@ def test_below_fav_prob_skips() -> None:
 
 
 def test_price_out_of_range_skips() -> None:
-    # anchor=0.60, win_prob=0.60 >= 0.55 ✓, but yes_price=0.50 < min_entry_price=0.60 → price_out_of_range
+    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, but yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.60, conf="B")))
-    results = gate.run([_market(yp=0.50)])
+    results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "price_out_of_range"
+
+
+def test_price_low_accepted_as_undervalue() -> None:
+    # anchor=0.65 BUY_YES, yes_price=0.35 → undervalue (bookmaker %65 yes, market 35¢)
+    # Alt taban yok → KABUL edilir
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.65, conf="B")))
+    results = gate.run([_market(yp=0.35)])
+    assert results[0].signal is not None
+    assert results[0].signal.direction.value == "BUY_YES"
 
 
 def test_circuit_breaker_halts_all() -> None:
@@ -418,14 +427,13 @@ def test_evaluate_one_below_fav_prob_sets_skip_detail_values() -> None:
 
 
 def test_evaluate_one_price_out_of_range_sets_skip_detail_values() -> None:
-    """price_out_of_range → skip_detail contains price/min/max values."""
-    # anchor=0.60, win_prob=0.60 >= 0.55 ✓, yes_price=0.50 < min_entry_price=0.60 → price_out_of_range
+    """price_out_of_range → skip_detail contains price/max values (pahalı outlier)."""
+    # anchor=0.60, win_prob=0.60 ≥ 0.60 ✓, yes_price=0.90 > max_entry_price=0.85 → price_out_of_range
     bm = _bm(prob=0.60, conf="B")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
-    result = gate._evaluate_one(_market(yp=0.50))
+    result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "price_out_of_range"
     assert "price=" in result.skip_detail
-    assert "min=" in result.skip_detail
     assert "max=" in result.skip_detail
 
 

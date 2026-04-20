@@ -149,9 +149,8 @@ risk:
   probability_weighted: true  # SPEC-016: stake win_prob ile çarpılır (false = eski davranış)
 
 entry:
-  min_favorite_probability: 0.60   # SPEC-017: güçlü favori eşiği (0.55 → 0.60, price floor ile tutarlı)
-  min_entry_price: 0.60            # SPEC-017: min effective entry price
-  max_entry_price: 0.85            # SPEC-017: max effective entry price
+  min_favorite_probability: 0.60   # SPEC-017: bookmaker güçlü favori eşiği (tek gerçek filtre)
+  max_entry_price: 0.85            # SPEC-017: pahalı outlier cap (R/R koruma). Alt taban YOK — undervalue girişlere açık.
 
 stock:
   enabled: true

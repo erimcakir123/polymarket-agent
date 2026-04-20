@@ -1,6 +1,8 @@
-"""Directional entry (SPEC-017) — bookmaker favoriye fiyat aralığında giriş.
+"""Directional entry (SPEC-017) — bookmaker favoriye giriş.
 
-Edge hesabı YOK. Favori + fiyat aralığı + existing gate guards.
+Edge hesabı YOK. Bookmaker güçlü favori (win_prob >= min_favorite_probability)
++ pahalı outlier cap (max_entry_price). Alt fiyat tabanı YOK — undervalue
+girişlere açık (bookmaker doğruysa düşük market fiyatı pozitif edge'dir).
 
 Direction:  anchor >= 0.50 → BUY_YES
             anchor <  0.50 → BUY_NO
@@ -21,13 +23,12 @@ def evaluate_directional(
     anchor: float,
     confidence: str,
     min_favorite_probability: float = 0.60,
-    min_entry_price: float = 0.60,
     max_entry_price: float = 0.85,
 ) -> Signal | None:
     """Directional entry kararı.
 
     Returns Signal eligible ise, None değilse.
-    Edge hesabı yok — favori tarafa makul fiyat aralığında giriş.
+    Edge yok — bookmaker favori + pahalı outlier cap.
     """
     direction = Direction.BUY_YES if anchor >= 0.50 else Direction.BUY_NO
     win_prob = effective_win_prob(anchor, direction.value)
@@ -39,7 +40,7 @@ def evaluate_directional(
         market.yes_price if direction == Direction.BUY_YES
         else 1.0 - market.yes_price
     )
-    if not (min_entry_price <= effective_price <= max_entry_price):
+    if effective_price > max_entry_price:
         return None
 
     return Signal(

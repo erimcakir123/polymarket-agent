@@ -53,11 +53,14 @@ class RiskConfig(BaseModel):
 
 
 class EntryConfig(BaseModel):
-    """Directional entry (SPEC-017) — edge-free entry kararı."""
+    """Directional entry (SPEC-017) — edge-free entry kararı.
+
+    Bookmaker favorilik ana filtre. Market fiyatı alt tabanı YOK
+    (undervalue girişler alınsın); sadece pahalı outlier cap (max_entry_price).
+    """
     model_config = ConfigDict(extra="ignore")
-    min_favorite_probability: float = 0.60  # güçlü favori eşiği (price floor ile tutarlı)
-    min_entry_price: float = 0.60           # çok düşük fiyatlı girişi engelle
-    max_entry_price: float = 0.85           # aşırı pahalı girişi engelle
+    min_favorite_probability: float = 0.60  # güçlü favori eşiği (bookmaker)
+    max_entry_price: float = 0.85           # aşırı pahalı girişi engelle (R/R outlier cap)
 
 
 class StockConfig(BaseModel):

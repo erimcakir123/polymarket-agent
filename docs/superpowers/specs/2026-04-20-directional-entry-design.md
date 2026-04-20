@@ -155,7 +155,8 @@ entry:
 1. **min_entry_size_pct (%1.5)**: korunur, çok küçük stake bloklanır.
 2. **max_entry_price (0.85)**: önceki 0.88'den sıkı (aşırı pahalı entry'ler bloklu).
 3. **min_entry_price (0.60)**: yeni — underdog BUY_YES girişini engeller (underdog favori → 0.40 yes_price = 0.60 NO side, giriyoruz zaten).
-4. **min_favorite_probability (0.60)**: post-implementation tuning 0.55 → 0.60 (price floor ile tutarlılık için; her ikisi de 0.60 olunca mantıksal çelişki kalkıyor).
+4. **min_favorite_probability (0.60)**: post-implementation tuning 0.55 → 0.60.
+5. **min_entry_price KALDIRILDI (2026-04-20 post-tuning)**: İki eşik tutarsızdı (bookmaker %60 AND market ≥ 60¢). Bookmaker güçlü favori dediği maça market 30¢ verse bile giriş (undervalue). Artık tek filtre bookmaker %60, max 85¢ outlier cap.
 5. **Exit kuralları aynen**: kötü giriş yapsak bile stop-loss + score-exit kurtarır.
 6. **Bankroll-weighted stake (SPEC-016)**: kazanma olasılığı düşükse stake de düşük → kayıp sınırlı.
 

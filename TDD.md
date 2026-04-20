@@ -369,11 +369,12 @@ Edge-tabanlı karar yok. Tek strateji:
 2. **Favorite filter**: `win_prob >= min_favorite_probability` (default %60, price floor 60¢ ile tutarlı)
    Toss-up'lar bloklu.
 
-3. **Price range**: `min_entry_price <= effective_entry_price <= max_entry_price`
+3. **Price cap (üst outlier)**: `effective_entry_price <= max_entry_price`
    - effective = BUY_YES ? yes_price : 1 - yes_price
-   - Default aralık: 60¢ - 85¢
-   - Altta: underdog girişi engellenir
+   - Default üst: 85¢
    - Üstte: R/R kötü (max payout 99¢ - entry)
+   - **Alt taban YOK** (post-tuning): bookmaker güçlü favori dediği maça market 30¢ fiyat verse
+     bile gireriz (undervalue → pozitif edge). Tek gerçek filtre bookmaker %60 şartı.
 
 4. **Diğer guards** (event, liquidity, manipulation, exposure cap): değişmez
 
@@ -381,9 +382,11 @@ Edge-tabanlı karar yok. Tek strateji:
 
 **Neden edge kaldırıldı:** Market efficient dönemlerde (Polymarket ≈ bookmaker) edge eşiği çok az maçı geçiriyor, volume düşüyor. Directional entry bookmaker lider varsayımıyla favoriye girer, stake win_prob ile orantılı olduğu için varyans kontrollü kalır.
 
-**Geçmiş not:** Önceki sistem A-conf için %6 unified edge eşiği kullanıyordu (SPEC-010 rollback + Bug #2 fix). Market efficient dönemlerde bu eşik neredeyse hiç maçı geçirmediğinden SPEC-017 ile kaldırıldı.
+**Neden alt fiyat tabanı yok:** Bookmaker güçlü favori diyor ama Polymarket fiyatı düşük = piyasa underprice yapıyor = bizim lehimize edge. Bu girişi engellemek mantıksız.
 
-**Config:** `entry.min_favorite_probability`, `entry.min_entry_price`, `entry.max_entry_price`.
+**Geçmiş not:** Önceki sistem A-conf için %6 unified edge eşiği kullanıyordu (SPEC-010 rollback + Bug #2 fix). Market efficient dönemlerde bu eşik neredeyse hiç maçı geçirmediğinden SPEC-017 ile kaldırıldı. min_entry_price de post-tuning ile kaldırıldı (bookmaker tutarsızlık giderildi).
+
+**Config:** `entry.min_favorite_probability`, `entry.max_entry_price`.
 
 ### 6.4 ThreeWayEntry (SPEC-015)
 
@@ -394,7 +397,7 @@ gruplanır. `three_way.evaluate()` karar verir:
 2. Tie-break: eşitlik → SKIP
 3. Absolute threshold: `favorite_prob >= 0.40` (3-way için kalibre, 2-way'deki %55'in karşılığı)
 4. Relative margin: `favorite - second_highest >= 0.07` (tossup'ları eler)
-5. Price range: `min_entry_price (0.60) <= effective_entry_price <= max_entry_price (0.85)` (directional entry ile aynı aralık)
+5. Price cap (üst outlier): `favorite market yes_price <= max_entry_price (0.85)` — alt taban yok (directional entry ile aynı mantık)
 
 **Live direction switch yok** — pozisyon açıldıktan sonra outcome değiştirme yok.
 **Underdog/draw value bet yok** — sadece favori tarafa gir (varyans azaltma).

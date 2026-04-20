@@ -54,15 +54,19 @@ def test_three_way_skips_when_favorite_price_out_of_range() -> None:
     assert sig is None
 
 
-def test_three_way_skips_when_favorite_price_below_min() -> None:
-    """Favorite market yes_price 0.50 < min_entry_price 0.60 → SKIP."""
+def test_three_way_accepts_low_priced_favorite_undervalue() -> None:
+    """Favorite market yes_price 0.50 (market underpricing favorite) → KABUL.
+
+    SPEC-017 post-tuning: alt fiyat tabanı kaldırıldı. Undervalue girişler alınır.
+    """
     sig = three_way_evaluate(
-        home_market=_market(yes=0.50, q="Will Arsenal win?", cid="h"),  # too cheap
+        home_market=_market(yes=0.50, q="Will Arsenal win?", cid="h"),
         draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
         away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
-        probs=_bm_probs(0.45, 0.27, 0.28),
+        probs=_bm_probs(0.45, 0.27, 0.28),  # Home favori, 45% prob
     )
-    assert sig is None
+    # Home favori (45% vs 28% — margin 17pp > 7pp), market 50¢ → KABUL edilir
+    assert sig is not None
 
 
 def test_absolute_threshold_fail() -> None:

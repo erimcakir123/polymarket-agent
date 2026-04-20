@@ -85,14 +85,13 @@ def test_risk_config_probability_weighted_explicit_false():
 def test_entry_config_defaults():
     cfg = EntryConfig()
     assert cfg.min_favorite_probability == 0.60
-    assert cfg.min_entry_price == 0.60
     assert cfg.max_entry_price == 0.85
+    # min_entry_price removed — no price floor (undervalue entries allowed)
 
 
 def test_entry_config_custom_values():
-    cfg = EntryConfig(min_favorite_probability=0.60, min_entry_price=0.65, max_entry_price=0.80)
-    assert cfg.min_favorite_probability == 0.60
-    assert cfg.min_entry_price == 0.65
+    cfg = EntryConfig(min_favorite_probability=0.65, max_entry_price=0.80)
+    assert cfg.min_favorite_probability == 0.65
     assert cfg.max_entry_price == 0.80
 
 

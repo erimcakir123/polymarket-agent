@@ -43,9 +43,8 @@ _NON_MVP_SPORTS: frozenset[str] = frozenset({"mma", "golf"})
 @dataclass
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
-    min_favorite_probability: float = 0.60    # directional: güçlü favori eşiği (price floor ile tutarlı)
-    min_entry_price: float = 0.60             # directional: çok düşük fiyatlı girişi engelle
-    max_entry_price: float = 0.85             # directional: aşırı pahalı girişi engelle
+    min_favorite_probability: float = 0.60    # directional: bookmaker favori eşiği (tek gerçek filtre)
+    max_entry_price: float = 0.85             # directional: pahalı outlier cap (alt taban YOK)
     max_positions: int = 50
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
@@ -195,7 +194,6 @@ class EntryGate:
             anchor=bm_prob.probability,
             confidence=bm_prob.confidence,
             min_favorite_probability=self.config.min_favorite_probability,
-            min_entry_price=self.config.min_entry_price,
             max_entry_price=self.config.max_entry_price,
         )
         if signal is None:
@@ -254,7 +252,7 @@ class EntryGate:
         bm_prob: BookmakerProbability,
         manip: ManipulationCheck,
     ) -> GateResult:
-        """Directional skip sebebini belirle: fav_prob yetersiz mi, fiyat aralığı dışında mı."""
+        """Directional skip sebebini belirle: fav_prob yetersiz mi, fiyat pahalı outlier mı."""
         anchor = bm_prob.probability
         direction = Direction.BUY_YES if anchor >= 0.50 else Direction.BUY_NO
         win_prob = effective_win_prob(anchor, direction.value)
@@ -264,15 +262,12 @@ class EntryGate:
                 f"bm={anchor:.2f}"
             )
             return GateResult(cid, None, "below_fav_prob", skip_detail=detail, manipulation=manip)
-        # Price out of range
+        # Price above max (pahalı outlier)
         ep = (
             market.yes_price if direction == Direction.BUY_YES
             else 1.0 - market.yes_price
         )
-        detail = (
-            f"price={ep:.3f}, min={self.config.min_entry_price}, "
-            f"max={self.config.max_entry_price}"
-        )
+        detail = f"price={ep:.3f}, max={self.config.max_entry_price}"
         return GateResult(cid, None, "price_out_of_range", skip_detail=detail, manipulation=manip)
 
     def _evaluate_three_way(self, group: EventGroup) -> GateResult | None:
@@ -303,7 +298,6 @@ class EntryGate:
             probs=probs,
             favorite_threshold=0.40,
             favorite_margin=0.07,
-            min_entry_price=self.config.min_entry_price,
             max_entry_price=self.config.max_entry_price,
         )
         if signal is None:

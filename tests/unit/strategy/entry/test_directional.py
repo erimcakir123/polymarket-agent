@@ -31,7 +31,7 @@ def test_directional_buy_yes_when_anchor_above_50():
     market = _make_market(yes_price=0.70)
     signal = evaluate_directional(
         market=market, anchor=0.75, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_YES
@@ -39,11 +39,11 @@ def test_directional_buy_yes_when_anchor_above_50():
 
 
 def test_directional_buy_no_when_anchor_below_50():
-    # yes_price=0.30 → BUY_NO effective entry = 1-0.30 = 0.70 (in range)
+    # yes_price=0.30 → BUY_NO effective entry = 1-0.30 = 0.70 (under max)
     market = _make_market(yes_price=0.30)
     signal = evaluate_directional(
         market=market, anchor=0.25, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_NO
@@ -54,38 +54,53 @@ def test_directional_skips_when_win_prob_below_threshold():
     market = _make_market(yes_price=0.65)
     signal = evaluate_directional(
         market=market, anchor=0.52, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is None
 
 
-def test_directional_skips_when_effective_price_below_min():
-    market = _make_market(yes_price=0.58)
+def test_directional_accepts_undervalue_low_price():
+    """Polymarket fiyati dusuk (bookmaker daha yuksek diyor) → undervalue, KABUL."""
+    # Bookmaker %70 diyor, market 35¢'te bizim tarafi → buyuk edge
+    market = _make_market(yes_price=0.35)
     signal = evaluate_directional(
-        market=market, anchor=0.65, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        market=market, anchor=0.70, confidence="A",
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
-    assert signal is None
+    # anchor=0.70 >= 0.50 → BUY_YES. effective_price = 0.35. max=0.85.
+    # Alt taban yok → KABUL (undervalue position)
+    assert signal is not None
+    assert signal.direction == Direction.BUY_YES
 
 
 def test_directional_skips_when_effective_price_above_max():
     market = _make_market(yes_price=0.90)
     signal = evaluate_directional(
         market=market, anchor=0.92, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is None
 
 
 def test_directional_buy_no_effective_price_computed_correctly():
-    # yes_price=0.20 → effective entry = 0.80, within range [0.60, 0.85]
+    # yes_price=0.20 → effective entry = 0.80, under max=0.85
     market = _make_market(yes_price=0.20)
     signal = evaluate_directional(
         market=market, anchor=0.18, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_NO
+
+
+def test_directional_buy_no_skips_when_effective_above_max():
+    # yes_price=0.10 → BUY_NO effective = 0.90, > max 0.85 → skip
+    market = _make_market(yes_price=0.10)
+    signal = evaluate_directional(
+        market=market, anchor=0.08, confidence="A",
+        min_favorite_probability=0.60, max_entry_price=0.85,
+    )
+    assert signal is None
 
 
 def test_directional_anchor_exactly_fifty_with_relaxed_threshold_chooses_yes():
@@ -97,7 +112,7 @@ def test_directional_anchor_exactly_fifty_with_relaxed_threshold_chooses_yes():
     market = _make_market(yes_price=0.65)
     signal = evaluate_directional(
         market=market, anchor=0.50, confidence="A",
-        min_favorite_probability=0.50, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.50, max_entry_price=0.85,
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_YES
@@ -108,17 +123,17 @@ def test_directional_anchor_exactly_fifty_rejected_by_production_threshold():
     market = _make_market(yes_price=0.65)
     signal = evaluate_directional(
         market=market, anchor=0.50, confidence="A",
-        min_favorite_probability=0.60, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.60, max_entry_price=0.85,
     )
     assert signal is None
 
 
 def test_directional_anchor_just_below_fifty_chooses_no():
     """anchor=0.49 → BUY_NO branch (< comparison, not <=)."""
-    market = _make_market(yes_price=0.30)  # BUY_NO effective = 0.70, in range
+    market = _make_market(yes_price=0.30)  # BUY_NO effective = 0.70, under max
     signal = evaluate_directional(
         market=market, anchor=0.49, confidence="A",
-        min_favorite_probability=0.50, min_entry_price=0.60, max_entry_price=0.85,
+        min_favorite_probability=0.50, max_entry_price=0.85,
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_NO

@@ -87,7 +87,6 @@ def build_agent(state: RuntimeState) -> Agent:
 
     gate_cfg = GateConfig(
         min_favorite_probability=cfg.entry.min_favorite_probability,  # SPEC-017
-        min_entry_price=cfg.entry.min_entry_price,
         max_entry_price=cfg.entry.max_entry_price,
         max_positions=cfg.risk.max_positions,
         max_exposure_pct=cfg.risk.max_exposure_pct,

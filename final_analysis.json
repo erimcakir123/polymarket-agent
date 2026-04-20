@@ -1,0 +1,236 @@
+[
+  {
+    "key": "cricket_ipl",
+    "display": "Cricket IPL",
+    "events": 4,
+    "sharp": 5,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u2705 EKLE \u2014 kaliteli + aktif"
+  },
+  {
+    "key": "cricket_odi",
+    "display": "Cricket ODI",
+    "events": 1,
+    "sharp": 4,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u2705 EKLE \u2014 kaliteli + aktif"
+  },
+  {
+    "key": "cricket_psl",
+    "display": "Cricket PSL",
+    "events": 2,
+    "sharp": 4,
+    "has_draw": true,
+    "pm_match_count": 176,
+    "comment": "\u26a0\ufe0f has_draw=YES \u2014 bookmaker 3-way regulation, kontrol"
+  },
+  {
+    "key": "cricket_international_t20",
+    "display": "Cricket Intl T20",
+    "events": 1,
+    "sharp": 3,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u2705 EKLE \u2014 kaliteli + aktif"
+  },
+  {
+    "key": "cricket_big_bash",
+    "display": "Cricket Big Bash (AUS)",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "cricket_caribbean_premier_league",
+    "display": "Cricket CPL",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "cricket_t20_blast",
+    "display": "Cricket T20 Blast UK",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "cricket_test_match",
+    "display": "Cricket Test",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 176,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "americanfootball_nfl",
+    "display": "NFL",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "americanfootball_nfl_preseason",
+    "display": "NFL Preseason",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyleague_nrl",
+    "display": "NRL",
+    "events": 8,
+    "sharp": 1,
+    "has_draw": true,
+    "pm_match_count": 0,
+    "comment": "\u274c Zayif sharp"
+  },
+  {
+    "key": "rugbyleague_super_league",
+    "display": "Rugby Super League UK",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyunion_six_nations",
+    "display": "Rugby Six Nations",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 82,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyunion_top_14",
+    "display": "Rugby Top 14 FR",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 82,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyunion_english_premiership",
+    "display": "Rugby Premiership UK",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 82,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyunion_united_rugby_championship",
+    "display": "United Rugby Championship",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 82,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "rugbyunion_super_rugby",
+    "display": "Super Rugby",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 82,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "aussierules_afl",
+    "display": "AFL",
+    "events": 9,
+    "sharp": 3,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u23f3 Seasonal / sezon disi \u2014 sezonda ekle"
+  },
+  {
+    "key": "baseball_ncaa",
+    "display": "NCAA Baseball",
+    "events": 39,
+    "sharp": 1,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Zayif sharp"
+  },
+  {
+    "key": "lacrosse_pll",
+    "display": "Lacrosse PLL",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "lacrosse_ncaa",
+    "display": "Lacrosse NCAA",
+    "events": 3,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "icehockey_sweden_hockey_league",
+    "display": "SHL",
+    "events": 1,
+    "sharp": 1,
+    "has_draw": true,
+    "pm_match_count": 1,
+    "comment": "\u274c Zayif sharp"
+  },
+  {
+    "key": "icehockey_sweden_allsvenskan",
+    "display": "Allsvenskan",
+    "events": 1,
+    "sharp": 2,
+    "has_draw": true,
+    "pm_match_count": 0,
+    "comment": "\u274c Zayif sharp"
+  },
+  {
+    "key": "icehockey_mestis",
+    "display": "Mestis",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "basketball_nbl",
+    "display": "Australian NBL",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  },
+  {
+    "key": "basketball_ncaab",
+    "display": "NCAAB",
+    "events": 0,
+    "sharp": 0,
+    "has_draw": false,
+    "pm_match_count": 0,
+    "comment": "\u274c Sharp veya event yok"
+  }
+]
