@@ -205,11 +205,6 @@ score:
   critical_price_threshold: 0.35
   match_window_hours: 4       # maç saati ± bu süre dışında skor çekilmez
 
-exit:
-  catastrophic_trigger: 0.25
-  catastrophic_drop_pct: 0.10
-  catastrophic_cancel: 0.50
-
 favored:
   promote_eff_price: 0.65
   demote_eff_price: 0.65

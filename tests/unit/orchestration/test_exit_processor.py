@@ -79,7 +79,7 @@ def _make_deps(recorder: _CallRecorder) -> MagicMock:
         return True
     deps.trade_logger.log_partial_exit.side_effect = mock_log_partial
 
-    # Config (catastrophic)
+    # Config
     deps.config = None
 
     return deps
