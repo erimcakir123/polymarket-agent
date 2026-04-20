@@ -13,7 +13,6 @@ class Signal(BaseModel):
     direction: Direction
     anchor_probability: float  # P(YES)
     market_price: float
-    edge: float
     confidence: str
     size_usdc: float
     entry_reason: EntryReason

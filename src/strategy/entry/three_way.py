@@ -118,7 +118,6 @@ def evaluate(
         direction=Direction.BUY_YES,
         anchor_probability=fav_prob,
         market_price=market_yes,
-        edge=0.0,  # SPEC-017 transitional — Signal.edge removed in Task 3
         confidence=fav_prob_obj.confidence,
         size_usdc=0.0,
         entry_reason=EntryReason.NORMAL,
