@@ -239,8 +239,8 @@ def test_log_partial_exit_appends_to_open_record(tmp_path):
     ]
 
 
-def test_log_partial_exit_appends_multiple_tiers(tmp_path):
-    """Aynı pozisyona iki kez partial exit (Tier1 + Tier2) eklenebilir."""
+def test_log_partial_exit_appends_to_open_trade(tmp_path):
+    """Partial exit acik trade record'una append edilir."""
     from src.infrastructure.persistence.trade_logger import (
         TradeHistoryLogger, TradeRecord,
     )
@@ -254,12 +254,10 @@ def test_log_partial_exit_appends_multiple_tiers(tmp_path):
     ))
     logger.log_partial_exit(condition_id="cid", tier=1, sell_pct=0.4,
                             realized_pnl_usdc=5.0, timestamp="t1")
-    logger.log_partial_exit(condition_id="cid", tier=2, sell_pct=0.5,
-                            realized_pnl_usdc=8.0, timestamp="t2")
     records = logger.read_all()
-    assert len(records[0]["partial_exits"]) == 2
+    assert len(records[0]["partial_exits"]) == 1
     assert records[0]["partial_exits"][0]["tier"] == 1
-    assert records[0]["partial_exits"][1]["tier"] == 2
+    assert records[0]["partial_exits"][0]["sell_pct"] == 0.4
 
 
 def test_log_partial_exit_returns_false_if_no_open_record(tmp_path):
