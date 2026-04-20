@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from datetime import date
 from typing import Any, Callable
 
 import requests
@@ -34,6 +35,7 @@ class OddsAPIClient:
         self,
         api_key: str = "",
         http_get: Callable[..., Any] = _default_http_get,
+        daily_cap: int = 0,  # SPEC-015: 0 = unlimited
     ) -> None:
         self.api_key = api_key or os.getenv("ODDS_API_KEY", "")
         self._backup_key = os.getenv("ODDS_API_KEY_BACKUP", "")
@@ -42,6 +44,9 @@ class OddsAPIClient:
         self._cache: dict[str, tuple[Any, float]] = {}  # cache_key → (data, ts)
         self._last_used: int | None = None
         self._last_remaining: int | None = None
+        self._daily_cap = daily_cap
+        self._daily_used = 0
+        self._daily_used_date: date = date.today()
 
     @property
     def available(self) -> bool:
@@ -84,8 +89,25 @@ class OddsAPIClient:
             self._cache[cache_key] = (data, time.time())
         return data
 
+    def _maybe_reset_daily(self) -> None:
+        today = date.today()
+        if today > self._daily_used_date:
+            self._daily_used = 0
+            self._daily_used_date = today
+
+    def _check_daily_cap(self) -> bool:
+        """Yeni fetch'e izin verilir mi? False = cap dolu."""
+        self._maybe_reset_daily()
+        return self._daily_cap == 0 or self._daily_used < self._daily_cap
+
     def _api_request(self, endpoint: str, params: dict) -> Any:
         if not self.api_key:
+            return None
+        if not self._check_daily_cap():
+            logger.warning(
+                "Odds API daily cap reached (%d/%d) — fetch skipped",
+                self._daily_used, self._daily_cap,
+            )
             return None
         params_with_key = {**params, "apiKey": self.api_key}
         try:
@@ -102,6 +124,8 @@ class OddsAPIClient:
             if self._is_auth_error(e):
                 return self._try_backup(endpoint, params)
             return None
+        finally:
+            self._daily_used += 1  # Her HTTP denemesi credit harcar (success veya fail)
 
     def _is_auth_error(self, e: Exception) -> bool:
         s = str(e)
@@ -126,6 +150,12 @@ class OddsAPIClient:
             self._last_remaining = int(remaining_hdr)
         except (ValueError, TypeError):
             pass
+        if self._last_used is not None and self._last_remaining is not None:
+            logger.info(
+                "Odds API quota: used=%d remaining=%d",
+                self._last_used,
+                self._last_remaining,
+            )
 
     def _current_refresh_sec(self) -> int:
         """Kota kullanımına göre adaptive refresh interval."""

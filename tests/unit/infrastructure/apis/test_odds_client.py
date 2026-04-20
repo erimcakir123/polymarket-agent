@@ -108,3 +108,36 @@ def test_auth_error_triggers_backup(monkeypatch) -> None:
     assert data is not None
     assert c._using_backup is True
     assert c.api_key == "backup_key"
+
+
+# ── SPEC-015: Daily credit hard cap ──────────────────────────────────────────
+
+def test_odds_client_unlimited_cap_allows_all() -> None:
+    """daily_cap=0 → unlimited (backward compat)."""
+    c = OddsAPIClient(api_key="x", daily_cap=0)
+    assert c._check_daily_cap() is True
+    c._daily_used = 10_000
+    assert c._check_daily_cap() is True
+
+
+def test_odds_client_cap_blocks_when_exceeded() -> None:
+    """daily_cap=800, used=800 → cap dolu."""
+    c = OddsAPIClient(api_key="x", daily_cap=800)
+    c._daily_used = 800
+    assert c._check_daily_cap() is False
+
+
+def test_odds_client_cap_allows_below_limit() -> None:
+    c = OddsAPIClient(api_key="x", daily_cap=800)
+    c._daily_used = 500
+    assert c._check_daily_cap() is True
+
+
+def test_odds_client_resets_daily_counter_on_date_change() -> None:
+    from datetime import date, timedelta
+    c = OddsAPIClient(api_key="x", daily_cap=800)
+    c._daily_used = 800
+    c._daily_used_date = date.today() - timedelta(days=1)  # yesterday
+    c._maybe_reset_daily()
+    assert c._daily_used == 0
+    assert c._daily_used_date == date.today()

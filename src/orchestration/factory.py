@@ -41,7 +41,7 @@ def build_agent(state: RuntimeState) -> Agent:
     cfg = state.config
 
     gamma = GammaClient()
-    odds = OddsAPIClient()
+    odds = OddsAPIClient(daily_cap=cfg.odds_api.daily_credit_cap)  # SPEC-015
     scanner = MarketScanner(cfg.scanner, gamma_client=gamma)
     cycle_manager = CycleManager(cfg.cycle)
     cooldown = CooldownTracker(

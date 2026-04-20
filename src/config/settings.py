@@ -192,6 +192,11 @@ class CricketConfig(BaseModel):
     timeout_sec: int = 15           # HTTP timeout
 
 
+class OddsApiConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    daily_credit_cap: int = 800  # 0 = unlimited (SPEC-015)
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     mode: Mode = Mode.DRY_RUN
@@ -215,6 +220,7 @@ class AppConfig(BaseModel):
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011
+    odds_api: OddsApiConfig = OddsApiConfig()  # SPEC-015
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:

@@ -188,3 +188,7 @@ cricket:
   daily_limit: 100       # CricAPI free tier; TODO-003 paid tier 1000
   cache_ttl_sec: 240     # 4dk bulk cache
   timeout_sec: 15        # HTTP timeout
+
+# Odds API daily credit hard cap (SPEC-015)
+odds_api:
+  daily_credit_cap: 800  # SPEC-015: günlük hard cap (soccer 60+ lig budget koruma)
