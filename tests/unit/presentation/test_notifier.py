@@ -50,12 +50,13 @@ def test_send_non_200_returns_false() -> None:
 def test_notify_entry_formats_message() -> None:
     http = MagicMock(return_value=_resp(200))
     n = TelegramNotifier(enabled=True, bot_token="t", chat_id="c", http_post=http)
-    n.notify_entry("lakers-celtics", "BUY_YES", 0.45, 40.0, "A", "directional")
+    n.notify_entry("lakers-celtics", "BUY_YES", 0.45, 40.0, "A", "directional", bookmaker_prob=0.62)
     text = http.call_args.kwargs["json"]["text"]
     assert "ENTRY" in text
     assert "lakers-celtics" in text
     assert "BUY_YES" in text
     assert "$0.450" in text
+    assert "P(book) 62.0%" in text
 
 
 def test_notify_exit_uses_win_emoji_on_profit() -> None:

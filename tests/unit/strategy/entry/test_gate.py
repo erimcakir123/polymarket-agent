@@ -296,6 +296,7 @@ def test_approved_signal_carries_bookmaker_metadata() -> None:
     assert sig is not None
     assert sig.num_bookmakers == bm.num_bookmakers
     assert sig.has_sharp == bm.has_sharp
+    assert sig.has_sharp is True  # A-conf with sharp bookmaker patched through
 
 
 def test_gate_skips_when_available_below_min_entry_size() -> None:

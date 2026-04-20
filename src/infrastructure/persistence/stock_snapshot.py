@@ -53,6 +53,7 @@ class StockSnapshot:
                 market = MarketData(**market_raw)
             except (TypeError, ValueError):
                 continue
+            # SPEC-017: pre-T3 snapshots used "no_edge_attempts" — missing here, defaults to 0 (clean break)
             out.append(StockEntry(
                 market=market,
                 first_seen_iso=row.get("first_seen_iso", ""),
