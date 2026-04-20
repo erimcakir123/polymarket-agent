@@ -146,7 +146,6 @@ risk:
   max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
-  stop_loss_pct: 0.30
   probability_weighted: true  # SPEC-016: stake win_prob ile çarpılır (false = eski davranış)
 
 entry:

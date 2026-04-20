@@ -9,7 +9,6 @@ from typing import Any
 # ── MVP sport rules (2-way) ──
 SPORT_RULES: dict[str, dict] = {
     "nba": {
-        "stop_loss_pct": 0.35,
         "match_duration_hours": 2.5,
         "halftime_exit": True,
         "halftime_exit_deficit": 15,
@@ -24,7 +23,6 @@ SPORT_RULES: dict[str, dict] = {
         "score_exit_n2_deficit": 10,
     },
     "nfl": {
-        "stop_loss_pct": 0.30,
         "match_duration_hours": 3.25,
         "halftime_exit": True,
         "halftime_exit_deficit": 14,
@@ -39,7 +37,6 @@ SPORT_RULES: dict[str, dict] = {
         "score_exit_n2_deficit": 11,
     },
     "nhl": {
-        "stop_loss_pct": 0.30,
         "match_duration_hours": 2.5,
         "period_exit": True,
         "period_exit_deficit": 3,
@@ -52,7 +49,6 @@ SPORT_RULES: dict[str, dict] = {
         "espn_league": "nhl",
     },
     "mlb": {
-        "stop_loss_pct": 0.30,
         "match_duration_hours": 3.0,
         "inning_exit": True,
         "inning_exit_deficit": 5,
@@ -69,7 +65,6 @@ SPORT_RULES: dict[str, dict] = {
         "espn_league": "mlb",
     },
     "tennis": {
-        "stop_loss_pct": 0.35,
         "match_duration_hours": 2.5,
         "match_duration_hours_bo3": 1.75,
         "match_duration_hours_bo5": 3.5,
@@ -85,7 +80,6 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_serve_for_match_games": 5,
     },
     "mma": {
-        "stop_loss_pct": 0.35,
         "match_duration_hours": 0.5,
         "elapsed_exit_disabled": True,
         "score_source": "espn",
@@ -93,7 +87,6 @@ SPORT_RULES: dict[str, dict] = {
         "espn_league": "ufc",
     },
     "golf": {
-        "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
         "playoff_aware": True,
         # score_source intentionally absent — ESPN golf scores not available
@@ -114,7 +107,6 @@ _T20_SCORE_EXIT = {
 }
 
 _CRICKET_BASE = {
-    "stop_loss_pct": 0.30,
     "score_source": "cricapi",    # ESPN yok, Odds API aggregate only
 }
 
@@ -143,7 +135,6 @@ SPORT_RULES["cricket"] = SPORT_RULES["cricket_ipl"]  # default T20 fallback
 
 # SPEC-015: Soccer + 3-way sports
 SPORT_RULES["soccer"] = {
-    "stop_loss_pct": 0.30,
     "match_duration_hours": 2.0,    # 90 dk + stoppage + buffer
     "score_source": "espn",
     "espn_sport": "soccer",
@@ -151,7 +142,6 @@ SPORT_RULES["soccer"] = {
 }
 
 SPORT_RULES["rugby_union"] = {
-    "stop_loss_pct": 0.30,
     "match_duration_hours": 1.75,
     "score_source": "espn",
     "espn_sport": "rugby",
@@ -159,7 +149,6 @@ SPORT_RULES["rugby_union"] = {
 }
 
 SPORT_RULES["afl"] = {
-    "stop_loss_pct": 0.30,
     "match_duration_hours": 2.0,
     "score_source": "espn",
     "espn_sport": "aussierules",
@@ -167,7 +156,6 @@ SPORT_RULES["afl"] = {
 }
 
 SPORT_RULES["handball"] = {
-    "stop_loss_pct": 0.30,
     "match_duration_hours": 1.5,
     "score_source": "espn",
     "espn_sport": "handball",
@@ -181,7 +169,6 @@ SPORT_RULES["ahl"] = {
 }
 
 DEFAULT_RULES: dict[str, Any] = {
-    "stop_loss_pct": 0.30,
     "match_duration_hours": 2.0,
 }
 
@@ -312,10 +299,6 @@ def get_sport_rule(sport_tag: str, key: str, default: Any = None) -> Any:
     tag = _normalize(sport_tag)
     rules = SPORT_RULES.get(tag, DEFAULT_RULES)
     return rules.get(key, DEFAULT_RULES.get(key, default))
-
-
-def get_stop_loss(sport_tag: str) -> float:
-    return float(get_sport_rule(sport_tag, "stop_loss_pct", 0.30))
 
 
 def get_match_duration_hours(sport_tag: str) -> float:
