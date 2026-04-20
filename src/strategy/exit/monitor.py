@@ -19,8 +19,15 @@ from datetime import datetime, timezone
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, stop_loss, tennis_score_exit
+from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, soccer_score_exit, stop_loss, tennis_score_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
+
+_SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
+
+
+def _is_soccer_sport(sport_tag: str) -> bool:
+    tag = _normalize(sport_tag)
+    return tag in _SOCCER_SPORT_TAGS or any(tag.startswith(s) for s in _SOCCER_SPORT_TAGS)
 
 
 @dataclass
@@ -240,6 +247,16 @@ def evaluate(
             if c_result is not None:
                 return MonitorResult(
                     exit_signal=ExitSignal(reason=c_result.reason, detail=c_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3a-soccer. Score-based exit — soccer/rugby/afl/handball (SPEC-015)
+        if _is_soccer_sport(pos.sport_tag) and score_info.get("available"):
+            s_result = soccer_score_exit.check(score_info=score_info, sport_tag=pos.sport_tag)
+            if s_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=s_result.reason, detail=s_result.detail),
                     fav_transition=_fav_transition(pos),
                     elapsed_pct=elapsed_pct,
                 )
