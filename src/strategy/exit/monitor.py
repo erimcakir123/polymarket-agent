@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, near_resolve, scale_out, hockey_score_exit, soccer_score_exit, stop_loss, tennis_score_exit
+from src.strategy.exit import a_conf_hold, baseball_score_exit, catastrophic_watch, cricket_score_exit, favored, graduated_sl, nba_score_exit, near_resolve, nfl_score_exit, scale_out, hockey_score_exit, soccer_score_exit, stop_loss, tennis_score_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
 
 _SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
@@ -257,6 +257,34 @@ def evaluate(
             if s_result is not None:
                 return MonitorResult(
                     exit_signal=ExitSignal(reason=s_result.reason, detail=s_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3a-nba. Score-based exit — NBA (A3 spec, N1/N2)
+        if _normalize(pos.sport_tag) == "nba" and score_info.get("available"):
+            nba_result = nba_score_exit.check(
+                score_info=score_info,
+                elapsed_pct=elapsed_pct,
+                sport_tag=pos.sport_tag,
+            )
+            if nba_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=nba_result.reason, detail=nba_result.detail),
+                    fav_transition=_fav_transition(pos),
+                    elapsed_pct=elapsed_pct,
+                )
+
+        # 3a-nfl. Score-based exit — NFL (A3 spec, N1/N2)
+        if _normalize(pos.sport_tag) == "nfl" and score_info.get("available"):
+            nfl_result = nfl_score_exit.check(
+                score_info=score_info,
+                elapsed_pct=elapsed_pct,
+                sport_tag=pos.sport_tag,
+            )
+            if nfl_result is not None:
+                return MonitorResult(
+                    exit_signal=ExitSignal(reason=nfl_result.reason, detail=nfl_result.detail),
                     fav_transition=_fav_transition(pos),
                     elapsed_pct=elapsed_pct,
                 )

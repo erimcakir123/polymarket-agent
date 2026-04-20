@@ -437,3 +437,36 @@ def test_baseball_score_exit_doesnt_fire_for_nba() -> None:
     # NBA baseball_score_exit'i skip eder — SCORE_EXIT tetiklenmemeli
     if r.exit_signal is not None:
         assert r.exit_signal.reason != ExitReason.SCORE_EXIT
+
+
+# ── NBA / NFL score exit (A3 spec, monitor wiring) ──
+
+def test_nba_score_exit_integration_n1() -> None:
+    """NBA pozisyonu + Q3 sonu + 20 sayı deficit → SCORE_EXIT."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=120)  # 120/150 = 0.80 elapsed (NBA 2.5h)
+    p = _pos(sport_tag="nba", match_start_iso=_iso(start), current_price=0.30, confidence="A", entry_price=0.65)
+    score_info = {"available": True, "deficit": 22}
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+    assert "N1" in r.exit_signal.detail
+
+
+def test_nfl_score_exit_integration_n2() -> None:
+    """NFL pozisyonu + son dakikalar + 14 sayı → SCORE_EXIT N2."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=185)  # 185/195 = 0.95 elapsed (NFL 3.25h)
+    p = _pos(sport_tag="nfl", match_start_iso=_iso(start), current_price=0.30, confidence="A", entry_price=0.65)
+    score_info = {"available": True, "deficit": 14}
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+    assert "N2" in r.exit_signal.detail
+
+
+def test_nba_no_early_exit_when_deficit_small_and_early() -> None:
+    """NBA erken maç + küçük deficit → exit yok."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)  # 30/150 = 0.20
+    p = _pos(sport_tag="nba", match_start_iso=_iso(start), current_price=0.35, confidence="A", entry_price=0.65)
+    score_info = {"available": True, "deficit": 8}
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is None
