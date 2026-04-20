@@ -88,7 +88,12 @@ def test_directional_buy_no_effective_price_computed_correctly():
     assert signal.direction == Direction.BUY_NO
 
 
-def test_directional_anchor_exactly_fifty_chooses_yes():
+def test_directional_anchor_exactly_fifty_with_relaxed_threshold_chooses_yes():
+    """anchor=0.50 is tie-breaker → BUY_YES (>= comparison).
+
+    Uses relaxed min_favorite_probability=0.50 to isolate direction logic
+    from production fav-prob filter (which would reject this at 0.55).
+    """
     market = _make_market(yes_price=0.65)
     signal = evaluate_directional(
         market=market, anchor=0.50, confidence="A",
@@ -96,3 +101,24 @@ def test_directional_anchor_exactly_fifty_chooses_yes():
     )
     assert signal is not None
     assert signal.direction == Direction.BUY_YES
+
+
+def test_directional_anchor_exactly_fifty_rejected_by_production_threshold():
+    """Production default (0.55): anchor=0.50 fails favorite filter → None."""
+    market = _make_market(yes_price=0.65)
+    signal = evaluate_directional(
+        market=market, anchor=0.50, confidence="A",
+        min_favorite_probability=0.55, min_entry_price=0.60, max_entry_price=0.85,
+    )
+    assert signal is None
+
+
+def test_directional_anchor_just_below_fifty_chooses_no():
+    """anchor=0.49 → BUY_NO branch (< comparison, not <=)."""
+    market = _make_market(yes_price=0.30)  # BUY_NO effective = 0.70, in range
+    signal = evaluate_directional(
+        market=market, anchor=0.49, confidence="A",
+        min_favorite_probability=0.50, min_entry_price=0.60, max_entry_price=0.85,
+    )
+    assert signal is not None
+    assert signal.direction == Direction.BUY_NO
