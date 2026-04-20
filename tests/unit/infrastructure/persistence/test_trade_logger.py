@@ -228,6 +228,7 @@ def test_log_partial_exit_appends_to_open_record(tmp_path):
     ok = logger.log_partial_exit(
         condition_id="cid", tier=1, sell_pct=0.4,
         realized_pnl_usdc=5.0, timestamp="2026-04-15T01:00:00Z",
+        price=0.62,
     )
     assert ok is True
 
@@ -235,7 +236,7 @@ def test_log_partial_exit_appends_to_open_record(tmp_path):
     assert len(records) == 1
     assert records[0]["partial_exits"] == [
         {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
-         "timestamp": "2026-04-15T01:00:00Z"}
+         "timestamp": "2026-04-15T01:00:00Z", "price": 0.62}
     ]
 
 
@@ -253,11 +254,13 @@ def test_log_partial_exit_appends_to_open_trade(tmp_path):
         entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
     ))
     logger.log_partial_exit(condition_id="cid", tier=1, sell_pct=0.4,
-                            realized_pnl_usdc=5.0, timestamp="t1")
+                            realized_pnl_usdc=5.0, timestamp="t1",
+                            price=0.62)
     records = logger.read_all()
     assert len(records[0]["partial_exits"]) == 1
     assert records[0]["partial_exits"][0]["tier"] == 1
     assert records[0]["partial_exits"][0]["sell_pct"] == 0.4
+    assert records[0]["partial_exits"][0]["price"] == 0.62
 
 
 def test_log_partial_exit_returns_false_if_no_open_record(tmp_path):
@@ -266,6 +269,26 @@ def test_log_partial_exit_returns_false_if_no_open_record(tmp_path):
     logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
     ok = logger.log_partial_exit(
         condition_id="missing", tier=1, sell_pct=0.4,
-        realized_pnl_usdc=5.0, timestamp="t1",
+        realized_pnl_usdc=5.0, timestamp="t1", price=0.62,
     )
     assert ok is False
+
+
+def test_log_partial_exit_persists_price_field(tmp_path):
+    """Partial exit kaydında 'price' alanı tam olarak korunur (yuvarlama yok)."""
+    from src.infrastructure.persistence.trade_logger import (
+        TradeHistoryLogger, TradeRecord,
+    )
+    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
+    logger.log(TradeRecord(
+        slug="x", condition_id="cid", event_id="e", token_id="t",
+        sport_tag="mlb", sport_category="mlb", league="",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
+        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
+    ))
+    logger.log_partial_exit(condition_id="cid", tier=2, sell_pct=0.3,
+                            realized_pnl_usdc=9.0, timestamp="t2",
+                            price=0.7345)
+    records = logger.read_all()
+    assert records[0]["partial_exits"][0]["price"] == 0.7345
