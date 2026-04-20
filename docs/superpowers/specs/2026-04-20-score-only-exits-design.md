@@ -1,7 +1,7 @@
 # SPEC — Score-Only Exit System (A3 Unification)
 
 **Tarih:** 2026-04-20
-**Durum:** DRAFT
+**Durum:** IMPLEMENTED (2026-04-20)
 **Kapsam:** Exit sistemi baştan aşağı sadeleştirme — fiyat-tabanlı refleksler (flat SL + graduated SL + catastrophic bounce) kaldırılıyor, çıkış kararları skor-tabanlı kurallara dayanıyor. NBA ve NFL için yeni skor-çıkışları ekleniyor. A-hold / non-A-hold dal ayrımı tek dala indiriliyor.
 
 ---
