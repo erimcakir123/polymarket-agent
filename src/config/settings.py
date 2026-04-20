@@ -58,6 +58,7 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
+    probability_weighted: bool = True  # SPEC-016: stake = base × win_prob
 
 
 class EarlyEntryConfig(BaseModel):

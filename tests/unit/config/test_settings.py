@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.settings import AppConfig, Mode, load_config
+from src.config.settings import AppConfig, Mode, RiskConfig, load_config
 
 
 def test_load_config_missing_file_returns_defaults(tmp_path: Path) -> None:
@@ -69,11 +69,9 @@ def test_config_circuit_breaker_defaults() -> None:
 def test_config_scale_out_tiers_defaults() -> None:
     cfg = AppConfig()
     tiers = cfg.scale_out.tiers
-    assert len(tiers) == 2
-    assert tiers[0].threshold == 0.25
+    assert len(tiers) == 1
+    assert tiers[0].threshold == 0.15
     assert tiers[0].sell_pct == 0.40
-    assert tiers[1].threshold == 0.50
-    assert tiers[1].sell_pct == 0.50
 
 
 def test_config_cricket_defaults() -> None:
@@ -82,6 +80,16 @@ def test_config_cricket_defaults() -> None:
     assert cfg.cricket.daily_limit == 100
     assert cfg.cricket.cache_ttl_sec == 240
     assert cfg.cricket.timeout_sec == 15
+
+
+def test_risk_config_probability_weighted_default_true():
+    cfg = RiskConfig()
+    assert cfg.probability_weighted is True
+
+
+def test_risk_config_probability_weighted_explicit_false():
+    cfg = RiskConfig(probability_weighted=False)
+    assert cfg.probability_weighted is False
 
 
 def test_repo_config_yaml_parses() -> None:
