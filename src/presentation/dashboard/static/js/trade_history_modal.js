@@ -13,15 +13,11 @@
   const REASON_MAP = {
     tp_hit:              { emoji: "\uD83C\uDFAF", label: "Take Profit", color: "green" },
     sl_hit:              { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
-    stop_loss:           { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
-    graduated_sl:        { emoji: "\uD83D\uDED1", label: "Grad. SL",    color: "red" },
     scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "green" },
     near_resolve:        { emoji: "\u23F0",       label: "Near Resolve", color: "green" },
     market_flip:         { emoji: "\uD83D\uDD04", label: "Market Flip",  color: "red" },
     score_exit:          { emoji: "\u26A1",       label: "Score Exit",   color: "red" },
     hold_revoked:        { emoji: "\u26A0\uFE0F", label: "Hold Revoked", color: "red" },
-    catastrophic_bounce: { emoji: "\uD83D\uDCA5", label: "Catastrophic", color: "red" },
-    manual:              { emoji: "\u270B",       label: "Manual",       color: "muted" },
   };
 
   const _MONTH = ["Jan","Feb","Mar","Apr","May","Jun",
