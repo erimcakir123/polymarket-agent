@@ -74,7 +74,8 @@ def _make_deps(recorder: _CallRecorder) -> MagicMock:
         return True
     deps.trade_logger.update_on_exit.side_effect = mock_update_on_exit
 
-    def mock_log_partial(condition_id, tier, sell_pct, realized_pnl_usdc, timestamp):
+    def mock_log_partial(condition_id, tier, sell_pct, realized_pnl_usdc,
+                         timestamp, price):
         recorder.calls.append("trade_logger_partial")
         return True
     deps.trade_logger.log_partial_exit.side_effect = mock_log_partial

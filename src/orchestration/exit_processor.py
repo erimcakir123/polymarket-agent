@@ -136,6 +136,7 @@ class ExitProcessor:
             sell_pct=signal.sell_pct,
             realized_pnl_usdc=realized,
             timestamp=datetime.now(timezone.utc).isoformat(),
+            price=pos.current_price,
         )
         if not partial_written:
             logger.warning("PARTIAL record missing for %s — writing fallback entry", pos.slug[:35])

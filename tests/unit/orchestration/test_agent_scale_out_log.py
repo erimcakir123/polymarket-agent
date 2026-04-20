@@ -71,6 +71,9 @@ def test_execute_partial_exit_calls_trade_logger_with_tier_and_pnl():
     # unrealized = 200 * 0.6 - 100 = 20; partial = 20 * 0.4 = 8.0
     assert abs(kwargs["realized_pnl_usdc"] - 8.0) < 0.01
     assert "timestamp" in kwargs
+    # pos.current_price = 0.6 (see _make_deps_with_position), must be passed through
+    assert "price" in kwargs
+    assert abs(kwargs["price"] - 0.6) < 1e-9
 
 
 def test_execute_partial_exit_does_not_call_remove_position():
