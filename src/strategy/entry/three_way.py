@@ -12,7 +12,11 @@ Tie-break: eşit olasılıklar → None (skip).
 """
 from __future__ import annotations
 
+import logging
+
 from src.domain.analysis.probability import BookmakerProbability
+
+logger = logging.getLogger(__name__)
 from src.models.enums import Direction, EntryReason
 from src.models.market import MarketData
 from src.models.signal import Signal
@@ -57,14 +61,27 @@ def evaluate(
 ) -> Signal | None:
     """3-way entry kararı. None → koşul sağlanmadı."""
     if any(p.confidence == "C" for p in probs.values()):
+        logger.info("[three-way] SKIP reason=c_conf_in_probs")
         return None
 
     selection = _select_favorite(probs)
     if selection is None:
+        logger.info(
+            "[three-way] SKIP reason=tie_break probs=%s",
+            {k: round(v.probability, 3) for k, v in probs.items()},
+        )
         return None
     fav_outcome, fav_prob = selection
 
     if not _passes_favorite_filter(probs, fav_outcome, favorite_threshold, favorite_margin):
+        others = [p.probability for k, p in probs.items() if k != fav_outcome]
+        second = max(others) if others else 0.0
+        margin = fav_prob - second
+        reason = "below_threshold" if fav_prob < favorite_threshold else "margin_too_low"
+        logger.info(
+            "[three-way] SKIP reason=%s fav=%s prob=%.3f threshold=%.3f margin=%.3f min_margin=%.3f",
+            reason, fav_outcome, fav_prob, favorite_threshold, margin, favorite_margin,
+        )
         return None
 
     fav_market_map: dict[str, MarketData | None] = {
@@ -74,14 +91,28 @@ def evaluate(
     }
     fav_market = fav_market_map.get(fav_outcome)
     if fav_market is None:
+        logger.info("[three-way] SKIP reason=missing_market fav=%s", fav_outcome)
         return None
 
     market_yes = fav_market.yes_price
     edge = fav_prob - market_yes
     if edge < min_edge:
+        logger.info(
+            "[three-way] SKIP reason=no_edge fav=%s edge=%.3f min=%.3f (prob=%.3f yes=%.3f)",
+            fav_outcome, edge, min_edge, fav_prob, market_yes,
+        )
         return None
 
     fav_prob_obj = probs[fav_outcome]
+    logger.info(
+        "[three-way] ENTER event_id=%s fav=%s probs=%s selected_edge=%.3f margin=%.3f confidence=%s",
+        fav_market.event_id or "",
+        fav_outcome,
+        {k: round(v.probability, 3) for k, v in probs.items()},
+        edge,
+        fav_prob - max(p.probability for k, p in probs.items() if k != fav_outcome),
+        fav_prob_obj.confidence,
+    )
     return Signal(
         condition_id=fav_market.condition_id,
         direction=Direction.BUY_YES,

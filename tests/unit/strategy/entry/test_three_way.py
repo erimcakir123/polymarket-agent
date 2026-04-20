@@ -138,3 +138,34 @@ def test_missing_market_for_favorite() -> None:
         probs=_bm_probs(0.45, 0.27, 0.28),
     )
     assert sig is None
+
+
+def test_three_way_logs_skip_reason(caplog) -> None:
+    """SPEC-015: SKIP kararları INFO log'a yazılır (debug için)."""
+    import logging
+
+    # Below absolute threshold senaryosu
+    with caplog.at_level(logging.INFO, logger="src.strategy.entry.three_way"):
+        three_way_evaluate(
+            home_market=_market(yes=0.36),
+            draw_market=_market(yes=0.30),
+            away_market=_market(yes=0.34),
+            probs=_bm_probs(0.38, 0.30, 0.32),
+        )
+    assert any("SKIP" in r.message for r in caplog.records)
+    assert any("below_threshold" in r.message or "margin_too_low" in r.message for r in caplog.records)
+
+
+def test_three_way_logs_enter_decision(caplog) -> None:
+    """SPEC-015: Başarılı ENTER kararı INFO log'a yazılır."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="src.strategy.entry.three_way"):
+        sig = three_way_evaluate(
+            home_market=_market(yes=0.37, q="Will Arsenal win?", cid="h"),
+            draw_market=_market(yes=0.27, q="Will the match end in a draw?", cid="d"),
+            away_market=_market(yes=0.28, q="Will Chelsea win?", cid="a"),
+            probs=_bm_probs(0.45, 0.27, 0.28),
+        )
+    assert sig is not None
+    assert any("ENTER" in r.message for r in caplog.records)
