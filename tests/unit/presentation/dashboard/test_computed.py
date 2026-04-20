@@ -206,3 +206,84 @@ def test_position_unrealized_buy_no_zero_at_entry() -> None:
     """BUY_NO da entry fiyatında PnL=0."""
     pos = {"shares": 100.0, "current_price": 0.40, "size_usdc": 40.0, "direction": "BUY_NO"}
     assert computed._position_unrealized(pos) == 0.0
+
+
+# ── exit_events enrichment (2026-04-21 exit card redesign) ──
+
+def test_exit_events_partial_carries_anchor_probability_and_price() -> None:
+    trades = [{
+        "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
+        "direction": "BUY_YES", "entry_price": 0.5,
+        "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.58,
+        "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+             "timestamp": "2026-04-15T01:00:00Z", "price": 0.62},
+        ],
+        "exit_price": None,
+    }]
+    events = computed.exit_events(trades)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["partial"] is True
+    assert ev["anchor_probability"] == 0.58
+    assert ev["partial_price"] == 0.62
+    assert abs(ev["remaining_pct"] - 0.6) < 1e-9
+
+
+def test_exit_events_partial_remaining_pct_is_cumulative() -> None:
+    """İki partial — remaining ikinci event'te 1 − (0.40 + 0.30) = 0.30."""
+    trades = [{
+        "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
+        "direction": "BUY_YES", "entry_price": 0.5,
+        "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.58,
+        "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+             "timestamp": "2026-04-15T01:00:00Z", "price": 0.62},
+            {"tier": 2, "sell_pct": 0.3, "realized_pnl_usdc": 4.0,
+             "timestamp": "2026-04-15T02:00:00Z", "price": 0.74},
+        ],
+        "exit_price": None,
+    }]
+    events = computed.exit_events(trades)
+    # Sort order is descending by exit_timestamp — tier 2 (later) first
+    assert events[0]["partial_price"] == 0.74
+    assert abs(events[0]["remaining_pct"] - 0.3) < 1e-9
+    assert events[1]["partial_price"] == 0.62
+    assert abs(events[1]["remaining_pct"] - 0.6) < 1e-9
+
+
+def test_exit_events_legacy_partial_without_price_is_none() -> None:
+    """Legacy kayıtlarda 'price' yok — event partial_price = None taşır."""
+    trades = [{
+        "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
+        "direction": "BUY_YES", "entry_price": 0.5,
+        "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.58,
+        "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+             "timestamp": "2026-04-15T01:00:00Z"},  # NO price
+        ],
+        "exit_price": None,
+    }]
+    events = computed.exit_events(trades)
+    assert events[0]["partial_price"] is None
+    assert abs(events[0]["remaining_pct"] - 0.6) < 1e-9
+
+
+def test_exit_events_full_exit_has_remaining_pct_zero() -> None:
+    trades = [{
+        "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
+        "direction": "BUY_YES", "entry_price": 0.5,
+        "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.58,
+        "partial_exits": [],
+        "exit_price": 0.7, "exit_reason": "near_resolve",
+        "exit_pnl_usdc": 20.0, "exit_timestamp": "2026-04-15T03:00:00Z",
+    }]
+    events = computed.exit_events(trades)
+    assert len(events) == 1
+    assert events[0]["partial"] is False
+    assert events[0]["remaining_pct"] == 0.0
+    assert events[0]["anchor_probability"] == 0.58

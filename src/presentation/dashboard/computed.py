@@ -132,11 +132,16 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Full exit'ler + partial scale-out'ları tek liste olarak döner.
 
     Her full-close TradeRecord bir event, her partial_exit ayrı bir event.
+    Partial event'lerde `remaining_pct` kümülatif — o event'e kadar satılan
+    toplam oranın tümleyeni. Full event için `remaining_pct = 0.0`.
     Exited tab ve treemap aggregation source.
     """
     events: list[dict[str, Any]] = []
     for t in trades:
+        cumulative_sell_pct = 0.0
         for pe in (t.get("partial_exits") or []):
+            cumulative_sell_pct += float(pe.get("sell_pct") or 0.0)
+            remaining = max(0.0, 1.0 - cumulative_sell_pct)
             events.append({
                 "slug": t.get("slug", ""),
                 "sport_tag": t.get("sport_tag", ""),
@@ -144,16 +149,20 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "entry_price": t.get("entry_price"),
                 "entry_timestamp": t.get("entry_timestamp", ""),
                 "question": t.get("question", ""),
+                "anchor_probability": t.get("anchor_probability"),
                 "exit_price": None,
                 "exit_pnl_usdc": pe.get("realized_pnl_usdc", 0.0),
                 "exit_reason": f"scale_out_tier_{pe.get('tier', '?')}",
                 "exit_timestamp": pe.get("timestamp", ""),
                 "partial": True,
                 "sell_pct": pe.get("sell_pct", 0.0),
+                "partial_price": pe.get("price"),
+                "remaining_pct": remaining,
             })
         if t.get("exit_price") is not None:
             ev = dict(t)
             ev["partial"] = False
+            ev["remaining_pct"] = 0.0
             events.append(ev)
     events.sort(key=lambda e: e.get("exit_timestamp", ""), reverse=True)
     return events
