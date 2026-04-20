@@ -17,6 +17,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
+from src.config.sport_configs import get_sport_config
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
@@ -26,6 +27,20 @@ logger = logging.getLogger(__name__)
 _THREE_WAY_SUM_MIN = 0.95
 _THREE_WAY_SUM_MAX = 1.05
 _THREE_WAY_SPORTS = frozenset({"soccer", "rugby", "afl", "handball"})
+
+
+def _is_excluded_competition(market: MarketData) -> bool:
+    """SPEC-015: sport_config.excluded_competitions listesindeyse True (friendly/preseason)."""
+    cfg = get_sport_config(market.sport_tag)
+    if not cfg:
+        return False
+    excluded = cfg.get("excluded_competitions", [])
+    if not excluded:
+        return False
+    tags_str = " ".join(t.lower() for t in (market.tags or []) if isinstance(t, str))
+    question_str = (market.question or "").lower()
+    text = f"{tags_str} {question_str}"
+    return any(exc.lower() in text for exc in excluded)
 
 
 def _is_three_way_sport(sport_tag: str) -> bool:
@@ -98,6 +113,12 @@ class MarketScanner:
         """Tüm flow: Gamma fetch → filter → 3-way sum filter → sort → top N."""
         raw = self._gamma.fetch_events()
         filtered = [m for m in raw if self._passes_filters(m)]
+
+        # SPEC-015: excluded_competitions (friendly/preseason) filter
+        before = len(filtered)
+        filtered = [m for m in filtered if not _is_excluded_competition(m)]
+        if before != len(filtered):
+            logger.info("Scanner: %d market dropped by excluded_competitions", before - len(filtered))
 
         # SPEC-015: 3-way sum filter (soccer/rugby/afl/handball double-chance/handicap eler)
         event_groups: dict[str, list[MarketData]] = defaultdict(list)

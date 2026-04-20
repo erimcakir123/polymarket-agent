@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 
 from src.config.sport_rules import is_cricket_sport
 from src.domain.analysis.probability import BookmakerProbability
+from src.orchestration.event_grouper import EventGroup, group_markets_by_event
+from src.strategy.entry import three_way as three_way_entry
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
 from src.domain.portfolio.exposure import available_under_cap
@@ -104,7 +106,12 @@ class EntryGate:
         self._cricket_client = cricket_client
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
-        """Tüm marketleri değerlendir. Her biri için GateResult döner."""
+        """Tüm marketleri değerlendir. Her biri için GateResult döner.
+
+        2-way sporlar: _evaluate_one (mevcut akış).
+        3-way event grupları: _evaluate_three_way (event_grouper + three_way strategy).
+        event_id olmayan market'ler: _evaluate_one (ungrouped pass-through).
+        """
         # Global halts — her market için tekrar kontrol etmek yerine bir kez
         total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
         halt, reason = self.breaker.should_halt_entries(portfolio_value=total_portfolio)
@@ -124,8 +131,31 @@ class EntryGate:
             return [GateResult(m.condition_id, None, "max_positions_reached", skip_detail=detail) for m in markets]
 
         results: list[GateResult] = []
+        groups = group_markets_by_event(markets)
+
+        # event_id'ye sahip tüm market'lerin condition_id seti
+        grouped_cids: set[str] = {m.condition_id for g in groups for m in g.markets}
+
+        # event_id olmayan market'ler → mevcut _evaluate_one akışı
         for m in markets:
-            results.append(self._evaluate_one(m))
+            if m.condition_id not in grouped_cids:
+                results.append(self._evaluate_one(m))
+
+        # Gruplanmış event'ler
+        for g in groups:
+            if g.market_type == "THREE_WAY":
+                tw_result = self._evaluate_three_way(g)
+                if tw_result is not None:
+                    results.append(tw_result)
+                else:
+                    # 3-way grubu signal üretmedi → her market için no_edge
+                    for m in g.markets:
+                        results.append(GateResult(m.condition_id, None, "no_edge"))
+            else:
+                # BINARY group: her market _evaluate_one
+                for m in g.markets:
+                    results.append(self._evaluate_one(m))
+
         return results
 
     def _evaluate_one(self, market: MarketData) -> GateResult:
@@ -219,6 +249,97 @@ class EntryGate:
 
         approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
         return GateResult(cid, approved, "", manipulation=manip)
+
+    def _evaluate_three_way(self, group: EventGroup) -> GateResult | None:
+        """3-way event değerlendirmesi (SPEC-015).
+
+        1. classify_outcomes → home/draw/away market'leri
+        2. Her market için enricher → BookmakerProbability
+        3. three_way.evaluate → Signal (veya None)
+        4. Signal varsa: event_guard + blacklist + entry_price_cap + sizing + exposure → GateResult
+        """
+        home, draw, away = group.classify_outcomes()
+        if home is None or draw is None or away is None:
+            return None  # inkomplet grup
+
+        # Her market için bookmaker prob enrich
+        probs: dict[str, BookmakerProbability] = {}
+        for outcome, m in (("home", home), ("draw", draw), ("away", away)):
+            enrich_result = self._enricher(m)
+            if enrich_result.probability is None:
+                return None
+            probs[outcome] = enrich_result.probability
+
+        # 3-way signal değerlendirmesi
+        signal = three_way_entry.evaluate(
+            home_market=home,
+            draw_market=draw,
+            away_market=away,
+            probs=probs,
+            min_edge=self.config.min_edge,
+            favorite_threshold=0.40,
+            favorite_margin=0.07,
+        )
+        if signal is None:
+            return None
+
+        # Signal'deki condition_id ile favori market'i bul
+        fav_market = next(
+            (m for m in group.markets if m.condition_id == signal.condition_id),
+            None,
+        )
+        if fav_market is None:
+            return None
+
+        # Event guard (ARCH Kural 8)
+        if fav_market.event_id and self.portfolio.has_event(fav_market.event_id):
+            return GateResult(fav_market.condition_id, None, "event_already_held",
+                              skip_detail=f"event_id={fav_market.event_id}")
+
+        # Blacklist
+        if self.blacklist.is_blacklisted(condition_id=fav_market.condition_id):
+            return GateResult(fav_market.condition_id, None, "blacklisted",
+                              skip_detail="match=condition_id")
+        if fav_market.event_id and self.blacklist.is_blacklisted(event_id=fav_market.event_id):
+            return GateResult(fav_market.condition_id, None, "blacklisted",
+                              skip_detail="match=event_id")
+
+        # Entry price cap — 88c+ girişlerde R/R kötü
+        entry_price = effective_price(signal.market_price, signal.direction)
+        if entry_price >= self.config.max_entry_price:
+            return GateResult(fav_market.condition_id, None, "entry_price_cap",
+                              skip_detail=f"price={entry_price:.3f}, cap={self.config.max_entry_price}")
+
+        # Sizing
+        raw_size = confidence_position_size(
+            confidence=signal.confidence,
+            bankroll=self.portfolio.bankroll,
+            confidence_bet_pct=self.config.confidence_bet_pct,
+            max_bet_usdc=self.config.max_single_bet_usdc,
+            max_bet_pct=self.config.max_bet_pct,
+        )
+        if raw_size < POLYMARKET_MIN_ORDER_USDC:
+            return GateResult(fav_market.condition_id, None, "size_below_min",
+                              skip_detail=f"size={raw_size:.2f}")
+
+        # Exposure cap
+        total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
+        available = available_under_cap(
+            self.portfolio.positions, total_portfolio,
+            self.config.max_exposure_pct, self.config.hard_cap_overflow_pct,
+        )
+        min_size = self.portfolio.bankroll * self.config.min_entry_size_pct
+        if available < min_size:
+            return GateResult(fav_market.condition_id, None, "exposure_cap_reached",
+                              skip_detail=f"available={available:.2f}, min={min_size:.2f}")
+
+        final_size = min(raw_size, available)
+        if final_size < POLYMARKET_MIN_ORDER_USDC:
+            return GateResult(fav_market.condition_id, None, "size_below_min",
+                              skip_detail=f"size={final_size:.2f}")
+
+        approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
+        return GateResult(fav_market.condition_id, approved, "")
 
     def _evaluate_strategies(self, market: MarketData, bm_prob: BookmakerProbability) -> Signal | None:
         """3 stratejiyi öncelik sırasıyla dene. İlk Signal kazanır.
