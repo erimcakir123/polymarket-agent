@@ -1,14 +1,13 @@
-"""Exit orchestrator — tüm exit guard'larını koordine eder (A3 score-only).
+"""Exit orchestrator — tüm exit guard'larını koordine eder (A3 sadeleşmiş).
 
 Öncelik zinciri (ilk tetiklenen kazanır):
   1. Near-resolve profit (eff ≥ 94¢)        — en yüksek öncelik, kâr lock
-  2. Scale-out tier                          — kısmi exit
-  3. Sport-specific score exit (tüm spor branşları — A-hold gating kaldırıldı)
-  4. Market flip (tennis hariç, elapsed ≥ 85%)
-  5. Price-based late guards (ultra-low, never-in-profit, hold-revocation)
+  2. Scale-out (tek tier: entry→0.99 yolun %50'si, %40 sat) — kısmi exit
+  3. Sport-specific score exit (hockey/tennis/baseball/cricket/soccer/nba/nfl)
+  4. Market flip (tennis hariç, elapsed ≥85% + eff<50¢)
+  5. Fiyat-tabanlı geç guard'lar (ultra_low / never_in_profit / hold_revoked)
   6. FAV promote/demote — sadece state güncellemesi, exit değil
 
-A3 score-only spec: flat SL, graduated SL ve catastrophic watch kaldırıldı.
 Pure: pos + elapsed_pct + score_info dışarıdan verilir.
 """
 from __future__ import annotations
