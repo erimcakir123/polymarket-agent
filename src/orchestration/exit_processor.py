@@ -28,7 +28,6 @@ class ExitProcessor:
         """Her pozisyonu cycle-state tick + exit_monitor'dan geçir."""
         score_map = score_map or {}
         state = self.deps.state
-        cat_cfg = self._catastrophic_config()
         scale_out_tiers = self._scale_out_tiers()
         exits_processed = 0
         for cid in list(state.portfolio.positions.keys()):
@@ -43,8 +42,7 @@ class ExitProcessor:
             if espn_start and espn_start != pos.match_start_iso:
                 pos.match_start_iso = espn_start
             result: MonitorResult = exit_monitor.evaluate(
-                pos, score_info=score_info, catastrophic_config=cat_cfg,
-                scale_out_tiers=scale_out_tiers,
+                pos, score_info=score_info, scale_out_tiers=scale_out_tiers,
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -54,20 +52,6 @@ class ExitProcessor:
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()
-
-    def _catastrophic_config(self) -> dict:
-        """Config'den catastrophic watch eşiklerini oku.
-
-        Config path: deps.state.config (AgentDeps.state: RuntimeState; RuntimeState.config: AppConfig).
-        """
-        cfg = getattr(self.deps.state, "config", None)
-        if cfg and hasattr(cfg, "exit"):
-            return {
-                "trigger": cfg.exit.catastrophic_trigger,
-                "drop_pct": cfg.exit.catastrophic_drop_pct,
-                "cancel": cfg.exit.catastrophic_cancel,
-            }
-        return {}
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.

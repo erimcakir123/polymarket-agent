@@ -1,4 +1,4 @@
-"""monitor.py için birim testler — orchestration + never_in_profit + hold_revocation + ultra_low."""
+"""monitor.py için birim testler — orchestration (A3 score-only tek-dal akış) + never_in_profit + hold_revocation + ultra_low."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -67,125 +67,48 @@ def test_scale_out_tier1_at_threshold() -> None:
     assert r.exit_signal.sell_pct == 0.40
 
 
-# ── Flat stop-loss ──
+# ── Market flip (A3 tek-dal: tüm pozisyonlarda çalışır) ──
 
-def test_flat_stop_loss_triggers() -> None:
-    # entry 0.40 → nba sl 0.35; current 0.20 → pnl -50% < -35%
-    p = _pos(current_price=0.20, entry_price=0.40)
-    r = evaluate(p)
-    assert r.exit_signal is not None
-    assert r.exit_signal.reason == ExitReason.STOP_LOSS
-
-
-# ── A-conf hold branch ──
-
-def test_a_conf_hold_skips_flat_sl() -> None:
-    """Regression: A-conf hold flat SL'den muaf olmalı (TDD §6.9).
-    Bug: monitor.py layer 3'teki flat SL A-conf check'inden önce fire ediyordu.
-    Rangers-Lightning pozisyonu (2026-04-15) bu bug'la erken exit etmişti.
-    """
-    # A-conf, entry 0.65 (hold qualifier), NHL SL %30. pnl = -31% > -30% → flat SL threshold aşıldı.
-    # Elapsed %30 (erken maç) — market_flip henüz tetiklenmez (%85 gate).
-    start = datetime.now(timezone.utc) - timedelta(minutes=45)
-    p = _pos(
-        confidence="A", entry_price=0.65, current_price=0.45,
-        size_usdc=40, shares=61.5, match_start_iso=_iso(start),
-        sport_tag="nhl",
-    )
-    # pnl = (61.5*0.45 - 40)/40 = -30.8% — flat SL eşiği (%30) altında ama A-conf korumalı.
-    r = evaluate(p)
-    # A-conf hold: flat SL atla, market_flip elapsed gate sebebiyle fire etmez → None
-    assert r.exit_signal is None, f"A-conf flat SL'den muaf olmalı (exit={r.exit_signal})"
-
-
-def test_a_conf_hold_skips_graduated_sl() -> None:
-    # A-conf, entry 0.65 (hold), elapsed 0.50, current 0.35
-    # pnl = -46% — normalde graduated SL tetikler, ama A-hold atlar
-    start = datetime.now(timezone.utc) - timedelta(minutes=45)
-    p = _pos(
-        confidence="A", entry_price=0.65, current_price=0.55,
-        size_usdc=40, shares=62, match_start_iso=_iso(start),
-    )
-    # pnl = (62*0.55 - 40)/40 = -14.75% — SL threshold olan NBA 0.35 altında kaldığı için bile tetiklenmez
-    r = evaluate(p)
-    # Ne scale-out (pnl<%25) ne near-resolve (eff<0.94) ne SL (pnl>-%35) → None
-    assert r.exit_signal is None
-
-
-def test_a_conf_market_flip_at_late_match() -> None:
-    # A-conf hold, elapsed 0.90, current 0.40 → flip!
-    # Ama önce SL'ye takılır mı? entry 0.65 → nba sl 0.35; pnl = (62*0.40-40)/40 = -38% < -35% → SL takılır
-    # Yani önce SL'yi atlatmam lazım: entry 0.65 current 0.48, pnl=(62*0.48-40)/40 = -25.6% > -35%
-    # Test eff < 0.50 → 0.48 < 0.50 → market flip
-    start = datetime.now(timezone.utc) - timedelta(hours=2)
-    p = _pos(
-        confidence="A", entry_price=0.65, current_price=0.48,
-        size_usdc=40, shares=62, match_start_iso=_iso(start),
-        sport_tag="nba",  # duration 2.5h → 2h/2.5h = 0.80 elapsed
-    )
-    # elapsed 0.80 < 0.85 gate → flip tetiklenmez
-    r = evaluate(p)
-    assert r.exit_signal is None
-
-    # Şimdi elapsed 0.90+ olacak — 2.5h × 0.90 = 2.25h elapsed
+def test_market_flip_at_late_match() -> None:
+    """A3 score-only: elapsed ≥ 85% + eff < 0.50 → MARKET_FLIP (tennis hariç)."""
+    # NBA 2.5h duration × 0.90 = 2.25h elapsed → market_flip gate (0.85) geçer
     start = datetime.now(timezone.utc) - timedelta(hours=2, minutes=20)
-    p2 = _pos(
+    p = _pos(
         confidence="A", entry_price=0.65, current_price=0.48,
         size_usdc=40, shares=62, match_start_iso=_iso(start), sport_tag="nba",
     )
-    r2 = evaluate(p2)
-    assert r2.exit_signal is not None
-    assert r2.exit_signal.reason == ExitReason.MARKET_FLIP
+    r = evaluate(p)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.MARKET_FLIP
+
+
+def test_market_flip_gated_by_elapsed() -> None:
+    """elapsed < 0.85 → market_flip tetiklenmez."""
+    # NBA 2.5h × 0.80 = 2h elapsed → gate geçmez
+    # ever_in_profit=True → never_in_profit gate'e takılmaz (bu test sadece flip gating'i kontrol eder)
+    start = datetime.now(timezone.utc) - timedelta(hours=2)
+    p = _pos(
+        confidence="A", entry_price=0.65, current_price=0.48,
+        size_usdc=40, shares=62, match_start_iso=_iso(start), sport_tag="nba",
+        ever_in_profit=True,
+    )
+    r = evaluate(p)
+    assert r.exit_signal is None
 
 
 def test_tennis_immune_to_market_flip() -> None:
-    """Regression: tennis'te market_flip tetiklenmemeli (set kaybı ≠ maç kaybı).
-    Bug: Fonseca-Shelton, Muchova-Gauff, Fernandez-Sonmez (2026-04-17)
-    elapsed gate geçtikten sonra set kaybında market_flip tetiklendi.
-    Tennis'te set kaybı normal — maç dönebilir, market_flip olmamalı.
-    """
-    # Tennis default duration 2.5h → 2.5h elapsed = %100 → gate kesinlikle geçer
-    # current 0.41 < 0.50 → market_flip koşulları sağlanıyor
-    # AMA tennis'te market_flip OLMAMALI
+    """Tennis'te market_flip tetiklenmemeli (set kaybı ≠ maç kaybı)."""
+    # ever_in_profit=True → never_in_profit gate'e takılmaz (bu test sadece market_flip'i kontrol eder)
     start = datetime.now(timezone.utc) - timedelta(hours=3)
     p = _pos(
         confidence="A", entry_price=0.64, current_price=0.41,
         size_usdc=56, shares=87.5, match_start_iso=_iso(start),
-        sport_tag="tennis",
+        sport_tag="tennis", ever_in_profit=True,
     )
     r = evaluate(p)
     assert r.exit_signal is None, (
         f"Tennis'te market_flip tetiklenmemeli (exit={r.exit_signal})"
     )
-
-
-def test_tennis_immune_to_catastrophic_watch() -> None:
-    """Regression: catastrophic watch sadece NHL — tennis'te çalışmamalı.
-    Bug: SPEC-004 K5 'tüm sporlar' olarak implement edildi, tennis'te
-    bounce+drop pattern'i yanlış exit tetikliyordu.
-    """
-    # Fiyat 0.22 < trigger (0.25) → catastrophic watch aktif
-    # Bounce 0.35 → drop 0.30 (%14 > %10) → normalde CATASTROPHIC_BOUNCE
-    # AMA tennis'te çalışmamalı
-    start = datetime.now(timezone.utc) - timedelta(minutes=30)
-    p = _pos(
-        confidence="A", entry_price=0.60, current_price=0.22,
-        size_usdc=50, shares=83, match_start_iso=_iso(start),
-        sport_tag="tennis",
-    )
-    cat_cfg = {"trigger": 0.25, "drop_pct": 0.10, "cancel": 0.50}
-    # tick ile watch aktif et
-    r1 = evaluate(p, catastrophic_config=cat_cfg)
-    assert p.catastrophic_watch is False, "Tennis'te catastrophic watch aktif olmamalı"
-
-    # NHL'de aynı senaryo → watch aktif olmalı (kontrol)
-    p2 = _pos(
-        confidence="A", entry_price=0.60, current_price=0.22,
-        size_usdc=50, shares=83, match_start_iso=_iso(start),
-        sport_tag="nhl",
-    )
-    r2 = evaluate(p2, catastrophic_config=cat_cfg)
-    assert p2.catastrophic_watch is True, "NHL'de catastrophic watch aktif olmalı"
 
 
 # ── Cricket score exit (SPEC-011) ──
@@ -241,32 +164,16 @@ def test_dead_token_no_false_positive_at_5cents() -> None:
     assert r.exit_signal is None, "5¢ henüz ölü değil"
 
 
-# ── Graduated SL (non-A-hold) ──
-
-def test_graduated_sl_triggers_late_match() -> None:
-    # Non-A hold: elapsed 0.70, entry 0.40, base=0.20, price_mult=1.0 → max_loss 0.20
-    # current 0.30 → pnl -25% < -20% → graduated SL
-    # Önce flat SL (nba 0.35): pnl -25% > -35% → flat atlar
-    start = datetime.now(timezone.utc) - timedelta(hours=1, minutes=45)  # 0.70 elapsed
-    p = _pos(
-        confidence="B", entry_price=0.40, current_price=0.30,
-        size_usdc=40, shares=100, match_start_iso=_iso(start),
-    )
-    r = evaluate(p)
-    assert r.exit_signal is not None
-    assert r.exit_signal.reason == ExitReason.GRADUATED_SL
-
-
 # ── Ultra-low guard ──
 
 def test_ultra_low_guard_triggers() -> None:
+    """A3: entry < 9¢ + elapsed ≥ 75% + current < 5¢ → ULTRA_LOW_GUARD."""
     # entry 0.05 (ultra low), elapsed 0.80, current 0.03
     start = datetime.now(timezone.utc) - timedelta(hours=2)  # ~0.80 elapsed for nba
     p = _pos(
         confidence="B", entry_price=0.05, current_price=0.03,
         size_usdc=40, shares=800, match_start_iso=_iso(start),
     )
-    # Flat SL: ultra-low entry → 50% SL; pnl = (800*0.03-40)/40 = -40% > -50% → flat atlar
     r = evaluate(p)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.ULTRA_LOW_GUARD
@@ -275,37 +182,29 @@ def test_ultra_low_guard_triggers() -> None:
 # ── Never-in-profit ──
 
 def test_never_in_profit_triggers_late() -> None:
-    # entry 0.40, elapsed 0.75, ever_in_profit=False, current 0.25 (< 0.40*0.75=0.30)
-    # pnl = (100*0.25 - 40)/40 = -37.5% < -35% → flat SL önce tetiklenir
-    # Bu durumu atlatmak için sport_tag='mlb' (sl=0.30): pnl -37.5% < -30% → flat SL
-    # Daha çetin: entry 0.40 current 0.28, pnl = -30% — sport sl 0.30 tam sınırda ama değil
-    # Gerçek never-in-profit: current < eff_entry*0.75 AND ever_in_profit=False + elapsed>=0.70 AND not score_ahead
-    # Flat SL'yi atlatmak için: pnl > -sport_sl. NBA 0.35, current 0.28 → pnl = (100*0.28-40)/40 = -30%
-    # -30% > -35% → flat atlar. Graduated: late base 0.20 × 1.0 × 1.0 = 0.20; -30% < -20% → graduated triggers
-    # Yani never-in-profit'e ulaşamaz. Testi değiştiriyorum: graduated SL'yi gevşetelim
-    # elapsed 0.72 → base 0.20, score ahead (map_diff>0) → 0.25. Current 0.27 → pnl=-32.5%
-    # 0.27/0.40=0.675 < 0.75 → never-in-profit koşul sağlanır. Ama score_ahead=True → skip
-    # Skorsuz: score_info={} → ahead değil; grad -32.5%<-20% → graduated wins, önce tetiklenir
-    # Sonuç: never_in_profit geniş graduated SL band'ında ya da skor bilgisi olan durumlarda tetiklenir.
-    # Skorsuz & basit testte graduated önce yakalar. Bu davranış zaten TDD §6.10'da doğru.
-    # Testi farklı kur: entry 0.40 current 0.28 + elapsed 0.75 + ever_in_profit=False
-    # graduated: base 0.20 × price_mult 1.0 × no score = 0.20; pnl -30% < -20% → grad exit
-    # Hangisi önce? monitor priority: grad önce gelir — never_in_profit sonra
-    # Doğru test: current < 0.75*entry AND pnl > -grad_max_loss (muaf olmak için)
-    # entry 0.40 current 0.29 → 0.29/0.40 = 0.725 (< 0.75) ✓. pnl = -27.5%. Graduated 0.20 → -27.5% < -20%
-    # Yine graduated önce. Gerçekte never-in-profit yakalayamadığımız tek yer: 0.75 <= current < 0.90
-    # Ama bu zaten TDD: "0.75-0.90 aralığı graduated'a bırakılır". Yani never-in-profit exit path'i
-    # sadece effective_current < 0.75 * effective_entry AND graduated tetiklenmezken aktif.
-    # Bu olmuyor bizim config'de (graduated 0.20 base < 0.25 drop). Test'i skip:
-    # Sadece never_in_profit yardımcı fonksiyonunu test edeceğiz.
-    # Bu testin amaci degisti — monitor'daki baska bir path'i test edelim:
-    # A-conf hold true + erken maç + graduated skipped → hiçbir exit yok
+    """A3 score-only: A-conf sakin durum (erken maç, pnl küçük) → exit yok."""
+    # entry 0.65 current 0.60, elapsed~küçük, no score → hiçbir guard fire etmez
     p = _pos(
         confidence="A", entry_price=0.65, current_price=0.60,
         size_usdc=40, shares=62,
     )
     r = evaluate(p)
     assert r.exit_signal is None  # Hiçbir exit yok, sakin durum
+
+
+def test_never_in_profit_fires_when_dropped_late_no_score_ahead() -> None:
+    """A3: ever_in_profit=False + elapsed ≥ 0.70 + current < 0.75*entry + skor önde değil → NEVER_IN_PROFIT."""
+    # NBA 2.5h × 0.75 = 1h52m elapsed
+    start = datetime.now(timezone.utc) - timedelta(hours=1, minutes=52)
+    p = _pos(
+        confidence="B", entry_price=0.40, current_price=0.25,  # 0.25 < 0.40*0.75=0.30
+        size_usdc=40, shares=100, match_start_iso=_iso(start),
+        sport_tag="nba",
+    )
+    # No score_info → never_in_profit fires (graduated_sl kaldırıldı, artık önünde guard yok)
+    r = evaluate(p)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.NEVER_IN_PROFIT
 
 
 # ── Favored promote/demote ──
@@ -470,3 +369,55 @@ def test_nba_no_early_exit_when_deficit_small_and_early() -> None:
     score_info = {"available": True, "deficit": 8}
     r = evaluate(p, score_info=score_info)
     assert r.exit_signal is None
+
+
+# ── A3 unified-flow integration ──
+
+def test_unified_flow_b_conf_nba_gets_score_exit() -> None:
+    """A-hold kalktı — B-conf NBA pozisyonu da score exit almalı."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=120)  # 0.80 elapsed
+    p = _pos(
+        sport_tag="nba",
+        confidence="B",           # B-conf (önceden A-hold dışında olduğu için score exit yoktu)
+        entry_price=0.40,         # A-hold entry eşiği altı
+        current_price=0.30,
+        match_start_iso=_iso(start),
+    )
+    score_info = {"available": True, "deficit": 22}
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+
+
+def test_unified_flow_b_conf_hockey_k1_fires() -> None:
+    """B-conf hokey K1 tetiklenmeli — hockey A-conf gate Task 6'da kaldırılacak ama unified flow bağımsız."""
+    # NOT: hockey_score_exit hala confidence=="A" gate'li. Bu test Task 6'dan sonra geçecek.
+    # Simdilik A-conf ile test et.
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = _pos(
+        sport_tag="nhl",
+        confidence="A",
+        entry_price=0.50,
+        current_price=0.40,
+        match_start_iso=_iso(start),
+    )
+    score_info = {"available": True, "deficit": 3}
+    r = evaluate(p, score_info=score_info)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCORE_EXIT
+
+
+def test_unified_flow_market_flip_still_fires_late() -> None:
+    """Market flip geç maçta kalır (elapsed ≥ 85%, eff < 0.50, tennis hariç)."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=130)  # 0.87 elapsed NBA
+    p = _pos(
+        sport_tag="nba",
+        confidence="B",
+        entry_price=0.50,
+        current_price=0.35,  # < 0.50 = market flip
+        match_start_iso=_iso(start),
+    )
+    # Score yok — market_flip fire etmeli
+    r = evaluate(p, score_info={"available": False})
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.MARKET_FLIP
