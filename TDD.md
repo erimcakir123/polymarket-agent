@@ -448,9 +448,25 @@ gruplanır. `three_way.evaluate()` karar verir:
 Scanner'a `sum_filter` (3 market'in yes_price toplamı 0.95-1.05) eklendi —
 double chance/handicap/special market'leri eler.
 
-### 6.5 Position Sizing
+### 6.5 Position Sizing (SPEC-010 + SPEC-016)
 
-Confidence + market koşullarına göre trade boyutu.
+Stake hesabı:
+```
+stake = bankroll × confidence_bet_pct × win_prob   (SPEC-016)
+      capped by max_single_bet_usdc ($50)
+      capped by bankroll × max_bet_pct (%5)
+      floored by Polymarket $5 min-order
+```
+
+`win_prob` = direction-adjusted probability:
+- `BUY_YES` → `anchor_probability` (P(YES))
+- `BUY_NO`  → `1 - anchor_probability`
+
+P(YES) her zaman anchor olarak saklı (ARCH_GUARD Kural 8). Direction-adjustment sadece sizing hesabında `effective_win_prob(anchor, direction)` helper'ı ile uygulanır.
+
+**Neden win_prob ile çarpılır:** Yüksek-olasılıklı girişler daha büyük stake alır, düşük-olasılıklı girişler daha küçük. Zamana göre sıralı bet-pct sizing'in yarattığı "kaybetme ihtimali yüksek olana çok para" anomalisini çözer. Variance contribution favori pozisyonlarda artar, underdog'larda azalır (Quarter-Kelly benzeri muhafazakâr ağırlıklandırma).
+
+Config flag: `risk.probability_weighted: true` (false → eski base-only formül, rollback).
 
 **Base sizing (`confidence_bet_pct` — config.yaml'dan):**
 | Confidence | Yüzde | Uygulama |
@@ -465,13 +481,6 @@ Confidence + market koşullarına göre trade boyutu.
 | Lossy reentry — `is_reentry = True` | × 0.80 |
 
 **Entry price cap:** `effective_entry ≥ 0.88` → gate reddeder (`entry_price_cap`). Gerekçe: 88¢+ girişlerde max payout `0.99 − entry ≤ 0.11` → $25 pozisyon max ~$2.75 kâr; SL tetiklenirse `-$7.50`. Risk/reward çürük olduğu için strateji bağımsız kesilir.
-
-**Formül:**
-```
-size = bankroll × bet_pct × multiplier(s)
-size = min(size, bankroll × max_bet_pct, bankroll)
-size = max(0, round(size, 2))
-```
 
 **Kaplar:**
 - `max_bet_pct` = 5% bankroll (tek cap; config.yaml'dan)

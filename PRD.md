@@ -33,6 +33,18 @@ Pozisyon boyutu confidence seviyesine göre belirlenir:
 
 Ek çarpanlar `max_bet_pct` cap'ine tabidir (tek cap, config.yaml'dan). (bkz. TDD §6.5)
 
+### 2.3.1 Probability-Weighted Sizing (SPEC-016)
+
+**Demir kural:** Stake, model'in win probability'si ile doğrudan orantılıdır.
+
+Formül: `stake = bankroll × bet_pct × win_prob`
+
+Bu, "kazanma ihtimali yüksek olana daha çok para, düşük olana daha az" prensibini enforce eder. Yüksek-varyans düşük-prob girişlerin bankroll üzerindeki marjinal etkisi azaltılır.
+
+**Etkisi:** Portföy ortalama stake'i ~%30 düşer → daha çok pozisyon alma alanı → diversification artar. Expected value %3-5 düşer ama variance ciddi azalır (kazanma oranı stabilleşir).
+
+**Rollback:** `risk.probability_weighted: false` → eski base-only formül.
+
 ### 2.4 Bookmaker-Derived Probability
 P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair/Smarkets gibi sharp book'lar 3.0× ağırlıkla, reputable book'lar (Bet365, William Hill vb.) 1.5× ağırlıkla, diğerleri 1.0× ağırlıkla ortalaması alınır. Exchange bookmaker'lara (Betfair, Matchbook, Smarkets) vig normalize uygulanmaz — fiyatları zaten gerçek olasılığa yakın. Edge eşiği unified: A-conf %6, B-conf %6 (confidence_multipliers A=1.00, B=1.00 — SPEC-010 rollback + Bug #2 fix). (bkz. TDD §6.1, §6.3)
 
