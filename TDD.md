@@ -23,9 +23,8 @@ Bu TDD **LAYER 1** içerir: formüller, kalibrasyon sayıları, iş kuralları, 
 | 6.4   | Three-Way Entry (SPEC-015)      | 3-way entry gate                         |
 | 6.5   | Position Sizing                 | Sizing                                   |
 | 6.6   | Scale-Out (1-tier)              | Exit / scale                             |
-| 6.7   | Flat Stop-Loss (9-Katman)       | Exit / SL                                |
-| 6.8   | Graduated Stop-Loss             | Exit / SL                                |
-| 6.9   | A-conf Hold-to-Resolve          | Exit (market flip)                       |
+| 6.7   | Flat Stop-Loss (7-Katman)       | Exit / SL                                |
+| 6.9   | Market Flip Exit                | Exit (market flip)                       |
 | 6.10  | Never-in-Profit Guard           | Exit                                     |
 | 6.11  | Near-Resolve Profit Exit        | Exit                                     |
 | 6.12  | Ultra-Low Guard                 | Exit                                     |
@@ -494,68 +493,27 @@ Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen d
 
 **Effective price:** `effective_price(entry_price, direction)` — direction BUY_NO ise `1 − entry_price`, aksi `entry_price`.
 
-### 6.8 Graduated Stop-Loss (Elapsed-Aware)
+### 6.9 Market Flip Exit
 
-Zaman/fiyat/score'a duyarlı max allowed loss.
+A3 score-only spec (2026-04-20) sonrasında: A-conf hold branching + is_a_conf_hold
+kaldırıldı. Tüm pozisyonlar aynı zinciri takip eder; score-based exit tüm confidence
+sınıflarında gerekli tüm sporlar için tetiklenir. Market flip ayrı bir geç-faz guard.
 
-> **Not:** PnL% hesaplamaları `pos.entry_price` ve `pos.current_price` ile direkt
-> yapılır — her iki alan da token-native (owned side). `effective_price()`
-> uygulanmaz. Bkz. §6.11 notu.
+**Market flip koşulu** (tüm sporlar, tennis hariç):
+- `elapsed_pct ≥ 0.85` AND `effective_price(pos.current_price, pos.direction) < 0.50`
+- → `exit("market_flip")`
 
-**Formül:**
-```
-max_loss = base × price_mult × score_adj
-max_loss = clamp(max_loss, 0.05, 0.70)
-```
+**Tennis immune**: Set yapısı fiyatı volatil yapar (set kaybı %40-50 düşüş normal),
+false positive riski yüksek. Tennis için sadece T1/T2/SFM score exit tetiklenir.
 
-**Base tiers (elapsed % — ilk eşleşen, en yüksek eşikten aşağı):**
-| Elapsed | Base max loss | Faz |
-|---|---|---|
-| ≥ 0.85 | 0.15 | Final |
-| ≥ 0.65 | 0.20 | Late |
-| ≥ 0.40 | 0.30 | Mid |
-| ≥ 0.00 | 0.40 | Early |
-| < 0.00 (pre-match) | 0.40 | Early davran |
-
-**Entry price multiplier (`get_entry_price_multiplier`):**
-| Entry price | Multiplier |
-|---|---|
-| < 0.20 | 1.50 |
-| 0.20 – 0.35 | 1.25 |
-| 0.35 – 0.50 (inclusive) | 1.00 |
-| 0.50 – 0.70 | 0.85 |
-| ≥ 0.70 | 0.70 |
-
-**Score adjustment:**
-| Skor durumu | `score_adj` |
-|---|---|
-| `available = True` AND `map_diff > 0` (önde) | 1.25 (genişlet) |
-| `available = True` AND `map_diff < 0` (geride) | 0.75 (daralt) |
-| Aksi (skor yok veya beraberlik) | 1.00 |
-
-**Momentum tighten** (yukarıdaki sonuç üzerine ek çarpan):
-| Koşul | Çarpan |
-|---|---|
-| `consecutive_down ≥ 5` AND `cumulative_drop ≥ 0.10` | `max_loss × 0.60` |
-| `consecutive_down ≥ 3` AND `cumulative_drop ≥ 0.05` | `max_loss × 0.75` |
-
-### 6.9 A-conf Hold-to-Resolve (Elapsed-Aware Market Flip)
-
-Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda geniş tolerans.
-
-**Hold koşulu:**
-- `pos.confidence == "A"`
-- AND `effective_price(entry_price, direction) ≥ 0.60`
-
-**Hold aktifken davranış:**
-| Elapsed | Atlanan kurallar | Aktif kurallar |
-|---|---|---|
-| < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11), **Score exit (hockey §6.9a, tennis §6.9d, baseball §6.9e)**, Catastrophic watch (§6.9b) |
-| ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out; **Score exit (hockey/tennis/baseball)**; Catastrophic watch |
+**SPEC-004 K5 catastrophic_watch**: A3 ile kaldırıldı (2026-04-20). Regression
+deneyimi (Fonseca-Shelton, Muchova-Gauff, Fernandez-Sonmez 2026-04-17): set/period
+kaybı fiyatı düşürür ama maç dönebilir — score-based exit daha güvenli sinyal.
 
 #### 6.9a Score-Based Exit (Hockey Family — SPEC-004, SPEC-014)
 
-A-conf hold hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkış:
+Hockey pozisyonlarında skor + süre + fiyat kombinasyonuyla çıkış (A3 sonrası tüm
+confidence sınıflarında aktif):
 | Kural | Koşul | Config key |
 |---|---|---|
 | K1 Ağır yenilgi | deficit ≥ `period_exit_deficit` (3) | sport_rules |
@@ -569,30 +527,6 @@ Backtest (9 hockey trade): mevcut -$23.24 → score exit ile +$3.70 (+$26.94 iyi
 paylaşır; sadece `espn_league` farklı. `hockey_score_exit._is_hockey_family` tek set
 (`{"nhl", "ahl"}`) ile kontrol eder. `monitor.py` AHL + NHL için aynı çağrıyı yapar.
 Eşik drift imkansız: NHL K1-K4 değişirse AHL otomatik takip eder.
-
-#### 6.9b Catastrophic Watch (Sadece NHL — SPEC-004 K5)
-
-Fiyat < `catastrophic_trigger` (0.25) → watch modu → bounce + ikinci düşüş → çıkış.
-Recovery 0.50+ geçerse iptal (gerçek comeback). Config: `config.yaml → exit` bölümü.
-**Sadece NHL** pozisyonlarında aktif — tennis/diğer sporlarda set kaybı fiyatı düşürür
-ama maç dönebilir, false positive riski yüksek (regression: Fonseca-Shelton,
-Muchova-Gauff, Fernandez-Sonmez 2026-04-17).
-
-> **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
-> `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out →
-> catastrophic-watch (NHL only) → A-conf hold dalı (hockey_score_exit + market_flip) →
-> else branch (flat SL + graduated + vs). Flat SL a-conf check'inden ÖNCE
-> konursa A-conf koruması bozulur (regression: Rangers-Lightning 2026-04-15,
-> `test_a_conf_hold_skips_flat_sl`).
-
-**Veri dayanağı** (25 A-conf resolved trade analizi):
-| Senaryo | Sonuç |
-|---|---|
-| Market_flip kuralıyla (mevcut) | -$15.86 |
-| Hold'a bekleseydik | -$126.64 |
-| **Market flip farkı** | **+$110.78 tasarruf** |
-
-Kural korunacak; elapsed gate early-match false positive'leri eler.
 
 #### 6.9c Score Polling Altyapısı (SPEC-005)
 
@@ -612,7 +546,7 @@ kaydı boştu. Şimdi dolu, retrospektif score-exit analizi kullanılabilir.
 
 #### 6.9d Tennis Score-Based Exit (SPEC-006)
 
-ESPN set/game skoru ile tennis A-conf hold pozisyonlarda erken çıkış. BO3 only.
+ESPN set/game skoru ile tennis pozisyonlarda erken çıkış (A3 sonrası tüm confidence sınıflarında). BO3 only.
 
 **T1 — Straight set kaybı:** 0-1 set + current set deficit ≥ 3 + games_total ≥ 7 (veya deficit ≥ 4).
 Tiebreak buffer: 1. set dar kaybı (our ≥ 5 game, ör: 6-7) → deficit eşiği +1 (3→4).
@@ -722,7 +656,7 @@ Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
 | Skor önde (`map_diff > 0`, available) | **Stay** (winning despite no profit) |
 | `effective_current ≥ effective_entry × 0.90` | **Stay** (entry'ye yakın) |
 | `effective_current < effective_entry × 0.75` | **Exit** (`never_in_profit`) |
-| Aradaki (`0.75 ≤ ratio < 0.90`) | Graduated SL (§6.8) devralır |
+| Aradaki (`0.75 ≤ ratio < 0.90`) | Flat SL (§6.7) devralır |
 
 ### 6.11 Near-Resolve Profit Exit
 
@@ -772,17 +706,16 @@ Holding sırasında dinamik favori statüsü. `effective_price(current_price, di
 
 → `favored = False`
 
-**Davranış:** `favored = True` pozisyonlar A-conf hold mantığına (§6.9) tabi olur — graduated SL'den kısmen muaf, market_flip elapsed-gated.
+**Davranış:** `favored = True` pozisyonlar market_flip + score_exit zinciri üzerinden yönetilir (§6.9) — state tracking FAV promotion/demotion için, ayrı exit branch değil (A3 sonrası A-conf hold kaldırıldı).
 
 **Veri dayanağı:** 5 favored trade = **+$42.90, %100 WR** — sistem korunacak.
 
 ### 6.14 Hold Revocation
 
-Non-favored, non-A-conf-hold pozisyonlar için hold iptali — ciddi fiyat düşüşü + skor dezavantajı altında.
+Non-favored pozisyonlar için hold iptali — ciddi fiyat düşüşü + skor dezavantajı altında (A3 sonrası A-conf hold branch'i yok).
 
 **Hold candidate:**
-- `not a_conf_hold`
-- AND (`favored` OR (`anchor_probability ≥ 0.65` AND `confidence ∈ {A, B}`))
+- `favored` OR (`anchor_probability ≥ 0.65` AND `confidence ∈ {A, B}`)
 
 **Dip temporary mi?**
 - `consecutive_down < 3` OR `cumulative_drop < 0.05` → TEMPORARY (revoke etme)
@@ -929,26 +862,26 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 - Baseball: MLB, MiLB, NPB, KBO, NCAA
 - Basketball: NBA, WNBA, NCAAB, WNCAAB, Euroleague, NBL, NBA Summer
 - Ice Hockey: NHL, AHL, Liiga, Mestis, SHL, Allsvenskan
-- American Football: NCAAF, CFL, UFL
+- American Football: NFL, NCAAF, CFL, UFL
 - Tennis: Tüm ATP/WTA turnuvaları (dinamik matching)
-- Combat: MMA, UFC, Boxing (2-outcome, draw yok — mevcut pipeline uyumlu)
+
+**Not**: MMA TODO-002, Golf TODO-003 altında — canlı skor kaynağı olunca ele alınacak.
 
 **MVP dışı** (draw-possible, 3-way Kelly + exit logic gerektirir):
 - Soccer (tüm ligler) — `odds_enricher._parse_bookmaker_markets` 3-way aggregate
   destekler ama strategy/gate/exit 2-outcome varsayar. Whitelist'e eklenmez.
 - Cricket — test match draw olasılığı
-- Golf outright / Top-N — yapısal h2h değil (PGA prop bahisleri scanner'da elenir)
 
 ### 7.2 Sport-Specific Kurallar (özet)
 
 | Sport | stop_loss_pct | match_duration_hours | Özel exit |
 |---|---|---|---|
-| NBA | 0.35 | 2.5 | halftime_exit @ -15 pts |
-| American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
-| NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) + catastrophic_watch K5 |
+| NBA | 0.35 | 2.5 | nba_score_exit N1/N2 (elapsed + deficit — A3) |
+| NFL | 0.30 | 3.25 | nfl_score_exit N1/N2 (elapsed + deficit — A3) |
+| American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | late-game deficit exit |
+| NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) |
 | MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | baseball_score_exit M1-M3 (inning+deficit combo — SPEC-010) |
-| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED + catastrophic DISABLED |
-| Golf (LPGA/LIV) | 0.30 | 4.0 | playoff-aware |
+| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED |
 | cricket_ipl | 0.30 | 3.5 | C1/C2/C3 (T20) |
 | cricket_odi | 0.30 | 8.0 | C1/C2/C3 (ODI, gevşek) |
 | cricket_international_t20 | 0.30 | 3.5 | C1/C2/C3 (T20) |
@@ -963,6 +896,20 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 | DEFAULT | 0.30 | 2.0 | - |
 
 **Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Soccer/rugby_union/afl/handball SPEC-015 ile eklendi. Ertelenmiş branşlar için bkz. `TODO.md` TODO-001.
+
+#### 7.2.1 NBA Score Exit (A3)
+
+- N1: elapsed ≥ 0.75 + deficit ≥ 20 (Q3 sonu + ağır fark)
+- N2: elapsed ≥ 0.92 + deficit ≥ 10 (son dakikalar + 2 possession)
+
+Threshold'lar sport_rules.py'den okunur.
+
+#### 7.2.2 NFL Score Exit (A3)
+
+- N1: elapsed ≥ 0.75 + deficit ≥ 21 (3-skor farkı)
+- N2: elapsed ≥ 0.92 + deficit ≥ 11 (2-possession, son 5dk)
+
+Threshold'lar sport_rules.py'den okunur.
 
 ### 7.3 Sport Tag Doğrulama (Slug-Based Override)
 
