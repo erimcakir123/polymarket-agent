@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pytest
 
-from src.models.position import Position, effective_price
+from src.models.position import Position, effective_price, effective_win_prob
 
 
 def _valid(**overrides) -> Position:
@@ -100,3 +100,27 @@ def test_position_json_roundtrip() -> None:
     assert restored.confidence == "A"
     assert restored.event_id == "evt_99"
     assert restored.anchor_probability == 0.55
+
+
+# --- effective_win_prob tests (SPEC-016) ---
+
+
+def test_effective_win_prob_buy_yes_returns_anchor() -> None:
+    assert effective_win_prob(anchor=0.75, direction="BUY_YES") == 0.75
+
+
+def test_effective_win_prob_buy_no_returns_inverse() -> None:
+    assert effective_win_prob(anchor=0.30, direction="BUY_NO") == pytest.approx(0.70)
+
+
+def test_effective_win_prob_boundary_zero() -> None:
+    assert effective_win_prob(anchor=0.0, direction="BUY_YES") == 0.0
+
+
+def test_effective_win_prob_boundary_one_buy_no() -> None:
+    assert effective_win_prob(anchor=1.0, direction="BUY_NO") == pytest.approx(0.0)
+
+
+def test_effective_win_prob_invalid_direction_raises() -> None:
+    with pytest.raises(ValueError):
+        effective_win_prob(anchor=0.5, direction="HOLD")

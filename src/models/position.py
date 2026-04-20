@@ -11,6 +11,24 @@ def effective_price(yes_price: float, direction: str) -> float:
     return (1.0 - yes_price) if direction == "BUY_NO" else yes_price
 
 
+def effective_win_prob(anchor: float, direction: str) -> float:
+    """Direction-adjusted win probability (SPEC-016).
+
+    P(YES) her zaman anchor (ARCH_GUARD Kural 8). Bu fonksiyon sadece
+    sizing hesabında direction-adjustment uygular.
+
+    BUY_YES → anchor; BUY_NO → 1 - anchor.
+
+    Raises:
+        ValueError: direction "BUY_YES"/"BUY_NO" dışında ise.
+    """
+    if direction == "BUY_YES":
+        return anchor
+    if direction == "BUY_NO":
+        return 1.0 - anchor
+    raise ValueError(f"Invalid direction: {direction!r}")
+
+
 class Position(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
