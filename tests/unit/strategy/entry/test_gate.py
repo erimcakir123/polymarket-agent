@@ -666,3 +666,38 @@ def test_gate_directional_skips_with_price_out_of_range_when_effective_price_abo
     results = gate.run([_market(yp=0.88)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "price_out_of_range"
+
+
+# --- MVP disi spor reddi (Task 13: MMA + Golf) ---
+
+
+def _non_mvp_market(cid: str, sport_tag: str) -> MarketData:
+    return MarketData(
+        condition_id=cid,
+        question="Will X beat Y?",
+        slug=f"{sport_tag}-x-y-2026",
+        yes_token_id="y", no_token_id="n",
+        yes_price=0.65, no_price=0.35,
+        liquidity=50_000, volume_24h=10_000, tags=[],
+        end_date_iso="2026-04-20T00:00:00Z",
+        sport_tag=sport_tag,
+        event_id="enon",
+    )
+
+
+def test_mma_market_rejected_with_sport_not_in_mvp() -> None:
+    """sport_tag='mma_ufc' → sport_not_in_mvp skip."""
+    gate = _make_gate()
+    results = gate.run([_non_mvp_market("cmma", "mma_ufc")])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "sport_not_in_mvp"
+    assert "sport=mma_ufc" in results[0].skip_detail
+
+
+def test_golf_market_rejected_with_sport_not_in_mvp() -> None:
+    """sport_tag='golf_lpga_tour' → sport_not_in_mvp skip."""
+    gate = _make_gate()
+    results = gate.run([_non_mvp_market("cgolf", "golf_lpga_tour")])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "sport_not_in_mvp"
+    assert "sport=golf_lpga_tour" in results[0].skip_detail

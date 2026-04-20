@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from src.config.sport_rules import is_cricket_sport
+from src.config.sport_rules import _normalize, is_cricket_sport
 from src.domain.analysis.probability import BookmakerProbability
 from src.orchestration.event_grouper import EventGroup, group_markets_by_event
 from src.strategy.entry import three_way as three_way_entry
@@ -35,6 +35,9 @@ from src.models.position import effective_price, effective_win_prob
 from src.models.signal import Signal
 
 logger = logging.getLogger(__name__)
+
+# MVP disi sporlar — entry gate'te reddedilir (TODO-002 MMA, TODO-003 Golf)
+_NON_MVP_SPORTS: frozenset[str] = frozenset({"mma", "golf"})
 
 
 @dataclass
@@ -142,6 +145,10 @@ class EntryGate:
 
     def _evaluate_one(self, market: MarketData) -> GateResult:
         cid = market.condition_id
+
+        # 0. MVP disi sporlar erken reddi (TODO-002 MMA, TODO-003 Golf)
+        if _normalize(market.sport_tag) in _NON_MVP_SPORTS:
+            return GateResult(cid, None, "sport_not_in_mvp", skip_detail=f"sport={market.sport_tag}")
 
         # 1. Event-level guard (ARCH Kural 8)
         if market.event_id and self.portfolio.has_event(market.event_id):
