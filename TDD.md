@@ -663,7 +663,7 @@ Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
 | Koşul | Aksiyon |
 |---|---|
 | Pre-match (maç başlamadı) | Reject |
-| `mins_since_start < 5.0` | Reject (açılış spike'ı — 0.00/1.00 gelebiliyor) |
+| `mins_since_start < 10.0` | Reject (açılış spike'ı — 0.00/1.00 gelebiliyor) |
 | Aksi | **Exit** (`near_resolve_profit`) |
 
 **Veri dayanağı:** 27 near-resolve exit = **+$140.31 (%93 WR)** — sistemin en büyük kâr kaynağı.
@@ -857,10 +857,12 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 
 **Not**: MMA TODO-002, Golf TODO-003 altında — canlı skor kaynağı olunca ele alınacak.
 
-**MVP dışı** (draw-possible, 3-way Kelly + exit logic gerektirir):
-- Soccer (tüm ligler) — `odds_enricher._parse_bookmaker_markets` 3-way aggregate
-  destekler ama strategy/gate/exit 2-outcome varsayar. Whitelist'e eklenmez.
-- Cricket — test match draw olasılığı
+**SPEC-015 ile MVP'ye eklendi** (3-way destekli — soccer, rugby, afl, handball):
+- Soccer (tüm ligler), rugby, afl, handball — 3-way win_prob aggregate + score_exit destekli.
+  `threeway_enricher.py` üzerinden H/D/A olasılıkları hesaplanır; draw-possible ligler whitelist'e dahil.
+
+**MVP dışı:**
+- Cricket (test match) — uzun draw olasılığı, ayrı modelleme gerektirir
 
 ### 7.2 Sport-Specific Kurallar (özet)
 

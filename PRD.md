@@ -113,7 +113,7 @@ Underdog value bet'leri alınmıyor — varyans düşürme amacıyla.
 ### 3.3 Light Cycle İzleme (5 sn)
 Her 5 saniyede bir:
 1. WebSocket tick'lerinden son fiyatlar okunur.
-2. Açık pozisyonlar için flat SL (`stop_loss.py`) ve scale-out (`scale_out.py`) kontrolü yapılır.
+2. Açık pozisyonlar için near_resolve (94¢) ve scale-out (`scale_out.py`) kontrolü yapılır.
 3. Tetiklenen çıkış sinyali varsa `exit/monitor.py` üzerinden ilkine göre emir gönderilir.
 
 **Exposure cap enforcement:** hem gate-time (entry öncesi) hem execution-time
@@ -127,11 +127,10 @@ marketler scanner seviyesinde elenir. Detay: TDD §5.7.5.
 
 ### 3.4 Exit Akışı (Heavy Cycle)
 Heavy cycle sırasında açık pozisyonlar için:
-1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).
-2. **Near-Resolve**: eff_price ≥ 94¢ + 5 dk pre-match guard → çık (TDD §6.11).
-3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → **flat SL ve graduated SL atlanır**; sadece scale-out, near-resolve ve market_flip (elapsed ≥ %85'te `current_price < 0.50`) aktif (TDD §6.9).
+1. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → çık (TDD §6.10).
+2. **Near-Resolve**: current_price ≥ 94¢ + 10 dk post-start guard → çık (TDD §6.11).
+3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → **never_in_profit guard atlanır**; sadece scale-out, near-resolve ve market_flip (elapsed ≥ %85'te `current_price < 0.50`) aktif (TDD §6.9).
 4. **Favored**: eff_price ≥ 65¢ + confidence ∈ {A, B} → promoted; altı demoted (TDD §6.13).
-5. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → daha agresif SL (TDD §6.10).
 
 ### 3.5 Circuit Breaker Tetiklendiğinde
 1. `circuit_breaker.py` bankroll durumunu her entry öncesi kontrol eder.
@@ -164,7 +163,7 @@ Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). 
 3 katmanlı izleme: WS tick (anlık), Light cycle (5 sn), Heavy cycle (30 dk). Pozisyon durumu JSON store'da tutulur, dashboard anlık okur.
 
 ### F7. Exit
-Çıkış kararı birden fazla mekanizmanın değerlendirmesiyle verilir: flat SL, graduated SL, scale-out, never-in-profit, market_flip, near-resolve, hold_revoked, ultra_low_guard, circuit_breaker, manual. İlk tetiklenen sinyal uygulanır. Tam liste ve öncelik sırası TDD §6.6–§6.14'te; ExitReason enum `src/models/` altında.
+Çıkış kararı birden fazla mekanizmanın değerlendirmesiyle verilir: near_resolve (94¢), market_flip (elapsed ≥ %85 + fiyat flip), scale_out (midpoint partial), score_exit (7 spor), never_in_profit (monitor.py), hold_revoked, ultra_low_guard, circuit_breaker, manual. İlk tetiklenen sinyal uygulanır. Tam liste ve öncelik sırası TDD §6.6–§6.14'te; ExitReason enum `src/models/` altında.
 
 ### F8. Report
 3 sunum kanalı: Flask dashboard (localhost:5050), Telegram bildirim (entry/exit/CB), JSONL trade log (audit).
@@ -173,7 +172,7 @@ Confidence-based. A=%5, B=%4, C=blok. Tek cap: `max_bet_pct` (config.yaml'dan). 
 - **Özet metrikler** (5 kart): Balance, Open P&L, Realized P&L (W/L alt-yazı), Locked in Bets, Peak Balance (total equity peak'ten drawdown%)
 - **Koruma + analiz göstergeleri** (3 kart):
   - **Loss Protection** — RISK gauge + Down% + Stop at% (CB günlük eşik) + Status (Safe/Caution/Warning/Stopped)
-  - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/CON/EAR)
+  - **Positions** — slot gauge (current/max) + entry_reason tag'leri (DIRECTIONAL / THREEWAY)
   - **Branches** — sport/league ROI treemap: alan ∝ invested USDC, renk ∝ ROI (yeşil+/kırmızı−/sıfıra yakın mavi), hover tooltip
 - **Grafikler** (2): Total Equity zaman serisi (realized-only: `initial + Σ exit_pnl_usdc`, stepped; period tabs 24h/7d/30d/1y + adaptif bucketing), Per-Trade PnL waterfall (aynı period tabs). Detay: TDD §5.7.7
 - **Trades feed** (sağ panel, 4 sekme): Active | Exited | Skipped | Stock — her kart tıklanabilir (Polymarket event sayfasını yeni sekmede açar), branş ikonlarıyla
