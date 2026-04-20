@@ -83,10 +83,6 @@ class CycleManager:
     # ── Timing helpers ──
 
     def _current_heavy_interval_sec(self) -> int:
-        """Gece (UTC 08-13) mı? 60 dk; gündüz 30 dk."""
-        hour = self._utc_now().hour
-        if hour in self.config.night_hours:
-            return self.config.night_interval_min * 60
         return self.config.heavy_interval_min * 60
 
     def sleep_seconds(self) -> int:

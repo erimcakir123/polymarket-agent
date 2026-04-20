@@ -8,8 +8,7 @@ from src.orchestration.cycle_manager import CycleManager
 
 
 def _make(now_ts: float = 1000.0, utc_hour: int = 15, **over) -> CycleManager:
-    cfg = CycleConfig(heavy_interval_min=30, light_interval_sec=5,
-                      night_interval_min=60, night_hours=[8, 9, 10, 11, 12, 13])
+    cfg = CycleConfig(heavy_interval_min=30, light_interval_sec=5)
     return CycleManager(
         config=cfg,
         now_fn=lambda: now_ts,
@@ -46,22 +45,6 @@ def test_heavy_after_interval() -> None:
     t = cm.tick(has_positions=True)
     assert t.run_heavy is True
     assert t.reason == "periodic_heavy"
-
-
-def test_night_uses_60min_interval() -> None:
-    # Gece UTC saat 10 → 60 dk interval
-    cm = _make(now_ts=1000.0 + 30 * 60 + 1, utc_hour=10)
-    cm._last_heavy_ts = 1000.0
-    # 31 dk geçti, ama gece 60 dk'lık interval → light
-    t = cm.tick(has_positions=True)
-    assert t.run_heavy is False
-
-
-def test_night_heavy_after_60min() -> None:
-    cm = _make(now_ts=1000.0 + 60 * 60 + 1, utc_hour=10)
-    cm._last_heavy_ts = 1000.0
-    t = cm.tick(has_positions=True)
-    assert t.run_heavy is True
 
 
 def test_exit_triggered_heavy() -> None:

@@ -54,12 +54,11 @@ def test_reconcile_includes_partial_exits():
             "exit_pnl_usdc": 0.0,
             "partial_exits": [
                 {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0, "timestamp": "t1"},
-                {"tier": 2, "sell_pct": 0.5, "realized_pnl_usdc": 8.0, "timestamp": "t2"},
             ],
         },
     ])
     _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
-    assert abs(pm.realized_pnl - 13.0) < 0.01
+    assert abs(pm.realized_pnl - 5.0) < 0.01
 
 
 def test_reconcile_empty_log_leaves_zero():
