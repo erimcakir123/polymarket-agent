@@ -43,13 +43,13 @@ def test_max_bet_usdc_below_cap_not_clipped() -> None:
     assert result == 25.0
 
 
-def test_max_bet_usdc_default_cap_50() -> None:
-    """SPEC-010: default max_bet_usdc=50."""
+def test_max_bet_usdc_default_cap_75() -> None:
+    """SPEC-016: default max_bet_usdc=75 (config ile hizali)."""
     result = confidence_position_size(
         "A", bankroll=10_000, confidence_bet_pct=BET_PCT,
     )
-    # Default max_bet_usdc=50, 10_000 × 5% = 500 → capped at 50
-    assert result == 50.0
+    # Default max_bet_usdc=75, 10_000 × 5% = 500 → capped at 75
+    assert result == 75.0
 
 
 def test_max_bet_pct_cap() -> None:

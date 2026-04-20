@@ -14,7 +14,7 @@ def confidence_position_size(
     confidence: str,
     bankroll: float,
     confidence_bet_pct: dict[str, float],
-    max_bet_usdc: float = 50.0,
+    max_bet_usdc: float = 75.0,
     max_bet_pct: float = 0.05,
     is_reentry: bool = False,
     win_probability: float = 1.0,
@@ -25,7 +25,7 @@ def confidence_position_size(
 
     Args:
         confidence_bet_pct: config'den {"A": 0.05, "B": 0.04}.
-        max_bet_usdc: USDC cinsinden tek-bet tavan (SPEC-010: $50).
+        max_bet_usdc: USDC cinsinden tek-bet tavan (SPEC-016: $75).
         max_bet_pct: bankroll % cinsinden tavan.
         win_probability: direction-adjusted win prob (default 1.0 = legacy).
 

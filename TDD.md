@@ -23,7 +23,7 @@ Bu TDD **LAYER 1** içerir: formüller, kalibrasyon sayıları, iş kuralları, 
 | 6.4   | Three-Way Entry (SPEC-015)      | 3-way entry gate                         |
 | 6.5   | Position Sizing                 | Sizing                                   |
 | 6.6   | Scale-Out (1-tier)              | Exit / scale                             |
-| 6.7   | Flat Stop-Loss (7-Katman)       | Exit / SL                                |
+| 6.7   | Flat Stop-Loss (kaldırıldı)     | —                                        |
 | 6.9   | Market Flip Exit                | Exit (market flip)                       |
 | 6.10  | Never-in-Profit Guard           | Exit                                     |
 | 6.11  | Near-Resolve Profit Exit        | Exit                                     |
@@ -478,23 +478,10 @@ böyle saklanır (`src/models/position.py`).
 
 **Config:** Tier eşikleri ve satış oranları `config.yaml` altındaki `scale_out.tiers` listesinden okunur — hardcoded değil. `check_scale_out` fonksiyonu N-tier listeyi destekler; gelecekte tier eklenebilir. Near-resolve (§6.11, 94¢) priority olduğundan tier eşiği near-resolve'den düşük tutulur; aksi halde sıçrayan spor fiyatlarında by-pass olur.
 
-### 6.7 Flat Stop-Loss Helper (7-Katman Öncelik)
+### 6.7 Flat Stop-Loss (A3 ile kaldırıldı)
 
-Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen döner. `None` dönerse flat SL uygulanmaz.
-
-| # | Katman | Koşul | Sonuç |
-|---|---|---|---|
-| 1 | Stale price skip | `current_price ≤ 0.001` AND `current_price ≠ entry_price` | `None` (WS tick beklenir) |
-| 2 | Totals/spread skip | question veya slug "o/u", "total", "spread" içerir | `None` (resolution'a kadar tut) |
-| 3 | Ultra-low entry | `effective_entry < 0.09` | `0.50` (geniş tolerans) |
-| 4 | Low-entry graduated | `0.09 ≤ effective_entry < 0.20` | Linear: `sl = 0.60 − t × 0.20`, `t = (eff − 0.09) / (0.20 − 0.09)` — 60% → 40% |
-| 5 | B confidence | `pos.confidence == "B"` | `0.30` (tighter) |
-| 6 | Sport-specific (default) | Yukarıdakiler eşleşmedi | `get_stop_loss(sport_tag)` (§7) |
-| 7 | Lossy reentry modifier | `sl_reentry_count ≥ 1` | Yukarıdaki `sl × 0.75` |
-
-**Default parametreler:** `base_sl_pct = 0.30`.
-
-**Effective price:** `effective_price(entry_price, direction)` — direction BUY_NO ise `1 − entry_price`, aksi `entry_price`.
+Eski 7-katman flat SL + graduated SL + catastrophic watch A3 SPEC ile silindi.
+Detay için git history + `docs/superpowers/specs/2026-04-20-*-score-only-exits-*`.
 
 ### 6.9 Market Flip Exit
 
@@ -877,26 +864,26 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 
 ### 7.2 Sport-Specific Kurallar (özet)
 
-| Sport | stop_loss_pct | match_duration_hours | Özel exit |
-|---|---|---|---|
-| NBA | 0.35 | 2.5 | nba_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
-| NFL | 0.30 | 3.25 | nfl_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
-| American Football (NCAAF/CFL/UFL) | 0.30 | 3.25 | late-game deficit exit |
-| NHL (AHL/Liiga/...) | 0.30 | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) |
-| MLB (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | baseball_score_exit M1-M3 (inning+deficit combo — SPEC-010) |
-| Tennis (ATP/WTA) | 0.35 | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED |
-| cricket_ipl | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| cricket_odi | 0.30 | 8.0 | C1/C2/C3 (ODI, gevşek) |
-| cricket_international_t20 | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| cricket_psl | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| cricket_big_bash | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| cricket_caribbean_premier_league | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| cricket_t20_blast | 0.30 | 3.5 | C1/C2/C3 (T20) |
-| soccer | 0.30 | 2.0 | soccer_score_exit (HOME/AWAY 65'+ + DRAW 70'+) — SPEC-015 |
-| rugby_union | 0.30 | 1.75 | blowout 50'+ 14pt, late 70'+ 7pt |
-| afl | 0.30 | 2.0 | blowout 60'+ 30pt, late 75'+ 15pt |
-| handball | 0.30 | 1.5 | blowout 45'+ 8goals, late 55'+ 4goals |
-| DEFAULT | 0.30 | 2.0 | - |
+| Sport | match_duration_hours | Özel exit |
+|---|---|---|
+| NBA | 2.5 | nba_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
+| NFL | 3.25 | nfl_score_exit N1/N2/N3 (elapsed + deficit + period/clock — A3 + A4) |
+| American Football (NCAAF/CFL/UFL) | 3.25 | late-game deficit exit |
+| NHL (AHL/Liiga/...) | 2.5 | hockey_score_exit K1-K4 (deficit/elapsed/price combo) |
+| MLB (+ MiLB/NPB/KBO/NCAA) | 3.0 | baseball_score_exit M1-M3 (inning+deficit combo — SPEC-010) |
+| Tennis (ATP/WTA) | 1.75-3.5 (BO3/BO5) | T1/T2 set-game exit + market_flip DISABLED |
+| cricket_ipl | 3.5 | C1/C2/C3 (T20) |
+| cricket_odi | 8.0 | C1/C2/C3 (ODI, gevşek) |
+| cricket_international_t20 | 3.5 | C1/C2/C3 (T20) |
+| cricket_psl | 3.5 | C1/C2/C3 (T20) |
+| cricket_big_bash | 3.5 | C1/C2/C3 (T20) |
+| cricket_caribbean_premier_league | 3.5 | C1/C2/C3 (T20) |
+| cricket_t20_blast | 3.5 | C1/C2/C3 (T20) |
+| soccer | 2.0 | soccer_score_exit (HOME/AWAY 65'+ + DRAW 70'+) — SPEC-015 |
+| rugby_union | 1.75 | blowout 50'+ 14pt, late 70'+ 7pt |
+| afl | 2.0 | blowout 60'+ 30pt, late 75'+ 15pt |
+| handball | 1.5 | blowout 45'+ 8goals, late 55'+ 4goals |
+| DEFAULT | 2.0 | - |
 
 **Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Soccer/rugby_union/afl/handball SPEC-015 ile eklendi. Ertelenmiş branşlar için bkz. `TODO.md` TODO-001.
 

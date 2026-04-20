@@ -143,7 +143,6 @@ risk:
   max_exposure_pct: 0.50
   hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)
   min_entry_size_pct: 0.015     # min pozisyon = bankroll × %1.5 (tx-cost floor)
-  max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   probability_weighted: true  # SPEC-016: stake win_prob ile çarpılır (false = eski davranış)
