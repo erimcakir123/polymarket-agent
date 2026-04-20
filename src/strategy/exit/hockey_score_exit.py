@@ -1,7 +1,7 @@
 """Score-based exit for hockey — SPEC-004 K1-K4.
 
 Pure fonksiyon: I/O yok, tüm veri parametre olarak gelir.
-Sadece A-conf hold hockey pozisyonları için geçerlidir.
+Hockey family (NHL + AHL) pozisyonları için geçerlidir.
 Eşikler sport_rules.py config'inden okunur (magic number yok).
 """
 from __future__ import annotations
@@ -44,11 +44,11 @@ def check(
     Returns:
         ScoreExitResult → çık; None → skor kuralı tetiklenmedi.
 
-    Kapsam: sadece hockey + A-conf. B-conf'ta mevcut flat SL zaten çalışıyor.
+    Kapsam: hockey family (NHL + AHL), tüm confidence seviyeleri.
+    A-conf gate A3 unified flow'da kaldırıldı — confidence parametresi
+    sinyatürde kalıyor (monitor.py hâlâ pas geçiyor).
     """
     if not _is_hockey(sport_tag):
-        return None
-    if confidence != "A":
         return None
     if not score_info.get("available"):
         return None

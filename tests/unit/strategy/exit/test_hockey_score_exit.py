@@ -75,9 +75,17 @@ def test_score_exit_not_hockey_no_exit() -> None:
     assert sig is None
 
 
-def test_score_exit_b_conf_no_exit() -> None:
-    sig = check("nhl", "B", _info(deficit=4), elapsed_pct=0.90, current_price=0.10)
-    assert sig is None
+def test_b_conf_hockey_k1_fires_after_a_gate_removed() -> None:
+    """A-conf gate kaldırıldı — B-conf hokey de K1 fire etmeli."""
+    result = check(
+        sport_tag="nhl",
+        confidence="B",
+        score_info={"available": True, "deficit": 3},
+        elapsed_pct=0.30,
+        current_price=0.40,
+    )
+    assert result is not None
+    assert "K1" in result.detail
 
 
 # ── SPEC-014: hockey family (_is_hockey_family) ──
