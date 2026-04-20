@@ -28,6 +28,7 @@ from src.infrastructure.persistence.archive_logger import (
 )
 from src.models.position import Position
 from src.orchestration.cricket_score_builder import build_cricket_score_info, find_cricket_match
+from src.orchestration.soccer_score_builder import determine_our_outcome as _soccer_our_outcome, is_knockout_competition as _soccer_is_knockout  # noqa: E501
 from src.strategy.enrichment.question_parser import extract_teams
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,10 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "linescores": linescores,
         "our_is_home": our_is_home,
         "espn_start": getattr(ms, "commence_time", ""),
+        "minute": getattr(ms, "minute", None),
+        "regulation_state": getattr(ms, "regulation_state", ""),
+        "our_outcome": _soccer_our_outcome(pos),
+        "knockout": _soccer_is_knockout(pos),
     }
 # ── ScoreEnricher ─────────────────────────────────────────────────────────────
 
