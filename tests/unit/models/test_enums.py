@@ -25,16 +25,13 @@ def test_entry_reason_values() -> None:
 
 
 def test_exit_reason_values() -> None:
-    assert ExitReason.STOP_LOSS.value == "stop_loss"
     assert ExitReason.SCALE_OUT.value == "scale_out"
-    assert ExitReason.GRADUATED_SL.value == "graduated_sl"
     assert ExitReason.NEVER_IN_PROFIT.value == "never_in_profit"
     assert ExitReason.MARKET_FLIP.value == "market_flip"
     assert ExitReason.NEAR_RESOLVE.value == "near_resolve"
     assert ExitReason.HOLD_REVOKED.value == "hold_revoked"
     assert ExitReason.ULTRA_LOW_GUARD.value == "ultra_low_guard"
-    assert ExitReason.CIRCUIT_BREAKER.value == "circuit_breaker"
-    assert ExitReason.MANUAL.value == "manual"
+    assert ExitReason.SCORE_EXIT.value == "score_exit"
 
 
 def test_enum_str_mixin_json_serializable() -> None:

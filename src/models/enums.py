@@ -24,15 +24,10 @@ class EntryReason(str, Enum):
 
 
 class ExitReason(str, Enum):
-    STOP_LOSS = "stop_loss"
     SCALE_OUT = "scale_out"
-    GRADUATED_SL = "graduated_sl"
     NEVER_IN_PROFIT = "never_in_profit"
     MARKET_FLIP = "market_flip"
     NEAR_RESOLVE = "near_resolve"
     HOLD_REVOKED = "hold_revoked"
     ULTRA_LOW_GUARD = "ultra_low_guard"
-    CIRCUIT_BREAKER = "circuit_breaker"
     SCORE_EXIT = "score_exit"
-    CATASTROPHIC_BOUNCE = "catastrophic_bounce"
-    MANUAL = "manual"
