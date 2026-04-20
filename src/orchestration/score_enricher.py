@@ -152,7 +152,7 @@ def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "deficit": deficit,
         "period": ms.period,
         "inning": getattr(ms, "inning", None),   # SPEC-014: MLB inning int (None = N/A)
-        "map_diff": -deficit,   # graduated_sl uyumu: pozitif = öndeyiz
+        "map_diff": -deficit,   # pozitif = öndeyiz (never_in_profit / hold_revoked uyumu)
         "linescores": linescores,
         "our_is_home": our_is_home,
         "espn_start": getattr(ms, "commence_time", ""),
