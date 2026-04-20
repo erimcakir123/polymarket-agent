@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from src.config.sport_rules import _normalize, is_cricket_sport
 from src.domain.analysis.probability import BookmakerProbability
-from src.orchestration.event_grouper import EventGroup, group_markets_by_event
+from src.domain.matching.event_grouper import EventGroup, group_markets_by_event
 from src.strategy.entry import three_way as three_way_entry
 from src.strategy.entry.directional import evaluate_directional
 from src.domain.guards.blacklist import Blacklist

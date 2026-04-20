@@ -113,10 +113,10 @@ class StockQueue:
     def has(self, condition_id: str) -> bool:
         return condition_id in self._entries
 
-    def count(self) -> int:
+    def _count(self) -> int:
         return len(self._entries)
 
-    def all_entries(self) -> list[StockEntry]:
+    def _all_entries(self) -> list[StockEntry]:
         """Read-only kopya — sıralama garanti edilmez."""
         return list(self._entries.values())
 

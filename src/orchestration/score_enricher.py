@@ -17,10 +17,9 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from src.config.sport_rules import _normalize, get_sport_rule, is_cricket_sport
-from src.domain.matching.pair_matcher import match_pair, match_team
 from src.infrastructure.apis.cricket_client import CricketAPIClient, CricketMatchScore
 from src.infrastructure.apis.espn_client import ESPNMatchScore
-from src.infrastructure.apis.score_client import MatchScore, fetch_scores
+from src.infrastructure.apis.score_client import fetch_scores
 from src.infrastructure.persistence.archive_logger import (
     ArchiveLogger,
     ArchiveMatchResult,
@@ -28,8 +27,12 @@ from src.infrastructure.persistence.archive_logger import (
 )
 from src.models.position import Position
 from src.orchestration.cricket_score_builder import build_cricket_score_info, find_cricket_match
-from src.orchestration.soccer_score_builder import determine_our_outcome as _soccer_our_outcome, is_knockout_competition as _soccer_is_knockout  # noqa: E501
-from src.strategy.enrichment.question_parser import extract_teams
+from src.orchestration.score_helpers import (
+    build_score_info as _build_score_info,
+    find_match_via_pair as _find_match_via_pair,
+    is_within_match_window as _is_within_match_window,
+    resolve_tennis_league as _resolve_tennis_league,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,127 +46,6 @@ _ODDS_API_KEY_MAP: dict[str, str] = {
     "nfl": "americanfootball_nfl",
 }
 
-
-# ── Pure helpers ──────────────────────────────────────────────────────────────
-
-def _is_within_match_window(pos: Position, window_hours: float) -> bool:
-    """Pozisyon maç penceresi içinde mi? (match_start ± window saat)."""
-    if not pos.match_start_iso:
-        return False
-    try:
-        start = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return False
-    now = datetime.now(timezone.utc)
-    diff_hours = abs((now - start).total_seconds()) / 3600.0
-    return diff_hours <= window_hours
-
-
-def _resolve_tennis_league(slug: str) -> str:
-    """WTA/ATP league resolver: slug "wta-*" ise "wta", aksi halde "atp"."""
-    return "wta" if (slug or "").lower().startswith("wta") else "atp"
-
-
-def _find_match_via_pair(
-    pos: Position,
-    scores: list,
-    home_attr: str,
-    away_attr: str,
-    min_confidence: float = 0.80,
-) -> object | None:
-    """pair_matcher kullanarak skor listesinden eslesen event'i bul.
-
-    home_attr/away_attr: ESPN icin "home_name"/"away_name", Odds API icin
-    "home_team"/"away_team". Ayni logic her iki kaynakta calisir.
-
-    Pair matching: team_a + team_b verildi → her iki takim da eslemeli
-    (swap destekli). Sadece team_a verildi → single-team fallback.
-    """
-    team_a, team_b = extract_teams(pos.question)
-    if not team_a:
-        return None
-
-    best_match = None
-    best_conf = 0.0
-
-    for ms in scores:
-        home = getattr(ms, home_attr, "") or ""
-        away = getattr(ms, away_attr, "") or ""
-        if not home or not away:
-            continue
-
-        if team_b:
-            # Pair matching: HER IKI takim da eslemeli (normal + swap)
-            is_match, conf = match_pair((team_a, team_b), (home, away))
-            if is_match and conf > best_conf:
-                best_match = ms
-                best_conf = conf
-        else:
-            # Single team fallback
-            mh, ch, _ = match_team(team_a, home)
-            ma, ca, _ = match_team(team_a, away)
-            best_side = max(ch, ca)
-            if (mh or ma) and best_side > best_conf:
-                best_match = ms
-                best_conf = best_side
-
-    return best_match if best_conf >= min_confidence else None
-
-
-# MatchScore-like protocol: both MatchScore and ESPNMatchScore share home/away score fields.
-# _build_score_info works with any object that has home_score, away_score, period, home_team/home_name.
-
-def _build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
-    """Eşleşen skor verisinden score_info dict oluştur (direction-aware).
-
-    ESPN: home_name/away_name kullanır + linescores içerir.
-    Odds API: home_team/away_team kullanır + linescores boş.
-    """
-    if ms.home_score is None or ms.away_score is None:
-        return {"available": False}
-
-    team_a, _ = extract_teams(pos.question)
-
-    # home_name (ESPN) veya home_team (Odds API)
-    home_field: str = getattr(ms, "home_name", None) or getattr(ms, "home_team", "")
-    a_is_home, _, _ = match_team(team_a or "", home_field)
-
-    if a_is_home:
-        yes_score, no_score = ms.home_score, ms.away_score
-    else:
-        yes_score, no_score = ms.away_score, ms.home_score
-
-    # Direction-aware: BUY_YES → YES side bizim; BUY_NO → NO side bizim
-    if pos.direction == "BUY_YES":
-        our_score, opp_score = yes_score, no_score
-    else:
-        our_score, opp_score = no_score, yes_score
-
-    deficit = opp_score - our_score  # pozitif = gerideyiz
-    linescores: list = getattr(ms, "linescores", []) or []
-
-    # Direction-aware: our side = home?
-    our_is_home = (pos.direction == "BUY_YES") == a_is_home
-
-    return {
-        "available": True,
-        "our_score": our_score,
-        "opp_score": opp_score,
-        "deficit": deficit,
-        "period": ms.period,
-        "inning": getattr(ms, "inning", None),   # SPEC-014: MLB inning int (None = N/A)
-        "map_diff": -deficit,   # pozitif = öndeyiz (never_in_profit / hold_revoked uyumu)
-        "linescores": linescores,
-        "our_is_home": our_is_home,
-        "espn_start": getattr(ms, "commence_time", ""),
-        "minute": getattr(ms, "minute", None),
-        "regulation_state": getattr(ms, "regulation_state", ""),
-        "our_outcome": _soccer_our_outcome(pos),
-        "knockout": _soccer_is_knockout(pos),
-        "period_number": getattr(ms, "period_number", None),   # SPEC-A4: NBA/NFL int period
-        "clock_seconds": getattr(ms, "clock_seconds", None),   # SPEC-A4: NBA/NFL kalan saniye
-    }
-# ── ScoreEnricher ─────────────────────────────────────────────────────────────
 
 class ScoreEnricher:
     """ESPN primary + Odds API fallback ile periyodik skor çekme ve eşleştirme."""
@@ -189,7 +71,7 @@ class ScoreEnricher:
         self._last_poll_ts: float = 0.0
         # sport_tag → list (ESPNMatchScore | MatchScore)
         self._cached_espn: dict[str, list[ESPNMatchScore]] = {}
-        self._cached_odds: dict[str, list[MatchScore]] = {}
+        self._cached_odds: dict[str, list] = {}
         self._archive_logger = archive_logger
         self._cricket_client = cricket_client
         self._cached_cricket: list[CricketMatchScore] = []
@@ -233,7 +115,6 @@ class ScoreEnricher:
 
     def _refresh_scores(self, positions: dict[str, Position]) -> None:
         """Maç penceresindeki pozisyonlar için sport bazında skor çek."""
-        # sport_tag → pozisyon listesi (pencere içinde olanlar)
         sports: dict[str, list[Position]] = defaultdict(list)
         for pos in positions.values():
             if not _is_within_match_window(pos, self._window_hours):
@@ -259,12 +140,11 @@ class ScoreEnricher:
         for tag, sport_positions in sports.items():
             score_source: str | None = get_sport_rule(tag, "score_source")
             if score_source != "espn":
-                continue  # skor kaynağı yok, atla
+                continue
 
             espn_sport: str = get_sport_rule(tag, "espn_sport", "")
             espn_league: str = get_sport_rule(tag, "espn_league", "")
 
-            # Tenis için slug'dan league belirle
             if tag == "tennis":
                 slug = sport_positions[0].slug if sport_positions else ""
                 espn_league = _resolve_tennis_league(slug)
@@ -274,7 +154,6 @@ class ScoreEnricher:
             if espn_scores:
                 self._cached_espn[tag] = espn_scores
             elif tag != "tennis" and self._odds is not None:
-                # ESPN başarısız + tenis değil → Odds API fallback
                 odds_key = _ODDS_API_KEY_MAP.get(tag, "")
                 if odds_key:
                     odds_scores = fetch_scores(self._odds, odds_key)
@@ -310,7 +189,6 @@ class ScoreEnricher:
             tag = _normalize(pos.sport_tag)
             matched_score_obj = None
 
-            # ESPN cache öncelikli
             espn_scores = self._cached_espn.get(tag, [])
             if espn_scores:
                 em = _find_match_via_pair(pos, espn_scores, "home_name", "away_name")
@@ -318,7 +196,6 @@ class ScoreEnricher:
                     result[cid] = _build_score_info(pos, em)
                     matched_score_obj = em
 
-            # Odds API fallback cache (ESPN yoksa)
             if matched_score_obj is None:
                 odds_scores = self._cached_odds.get(tag, [])
                 if odds_scores:
@@ -329,7 +206,6 @@ class ScoreEnricher:
 
             # Archive: skor degisikligi + match result (SPEC-009)
             if matched_score_obj is not None:
-                # SPEC-014: Pozisyon state mutasyonu — match_score/period yaz
                 pos.match_score = (
                     f"{matched_score_obj.home_score}-{matched_score_obj.away_score}"
                 )
@@ -352,13 +228,11 @@ class ScoreEnricher:
             return
         new_score = f"{home_score}-{away_score}"
         prev_score = self._prev_score_by_event.get(event_id, "")
-        # Ilk sefer (prev yok) → log atma, sadece kaydet
         if prev_score == "":
             self._prev_score_by_event[event_id] = new_score
             return
         if new_score == prev_score:
             return
-        # Degisiklik var → archive'a yaz
         self._archive_logger.log_score_event(ArchiveScoreEvent(
             event_id=event_id,
             slug=pos.slug,
@@ -389,7 +263,6 @@ class ScoreEnricher:
             winner_home = True
         elif away_score > home_score:
             winner_home = False
-        # esit skor (draw) → None kalir
 
         self._archive_logger.log_match_result(ArchiveMatchResult(
             event_id=event_id,

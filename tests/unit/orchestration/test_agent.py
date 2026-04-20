@@ -227,7 +227,7 @@ def test_slot_full_market_goes_to_stock(tmp_path: Path, monkeypatch) -> None:
     assert deps.state.portfolio.count() == 1
     # m2 stock'a alındı (max_positions_reached veya event_already_held — test tolere eder)
     # En azından m1 veya m2'nin stock'ta olması beklenir
-    assert deps.stock.count() >= 0  # sınırlı assertion; davranış zincirine bağlı
+    assert deps.stock._count() >= 0  # sınırlı assertion; davranış zincirine bağlı
 
 
 # ── WebSocket price feed integration ──

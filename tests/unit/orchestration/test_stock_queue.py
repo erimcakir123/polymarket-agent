@@ -25,22 +25,22 @@ def _market(cid: str = "c1", ms_offset_hours: float = 2.0, volume: float = 100.0
 def test_add_new_market_creates_entry() -> None:
     sq = StockQueue(StockConfig())
     assert sq.add(_market("c1"), "exposure_cap_reached") is True
-    assert sq.count() == 1
+    assert sq._count() == 1
     assert sq.has("c1")
 
 
 def test_add_non_pushable_reason_rejected() -> None:
     sq = StockQueue(StockConfig())
     assert sq.add(_market("c1"), "blacklisted") is False
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_add_existing_updates_not_duplicates() -> None:
     sq = StockQueue(StockConfig())
     sq.add(_market("c1"), "exposure_cap_reached")
     sq.add(_market("c1"), "no_edge")
-    assert sq.count() == 1
-    entry = sq.all_entries()[0]
+    assert sq._count() == 1
+    entry = sq._all_entries()[0]
     assert entry.last_skip_reason == "no_edge"
     assert entry.stale_attempts == 2  # both skips count
 
@@ -50,7 +50,7 @@ def test_stale_attempts_increment_on_every_skip() -> None:
     sq.add(_market("c1"), "no_edge")
     sq.add(_market("c1"), "exposure_cap_reached")
     sq.add(_market("c1"), "circuit_breaker")
-    entry = sq.all_entries()[0]
+    entry = sq._all_entries()[0]
     assert entry.stale_attempts == 3
 
 
@@ -58,7 +58,7 @@ def test_remove() -> None:
     sq = StockQueue(StockConfig())
     sq.add(_market("c1"), "no_edge")
     sq.remove("c1")
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_top_n_by_match_start_ascending() -> None:
@@ -88,7 +88,7 @@ def test_refresh_from_scan_updates_market_and_drops_delisted() -> None:
     refreshed = sq.refresh_from_scan({"c1": fresh_c1})
     assert refreshed == 1
     assert not sq.has("c2")  # delisted
-    assert sq.all_entries()[0].market.yes_price == 0.75
+    assert sq._all_entries()[0].market.yes_price == 0.75
 
 
 def test_evict_ttl_by_first_seen() -> None:
@@ -98,7 +98,7 @@ def test_evict_ttl_by_first_seen() -> None:
     # Simulate 2h passage
     now = datetime.now(timezone.utc) + timedelta(hours=2)
     sq.evict_expired(now=now)
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_evict_pre_match_cutoff() -> None:
@@ -108,7 +108,7 @@ def test_evict_pre_match_cutoff() -> None:
     m = _market("c1", ms_offset_hours=0.25)
     sq.add(m, "no_edge")
     sq.evict_expired()
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_evict_stale_attempts_cap() -> None:
@@ -117,7 +117,7 @@ def test_evict_stale_attempts_cap() -> None:
     sq.add(_market("c1"), "no_edge")
     sq.add(_market("c1"), "exposure_cap_reached")  # 2 stale_attempts total
     sq.evict_expired()
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_evict_event_already_open() -> None:
@@ -125,7 +125,7 @@ def test_evict_event_already_open() -> None:
     sq.add(_market("c1"), "no_edge")
     # c1'in event_id'si "ev-c1"
     sq.evict_expired(open_event_ids=frozenset({"ev-c1"}))
-    assert sq.count() == 0
+    assert sq._count() == 0
 
 
 def test_persistence_save_load_roundtrip(tmp_path) -> None:

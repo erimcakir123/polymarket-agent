@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from src.models.market import MarketData
-from src.orchestration.event_grouper import EventGroup, group_markets_by_event
+from src.domain.matching.event_grouper import EventGroup, group_markets_by_event
 
 
 def _market(cid: str, eid: str, yes: float, sport: str = "soccer", question: str = "") -> MarketData:
