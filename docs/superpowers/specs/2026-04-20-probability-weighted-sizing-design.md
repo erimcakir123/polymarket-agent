@@ -106,10 +106,10 @@ DRAFT → APPROVED (user onayı sonrası) → IMPLEMENTED (code + test + doc mer
 
 ## Implementation Commits
 
-- T1: `81fce3b` feat(sizing): add effective_win_prob direction helper
+- T1: `704a44c` feat(sizing): add effective_win_prob direction helper
 - T1 fix: `81fce3b` test(sizing): complete effective_win_prob boundary matrix
 - T2: `646cdef` feat(sizing): probability-weighted stake in position_sizer
 - T2 fix: `c82bfa3` refactor(sizing): remove dead max guard + add floor-boundary test
 - T3: `bc3bee2` feat(sizing): probability_weighted config flag
 - T4: `cb03b4b` feat(sizing): gate wires win_prob to sizer
-- T5: `<this-commit-sha>` docs(tdd/prd): SPEC-016 probability-weighted sizing
+- T5: `e641283` docs(tdd/prd): SPEC-016 probability-weighted sizing
