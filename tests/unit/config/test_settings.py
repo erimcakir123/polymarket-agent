@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.settings import AppConfig, Mode, RiskConfig, load_config
+from src.config.settings import AppConfig, EntryConfig, Mode, RiskConfig, load_config
 
 
 def test_load_config_missing_file_returns_defaults(tmp_path: Path) -> None:
@@ -90,6 +90,20 @@ def test_risk_config_probability_weighted_default_true():
 def test_risk_config_probability_weighted_explicit_false():
     cfg = RiskConfig(probability_weighted=False)
     assert cfg.probability_weighted is False
+
+
+def test_entry_config_defaults():
+    cfg = EntryConfig()
+    assert cfg.min_favorite_probability == 0.55
+    assert cfg.min_entry_price == 0.60
+    assert cfg.max_entry_price == 0.85
+
+
+def test_entry_config_custom_values():
+    cfg = EntryConfig(min_favorite_probability=0.60, min_entry_price=0.65, max_entry_price=0.80)
+    assert cfg.min_favorite_probability == 0.60
+    assert cfg.min_entry_price == 0.65
+    assert cfg.max_entry_price == 0.80
 
 
 def test_repo_config_yaml_parses() -> None:

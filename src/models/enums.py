@@ -20,6 +20,7 @@ class EntryReason(str, Enum):
     NORMAL = "normal"
     EARLY = "early"
     CONSENSUS = "consensus"
+    DIRECTIONAL = "directional"  # SPEC-017: edge-free directional entry
 
 
 class ExitReason(str, Enum):

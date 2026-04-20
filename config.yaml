@@ -156,6 +156,11 @@ risk:
   stop_loss_pct: 0.30
   probability_weighted: true  # SPEC-016: stake win_prob ile çarpılır (false = eski davranış)
 
+entry:
+  min_favorite_probability: 0.55   # SPEC-017: güçlü favori eşiği
+  min_entry_price: 0.60            # SPEC-017: min effective entry price
+  max_entry_price: 0.85            # SPEC-017: max effective entry price
+
 early:
   enabled: true
   max_slots: 2

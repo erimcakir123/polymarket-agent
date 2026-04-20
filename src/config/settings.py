@@ -61,6 +61,14 @@ class RiskConfig(BaseModel):
     probability_weighted: bool = True  # SPEC-016: stake = base × win_prob
 
 
+class EntryConfig(BaseModel):
+    """Directional entry (SPEC-017) — edge-free entry kararı."""
+    model_config = ConfigDict(extra="ignore")
+    min_favorite_probability: float = 0.55  # güçlü favori eşiği
+    min_entry_price: float = 0.60           # çok düşük fiyatlı girişi engelle
+    max_entry_price: float = 0.85           # aşırı pahalı girişi engelle
+
+
 class EarlyEntryConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
@@ -206,6 +214,7 @@ class AppConfig(BaseModel):
     scanner: ScannerConfig = ScannerConfig()
     edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
+    entry: EntryConfig = EntryConfig()
     early: EarlyEntryConfig = EarlyEntryConfig()
     consensus: ConsensusConfig = ConsensusConfig()
     stock: StockConfig = StockConfig()
