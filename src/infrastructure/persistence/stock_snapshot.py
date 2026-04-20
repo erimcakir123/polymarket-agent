@@ -29,7 +29,7 @@ class StockSnapshot:
                 "first_seen_iso": e.first_seen_iso,
                 "last_eval_iso": e.last_eval_iso,
                 "last_skip_reason": e.last_skip_reason,
-                "no_edge_attempts": e.no_edge_attempts,
+                "stale_attempts": e.stale_attempts,
                 "market": e.market.model_dump(mode="json"),
             }
             for e in entries
@@ -58,7 +58,7 @@ class StockSnapshot:
                 first_seen_iso=row.get("first_seen_iso", ""),
                 last_eval_iso=row.get("last_eval_iso", ""),
                 last_skip_reason=row.get("last_skip_reason", ""),
-                no_edge_attempts=int(row.get("no_edge_attempts", 0) or 0),
+                stale_attempts=int(row.get("stale_attempts", 0) or 0),
             ))
         return out
 

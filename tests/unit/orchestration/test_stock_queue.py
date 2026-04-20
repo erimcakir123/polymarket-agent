@@ -42,16 +42,16 @@ def test_add_existing_updates_not_duplicates() -> None:
     assert sq.count() == 1
     entry = sq.all_entries()[0]
     assert entry.last_skip_reason == "no_edge"
-    assert entry.no_edge_attempts == 1
+    assert entry.stale_attempts == 2  # both skips count
 
 
-def test_no_edge_attempts_reset_on_other_reason() -> None:
+def test_stale_attempts_increment_on_every_skip() -> None:
     sq = StockQueue(StockConfig())
     sq.add(_market("c1"), "no_edge")
-    sq.add(_market("c1"), "no_edge")
-    sq.add(_market("c1"), "exposure_cap_reached")  # reset
+    sq.add(_market("c1"), "exposure_cap_reached")
+    sq.add(_market("c1"), "circuit_breaker")
     entry = sq.all_entries()[0]
-    assert entry.no_edge_attempts == 0
+    assert entry.stale_attempts == 3
 
 
 def test_remove() -> None:
@@ -111,11 +111,11 @@ def test_evict_pre_match_cutoff() -> None:
     assert sq.count() == 0
 
 
-def test_evict_no_edge_attempts_cap() -> None:
-    cfg = StockConfig(max_no_edge_attempts=2)
+def test_evict_stale_attempts_cap() -> None:
+    cfg = StockConfig(max_stale_attempts=2)
     sq = StockQueue(cfg)
     sq.add(_market("c1"), "no_edge")
-    sq.add(_market("c1"), "no_edge")  # 2 attempts
+    sq.add(_market("c1"), "exposure_cap_reached")  # 2 stale_attempts total
     sq.evict_expired()
     assert sq.count() == 0
 

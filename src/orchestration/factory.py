@@ -67,7 +67,7 @@ def build_agent(state: RuntimeState) -> Agent:
             jit_batch_multiplier=cfg.stock.jit_batch_multiplier,
             ttl_hours=cfg.stock.ttl_hours,
             pre_match_cutoff_min=cfg.stock.pre_match_cutoff_min,
-            max_no_edge_attempts=cfg.stock.max_no_edge_attempts,
+            max_stale_attempts=cfg.stock.max_stale_attempts,
         ),
         snapshot=stock_snapshot,
     )

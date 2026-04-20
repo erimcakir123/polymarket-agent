@@ -287,6 +287,17 @@ def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
     assert abs(results[0].signal.size_usdc - 30.0) < 0.5
 
 
+def test_approved_signal_carries_bookmaker_metadata() -> None:
+    """Onaylanan signal'da num_bookmakers ve has_sharp patch'lenen değerleri taşır."""
+    bm = _bm(prob=0.65, conf="A")  # has_sharp=True (conf=="A"), num_bookmakers=10.0
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    results = gate.run([_market(yp=0.65)])
+    sig = results[0].signal
+    assert sig is not None
+    assert sig.num_bookmakers == bm.num_bookmakers
+    assert sig.has_sharp == bm.has_sharp
+
+
 def test_gate_skips_when_available_below_min_entry_size() -> None:
     # initial=$2000, invested=$1035 → bankroll_kalan=$965, total=$2000.
     # hard=$1040, available=$5. min_entry = $965×0.015 ≈ $14.48. $5 < $14.48 → skip.

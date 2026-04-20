@@ -133,13 +133,6 @@ scanner:
     # Handball (SPEC-015 3-way)
     - handball
 
-edge:
-  min_edge: 0.06
-  confidence_multipliers:
-    A: 1.00    # SPEC-010: iyi donem degeri (%6 eşik). Onceki: 0.67 (%4)
-    B: 1.00    # reputable-only → baz eşik (%6)
-  min_favorite_probability: 0.52   # SPEC-013 rev: %55 1 puan marjı engelliyordu (DET-BOS bug), %52 yumuşatma
-
 risk:
   max_single_bet_usdc: 50           # SPEC-010: bet tavani geri, iyi donemde max $56'da kalmıştı
   max_bet_pct: 0.05
@@ -161,32 +154,12 @@ entry:
   min_entry_price: 0.60            # SPEC-017: min effective entry price
   max_entry_price: 0.85            # SPEC-017: max effective entry price
 
-early:
-  enabled: true
-  max_slots: 2
-  max_entry_price: 0.70
-  min_edge: 0.10
-  min_favorite_probability: 0.52   # SPEC-013 rev: %52 unified with normal entry
-  min_confidence: "B"
-  bookmaker_pre_screen_edge: 0.08
-  min_hours_to_start: 6.0
-  max_hours_to_start: 24.0
-  bet_pct: 0.05
-  stop_loss_pct: 0.30
-
-consensus:
-  enabled: true
-  min_price: 0.60
-  max_price: 0.80          # 80¢ cap — DET 79¢ gecer, SAS 84¢ bloklu (EV guard Spurs korumaya devam)
-  bet_pct: 0.05
-  max_slots: 5
-
 stock:
   enabled: true
   jit_batch_multiplier: 3       # empty_slots × bu = her cycle enrich edilecek tavan
   ttl_hours: 24.0               # first_seen üzerinden stock'ta kalma limiti
   pre_match_cutoff_min: 30.0    # match_start'a bu dk kala düş
-  max_no_edge_attempts: 3       # peş peşe bu kadar no_edge → düş
+  max_stale_attempts: 3         # peş peşe bu kadar skip → düş
 
 scale_out:
   enabled: true

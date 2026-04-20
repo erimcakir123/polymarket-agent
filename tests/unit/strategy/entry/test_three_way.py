@@ -40,7 +40,7 @@ def test_clear_home_favorite_passes() -> None:
     assert sig is not None
     assert sig.direction == Direction.BUY_YES
     assert sig.condition_id == "h"
-    assert sig.edge == 0.0  # SPEC-017 transitional placeholder
+    assert sig.bookmaker_prob == 0.45  # anchor is the top bookmaker probability
 
 
 def test_three_way_skips_when_favorite_price_out_of_range() -> None:

@@ -63,11 +63,11 @@ class TelegramNotifier:
     # ── Semantic helpers (entry/exit/breaker) ──
 
     def notify_entry(self, slug: str, direction: str, entry_price: float,
-                     size_usdc: float, confidence: str, edge: float,
+                     size_usdc: float, confidence: str,
                      entry_reason: str) -> bool:
         msg = (f"🟢 <b>ENTRY</b> — {slug[:50]}\n"
                f"{direction} @ ${entry_price:.3f} × ${size_usdc:.2f}\n"
-               f"Conf {confidence} · Edge {edge:.1%} · {entry_reason}")
+               f"Conf {confidence} · {entry_reason}")
         return self.send(msg)
 
     def notify_exit(self, slug: str, exit_price: float,

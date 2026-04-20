@@ -13,7 +13,6 @@ def _valid(**overrides) -> Signal:
         direction=Direction.BUY_YES,
         anchor_probability=0.60,
         market_price=0.50,
-        edge=0.10,
         confidence="B",
         size_usdc=40.0,
         entry_reason=EntryReason.NORMAL,
@@ -26,7 +25,6 @@ def _valid(**overrides) -> Signal:
 def test_signal_valid() -> None:
     s = _valid()
     assert s.direction == Direction.BUY_YES
-    assert s.edge == 0.10
     assert s.entry_reason == EntryReason.NORMAL
 
 

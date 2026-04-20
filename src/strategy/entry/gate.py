@@ -29,6 +29,7 @@ from src.domain.risk.position_sizer import (
     POLYMARKET_MIN_ORDER_USDC,
     confidence_position_size,
 )
+from src.models.enums import Direction
 from src.models.market import MarketData
 from src.models.position import effective_price, effective_win_prob
 from src.models.signal import Signal
@@ -247,7 +248,6 @@ class EntryGate:
         manip: ManipulationCheck,
     ) -> GateResult:
         """Directional skip sebebini belirle: fav_prob yetersiz mi, fiyat aralığı dışında mı."""
-        from src.models.enums import Direction
         anchor = bm_prob.probability
         direction = Direction.BUY_YES if anchor >= 0.50 else Direction.BUY_NO
         win_prob = effective_win_prob(anchor, direction.value)

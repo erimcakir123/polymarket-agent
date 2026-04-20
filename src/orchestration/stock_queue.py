@@ -42,7 +42,7 @@ class StockEntry:
     first_seen_iso: str
     last_eval_iso: str
     last_skip_reason: str
-    no_edge_attempts: int = 0
+    stale_attempts: int = 0
 
     @property
     def condition_id(self) -> str:
@@ -60,7 +60,7 @@ class StockConfig:
     jit_batch_multiplier: int = 3         # empty_slots × bu = enrich edilecek max
     ttl_hours: float = 24.0               # first_seen üzerinden; aşınca düşür
     pre_match_cutoff_min: float = 30.0    # match_start'a bu dk kala düşür
-    max_no_edge_attempts: int = 3         # peş peşe bu sayıda no_edge → düşür
+    max_stale_attempts: int = 3           # peş peşe bu sayıda skip → düşür
 
 
 _PUSHABLE_REASONS: frozenset[str] = frozenset({
@@ -85,7 +85,7 @@ class StockQueue:
     def add(self, market: MarketData, skip_reason: str) -> bool:
         """Market'i stock'a ekle. Reason pushable değilse False döner.
 
-        Varsa mevcut entry güncellenir (last_skip_reason, last_eval, no_edge_attempts).
+        Varsa mevcut entry güncellenir (last_skip_reason, last_eval, stale_attempts).
         """
         if skip_reason not in _PUSHABLE_REASONS:
             return False
@@ -98,16 +98,13 @@ class StockQueue:
                 first_seen_iso=now_iso,
                 last_eval_iso=now_iso,
                 last_skip_reason=skip_reason,
-                no_edge_attempts=1 if skip_reason == "no_edge" else 0,
+                stale_attempts=1,
             )
         else:
             existing.market = market
             existing.last_eval_iso = now_iso
             existing.last_skip_reason = skip_reason
-            if skip_reason == "no_edge":
-                existing.no_edge_attempts += 1
-            else:
-                existing.no_edge_attempts = 0
+            existing.stale_attempts += 1
         return True
 
     def remove(self, condition_id: str) -> None:
@@ -157,7 +154,7 @@ class StockQueue:
           - first_seen'den ttl_hours geçti
           - match_start - pre_match_cutoff_min geçti
           - event_id açık pozisyon listesindeyse
-          - no_edge_attempts >= max_no_edge_attempts
+          - stale_attempts >= max_stale_attempts
         """
         now = now or datetime.now(timezone.utc)
         ttl_delta = timedelta(hours=self.config.ttl_hours)
@@ -175,7 +172,7 @@ class StockQueue:
             if entry.market.event_id and entry.market.event_id in open_event_ids:
                 to_drop.append(cid)
                 continue
-            if entry.no_edge_attempts >= self.config.max_no_edge_attempts:
+            if entry.stale_attempts >= self.config.max_stale_attempts:
                 to_drop.append(cid)
                 continue
         for cid in to_drop:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.settings import AppConfig, EntryConfig, Mode, RiskConfig, load_config
+from src.config.settings import AppConfig, EntryConfig, Mode, RiskConfig, StockConfig, load_config
 
 
 def test_load_config_missing_file_returns_defaults(tmp_path: Path) -> None:
@@ -13,22 +13,18 @@ def test_load_config_missing_file_returns_defaults(tmp_path: Path) -> None:
     assert isinstance(cfg, AppConfig)
     assert cfg.mode == Mode.DRY_RUN
     assert cfg.initial_bankroll == 1000.0
-    assert cfg.edge.min_edge == 0.06
 
 
 def test_load_config_valid_yaml_parses(tmp_path: Path) -> None:
     p = tmp_path / "cfg.yaml"
     p.write_text(
         "mode: paper\n"
-        "initial_bankroll: 500.0\n"
-        "edge:\n"
-        "  min_edge: 0.08\n",
+        "initial_bankroll: 500.0\n",
         encoding="utf-8",
     )
     cfg = load_config(p)
     assert cfg.mode == Mode.PAPER
     assert cfg.initial_bankroll == 500.0
-    assert cfg.edge.min_edge == 0.08
 
 
 def test_load_config_invalid_mode_raises(tmp_path: Path) -> None:
@@ -37,12 +33,6 @@ def test_load_config_invalid_mode_raises(tmp_path: Path) -> None:
     with pytest.raises(Exception):
         load_config(p)
 
-
-def test_load_config_invalid_edge_value_raises(tmp_path: Path) -> None:
-    p = tmp_path / "cfg.yaml"
-    p.write_text("edge:\n  min_edge: high\n", encoding="utf-8")
-    with pytest.raises(Exception):
-        load_config(p)
 
 
 def test_mode_enum_values() -> None:
@@ -106,12 +96,21 @@ def test_entry_config_custom_values():
     assert cfg.max_entry_price == 0.80
 
 
+def test_stock_config_max_stale_attempts_default() -> None:
+    cfg = StockConfig()
+    assert cfg.max_stale_attempts == 3
+
+
+def test_stock_config_max_stale_attempts_custom() -> None:
+    cfg = StockConfig(max_stale_attempts=5)
+    assert cfg.max_stale_attempts == 5
+
+
 def test_repo_config_yaml_parses() -> None:
     """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli."""
     cfg = load_config()  # default Path("config.yaml")
     assert cfg.mode is not None
     assert cfg.initial_bankroll > 0
-    assert cfg.edge.min_edge == 0.06
     # Gamma tag formatı (Odds API key değil)
     assert "nba" in cfg.scanner.allowed_sport_tags
     assert "nhl" in cfg.scanner.allowed_sport_tags

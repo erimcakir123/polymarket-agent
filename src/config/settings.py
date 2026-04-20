@@ -37,14 +37,6 @@ class ScannerConfig(BaseModel):
     allowed_sport_tags: List[str] = []
 
 
-class EdgeConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    min_edge: float = 0.06
-    # SPEC-010 + Bug #2 fix: A=1.00, B=1.00 (her ikisi de %6 eşik, unified)
-    confidence_multipliers: dict = {"A": 1.00, "B": 1.00}
-    min_favorite_probability: float = 0.52  # SPEC-013 rev: %55 1 puan marjını engelliyordu (DET-BOS bug)
-
-
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     max_single_bet_usdc: float = 50    # SPEC-010: bet tavani
@@ -69,38 +61,13 @@ class EntryConfig(BaseModel):
     max_entry_price: float = 0.85           # aşırı pahalı girişi engelle
 
 
-class EarlyEntryConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    enabled: bool = True
-    max_slots: int = 2
-    max_entry_price: float = 0.70
-    min_edge: float = 0.10
-    min_favorite_probability: float = 0.52  # SPEC-013 rev: unified with normal entry
-    min_confidence: str = "B"
-    bookmaker_pre_screen_edge: float = 0.08
-    min_hours_to_start: float = 6.0
-    max_hours_to_start: float = 24.0
-    bet_pct: float = 0.05
-    stop_loss_pct: float = 0.30
-
-
-class ConsensusConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    enabled: bool = True
-    # Spurs 84¢ bug: EV guard Spurs'ü bloklar; max_price 0.80'de kalır (user karar)
-    min_price: float = 0.60
-    max_price: float = 0.80
-    bet_pct: float = 0.05
-    max_slots: int = 5
-
-
 class StockConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
     jit_batch_multiplier: int = 3
     ttl_hours: float = 24.0
     pre_match_cutoff_min: float = 30.0
-    max_no_edge_attempts: int = 3
+    max_stale_attempts: int = 3
 
 
 class ScaleOutTier(BaseModel):
@@ -212,11 +179,8 @@ class AppConfig(BaseModel):
     initial_bankroll: float = 1000.0
     cycle: CycleConfig = CycleConfig()
     scanner: ScannerConfig = ScannerConfig()
-    edge: EdgeConfig = EdgeConfig()
     risk: RiskConfig = RiskConfig()
     entry: EntryConfig = EntryConfig()
-    early: EarlyEntryConfig = EarlyEntryConfig()
-    consensus: ConsensusConfig = ConsensusConfig()
     stock: StockConfig = StockConfig()
     scale_out: ScaleOutConfig = ScaleOutConfig()
     circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()

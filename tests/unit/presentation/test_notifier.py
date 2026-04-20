@@ -50,7 +50,7 @@ def test_send_non_200_returns_false() -> None:
 def test_notify_entry_formats_message() -> None:
     http = MagicMock(return_value=_resp(200))
     n = TelegramNotifier(enabled=True, bot_token="t", chat_id="c", http_post=http)
-    n.notify_entry("lakers-celtics", "BUY_YES", 0.45, 40.0, "A", 0.12, "normal")
+    n.notify_entry("lakers-celtics", "BUY_YES", 0.45, 40.0, "A", "directional")
     text = http.call_args.kwargs["json"]["text"]
     assert "ENTRY" in text
     assert "lakers-celtics" in text
