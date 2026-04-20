@@ -60,7 +60,12 @@ class EntryProcessor:
 
         still_empty = max_positions - self.deps.state.portfolio.count()
         if still_empty > 0:
+            # Fresh batch match_start ASC sıralı — stock batch ile tutarlı (TDD §F1.5).
+            # Önceden scan-order kullanılıyordu: Gamma tennis event'leri önce çektiği
+            # için fresh_batch'in ilk N'i tennis qualifier'larla dolup MLB/NHL kuyrukta
+            # kalıyordu. Match_start sıralama en yakın maçlara öncelik verir.
             fresh_only = [m for m in scan_fresh if not self.deps.stock.has(m.condition_id)]
+            fresh_only.sort(key=lambda m: m.match_start_iso or "9999-99-99")
             fresh_batch = fresh_only[: still_empty * jit_mult]
             if fresh_batch:
                 logger.info("Heavy: fresh batch=%d (still_empty=%d × %d)",
