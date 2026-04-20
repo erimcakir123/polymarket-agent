@@ -197,13 +197,22 @@
       return code.length <= 4 ? code.toUpperCase()
         : code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
     },
-    // BUY_YES → slug yes-code; BUY_NO → no-code. Slug eşleşmezse "YES"/"NO".
+    // 2-way: BUY_YES → slug home-code, BUY_NO → away-code.
+    // 3-way (SPEC-015): son segment bahis ettiğimiz outcome (home/away/draw).
+    // Slug eşleşmezse "YES"/"NO" fallback.
     sideCode(direction, slug) {
-      const m = String(slug || "").match(
-        /^[a-z]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}$/i
+      const s = String(slug || "");
+      // 3-way first (daha uzun pattern, outcome suffix ile biter)
+      const threeWay = s.match(
+        /^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2}-([a-z0-9]+)$/i
       );
-      if (!m) return direction === "BUY_YES" ? "YES" : "NO";
-      return (direction === "BUY_YES" ? m[1] : m[2]).toUpperCase();
+      if (threeWay) return threeWay[1].toUpperCase();
+      // 2-way
+      const twoWay = s.match(
+        /^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}$/i
+      );
+      if (twoWay) return (direction === "BUY_YES" ? twoWay[1] : twoWay[2]).toUpperCase();
+      return direction === "BUY_YES" ? "YES" : "NO";
     },
   };
 
