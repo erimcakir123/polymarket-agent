@@ -208,9 +208,10 @@
       // Active card'daki feed-entry-reason-row'un eşdeğeri:
       //   Partial exit  → "Remaining X%"
       //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
+      //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
       const subRowText = isPartial
         ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-        : FMT.escapeHtml(t.entry_reason || "");
+        : FMT.escapeHtml(t.entry_reason || "normal");
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
