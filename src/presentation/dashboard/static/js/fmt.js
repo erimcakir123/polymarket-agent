@@ -204,9 +204,9 @@
     exitReasonLabel(raw) {
       const r = String(raw || "");
       if (!r) return { text: "", emoji: "", tone: "neutral" };
-      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → TP{N}
+      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → Take Profit N
       const tp = r.match(/^scale_out_tier_(\d+)$/);
-      if (tp) return { text: "TP" + tp[1], emoji: "🎯", tone: "pos" };
+      if (tp) return { text: "Take Profit " + tp[1], emoji: "🎯", tone: "pos" };
       if (r === "scale_out") return { text: "Scale-out", emoji: "🎯", tone: "pos" };
       if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
       if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
