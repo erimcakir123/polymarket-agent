@@ -213,7 +213,7 @@ def test_position_unrealized_buy_no_zero_at_entry() -> None:
 def test_exit_events_partial_carries_anchor_probability_and_price() -> None:
     trades = [{
         "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
-        "direction": "BUY_YES", "entry_price": 0.5,
+        "direction": "BUY_YES", "entry_price": 0.5, "size_usdc": 50.0,
         "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
         "anchor_probability": 0.58,
         "partial_exits": [
@@ -228,6 +228,7 @@ def test_exit_events_partial_carries_anchor_probability_and_price() -> None:
     assert ev["partial"] is True
     assert ev["anchor_probability"] == 0.58
     assert ev["partial_price"] == 0.62
+    assert ev["size_usdc"] == 50.0
     assert abs(ev["remaining_pct"] - 0.6) < 1e-9
 
 

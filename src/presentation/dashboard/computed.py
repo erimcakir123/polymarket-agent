@@ -150,6 +150,7 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "entry_timestamp": t.get("entry_timestamp", ""),
                 "question": t.get("question", ""),
                 "anchor_probability": t.get("anchor_probability"),
+                "size_usdc": t.get("size_usdc"),
                 "exit_price": None,
                 "exit_pnl_usdc": pe.get("realized_pnl_usdc", 0.0),
                 "exit_reason": f"scale_out_tier_{pe.get('tier', '?')}",
