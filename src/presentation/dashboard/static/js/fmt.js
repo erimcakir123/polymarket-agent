@@ -218,6 +218,13 @@
       // Fallback — raw string, neutral
       return { text: r, emoji: "", tone: "neutral" };
     },
+    // Label tone'u PnL ile overlay: reason doğası "pos" olsa bile (örn. Near
+    // Resolve) gerçek PnL negatifse görsel kırmızı olsun. "neg"/"neutral"
+    // kendilerinde kalır çünkü zaten doğru renk taşıyorlar.
+    effectiveTone(label, pnl) {
+      if (label && label.tone === "pos" && Number(pnl) < 0) return "neg";
+      return label ? label.tone : "neutral";
+    },
     // ms → "Xh Ym" / "Xm" / "Xs" (truncate, do not round up).
     durationShort(ms) {
       if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "";

@@ -173,19 +173,11 @@ T20 için yeterli (1 maç ≈ 42 poll), ama:
 
 ---
 
-## TODO-006: `trade_history_modal.js::REASON_MAP` → `FMT.exitReasonLabel` konsolidasyonu
+## TODO-006: `trade_history_modal.js::REASON_MAP` → `FMT.exitReasonLabel` konsolidasyonu [IMPLEMENTED 2026-04-21]
 
-- **Durum**: DEFERRED
-- **Tarih**: 2026-04-21
-- **Kaynak**: Exit card redesign code review (Task 4) — `src/presentation/dashboard/static/js/trade_history_modal.js:13-21` hâlâ kendi `REASON_MAP`'ini tutuyor. Exit card redesign'da `FMT.exitReasonLabel` gerçek `ExitReason` enum'una göre yeniden yazıldı; modal hâlâ eski map'te.
-- **Sebep**: İki source of truth → CLAUDE.md "Dosya Rolleri" ihlali (DRIFT riski). Python'da reason eklenince iki yer güncellenmek zorunda.
-- **Yapılacak**:
-  1. `trade_history_modal.js` içindeki `REASON_MAP` kaldırılır.
-  2. Kullanım noktalarında `FMT.exitReasonLabel(reason)` çağrılır.
-  3. Modal'ın `color: "green"|"red"` alanı, `label.tone ∈ {"pos","neg","neutral"}` → CSS class mapping'e dönüştürülür (`pos→green, neg→red, neutral→default`).
-  4. Modal'ın `tp_hit`, `sl_hit` gibi legacy key'leri varsa production datasında görünmediği doğrulanıp silinir.
-- **Önkoşul**: Modal spec'i [2026-04-18-trade-history-modal-design.md](docs/superpowers/specs/2026-04-18-trade-history-modal-design.md) ile etkisi doğrulanır.
-- **Öncelik**: P2 (işlevsel bir bug değil, ama drift garantili).
+- **Durum**: ~~DEFERRED~~ → **IMPLEMENTED (2026-04-21)**
+- **Ne yapıldı**: `trade_history_modal.js`'deki yerel `REASON_MAP` kaldırıldı; `_reasonBadge(reason, pnl)` artık `FMT.exitReasonLabel` + `FMT.effectiveTone` kullanıyor. `tone → {green, red, muted}` map'i modal içinde; Near Resolve gibi "pos" tone'lu reason'lar PnL negatifse artık kırmızı render ediliyor.
+- **Etki**: Reason renk + emoji + label artık exit kartı ile bire bir tutarlı, tek kaynak `FMT.exitReasonLabel`.
 
 
 ---

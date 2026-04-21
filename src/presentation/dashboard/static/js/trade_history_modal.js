@@ -9,16 +9,8 @@
 (function (global) {
   "use strict";
 
-  // ── Exit reason badge mapping (spec §3) ──
-  const REASON_MAP = {
-    tp_hit:              { emoji: "\uD83C\uDFAF", label: "Take Profit", color: "green" },
-    sl_hit:              { emoji: "\uD83D\uDED1", label: "Stop Loss",   color: "red" },
-    scale_out_tier_1:    { emoji: "\uD83D\uDCCA", label: "Scale T1",    color: "green" },
-    near_resolve:        { emoji: "\u23F0",       label: "Near Resolve", color: "green" },
-    market_flip:         { emoji: "\uD83D\uDD04", label: "Market Flip",  color: "red" },
-    score_exit:          { emoji: "\u26A1",       label: "Score Exit",   color: "red" },
-    hold_revoked:        { emoji: "\u26A0\uFE0F", label: "Hold Revoked", color: "red" },
-  };
+  // Exit reason label + renk artık FMT.exitReasonLabel + FMT.effectiveTone
+  // tek kaynaktan. Eski yerel REASON_MAP kaldırıldı (TODO-006 konsolidasyonu).
 
   const _MONTH = ["Jan","Feb","Mar","Apr","May","Jun",
                    "Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -208,12 +200,18 @@
     return h + "h " + String(m).padStart(2, "0") + "m";
   }
 
-  function _reasonBadge(reason) {
-    const r = REASON_MAP[reason];
-    if (!r) {
-      return `<span class="modal-reason modal-reason--muted">${FMT.escapeHtml(reason || "--")}</span>`;
+  // tone → modal renk class'ı. pos→green, neg→red, neutral→muted.
+  const _TONE_TO_COLOR = { pos: "green", neg: "red", neutral: "muted" };
+
+  function _reasonBadge(reason, pnl) {
+    const label = FMT.exitReasonLabel(reason);
+    if (!label.text) {
+      return `<span class="modal-reason modal-reason--muted">--</span>`;
     }
-    return `<span class="modal-reason modal-reason--${r.color}">${r.emoji} ${r.label}</span>`;
+    const tone = FMT.effectiveTone(label, pnl);
+    const colorCls = _TONE_TO_COLOR[tone] || "muted";
+    const prefix = label.emoji ? label.emoji + " " : "";
+    return `<span class="modal-reason modal-reason--${colorCls}">${prefix}${FMT.escapeHtml(label.text)}</span>`;
   }
 
   function _dirBadge(direction) {
@@ -242,7 +240,7 @@
         <td>${_dirBadge(t.direction)}</td>
         <td>${_holdTime(t.entry_timestamp, t.exit_timestamp)}</td>
         <td class="${cls}">${FMT.usdSignedHtml(pnl)}</td>
-        <td>${_reasonBadge(t.exit_reason)}</td>
+        <td>${_reasonBadge(t.exit_reason, pnl)}</td>
       </tr>`;
     }).join("");
     wrap.innerHTML =
