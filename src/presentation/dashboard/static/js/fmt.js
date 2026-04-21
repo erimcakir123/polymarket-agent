@@ -204,10 +204,11 @@
     exitReasonLabel(raw) {
       const r = String(raw || "");
       if (!r) return { text: "", emoji: "", tone: "neutral" };
-      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → Take Profit N
-      const tp = r.match(/^scale_out_tier_(\d+)$/);
-      if (tp) return { text: "Take Profit " + tp[1], emoji: "🎯", tone: "pos" };
-      if (r === "scale_out") return { text: "Scale-out", emoji: "🎯", tone: "pos" };
+      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → Take Profit.
+      // Config'de şu an tek tier (sell_pct 0.40 @ midpoint) — rakam gereksiz.
+      // İleride tier sayısı artarsa bu dal tekrar genişletilir.
+      if (/^scale_out_tier_\d+$/.test(r)) return { text: "Take Profit", emoji: "🎯", tone: "pos" };
+      if (r === "scale_out") return { text: "Take Profit", emoji: "🎯", tone: "pos" };
       if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
       if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
       if (r === "score_exit") return { text: "Score against", emoji: "⚠️", tone: "neg" };
