@@ -173,7 +173,7 @@
       const isPartial = !!t.partial;
 
       // Invested notional: partial'da orijinal tutarın payı, full'de tam size.
-      // (t.size_usdc = pozisyonun entry'deki tutarı — TradeRecord'dan gelir.)
+      // Aynı denominator hem PnL % hem feed-time'da gösterilen $ için kullanılır.
       const invested = isPartial
         ? Number(t.size_usdc || 0) * Number(t.sell_pct || 0)
         : Number(t.size_usdc || 0);
@@ -181,12 +181,12 @@
 
       // Odds %: direction-adjusted render. anchor_probability = P(YES).
       const anchor = t.anchor_probability;
-      const oddsStr = (anchor === null || anchor === undefined)
-        ? ""
-        : `Odds ${((t.direction === "BUY_NO" ? (1 - anchor) : anchor) * 100).toFixed(1)}%`;
+      const oddsRaw = t.direction === "BUY_NO" ? (1 - anchor) : anchor;
+      const odds = (anchor === null || anchor === undefined)
+        ? null : Math.round(oddsRaw * 1000) / 10;
 
       // Exit fiyat hücresi:
-      //   Full:     "Entry XX¢ → Exit YY¢"
+      //   Full:          "Entry XX¢ → Exit YY¢"
       //   Partial+price: "Entry XX¢ → @ YY¢"
       //   Partial legacy (price yok): "Entry XX¢ → @ —"
       const exitPriceStr = isPartial
@@ -195,25 +195,8 @@
             : "@ —")
         : `Exit ${FMT.cents(t.exit_price || 0)}`;
 
-      // Remaining — partial'da gösterilir. "Remaining 60%" gibi.
-      const remainingStr = isPartial
-        ? `· Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-        : "";
-
-      // Held — full exit'te gösterilir (pozisyon hâlâ açık değil).
-      let heldPrefix = "";
-      if (!isPartial && t.entry_timestamp && t.exit_timestamp) {
-        const heldMs = new Date(t.exit_timestamp).getTime()
-          - new Date(t.entry_timestamp).getTime();
-        const held = FMT.durationShort(heldMs);
-        if (held) heldPrefix = `Held ${held} · `;
-      }
-
-      // Humanized reason + tone class.
+      // Humanized reason + tone class (active card'daki entry_reason row'unun yerine).
       const label = FMT.exitReasonLabel(t.exit_reason);
-      const toneCls = label.tone === "pos"
-        ? "feed-pnl-pos"
-        : label.tone === "neg" ? "feed-pnl-neg" : "";
       const reasonText = label.emoji
         ? `${label.emoji} ${FMT.escapeHtml(label.text)}`
         : FMT.escapeHtml(label.text);
@@ -222,25 +205,31 @@
         ? `<span class="feed-badge badge-partial">PARTIAL</span>`
         : "";
 
+      // Partial'da "Remaining X%" → feed-time sağ bölümünde reason'dan önce küçük.
+      const remainingBadge = isPartial
+        ? `<span class="feed-remaining">Remaining ${Math.round((t.remaining_pct || 0) * 100)}%</span>`
+        : "";
+
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(t.question, t.slug)}</div>
-          ${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span>
+          <div class="feed-badges">${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
         <div class="feed-details">
-          <span>Entry ${FMT.cents(t.entry_price)} &nbsp;→&nbsp; ${exitPriceStr}</span>
-          <span>${oddsStr}</span>
+          <span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>
+          ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
         </div>
         <div class="feed-impact">
-          <span class="${FMT.pnlClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
-          <span class="feed-pnl-pct ${FMT.pnlClass(pnl)}">(${FMT.pctSigned(pnlPct, 0)})</span>
-          ${remainingStr ? `<span class="feed-remaining">${remainingStr}</span>` : ""}
+          <div class="feed-impact-bar" style="--fill:${Math.min(100, Math.abs(pnlPct))}%">
+            <div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"></div>
+            <span class="feed-pnl-dollar ${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
+            <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
+          </div>
         </div>
-        <div class="feed-exit-reason-row ${toneCls}">${reasonText}</div>
         <div class="feed-time">
-          <span>${heldPrefix}${FMT.relTime(t.exit_timestamp)}</span>
-          <span>${t.final_outcome || ""}</span>
+          <span>$${invested.toFixed(0)}</span>
+          <span class="feed-exit-reason">${remainingBadge}${reasonText}</span>
         </div>
       </a>`;
     },
