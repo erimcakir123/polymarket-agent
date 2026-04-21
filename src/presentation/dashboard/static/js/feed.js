@@ -205,10 +205,12 @@
         ? `<span class="feed-badge badge-partial">PARTIAL</span>`
         : "";
 
-      // Partial'da "Remaining X%" → feed-time sağ bölümünde reason'dan önce küçük.
-      const remainingBadge = isPartial
-        ? `<span class="feed-remaining">Remaining ${Math.round((t.remaining_pct || 0) * 100)}%</span>`
-        : "";
+      // Active card'daki feed-entry-reason-row'un eşdeğeri:
+      //   Partial exit  → "Remaining X%"
+      //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
+      const subRowText = isPartial
+        ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
+        : FMT.escapeHtml(t.entry_reason || "");
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
@@ -216,6 +218,7 @@
             ${this._marketTitle(t.question, t.slug)}</div>
           <div class="feed-badges">${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
+        <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>
           ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
@@ -229,7 +232,7 @@
         </div>
         <div class="feed-time">
           <span>$${invested.toFixed(0)}</span>
-          <span class="feed-exit-reason">${remainingBadge}${reasonText}</span>
+          <span class="feed-exit-reason">${reasonText}</span>
         </div>
       </a>`;
     },
