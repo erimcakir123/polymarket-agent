@@ -170,15 +170,58 @@
       const dir = FMT.sideCode(t.direction, t.slug);
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
-      // Partial scale-out event (pozisyon hâlâ açık) — Exit fiyatı yazılmaz,
-      // PARTIAL badge + sell_pct gösterilir.
       const isPartial = !!t.partial;
-      const exitCell = isPartial
-        ? `<span>Partial ${Math.round((t.sell_pct || 0) * 100)}%</span>`
-        : `<span>Exit ${FMT.cents(t.exit_price || 0)}</span>`;
+
+      // Invested notional: partial'da orijinal tutarın payı, full'de tam size.
+      // (t.size_usdc = pozisyonun entry'deki tutarı — TradeRecord'dan gelir.)
+      const invested = isPartial
+        ? Number(t.size_usdc || 0) * Number(t.sell_pct || 0)
+        : Number(t.size_usdc || 0);
+      const pnlPct = invested > 0 ? (pnl / invested) * 100 : 0;
+
+      // Odds %: direction-adjusted render. anchor_probability = P(YES).
+      const anchor = t.anchor_probability;
+      const oddsStr = (anchor === null || anchor === undefined)
+        ? ""
+        : `Odds ${((t.direction === "BUY_NO" ? (1 - anchor) : anchor) * 100).toFixed(1)}%`;
+
+      // Exit fiyat hücresi:
+      //   Full:     "Entry XX¢ → Exit YY¢"
+      //   Partial+price: "Entry XX¢ → @ YY¢"
+      //   Partial legacy (price yok): "Entry XX¢ → @ —"
+      const exitPriceStr = isPartial
+        ? (t.partial_price !== null && t.partial_price !== undefined
+            ? `@ ${FMT.cents(t.partial_price)}`
+            : "@ —")
+        : `Exit ${FMT.cents(t.exit_price || 0)}`;
+
+      // Remaining — partial'da gösterilir. "Remaining 60%" gibi.
+      const remainingStr = isPartial
+        ? `· Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
+        : "";
+
+      // Held — full exit'te gösterilir (pozisyon hâlâ açık değil).
+      let heldPrefix = "";
+      if (!isPartial && t.entry_timestamp && t.exit_timestamp) {
+        const heldMs = new Date(t.exit_timestamp).getTime()
+          - new Date(t.entry_timestamp).getTime();
+        const held = FMT.durationShort(heldMs);
+        if (held) heldPrefix = `Held ${held} · `;
+      }
+
+      // Humanized reason + tone class.
+      const label = FMT.exitReasonLabel(t.exit_reason);
+      const toneCls = label.tone === "pos"
+        ? "feed-pnl-pos"
+        : label.tone === "neg" ? "feed-pnl-neg" : "";
+      const reasonText = label.emoji
+        ? `${label.emoji} ${FMT.escapeHtml(label.text)}`
+        : FMT.escapeHtml(label.text);
+
       const partialBadge = isPartial
         ? `<span class="feed-badge badge-partial">PARTIAL</span>`
         : "";
+
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
@@ -186,15 +229,19 @@
           ${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span>
         </div>
         <div class="feed-details">
-          <span>Entry ${FMT.cents(t.entry_price)}</span>
-          ${exitCell}
+          <span>Entry ${FMT.cents(t.entry_price)} &nbsp;→&nbsp; ${exitPriceStr}</span>
+          <span>${oddsStr}</span>
         </div>
         <div class="feed-impact">
           <span class="${FMT.pnlClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
-          <span class="feed-exit-reason">${FMT.escapeHtml(t.exit_reason || "")}</span>
+          <span class="feed-pnl-pct ${FMT.pnlClass(pnl)}">(${FMT.pctSigned(pnlPct, 0)})</span>
+          ${remainingStr ? `<span class="feed-remaining">${remainingStr}</span>` : ""}
         </div>
-        <div class="feed-time"><span>${FMT.relTime(t.exit_timestamp)}</span>
-          <span>${t.final_outcome || ""}</span></div>
+        <div class="feed-exit-reason-row ${toneCls}">${reasonText}</div>
+        <div class="feed-time">
+          <span>${heldPrefix}${FMT.relTime(t.exit_timestamp)}</span>
+          <span>${t.final_outcome || ""}</span>
+        </div>
       </a>`;
     },
 
