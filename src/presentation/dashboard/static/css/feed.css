@@ -234,16 +234,6 @@
   gap: 6px;
 }
 
-/* Exit card — partial: dir üstte, PARTIAL altta (dikey stack). */
-.feed-badges.feed-badges-stacked {
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.feed-badges.feed-badges-stacked .badge-partial {
-  margin-right: 0;
-}
-
 .feed-conf {
   display: inline-block;
   font-size: 12px;

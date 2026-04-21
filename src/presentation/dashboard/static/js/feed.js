@@ -201,10 +201,9 @@
         ? `${label.emoji} ${FMT.escapeHtml(label.text)}`
         : FMT.escapeHtml(label.text);
 
-      const partialBadge = isPartial
-        ? `<span class="feed-badge badge-partial">PARTIAL</span>`
-        : "";
-
+      // PARTIAL badge kaldırıldı — "Take Profit" label + "Remaining X%" satırı
+      // zaten partial olduğunu net ifade ediyor (DRY: gereksiz işaret).
+      //
       // Active card'daki feed-entry-reason-row'un eşdeğeri:
       //   Partial exit  → "Remaining X%"
       //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
@@ -213,13 +212,11 @@
         ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
         : FMT.escapeHtml(t.entry_reason || "normal");
 
-      // Partial varsa badge'leri dikey stack et — dir üstte, PARTIAL altında.
-      const badgesCls = isPartial ? "feed-badges feed-badges-stacked" : "feed-badges";
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(t.question, t.slug)}</div>
-          <div class="${badgesCls}"><span class="feed-badge ${dirCls}">${dir}</span>${partialBadge}</div>
+          <div class="feed-badges"><span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
         <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">
