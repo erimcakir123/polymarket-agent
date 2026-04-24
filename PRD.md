@@ -58,6 +58,8 @@ Checked every entry, cannot be disabled. (TDD §6.15)
 - At 50% of distance from entry to 0.99 → sell 40% of position
 - Entry 43¢ → trigger 71¢. Entry 70¢ → trigger 84.5¢
 - Remaining position → near-resolve (94¢) or SL
+- **Stop-Loss (SL) Mantığı:** Fiyat dalgalanmalarının geçici olma ihtimaline karşı pozisyonların gereksiz yere kapanmasını önlemek için 4 katmanlı (Elapsed >= %75, Kayıp > Limit, 2-Way Pazar < Eşik, 3-Way Pazar Lider Değil) bir güvenlik kapısı (PLAN-023) inşa edilmiştir.
+- **Phantom Exit Koruması:** Tüm exit kararları `current_price` (ask) yerine gerçekleşebilir en iyi fiyat olan `bid_price` üzerinden verilir (PLAN-023).
 
 Distance-based semantics (not PnL%-based — fair across all entry prices). (TDD §6.6)
 
@@ -119,7 +121,7 @@ Scanner filter scope: moneyline only, `match_start ≤ 24h`, `yes_price < 0.98`.
 Gamma API market discovery. `allowed_sport_tags` filter. Max `max_markets_per_cycle=300`. (config.yaml `scanner:`, `src/orchestration/scanner.py`)
 
 ### F2. Enrich
-Odds API bookmaker data per candidate. `domain/matching/` for slug→sport key. `bookmaker_weights.py` for sharp weighting. (TDD §6.1)
+Odds API bookmaker data per candidate. `domain/matching/` for slug→sport key. `bookmaker_weights.py` for sharp weighting. Multi-league score support (Tennis: ATP/WTA, Soccer: all leagues) merged in single cycle. (TDD §6.1)
 
 ### F3. Entry Decision
 `strategy/entry/gate.py`. Single strategy: directional entry (SPEC-017). All guards preserved. (TDD §6.3)
@@ -134,7 +136,7 @@ Confidence-based: A=5%, B=4%, C=blocked. Single cap: `max_bet_pct` (config.yaml)
 3-layer: WS tick (instant), Light (5s), Heavy (30min). Position state in JSON store; dashboard reads live.
 
 ### F7. Exit
-Mechanisms (first signal wins): near_resolve (94¢), market_flip (elapsed ≥ 85% + price flip), scale_out (midpoint partial), score_exit (7 sports), never_in_profit, hold_revoked, ultra_low_guard, circuit_breaker, manual. Full list + priority: TDD §6.6–§6.14. ExitReason enum: `src/models/`.
+Mechanisms (first signal wins): near_resolve (94¢), market_flip (elapsed ≥ 85% + price flip), scale_out (midpoint partial + min realized USD), score_exit (7 sports), stop_loss (price<0.50 + loss>$X, PLAN-014), never_in_profit, ultra_low_guard, circuit_breaker, manual. Hold revoke artık state-only (favored=False) — exit kararını SL verir (PLAN-019). Full list + priority: TDD §6.6–§6.14. ExitReason enum: `src/models/`.
 
 ### F8. Report
 3 channels: Flask dashboard (localhost:5050), Telegram (entry/exit/CB), JSONL audit log.

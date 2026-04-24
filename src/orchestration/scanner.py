@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
 from src.config.sport_configs import get_sport_config
+from src.domain.matching.three_way_title import enrich_three_way_titles
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
@@ -141,6 +142,9 @@ class MarketScanner:
 
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
+        # SPEC-015: 3-way home/away sub-market'lerinin match_title alanını
+        # draw sub-market'in question'ından türet. 2-way market'ler no-op.
+        top = enrich_three_way_titles(top)
         logger.info("Scanner: %d raw → %d filtered → top %d",
                     len(raw), len(filtered), len(top))
         return top

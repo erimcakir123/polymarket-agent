@@ -31,3 +31,5 @@ class ExitReason(str, Enum):
     HOLD_REVOKED = "hold_revoked"
     ULTRA_LOW_GUARD = "ultra_low_guard"
     SCORE_EXIT = "score_exit"
+    STOP_LOSS = "stop_loss"            # PLAN-014: dolar-bazlı cap (price<0.50 + loss>$10)
+    BLIND_SL = "blind_sl"              # Skor gelmeyen maçlar için devreye giren SL

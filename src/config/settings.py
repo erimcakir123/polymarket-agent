@@ -60,6 +60,9 @@ class EntryConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_favorite_probability: float = 0.60  # güçlü favori eşiği (bookmaker)
     max_entry_price: float = 0.80           # aşırı pahalı girişi engelle (R/R outlier cap)
+    # PLAN-013: bookmaker kalite filtresi (az sample → güvensiz anchor)
+    min_bookmakers: int = 15                # gerçek bookmaker sayısı
+    min_sharps: int = 3                     # sharp book (Pinnacle/Smarkets/Betfair/Matchbook)
 
 
 class StockConfig(BaseModel):
@@ -83,6 +86,8 @@ class ScaleOutConfig(BaseModel):
     tiers: List[ScaleOutTier] = [
         ScaleOutTier(threshold=0.15, sell_pct=0.40),
     ]
+    # PLAN-014b: minimum realized USD — küçük bet'lerde TP1 $1-2 saçmalığını engelle
+    min_realized_usd: float = 5.0
 
 
 class CircuitBreakerConfig(BaseModel):
@@ -117,7 +122,7 @@ class NearResolveConfig(BaseModel):
     pre_match_guard_minutes: int = 5
 
 
-class AConfHoldConfig(BaseModel):
+class MarketFlipConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_entry_price: float = 0.60
     market_flip_threshold: float = 0.50
@@ -143,6 +148,10 @@ class ExitMonitorConfig(BaseModel):
     hold_ever_profit_elapsed_gate: float = 0.60  # ever_in_profit durumunda elapsed gate
     hold_no_profit_price_ratio: float = 0.75     # never_in_profit durumunda price drop gate
     hold_no_profit_elapsed_gate: float = 0.70    # never_in_profit durumunda elapsed gate
+    
+    # Blind SL (Kayıp Skor) Guard
+    blind_sl_elapsed_gate: float = 0.10      # Maçın %10'u geçmesine rağmen skor yoksa devreye girer
+    blind_sl_drop_ratio: float = 0.50        # Giriş fiyatının %50'sine düşerse stop ol (örn: 0.60 giriş -> 0.30'da sat)
 
 
 class FavoredConfig(BaseModel):
@@ -152,6 +161,19 @@ class FavoredConfig(BaseModel):
     conf_required: List[str] = ["A", "B"]
 
 
+class SLConfig(BaseModel):
+    """PLAN-014: dolar-bazlı stop loss.
+
+    Kural: `price < price_below AND loss_usd > max_loss_usd` → SAT.
+    Sport/skor-agnostic, ESPN bağımsız.
+    """
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    price_below: float = 0.50         # Tetik fiyat eşiği (altına düşerse aktif)
+    max_loss_usd: float = 12.0        # Dolar cinsinden tavan kayıp
+    min_elapsed_pct: float = 0.75
+
+
 class ScoreConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
@@ -159,6 +181,9 @@ class ScoreConfig(BaseModel):
     poll_critical_sec: int = 30
     critical_price_threshold: float = 0.35
     match_window_hours: float = 4.0
+    # PLAN-012: soccer runtime league discovery
+    espn_leagues_cache_ttl_hours: int = 24
+    soccer_discovery_max_candidates: int = 12
 
 
 class DashboardConfig(BaseModel):
@@ -202,10 +227,11 @@ class AppConfig(BaseModel):
     manipulation: ManipulationConfig = ManipulationConfig()
     liquidity: LiquidityConfig = LiquidityConfig()
     near_resolve: NearResolveConfig = NearResolveConfig()
-    a_conf_hold: AConfHoldConfig = AConfHoldConfig()
+    market_flip: MarketFlipConfig = MarketFlipConfig()
     exit_monitor: ExitMonitorConfig = ExitMonitorConfig()
     favored: FavoredConfig = FavoredConfig()
     score: ScoreConfig = ScoreConfig()
+    sl: SLConfig = SLConfig()   # PLAN-014
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011

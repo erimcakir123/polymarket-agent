@@ -172,6 +172,7 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
             "slug": market.get("slug", ""),
             "sport_tag": market.get("sport_tag", ""),
             "question": market.get("question", ""),
+            "match_title": market.get("match_title", ""),
             "yes_price": market.get("yes_price", 0.0),
             "no_price": market.get("no_price", 0.0),
             "liquidity": market.get("liquidity", 0.0),

@@ -57,6 +57,7 @@ class Position(BaseModel):
     # Canlı durum
     current_price: float
     bid_price: float = 0.0
+    event_sibling_bids: list[float] = Field(default_factory=list)
     peak_pnl_pct: float = 0.0
     peak_price: float = 0.0
     ever_in_profit: bool = False
@@ -74,6 +75,7 @@ class Position(BaseModel):
     match_score: str = ""
     match_period: str = ""
     question: str = ""
+    match_title: str = ""  # SPEC-015 3-way display başlığı; boşsa frontend question/slug fallback'e düşer
     end_date_iso: str = ""
 
     # Durum flag'leri
@@ -91,6 +93,11 @@ class Position(BaseModel):
 
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
+
+    def model_post_init(self, __context) -> None:
+        if self.bid_price == 0.0 and self.current_price > 0.0:
+            self.bid_price = self.current_price
+
 
     @computed_field
     @property

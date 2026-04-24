@@ -41,11 +41,11 @@ def test_mode_enum_values() -> None:
     assert Mode.LIVE.value == "live"
 
 
-def test_config_a_conf_hold_defaults() -> None:
+def test_config_market_flip_defaults() -> None:
     cfg = AppConfig()
-    assert cfg.a_conf_hold.market_flip_elapsed_gate == 0.85
-    assert cfg.a_conf_hold.min_entry_price == 0.60
-    assert cfg.a_conf_hold.market_flip_threshold == 0.50
+    assert cfg.market_flip.market_flip_elapsed_gate == 0.85
+    assert cfg.market_flip.min_entry_price == 0.60
+    assert cfg.market_flip.market_flip_threshold == 0.50
 
 
 def test_config_circuit_breaker_defaults() -> None:

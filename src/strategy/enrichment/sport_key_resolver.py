@@ -40,8 +40,11 @@ def resolve_sport_key(
     `get_events(sport_key)` metodları kullanılır.
     """
     # 1. Static mapping — pazarların ~95%'ini kapsar
+    # Generic tennis keys (tennis_atp/tennis_wta) burada short-circuit yapma:
+    # önce dinamik turnuva resolution dene; bulamazsa generic key'e düş.
+    _GENERIC_TENNIS: frozenset[str] = frozenset({"tennis_atp", "tennis_wta"})
     static = resolve_odds_key(slug, tags)
-    if static:
+    if static and static not in _GENERIC_TENNIS:
         return static
 
     # 2. Tennis: dinamik turnuva key matching
@@ -52,21 +55,21 @@ def resolve_sport_key(
     q_lower = (question or "").lower()
 
     if prefix == "wta":
-        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client) or static
     if prefix == "atp":
-        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client) or static
     # Slug bilgi vermiyor — question text'ten kestir
     if "wta" in q_lower or "women" in q_lower:
-        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client) or static
     if "atp" in q_lower or "tennis" in q_lower:
-        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client) or static
 
     # 3. Dinamik discovery — takım adlarıyla tüm sport'ların event'lerini ara
     team_a, team_b = extract_teams(question)
     if team_a or team_b:
         return _discover_by_events(team_a or "", team_b or "", odds_client)
 
-    return None
+    return static
 
 
 def _match_tennis_key(gender: str, q_lower: str, slug_lower: str, odds_client) -> str | None:

@@ -76,6 +76,20 @@ SPORT_RULES: dict[str, dict] = {
         "set_exit_close_set_buffer": 1,
         "set_exit_serve_for_match_games": 5,
     },
+    "tennis_wta": {
+        "match_duration_hours": 2.5,
+        "match_duration_hours_bo3": 1.75,
+        "match_duration_hours_bo5": 3.5,
+        "score_source": "espn",
+        "espn_sport": "tennis",
+        "espn_league": "wta",
+        "set_exit_deficit": 3,
+        "set_exit_games_total": 7,
+        "set_exit_blowout_deficit": 4,
+        "set_exit_close_set_threshold": 5,
+        "set_exit_close_set_buffer": 1,
+        "set_exit_serve_for_match_games": 5,
+    },
 }
 
 # ── Cricket (SPEC-011) ──────────────────────────────────────
@@ -153,6 +167,85 @@ SPORT_RULES["ahl"] = {
     "espn_league": "ahl",
 }
 
+# ── Basketball — non-NBA ────────────────────────────────────
+SPORT_RULES["wnba"] = {
+    "match_duration_hours": 2.25,
+    "score_source": "espn",
+    "espn_sport": "basketball",
+    "espn_league": "wnba",  # basketball/wnba — 200 confirmed
+}
+
+SPORT_RULES["euroleague"] = {
+    "match_duration_hours": 2.5,
+    "score_source": "espn",
+    "espn_sport": "basketball",
+    "espn_league": "",  # ESPN basketball/euroleague → 400; no valid path
+}
+
+SPORT_RULES["ncaab"] = {
+    "match_duration_hours": 2.5,
+    "score_source": "espn",
+    "espn_sport": "basketball",
+    "espn_league": "mens-college-basketball",  # basketball/mens-college-basketball → 200 confirmed
+}
+
+SPORT_RULES["nbl"] = {
+    "match_duration_hours": 2.5,
+    "score_source": "espn",
+    "espn_sport": "basketball",
+    "espn_league": "nbl",  # basketball/nbl → 200 confirmed (Australian NBL)
+}
+
+# ── Ice Hockey — European Leagues ──────────────────────────
+SPORT_RULES["liiga"] = {
+    **SPORT_RULES["nhl"],
+    "espn_league": "",  # hockey/liiga → 400; no ESPN path
+}
+
+SPORT_RULES["shl"] = {
+    **SPORT_RULES["nhl"],
+    "espn_league": "",  # hockey/shl → 400; no ESPN path
+}
+
+SPORT_RULES["allsvenskan"] = {
+    **SPORT_RULES["nhl"],
+    "espn_league": "",  # hockey/allsvenskan → 400; no ESPN path
+}
+
+SPORT_RULES["mestis"] = {
+    **SPORT_RULES["nhl"],
+    "espn_league": "",  # hockey/mestis → 400; no ESPN path
+}
+
+# ── Baseball — Asian Leagues ────────────────────────────────
+# ESPN HTTP 400 confirmed — score enrichment ESPN'den gelmez, Odds API fallback
+SPORT_RULES["kbo"] = {
+    **SPORT_RULES["mlb"],
+    "espn_sport": "baseball",
+    "espn_league": "",  # baseball/kbo → 400; no ESPN path
+}
+
+SPORT_RULES["npb"] = {
+    **SPORT_RULES["mlb"],
+    "espn_sport": "baseball",
+    "espn_league": "",  # baseball/npb → 400; no ESPN path
+}
+
+# ── Combat / Golf — ESPN desteği yok ───────────────────────
+SPORT_RULES["mma"] = {
+    "match_duration_hours": 0.5,
+    "score_source": "odds",
+    "espn_sport": "",
+    "espn_league": "",
+}
+
+SPORT_RULES["golf"] = {
+    "match_duration_hours": 8.0,
+    "score_source": "odds",
+    "espn_sport": "",
+    "espn_league": "",
+}
+
 DEFAULT_RULES: dict[str, Any] = {
     "match_duration_hours": 2.0,
 }
@@ -161,11 +254,11 @@ DEFAULT_RULES: dict[str, Any] = {
 _ALIASES: dict[str, str] = {
     # Basketball
     "basketball_nba": "nba",
-    "basketball_wnba": "nba",
-    "basketball_ncaab": "nba",
-    "basketball_wncaab": "nba",
-    "basketball_euroleague": "nba",
-    "basketball_nbl": "nba",
+    "basketball_wnba": "wnba",
+    "basketball_ncaab": "ncaab",
+    "basketball_wncaab": "ncaab",
+    "basketball_euroleague": "euroleague",
+    "basketball_nbl": "nbl",
     "basketball": "nba",
     # American Football
     "americanfootball_ncaaf": "nfl",
@@ -174,22 +267,22 @@ _ALIASES: dict[str, str] = {
     "americanfootball": "nfl",
     # Ice Hockey
     "icehockey_nhl": "nhl",
-    "icehockey_ahl": "nhl",
-    "icehockey_liiga": "nhl",
-    "icehockey_mestis": "nhl",
-    "icehockey_sweden_hockey_league": "nhl",
-    "icehockey_sweden_allsvenskan": "nhl",
+    "icehockey_ahl": "ahl",
+    "icehockey_liiga": "liiga",
+    "icehockey_mestis": "mestis",
+    "icehockey_sweden_hockey_league": "shl",
+    "icehockey_sweden_allsvenskan": "allsvenskan",
     "icehockey": "nhl",
     # Baseball
     "baseball_mlb": "mlb",
     "baseball_milb": "mlb",
-    "baseball_npb": "mlb",
-    "baseball_kbo": "mlb",
+    "baseball_npb": "npb",
+    "baseball_kbo": "kbo",
     "baseball_ncaa": "mlb",
     "baseball": "mlb",
     # Tennis
     "tennis_atp": "tennis",
-    "tennis_wta": "tennis",
+    "tennis_wta": "tennis_wta",
     # Combat sports
     "mma_ufc": "mma",
     "ufc": "mma",

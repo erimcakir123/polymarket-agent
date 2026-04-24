@@ -57,7 +57,7 @@ Tek bir .py dosyası MAX 400 satır olabilir.
 Eğer 400 satırı geçiyorsa:
 1. Dosyayı iki veya daha fazla modüle böl
 2. Her modül tek bir sorumluluk taşısın
-3. TDD.md'deki dizin yapısına uygun şekilde yerleştir
+3. DECISIONS.md'deki dizin yapısına uygun şekilde yerleştir
 
 ASLA "sadece biraz daha ekleyeyim" deme. 400 satır = dur ve böl.
 ```
@@ -133,7 +133,7 @@ Bu kural entry_gate seviyesinde kontrol edilir.
 ```
 Yeni bir .py dosyası eklemeden ÖNCE:
 
-1. TDD.md'deki dizin yapısına bak
+1. DECISIONS.md'deki dizin yapısına bak
 2. Dosyanın hangi katmana ait olduğunu belirle
 3. Eğer dizin yapısında yoksa → PLAN.md'ye yaz, onay al
 4. ASLA "misc/", "utils/", "helpers/" gibi catch-all dizinler oluşturma
@@ -342,11 +342,11 @@ Mimaride herhangi bir değişiklik yapmak için:
 1. PLAN.md'ye değişiklik önerisini yaz
 2. Sebep belirt: neden gerekli?
 3. Etki analizi: hangi katmanlar/dosyalar etkilenir?
-4. TDD.md'deki mevcut yapı ile karşılaştır
+4. DECISIONS.md'deki mevcut yapı ile karşılaştır
 5. ARCHITECTURE_GUARD.md kurallarını ihlal etmediğini doğrula
 6. Onay al
 7. Uygula
-8. TDD.md'yi güncelle
+8. DECISIONS.md'yi güncelle
 9. PLAN.md'den sil
 ```
 

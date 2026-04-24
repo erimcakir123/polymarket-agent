@@ -150,6 +150,10 @@ risk:
 entry:
   min_favorite_probability: 0.60   # SPEC-017: bookmaker güçlü favori eşiği (tek gerçek filtre)
   max_entry_price: 0.80            # SPEC-017: pahalı outlier cap (R/R koruma). Alt taban YOK — undervalue girişlere açık.
+  # PLAN-013: bookmaker kalite filtresi — az sample'lı maçlarda güven düşük
+  min_bookmakers: 15               # gerçek bookmaker sayısı (weight değil)
+  min_sharps: 3                    # sharp book sayısı (Pinnacle/Smarkets/Betfair/Matchbook)
+  active_sports: []
 
 stock:
   enabled: true
@@ -165,6 +169,8 @@ scale_out:
   tiers:
     - threshold: 0.50    # SPEC-013: midpoint to resolution (eski: 0.15 PnL%)
       sell_pct: 0.40
+  # PLAN-014b: küçük bet'lerde TP1 $1-2 saçmalığını engelle — realized kazanç bu eşiğin altındaysa tetikleme
+  min_realized_usd: 5.0
 
 circuit_breaker:
   daily_max_loss_pct: -0.08
@@ -190,7 +196,7 @@ near_resolve:
   threshold_cents: 94
   pre_match_guard_minutes: 10   # WS spike guard — ilk 10dk'da 94¢ sinyali gerçek değil, spike
 
-a_conf_hold:
+market_flip:
   min_entry_price: 0.60
   market_flip_threshold: 0.50
   market_flip_elapsed_gate: 0.85
@@ -213,12 +219,22 @@ exit_monitor:
   hold_no_profit_price_ratio: 0.75
   hold_no_profit_elapsed_gate: 0.70
 
+# PLAN-014: dolar-bazlı stop loss (sport-agnostic, skor bağımsız)
+sl:
+  enabled: true
+  price_below: 0.50             # [2-way] Bid 50c altindaysa (karsi taraf > 0.50)
+  max_loss_usd: 12.0            # -$12.00 barajindan sonra SL active
+  min_elapsed_pct: 0.75         # Macin %75'i tamamlanmadan SL CALISMAZ (Plans 22/23)
+
 score:
   enabled: true
   poll_normal_sec: 60
   poll_critical_sec: 30
   critical_price_threshold: 0.35
   match_window_hours: 4       # maç saati ± bu süre dışında skor çekilmez
+  # PLAN-012: soccer runtime league discovery
+  espn_leagues_cache_ttl_hours: 24
+  soccer_discovery_max_candidates: 12
 
 favored:
   promote_eff_price: 0.65

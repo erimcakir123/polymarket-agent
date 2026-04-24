@@ -32,3 +32,10 @@ class MarketData(BaseModel):
     resolved: bool = False
     accepting_orders: bool = True
     odds_api_implied_prob: float | None = None
+
+    # SPEC-015 3-way: home/away sub-market'lerinin question'ı tek takım taşır
+    # ("Will X win?"). Event-level başlık ("X vs Y") draw sub-market question'ından
+    # three_way_title.enrich_three_way_titles ile türetilip buraya yazılır.
+    # 2-way market'lerde ve draw sub-market'inde boş kalır. Display amaçlı; ham
+    # `question` alanı score matching / question_parser için dokunulmaz kalır.
+    match_title: str = ""

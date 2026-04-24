@@ -19,7 +19,8 @@ from src.config.settings import ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, baseball_score_exit, cricket_score_exit, favored, nba_score_exit, near_resolve, nfl_score_exit, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
+from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, near_resolve, nfl_score_exit, price_cap, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
+from src.strategy.exit.price_cap import SLParams
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
 
 _DEFAULT_MONITOR_CFG = ExitMonitorConfig()
@@ -83,7 +84,7 @@ def _never_in_profit_exit(
     if elapsed_pct < cfg.never_in_profit_elapsed_gate:
         return False
     eff_entry = pos.entry_price
-    eff_current = pos.current_price
+    eff_current = pos.bid_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
     if score_ahead:
         return False
@@ -101,7 +102,7 @@ def _ultra_low_guard_exit(
 ) -> bool:
     """Ultra-low guard (TDD §6.12). eff_entry<entry_cap + elapsed≥elapsed_gate + eff_current<current_cap."""
     eff_entry = pos.entry_price
-    eff_current = pos.current_price
+    eff_current = pos.bid_price
     return (
         eff_entry < cfg.ultra_low_entry_cap
         and elapsed_pct >= cfg.ultra_low_elapsed_gate
@@ -109,13 +110,16 @@ def _ultra_low_guard_exit(
     )
 
 
-def _hold_revocation_exit(
+def _hold_revocation_should_revoke(
     pos: Position,
     elapsed_pct: float,
     score_info: dict,
     cfg: ExitMonitorConfig = _DEFAULT_MONITOR_CFG,
 ) -> bool:
-    """Hold-to-resolve pozisyon için revocation + exit (TDD §6.14).
+    """Hold-to-resolve pozisyon için revocation kontrolü (PLAN-019: state-only).
+
+    True dönerse caller `pos.favored = False` set etmeli, EXIT VERMEMELİ.
+    Normal exit kuralları (özellikle SL — price_cap) sonra karar verir.
 
     Sadece hold-candidate pozisyonlar için (favored veya anchor_prob ≥ hold_anchor_prob_gate + A/B).
     """
@@ -126,7 +130,7 @@ def _hold_revocation_exit(
         return False
 
     eff_entry = pos.entry_price
-    eff_current = pos.current_price
+    eff_current = pos.bid_price
     score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
     dip_is_temporary = (
         pos.consecutive_down_cycles < cfg.hold_dip_min_cycles
@@ -159,6 +163,8 @@ def evaluate(
     near_resolve_guard_min: int = 10,
     scale_out_tiers: list[dict] | None = None,
     monitor_cfg: ExitMonitorConfig | None = None,
+    sl_params: SLParams | None = None,         # PLAN-014
+    scale_out_min_realized_usd: float = 0.0,   # PLAN-014b
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir (A3 score-only, tek-dal akış).
 
@@ -185,8 +191,10 @@ def evaluate(
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         entry_price=pos.entry_price,
-        current_price=pos.current_price,
+        current_price=pos.bid_price,
         tiers=scale_out_tiers,
+        shares=pos.shares,
+        min_realized_usd=scale_out_min_realized_usd,   # PLAN-014b
     )
     if so is not None:
         return MonitorResult(
@@ -198,6 +206,24 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
+    # PLAN-019: Hold revoke (state-only, EXIT YAPMAZ)
+    # Tetiklenirse pos.favored=False; SL ve diğer kurallar normal akışla karar verir.
+    if elapsed_pct >= 0 and _hold_revocation_should_revoke(pos, elapsed_pct, score_info, cfg):
+        pos.favored = False
+
+    # PLAN-014: Dolar-bazlı SL (sport-agnostic, skor bağımsız, ESPN-down dayanıklı)
+    if sl_params is not None and price_cap.check(pos, sl_params, elapsed_pct):
+        detail = (
+            f"price={pos.current_price:.3f}<{sl_params.price_below}, "
+            f"loss={pos.shares * (pos.entry_price - pos.current_price):.2f}"
+            f">{sl_params.max_loss_usd}"
+        )
+        return MonitorResult(
+            exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail=detail),
+            fav_transition=_fav_transition(pos),
+            elapsed_pct=elapsed_pct,
+        )
+
     # 3. Sport-specific score-based exit (tüm pozisyonlar — A-hold gate yok)
     if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
         sc_result = hockey_score_exit.check(
@@ -205,7 +231,7 @@ def evaluate(
             confidence=pos.confidence,
             score_info=score_info,
             elapsed_pct=elapsed_pct,
-            current_price=pos.current_price,
+            current_price=pos.bid_price,
         )
         if sc_result is not None:
             return MonitorResult(
@@ -217,7 +243,7 @@ def evaluate(
     if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
         t_result = tennis_score_exit.check(
             score_info=score_info,
-            current_price=pos.current_price,
+            current_price=pos.bid_price,
             sport_tag=pos.sport_tag,
         )
         if t_result is not None:
@@ -230,25 +256,12 @@ def evaluate(
     if _normalize(pos.sport_tag) in ("mlb", "kbo", "npb", "baseball") and score_info.get("available"):
         b_result = baseball_score_exit.check(
             score_info=score_info,
-            current_price=pos.current_price,
+            current_price=pos.bid_price,
             sport_tag=pos.sport_tag,
         )
         if b_result is not None:
             return MonitorResult(
                 exit_signal=ExitSignal(reason=b_result.reason, detail=b_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
-
-    if is_cricket_sport(pos.sport_tag) and score_info.get("available"):
-        c_result = cricket_score_exit.check(
-            score_info=score_info,
-            current_price=pos.current_price,
-            sport_tag=pos.sport_tag,
-        )
-        if c_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=c_result.reason, detail=c_result.detail),
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
@@ -289,7 +302,7 @@ def evaluate(
             )
 
     # 4. Market flip — tennis hariç (set kaybı ≠ maç kaybı, dönebilir)
-    if _normalize(pos.sport_tag) != "tennis" and elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
+    if _normalize(pos.sport_tag) != "tennis" and elapsed_pct >= 0 and market_flip.market_flip_exit(pos, elapsed_pct):
         return MonitorResult(
             exit_signal=ExitSignal(reason=ExitReason.MARKET_FLIP, detail="eff < 0.50 at elapsed >= 0.85"),
             fav_transition=_fav_transition(pos),
@@ -310,12 +323,9 @@ def evaluate(
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        if _hold_revocation_exit(pos, elapsed_pct, score_info, cfg):
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=ExitReason.HOLD_REVOKED, detail="hold revoked + exit"),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+        # PLAN-019: hold_revocation EXIT dispatch silindi.
+        # Revoke şimdi state-only (yukarıda scale-out sonrası).
+        # Yeni mantık: revoke → pos.favored=False → SL (price_cap) karar verir.
 
     # 6. Exit yok — sadece favored transition dön
     return MonitorResult(exit_signal=None, fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)

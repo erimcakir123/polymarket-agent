@@ -14,6 +14,7 @@ from src.infrastructure.persistence.trade_logger import TradeRecord, _split_spor
 from src.models.position import Position
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
+from src.strategy.exit.price_cap import SLParams
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,8 @@ class ExitProcessor:
                 pos.match_start_iso = espn_start
             result: MonitorResult = exit_monitor.evaluate(
                 pos, score_info=score_info, scale_out_tiers=scale_out_tiers,
+                sl_params=self._sl_params(),
+                scale_out_min_realized_usd=self._scale_out_min_realized(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -52,6 +55,27 @@ class ExitProcessor:
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()
+
+    def _sl_params(self) -> SLParams | None:
+        """PLAN-014: config.sl → SLParams. SL disabled veya config yoksa None."""
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg is None or not hasattr(cfg, "sl"):
+            return None
+        sl = cfg.sl
+        if not getattr(sl, "enabled", False):
+            return None
+        return SLParams(
+            enabled=True,
+            price_below=sl.price_below,
+            max_loss_usd=sl.max_loss_usd,
+        )
+
+    def _scale_out_min_realized(self) -> float:
+        """PLAN-014b: scale-out min realized USD eşiği (config'den)."""
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg and hasattr(cfg, "scale_out"):
+            return float(getattr(cfg.scale_out, "min_realized_usd", 0.0))
+        return 0.0
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.

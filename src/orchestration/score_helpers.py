@@ -36,6 +36,17 @@ def resolve_tennis_league(slug: str) -> str:
     return "wta" if (slug or "").lower().startswith("wta") else "atp"
 
 
+def slug_country_prefix(slug: str) -> str:
+    """Polymarket slug'tan ülke/tournament prefix'ini çıkar.
+
+    Slug formatı: "<prefix>-<...>", örn. "arg-cac-pla-2026-04-20" → "arg".
+    Soccer league discovery input'u. Boş/malformed → "".
+    """
+    if not slug:
+        return ""
+    return slug.lower().split("-", 1)[0]
+
+
 def find_match_via_pair(
     pos: Position,
     scores: list,

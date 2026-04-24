@@ -255,3 +255,41 @@ def test_recalculate_bankroll_with_invested_positions() -> None:
     mgr.recalculate_bankroll(1000.0)
     # 1000 - 20 - 100 = 880
     assert mgr.bankroll == 880.0
+
+
+# ── FIX-A: bid_price=0 resolve fallback (PLAN-024) ──
+
+def test_ws_bid_zero_fallback_uses_yes_price() -> None:
+    """Polymarket resolve olunca bid=0 gönderir; bid_price yes_price'a fall-back etmeli.
+
+    Regresyon: PLAN-023 bid_price'a geçişten sonra near_resolve 94¢ kuralı
+    çalışmıyordu — bid=0 gelince 0 >= 0.94 = False → pozisyon satılmıyordu.
+    """
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.add_position(_pos(cid="c1"))
+    # Polymarket resolve sonrası gelen mesaj: ask=1.0, bid=0.0
+    m.update_position_price("tok_c1", yes_price=1.0, bid_price=0.0)
+    pos = m.positions["c1"]
+    assert pos.current_price == 1.0
+    # Fallback: bid_price 0 değil, yes_price (1.0) olmalı
+    assert pos.bid_price == 1.0, (
+        f"bid_price=0 fallback çalışmadı, bid_price={pos.bid_price}"
+    )
+
+
+def test_ws_normal_bid_not_overridden() -> None:
+    """Normal WS tick: bid_price > 0 ise olduğu gibi korunmalı."""
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.add_position(_pos(cid="c1"))
+    m.update_position_price("tok_c1", yes_price=0.70, bid_price=0.69)
+    pos = m.positions["c1"]
+    assert pos.bid_price == 0.69
+
+
+def test_ws_bid_zero_at_low_price_uses_yes_price() -> None:
+    """Düşük fiyatta da bid=0 gelirse yes_price kullan (liquid olmayan market)."""
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.add_position(_pos(cid="c1"))
+    m.update_position_price("tok_c1", yes_price=0.30, bid_price=0.0)
+    pos = m.positions["c1"]
+    assert pos.bid_price == 0.30

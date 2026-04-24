@@ -501,8 +501,8 @@ def test_basketball_malformed_clock_returns_none_clock() -> None:
     assert result.clock_seconds is None  # fail-safe
 
 
-def test_non_basketball_football_skips_period_clock_parse() -> None:
-    """Hockey gibi sporlarda period_number + clock_seconds None kalır."""
+def test_hockey_parses_period_and_clock() -> None:
+    """Hockey period_number + clock_seconds parse edilir (basketball/football gibi)."""
     comp = {
         "id": "nhl_1",
         "status": {
@@ -519,5 +519,166 @@ def test_non_basketball_football_skips_period_clock_parse() -> None:
     }
     result = _parse_competition(comp, sport="hockey")
     assert result is not None
-    assert result.period_number is None  # NBA/NFL parse YOK
-    assert result.clock_seconds is None
+    assert result.period_number == 2
+    assert result.clock_seconds == 525  # 8*60 + 45
+
+
+# ─── PLAN-012: real-schema tests — team primary, athlete fallback ─────────
+
+def test_parse_competitor_team_only_schema_fills_names() -> None:
+    """NBA/MLB/NHL/Soccer production: sadece team field dolu, athlete None.
+
+    Eski parser sadece athlete bakıyordu → isimler boş → ScoreEnricher eşleşmesi
+    sıfır. PLAN-012: team primary okunmalı.
+    """
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Sochi"}, "score": "0",
+             "linescores": [{"value": 0}]},
+            {"homeAway": "away", "team": {"displayName": "Krylia Sovetov"}, "score": "0",
+             "linescores": [{"value": 0}]},
+        ],
+        "status": {"type": {"description": "In Progress", "state": "in", "completed": False}},
+    }
+    result = _parse_competition(comp, sport="soccer")
+    assert result is not None
+    assert result.home_name == "Sochi"
+    assert result.away_name == "Krylia Sovetov"
+
+
+def test_parse_competitor_athlete_only_schema_still_works_for_tennis() -> None:
+    """Tennis production: sadece athlete field dolu (team yok).
+
+    Parser team primary kullanmalı AMA team yoksa athlete'a düşmeli —
+    tennis-bozulma regresyonu engellenir.
+    """
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "athlete": {"displayName": "Elena Rybakina"}, "score": "1",
+             "linescores": [{"value": 6}, {"value": 6}]},
+            {"homeAway": "away", "athlete": {"displayName": "Karolina Muchova"}, "score": "0",
+             "linescores": [{"value": 3}, {"value": 4}]},
+        ],
+        "status": {"type": {"description": "Final", "state": "post", "completed": True}},
+    }
+    result = _parse_competition(comp, sport="tennis")
+    assert result is not None
+    assert result.home_name == "Elena Rybakina"
+    assert result.away_name == "Karolina Muchova"
+
+
+def test_parse_scoreboard_team_sport_direct_competitions_schema() -> None:
+    """NBA/NHL/MLB/soccer: event.competitions[] (no groupings wrapper).
+
+    ESPN team sports response yapısı tennis'ten farklı: groupings yok,
+    competitions doğrudan event altında. Parser her iki şemayı desteklemeli.
+    """
+    from src.infrastructure.apis.espn_client import _parse_scoreboard
+    response = {
+        "events": [
+            {
+                "id": "100",
+                "date": "2026-04-21T14:30Z",
+                "competitions": [
+                    {
+                        "id": "100",
+                        "competitors": [
+                            {"homeAway": "home", "team": {"displayName": "Sochi"}, "score": "0"},
+                            {"homeAway": "away", "team": {"displayName": "Krylia Sovetov"}, "score": "0"},
+                        ],
+                        "status": {"type": {"description": "Scheduled", "state": "pre", "completed": False}},
+                    }
+                ],
+            }
+        ]
+    }
+    result = _parse_scoreboard(response, sport="soccer")
+    assert len(result) == 1
+    assert result[0].home_name == "Sochi"
+    assert result[0].away_name == "Krylia Sovetov"
+
+
+def test_parse_scoreboard_tennis_groupings_schema_still_works() -> None:
+    """Tennis: event.groupings[].competitions[] (existing behavior — regression guard)."""
+    from src.infrastructure.apis.espn_client import _parse_scoreboard
+    response = {
+        "events": [
+            {
+                "id": "200",
+                "groupings": [
+                    {
+                        "competitions": [
+                            {
+                                "id": "200",
+                                "competitors": [
+                                    {"homeAway": "home", "athlete": {"displayName": "Elena Rybakina"}, "score": "1",
+                                     "linescores": [{"value": 6}, {"value": 6}]},
+                                    {"homeAway": "away", "athlete": {"displayName": "Karolina Muchova"}, "score": "0",
+                                     "linescores": [{"value": 3}, {"value": 4}]},
+                                ],
+                                "status": {"type": {"description": "Final", "state": "post", "completed": True}},
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+    result = _parse_scoreboard(response, sport="tennis")
+    assert len(result) == 1
+    assert result[0].home_name == "Elena Rybakina"
+
+
+def test_parse_soccer_uses_competitor_score_when_linescores_none() -> None:
+    """PLAN-016: ESPN soccer'da linescores=None, skor competitor.score field'ında.
+
+    Production'da `home_score=None` dönüyordu çünkü parser linescores'tan
+    okuyordu, soccer linescores boş geliyor. Fallback: competitor.score string'i.
+    """
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "Sochi"}, "score": "2",
+             "linescores": None},
+            {"homeAway": "away", "team": {"displayName": "Krylia Sovetov"}, "score": "1",
+             "linescores": None},
+        ],
+        "status": {"type": {"description": "Full Time", "state": "post", "completed": True}},
+    }
+    result = _parse_competition(comp, sport="soccer")
+    assert result is not None
+    assert result.home_score == 2
+    assert result.away_score == 1
+
+
+def test_parse_score_field_zero_string_returns_zero() -> None:
+    """ESPN score "0" string'i 0 int'e çevrilmeli (None DEĞİL)."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home", "team": {"displayName": "X"}, "score": "0", "linescores": None},
+            {"homeAway": "away", "team": {"displayName": "Y"}, "score": "0", "linescores": None},
+        ],
+        "status": {"type": {"description": "", "state": "pre", "completed": False}},
+    }
+    result = _parse_competition(comp, sport="soccer")
+    assert result is not None
+    assert result.home_score == 0
+    assert result.away_score == 0
+
+
+def test_parse_competitor_team_takes_priority_over_athlete() -> None:
+    """Her iki field dolu ise team ön alır (ESPN schema tutarlılığı)."""
+    comp = {
+        "competitors": [
+            {"homeAway": "home",
+             "team": {"displayName": "Official Team Name"},
+             "athlete": {"displayName": "Legacy Fallback"}, "score": "0"},
+            {"homeAway": "away",
+             "team": {"displayName": "Away Team"},
+             "athlete": {"displayName": "Away Legacy"}, "score": "0"},
+        ],
+        "status": {"type": {"description": "", "state": "", "completed": False}},
+    }
+    result = _parse_competition(comp, sport="soccer")
+    assert result is not None
+    assert result.home_name == "Official Team Name"
+    assert result.away_name == "Away Team"

@@ -107,12 +107,17 @@ class PortfolioManager:
 
         SADECE anlık fiyat (current_price, bid_price). Peak/momentum/ever_in_profit
         state'i cycle-bazlı → `lifecycle.tick_position_state` ile güncellenir.
+
+        FIX-A (PLAN-024): Polymarket, piyasa resolve olduğunda bid_price=0.0 gönderir
+        (emir tahtasındaki bids silinir). bid_price=0 ise yes_price'ı fallback olarak
+        kullan — near_resolve 94¢ kuralının çalışması için zorunlu.
         """
         if not token_id or yes_price <= 0:
             return False
         for pos in self.positions.values():
             if pos.token_id == token_id:
                 pos.current_price = yes_price
-                pos.bid_price = bid_price
+                pos.bid_price = bid_price if bid_price > 0.0 else yes_price
                 return True
         return False
+

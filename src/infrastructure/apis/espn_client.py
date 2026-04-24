@@ -42,6 +42,12 @@ class ESPNMatchScore:
     regulation_state: str = ""  # SPEC-015: futbol "pre" | "in" | "post"
     period_number: int | None = None  # SPEC-A4: NBA/NFL çeyrek int (1-4, 5+=OT); None = NBA/NFL değil veya pre
     clock_seconds: int | None = None  # SPEC-A4: NBA/NFL kalan saniye (status.displayClock "M:SS" parse); None = parse başarısız
+    inning_half: str | None = None  # MLB: "top" | "bottom" (shortDetail parse); None = beyzbol değil
+    sets_won_home: int | None = None  # Tenis: home oyuncunun kazandığı set sayısı
+    sets_won_away: int | None = None  # Tenis: away oyuncunun kazandığı set sayısı
+    games_home: int | None = None    # Tenis: mevcut setteki home game skoru
+    games_away: int | None = None    # Tenis: mevcut setteki away game skoru
+    current_set: int | None = None   # Tenis: oynanan set numarası (1-5)
 
 
 def _parse_clock_to_seconds(clock: str) -> int | None:
@@ -71,6 +77,36 @@ def _is_tennis(linescores: list[list[int]]) -> bool:
         if any(v >= _TENNIS_SET_SCORE_MIN for v in pair):
             return True
     return False
+
+
+def _competitor_display_name(competitor: dict) -> str:
+    """ESPN competitor → takım/sporcu görünen adı.
+
+    Takım sporları (NBA/MLB/NHL/soccer): competitor.team.displayName
+    Individual (tennis): competitor.athlete.displayName
+    Sıra: team primary, athlete fallback — ESPN schema'sına göre doğal.
+    """
+    team = competitor.get("team") or {}
+    name = team.get("displayName") or ""
+    if name:
+        return name
+    athlete = competitor.get("athlete") or {}
+    return athlete.get("displayName") or ""
+
+
+def _competitor_score(competitor: dict) -> int | None:
+    """ESPN competitor.score string → int (PLAN-016: soccer fallback).
+
+    Soccer'da linescores=None geliyor; skor doğrudan competitor.score
+    field'ında string olarak ("0", "2"). Bozuk/boş → None.
+    """
+    raw = competitor.get("score")
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return None
 
 
 def _compute_totals(
@@ -132,6 +168,13 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
     tennis = _is_tennis(linescores)
     home_score, away_score = _compute_totals(linescores, tennis)
 
+    # PLAN-016: Soccer (ve linescores boş diğer sporlar) için competitor.score
+    # field'ından fallback oku. Linescores yoksa _compute_totals None döner.
+    if home_score is None:
+        home_score = _competitor_score(home)
+    if away_score is None:
+        away_score = _competitor_score(away)
+
     status_block = comp.get("status", {})
     type_block = status_block.get("type", {})
     description: str = type_block.get("description", "")
@@ -141,15 +184,22 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
 
     # SPEC-014: MLB inning from status.period (int field, 1-9+ = inning, 0 = pregame)
     inning: int | None = None
+    inning_half: str | None = None
     if sport == "baseball":
         raw_period = status_block.get("period")
         if isinstance(raw_period, int) and raw_period > 0:
             inning = raw_period
+        short_detail: str = type_block.get("shortDetail", "") or ""
+        sd_lower = short_detail.lower()
+        if "top" in sd_lower:
+            inning_half = "top"
+        elif "bot" in sd_lower:
+            inning_half = "bottom"
 
     # SPEC-A4: NBA/NFL period (int 1-4, 5+=OT) + clock_seconds (displayClock "M:SS" parse)
     period_number: int | None = None
     clock_seconds: int | None = None
-    if sport in ("basketball", "football"):
+    if sport in ("basketball", "football", "hockey"):
         raw_period = status_block.get("period")
         if isinstance(raw_period, int) and raw_period > 0:
             period_number = raw_period
@@ -177,10 +227,48 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
             except (ValueError, TypeError):
                 minute = None
 
+    # Rugby/aussierules/handball: minute (countup) + period_number
+    rugby_minute: int | None = None
+    rugby_period: int | None = None
+    if sport in ("rugby", "aussierules", "handball"):
+        if state == "in":
+            rc = status_block.get("displayClock", "") or ""
+            rc_stripped = rc.rstrip("'").strip().replace("'", "")
+            if "+" in rc_stripped:
+                rc_base = rc_stripped.split("+")[0]
+            else:
+                rc_base = rc_stripped
+            try:
+                rugby_minute = int(rc_base)
+            except (ValueError, TypeError):
+                rugby_minute = None
+        raw_rp = status_block.get("period")
+        if isinstance(raw_rp, int) and raw_rp > 0:
+            rugby_period = raw_rp
+
+    # Tennis: sets + current game scores from linescores
+    sets_won_home: int | None = None
+    sets_won_away: int | None = None
+    games_home: int | None = None
+    games_away: int | None = None
+    current_set: int | None = None
+    if tennis and linescores:
+        sets_won_home = sum(1 for h, a in linescores if h > a)
+        sets_won_away = sum(1 for h, a in linescores if a > h)
+        current_set = len(linescores)
+        games_home = linescores[-1][0]
+        games_away = linescores[-1][1]
+
+    # Merge rugby fields into period_number/minute (only set if not already set)
+    if rugby_period is not None and period_number is None:
+        period_number = rugby_period
+    if rugby_minute is not None and minute is None:
+        minute = rugby_minute
+
     return ESPNMatchScore(
         event_id=str(comp.get("id", "")),
-        home_name=home.get("athlete", {}).get("displayName", ""),
-        away_name=away.get("athlete", {}).get("displayName", ""),
+        home_name=_competitor_display_name(home),
+        away_name=_competitor_display_name(away),
         home_score=home_score,
         away_score=away_score,
         period=description,
@@ -194,11 +282,22 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         regulation_state=regulation_state,
         period_number=period_number,
         clock_seconds=clock_seconds,
+        inning_half=inning_half,
+        sets_won_home=sets_won_home,
+        sets_won_away=sets_won_away,
+        games_home=games_home,
+        games_away=games_away,
+        current_set=current_set,
     )
 
 
 def _parse_scoreboard(response: dict, sport: str = "") -> list[ESPNMatchScore]:
     """ESPN scoreboard JSON yanıtını ESPNMatchScore listesine çevir.
+
+    ESPN iki farklı şema kullanır:
+    - Team sports (NBA/NHL/MLB/soccer): event.competitions[]
+    - Individual (tennis): event.groupings[].competitions[]
+    Her iki şemayı da tara.
 
     Args:
         response: ESPN API JSON yanıtı.
@@ -206,11 +305,14 @@ def _parse_scoreboard(response: dict, sport: str = "") -> list[ESPNMatchScore]:
     """
     results: list[ESPNMatchScore] = []
     for event in response.get("events", []):
-        for grouping in event.get("groupings", []):
-            for comp in grouping.get("competitions", []):
-                match = _parse_competition(comp, sport=sport)
-                if match is not None:
-                    results.append(match)
+        comps: list = []
+        for grouping in event.get("groupings", []) or []:
+            comps.extend(grouping.get("competitions", []) or [])
+        comps.extend(event.get("competitions", []) or [])
+        for comp in comps:
+            match = _parse_competition(comp, sport=sport)
+            if match is not None:
+                results.append(match)
     return results
 
 

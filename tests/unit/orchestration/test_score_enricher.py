@@ -594,69 +594,6 @@ def test_find_match_via_pair_low_confidence_rejected() -> None:
     assert result is None
 
 
-# ── SPEC-011: Cricket dispatch ──
-
-def test_cricket_position_uses_cricket_client() -> None:
-    """Cricket sport_tag → CricketAPIClient path used, ESPN/Odds API skipped."""
-    from unittest.mock import MagicMock
-    from src.infrastructure.apis.cricket_client import CricketMatchScore
-
-    cricket_client = MagicMock()
-    cricket_client.get_current_matches.return_value = [
-        CricketMatchScore(
-            match_id="m1",
-            name="India vs Australia",
-            match_type="t20",
-            teams=["India", "Australia"],
-            status="live",
-            match_started=True,
-            match_ended=False,
-            venue="",
-            date_time_gmt="",
-            innings=[
-                {"runs": 150, "wickets": 6, "overs": 20.0, "team": "Australia", "inning_num": 1},
-                {"runs": 80, "wickets": 5, "overs": 12.0, "team": "India", "inning_num": 2},
-            ],
-        ),
-    ]
-    espn = _FakeESPN([])
-    enricher = ScoreEnricher(
-        espn_client=espn, odds_client=None,
-        poll_normal_sec=0, poll_critical_sec=0,
-        match_window_hours=999,
-        cricket_client=cricket_client,
-    )
-    pos = _pos_with_event(
-        event_id="cric1",
-        question="India vs Australia",
-        sport_tag="cricket",
-    )
-    result = enricher.get_scores_if_due({"cid1": pos})
-    # cricket_client was called, ESPN was NOT called (cricket short-circuits)
-    assert cricket_client.get_current_matches.called
-    assert espn.call_count == 0
-    # result contains score_info for the cricket position
-    assert "cid1" in result
-    assert result["cid1"]["available"] is True
-
-
-def test_cricket_without_client_skips_silently() -> None:
-    """cricket_client=None → cricket position skipped cleanly, no crash."""
-    enricher = ScoreEnricher(
-        espn_client=None, odds_client=None,
-        cricket_client=None,
-    )
-    assert enricher._cricket_client is None
-    pos = _pos_with_event(
-        event_id="cric2",
-        question="India vs Australia",
-        sport_tag="cricket",
-    )
-    # Should not raise; cricket position simply yields no result
-    result = enricher.get_scores_if_due({"cid1": pos})
-    assert "cid1" not in result
-
-
 # ── SPEC-014 Task 3: match_score/period yazimi ──
 
 def test_score_enricher_writes_match_score_to_position() -> None:

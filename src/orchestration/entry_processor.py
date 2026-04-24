@@ -34,7 +34,7 @@ class EntryProcessor:
 
         # Gamma scan'den gelen event_live flag'ini açık pozisyonlara yansıt
         # (Odds API maliyeti yok — Gamma ücretsiz).
-        self._sync_live_flag(scan_by_cid)
+        self._sync_live_flag(scan_fresh, scan_by_cid)
 
         open_event_ids = frozenset(
             p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
@@ -76,16 +76,25 @@ class EntryProcessor:
         operational_writers.log_equity_snapshot(self.deps.state.portfolio, self.deps.equity_logger)
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
 
-    def _sync_live_flag(self, scan_by_cid: dict[str, MarketData]) -> None:
+    def _sync_live_flag(self, scan_fresh: list[MarketData], scan_by_cid: dict[str, MarketData]) -> None:
         """Gamma scan'den event_live/event_ended → açık pozisyon match_live/match_ended."""
+        from collections import defaultdict
+        by_event: dict[str, list[MarketData]] = defaultdict(list)
+        for m in scan_fresh:
+            if m.event_id:
+                by_event[m.event_id].append(m)
+
         for pos in self.deps.state.portfolio.positions.values():
             market = scan_by_cid.get(pos.condition_id)
-            if market is None:
-                continue
-            if market.event_live != pos.match_live:
-                pos.match_live = market.event_live
-            if market.event_ended != pos.match_ended:
-                pos.match_ended = market.event_ended
+            if market is not None:
+                if market.event_live != pos.match_live:
+                    pos.match_live = market.event_live
+                if market.event_ended != pos.match_ended:
+                    pos.match_ended = market.event_ended
+
+            if pos.event_id and pos.event_id in by_event:
+                siblings = [m.yes_price for m in by_event[pos.event_id] if m.condition_id != pos.condition_id]
+                pos.event_sibling_bids = siblings
 
     def process_markets(self, markets: list[MarketData]) -> None:
         """Gate → cap-clip → match_start ASC priority → execute."""
@@ -181,6 +190,7 @@ class EntryProcessor:
             match_start_iso=market.match_start_iso,
             match_live=market.event_live,
             question=market.question,
+            match_title=market.match_title,
             end_date_iso=market.end_date_iso,
             slug=market.slug,
             bookmaker_prob=signal.bookmaker_prob,
@@ -211,6 +221,7 @@ class EntryProcessor:
             event_id=market.event_id or "",
             token_id=pos.token_id,
             question=market.question,
+            match_title=market.match_title,
             sport_tag=market.sport_tag,
             sport_category=category,
             league=league,

@@ -23,11 +23,14 @@ from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.infrastructure.apis.cricket_client import CricketAPIClient
 from src.infrastructure.apis.espn_client import fetch_scoreboard
+from src.infrastructure.apis.espn_leagues_client import fetch_soccer_leagues  # PLAN-012
+from src.infrastructure.persistence.soccer_league_cache import SoccerLeagueCache  # PLAN-012
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
+from src.orchestration.soccer_league_discovery import SoccerLeagueDiscovery  # PLAN-012
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
@@ -94,6 +97,8 @@ def build_agent(state: RuntimeState) -> Agent:
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,
         probability_weighted=cfg.risk.probability_weighted,  # SPEC-016
+        min_bookmakers=cfg.entry.min_bookmakers,              # PLAN-013
+        min_sharps=cfg.entry.min_sharps,                      # PLAN-013
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma
@@ -141,8 +146,22 @@ def build_agent(state: RuntimeState) -> Agent:
             def fetch(sport: str, league: str, date: str | None = None) -> list:
                 return fetch_scoreboard(sport, league, date)
 
+        espn_bridge = _ESPNBridge()
+
+        # PLAN-012: soccer runtime league discovery
+        soccer_cache = SoccerLeagueCache(
+            cache_path="logs/soccer_league_cache.json",
+            ttl_hours=cfg.score.espn_leagues_cache_ttl_hours,
+        )
+        soccer_discovery = SoccerLeagueDiscovery(
+            leagues_fetcher=fetch_soccer_leagues,
+            espn_fetcher=espn_bridge.fetch,
+            cache=soccer_cache,
+            max_candidates=cfg.score.soccer_discovery_max_candidates,
+        )
+
         score_enricher = ScoreEnricher(
-            espn_client=_ESPNBridge(),
+            espn_client=espn_bridge,
             odds_client=odds,
             poll_normal_sec=cfg.score.poll_normal_sec,
             poll_critical_sec=cfg.score.poll_critical_sec,
@@ -150,6 +169,7 @@ def build_agent(state: RuntimeState) -> Agent:
             match_window_hours=cfg.score.match_window_hours,
             archive_logger=archive_logger,  # SPEC-009
             cricket_client=cricket_client,  # SPEC-011
+            soccer_discovery=soccer_discovery,  # PLAN-012
         )
 
     deps = AgentDeps(

@@ -138,7 +138,6 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "kbo": "baseball_kbo",
     "npb": "baseball_npb",
     "milb": "baseball_milb",
-    "ncaab": "basketball_ncaab",
     # Canadian Football
     "cfl": "americanfootball_cfl",
     # Golf
@@ -146,6 +145,9 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "liv": "golf_liv_tour",
     # Rugby League
     "nrl": "rugbyleague_nrl",
+    # Tennis
+    "atp": "tennis_atp",
+    "wta": "tennis_wta",
 }
 
 # ── Polymarket Gamma tag slug → Odds API sport_key ──

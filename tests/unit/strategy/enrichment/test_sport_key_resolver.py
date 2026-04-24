@@ -94,12 +94,10 @@ def test_no_match_returns_none() -> None:
 # --- SPEC-002: remove keys[0] fallback in _match_tennis_key ---
 
 
-def test_match_tennis_key_no_score_no_tourney_match_returns_none():
-    """Multiple active tennis_atp keys, nothing in question/slug matches → None.
-
-    Previously returned keys[0] (first active key), which mapped unknown
-    tournaments (Oeiras, Tallahassee, BMW Open) to Barcelona Open in April 2026
-    and caused misleading event_no_match skips. Fix: honest None signal.
+def test_match_tennis_key_no_tourney_match_falls_back_to_generic():
+    """Multiple active tennis_atp keys, nothing in question/slug matches →
+    falls back to generic 'tennis_atp' (prevents market skip when tournament
+    name is unrecognised but sport is known to be ATP tennis).
     """
     from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
 
@@ -123,7 +121,7 @@ def test_match_tennis_key_no_score_no_tourney_match_returns_none():
         tags=[],
         odds_client=FakeClient(),
     )
-    assert result is None
+    assert result == "tennis_atp"
 
 
 # --- SPEC-003: sponsor→city alias augmentation ---

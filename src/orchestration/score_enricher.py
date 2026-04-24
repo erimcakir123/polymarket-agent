@@ -5,7 +5,6 @@ Sadece maç penceresindeki pozisyonlar için API çağrısı yapar.
 
 Dispatch table:
 - score_source="espn": ESPN primary + Odds API fallback (tennis hariç)
-- score_source="cricapi": CricketAPIClient via cricket_score_builder (SPEC-011)
 - missing: skip silently
 """
 from __future__ import annotations
@@ -17,6 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from src.config.sport_rules import _normalize, get_sport_rule, is_cricket_sport
+from src.domain.models.match_clock import build_match_clock
 from src.infrastructure.apis.cricket_client import CricketAPIClient, CricketMatchScore
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import fetch_scores
@@ -26,7 +26,6 @@ from src.infrastructure.persistence.archive_logger import (
     ArchiveScoreEvent,
 )
 from src.models.position import Position
-from src.orchestration.cricket_score_builder import build_cricket_score_info, find_cricket_match
 from src.orchestration.score_helpers import (
     build_score_info as _build_score_info,
     find_match_via_pair as _find_match_via_pair,
@@ -60,6 +59,7 @@ class ScoreEnricher:
         match_window_hours: float = 4.0,
         archive_logger: ArchiveLogger | None = None,
         cricket_client: CricketAPIClient | None = None,
+        soccer_discovery=None,
     ) -> None:
         self._espn = espn_client
         self._odds = odds_client
@@ -75,6 +75,8 @@ class ScoreEnricher:
         self._archive_logger = archive_logger
         self._cricket_client = cricket_client
         self._cached_cricket: list[CricketMatchScore] = []
+        # PLAN-012: soccer runtime league discovery (optional dep; wired in factory.py)
+        self._soccer_discovery = soccer_discovery
         # event_id → last known score string (skor degisikligi tespiti icin — SPEC-009)
         self._prev_score_by_event: dict[str, str] = {}
         # event_id set'i — daha once match_result log'landi mi? Startup'ta
@@ -114,52 +116,65 @@ class ScoreEnricher:
         )
 
     def _refresh_scores(self, positions: dict[str, Position]) -> None:
-        """Maç penceresindeki pozisyonlar için sport bazında skor çek."""
-        sports: dict[str, list[Position]] = defaultdict(list)
-        for pos in positions.values():
-            if not _is_within_match_window(pos, self._window_hours):
-                continue
+        """Maç penceresindeki pozisyonlar için tüm aktif liglerden skor çek."""
+        # 1. Benzersiz (tag, sport, league) kombinasyonlarını topla
+        unique_espn: set[tuple[str, str, str]] = set()
+        tags_requiring_odds: set[str] = set()
+
+        active_positions = [
+            p for p in positions.values()
+            if _is_within_match_window(p, self._window_hours)
+        ]
+
+        for pos in active_positions:
             tag = _normalize(pos.sport_tag)
-            if tag:
-                sports[tag].append(pos)
+            if not tag:
+                continue
+
+            score_source = get_sport_rule(tag, "score_source")
+            if score_source == "espn":
+                espn_sport = get_sport_rule(tag, "espn_sport", "")
+                espn_league = get_sport_rule(tag, "espn_league", "")
+
+                if tag == "tennis":
+                    espn_league = _resolve_tennis_league(pos.slug)
+                elif tag == "soccer":
+                    if self._soccer_discovery:
+                        espn_league = self._soccer_discovery.discover(pos) or ""
+
+                if espn_sport and espn_league:
+                    unique_espn.add((tag, espn_sport, espn_league))
+            
+            tags_requiring_odds.add(tag)
 
         self._cached_espn.clear()
         self._cached_odds.clear()
 
         # Cricket (SPEC-011)
-        has_cricket = any(
-            is_cricket_sport(pos.sport_tag)
-            for pos in positions.values()
-            if _is_within_match_window(pos, self._window_hours)
-        )
+        has_cricket = any(is_cricket_sport(p.sport_tag) for p in active_positions)
         if has_cricket and self._cricket_client is not None:
             matches = self._cricket_client.get_current_matches()
             if matches is not None:
                 self._cached_cricket = matches
 
-        for tag, sport_positions in sports.items():
-            score_source: str | None = get_sport_rule(tag, "score_source")
-            if score_source != "espn":
-                continue
-
-            espn_sport: str = get_sport_rule(tag, "espn_sport", "")
-            espn_league: str = get_sport_rule(tag, "espn_league", "")
-
-            if tag == "tennis":
-                slug = sport_positions[0].slug if sport_positions else ""
-                espn_league = _resolve_tennis_league(slug)
-
-            espn_scores = self._fetch_espn(espn_sport, espn_league)
-
+        # 2. ESPN Fetch & Merge
+        for tag, sport, league in unique_espn:
+            espn_scores = self._fetch_espn(sport, league)
             if espn_scores:
-                self._cached_espn[tag] = espn_scores
-            elif tag != "tennis" and self._odds is not None:
-                odds_key = _ODDS_API_KEY_MAP.get(tag, "")
-                if odds_key:
-                    odds_scores = fetch_scores(self._odds, odds_key)
-                    if odds_scores:
-                        self._cached_odds[tag] = odds_scores
-                        logger.info("Odds API fallback: %s → %d events", odds_key, len(odds_scores))
+                if tag not in self._cached_espn:
+                    self._cached_espn[tag] = []
+                self._cached_espn[tag].extend(espn_scores)
+
+        # 3. Odds API Fallback (sadece ESPN bossa ve tennis degilse)
+        if self._odds is not None:
+            for tag in tags_requiring_odds:
+                if tag != "tennis" and not self._cached_espn.get(tag):
+                    odds_key = _ODDS_API_KEY_MAP.get(tag, "")
+                    if odds_key:
+                        odds_scores = fetch_scores(self._odds, odds_key)
+                        if odds_scores:
+                            self._cached_odds[tag] = odds_scores
+                            logger.info("Odds API fallback: %s -> %d events", odds_key, len(odds_scores))
 
     def _fetch_espn(self, sport: str, league: str) -> list[ESPNMatchScore]:
         """ESPN client çağrısı; hata → boş liste + WARNING log."""
@@ -178,14 +193,6 @@ class ScoreEnricher:
         """Cached skor verisiyle pozisyonları eşleştir."""
         result: dict[str, dict] = {}
         for cid, pos in positions.items():
-            # Cricket (SPEC-011)
-            if is_cricket_sport(pos.sport_tag):
-                if self._cached_cricket:
-                    match = find_cricket_match(pos, self._cached_cricket)
-                    if match is not None:
-                        result[cid] = build_cricket_score_info(pos, match)
-                continue
-
             tag = _normalize(pos.sport_tag)
             matched_score_obj = None
 
@@ -212,6 +219,19 @@ class ScoreEnricher:
                 pos.match_period = getattr(matched_score_obj, "period", "") or ""
                 self._maybe_log_score_event(pos, matched_score_obj)
                 self._maybe_log_match_result(pos, matched_score_obj)
+
+                if cid in result:
+                    espn_obj = matched_score_obj if isinstance(matched_score_obj, ESPNMatchScore) else None
+                    _sport_cfg = {
+                        "match_duration_hours": get_sport_rule(tag, "match_duration_hours", 2.0),
+                        "espn_sport": get_sport_rule(tag, "espn_sport", ""),
+                    }
+                    result[cid]["match_clock"] = build_match_clock(
+                        espn_score=espn_obj,
+                        match_start_iso=pos.match_start_iso,
+                        sport_tag=tag,
+                        sport_config=_sport_cfg,
+                    )
 
         return result
 

@@ -96,8 +96,8 @@
       return this._stockCard(it);
     },
 
-    _marketTitle(question, slug) {
-      return `<span class="feed-market">${FMT.teamsText(question, slug)}</span>`;
+    _marketTitle(question, slug, matchTitle) {
+      return `<span class="feed-market">${FMT.teamsText(question, slug, matchTitle)}</span>`;
     },
 
     _confPill(conf) {
@@ -142,7 +142,7 @@
       return `${this._cardOpen(p.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(p.question, p.slug)}</div>
+            ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
           <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
         <div class="feed-entry-reason-row">${FMT.escapeHtml(p.entry_reason || "normal")}</div>
@@ -215,7 +215,7 @@
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(t.question, t.slug)}</div>
+            ${this._marketTitle(t.question, t.slug, t.match_title)}</div>
           <div class="feed-badges"><span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
         <div class="feed-entry-reason-row">${subRowText}</div>
@@ -242,7 +242,7 @@
       return `${this._cardOpen(s.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(s.question, s.slug)}</div>
+            ${this._marketTitle(s.question, s.slug, s.match_title)}</div>
           <span class="feed-badge">SKIP</span>
         </div>
         <div class="feed-details"><span>${s.skip_reason || "?"}</span>
@@ -256,7 +256,7 @@
       return `${this._cardOpen(q.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(q.question, q.slug)}</div>
+            ${this._marketTitle(q.question, q.slug, q.match_title)}</div>
         </div>
         <div class="feed-details">
           <span>YES ${FMT.cents(q.yes_price)}</span>

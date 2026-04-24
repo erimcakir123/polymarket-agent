@@ -168,6 +168,7 @@ def _weighted_average(
     weighted_a = 0.0
     total_weight = 0.0
     bm_count = 0
+    sharp_count = 0
     has_sharp_flag = False
 
     for bookmaker in bookmakers:
@@ -188,6 +189,7 @@ def _weighted_average(
         bm_count += 1
         if is_sharp(bm_key):
             has_sharp_flag = True
+            sharp_count += 1
 
     if total_weight <= 0 or bm_count == 0:
         return None
@@ -197,4 +199,6 @@ def _weighted_average(
         bookmaker_prob=avg_a,
         num_bookmakers=total_weight,
         has_sharp=has_sharp_flag,
+        num_bookmakers_count=bm_count,
+        num_sharps=sharp_count,
     )

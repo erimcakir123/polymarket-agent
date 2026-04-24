@@ -75,3 +75,11 @@ def test_is_soccer_key() -> None:
     assert is_soccer_key("basketball_nba") is False
     assert is_soccer_key(None) is False
     assert is_soccer_key("") is False
+
+
+def test_slug_atp_maps_tennis_atp() -> None:
+    assert slug_to_odds_key("atp") == "tennis_atp"
+
+
+def test_slug_wta_maps_tennis_wta() -> None:
+    assert slug_to_odds_key("wta") == "tennis_wta"

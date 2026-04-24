@@ -25,6 +25,7 @@ class SkippedTradeRecord(BaseModel):
     slug: str
     sport_tag: str
     question: str = ""
+    match_title: str = ""    # SPEC-015 3-way display başlığı (home/away için "X vs Y")
     event_id: str = ""
     direction: str = ""      # BUY_YES / BUY_NO / "" (skip karar öncesi)
     entry_price: float = 0.0

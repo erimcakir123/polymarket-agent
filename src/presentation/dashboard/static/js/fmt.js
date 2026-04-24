@@ -155,10 +155,16 @@
         .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
     },
-    // Market başlığı — question > slug pattern > slug fallback. HTML-escape'li.
-    teamsText(question, slug) {
+    // Market başlığı — match_title (backend 3-way enrichment) > question >
+    // slug fallback. HTML-escape'li. SPEC-015: soccer/rugby/afl/handball 3-way
+    // home/away sub-market'inin ham question'ı tek takım taşır; backend draw
+    // sub-market'inden türetilen "X vs Y" match_title'ı tercih edilir.
+    teamsText(question, slug, matchTitle) {
       return this.escapeHtml(
-        this._fromQuestion(question) || this._fromSlug(slug) || (slug || "--")
+        (matchTitle && String(matchTitle).trim())
+        || this._fromQuestion(question)
+        || this._fromSlug(slug)
+        || (slug || "--")
       );
     },
     _fromQuestion(q) {

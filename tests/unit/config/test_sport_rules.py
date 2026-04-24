@@ -83,6 +83,14 @@ def test_nba_has_score_exit_n1_n2_n3_thresholds() -> None:
     assert get_sport_rule("nba", "score_exit_n3_deficit") == 5
 
 
+def test_tennis_wta_espn_league_is_wta() -> None:
+    assert get_sport_rule("tennis_wta", "espn_league") == "wta"
+
+
+def test_tennis_wta_espn_sport_is_tennis() -> None:
+    assert get_sport_rule("tennis_wta", "espn_sport") == "tennis"
+
+
 def test_nfl_has_score_exit_n1_n2_n3_thresholds() -> None:
     """SPEC-A4: NFL N1=17 (σ-model %99 güven), N2=9, N3 Q4-son150s + def4."""
     from src.config.sport_rules import get_sport_rule
