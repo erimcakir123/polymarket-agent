@@ -203,6 +203,29 @@ class TestDaysSinceLastGame:
         result = client.days_since_last_game("1", ref, 2026)
         assert result is None
 
+    def test_days_since_last_game_naive_reference_date_treated_as_utc(self) -> None:
+        """Naive reference_date (no tzinfo) → treated as UTC, no crash."""
+        reference_naive = datetime(2026, 4, 25, 12, 0)  # no tzinfo — naive
+
+        client = EspnScheduleClient(
+            http_get=_make_mock_http({
+                "events": [{
+                    "id": "999",
+                    "date": "2026-04-24T12:00:00Z",
+                    "competitions": [{
+                        "competitors": [
+                            {"homeAway": "home", "team": {"id": "1"}},
+                            {"homeAway": "away", "team": {"id": "2"}},
+                        ],
+                        "status": {"type": {"description": "Final"}},
+                    }],
+                }]
+            }),
+            cache_ttl_sec=60,
+        )
+        result = client.days_since_last_game("1", reference_naive, season=2026)
+        assert result == 1
+
 
 # ── Tests: is_back_to_back ───────────────────────────────────────────────────
 

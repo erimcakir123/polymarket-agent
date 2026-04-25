@@ -99,7 +99,7 @@ class EspnScheduleClient:
             resp = self._http(url, params={"season": season}, timeout=self._timeout)
             resp.raise_for_status()
             return resp.json() or {}
-        except Exception as exc:  # noqa: BLE001
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
             logger.warning("ESPN schedule fetch failed team=%s season=%s: %s", team_id, season, exc)
             return None
 
