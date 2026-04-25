@@ -194,6 +194,10 @@ class EntryProcessor:
             end_date_iso=market.end_date_iso,
             slug=market.slug,
             bookmaker_prob=signal.bookmaker_prob,
+            sports_market_type=signal.sports_market_type,
+            spread_line=signal.spread_line,
+            total_line=signal.total_line,
+            total_side=signal.total_side,
         )
 
         if not self.deps.state.portfolio.add_position(pos):
