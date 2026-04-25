@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from src.config.sport_rules import _normalize
+from src.domain.matching.market_line_parser import parse_spread_line, parse_total_line
 from src.models.enums import Direction, EntryReason
 from src.models.signal import Signal
 
@@ -38,6 +39,15 @@ class GateConfig:
     high_gap_multiplier: float = field(default=1.2)
     extreme_gap_multiplier: float = field(default=1.3)
     min_bet_usd: float = field(default=5.0)
+    # Spread filters
+    spread_min_price: float = field(default=0.20)
+    spread_max_price: float = field(default=0.80)
+    spread_large_threshold: float = field(default=10.0)
+    spread_gap_bonus: float = field(default=0.02)
+    # Totals filters
+    totals_min_price: float = field(default=0.20)
+    totals_max_price: float = field(default=0.80)
+    totals_min_target_total: float = field(default=200.0)
 
 
 @dataclass
@@ -72,12 +82,30 @@ def _passes_filters(
     bookmaker_prob: float,
     volume: float,
     cfg: GateConfig,
+    market_type: str = "moneyline",
+    spread_line: float | None = None,
+    total_line: float | None = None,
 ) -> str | None:
     """Tüm filtrelerden geç. None = geçti, string = skip sebebi."""
-    if gap < cfg.min_gap_threshold:
+    effective_gap_threshold = cfg.min_gap_threshold
+    if market_type == "spreads" and spread_line is not None and spread_line >= cfg.spread_large_threshold:
+        effective_gap_threshold += cfg.spread_gap_bonus
+
+    if gap < effective_gap_threshold:
         return "GAP_TOO_LOW"
-    if polymarket_price < cfg.min_polymarket_price or polymarket_price > cfg.max_entry_price:
-        return "PRICE_OUT_OF_RANGE"
+
+    if market_type == "spreads":
+        if polymarket_price < cfg.spread_min_price or polymarket_price > cfg.spread_max_price:
+            return "PRICE_OUT_OF_RANGE"
+    elif market_type == "totals":
+        if polymarket_price < cfg.totals_min_price or polymarket_price > cfg.totals_max_price:
+            return "PRICE_OUT_OF_RANGE"
+        if total_line is not None and total_line < cfg.totals_min_target_total:
+            return "TOTAL_TOO_LOW"
+    else:  # moneyline
+        if polymarket_price < cfg.min_polymarket_price or polymarket_price > cfg.max_entry_price:
+            return "PRICE_OUT_OF_RANGE"
+
     if bookmaker_prob < cfg.min_favorite_probability:
         return "BOOKMAKER_PROB_TOO_LOW"
     if volume < cfg.min_market_volume:
@@ -165,7 +193,32 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason="CONFIDENCE_C"))
                 continue
 
-            skip = _passes_filters(gap, polymarket_price, prob.prob, market.volume_24h, self.config)
+            # Market line parse (spread/totals için; moneyline'da None kalır)
+            market_type = market.sports_market_type or "moneyline"
+            spread_line: float | None = None
+            total_line: float | None = None
+            total_side_val: str | None = None
+
+            if market_type == "spreads":
+                spread_line = parse_spread_line(market.question)
+                if spread_line is None:
+                    results.append(GateResult(cid, skipped_reason="SPREAD_UNPARSEABLE"))
+                    continue
+
+            elif market_type == "totals":
+                parsed = parse_total_line(market.question)
+                if parsed is None:
+                    results.append(GateResult(cid, skipped_reason="TOTAL_UNPARSEABLE"))
+                    continue
+                total_line, yes_side = parsed
+                total_side_val = yes_side
+
+            skip = _passes_filters(
+                gap, polymarket_price, prob.prob, market.volume_24h, self.config,
+                market_type=market_type,
+                spread_line=spread_line,
+                total_line=total_line,
+            )
             if skip:
                 results.append(GateResult(cid, skipped_reason=skip))
                 continue
@@ -183,6 +236,11 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason="BELOW_MIN_BET"))
                 continue
 
+            # BUY_NO totals → side flip (YES=over convention, BUY_NO=under)
+            actual_total_side = total_side_val
+            if market_type == "totals" and direction == Direction.BUY_NO and total_side_val:
+                actual_total_side = "under" if total_side_val == "over" else "over"
+
             signal = Signal(
                 condition_id=cid,
                 direction=direction,
@@ -196,6 +254,10 @@ class EntryGate:
                 has_sharp=prob.has_sharp,
                 sport_tag=market.sport_tag,
                 event_id=market.event_id or "",
+                sports_market_type=market_type,
+                spread_line=spread_line,
+                total_line=total_line,
+                total_side=actual_total_side,
             )
             results.append(GateResult(cid, signal=signal))
 

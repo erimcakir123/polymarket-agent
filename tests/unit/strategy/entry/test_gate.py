@@ -214,3 +214,80 @@ def test_gate_run_same_event_same_direction_blocked():
     result = gate.run([market])
     assert len(result) == 1
     assert result[0].skipped_reason == "EVENT_GUARD_SAME_DIRECTION"
+
+
+# ── Spread filter tests ──────────────────────────────────────────
+def test_filters_spread_price_too_low():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.15, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="spreads",
+    )
+    assert reason == "PRICE_OUT_OF_RANGE"
+
+
+def test_filters_spread_price_in_range():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.50, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="spreads",
+    )
+    assert reason is None
+
+
+def test_filters_spread_large_spread_needs_gap_bonus():
+    """spread_line >= 10 → efektif gap_threshold 0.08+0.02=0.10 olur."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.09, polymarket_price=0.50, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="spreads",
+        spread_line=10.5,
+    )
+    assert reason == "GAP_TOO_LOW"
+
+
+def test_filters_spread_small_spread_normal_gap():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.09, polymarket_price=0.50, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="spreads",
+        spread_line=5.5,
+    )
+    assert reason is None
+
+
+# ── Totals filter tests ──────────────────────────────────────────
+def test_filters_totals_price_too_low():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.15, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="totals",
+    )
+    assert reason == "PRICE_OUT_OF_RANGE"
+
+
+def test_filters_totals_target_too_low():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.50, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="totals",
+        total_line=150.0,
+    )
+    assert reason == "TOTAL_TOO_LOW"
+
+
+def test_filters_totals_pass():
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.50, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        market_type="totals",
+        total_line=220.5,
+    )
+    assert reason is None
