@@ -93,6 +93,8 @@ def build_agent(state: RuntimeState) -> Agent:
         max_entry_price=cfg.entry.max_entry_price,
         max_positions=cfg.risk.max_positions,
         max_exposure_pct=cfg.risk.max_exposure_pct,
+        hard_cap_overflow_pct=cfg.risk.hard_cap_overflow_pct,
+        min_entry_size_pct=cfg.risk.min_entry_size_pct,
         confidence_bet_pct=cfg.risk.confidence_bet_pct,
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,

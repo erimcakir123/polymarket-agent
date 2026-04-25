@@ -7,6 +7,7 @@ from __future__ import annotations
 import pytest
 
 from src.config.sport_rules import SPORT_RULES, _ALIASES, _normalize, get_sport_rule
+from src.domain.matching.odds_sport_keys import slug_to_odds_key
 
 
 # ── Meta-test: alias chain yasak ────────────────────────────────────────────
@@ -162,3 +163,63 @@ def test_mlb_alias_unchanged() -> None:
 def test_nba_alias_unchanged() -> None:
     assert _normalize("basketball_nba") == "nba"
     assert get_sport_rule("basketball_nba", "espn_league") == "nba"
+
+
+# ── New slug prefixes (weekly scope scan 2026-04-25) ─────────────────────────
+
+def test_slug_el1_maps_to_england_league1() -> None:
+    assert slug_to_odds_key("el1") == "soccer_england_league1"
+
+
+def test_slug_el2_maps_to_england_league2() -> None:
+    assert slug_to_odds_key("el2") == "soccer_england_league2"
+
+
+def test_slug_es2_maps_to_spain_segunda() -> None:
+    assert slug_to_odds_key("es2") == "soccer_spain_segunda_division"
+
+
+def test_slug_j1100_maps_to_japan_j_league() -> None:
+    assert slug_to_odds_key("j1100") == "soccer_japan_j_league"
+
+
+def test_slug_fifwc_maps_to_fifa_world_cup() -> None:
+    assert slug_to_odds_key("fifwc") == "soccer_fifa_world_cup"
+
+
+def test_slug_uwcl_maps_to_womens_ucl() -> None:
+    assert slug_to_odds_key("uwcl") == "soccer_uefa_champs_league_women"
+
+
+def test_slug_atc_maps_to_austria_bundesliga() -> None:
+    assert slug_to_odds_key("atc") == "soccer_austria_bundesliga"
+
+
+def test_slug_trsk_maps_to_turkey_super_league() -> None:
+    assert slug_to_odds_key("trsk") == "soccer_turkey_super_league"
+
+
+def test_slug_grc_maps_to_greece_super_league() -> None:
+    assert slug_to_odds_key("grc") == "soccer_greece_super_league"
+
+
+# ── Soccer league Odds API keys — SPORT_RULES entries ───────────────────────
+
+def test_soccer_england_league1_espn_sport() -> None:
+    assert get_sport_rule("soccer_england_league1", "espn_sport") == "soccer"
+
+
+def test_soccer_england_league2_espn_sport() -> None:
+    assert get_sport_rule("soccer_england_league2", "espn_sport") == "soccer"
+
+
+def test_soccer_spain_segunda_espn_sport() -> None:
+    assert get_sport_rule("soccer_spain_segunda_division", "espn_sport") == "soccer"
+
+
+def test_soccer_japan_j_league_espn_sport() -> None:
+    assert get_sport_rule("soccer_japan_j_league", "espn_sport") == "soccer"
+
+
+def test_soccer_turkey_super_league_espn_sport() -> None:
+    assert get_sport_rule("soccer_turkey_super_league", "espn_sport") == "soccer"

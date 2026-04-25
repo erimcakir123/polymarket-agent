@@ -14,6 +14,7 @@
 | `config.yaml` | Config değeri gerekince | Tüm sayısal config |
 | `TODO.md` | Kullanıcı "todoya yaz/bak" deyince | Ertelenmiş işler |
 | `PLAN.md` | Plan yazılacak/okunacaksa | In-flight planlar |
+| `src/config/_sport_aliases.py` | sport_rules.py kullanır | Odds API → internal sport tag aliases |
 
 Başka dosyayı kullanıcı söylemeden okuma.
 
