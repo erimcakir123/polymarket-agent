@@ -136,6 +136,13 @@ class EntryConfig(BaseModel):
     totals_min_price: float = 0.20
     totals_max_price: float = 0.80
     totals_min_target_total: float = 200.0
+    # Edge modifiers — injury + B2B gap adjustments
+    injury_window_hours: int = 2
+    injury_gap_threshold_drop: float = 0.02
+    injury_size_multiplier: float = 1.3
+    b2b_opponent_gap_bonus: float = 0.03
+    b2b_self_gap_bonus: float = 0.05
+    star_out_self_gap_bonus: float = 0.05
 
 
 class StockConfig(BaseModel):
