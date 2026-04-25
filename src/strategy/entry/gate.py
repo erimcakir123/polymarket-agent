@@ -24,6 +24,18 @@ class GateConfig:
     min_sharps: int
     hard_cap_overflow_pct: float = field(default=0.02)
     min_entry_size_pct: float = field(default=0.015)
+    active_sports: list[str] = field(default_factory=list)
+    min_gap_threshold: float = field(default=0.08)
+    gap_high_zone: float = field(default=0.15)
+    gap_extreme_zone: float = field(default=0.25)
+    min_polymarket_price: float = field(default=0.15)
+    min_market_volume: float = field(default=5000.0)
+    max_match_start_hours: float = field(default=6.0)
+    confidence_a_pct: float = field(default=0.05)
+    confidence_b_pct: float = field(default=0.03)
+    high_gap_multiplier: float = field(default=1.2)
+    extreme_gap_multiplier: float = field(default=1.3)
+    min_bet_usd: float = field(default=5.0)
 
 
 @dataclass

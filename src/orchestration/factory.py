@@ -101,6 +101,18 @@ def build_agent(state: RuntimeState) -> Agent:
         probability_weighted=cfg.risk.probability_weighted,  # SPEC-016
         min_bookmakers=cfg.entry.min_bookmakers,              # PLAN-013
         min_sharps=cfg.entry.min_sharps,                      # PLAN-013
+        active_sports=cfg.entry.active_sports,
+        min_gap_threshold=cfg.entry.min_gap_threshold,
+        gap_high_zone=cfg.entry.gap_high_zone,
+        gap_extreme_zone=cfg.entry.gap_extreme_zone,
+        min_polymarket_price=cfg.entry.min_polymarket_price,
+        min_market_volume=cfg.entry.min_market_volume,
+        max_match_start_hours=cfg.entry.max_match_start_hours,
+        confidence_a_pct=cfg.entry.confidence_a_pct,
+        confidence_b_pct=cfg.entry.confidence_b_pct,
+        high_gap_multiplier=cfg.entry.high_gap_multiplier,
+        extreme_gap_multiplier=cfg.entry.extreme_gap_multiplier,
+        min_bet_usd=cfg.entry.min_bet_usd,
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma
