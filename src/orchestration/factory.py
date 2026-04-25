@@ -113,6 +113,14 @@ def build_agent(state: RuntimeState) -> Agent:
         high_gap_multiplier=cfg.entry.high_gap_multiplier,
         extreme_gap_multiplier=cfg.entry.extreme_gap_multiplier,
         min_bet_usd=cfg.entry.min_bet_usd,
+        # Spread/totals filters
+        spread_min_price=cfg.entry.spread_min_price,
+        spread_max_price=cfg.entry.spread_max_price,
+        spread_large_threshold=cfg.entry.spread_large_threshold,
+        spread_gap_bonus=cfg.entry.spread_gap_bonus,
+        totals_min_price=cfg.entry.totals_min_price,
+        totals_max_price=cfg.entry.totals_max_price,
+        totals_min_target_total=cfg.entry.totals_min_target_total,
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma

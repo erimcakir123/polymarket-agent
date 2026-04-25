@@ -46,6 +46,7 @@ class ExitProcessor:
                 pos, score_info=score_info, scale_out_tiers=scale_out_tiers,
                 sl_params=self._sl_params(),
                 scale_out_min_realized_usd=self._scale_out_min_realized(),
+                basketball_exit_cfg=self._basketball_exit_cfg(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -69,6 +70,13 @@ class ExitProcessor:
             price_below=sl.price_below,
             max_loss_usd=sl.max_loss_usd,
         )
+
+    def _basketball_exit_cfg(self):
+        """PLAN-NBA: exit_basketball config → BasketballExitConfig. None → monitor default."""
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg is None or not hasattr(cfg, "exit_basketball"):
+            return None
+        return cfg.exit_basketball
 
     def _scale_out_min_realized(self) -> float:
         """PLAN-014b: scale-out min realized USD eşiği (config'den)."""
