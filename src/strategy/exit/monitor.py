@@ -15,11 +15,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.settings import ExitMonitorConfig
+from src.config.settings import BasketballExitConfig, ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, near_resolve, nfl_score_exit, price_cap, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
+from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, nba_spread_exit, nba_totals_exit, near_resolve, nfl_score_exit, price_cap, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
 from src.strategy.exit.price_cap import SLParams
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
 
@@ -165,6 +165,7 @@ def evaluate(
     monitor_cfg: ExitMonitorConfig | None = None,
     sl_params: SLParams | None = None,         # PLAN-014
     scale_out_min_realized_usd: float = 0.0,   # PLAN-014b
+    basketball_exit_cfg: BasketballExitConfig | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir (A3 score-only, tek-dal akış).
 
@@ -234,11 +235,7 @@ def evaluate(
             current_price=pos.bid_price,
         )
         if sc_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=sc_result.reason, detail=sc_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+            return _simple_mr(sc_result, pos, elapsed_pct)
 
     if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
         t_result = tennis_score_exit.check(
@@ -247,11 +244,7 @@ def evaluate(
             sport_tag=pos.sport_tag,
         )
         if t_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=t_result.reason, detail=t_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+            return _simple_mr(t_result, pos, elapsed_pct)
 
     if _normalize(pos.sport_tag) in ("mlb", "kbo", "npb", "baseball") and score_info.get("available"):
         b_result = baseball_score_exit.check(
@@ -260,35 +253,17 @@ def evaluate(
             sport_tag=pos.sport_tag,
         )
         if b_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=b_result.reason, detail=b_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+            return _simple_mr(b_result, pos, elapsed_pct)
 
     if _is_soccer_sport(pos.sport_tag) and score_info.get("available"):
         s_result = soccer_score_exit.check(score_info=score_info, sport_tag=pos.sport_tag)
         if s_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=s_result.reason, detail=s_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+            return _simple_mr(s_result, pos, elapsed_pct)
 
     if _normalize(pos.sport_tag) == "nba" and score_info.get("available"):
-        nba_result = nba_score_exit.check(
-            score_info=score_info,
-            elapsed_pct=elapsed_pct,
-            sport_tag=pos.sport_tag,
-            bid_price=pos.bid_price,
-            entry_price=pos.entry_price,
-        )
-        if nba_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=nba_result.reason, detail=nba_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+        nba_mr = _check_nba_exit(pos, score_info, elapsed_pct, basketball_exit_cfg)
+        if nba_mr is not None:
+            return nba_mr
 
     if _normalize(pos.sport_tag) == "nfl" and score_info.get("available"):
         nfl_result = nfl_score_exit.check(
@@ -297,11 +272,7 @@ def evaluate(
             sport_tag=pos.sport_tag,
         )
         if nfl_result is not None:
-            return MonitorResult(
-                exit_signal=ExitSignal(reason=nfl_result.reason, detail=nfl_result.detail),
-                fav_transition=_fav_transition(pos),
-                elapsed_pct=elapsed_pct,
-            )
+            return _simple_mr(nfl_result, pos, elapsed_pct)
 
     # 4. Market flip — tennis hariç (set kaybı ≠ maç kaybı, dönebilir)
     if _normalize(pos.sport_tag) != "tennis" and elapsed_pct >= 0 and market_flip.market_flip_exit(pos, elapsed_pct):
@@ -331,6 +302,92 @@ def evaluate(
 
     # 6. Exit yok — sadece favored transition dön
     return MonitorResult(exit_signal=None, fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
+
+
+def _simple_mr(r, pos: Position, elapsed_pct: float) -> MonitorResult:
+    return MonitorResult(exit_signal=ExitSignal(reason=r.reason, detail=r.detail), fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
+
+
+def _nba_mr(r, pos: Position, elapsed_pct: float) -> MonitorResult:
+    return MonitorResult(exit_signal=ExitSignal(reason=r.reason, detail=r.detail, partial=r.partial, sell_pct=r.sell_pct), fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
+
+
+def _check_nba_exit(
+    pos: Position,
+    score_info: dict,
+    elapsed_pct: float,
+    basketball_exit_cfg: BasketballExitConfig | None,
+) -> MonitorResult | None:
+    """NBA market-type dispatch: spreads → nba_spread_exit, totals → nba_totals_exit, else → nba_score_exit."""
+    _bk = basketball_exit_cfg or BasketballExitConfig()
+    mtype = pos.sports_market_type or "moneyline"
+
+    if mtype == "spreads" and pos.spread_line is not None:
+        sp_result = nba_spread_exit.check(
+            score_info=score_info,
+            spread_line=pos.spread_line,
+            direction=pos.direction,
+            bid_price=pos.bid_price,
+            entry_price=pos.entry_price,
+            bill_james_multiplier=_bk.bill_james_multiplier,
+            structural_damage_ratio=_bk.structural_damage_ratio,
+            ot_seconds=_bk.overtime.seconds,
+            ot_margin=_bk.overtime.deficit,
+            q4_late_seconds=_bk.spread_empirical.q4_late_seconds,
+            q4_late_margin=_bk.spread_empirical.q4_late_margin,
+            q4_final_seconds=_bk.spread_empirical.q4_final_seconds,
+            q4_final_margin=_bk.spread_empirical.q4_final_margin,
+            q4_endgame_seconds=_bk.spread_empirical.q4_endgame_seconds,
+            q4_endgame_margin=_bk.spread_empirical.q4_endgame_margin,
+        )
+        if sp_result is not None:
+            return _nba_mr(sp_result, pos, elapsed_pct)
+
+    elif mtype == "totals" and pos.total_line is not None:
+        effective_side = pos.total_side or "over"
+        tot_result = nba_totals_exit.check(
+            score_info=score_info,
+            target_total=pos.total_line,
+            side=effective_side,
+            bid_price=pos.bid_price,
+            entry_price=pos.entry_price,
+            totals_multiplier=_bk.totals_multiplier,
+            structural_damage_ratio=_bk.structural_damage_ratio,
+            ot_over_scale_pct=_bk.totals_empirical.ot_over_scale_pct,
+            q4_late_seconds=_bk.totals_empirical.q4_late_seconds,
+            q4_late_gap=_bk.totals_empirical.q4_late_gap,
+            q4_final_seconds=_bk.totals_empirical.q4_final_seconds,
+            q4_final_gap=_bk.totals_empirical.q4_final_gap,
+            q4_endgame_seconds=_bk.totals_empirical.q4_endgame_seconds,
+            q4_endgame_gap=_bk.totals_empirical.q4_endgame_gap,
+        )
+        if tot_result is not None:
+            return _nba_mr(tot_result, pos, elapsed_pct)
+
+    else:  # moneyline (or spread_line/total_line missing — disabled)
+        nba_result = nba_score_exit.check(
+            score_info=score_info,
+            elapsed_pct=elapsed_pct,
+            sport_tag=pos.sport_tag,
+            bid_price=pos.bid_price,
+            entry_price=pos.entry_price,
+            bill_james_multiplier=_bk.bill_james_multiplier,
+            structural_damage_ratio=_bk.structural_damage_ratio,
+            ot_seconds=_bk.overtime.seconds,
+            ot_deficit=_bk.overtime.deficit,
+            q4_blowout_seconds=_bk.empirical.q4_blowout_seconds,
+            q4_blowout_deficit=_bk.empirical.q4_blowout_deficit,
+            q4_late_seconds=_bk.empirical.q4_late_seconds,
+            q4_late_deficit=_bk.empirical.q4_late_deficit,
+            q4_final_seconds=_bk.empirical.q4_final_seconds,
+            q4_final_deficit=_bk.empirical.q4_final_deficit,
+            q4_endgame_seconds=_bk.empirical.q4_endgame_seconds,
+            q4_endgame_deficit=_bk.empirical.q4_endgame_deficit,
+        )
+        if nba_result is not None:
+            return _nba_mr(nba_result, pos, elapsed_pct)
+
+    return None
 
 
 def _fav_transition(pos: Position) -> FavoredTransition:
