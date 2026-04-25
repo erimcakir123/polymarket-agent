@@ -11,6 +11,8 @@ from src.models.enums import ExitReason
 class NbaCheckResult:
     reason: ExitReason
     detail: str
+    sell_pct: float = 1.0
+    partial: bool = False
 
 
 def check(
