@@ -23,10 +23,13 @@ from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.infrastructure.apis.cricket_client import CricketAPIClient
 from src.infrastructure.apis.espn_client import fetch_scoreboard
+from src.infrastructure.apis.espn_injury_client import EspnInjuryClient
 from src.infrastructure.apis.espn_leagues_client import fetch_soccer_leagues  # PLAN-012
+from src.infrastructure.apis.espn_schedule_client import EspnScheduleClient
 from src.infrastructure.persistence.soccer_league_cache import SoccerLeagueCache  # PLAN-012
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
+from src.orchestration.edge_enricher import EdgeEnricher
 from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
@@ -147,7 +150,16 @@ def build_agent(state: RuntimeState) -> Agent:
         else:
             logger.warning("CRICAPI_KEY env missing — cricket disabled")
 
-    # Gate: cricket_client hazır olduktan sonra inşa edilir (SPEC-011)
+    # Edge enricher: ESPN injury + schedule clients (NBA edge detection)
+    _injury_client = EspnInjuryClient()
+    _schedule_client = EspnScheduleClient()
+    _edge_enricher = EdgeEnricher(
+        injury_client=_injury_client,
+        schedule_client=_schedule_client,
+        injury_window_hours=cfg.entry.injury_window_hours,
+    )
+
+    # Gate: cricket_client + edge_enricher hazır olduktan sonra inşa edilir (SPEC-011)
     gate = EntryGate(
         config=gate_cfg,
         portfolio=state.portfolio,
@@ -157,6 +169,7 @@ def build_agent(state: RuntimeState) -> Agent:
         odds_enricher=_enricher,
         manipulation_checker=_manip,
         cricket_client=cricket_client,  # SPEC-011
+        edge_enricher=_edge_enricher,
     )
 
     # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
