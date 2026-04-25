@@ -185,6 +185,7 @@ class TestEdgeCases:
 
         ctx = enricher.enrich(market, our_team_id="", opp_team_id="")
 
+        injury_client.get_recent_injuries.assert_not_called()
         schedule_client.is_back_to_back.assert_not_called()
         assert ctx.is_our_back_to_back is False
         assert ctx.is_opponent_back_to_back is False
@@ -222,3 +223,18 @@ class TestEdgeCases:
         for call in calls:
             _team_id, _game_date, season = call.args
             assert season == 2026, f"Expected season=2026, got {season}"
+
+
+def test_enrich_priority_out_non_starter_over_doubtful_non_starter() -> None:
+    """Out non-starter takes priority over Doubtful non-starter."""
+    injury_client = MagicMock()
+    doubtful_non = _inj("Bench Doubtful", "Doubtful", "team1", is_starter=False)
+    out_non = _inj("Bench Out", "Out", "team1", is_starter=False)
+    injury_client.get_recent_injuries.return_value = {"team1": [doubtful_non, out_non]}
+    schedule_client = MagicMock()
+    schedule_client.is_back_to_back.return_value = False
+    enricher = EdgeEnricher(injury_client, schedule_client)
+    market = _make_market()
+    ctx = enricher.enrich(market, our_team_id="team1", opp_team_id="")
+    assert ctx.has_recent_injury
+    assert ctx.injured_starter_name == "Bench Out"

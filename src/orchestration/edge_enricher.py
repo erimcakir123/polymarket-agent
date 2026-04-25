@@ -93,6 +93,8 @@ class EdgeEnricher:
         opp_team_id: str,
     ) -> None:
         """Fetch recent injuries and populate ctx if significant injury found."""
+        if not our_team_id and not opp_team_id:
+            return  # No team IDs to check
         injuries_by_team: dict[str, list[InjuryEvent]] = (
             self._injury_client.get_recent_injuries(hours=self._injury_window_hours)
         )
@@ -161,8 +163,14 @@ class EdgeEnricher:
         if doubtful_starters:
             return doubtful_starters[0]
 
-        serious = [i for i in injuries if i.status in ("Out", "Doubtful")]
-        if serious:
-            return serious[0]
+        # Priority 3: Out non-starter
+        out_non_starters = [i for i in injuries if i.status == "Out" and not i.is_starter]
+        if out_non_starters:
+            return out_non_starters[0]
+
+        # Priority 4: Doubtful non-starter
+        doubtful_non_starters = [i for i in injuries if i.status == "Doubtful" and not i.is_starter]
+        if doubtful_non_starters:
+            return doubtful_non_starters[0]
 
         return None
