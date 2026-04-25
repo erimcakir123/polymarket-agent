@@ -89,6 +89,62 @@ Exchange'ler (Betfair, Matchbook, Smarkets): vig-free → normalize edilmez.
 
 ---
 
+## NBA MONEYLINE
+
+### Bill James Safe Lead
+
+- **Formül:** `deficit >= 0.861 × √(clock_seconds)` → geri dönüş matematiksel imkânsız
+- **Multiplier 0.861:** NBA 14-yıl verisiyle %99 güven aralığı (orijinal formül college için 0.4538 × √t)
+- **Kaynak:** Basketball Reference season data 2010-2024
+
+### Empirical Q4 Eşikleri (14-yıl NBA)
+
+| Durum | Kalan süre | Fark | Geri dönüş ihtimali |
+|---|---|---|---|
+| Blowout | ≤12 dk (720s) | ≥20 | ~%1 |
+| Late | ≤6 dk (360s) | ≥15 | ~%2 |
+| Final | ≤3 dk (180s) | ≥10 | ~%3 |
+| Endgame | ≤1 dk (60s) | ≥6 | ~%2 |
+
+Bill James önce kontrol edilir; pas geçerse empirical devreye girer.
+
+### Q1-Q3 HOLD
+
+- **Neden hold:** Q1-Q3'te 10 puanlık fark ile geri dönüş ihtimali %5-13. Erken exit edge yiyor.
+- **Kural:** period < 4 AND not OT → return None.
+
+### Overtime
+
+- **OT < 60s + fark ≥ 8 → EXIT.** OT'da küçük farklar kapanabilir; 60s'de 8 puan imkânsız.
+
+### Near-Resolve + Scale-Out
+
+- Near-resolve (94¢) ve scale-out (85¢) monitor.py priority 1-2'de, sport-agnostic.
+  nba_score_exit.py'de duplicate yok.
+
+### Structural Damage
+
+- Son çare: `bid/entry < 0.30 AND math_dead` — çift kilitlendi, spread'e kaptırmadan çık.
+- price_cap SL (PLAN-014) ile örtüşebilir; NBA exit daha önce (monitor priority 3) tetikler.
+
+### Entry — Gap Thresholds
+
+| Eşik | Değer | Rationale |
+|---|---|---|
+| min_gap | 0.08 | Ana edge zone; altında noise > signal |
+| high_zone | 0.15 | Belirgin misprice; stake ×1.2 |
+| extreme_zone | 0.25 | Güçlü misprice; stake ×1.3 |
+| max_entry_price | 0.80 | R/R kırık (zaten EntryConfig'den) |
+| min_polymarket | 0.15 | Uç outlier reddi; spike koruması |
+
+### Entry — Sizing
+
+- `stake = bankroll × confidence_pct × gap_mult × win_prob`
+- A = 5%, B = 3% (B eski değer 4%'ten düşürüldü — gap filtresi zaten kaliteyi kısıtlıyor)
+- Hard cap: `bankroll × 5%` veya `max_single_bet_usdc` ($75) hangisi küçükse
+
+---
+
 ## SPORT EXIT THRESHOLD'LARI
 
 ### Hockey (NHL/AHL/Liiga/SHL/Allsvenskan/Mestis)

@@ -152,7 +152,8 @@ entry:
   max_entry_price: 0.80
   min_bookmakers: 15
   min_sharps: 3
-  active_sports: []
+  active_sports:
+    - basketball_nba
   min_gap_threshold: 0.08
   gap_high_zone: 0.15
   gap_extreme_zone: 0.25
