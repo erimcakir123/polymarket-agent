@@ -18,11 +18,16 @@ from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
 from src.config.sport_configs import get_sport_config
+from src.config.sport_rules import _normalize
 from src.domain.matching.three_way_title import enrich_three_way_titles
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
 logger = logging.getLogger(__name__)
+
+# NBA spread + totals support
+_NBA_TAGS = frozenset({"basketball_nba", "nba"})
+_NBA_ALLOWED_SMT = frozenset({"moneyline", "spreads", "totals"})
 
 # SPEC-015: 3-way sum filter constants
 _THREE_WAY_SUM_MIN = 0.95
@@ -163,8 +168,12 @@ class MarketScanner:
             return False
 
         # Sports market type — STRICT: sadece h2h moneyline kabul.
+        # NBA: spreads + totals da destekle; diğer spor: moneyline-only.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
-        if m.sports_market_type != "moneyline":
+        if _normalize(m.sport_tag) in _NBA_TAGS:
+            if m.sports_market_type not in _NBA_ALLOWED_SMT:
+                return False
+        elif m.sports_market_type != "moneyline":
             return False
 
         # Sport tag whitelist (MVP)

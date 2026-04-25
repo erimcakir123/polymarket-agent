@@ -63,11 +63,28 @@ def test_closed_markets_filtered() -> None:
     assert sc.scan() == []
 
 
-def test_non_moneyline_filtered() -> None:
+def test_non_moneyline_non_nba_filtered() -> None:
+    """Non-NBA spreads → reject (only moneyline allowed for non-NBA sports)."""
     now = datetime.now(timezone.utc)
-    m = _market(market_type="spreads", end_date=now + timedelta(days=1))
+    m = _market(sport_tag="soccer_epl", market_type="spreads", end_date=now + timedelta(days=1))
     sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
     assert sc.scan() == []
+
+
+def test_nba_spreads_allowed() -> None:
+    """NBA spreads → accept (spreads + totals supported for NBA)."""
+    now = datetime.now(timezone.utc)
+    m = _market(market_type="spreads", end_date=now + timedelta(days=1), match_start=now + timedelta(hours=12))
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
+def test_nba_totals_allowed() -> None:
+    """NBA totals → accept (spreads + totals supported for NBA)."""
+    now = datetime.now(timezone.utc)
+    m = _market(market_type="totals", end_date=now + timedelta(days=1), match_start=now + timedelta(hours=12))
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
 
 
 def test_resolved_by_price_filtered() -> None:
