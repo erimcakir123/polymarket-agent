@@ -145,6 +145,49 @@ Bill James önce kontrol edilir; pas geçerse empirical devreye girer.
 
 ---
 
+## NBA Spread
+
+**Entry:**
+- Gap threshold moneyline ile aynı (0.08). Spread ≥ 10 → +0.02 bonus (garbage time blowout riski).
+- Fiyat aralığı 0.20-0.80 (moneyline'dan dar: uç noktalar daha volatil).
+- Polymarket format: "Spread: TEAM_NAME (-X.5)" — SMT='spreads'.
+
+**Exit — Math:**
+- Bill James multiplier 0.861 (moneyline ile aynı — spread Poisson dağılımı identik).
+- margin_to_cover = spread_line - (our_score - opp_score) [BUY_YES / favorite].
+- margin_to_cover = -(our_score - opp_score) - spread_line [BUY_NO / underdog].
+- Q1-Q3 her zaman HOLD (spread variance Q4'te kristalleşir).
+
+**Exit — Empirical key numbers:**
+- 360s kala, margin ≥ 7: 1 possession farkı kritik threshold.
+- 180s kala, margin ≥ 4: ~2 dakika, 4 puan geri dönüş zorlaşır.
+- 60s kala, margin ≥ 3: "key number 3" — NBA spread'de kritik.
+- Kaynak: 14 yıl NBA spread kapama verisi.
+
+---
+
+## NBA Totals
+
+**Entry:**
+- Min target total: 200 (likidite + edge optimum zone — düşük totals thin market).
+- Fiyat aralığı 0.20-0.80.
+- Polymarket format: "TEAM vs TEAM: O/U X.5" — SMT='totals'. YES=over konvansiyonu.
+
+**Exit — Math:**
+- Multiplier 1.218 = 0.861 × √2 (toplam variance = iki takım toplamı → √2 factor).
+- Over: is_total_dead(target, current, clock, "over") → points_needed > 1.218*sqrt(clock).
+- Under: is_total_dead(target, current, clock, "under") → excess > 1.218*sqrt(clock).
+
+**Exit — OT:**
+- Over + OT → OT_OVER_WINDFALL: %75 sat (her OT ~25 puan ekler, kâr kilitle).
+- Under + OT → OT_UNDER_DEAD: tam çıkış (total kesinlikle artar, under kaybetti).
+
+**Exit — Empirical:**
+- Over: 360s kala points_needed ≥ 20 / 180s kala ≥ 12 / 60s kala ≥ 6.
+- Under: 360s kala excess ≥ 20 / 60s kala excess ≥ 6.
+
+---
+
 ## SPORT EXIT THRESHOLD'LARI
 
 ### Hockey (NHL/AHL/Liiga/SHL/Allsvenskan/Mestis)
