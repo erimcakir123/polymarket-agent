@@ -97,7 +97,7 @@ def _passes_filters(
     gap_threshold_adj: float = 0.0,
 ) -> str | None:
     """Tüm filtrelerden geç. None = geçti, string = skip sebebi."""
-    effective_gap_threshold = cfg.min_gap_threshold + gap_threshold_adj
+    effective_gap_threshold = max(0.0, cfg.min_gap_threshold + gap_threshold_adj)
     if market_type == "spreads" and spread_line is not None and spread_line >= cfg.spread_large_threshold:
         effective_gap_threshold += cfg.spread_gap_bonus
 
@@ -209,6 +209,9 @@ class EntryGate:
             edge_ctx: Any = None
             if self._edge_enricher is not None:
                 try:
+                    # TODO: resolve ESPN team IDs from market (MarketData lacks team_id).
+                    # Until team IDs are extracted, injury/B2B checks operate in degraded mode:
+                    # B2B skipped (empty team_id), all injuries treated as opponent injuries.
                     edge_ctx = self._edge_enricher.enrich(market, our_team_id="", opp_team_id="")
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("EdgeEnricher failed for %s: %s", cid, exc)

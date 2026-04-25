@@ -342,6 +342,19 @@ def test_passes_filters_no_adjustment_unchanged():
     assert reason is None
 
 
+def test_passes_filters_negative_adj_clamps_to_zero_threshold():
+    """Negative adjustment never makes threshold go below zero."""
+    cfg = _make_cfg(min_gap_threshold=0.02)
+    # adj=-0.10 would make threshold -0.08 without clamp
+    # With clamp → max(0, 0.02 + (-0.10)) = 0.0 → any positive gap passes
+    reason = _passes_filters(
+        gap=0.001, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        gap_threshold_adj=-0.10,
+    )
+    assert reason is None  # gap > 0.0 threshold → passes
+
+
 # ── EntryGate integration — EdgeEnricher wiring ──────────────────
 
 def test_gate_run_no_edge_enricher_still_works():
