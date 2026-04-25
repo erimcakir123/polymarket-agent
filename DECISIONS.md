@@ -188,6 +188,39 @@ Bill James önce kontrol edilir; pas geçerse empirical devreye girer.
 
 ---
 
+## NBA Edge Modifiers
+
+### Injury Detection
+
+**Window: 2 hours**
+Polymarket price lags ESPN injury reports by ~15-60 minutes. A 2-hour lookback captures fresh information the market hasn't fully priced in yet. Older injuries (>2h) are assumed priced in.
+
+**Gap threshold drop: -0.02 (opponent injury)**
+When the opponent has a recent Out/Doubtful player, Polymarket prices adjust slowly. A -0.02 reduction allows borderline gaps (6-8%) to qualify when the bookmaker edge is genuine. Limited to 0.02 to avoid entering on pure speculation.
+
+**Size multiplier: 1.3 (opponent injury)**
+Opponent injury increases edge confidence. 1.3 is conservative — a 30% stake increase reflects marginal confidence improvement, not a major edge. Capped at max_single_bet_usdc after multiplication.
+
+**Star out self gap bonus: +0.05 (own team injury)**
+When the team we're backing loses a key player, the bookmaker gap may be an artifact (stale lines) rather than genuine edge. Raising threshold by 0.05 requires a stronger signal before entry.
+
+### Back-to-Back (B2B) Detection
+
+**Opponent B2B gap bonus: +0.03**
+Fatigue effect is real but often priced in within hours of the schedule becoming public. Adding +0.03 to gap threshold compensates for manipulation risk: bookmakers and sharp bettors front-run B2B scenarios, so Polymarket lines may already reflect the edge. Entry only when gap is genuinely above the higher bar.
+
+**Self B2B gap bonus: +0.05**
+If we are backing a team that played yesterday, the bookmaker's probability may be overstating our team's advantage. The market may be right that the favorite is actually weaker today. Require a stronger edge before committing.
+
+### Implementation Notes
+
+- ESPN endpoint: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries` — 30 teams in a single call, 60s cache
+- Schedule endpoint: per-team, 6h cache (schedules rarely change intraday)
+- Team ID resolution: currently stubbed (both IDs = "") pending MarketData enrichment. Injury checks operate in degraded mode: B2B skipped; all injuries treated as opponent injuries. TODO: resolve ESPN team IDs from Odds API event matching.
+- Priority: Out+starter > Doubtful+starter > Out non-starter > Doubtful non-starter
+
+---
+
 ## SPORT EXIT THRESHOLD'LARI
 
 ### Hockey (NHL/AHL/Liiga/SHL/Allsvenskan/Mestis)
