@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -93,6 +94,12 @@ class Position(BaseModel):
 
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
+
+    # Market tipi — moneyline'da "" kalır; spread/totals'ta dolu
+    sports_market_type: str = ""
+    spread_line: float | None = None
+    total_line: float | None = None
+    total_side: Literal["over", "under"] | None = None
 
     def model_post_init(self, __context) -> None:
         if self.bid_price == 0.0 and self.current_price > 0.0:
