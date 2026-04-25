@@ -19,6 +19,7 @@ class EdgeContext:
     injured_starter_name: str | None = None
     injury_reported_at: datetime | None = None
     injury_team_id: str | None = None   # Which team has injury
+    is_own_team_injury: bool = False      # True when injury is on team we're betting on
     is_opponent_back_to_back: bool = False
     is_our_back_to_back: bool = False
 
@@ -110,6 +111,7 @@ class EdgeEnricher:
                 ctx.injured_starter_name = inj.athlete_name
                 ctx.injury_reported_at = inj.reported_at
                 ctx.injury_team_id = inj.team_id
+                ctx.is_own_team_injury = (inj.team_id == our_team_id)
                 return   # one injury context per call
 
     def _apply_b2b_context(

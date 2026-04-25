@@ -1,6 +1,7 @@
 """Entry gate — gap-based NBA entry kararı."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,8 @@ from src.models.signal import Signal
 
 if TYPE_CHECKING:
     from src.models.market import MarketData
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -48,6 +51,12 @@ class GateConfig:
     totals_min_price: float = field(default=0.20)
     totals_max_price: float = field(default=0.80)
     totals_min_target_total: float = field(default=200.0)
+    # Edge modifiers — injury + B2B gap adjustments
+    injury_gap_threshold_drop: float = field(default=0.02)
+    injury_size_multiplier: float = field(default=1.3)
+    b2b_opponent_gap_bonus: float = field(default=0.03)
+    b2b_self_gap_bonus: float = field(default=0.05)
+    star_out_self_gap_bonus: float = field(default=0.05)
 
 
 @dataclass
@@ -85,9 +94,10 @@ def _passes_filters(
     market_type: str = "moneyline",
     spread_line: float | None = None,
     total_line: float | None = None,
+    gap_threshold_adj: float = 0.0,
 ) -> str | None:
     """Tüm filtrelerden geç. None = geçti, string = skip sebebi."""
-    effective_gap_threshold = cfg.min_gap_threshold
+    effective_gap_threshold = cfg.min_gap_threshold + gap_threshold_adj
     if market_type == "spreads" and spread_line is not None and spread_line >= cfg.spread_large_threshold:
         effective_gap_threshold += cfg.spread_gap_bonus
 
@@ -159,10 +169,12 @@ class EntryGate:
         odds_enricher: Any,
         manipulation_checker: Any,
         cricket_client: Any = None,
+        edge_enricher: Any = None,
     ) -> None:
         self.config = config
         self._portfolio = portfolio
         self._enricher = odds_enricher
+        self._edge_enricher = edge_enricher
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         if not markets:
@@ -193,6 +205,31 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason="CONFIDENCE_C"))
                 continue
 
+            # --- Edge context adjustments ---
+            edge_ctx: Any = None
+            if self._edge_enricher is not None:
+                try:
+                    edge_ctx = self._edge_enricher.enrich(market, our_team_id="", opp_team_id="")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("EdgeEnricher failed for %s: %s", cid, exc)
+
+            effective_gap_threshold_adj: float = 0.0
+            size_multiplier_adj: float = 1.0
+
+            if edge_ctx is not None:
+                if edge_ctx.has_recent_injury:
+                    if edge_ctx.is_own_team_injury:
+                        effective_gap_threshold_adj += self.config.star_out_self_gap_bonus
+                    else:
+                        effective_gap_threshold_adj -= self.config.injury_gap_threshold_drop
+                        size_multiplier_adj *= self.config.injury_size_multiplier
+
+                if edge_ctx.is_opponent_back_to_back:
+                    effective_gap_threshold_adj += self.config.b2b_opponent_gap_bonus
+
+                if edge_ctx.is_our_back_to_back:
+                    effective_gap_threshold_adj += self.config.b2b_self_gap_bonus
+
             # Market line parse (spread/totals için; moneyline'da None kalır)
             market_type = market.sports_market_type or "moneyline"
             spread_line: float | None = None
@@ -218,6 +255,7 @@ class EntryGate:
                 market_type=market_type,
                 spread_line=spread_line,
                 total_line=total_line,
+                gap_threshold_adj=effective_gap_threshold_adj,
             )
             if skip:
                 results.append(GateResult(cid, skipped_reason=skip))
@@ -231,6 +269,7 @@ class EntryGate:
 
             win_prob = prob.prob if self.config.probability_weighted else 1.0
             stake = _compute_stake(bankroll, confidence, gap, win_prob, self.config)
+            stake = min(stake * size_multiplier_adj, self.config.max_single_bet_usdc)
 
             if stake < self.config.min_bet_usd:
                 results.append(GateResult(cid, skipped_reason="BELOW_MIN_BET"))

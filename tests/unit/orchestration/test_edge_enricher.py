@@ -99,6 +99,7 @@ class TestInjuryDetection:
         assert ctx.injury_team_id == "1"
         assert ctx.injured_starter_name == "LeBron James"
         assert ctx.injury_reported_at == injury.reported_at
+        assert ctx.is_own_team_injury is True
 
     def test_enrich_injury_on_opponent_team_flagged(self) -> None:
         """Opponent team has 'Out' starter → injury_team_id == opp_team_id."""
@@ -111,6 +112,7 @@ class TestInjuryDetection:
         assert ctx.has_recent_injury is True
         assert ctx.injury_team_id == "2"
         assert ctx.injured_starter_name == "Steph Curry"
+        assert ctx.is_own_team_injury is False
 
     def test_enrich_priority_out_over_doubtful(self) -> None:
         """Team has both 'Doubtful' and 'Out' starters → 'Out' is selected."""

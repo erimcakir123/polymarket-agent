@@ -291,3 +291,198 @@ def test_filters_totals_pass():
         total_line=220.5,
     )
     assert reason is None
+
+
+# ── EdgeContext gap adjustments (_passes_filters direct) ─────────
+
+def test_passes_filters_injury_opp_gap_reduction_allows_entry():
+    """Opponent injury reduces gap threshold → borderline gap now passes."""
+    cfg = _make_cfg()
+    # gap=0.07 is below default threshold 0.08, but adj=-0.02 → effective=0.06 → passes
+    reason = _passes_filters(
+        gap=0.07, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        gap_threshold_adj=-0.02,
+    )
+    assert reason is None
+
+
+def test_passes_filters_own_injury_gap_increase_blocks_entry():
+    """Own team injury raises gap threshold → borderline gap now blocked."""
+    cfg = _make_cfg()
+    # gap=0.09 passes default 0.08, but adj=+0.05 → effective=0.13 → fails
+    reason = _passes_filters(
+        gap=0.09, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        gap_threshold_adj=0.05,
+    )
+    assert reason == "GAP_TOO_LOW"
+
+
+def test_passes_filters_b2b_opponent_gap_increase_blocks_entry():
+    """Opponent B2B adds 0.03 → borderline gap blocked."""
+    cfg = _make_cfg()
+    # gap=0.09 passes default 0.08, but adj=+0.03 → effective=0.11 → fails
+    reason = _passes_filters(
+        gap=0.09, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        gap_threshold_adj=0.03,
+    )
+    assert reason == "GAP_TOO_LOW"
+
+
+def test_passes_filters_no_adjustment_unchanged():
+    """gap_threshold_adj=0.0 → same behaviour as before (no regression)."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=10_000.0, cfg=cfg,
+        gap_threshold_adj=0.0,
+    )
+    assert reason is None
+
+
+# ── EntryGate integration — EdgeEnricher wiring ──────────────────
+
+def test_gate_run_no_edge_enricher_still_works():
+    """Gate without edge_enricher processes markets normally (no regression)."""
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+
+    mock_prob = MagicMock()
+    mock_prob.prob = 0.75
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+
+    mock_enrich = MagicMock()
+    mock_enrich.probability = mock_prob
+    mock_enrich.fail_reason = None
+
+    mock_portfolio = MagicMock()
+    mock_portfolio.positions = {}
+    mock_portfolio.bankroll.return_value = 1000.0
+
+    gate = EntryGate(
+        config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
+        cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich, manipulation_checker=None,
+        edge_enricher=None,
+    )
+
+    market = MagicMock()
+    market.condition_id = "cid1"
+    market.sport_tag = "basketball_nba"
+    market.yes_price = 0.50
+    market.volume_24h = 10_000.0
+    market.event_id = "evt1"
+    market.sports_market_type = "moneyline"
+    market.question = "Lakers vs Celtics"
+
+    result = gate.run([market])
+    assert len(result) == 1
+    assert result[0].signal is not None
+
+
+def test_gate_run_edge_enricher_opponent_injury_increases_stake():
+    """Opponent injury (is_own_team_injury=False) → size_multiplier applied to stake."""
+    from src.orchestration.edge_enricher import EdgeContext
+
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+
+    mock_prob = MagicMock()
+    mock_prob.prob = 0.75
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+
+    mock_enrich = MagicMock()
+    mock_enrich.probability = mock_prob
+    mock_enrich.fail_reason = None
+
+    mock_portfolio = MagicMock()
+    mock_portfolio.positions = {}
+    mock_portfolio.bankroll.return_value = 1000.0
+
+    # Edge context: opponent has injury → size multiplier 1.3, gap threshold -0.02
+    opp_injury_ctx = EdgeContext(
+        has_recent_injury=True,
+        is_own_team_injury=False,
+        is_opponent_back_to_back=False,
+        is_our_back_to_back=False,
+    )
+    mock_edge = MagicMock()
+    mock_edge.enrich.return_value = opp_injury_ctx
+
+    gate = EntryGate(
+        config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
+        cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich, manipulation_checker=None,
+        edge_enricher=mock_edge,
+    )
+
+    market = MagicMock()
+    market.condition_id = "cid2"
+    market.sport_tag = "basketball_nba"
+    market.yes_price = 0.50
+    market.volume_24h = 10_000.0
+    market.event_id = "evt2"
+    market.sports_market_type = "moneyline"
+    market.question = "Lakers vs Celtics"
+
+    result = gate.run([market])
+    assert len(result) == 1
+    sig = result[0].signal
+    assert sig is not None
+    # gap=0.25 → extreme_gap_multiplier=1.3, then injury_size_multiplier=1.3, then capped
+    # _compute_stake: 1000 * 0.05 * 1.3 (gap_mult) * 0.75 (win_prob) = 48.75
+    # after injury multiplier: 48.75 * 1.3 = 63.375, capped at max_single_bet_usdc=75
+    expected = min(1000.0 * 0.05 * 1.3 * 0.75 * 1.3, cfg.max_single_bet_usdc)
+    assert abs(sig.size_usdc - expected) < 0.01
+
+
+def test_gate_run_edge_enricher_own_injury_blocks_borderline_gap():
+    """Own team injury raises threshold → market that would pass without edge ctx is skipped."""
+    from src.orchestration.edge_enricher import EdgeContext
+
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+
+    mock_prob = MagicMock()
+    mock_prob.prob = 0.585   # gap = 0.585 - 0.50 = 0.085 (just above default 0.08)
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+
+    mock_enrich = MagicMock()
+    mock_enrich.probability = mock_prob
+    mock_enrich.fail_reason = None
+
+    mock_portfolio = MagicMock()
+    mock_portfolio.positions = {}
+    mock_portfolio.bankroll.return_value = 1000.0
+
+    # Own team injury → star_out_self_gap_bonus=0.05 added → effective threshold=0.13 → gap=0.085 fails
+    own_injury_ctx = EdgeContext(
+        has_recent_injury=True,
+        is_own_team_injury=True,
+        is_opponent_back_to_back=False,
+        is_our_back_to_back=False,
+    )
+    mock_edge = MagicMock()
+    mock_edge.enrich.return_value = own_injury_ctx
+
+    gate = EntryGate(
+        config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
+        cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich, manipulation_checker=None,
+        edge_enricher=mock_edge,
+    )
+
+    market = MagicMock()
+    market.condition_id = "cid3"
+    market.sport_tag = "basketball_nba"
+    market.yes_price = 0.50
+    market.volume_24h = 10_000.0
+    market.event_id = "evt3"
+    market.sports_market_type = "moneyline"
+    market.question = "Lakers vs Celtics"
+
+    result = gate.run([market])
+    assert len(result) == 1
+    assert result[0].skipped_reason == "GAP_TOO_LOW"
