@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from src.config.sport_rules import _normalize
 from src.domain.matching.market_line_parser import parse_spread_line, parse_total_line
+from src.domain.matching.team_resolver import resolve_nba_espn_id
 from src.models.enums import Direction, EntryReason
 from src.models.signal import Signal
+from src.strategy.enrichment.question_parser import extract_teams
 
 if TYPE_CHECKING:
     from src.models.market import MarketData
@@ -209,10 +211,10 @@ class EntryGate:
             edge_ctx: Any = None
             if self._edge_enricher is not None:
                 try:
-                    # TODO: resolve ESPN team IDs from market (MarketData lacks team_id).
-                    # Until team IDs are extracted, injury/B2B checks operate in degraded mode:
-                    # B2B skipped (empty team_id), all injuries treated as opponent injuries.
-                    edge_ctx = self._edge_enricher.enrich(market, our_team_id="", opp_team_id="")
+                    _team_a, _team_b = extract_teams(market.question)
+                    _our_id = resolve_nba_espn_id(_team_a or "")
+                    _opp_id = resolve_nba_espn_id(_team_b or "")
+                    edge_ctx = self._edge_enricher.enrich(market, our_team_id=_our_id, opp_team_id=_opp_id)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("EdgeEnricher failed for %s: %s", cid, exc)
 

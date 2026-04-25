@@ -15,6 +15,7 @@
 | `TODO.md` | Kullanıcı "todoya yaz/bak" deyince | Ertelenmiş işler |
 | `PLAN.md` | Plan yazılacak/okunacaksa | In-flight planlar |
 | `src/config/_sport_aliases.py` | sport_rules.py kullanır | Odds API → internal sport tag aliases |
+| `src/domain/matching/team_resolver.py` | NBA edge enricher team ID ihtiyacında | ESPN team ID static dict + resolve_nba_espn_id() |
 
 Başka dosyayı kullanıcı söylemeden okuma.
 

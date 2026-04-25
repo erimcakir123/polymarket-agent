@@ -682,3 +682,56 @@ def test_parse_competitor_team_takes_priority_over_athlete() -> None:
     assert result is not None
     assert result.home_name == "Official Team Name"
     assert result.away_name == "Away Team"
+
+
+# ---------------------------------------------------------------------------
+# NBA team_id parsing
+# ---------------------------------------------------------------------------
+
+
+def test_parse_competition_includes_team_ids() -> None:
+    """ESPN competition with team.id → home_team_id / away_team_id populated."""
+    comp = {
+        "id": "401",
+        "competitors": [
+            {
+                "homeAway": "home",
+                "team": {"id": "13", "displayName": "Los Angeles Lakers"},
+                "linescores": [{"value": "28"}, {"value": "30"}],
+            },
+            {
+                "homeAway": "away",
+                "team": {"id": "2", "displayName": "Boston Celtics"},
+                "linescores": [{"value": "25"}, {"value": "32"}],
+            },
+        ],
+        "status": {"type": {"description": "Final", "completed": True, "state": "post"}},
+    }
+    result = _parse_competition(comp)
+    assert result is not None
+    assert result.home_team_id == "13"
+    assert result.away_team_id == "2"
+
+
+def test_parse_competition_missing_team_id_graceful() -> None:
+    """ESPN competitor without team.id → home_team_id / away_team_id default to ""."""
+    comp = {
+        "id": "402",
+        "competitors": [
+            {
+                "homeAway": "home",
+                "team": {"displayName": "Team A"},  # no "id" key
+                "linescores": [{"value": "10"}],
+            },
+            {
+                "homeAway": "away",
+                "team": {"displayName": "Team B"},
+                "linescores": [{"value": "8"}],
+            },
+        ],
+        "status": {"type": {"description": "Final", "completed": True, "state": "post"}},
+    }
+    result = _parse_competition(comp)
+    assert result is not None
+    assert result.home_team_id == ""
+    assert result.away_team_id == ""

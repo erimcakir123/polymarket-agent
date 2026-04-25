@@ -499,3 +499,91 @@ def test_gate_run_edge_enricher_own_injury_blocks_borderline_gap():
     result = gate.run([market])
     assert len(result) == 1
     assert result[0].skipped_reason == "GAP_TOO_LOW"
+
+
+# ── Team ID resolution via edge enricher ────────────────────────
+
+def _make_market_mock(
+    condition_id: str,
+    question: str,
+    yes_price: float = 0.45,
+    volume: float = 10_000.0,
+    sport_tag: str = "basketball_nba",
+    event_id: str = "evt_x",
+) -> MagicMock:
+    """Shared MagicMock factory for gate.run() market fixtures."""
+    m = MagicMock()
+    m.condition_id = condition_id
+    m.sport_tag = sport_tag
+    m.yes_price = yes_price
+    m.volume_24h = volume
+    m.event_id = event_id
+    m.sports_market_type = "moneyline"
+    m.question = question
+    return m
+
+
+def _make_gate_with_edge(mock_edge: MagicMock) -> EntryGate:
+    """Gate with a passing odds mock + portfolio + given edge enricher."""
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+
+    mock_prob = MagicMock()
+    mock_prob.prob = 0.75
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+
+    mock_enrich = MagicMock()
+    mock_enrich.probability = mock_prob
+    mock_enrich.fail_reason = None
+
+    mock_portfolio = MagicMock()
+    mock_portfolio.positions = {}
+    mock_portfolio.bankroll.return_value = 1000.0
+
+    return EntryGate(
+        config=cfg,
+        portfolio=mock_portfolio,
+        circuit_breaker=None,
+        cooldown=None,
+        blacklist=None,
+        odds_enricher=lambda m: mock_enrich,
+        manipulation_checker=None,
+        edge_enricher=mock_edge,
+    )
+
+
+def test_gate_run_passes_team_ids_to_edge_enricher() -> None:
+    """extract_teams → resolve_nba_espn_id → edge_enricher.enrich() receives correct IDs."""
+    mock_edge = MagicMock()
+    mock_edge.enrich.return_value = None  # no edge context
+
+    gate = _make_gate_with_edge(mock_edge)
+    market = _make_market_mock(
+        condition_id="cid_lal_bos",
+        question="Will the Los Angeles Lakers beat the Boston Celtics?",
+    )
+
+    gate.run([market])
+
+    mock_edge.enrich.assert_called_once()
+    call_kwargs = mock_edge.enrich.call_args
+    assert call_kwargs.kwargs.get("our_team_id") == "13"
+    assert call_kwargs.kwargs.get("opp_team_id") == "2"
+
+
+def test_gate_run_graceful_fallback_on_unparseable_question() -> None:
+    """Empty question → extract_teams returns (None, None) → edge_enricher gets empty strings."""
+    mock_edge = MagicMock()
+    mock_edge.enrich.return_value = None
+
+    gate = _make_gate_with_edge(mock_edge)
+    market = _make_market_mock(
+        condition_id="cid_empty_q",
+        question="",  # empty → extract_teams returns (None, None)
+    )
+
+    gate.run([market])
+
+    call_kwargs = mock_edge.enrich.call_args
+    assert call_kwargs.kwargs.get("our_team_id") == ""
+    assert call_kwargs.kwargs.get("opp_team_id") == ""

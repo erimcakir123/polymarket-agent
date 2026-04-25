@@ -136,4 +136,6 @@ def build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "knockout": _soccer_is_knockout(pos),
         "period_number": getattr(ms, "period_number", None),
         "clock_seconds": getattr(ms, "clock_seconds", None),
+        "home_team_id": getattr(ms, "home_team_id", ""),
+        "away_team_id": getattr(ms, "away_team_id", ""),
     }

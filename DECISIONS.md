@@ -5,6 +5,17 @@
 
 ---
 
+## NBA Team ID Resolution
+
+**Yaklaşım**: `team_resolver.py` (Domain katmanı) içinde statik `_NBA_NAME_TO_ESPN_ID` dict.
+Gate, `extract_teams(market.question)` → `resolve_nba_espn_id()` → ESPN numeric ID zincirini kullanır.
+Direction mapping: "Will X beat Y?" + BUY_YES → X = our_team_id.
+Graceful fallback: bilinmeyen takım veya parse hatası → boş string → EdgeEnricher B2B kontrolünü atlar.
+Short canonical form'lar (Trail Blazers, Timberwolves, Cavaliers, Mavericks, Wizards, Pistons) dahil edildi —
+`canonicalize()` bu takımlar için şehir adını genişletmez.
+
+---
+
 ## ENTRY
 
 ### Confidence Grading

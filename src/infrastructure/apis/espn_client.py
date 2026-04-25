@@ -48,6 +48,8 @@ class ESPNMatchScore:
     games_home: int | None = None    # Tenis: mevcut setteki home game skoru
     games_away: int | None = None    # Tenis: mevcut setteki away game skoru
     current_set: int | None = None   # Tenis: oynanan set numarası (1-5)
+    home_team_id: str = ""  # ESPN numeric team ID (e.g. "13" for Lakers)
+    away_team_id: str = ""  # ESPN numeric team ID
 
 
 def _parse_clock_to_seconds(clock: str) -> int | None:
@@ -154,6 +156,9 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
 
     if home is None or away is None:
         return None
+
+    home_team_id: str = str(home.get("team", {}).get("id", "") or "")
+    away_team_id: str = str(away.get("team", {}).get("id", "") or "")
 
     # Linescore çiftlerini oluştur: [[home_period, away_period], ...]
     home_ls = home.get("linescores") or []
@@ -288,6 +293,8 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         games_home=games_home,
         games_away=games_away,
         current_set=current_set,
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
     )
 
 

@@ -154,3 +154,52 @@ def canonicalize(name: str) -> str:
     """İsim zaten canonical ise normalize haliyle döner; abbreviation/alias ise çözümler."""
     n = normalize(name)
     return _STATIC_ABBREVS.get(n) or _STATIC_ALIASES.get(n) or n
+
+
+# ── NBA ESPN team ID lookup ──────────────────────────────────────
+_NBA_NAME_TO_ESPN_ID: dict[str, str] = {
+    # Full canonical forms
+    "atlanta hawks": "1",
+    "boston celtics": "2",
+    "new orleans pelicans": "3",
+    "chicago bulls": "4",
+    "cleveland cavaliers": "5",
+    "dallas mavericks": "6",
+    "denver nuggets": "7",
+    "detroit pistons": "8",
+    "golden state warriors": "9",
+    "houston rockets": "10",
+    "indiana pacers": "11",
+    "la clippers": "12",
+    "los angeles lakers": "13",
+    "miami heat": "14",
+    "milwaukee bucks": "15",
+    "minnesota timberwolves": "16",
+    "brooklyn nets": "17",
+    "new york knicks": "18",
+    "orlando magic": "19",
+    "philadelphia 76ers": "20",
+    "phoenix suns": "21",
+    "portland trail blazers": "22",
+    "sacramento kings": "23",
+    "san antonio spurs": "24",
+    "oklahoma city thunder": "25",
+    "utah jazz": "26",
+    "washington wizards": "27",
+    "toronto raptors": "28",
+    "memphis grizzlies": "29",
+    "charlotte hornets": "30",
+    # Short canonical forms (for teams where canonicalize() doesn't expand city)
+    "trail blazers": "22",
+    "timberwolves": "16",
+    "cavaliers": "5",
+    "mavericks": "6",
+    "wizards": "27",
+    "pistons": "8",
+}
+
+
+def resolve_nba_espn_id(team_name: str) -> str:
+    """NBA takım adı → ESPN team ID (string). Bilinmeyen → ""."""
+    canon = canonicalize(team_name)
+    return _NBA_NAME_TO_ESPN_ID.get(canon, "")
