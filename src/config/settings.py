@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Mode(str, Enum):
@@ -69,12 +69,36 @@ class OvertimeExitConfig(BaseModel):
     deficit: int = 8
 
 
+class SpreadEmpiricalConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    q4_late_seconds: int = 360
+    q4_late_margin: int = 7
+    q4_final_seconds: int = 180
+    q4_final_margin: int = 4
+    q4_endgame_seconds: int = 60
+    q4_endgame_margin: int = 3
+
+
+class TotalsEmpiricalConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    q4_late_seconds: int = 360
+    q4_late_gap: int = 20
+    q4_final_seconds: int = 180
+    q4_final_gap: int = 12
+    q4_endgame_seconds: int = 60
+    q4_endgame_gap: int = 6
+    ot_over_scale_pct: float = 0.75
+
+
 class BasketballExitConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     bill_james_multiplier: float = 0.861
     structural_damage_ratio: float = 0.30
     empirical: EmpiricalExitConfig = EmpiricalExitConfig()
     overtime: OvertimeExitConfig = OvertimeExitConfig()
+    totals_multiplier: float = 1.218
+    spread_empirical: SpreadEmpiricalConfig = Field(default_factory=SpreadEmpiricalConfig)
+    totals_empirical: TotalsEmpiricalConfig = Field(default_factory=TotalsEmpiricalConfig)
 
 
 class EntryConfig(BaseModel):
@@ -103,6 +127,15 @@ class EntryConfig(BaseModel):
     high_gap_multiplier: float = 1.2
     extreme_gap_multiplier: float = 1.3
     min_bet_usd: float = 5.0
+    # Spread-specific filters
+    spread_min_price: float = 0.20
+    spread_max_price: float = 0.80
+    spread_large_threshold: float = 10.0
+    spread_gap_bonus: float = 0.02
+    # Totals-specific filters
+    totals_min_price: float = 0.20
+    totals_max_price: float = 0.80
+    totals_min_target_total: float = 200.0
 
 
 class StockConfig(BaseModel):
