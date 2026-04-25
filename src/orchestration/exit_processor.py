@@ -47,6 +47,7 @@ class ExitProcessor:
                 sl_params=self._sl_params(),
                 scale_out_min_realized_usd=self._scale_out_min_realized(),
                 basketball_exit_cfg=self._basketball_exit_cfg(),
+                scale_out_threshold=self._scale_out_threshold(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -84,6 +85,13 @@ class ExitProcessor:
         if cfg and hasattr(cfg, "scale_out"):
             return float(getattr(cfg.scale_out, "min_realized_usd", 0.0))
         return 0.0
+
+    def _scale_out_threshold(self) -> float:
+        """Config'den scale-out price threshold."""
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg and hasattr(cfg, "scale_out"):
+            return float(getattr(cfg.scale_out, "price_threshold", 0.85))
+        return 0.85
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.
@@ -178,6 +186,7 @@ class ExitProcessor:
         pos.shares -= shares_to_sell
         pos.size_usdc *= (1 - signal.sell_pct)
         pos.scale_out_tier = tier
+        pos.scaled_out_50 = True
         pos.scale_out_realized_usdc += realized
         self.deps.state.portfolio.apply_partial_exit(
             pos.condition_id,

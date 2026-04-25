@@ -1,8 +1,17 @@
-"""Near-resolve profit lock (TODO: yeniden yazılacak)."""
+"""Near-resolve profit lock — bid_price >= threshold → sell all."""
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
 
 
-def check(pos: Any, near_resolve_threshold_cents: float, guard_min: float) -> bool:  # TODO: yeniden yazılacak
-    return False
+@dataclass
+class NearResolveResult:
+    sell_pct: float = 1.0
+    reason: str = ""
+
+
+def check(bid_price: float, threshold: float = 0.94) -> NearResolveResult | None:
+    """bid_price >= threshold → NEAR_RESOLVE. None → hold."""
+    if bid_price >= threshold:
+        return NearResolveResult(sell_pct=1.0, reason=f"bid {bid_price:.3f} >= {threshold:.2f}")
+    return None

@@ -88,6 +88,7 @@ class Position(BaseModel):
     partial_exits: list[dict] = []
     scale_out_tier: int = 0
     scale_out_realized_usdc: float = 0.0
+    scaled_out_50: bool = False          # True after first scale-out fires
 
     # Lossy reentry
     sl_reentry_count: int = 0

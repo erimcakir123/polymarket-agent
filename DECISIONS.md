@@ -63,6 +63,16 @@ Exchange'ler (Betfair, Matchbook, Smarkets): vig-free → normalize edilmez.
 
 ## EXIT
 
+### Event Guard Kuralları
+
+| Durum | Sonuç | Neden |
+|---|---|---|
+| Aynı event + aynı market_type | BLOCK (EVENT_GUARD_SAME_MARKET_TYPE) | Aynı sonucu iki kez bahsemek |
+| Aynı event + ML + Spread + aynı yön | BLOCK (EVENT_GUARD_ML_SPREAD_CORRELATED) | Yüksek korelasyon |
+| Aynı event + ML + Totals | ALLOW | Bağımsız sonuçlar (kazanan ≠ toplam skor) |
+| Aynı event + Spread + Totals | ALLOW | Bağımsız sonuçlar |
+| Aynı event + 2 açık pozisyon | BLOCK (EVENT_GUARD_MAX_POSITIONS) | Hard cap |
+
 ### Scale-Out (SPEC-013)
 - Threshold = 0.50 (entry→0.99 mesafesinin %50'si)
 - Sell pct = %40
@@ -227,7 +237,7 @@ If we are backing a team that played yesterday, the bookmaker's probability may 
 
 - ESPN endpoint: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries` — 30 teams in a single call, 60s cache
 - Schedule endpoint: per-team, 6h cache (schedules rarely change intraday)
-- Team ID resolution: currently stubbed (both IDs = "") pending MarketData enrichment. Injury checks operate in degraded mode: B2B skipped; all injuries treated as opponent injuries. TODO: resolve ESPN team IDs from Odds API event matching.
+- Team ID resolution: `extract_teams(market.question)` → `resolve_nba_espn_id()` → ESPN numeric ID. BUY_YES → team_a = our_team. Bilinmeyen takım veya parse hatası → "" → EdgeEnricher B2B skip, injury opponent olarak işler. Kaynaklar: `src/domain/matching/team_resolver.py`.
 - Priority: Out+starter > Doubtful+starter > Out non-starter > Doubtful non-starter
 
 ---

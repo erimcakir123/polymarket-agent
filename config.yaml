@@ -191,6 +191,7 @@ stock:
 
 scale_out:
   enabled: true
+  price_threshold: 0.85
   # SPEC-013: threshold = entry ile 0.99 arasindaki mesafenin fraction'i
   # 0.50 = yari yol (43c entry -> 71c tetik; 70c entry -> 84.5c tetik)
   tiers:

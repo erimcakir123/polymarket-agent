@@ -174,7 +174,7 @@ def test_gate_run_inactive_sport_skipped():
 
 
 def test_gate_run_same_event_same_direction_blocked():
-    """Aynı event_id + aynı yön → BLOCKED."""
+    """Aynı event_id + aynı market_type → BLOCKED (same market type guard)."""
     from src.models.enums import Direction
 
     cfg = _make_cfg(active_sports=["basketball_nba"])
@@ -191,6 +191,7 @@ def test_gate_run_same_event_same_direction_blocked():
     existing_pos = MagicMock()
     existing_pos.event_id = "evt_001"
     existing_pos.direction = Direction.BUY_YES
+    existing_pos.sports_market_type = "moneyline"
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {"some_cid": existing_pos}
@@ -210,10 +211,11 @@ def test_gate_run_same_event_same_direction_blocked():
     market.volume_24h = 10_000.0
     market.liquidity = 5_000.0
     market.event_id = "evt_001"
+    market.sports_market_type = "moneyline"
 
     result = gate.run([market])
     assert len(result) == 1
-    assert result[0].skipped_reason == "EVENT_GUARD_SAME_DIRECTION"
+    assert result[0].skipped_reason == "EVENT_GUARD_SAME_MARKET_TYPE"
 
 
 # ── Spread filter tests ──────────────────────────────────────────

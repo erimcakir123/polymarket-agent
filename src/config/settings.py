@@ -163,6 +163,7 @@ class ScaleOutTier(BaseModel):
 class ScaleOutConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
+    price_threshold: float = 0.85   # bid_price >= this → scale out
     tiers: List[ScaleOutTier] = [
         ScaleOutTier(threshold=0.15, sell_pct=0.40),
     ]

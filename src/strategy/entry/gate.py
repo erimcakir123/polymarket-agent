@@ -142,19 +142,30 @@ def _compute_stake(
 
 def _check_event_guard(
     event_id: str | None,
+    market_type: str,
     direction: Direction,
     positions: dict,
     max_per_event: int = 2,
 ) -> str | None:
-    """Aynı event'te pozisyon guard. None = geçti."""
+    """Event-level pozisyon guard. None = geçti.
+
+    Block: aynı market_type + aynı event.
+    Block: ML + Spread aynı yön (yüksek korelasyon).
+    Allow: ML + Totals veya Spread + Totals (bağımsız sonuçlar).
+    """
     if not event_id:
         return None
     same_event = [p for p in positions.values() if p.event_id == event_id]
     if len(same_event) >= max_per_event:
         return "EVENT_GUARD_MAX_POSITIONS"
+    norm_type = market_type or "moneyline"
     for pos in same_event:
-        if pos.direction == direction:
-            return "EVENT_GUARD_SAME_DIRECTION"
+        pos_type = pos.sports_market_type or "moneyline"
+        if pos_type == norm_type:
+            return "EVENT_GUARD_SAME_MARKET_TYPE"
+        ml_spread = frozenset({"moneyline", "spreads"})
+        if frozenset({pos_type, norm_type}) == ml_spread and pos.direction == direction:
+            return "EVENT_GUARD_ML_SPREAD_CORRELATED"
     return None
 
 
@@ -267,7 +278,7 @@ class EntryGate:
                 continue
 
             direction = Direction.BUY_YES
-            guard = _check_event_guard(market.event_id, direction, positions)
+            guard = _check_event_guard(market.event_id, market_type, direction, positions)
             if guard:
                 results.append(GateResult(cid, skipped_reason=guard))
                 continue

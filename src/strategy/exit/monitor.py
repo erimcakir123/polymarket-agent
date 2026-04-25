@@ -166,6 +166,7 @@ def evaluate(
     sl_params: SLParams | None = None,         # PLAN-014
     scale_out_min_realized_usd: float = 0.0,   # PLAN-014b
     basketball_exit_cfg: BasketballExitConfig | None = None,
+    scale_out_threshold: float = 0.85,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir (A3 score-only, tek-dal akış).
 
@@ -181,27 +182,21 @@ def evaluate(
         elapsed_pct = -1.0
 
     # 1. Near-resolve — en yüksek öncelik
-    if near_resolve.check(pos, near_resolve_threshold_cents, near_resolve_guard_min):
+    _nr = near_resolve.check(pos.bid_price, near_resolve_threshold_cents / 100.0)
+    if _nr is not None:
         return MonitorResult(
-            exit_signal=ExitSignal(reason=ExitReason.NEAR_RESOLVE, detail="eff >= threshold"),
+            exit_signal=ExitSignal(reason=ExitReason.NEAR_RESOLVE, sell_pct=_nr.sell_pct, detail=_nr.reason),
             fav_transition=_fav_transition(pos),
             elapsed_pct=elapsed_pct,
         )
 
     # 2. Scale-out (partial exit)
-    so = scale_out.check_scale_out(
-        scale_out_tier=pos.scale_out_tier,
-        entry_price=pos.entry_price,
-        current_price=pos.bid_price,
-        tiers=scale_out_tiers,
-        shares=pos.shares,
-        min_realized_usd=scale_out_min_realized_usd,   # PLAN-014b
-    )
-    if so is not None:
+    _so = scale_out.check(pos.bid_price, pos.scaled_out_50, scale_out_threshold)
+    if _so is not None:
         return MonitorResult(
             exit_signal=ExitSignal(
                 reason=ExitReason.SCALE_OUT, partial=True,
-                sell_pct=so.sell_pct, tier=so.tier, detail=so.reason,
+                sell_pct=_so.sell_pct, tier=_so.tier, detail=_so.reason,
             ),
             fav_transition=_fav_transition(pos),
             elapsed_pct=elapsed_pct,
