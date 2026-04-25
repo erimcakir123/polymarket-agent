@@ -51,6 +51,32 @@ class RiskConfig(BaseModel):
     probability_weighted: bool = True  # SPEC-016: stake = base × win_prob
 
 
+class EmpiricalExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    q4_blowout_seconds: int = 720
+    q4_blowout_deficit: int = 20
+    q4_late_seconds: int = 360
+    q4_late_deficit: int = 15
+    q4_final_seconds: int = 180
+    q4_final_deficit: int = 10
+    q4_endgame_seconds: int = 60
+    q4_endgame_deficit: int = 6
+
+
+class OvertimeExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    seconds: int = 60
+    deficit: int = 8
+
+
+class BasketballExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    bill_james_multiplier: float = 0.861
+    structural_damage_ratio: float = 0.30
+    empirical: EmpiricalExitConfig = EmpiricalExitConfig()
+    overtime: OvertimeExitConfig = OvertimeExitConfig()
+
+
 class EntryConfig(BaseModel):
     """Directional entry (SPEC-017) — edge-free entry kararı.
 
@@ -58,11 +84,25 @@ class EntryConfig(BaseModel):
     (undervalue girişler alınsın); sadece pahalı outlier cap (max_entry_price).
     """
     model_config = ConfigDict(extra="ignore")
-    min_favorite_probability: float = 0.60  # güçlü favori eşiği (bookmaker)
-    max_entry_price: float = 0.80           # aşırı pahalı girişi engelle (R/R outlier cap)
-    # PLAN-013: bookmaker kalite filtresi (az sample → güvensiz anchor)
-    min_bookmakers: int = 15                # gerçek bookmaker sayısı
-    min_sharps: int = 3                     # sharp book (Pinnacle/Smarkets/Betfair/Matchbook)
+    min_favorite_probability: float = 0.60
+    max_entry_price: float = 0.80
+    min_bookmakers: int = 15
+    min_sharps: int = 3
+    active_sports: List[str] = []
+    # Gap thresholds
+    min_gap_threshold: float = 0.08
+    gap_high_zone: float = 0.15
+    gap_extreme_zone: float = 0.25
+    # Filters
+    min_polymarket_price: float = 0.15
+    min_market_volume: float = 5000.0
+    max_match_start_hours: float = 6.0
+    # Sizing
+    confidence_a_pct: float = 0.05
+    confidence_b_pct: float = 0.03
+    high_gap_multiplier: float = 1.2
+    extreme_gap_multiplier: float = 1.3
+    min_bet_usd: float = 5.0
 
 
 class StockConfig(BaseModel):
@@ -232,6 +272,7 @@ class AppConfig(BaseModel):
     favored: FavoredConfig = FavoredConfig()
     score: ScoreConfig = ScoreConfig()
     sl: SLConfig = SLConfig()   # PLAN-014
+    exit_basketball: BasketballExitConfig = BasketballExitConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011
