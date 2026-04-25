@@ -280,6 +280,8 @@ def evaluate(
             score_info=score_info,
             elapsed_pct=elapsed_pct,
             sport_tag=pos.sport_tag,
+            bid_price=pos.bid_price,
+            entry_price=pos.entry_price,
         )
         if nba_result is not None:
             return MonitorResult(
