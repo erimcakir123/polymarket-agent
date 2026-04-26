@@ -207,6 +207,13 @@ class EntryGate:
                     for m in markets
                 ]
 
+        # Global safety: cooldown (consecutive losses)
+        if self._cooldown is not None and self._cooldown.is_active():
+            return [
+                GateResult(m.condition_id, skipped_reason="COOLDOWN_ACTIVE")
+                for m in markets
+            ]
+
         results: list[GateResult] = []
         active = {_normalize(s) for s in self.config.active_sports}
         positions = self._portfolio.positions if self._portfolio else {}

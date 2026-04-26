@@ -657,3 +657,28 @@ def test_gate_does_not_block_when_circuit_breaker_inactive():
     results = gate.run([market])
     assert len(results) == 1
     assert results[0].skipped_reason != "CIRCUIT_BREAKER_ACTIVE"
+
+
+def test_gate_blocks_all_entries_when_cooldown_active():
+    """Cooldown is_active()=True → tüm markets COOLDOWN_ACTIVE."""
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+    cd = MagicMock()
+    cd.is_active.return_value = True
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    gate = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=cd, blacklist=None,
+        odds_enricher=MagicMock(), manipulation_checker=None,
+    )
+    market = MagicMock()
+    market.condition_id = "cid_1"
+    market.sport_tag = "basketball_nba"
+
+    results = gate.run([market])
+    assert len(results) == 1
+    assert results[0].skipped_reason == "COOLDOWN_ACTIVE"
+    cd.is_active.assert_called_once()
