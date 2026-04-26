@@ -170,7 +170,6 @@ def build_agent(state: RuntimeState) -> Agent:
         blacklist=state.blacklist,
         odds_enricher=_enricher,
         manipulation_checker=_manip,
-        cricket_client=cricket_client,  # SPEC-011
         edge_enricher=_edge_enricher,
     )
 

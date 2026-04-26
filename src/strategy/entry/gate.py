@@ -182,7 +182,6 @@ class EntryGate:
         blacklist: Any,
         odds_enricher: Any,
         manipulation_checker: Any,
-        cricket_client: Any = None,
         edge_enricher: Any = None,
     ) -> None:
         self.config = config
