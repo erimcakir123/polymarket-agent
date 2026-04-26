@@ -196,6 +196,17 @@ class EntryGate:
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         if not markets:
             return []
+
+        # Global safety: circuit breaker (PRD §270, DECISIONS.md soft block)
+        if self._circuit_breaker is not None and self._portfolio is not None:
+            portfolio_value = self._portfolio.bankroll + self._portfolio.total_invested()
+            halt, halt_reason = self._circuit_breaker.should_halt_entries(portfolio_value=portfolio_value)
+            if halt:
+                return [
+                    GateResult(m.condition_id, skipped_reason="CIRCUIT_BREAKER_ACTIVE", skip_detail=halt_reason)
+                    for m in markets
+                ]
+
         results: list[GateResult] = []
         active = {_normalize(s) for s in self.config.active_sports}
         positions = self._portfolio.positions if self._portfolio else {}
