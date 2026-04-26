@@ -760,3 +760,58 @@ def test_gate_skips_market_when_manipulation_high():
     results = gate.run([market])
     assert results[0].skipped_reason == "MANIPULATION_HIGH"
     mc.assert_called_once_with("Will Trump tweet about NBA tonight?", 50_000.0)
+
+
+def test_gate_reduces_stake_on_manipulation_medium():
+    """risk_level=medium → final stake yarıya iner."""
+    from src.domain.guards.manipulation import ManipulationCheck
+    cfg = _make_cfg(active_sports=["basketball_nba"], min_bet_usd=1.0)
+
+    mock_prob = MagicMock()
+    mock_prob.probability = 0.70
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+    mock_enrich = MagicMock(probability=mock_prob, fail_reason=None)
+
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    medium_check = ManipulationCheck(safe=True, risk_level="medium",
+                                     flags=["LOW_LIQUIDITY"], recommendation="reduce 50%")
+    mc = MagicMock(return_value=medium_check)
+
+    gate = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich, manipulation_checker=mc,
+    )
+    market = MagicMock()
+    market.condition_id = "cid_1"
+    market.event_id = "evt_1"
+    market.sport_tag = "basketball_nba"
+    market.question = "Lakers vs Celtics"
+    market.yes_price = 0.45
+    market.volume_24h = 10_000.0
+    market.liquidity = 8_000.0
+    market.sports_market_type = "moneyline"
+    market.slug = "lakers-celtics"
+
+    results = gate.run([market])
+    assert results[0].signal is not None, f"Expected signal, got skip: {results[0].skipped_reason}"
+    medium_stake = results[0].signal.size_usdc
+
+    # Aynı kurulum, low risk
+    low_check = ManipulationCheck(safe=True, risk_level="low", flags=[], recommendation="OK")
+    mc_low = MagicMock(return_value=low_check)
+    gate_low = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich, manipulation_checker=mc_low,
+    )
+    low_results = gate_low.run([market])
+    low_stake = low_results[0].signal.size_usdc
+
+    assert abs(medium_stake - low_stake * 0.5) < 0.01, \
+        f"Medium stake ({medium_stake}) should be half of low stake ({low_stake})"

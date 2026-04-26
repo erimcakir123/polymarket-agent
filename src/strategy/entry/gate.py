@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from src.config.sport_rules import _normalize
+from src.domain.guards.manipulation import adjust_position_size
 from src.domain.matching.market_line_parser import parse_home_away_side, parse_spread_line, parse_total_line
 from src.domain.matching.team_resolver import resolve_nba_espn_id
 from src.models.enums import Direction, EntryReason
@@ -328,6 +329,10 @@ class EntryGate:
             win_prob = prob.probability if self.config.probability_weighted else 1.0
             stake = _compute_stake(bankroll, confidence, gap, win_prob, self.config)
             stake = min(stake * size_multiplier_adj, self.config.max_single_bet_usdc)
+
+            # Manipulation medium → 50% reduce (high zaten skip edilmişti Task 1.5'te)
+            if manip_check is not None and manip_check.risk_level == "medium":
+                stake = adjust_position_size(stake, manip_check)
 
             if stake < self.config.min_bet_usd:
                 results.append(GateResult(cid, skipped_reason="BELOW_MIN_BET"))
