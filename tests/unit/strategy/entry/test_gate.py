@@ -731,3 +731,32 @@ def test_gate_does_not_skip_when_blacklist_clean():
 
     results = gate.run([market])
     assert results[0].skipped_reason != "BLACKLISTED"
+
+
+def test_gate_skips_market_when_manipulation_high():
+    from src.domain.guards.manipulation import ManipulationCheck
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    high_check = ManipulationCheck(safe=False, risk_level="high",
+                                   flags=["SELF_RESOLVING"], recommendation="SKIP")
+    mc = MagicMock(return_value=high_check)
+
+    gate = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=None,
+        odds_enricher=MagicMock(), manipulation_checker=mc,
+    )
+    market = MagicMock()
+    market.condition_id = "cid_1"
+    market.event_id = "evt_1"
+    market.sport_tag = "basketball_nba"
+    market.question = "Will Trump tweet about NBA tonight?"
+    market.liquidity = 50_000.0
+
+    results = gate.run([market])
+    assert results[0].skipped_reason == "MANIPULATION_HIGH"
+    mc.assert_called_once_with("Will Trump tweet about NBA tonight?", 50_000.0)

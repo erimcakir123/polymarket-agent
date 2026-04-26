@@ -233,6 +233,19 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason="BLACKLISTED"))
                 continue
 
+            # Per-market safety: manipulation check
+            manip_check = None
+            if self._manipulation_checker is not None:
+                manip_check = self._manipulation_checker(
+                    market.question, market.liquidity,
+                )
+                if manip_check.risk_level == "high":
+                    results.append(GateResult(
+                        cid, skipped_reason="MANIPULATION_HIGH",
+                        skip_detail=", ".join(manip_check.flags),
+                    ))
+                    continue
+
             enrich = self._enricher(market)
             if enrich.probability is None:
                 results.append(GateResult(cid, skipped_reason=str(enrich.fail_reason)))
