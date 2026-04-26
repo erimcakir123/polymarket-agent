@@ -226,6 +226,13 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason="INACTIVE_SPORT"))
                 continue
 
+            # Per-market safety: blacklist
+            if self._blacklist is not None and self._blacklist.is_blacklisted(
+                condition_id=cid, event_id=market.event_id or "",
+            ):
+                results.append(GateResult(cid, skipped_reason="BLACKLISTED"))
+                continue
+
             enrich = self._enricher(market)
             if enrich.probability is None:
                 results.append(GateResult(cid, skipped_reason=str(enrich.fail_reason)))

@@ -682,3 +682,52 @@ def test_gate_blocks_all_entries_when_cooldown_active():
     assert len(results) == 1
     assert results[0].skipped_reason == "COOLDOWN_ACTIVE"
     cd.is_active.assert_called_once()
+
+
+def test_gate_skips_blacklisted_market():
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+    bl = MagicMock()
+    bl.is_blacklisted.return_value = True
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    gate = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=bl,
+        odds_enricher=MagicMock(), manipulation_checker=None,
+    )
+    market = MagicMock()
+    market.condition_id = "blacklisted_cid"
+    market.event_id = "evt_99"
+    market.sport_tag = "basketball_nba"
+
+    results = gate.run([market])
+    assert len(results) == 1
+    assert results[0].skipped_reason == "BLACKLISTED"
+    bl.is_blacklisted.assert_called_once_with(condition_id="blacklisted_cid", event_id="evt_99")
+
+
+def test_gate_does_not_skip_when_blacklist_clean():
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+    bl = MagicMock()
+    bl.is_blacklisted.return_value = False
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    gate = EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=bl,
+        odds_enricher=MagicMock(return_value=MagicMock(probability=None, fail_reason="NO_BOOK")),
+        manipulation_checker=None,
+    )
+    market = MagicMock()
+    market.condition_id = "clean_cid"
+    market.event_id = "evt_1"
+    market.sport_tag = "basketball_nba"
+
+    results = gate.run([market])
+    assert results[0].skipped_reason != "BLACKLISTED"
