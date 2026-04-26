@@ -33,6 +33,18 @@ Gate filtreleri (max_entry_price=0.80, gap_threshold=0.08) Q4 near-resolve marke
 **Kapsam**: Sadece pre-game değil, live Q1-Q2 döneminde de entry mümkün.
 Late-game (Q3+) → Polymarket fiyatı skoru yansıtır → GAP_TOO_LOW ile doğal elenir.
 
+**Bilinen kısıtlama — Maç sonu EVENT_NO_MATCH**: Oyun bittikten ~30-60 dk sonra Odds API pre-game endpoint'i maçı listesinden düşürür. Bookmaker'lar pre-game line'ı çekiyor. Bu Odds API'nin tasarımı — bot bug'ı değil. Mevcut `-8h` penceresi live Q1-Q3 için yeterli; maç sonrası Polymarket marketi zaten near-resolve (gap yoksa GAP_TOO_LOW, event_elapsed → elenir). v2'de live odds endpoint araştırılacak (paid feature olabilir).
+
+---
+
+## NBA Totals Question Parser — Suffix Strip
+
+**Karar**: `extract_teams("Cavaliers vs Raptors: O/U 220.5")` → `("Cavaliers", "Raptors")`.
+
+**Neden**: Totals Polymarket formatı `"Team A vs. Team B: O/U XXX.X"`. `extract_teams()` `" vs "` ayracında bölerken team_b = `"Raptors: O/U 220.5"` alıyordu. `normalize()` tokenize ettiğinde `"raptors:"` (sondaki `:` dahil) `"raptors"` ile token overlap sağlamıyordu → `match_team()` → `no_match` → EVENT_NO_MATCH.
+
+**Fix (2026-04-26)**: `question_parser.py` vs-split bloğuna `if ":" in b: b = b.split(":", 1)[0].strip()` eklendi. `a` için `rsplit(":", 1)[-1]` (son parça — turnuva prefix), `b` için `split(":", 1)[0]` (ilk parça — team_b suffix temizle).
+
 ---
 
 ## NBA Spread Question Parsing
@@ -65,6 +77,24 @@ Direction mapping: "Will X beat Y?" + BUY_YES → X = our_team_id.
 Graceful fallback: bilinmeyen takım veya parse hatası → boş string → EdgeEnricher B2B kontrolünü atlar.
 Short canonical form'lar (Trail Blazers, Timberwolves, Cavaliers, Mavericks, Wizards, Pistons) dahil edildi —
 `canonicalize()` bu takımlar için şehir adını genişletmez.
+
+---
+
+## Entry Gate Safety Wiring (2026-04-26)
+
+**Bulgu**: `EntryGate.__init__` 4 güvenlik bağımlılığını parametre olarak alıyor ama `self.`'ye atamayıp sessizce çöpe atıyordu. PRD §90, §270 ve aşağıdaki "Daily soft block" satırı bunların aktif çalışmasını gerektiriyor — kod'da yarı bağlıydı, hiç çalışmıyordu.
+
+**Bağlanan kontroller** (gate.run() akışında sırayla):
+
+| # | Konum | Skip reason | Davranış |
+|---|---|---|---|
+| 1 | run() başı (global) | `CIRCUIT_BREAKER_ACTIVE` | `should_halt_entries(portfolio_value)` True → tüm market'ler skip. Daily/hourly loss limitleri + soft block (-3%) + ardışık kayıp + cooldown burada toplanır. |
+| 2 | run() başı (global) | `COOLDOWN_ACTIVE` | `cooldown.is_active()` True → tüm market'ler skip (ardışık kayıp cycle-bazlı cooldown). |
+| 3 | per-market (INACTIVE_SPORT'tan sonra) | `BLACKLISTED` | `Blacklist.is_blacklisted(condition_id, event_id)` True → market skip. |
+| 4 | per-market (blacklist'ten sonra) | `MANIPULATION_HIGH` | `manipulation_check(question, liquidity)` risk_level=="high" → market skip. SELF_RESOLVING + LOW_LIQUIDITY (<$10K) burada filtrelenir. |
+| 5 | stake compute'tan sonra | (stake adjust) | Manipulation risk_level=="medium" → `adjust_position_size` ile stake × 0.5. Halved stake `min_bet_usd`'in altına düşerse `BELOW_MIN_BET` ile zaten skip olur. |
+
+**Neden**: Sessiz güvenlik gap'i — system risk guard'larını record ediyor ama enforce etmiyordu. Circuit breaker exit'leri kaydediyordu, blacklist persist/restore ediliyordu, manipulation check factory'de oluşturuluyordu — ama hiçbiri entry'leri bloklayamıyordu. Bağlama TDD ile yapıldı (8 yeni test, 1131 → 1139, 0 regresyon).
 
 ---
 
