@@ -26,20 +26,24 @@ from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
 logger = logging.getLogger(__name__)
 
 
-def _odds_query_params() -> dict:
-    """30h içinde başlayan event'ler için h2h market parametreleri.
+_LIVE_LOOKBACK_HOURS = 8  # Scanner'ın _match_start_recent_or_future penceresiyle eşleşir
 
-    30h pencere: scanner max_hours_to_start (24h) + 6h buffer.
-    UFC/MMA gibi sporlarda Odds API commence_time, event card saatinden
-    birkaç saat sonra olabilir — 24h pencere bu maçları sınırda kaçırır.
-    Kredi maliyeti event sayısından bağımsız (markets × regions).
+
+def _odds_query_params() -> dict:
+    """30h pencere h2h market parametreleri.
+
+    commenceTimeFrom 8h geriye gider: canlı maçlar commence_time < now olduğundan
+    commenceTimeFrom=now ile Odds API filter'ından düşer → EVENT_NO_MATCH.
+    Scanner'ın 8h lookback penceresiyle tutarlı. (Verified: Q1 canlı NBA maçı için
+    8 bookmaker gerçek zamanlı oran döndürdü — suspended değil.)
+    30h üst sınır: scanner max_hours_to_start (24h) + 6h buffer.
     """
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     return {
         "regions": "us,uk,eu",
         "markets": "h2h",
         "oddsFormat": "decimal",
-        "commenceTimeFrom": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "commenceTimeFrom": (now - timedelta(hours=_LIVE_LOOKBACK_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "commenceTimeTo": (now + timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 

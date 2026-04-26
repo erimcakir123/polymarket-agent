@@ -22,6 +22,7 @@ from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.bot_status_writer import BotStatusWriter
+from src.orchestration.counterfactual_tracker import CounterfactualTracker
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
 from src.orchestration.exit_processor import ExitProcessor
@@ -54,6 +55,8 @@ class AgentDeps:
     score_enricher: ScoreEnricher | None = None
     command_poller: TelegramCommandPoller | None = None
     cricket_client: CricketAPIClient | None = None  # SPEC-011
+    counterfactual_tracker: CounterfactualTracker | None = None
+    gamma_client: object | None = None
 
 
 class Agent:
@@ -92,6 +95,8 @@ class Agent:
                             self.deps.state.portfolio.positions,
                         )
                     self._exit.run_light(score_map=score_map)
+                    if self.deps.counterfactual_tracker is not None:
+                        self.deps.counterfactual_tracker.tick(self.deps.gamma_client)
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
 
@@ -104,6 +109,9 @@ class Agent:
             if max_ticks is not None and ticks >= max_ticks:
                 break
             time.sleep(self.deps.cycle_manager.sleep_seconds())
+
+        if self.deps.counterfactual_tracker is not None:
+            self.deps.counterfactual_tracker.flush()
 
     def _start_ws_if_needed(self) -> None:
         if self._ws_started or self.deps.price_feed is None:

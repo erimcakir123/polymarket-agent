@@ -266,6 +266,32 @@ def test_enrich_market_missing_commence_time_returns_empty() -> None:
     assert result.odds_commence_time == ""
 
 
+def test_odds_query_params_commence_time_includes_live_window() -> None:
+    """commenceTimeFrom 8 saat geriye gitmeli — live event'leri dahil et."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.strategy.enrichment.odds_enricher import _LIVE_LOOKBACK_HOURS, _odds_query_params
+
+    before = datetime.now(timezone.utc)
+    params = _odds_query_params()
+    after = datetime.now(timezone.utc)
+
+    from_dt = datetime.fromisoformat(params["commenceTimeFrom"].replace("Z", "+00:00"))
+    to_dt = datetime.fromisoformat(params["commenceTimeTo"].replace("Z", "+00:00"))
+
+    # commenceTimeFrom 8 saat geriye bakmalı (±2 dk tolerans — saat sıfırlama)
+    expected_from = before - timedelta(hours=_LIVE_LOOKBACK_HOURS)
+    assert from_dt <= before - timedelta(hours=_LIVE_LOOKBACK_HOURS - 1), (
+        "commenceTimeFrom live penceresi açık değil"
+    )
+    assert from_dt >= expected_from - timedelta(hours=1), (
+        "commenceTimeFrom 8 saatten daha geri gitmiş"
+    )
+
+    # commenceTimeTo ≈ now + 30h
+    assert to_dt > after + timedelta(hours=29)
+
+
 def test_enrich_market_fail_still_returns_commence_time() -> None:
     """Bookmakers boş → fail ama commence_time yine dönmeli."""
     market = _market(question="Will Lakers beat Celtics?")

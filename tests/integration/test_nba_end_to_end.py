@@ -223,9 +223,12 @@ def test_exit_q4_math_dead() -> None:
 
 
 def test_exit_q4_empirical_blowout() -> None:
-    """clock=720 (Q4 başı), deficit=20 → empirical dead."""
+    """clock=720 (Q4 başı), deficit=20 → empirical dead (predictive devre dışı — izole test)."""
     score = make_score_info(period_number=4, clock_seconds=720, our_score=80, opp_score=100)
-    result = nba_score_exit.check(score_info=score, elapsed_pct=0.75, sport_tag="basketball_nba")
+    result = nba_score_exit.check(
+        score_info=score, elapsed_pct=0.75, sport_tag="basketball_nba",
+        predictive_enabled=False,
+    )
     assert result is not None
     assert "EMPIRICAL_DEAD" in result.detail
 

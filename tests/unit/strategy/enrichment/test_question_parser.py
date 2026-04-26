@@ -90,3 +90,36 @@ def test_will_x_to_beat_y() -> None:
     a, b = extract_teams("Will Lakers to beat Celtics?")
     assert a == "Lakers"
     assert b == "Celtics"
+
+
+def test_spread_single_team_with_line() -> None:
+    """'Spread: TeamName (-X.5)' formatı — tek takım, line parantez içinde."""
+    a, b = extract_teams("Spread: Knicks (-2.5)")
+    assert a == "Knicks"
+    assert b is None
+
+
+def test_spread_negative_line_timberwolves() -> None:
+    a, b = extract_teams("Spread: Timberwolves (-1.5)")
+    assert a == "Timberwolves"
+    assert b is None
+
+
+def test_spread_positive_line() -> None:
+    a, b = extract_teams("Spread: Lakers (+5.5)")
+    assert a == "Lakers"
+    assert b is None
+
+
+def test_spread_multi_word_team() -> None:
+    a, b = extract_teams("Spread: Los Angeles Lakers (-3.5)")
+    assert a == "Los Angeles Lakers"
+    assert b is None
+
+
+def test_spread_prefix_only_no_parenthetical() -> None:
+    """Parantez olmadan tek takım adı — pattern 6 çalışmaz, diğer pattern'ler dener."""
+    a, b = extract_teams("Spread: Lakers")
+    # Spread: soyulur → "Lakers" kalır; hiçbir 2-team pattern yok, (  yok → None
+    assert a is None
+    assert b is None

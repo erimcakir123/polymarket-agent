@@ -132,23 +132,49 @@ Mimari değişiklik DEĞİL = yeni dosya (mevcut dizine), bug fix, feature.
 
 ---
 
+## LOGGING DİZİN YAPISI
+
+```
+logs/runtime/   → reboot'ta temizlenir (bot.log, dashboard.log, skipped_trades.jsonl)
+logs/audit/     → ASLA dokunulmaz (trade_history, equity_history, exits,
+                   score_events, match_results, counterfactual)
+logs/           → PID dosyaları (agent.pid, dashboard.pid) — yeri değişmez
+data/           → State dosyaları (positions, circuit_breaker, stock_queue,
+                   bot_status, blacklist, soccer_league_cache)
+```
+
+---
+
 ## RESTART PROTOKOLÜ
 
-"Restart" deyince sor: **Reload mu, Reboot mu?**
+**Komutlar** (`scripts/reboot.py`):
+```
+python scripts/reboot.py reload            # state korunur
+python scripts/reboot.py reboot            # tam temizlik (dry_run)
+python scripts/reboot.py reboot --mode live
+```
 
-**Reload** — kod güncellenir, veri korunur.
+"Restart", "reboot", "reload", "reset" veya benzeri bir kelime geçince **her zaman sor**: **Reload mu, Reboot mu?** — onay almadan otomatik işlem yapma.
+
+**Reload** — kod güncellenir, veri korunur. Manuel kill artık gerekmez.
 
 **Reboot** — onay zorunlu. Sıfırlananlar:
-- `logs/positions.json`
-- `logs/trade_history.jsonl`
-- `logs/equity_history.jsonl`
-- `logs/circuit_breaker_state.json`
-- `logs/stock_queue.json`
-- `logs/skipped_trades.jsonl`
 
-**Asla silinmez:**
-- `logs/archive/` (exits.jsonl, score_events.jsonl, match_results.jsonl) — audit trail
-- `logs/bot.log` — audit trail
+*runtime logları — boşaltılır:*
+- `logs/runtime/bot.log` — boşaltıldı
+- `logs/runtime/dashboard.log` — boşaltıldı
+- `logs/runtime/skipped_trades.jsonl` — boşaltıldı
+
+*state dosyaları — silindi (fresh state):*
+- `data/positions.json` — silindi
+- `data/circuit_breaker_state.json` — silindi
+- `data/stock_queue.json` — silindi
+- `data/bot_status.json` — silindi
+
+**Asla dokunulmaz (audit trail):**
+- `logs/audit/` — trade_history, equity_history, exits, score_events, match_results, counterfactual
+
+**Tekillik garantisi:** `logs/agent.pid` + `logs/dashboard.pid` — her zaman 1 bot + 1 dashboard.
 
 ---
 
@@ -158,14 +184,14 @@ Sırayla, hepsini yap — eksik dosya = veri tutarsızlığı:
 
 | # | Dosya | İşlem |
 |---|---|---|
-| 1 | `logs/positions.json` | Açık pozisyonsa sil, `realized_pnl` düzelt |
-| 2 | `logs/trade_history.jsonl` | İlgili satırı sil |
-| 3 | `logs/equity_history.jsonl` | Timestamp sonrası retroaktif düzelt |
-| 4 | `logs/positions.json → high_water_mark` | Yeniden hesapla |
-| 5 | `logs/circuit_breaker_state.json` | PnL toplamlarından çıkar |
-| 6 | `logs/archive/*` | **DOKUNMA** |
+| 1 | `data/positions.json` | Açık pozisyonsa sil, `realized_pnl` düzelt |
+| 2 | `logs/audit/trade_history.jsonl` | İlgili satırı sil |
+| 3 | `logs/audit/equity_history.jsonl` | Timestamp sonrası retroaktif düzelt |
+| 4 | `data/positions.json → high_water_mark` | Yeniden hesapla |
+| 5 | `data/circuit_breaker_state.json` | PnL toplamlarından çıkar |
+| 6 | `logs/audit/*` | **DOKUNMA** |
 
-Doğrulama: `SUM(trade_history pnl) == positions.json realized_pnl`
+Doğrulama: `SUM(trade_history pnl) == data/positions.json realized_pnl`
 
 ---
 

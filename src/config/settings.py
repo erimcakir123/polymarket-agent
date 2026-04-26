@@ -90,6 +90,13 @@ class TotalsEmpiricalConfig(BaseModel):
     ot_over_scale_pct: float = 0.75
 
 
+class PredictiveExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    hold_threshold: float = 0.20
+    safety_margin: float = 0.03
+
+
 class BasketballExitConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     bill_james_multiplier: float = 0.861
@@ -99,6 +106,7 @@ class BasketballExitConfig(BaseModel):
     totals_multiplier: float = 1.218
     spread_empirical: SpreadEmpiricalConfig = Field(default_factory=SpreadEmpiricalConfig)
     totals_empirical: TotalsEmpiricalConfig = Field(default_factory=TotalsEmpiricalConfig)
+    predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
 
 
 class EntryConfig(BaseModel):

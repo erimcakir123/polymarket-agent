@@ -37,7 +37,7 @@ def log_skip(
         event_id=market.event_id or "",
         entry_price=market.yes_price,
         skip_reason=reason or "unknown",
-        skip_detail=detail,
+        skip_detail=detail or "",
     )
     try:
         skipped_logger.log(record)

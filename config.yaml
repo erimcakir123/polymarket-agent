@@ -300,6 +300,10 @@ exit_basketball:
     q4_endgame_seconds: 60
     q4_endgame_gap: 6
     ot_over_scale_pct: 0.75
+  predictive_exit:
+    enabled: true
+    hold_threshold: 0.20
+    safety_margin: 0.03
 
 dashboard:
   enabled: true

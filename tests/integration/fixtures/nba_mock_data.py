@@ -73,11 +73,11 @@ def make_gate(
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = positions or {}
-    mock_portfolio.bankroll.return_value = bankroll
+    mock_portfolio.bankroll = bankroll
 
     # Default odds enricher returns high-quality data
     mock_prob = MagicMock()
-    mock_prob.prob = 0.58
+    mock_prob.probability = 0.58
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -103,7 +103,7 @@ def make_gate(
 def make_enricher_result(prob: float = 0.58, has_sharp: bool = True, num_bookmakers: float = 7.0):
     """Return a mock odds enricher result callable."""
     mock_prob = MagicMock()
-    mock_prob.prob = prob
+    mock_prob.probability = prob
     mock_prob.has_sharp = has_sharp
     mock_prob.num_bookmakers = num_bookmakers
 

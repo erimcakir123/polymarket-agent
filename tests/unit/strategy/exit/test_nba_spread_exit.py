@@ -89,9 +89,10 @@ def test_math_dead_buy_no_q4():
 
 
 def test_empirical_q4_endgame_key_number_3():
-    """Q4 son 60s, margin_to_cover=3 → EMPIRICAL_DEAD."""
+    """Q4 son 60s, margin_to_cover=3 → EMPIRICAL_DEAD (predictive devre dışı — empirical izole)."""
     # BUY_YES, our=97, opp=100 → actual_diff=-3, spread_line=0
     # margin=0 - (-3) = 3 >= q4_endgame_margin=3 AND clock<=60 → True
+    # predictive_enabled=False: z=3/(0.3727*√60)=1.039 → comeback≈0.150 → 0.33>0.150 → predictive would fire
     result = check(
         score_info=_si(period_number=4, clock_seconds=60, our_score=97, opp_score=100),
         spread_line=0.0,
@@ -99,14 +100,16 @@ def test_empirical_q4_endgame_key_number_3():
         bid_price=0.30,
         entry_price=0.60,
         bill_james_multiplier=_M,
+        predictive_enabled=False,
     )
     assert result is not None
     assert "EMPIRICAL" in result.detail
 
 
 def test_empirical_q4_late_key_number_7():
-    """Q4 360s kala, margin_to_cover=11 >= q4_late_margin=7 → EMPIRICAL_DEAD."""
+    """Q4 360s kala, margin_to_cover=11 >= q4_late_margin=7 → EMPIRICAL_DEAD (predictive devre dışı — empirical izole)."""
     # our=93, opp=100, spread=4 → actual_diff=-7, margin=4-(-7)=11 ≥ 7
+    # predictive_enabled=False: z=11/(0.3727*√360)=1.556 → comeback≈0.060 → 0.28>0.060 → predictive would fire
     result = check(
         score_info=_si(period_number=4, clock_seconds=360, our_score=93, opp_score=100),
         spread_line=4.0,
@@ -115,9 +118,50 @@ def test_empirical_q4_late_key_number_7():
         entry_price=0.60,
         bill_james_multiplier=_M,
         q4_late_margin=7,
+        predictive_enabled=False,
     )
     assert result is not None
     assert "EMPIRICAL" in result.detail
+
+
+def test_predictive_spread_exit():
+    """Q4 420s kala, margin=9 → predictive EXIT (math_dead=False, empirical=False)."""
+    # our=91, opp=100, spread=0 → actual_diff=-9, margin=9
+    # math: 0.861*√420=17.64 → 9 < 17.64 → NOT math dead
+    # empirical: clock=420 > 360 → q4_late não dispara; > 180 q4_final; > 60 q4_endgame
+    # predictive: z=9/(0.3727*√420)=9/7.637=1.178 → z/√2=0.833
+    #   erf(0.833)≈0.759 → comeback=0.5*(1-0.759)=0.121
+    #   0.121 < 0.20 → sem hold threshold; (0.10+0.03)=0.13 > 0.121 → EXIT
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=420, our_score=91, opp_score=100),
+        spread_line=0.0,
+        direction="BUY_YES",
+        bid_price=0.10,
+        entry_price=0.60,
+        bill_james_multiplier=_M,
+    )
+    assert result is not None
+    assert result.reason.value == "predictive_dead"
+    assert "PREDICTIVE_DEAD" in result.detail
+
+
+def test_predictive_spread_hold():
+    """Q4 720s kala, margin=8 → predictive HOLD (comeback ≥ 0.20)."""
+    # our=92, opp=100, spread=0 → margin=8
+    # math: 0.861*√720=23.1 → 8 < 23.1 → NOT math dead
+    # empirical: clock=720 > 360 → yok
+    # predictive: z=8/(0.3727*√720)=8/10.001=0.800 → z/√2=0.566
+    #   erf(0.566)≈0.572 → comeback=0.5*(1-0.572)=0.214
+    #   0.214 ≥ 0.20 → HOLD threshold → return False → None
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=720, our_score=92, opp_score=100),
+        spread_line=0.0,
+        direction="BUY_YES",
+        bid_price=0.30,
+        entry_price=0.60,
+        bill_james_multiplier=_M,
+    )
+    assert result is None
 
 
 def test_structural_damage_q4():

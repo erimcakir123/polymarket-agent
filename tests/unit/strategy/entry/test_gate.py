@@ -180,7 +180,7 @@ def test_gate_run_same_event_same_direction_blocked():
     cfg = _make_cfg(active_sports=["basketball_nba"])
 
     mock_prob = MagicMock()
-    mock_prob.prob = 0.70
+    mock_prob.probability = 0.70
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -195,7 +195,7 @@ def test_gate_run_same_event_same_direction_blocked():
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {"some_cid": existing_pos}
-    mock_portfolio.bankroll.return_value = 1000.0
+    mock_portfolio.bankroll = 1000.0
 
     gate = EntryGate(
         config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
@@ -364,7 +364,7 @@ def test_gate_run_no_edge_enricher_still_works():
     cfg = _make_cfg(active_sports=["basketball_nba"])
 
     mock_prob = MagicMock()
-    mock_prob.prob = 0.75
+    mock_prob.probability = 0.75
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -374,7 +374,7 @@ def test_gate_run_no_edge_enricher_still_works():
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {}
-    mock_portfolio.bankroll.return_value = 1000.0
+    mock_portfolio.bankroll = 1000.0
 
     gate = EntryGate(
         config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
@@ -404,7 +404,7 @@ def test_gate_run_edge_enricher_opponent_injury_increases_stake():
     cfg = _make_cfg(active_sports=["basketball_nba"])
 
     mock_prob = MagicMock()
-    mock_prob.prob = 0.75
+    mock_prob.probability = 0.75
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -414,7 +414,7 @@ def test_gate_run_edge_enricher_opponent_injury_increases_stake():
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {}
-    mock_portfolio.bankroll.return_value = 1000.0
+    mock_portfolio.bankroll = 1000.0
 
     # Edge context: opponent has injury → size multiplier 1.3, gap threshold -0.02
     opp_injury_ctx = EdgeContext(
@@ -460,7 +460,7 @@ def test_gate_run_edge_enricher_own_injury_blocks_borderline_gap():
     cfg = _make_cfg(active_sports=["basketball_nba"])
 
     mock_prob = MagicMock()
-    mock_prob.prob = 0.585   # gap = 0.585 - 0.50 = 0.085 (just above default 0.08)
+    mock_prob.probability = 0.585   # gap = 0.585 - 0.50 = 0.085 (just above default 0.08)
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -470,7 +470,7 @@ def test_gate_run_edge_enricher_own_injury_blocks_borderline_gap():
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {}
-    mock_portfolio.bankroll.return_value = 1000.0
+    mock_portfolio.bankroll = 1000.0
 
     # Own team injury → star_out_self_gap_bonus=0.05 added → effective threshold=0.13 → gap=0.085 fails
     own_injury_ctx = EdgeContext(
@@ -530,7 +530,7 @@ def _make_gate_with_edge(mock_edge: MagicMock) -> EntryGate:
     cfg = _make_cfg(active_sports=["basketball_nba"])
 
     mock_prob = MagicMock()
-    mock_prob.prob = 0.75
+    mock_prob.probability = 0.75
     mock_prob.has_sharp = True
     mock_prob.num_bookmakers = 7.0
 
@@ -540,7 +540,7 @@ def _make_gate_with_edge(mock_edge: MagicMock) -> EntryGate:
 
     mock_portfolio = MagicMock()
     mock_portfolio.positions = {}
-    mock_portfolio.bankroll.return_value = 1000.0
+    mock_portfolio.bankroll = 1000.0
 
     return EntryGate(
         config=cfg,

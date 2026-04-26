@@ -46,7 +46,7 @@ class _NoHaltBreaker:
         return (False, "")
 
 
-def _load_portfolio_event_ids(path: str = "logs/positions.json") -> PortfolioManager:
+def _load_portfolio_event_ids(path: str = "data/positions.json") -> PortfolioManager:
     """Mevcut positions.json'u yükle — event_id'ler event_already_held testinde."""
     pm = PortfolioManager(initial_bankroll=1000.0)
     if not Path(path).exists():

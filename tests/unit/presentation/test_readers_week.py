@@ -23,8 +23,9 @@ def _make_trade(exit_iso: str) -> dict:
 
 def _write_trades(tmp_path: Path, trades: list[dict]) -> Path:
     logs = tmp_path / "logs"
-    logs.mkdir(exist_ok=True)
-    with open(logs / "trade_history.jsonl", "w") as f:
+    audit = logs / "audit"
+    audit.mkdir(parents=True, exist_ok=True)
+    with open(audit / "trade_history.jsonl", "w") as f:
         for t in trades:
             f.write(json.dumps(t) + "\n")
     return logs

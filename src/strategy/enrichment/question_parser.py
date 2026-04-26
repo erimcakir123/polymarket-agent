@@ -18,6 +18,7 @@ _PREFIXES: tuple[str, ...] = (
     "KBO:", "NPB:", "CFL:", "AFL:", "NRL:",
     "Serie A:", "La Liga:", "EPL:", "Bundesliga:", "Ligue 1:",
     "Premier League:", "Champions League:", "Europa League:",
+    "Spread:",  # NBA/spread market format: "Spread: TeamName (-X.5)"
     "Will",
 )
 
@@ -90,5 +91,11 @@ def extract_teams(question: str) -> tuple[str | None, str | None]:
         team = m.group(1).strip()
         if len(team) >= 3:
             return team, None
+
+    # 6. Parenthetical trailing: "TeamName (-X.5)" — spread prefix zaten soyulmuş
+    if "(" in q:
+        candidate = q[:q.index("(")].strip()
+        if len(candidate) >= 3:
+            return candidate, None
 
     return None, None

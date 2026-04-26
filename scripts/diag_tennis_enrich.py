@@ -30,7 +30,7 @@ from src.strategy.enrichment.odds_enricher import _odds_query_params
 
 def load_tennis_samples(n: int = 5) -> list[MarketData]:
     """stock_queue.json'dan tennis+no_bookmaker_data+12-24h pencereli ilk N."""
-    raw = json.load(open("logs/stock_queue.json"))
+    raw = json.load(open("data/stock_queue.json"))
     now = datetime.now(timezone.utc)
     samples: list[MarketData] = []
     for row in raw:

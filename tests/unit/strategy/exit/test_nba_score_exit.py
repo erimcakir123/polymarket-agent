@@ -54,7 +54,7 @@ def test_math_dead_q4_triggers():
 
 
 def test_empirical_q4_blowout():
-    """Q4, 12 dk kala 20 fark → EMPIRICAL_DEAD."""
+    """Q4, 12 dk kala 20 fark → EMPIRICAL_DEAD (predictive devre dışı — empirical'ı izole test)."""
     result = check(
         score_info=_si(period_number=4, clock_seconds=720, deficit=20),
         elapsed_pct=0.90,
@@ -62,6 +62,7 @@ def test_empirical_q4_blowout():
         bid_price=0.25,
         entry_price=0.60,
         bill_james_multiplier=_M,
+        predictive_enabled=False,
     )
     assert result is not None
     assert result.reason == ExitReason.SCORE_EXIT
@@ -69,7 +70,7 @@ def test_empirical_q4_blowout():
 
 
 def test_empirical_q4_endgame():
-    """Q4, son 60s, 6 fark → EMPIRICAL_DEAD."""
+    """Q4, son 60s, 6 fark → EMPIRICAL_DEAD (predictive devre dışı — empirical'ı izole test)."""
     result = check(
         score_info=_si(period_number=4, clock_seconds=60, deficit=6),
         elapsed_pct=0.95,
@@ -77,6 +78,7 @@ def test_empirical_q4_endgame():
         bid_price=0.20,
         entry_price=0.55,
         bill_james_multiplier=_M,
+        predictive_enabled=False,
     )
     assert result is not None
     assert "EMPIRICAL" in result.detail

@@ -86,10 +86,11 @@ def test_under_math_dead():
 
 
 def test_over_empirical_dead_q4_late():
-    """Over, Q4 360s, points_needed=20 → EMPIRICAL_DEAD."""
+    """Over, Q4 360s, points_needed=20 → EMPIRICAL_DEAD (predictive devre dışı — empirical izole)."""
     # our=100, opp=100 → current=200, target=220, points_needed=20
     # math threshold at 360s: 1.218 * sqrt(360) = 23.1 → 20 < 23.1 → math NOT dead
     # empirical: clock=360 ≤ q4_late_seconds=360 and points_needed=20 ≥ q4_late_gap=20 → DEAD
+    # predictive_enabled=False: z=20/(0.5270*√360)=2.000 → comeback≈0.023 → 0.23>0.023 → predictive would fire
     result = check(
         score_info=_si(period_number=4, clock_seconds=360, our_score=100, opp_score=100),
         target_total=220.0,
@@ -98,14 +99,56 @@ def test_over_empirical_dead_q4_late():
         entry_price=0.55,
         totals_multiplier=_TM,
         q4_late_gap=20,
+        predictive_enabled=False,
     )
     assert result is not None
     assert "EMPIRICAL" in result.detail
 
 
+def test_predictive_totals_over_exit():
+    """Over, Q4 420s kala, points_needed=22 → PREDICTIVE_DEAD (math_dead=False, empirical=False)."""
+    # our=96, opp=97 → current=193, target=215, points_diff=22
+    # math: 1.218*√420=24.96 → 22 < 24.96 → NOT math dead
+    # empirical: clock=420 > 360 → q4_late yok; > 180 q4_final; > 60 q4_endgame → yok
+    # predictive: z=22/(0.5270*√420)=22/10.798=2.037 → z/√2=1.440
+    #   erf(1.440)≈0.958 → comeback=0.5*(1-0.958)=0.021
+    #   0.021 < 0.20 → hold threshold yok; (0.05+0.03)=0.08 > 0.021 → EXIT
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=420, our_score=96, opp_score=97),
+        target_total=215.0,
+        side="over",
+        bid_price=0.05,
+        entry_price=0.55,
+        totals_multiplier=_TM,
+    )
+    assert result is not None
+    assert result.reason.value == "predictive_dead"
+    assert "PREDICTIVE_DEAD" in result.detail
+
+
+def test_predictive_totals_over_hold():
+    """Over, Q4 480s kala, points_needed=3 → HOLD (comeback ≥ 0.20)."""
+    # our=106, opp=106 → current=212, target=215, points_diff=3
+    # math: 1.218*√480=26.69 → 3 < 26.69 → NOT math dead
+    # empirical: clock=480 > 360 → yok
+    # predictive: z=3/(0.5270*√480)=3/11.547=0.260 → z/√2=0.184
+    #   erf(0.184)≈0.206 → comeback=0.5*(1-0.206)=0.397
+    #   0.397 ≥ 0.20 → HOLD threshold → None
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=480, our_score=106, opp_score=106),
+        target_total=215.0,
+        side="over",
+        bid_price=0.50,
+        entry_price=0.55,
+        totals_multiplier=_TM,
+    )
+    assert result is None
+
+
 def test_under_empirical_dead_q4_late():
-    """Under, Q4 360s, current-target=20 → EMPIRICAL_DEAD."""
+    """Under, Q4 360s, current-target=20 → EMPIRICAL_DEAD (predictive devre dışı — empirical izole)."""
     # current=240, target=220 → excess=20 ≥ q4_late_gap=20
+    # predictive_enabled=False: points_until_decision=220-240=-20 ≤ 0 → under EXIT — predictive would fire first
     result = check(
         score_info=_si(period_number=4, clock_seconds=360, our_score=120, opp_score=120),
         target_total=220.0,
@@ -114,9 +157,48 @@ def test_under_empirical_dead_q4_late():
         entry_price=0.55,
         totals_multiplier=_TM,
         q4_late_gap=20,
+        predictive_enabled=False,
     )
     assert result is not None
     assert "EMPIRICAL" in result.detail
+
+
+def test_predictive_totals_under_exit():
+    """Under, current=222 > target=220, Q4 60s → predictive EXIT (math_dead=False, empirical=False)."""
+    # our=111, opp=111 → current=222, target=220
+    # is_total_dead: excess=2, threshold=1.218*√60=9.44 → 2 < 9.44 → NOT math dead
+    # empirical: excess=2 < endgame_gap=6 → NOT empirical
+    # predictive: points_until_decision=220-222=-2 ≤ 0 → under kaybetti → EXIT
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=60, our_score=111, opp_score=111),
+        target_total=220.0,
+        side="under",
+        bid_price=0.25,
+        entry_price=0.60,
+        totals_multiplier=_TM,
+    )
+    assert result is not None
+    assert result.reason.value == "predictive_dead"
+    assert "PREDICTIVE_DEAD" in result.detail
+
+
+def test_predictive_totals_under_hold():
+    """Under, current=215 < target=220, Q4 480s → predictive HOLD (comeback ≥ 0.20)."""
+    # our=107, opp=108 → current=215, target=220
+    # points_until_decision = 220-215 = 5
+    # math: 1.218*√480=26.69 → 5 < 26.69 → NOT math dead
+    # empirical: clock=480 > 360 → yok
+    # predictive: z=5/(0.5270*√480)=5/11.547=0.433 → z/√2=0.306
+    #   erf(0.306)≈0.335 → comeback_under=0.5*(1+0.335)=0.668 ≥ 0.20 → HOLD
+    result = check(
+        score_info=_si(period_number=4, clock_seconds=480, our_score=107, opp_score=108),
+        target_total=220.0,
+        side="under",
+        bid_price=0.70,
+        entry_price=0.60,
+        totals_multiplier=_TM,
+    )
+    assert result is None
 
 
 def test_ot_over_windfall():

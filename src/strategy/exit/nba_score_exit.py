@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain.math.safe_lead import is_mathematically_dead
+from src.domain.math.safe_lead import is_mathematically_dead, predictive_exit_decision_ml
 from src.models.enums import ExitReason
 
 
@@ -33,6 +33,9 @@ def check(
     q4_final_deficit: int = 10,
     q4_endgame_seconds: int = 60,
     q4_endgame_deficit: int = 6,
+    predictive_enabled: bool = True,
+    predictive_safety_margin: float = 0.03,
+    predictive_hold_threshold: float = 0.20,
 ) -> NbaCheckResult | None:
     """NBA score-based exit kararı.
 
@@ -79,7 +82,20 @@ def check(
                 detail=f"MATH_DEAD deficit={deficit} clock={clock}s",
             )
 
-        # 3. Empirical backup (14-yıl NBA verisi)
+        # 3. Predictive dead (EV bazlı — math_dead tetiklemediyse)
+        if predictive_enabled and predictive_exit_decision_ml(
+            deficit=deficit,
+            seconds=clock,
+            current_bid=bid_price,
+            safety_margin=predictive_safety_margin,
+            hold_threshold=predictive_hold_threshold,
+        ):
+            return NbaCheckResult(
+                reason=ExitReason.PREDICTIVE_DEAD,
+                detail=f"PREDICTIVE_DEAD deficit={deficit} clock={clock}s bid={bid_price:.3f}",
+            )
+
+        # 4. Empirical backup (14-yıl NBA verisi)
         if _empirical_dead(
             clock, deficit,
             q4_blowout_seconds, q4_blowout_deficit,

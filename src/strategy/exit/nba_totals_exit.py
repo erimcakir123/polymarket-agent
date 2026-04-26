@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain.math.safe_lead import is_total_dead
+from src.domain.math.safe_lead import is_total_dead, predictive_exit_decision_totals
 from src.models.enums import ExitReason
 
 
@@ -30,6 +30,9 @@ def check(
     q4_final_gap: int = 12,
     q4_endgame_seconds: int = 60,
     q4_endgame_gap: int = 6,
+    predictive_enabled: bool = True,
+    predictive_safety_margin: float = 0.03,
+    predictive_hold_threshold: float = 0.20,
 ) -> NbaTotalsCheckResult | None:
     """NBA totals exit kararı.
 
@@ -87,7 +90,22 @@ def check(
                 detail=f"TOTALS_MATH_DEAD current={current_total} target={target_total} clock={clock}s side={side}",
             )
 
-        # 3. Empirical backup
+        # 3. Predictive dead (EV bazlı — math_dead tetiklemediyse)
+        if predictive_enabled and predictive_exit_decision_totals(
+            target_total=target_total,
+            current_total=current_total,
+            seconds=clock,
+            side=side,
+            current_bid=bid_price,
+            safety_margin=predictive_safety_margin,
+            hold_threshold=predictive_hold_threshold,
+        ):
+            return NbaTotalsCheckResult(
+                reason=ExitReason.PREDICTIVE_DEAD,
+                detail=f"PREDICTIVE_DEAD current={current_total} target={target_total} clock={clock}s side={side} bid={bid_price:.3f}",
+            )
+
+        # 4. Empirical backup
         if _empirical_totals_dead(
             clock, current_total, target_total, side,
             q4_late_seconds, q4_late_gap,

@@ -42,6 +42,15 @@ class ExitProcessor:
             espn_start = score_info.get("espn_start", "")
             if espn_start and espn_start != pos.match_start_iso:
                 pos.match_start_iso = espn_start
+            # score_info'dan match_score/period fallback — enricher bu tick'te
+            # çalışmadıysa (rate-limit) archive kaydı boş kalmasın.
+            if score_info.get("available") and not pos.match_score:
+                our = score_info.get("our_score")
+                opp = score_info.get("opp_score")
+                if our is not None and opp is not None:
+                    pos.match_score = f"{our}-{opp}"
+            if score_info.get("available") and not pos.match_period:
+                pos.match_period = str(score_info.get("period", "") or "")
             result: MonitorResult = exit_monitor.evaluate(
                 pos, score_info=score_info, scale_out_tiers=scale_out_tiers,
                 sl_params=self._sl_params(),
@@ -144,6 +153,7 @@ class ExitProcessor:
 
         # Archive — SPEC-009 retrospektif analiz
         self._log_exit_to_archive(pos, signal, realized, exit_price, elapsed_pct)
+        self._start_counterfactual(pos, signal.reason.value, exit_price)
 
         # 2. In-memory — portfolio mutation SONRA
         self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
@@ -235,6 +245,20 @@ class ExitProcessor:
             elapsed_pct_at_exit=elapsed_pct,
         )
         archive_logger.log_exit(record)
+
+    def _start_counterfactual(self, pos: Position, exit_reason: str, exit_price: float) -> None:
+        """Exit sonrası counterfactual tracking başlat (Seçenek B: light cycle)."""
+        tracker = getattr(self.deps, "counterfactual_tracker", None)
+        if tracker is None:
+            return
+        trade_id = pos.condition_id
+        tracker.add(
+            trade_id=trade_id,
+            token_id=pos.token_id,
+            exit_timestamp=datetime.now(timezone.utc).isoformat(),
+            exit_price=exit_price,
+            exit_reason=exit_reason,
+        )
 
     def _write_fallback_entry(self, pos: Position, exit_data: dict) -> None:
         """Entry kaydı kayıpsa pozisyondan oluştur + varsa exit verisini ekle."""

@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -66,12 +65,12 @@ def _read_jsonl_tail(path: Path, n: int, bytes_per_line: int) -> list[dict[str, 
 
 def read_positions(logs_dir: Path) -> dict[str, Any]:
     """positions.json → {positions, realized_pnl, high_water_mark}."""
-    return _read_json(logs_dir / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
+    return _read_json(logs_dir.parent / "data" / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """trade_history.jsonl son N kayıt."""
-    return _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
+    return _read_jsonl_tail(logs_dir / "audit" / "trade_history.jsonl", n, _BYTES_TRADES)
 
 
 def read_trades_by_week(
@@ -95,7 +94,7 @@ def read_trades_by_week(
 
     buffer_weeks = week_offset + 2
     n = 150 * buffer_weeks
-    all_trades = _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
+    all_trades = _read_jsonl_tail(logs_dir / "audit" / "trade_history.jsonl", n, _BYTES_TRADES)
 
     week_trades: list[dict[str, Any]] = []
     has_older = False
@@ -138,12 +137,12 @@ def read_trades_by_week(
 
 def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """equity_history.jsonl son N snapshot."""
-    return _read_jsonl_tail(logs_dir / "equity_history.jsonl", n, _BYTES_EQUITY)
+    return _read_jsonl_tail(logs_dir / "audit" / "equity_history.jsonl", n, _BYTES_EQUITY)
 
 
 def read_skipped(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """skipped_trades.jsonl son N skip."""
-    return _read_jsonl_tail(logs_dir / "skipped_trades.jsonl", n, _BYTES_SKIPPED)
+    return _read_jsonl_tail(logs_dir / "runtime" / "skipped_trades.jsonl", n, _BYTES_SKIPPED)
 
 
 def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
@@ -154,7 +153,7 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
       {slug, sport_tag, question, yes_price, no_price, liquidity, volume_24h,
        match_start_iso, first_seen_iso, last_skip_reason}
     """
-    raw = _read_json(logs_dir / "stock_queue.json", [])
+    raw = _read_json(logs_dir.parent / "data" / "stock_queue.json", [])
     if not isinstance(raw, list):
         return []
     flat: list[dict[str, Any]] = []
@@ -186,18 +185,18 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
 
 def read_breaker(logs_dir: Path) -> dict[str, Any]:
     """circuit_breaker_state.json."""
-    return _read_json(logs_dir / "circuit_breaker_state.json", {})
+    return _read_json(logs_dir.parent / "data" / "circuit_breaker_state.json", {})
 
 
 def read_bot_status(logs_dir: Path) -> dict[str, Any]:
     """bot_status.json — {mode, last_cycle, last_cycle_at, reason}."""
-    return _read_json(logs_dir / "bot_status.json", {})
+    return _read_json(logs_dir.parent / "data" / "bot_status.json", {})
 
 
 def bot_is_alive(logs_dir: Path) -> bool:
     """agent.pid dosyasında bulunan PID hala çalışıyor mu?
 
-    Windows: os.kill(pid, 0) TerminateProcess ile aynı → tehlikeli. tasklist kullanılır.
+    Windows: ctypes.kernel32.OpenProcess ile subprocess açmadan kontrol eder.
     POSIX: os.kill(pid, 0) güvenli existence check.
     """
     pid_file = logs_dir / "agent.pid"
@@ -208,14 +207,15 @@ def bot_is_alive(logs_dir: Path) -> bool:
     except (OSError, ValueError):
         return False
     if sys.platform == "win32":
-        try:
-            result = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
-                capture_output=True, text=True, timeout=5,
-            )
-            return str(pid) in result.stdout
-        except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
             return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
     try:
         os.kill(pid, 0)
         return True

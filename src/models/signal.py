@@ -28,6 +28,7 @@ class Signal(BaseModel):
     spread_line: float | None = None
     total_line: float | None = None
     total_side: Literal["over", "under"] | None = None
+    home_away_side: Literal["home", "away"] | None = None
 
     @field_validator("anchor_probability")
     @classmethod

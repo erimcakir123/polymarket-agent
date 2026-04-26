@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from src.config.sport_rules import _normalize
-from src.domain.matching.market_line_parser import parse_spread_line, parse_total_line
+from src.domain.matching.market_line_parser import parse_home_away_side, parse_spread_line, parse_total_line
 from src.domain.matching.team_resolver import resolve_nba_espn_id
 from src.models.enums import Direction, EntryReason
 from src.models.signal import Signal
@@ -195,7 +195,7 @@ class EntryGate:
         results: list[GateResult] = []
         active = {_normalize(s) for s in self.config.active_sports}
         positions = self._portfolio.positions if self._portfolio else {}
-        bankroll = self._portfolio.bankroll() if self._portfolio else 0.0
+        bankroll = self._portfolio.bankroll if self._portfolio else 0.0
 
         for market in markets:
             cid = market.condition_id
@@ -211,7 +211,7 @@ class EntryGate:
 
             prob = enrich.probability
             polymarket_price = market.yes_price
-            gap = prob.prob - polymarket_price
+            gap = prob.probability - polymarket_price
             confidence = _classify_confidence(prob.has_sharp, prob.num_bookmakers)
 
             if confidence == "C":
@@ -267,7 +267,7 @@ class EntryGate:
                 total_side_val = yes_side
 
             skip = _passes_filters(
-                gap, polymarket_price, prob.prob, market.volume_24h, self.config,
+                gap, polymarket_price, prob.probability, market.volume_24h, self.config,
                 market_type=market_type,
                 spread_line=spread_line,
                 total_line=total_line,
@@ -283,7 +283,7 @@ class EntryGate:
                 results.append(GateResult(cid, skipped_reason=guard))
                 continue
 
-            win_prob = prob.prob if self.config.probability_weighted else 1.0
+            win_prob = prob.probability if self.config.probability_weighted else 1.0
             stake = _compute_stake(bankroll, confidence, gap, win_prob, self.config)
             stake = min(stake * size_multiplier_adj, self.config.max_single_bet_usdc)
 
@@ -299,12 +299,12 @@ class EntryGate:
             signal = Signal(
                 condition_id=cid,
                 direction=direction,
-                anchor_probability=prob.prob,
+                anchor_probability=prob.probability,
                 market_price=polymarket_price,
                 confidence=confidence,
                 size_usdc=stake,
                 entry_reason=EntryReason.NORMAL,
-                bookmaker_prob=prob.prob,
+                bookmaker_prob=prob.probability,
                 num_bookmakers=prob.num_bookmakers,
                 has_sharp=prob.has_sharp,
                 sport_tag=market.sport_tag,
@@ -313,6 +313,7 @@ class EntryGate:
                 spread_line=spread_line,
                 total_line=total_line,
                 total_side=actual_total_side,
+                home_away_side=parse_home_away_side(market.slug),
             )
             results.append(GateResult(cid, signal=signal))
 

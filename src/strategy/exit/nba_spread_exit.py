@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain.math.safe_lead import is_spread_dead
+from src.domain.math.safe_lead import is_spread_dead, predictive_exit_decision_spread
 from src.models.enums import ExitReason
 
 
@@ -31,6 +31,9 @@ def check(
     q4_final_margin: int = 4,
     q4_endgame_seconds: int = 60,
     q4_endgame_margin: int = 3,
+    predictive_enabled: bool = True,
+    predictive_safety_margin: float = 0.03,
+    predictive_hold_threshold: float = 0.20,
 ) -> NbaSpreadCheckResult | None:
     """NBA spread cover exit kararı.
 
@@ -88,7 +91,20 @@ def check(
                 detail=f"SPREAD_MATH_DEAD margin={margin_to_cover:.1f} clock={clock}s",
             )
 
-        # 3. Empirical key numbers (NBA spread: 3 ve 7 kritik)
+        # 3. Predictive dead (EV bazlı — spread_math_dead tetiklemediyse)
+        if predictive_enabled and predictive_exit_decision_spread(
+            margin_to_cover=margin_to_cover,
+            seconds=clock,
+            current_bid=bid_price,
+            safety_margin=predictive_safety_margin,
+            hold_threshold=predictive_hold_threshold,
+        ):
+            return NbaSpreadCheckResult(
+                reason=ExitReason.PREDICTIVE_DEAD,
+                detail=f"PREDICTIVE_DEAD margin={margin_to_cover:.1f} clock={clock}s bid={bid_price:.3f}",
+            )
+
+        # 4. Empirical key numbers (NBA spread: 3 ve 7 kritik)
         if _empirical_spread_dead(
             clock, margin_to_cover,
             q4_late_seconds, q4_late_margin,

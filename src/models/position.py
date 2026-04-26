@@ -101,6 +101,7 @@ class Position(BaseModel):
     spread_line: float | None = None
     total_line: float | None = None
     total_side: Literal["over", "under"] | None = None
+    home_away_side: Literal["home", "away"] | None = None
 
     def model_post_init(self, __context) -> None:
         if self.bid_price == 0.0 and self.current_price > 0.0:

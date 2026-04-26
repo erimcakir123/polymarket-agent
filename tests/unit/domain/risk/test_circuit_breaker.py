@@ -179,6 +179,31 @@ def test_partial_exits_count_toward_net() -> None:
     assert halt is False
 
 
+def test_is_active_true_when_cooldown_future() -> None:
+    now = datetime(2026, 4, 13, 12, 0, tzinfo=timezone.utc)
+    state = CircuitBreakerState(
+        last_daily_reset=now, last_hourly_reset=now,
+        breaker_active_until=now + timedelta(minutes=30),
+    )
+    cb = CircuitBreaker(state=state, now_fn=_fixed_now(now))
+    assert cb.is_active is True
+
+
+def test_is_active_false_when_cooldown_expired() -> None:
+    now = datetime(2026, 4, 13, 12, 0, tzinfo=timezone.utc)
+    state = CircuitBreakerState(
+        last_daily_reset=now, last_hourly_reset=now,
+        breaker_active_until=now - timedelta(minutes=1),  # geçmiş tarih
+    )
+    cb = CircuitBreaker(state=state, now_fn=_fixed_now(now))
+    assert cb.is_active is False
+
+
+def test_is_active_false_when_no_cooldown() -> None:
+    cb = _cb()
+    assert cb.is_active is False
+
+
 def test_backward_compat_from_dict_old_format() -> None:
     """Eski pct formatındaki state dosyası 0'dan başlamalı."""
     old_data = {

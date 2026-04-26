@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from src.config.sport_rules import _normalize
 from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.exposure import available_under_cap
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
@@ -64,7 +65,18 @@ class EntryProcessor:
             # Önceden scan-order kullanılıyordu: Gamma tennis event'leri önce çektiği
             # için fresh_batch'in ilk N'i tennis qualifier'larla dolup MLB/NHL kuyrukta
             # kalıyordu. Match_start sıralama en yakın maçlara öncelik verir.
-            fresh_only = [m for m in scan_fresh if not self.deps.stock.has(m.condition_id)]
+            #
+            # active_sports filtresi burada uygulanır: inactive sport'lar (soccer, tennis
+            # vb.) Avrupa saatiyle erken başladığı için match_start ASC sıralamasında
+            # üste çıkıp NBA/MLB gibi active sportları 150 sınırının dışına iter.
+            active_normalized = {
+                _normalize(s) for s in self.deps.gate.config.active_sports
+            }
+            fresh_only = [
+                m for m in scan_fresh
+                if not self.deps.stock.has(m.condition_id)
+                and _normalize(m.sport_tag) in active_normalized
+            ]
             fresh_only.sort(key=lambda m: m.match_start_iso or "9999-99-99")
             fresh_batch = fresh_only[: still_empty * jit_mult]
             if fresh_batch:
@@ -198,6 +210,7 @@ class EntryProcessor:
             spread_line=signal.spread_line,
             total_line=signal.total_line,
             total_side=signal.total_side,
+            home_away_side=signal.home_away_side,
         )
 
         if not self.deps.state.portfolio.add_position(pos):

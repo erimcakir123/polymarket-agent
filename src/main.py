@@ -16,9 +16,9 @@ from src.orchestration.startup import bootstrap
 
 
 def _setup_logging() -> None:
-    Path("logs").mkdir(exist_ok=True)
+    Path("logs/runtime").mkdir(parents=True, exist_ok=True)
     fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    file_h = RotatingFileHandler("logs/bot.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
+    file_h = RotatingFileHandler("logs/runtime/bot.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
     file_h.setFormatter(logging.Formatter(fmt))
     con_h = logging.StreamHandler()
     con_h.setFormatter(logging.Formatter(fmt))

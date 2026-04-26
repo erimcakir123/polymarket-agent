@@ -316,6 +316,11 @@ def _check_nba_exit(
     """NBA market-type dispatch: spreads → nba_spread_exit, totals → nba_totals_exit, else → nba_score_exit."""
     _bk = basketball_exit_cfg or BasketballExitConfig()
     mtype = pos.sports_market_type or "moneyline"
+    _predictive = dict(
+        predictive_enabled=_bk.predictive_exit.enabled,
+        predictive_safety_margin=_bk.predictive_exit.safety_margin,
+        predictive_hold_threshold=_bk.predictive_exit.hold_threshold,
+    )
 
     if mtype == "spreads" and pos.spread_line is not None:
         sp_result = nba_spread_exit.check(
@@ -334,6 +339,7 @@ def _check_nba_exit(
             q4_final_margin=_bk.spread_empirical.q4_final_margin,
             q4_endgame_seconds=_bk.spread_empirical.q4_endgame_seconds,
             q4_endgame_margin=_bk.spread_empirical.q4_endgame_margin,
+            **_predictive,
         )
         if sp_result is not None:
             return _nba_mr(sp_result, pos, elapsed_pct)
@@ -355,6 +361,7 @@ def _check_nba_exit(
             q4_final_gap=_bk.totals_empirical.q4_final_gap,
             q4_endgame_seconds=_bk.totals_empirical.q4_endgame_seconds,
             q4_endgame_gap=_bk.totals_empirical.q4_endgame_gap,
+            **_predictive,
         )
         if tot_result is not None:
             return _nba_mr(tot_result, pos, elapsed_pct)
@@ -378,6 +385,7 @@ def _check_nba_exit(
             q4_final_deficit=_bk.empirical.q4_final_deficit,
             q4_endgame_seconds=_bk.empirical.q4_endgame_seconds,
             q4_endgame_deficit=_bk.empirical.q4_endgame_deficit,
+            **_predictive,
         )
         if nba_result is not None:
             return _nba_mr(nba_result, pos, elapsed_pct)

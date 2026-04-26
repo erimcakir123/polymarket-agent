@@ -5,6 +5,58 @@
 
 ---
 
+## Reboot/Reload Tekillik Garantisi
+
+**Karar**: `scripts/reboot.py` — tek komut, hem reload hem reboot. `agent.pid` + `dashboard.pid` ile 1 bot + 1 dashboard garantisi.
+
+**Neden**: Önceden bot ve dashboard elle `kill <PID>` + `python -m src.main` ile yönetiliyordu.
+Tekillik yoktu — aynı anda 2 bot aynı cüzdana order gönderebilirdi. PID file kontrolü bu riski ortadan kaldırdı.
+`process_lock.py` (bot) zaten `agent.pid` yazıyordu; `dashboard.pid` `src/presentation/dashboard/app.py main()` içine eklendi.
+
+**Reload vs Reboot farkı**:
+- Reload: kill → start. State (positions, circuit_breaker) dokunulmaz.
+- Reboot: kill → arşivle → sil → start. `bot.log` ve `logs/archive/` asla silinmez (audit trail).
+
+**Graceful window**: `kill → 2s bekle → start`. Windows'ta `taskkill /f /pid`.
+
+---
+
+## Live Event Entry — Odds API Penceresi
+
+**Karar**: `commenceTimeFrom = now - 8h` (scanner'ın `_match_start_recent_or_future` 8h penceresiyle eşleşir).
+
+**Neden**: Odds API `/v4/sports/{sport}/odds` endpoint'i "upcoming AND live games" döndürür.
+`commenceTimeFrom=now` live eventleri dışarıda bırakır: `commence_time < now` → filter dışı → EVENT_NO_MATCH.
+Doğrulama (2026-04-26): MIN/DEN Q1'de (T+25 dk), 8 US bookmaker, `last_update` saniyeler önce — suspended değil.
+Gate filtreleri (max_entry_price=0.80, gap_threshold=0.08) Q4 near-resolve marketlerini zaten eler.
+
+**Kapsam**: Sadece pre-game değil, live Q1-Q2 döneminde de entry mümkün.
+Late-game (Q3+) → Polymarket fiyatı skoru yansıtır → GAP_TOO_LOW ile doğal elenir.
+
+---
+
+## NBA Spread Question Parsing
+
+**Karar**: `extract_teams("Spread: Knicks (-2.5)")` → `("Knicks", None)`.
+
+**Neden**: Polymarket spread formatı `"Spread: TeamName (line)"` — tek takım, ikincisi yok.
+`_PREFIXES`'e `"Spread:"` eklendi; yeni pattern 6 parantez öncesi metni yakaladı.
+Tek takım → `find_best_single_team_match()` kullanılır, karşı takım event'ten alınır.
+`parse_spread_line("Spread: Knicks (-2.5)")` zaten `2.5` döndürüyordu (`_SPREAD_RE` parantez içini yakalar).
+
+---
+
+## Circuit Breaker is_active Semantiği
+
+**Karar**: `CircuitBreaker.is_active` property → `now < breaker_active_until`.
+
+**Neden**: `startup.py` önceden `breaker.state.breaker_active_until is not None` kullanıyordu.
+Bu field'ın set edilip edilmediğini kontrol eder, expire edilip edilmediğini değil.
+`breaker_active_until=2026-04-22` (geçmiş) → non-None → `True` loglanıyordu.
+`is_active` property yan etki olmadan doğru boolean döndürür.
+
+---
+
 ## NBA Team ID Resolution
 
 **Yaklaşım**: `team_resolver.py` (Domain katmanı) içinde statik `_NBA_NAME_TO_ESPN_ID` dict.
@@ -206,6 +258,62 @@ Bill James önce kontrol edilir; pas geçerse empirical devreye girer.
 **Exit — Empirical:**
 - Over: 360s kala points_needed ≥ 20 / 180s kala ≥ 12 / 60s kala ≥ 6.
 - Under: 360s kala excess ≥ 20 / 60s kala excess ≥ 6.
+
+---
+
+## NBA Predictive Exit (EV Bazlı)
+
+### Matematik Temeli
+
+Kalan sürede **skor farkının** standart sapması σ/√s modeliyle tahmin edilir:
+
+| Market tipi | σ/√s sabiti | Kaynak |
+|---|---|---|
+| Moneyline / Spread | 0.3727 | Skor farkı volatilitesi, 14-yıl NBA |
+| Totals | 0.5270 | Toplam puan volatilitesi (= 0.3727 × √2) |
+
+Geri dönüş olasılığı (comeback rate): P = ½ × (1 − erf(z/√2)) şeklinde standart normal CDF kuyruğu. z = deficit / (σ × √seconds).
+
+### Karar Mantığı
+
+```
+comeback = estimate_comeback_rate_ml(deficit, seconds)
+
+if comeback >= 0.20:          → HOLD (istatistiksel olarak hâlâ geri dönülebilir)
+elif (bid + 0.03) > comeback: → EXIT (EV_sell > EV_hold + güvenlik payı)
+else:                         → HOLD
+```
+
+- **Hold threshold 0.20:** %20'nin üzerindeki comeback ihtimallerinde pozisyonu tutmak EV pozitif. Altında piyasa fiyatı + 0.03 güvenlik payı ile EV karşılaştırması yapılır.
+- **Safety margin 0.03:** Slippage + bid-ask spread toleransı. Çok küçük seçilirse sinyal gürültü içinde kaybolur; çok büyük seçilirse gerçek sinyaller engellenir.
+- **Config:** `exit_basketball.predictive_exit.{enabled, hold_threshold, safety_margin}`
+
+### Totals Under Semantiği
+
+`points_until_decision = target_total − current_total` (her zaman, under için de).
+
+| Durum | points_until_decision | comeback_under | Karar |
+|---|---|---|---|
+| current < target | > 0 | 0.5×(1+erf(z/√2)) → yüksek | HOLD (güvendeyiz) |
+| current = target | 0 | 0.0 | EXIT (herhangi bir puan kaybettirir) |
+| current > target | < 0 | 0.0 (özel durum) | EXIT (zaten kaybettik) |
+
+### Öncelik Sırası
+
+```
+1. Near-resolve (94¢)        — monitor.py priority 1
+2. Scale-out (85¢)           — monitor.py priority 2
+3. Structural damage         — price_ratio < 0.30 AND math_dead
+4. Bill James MATH_DEAD      — deficit ≥ 0.861 × √clock
+5. PREDICTIVE_DEAD           ← YENİ: EV bazlı, math_dead tetiklemediyse
+6. Empirical backup          — 14-yıl NBA verisi (hard thresholds)
+7. SL / price_cap            — monitor.py alt öncelik
+```
+
+### v2 Yol Haritası
+
+- ML modeli (XGBoost / logistic regression): Gerçek 14-yıl NBA pozisyon verisiyle eğitilmiş, deficite ek olarak possession count, foul trouble, momentum sinyalleri eklenebilir.
+- Şimdiki normal dağılım modeli: Kaba ama tutarlı. Gerçek NBA comeback dağılımı sağa çarpık (blowout'lar asimetriktir) — bias v2'de düzeltilecek.
 
 ---
 

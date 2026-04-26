@@ -104,6 +104,13 @@ class CircuitBreaker:
             self.state.hourly_realized_pnl_usd = 0.0
             self.state.last_hourly_reset = now
 
+    @property
+    def is_active(self) -> bool:
+        """Cooldown'un hâlâ aktif olup olmadığı — yan etki yok."""
+        if not self.state.breaker_active_until:
+            return False
+        return self._now() < self.state.breaker_active_until
+
     def should_halt_entries(self, portfolio_value: float) -> tuple[bool, str]:
         """Sadece entry halt — exit'leri ASLA durdurmaz.
 

@@ -28,6 +28,7 @@ from src.infrastructure.apis.espn_leagues_client import fetch_soccer_leagues  # 
 from src.infrastructure.apis.espn_schedule_client import EspnScheduleClient
 from src.infrastructure.persistence.soccer_league_cache import SoccerLeagueCache  # PLAN-012
 from src.orchestration.agent import Agent, AgentDeps
+from src.orchestration.counterfactual_tracker import CounterfactualTracker
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.edge_enricher import EdgeEnricher
 from src.orchestration.score_enricher import ScoreEnricher
@@ -62,11 +63,12 @@ def build_agent(state: RuntimeState) -> Agent:
     # Executor: LIVE ise CLOB client gerekli — main.py LIVE confirm'dan sonra wire'lar
     executor = _build_executor(cfg)
 
-    trade_logger = TradeHistoryLogger("logs/trade_history.jsonl")
-    equity_logger = EquityHistoryLogger("logs/equity_history.jsonl")
-    skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
-    archive_logger = ArchiveLogger("logs/archive")  # SPEC-009
-    stock_snapshot = StockSnapshot("logs/stock_queue.json")
+    trade_logger = TradeHistoryLogger("logs/audit/trade_history.jsonl")
+    equity_logger = EquityHistoryLogger("logs/audit/equity_history.jsonl")
+    skipped_logger = SkippedTradeLogger("logs/runtime/skipped_trades.jsonl")
+    archive_logger = ArchiveLogger("logs/audit")
+    counterfactual_tracker = CounterfactualTracker("logs/audit")
+    stock_snapshot = StockSnapshot("data/stock_queue.json")
     stock = StockQueue(
         config=StockConfig(
             enabled=cfg.stock.enabled,
@@ -78,7 +80,7 @@ def build_agent(state: RuntimeState) -> Agent:
         snapshot=stock_snapshot,
     )
     stock.load()  # restart sonrası restore
-    bot_status_store = JsonStore("logs/bot_status.json")
+    bot_status_store = JsonStore("data/bot_status.json")
     bot_status_writer = BotStatusWriter(bot_status_store, cycle_manager)
 
     # Gate: enricher + manipulation_check closure'ları
@@ -185,7 +187,7 @@ def build_agent(state: RuntimeState) -> Agent:
 
         # PLAN-012: soccer runtime league discovery
         soccer_cache = SoccerLeagueCache(
-            cache_path="logs/soccer_league_cache.json",
+            cache_path="data/soccer_league_cache.json",
             ttl_hours=cfg.score.espn_leagues_cache_ttl_hours,
         )
         soccer_discovery = SoccerLeagueDiscovery(
@@ -218,6 +220,8 @@ def build_agent(state: RuntimeState) -> Agent:
         score_enricher=score_enricher,
         command_poller=command_poller,
         cricket_client=cricket_client,  # SPEC-011
+        counterfactual_tracker=counterfactual_tracker,
+        gamma_client=gamma,
     )
     agent = Agent(deps)
 

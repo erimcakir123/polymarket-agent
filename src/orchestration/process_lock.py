@@ -60,6 +60,7 @@ def _is_agent_alive(pid: int) -> bool:
             result = subprocess.run(
                 ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine"],
                 capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return "src.main" in result.stdout
         except (subprocess.TimeoutExpired, OSError, FileNotFoundError):

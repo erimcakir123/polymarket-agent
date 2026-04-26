@@ -4,9 +4,9 @@ Akış:
   1. Process lock al
   2. Config yükle
   3. Persistence layer hazırla (JsonStore)
-  4. Portfolio restore (logs/positions.json)
-  5. Circuit breaker restore (logs/circuit_breaker_state.json)
-  6. Blacklist restore (logs/blacklist.json)
+  4. Portfolio restore (data/positions.json)
+  5. Circuit breaker restore (data/circuit_breaker_state.json)
+  6. Blacklist restore (data/blacklist.json)
   7. (Opsiyonel) Wallet bağla — LIVE/PAPER mode
 
 Bu modül state'i kurup döner; ana döngü agent.py'de.
@@ -27,10 +27,10 @@ from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 
 logger = logging.getLogger(__name__)
 
-_POSITIONS_FILE = "logs/positions.json"
-_BREAKER_FILE = "logs/circuit_breaker_state.json"
-_BLACKLIST_FILE = "logs/blacklist.json"
-_TRADE_HISTORY_FILE = "logs/trade_history.jsonl"
+_POSITIONS_FILE = "data/positions.json"
+_BREAKER_FILE = "data/circuit_breaker_state.json"
+_BLACKLIST_FILE = "data/blacklist.json"
+_TRADE_HISTORY_FILE = "logs/audit/trade_history.jsonl"
 
 
 @dataclass
@@ -52,11 +52,14 @@ def bootstrap(config: AppConfig, logs_dir: Path | str = "logs") -> RuntimeState:
     yapılır; startup sadece domain + persistence durumunu kurar.
     """
     logs = Path(logs_dir)
-    logs.mkdir(parents=True, exist_ok=True)
+    (logs / "runtime").mkdir(parents=True, exist_ok=True)
+    (logs / "audit").mkdir(parents=True, exist_ok=True)
+    data = logs.parent / "data"
+    data.mkdir(parents=True, exist_ok=True)
 
-    positions_store = JsonStore(logs / "positions.json")
-    breaker_store = JsonStore(logs / "circuit_breaker_state.json")
-    blacklist_store = JsonStore(logs / "blacklist.json")
+    positions_store = JsonStore(data / "positions.json")
+    breaker_store = JsonStore(data / "circuit_breaker_state.json")
+    blacklist_store = JsonStore(data / "blacklist.json")
 
     # Portfolio restore
     portfolio = _restore_portfolio(positions_store, config.initial_bankroll)
@@ -68,7 +71,7 @@ def bootstrap(config: AppConfig, logs_dir: Path | str = "logs") -> RuntimeState:
     blacklist = _restore_blacklist(blacklist_store)
 
     # Reconcile realized PnL — trade_history.jsonl ground truth (crash recovery)
-    trade_logger = TradeHistoryLogger(str(logs / "trade_history.jsonl"))
+    trade_logger = TradeHistoryLogger(str(logs / "audit" / "trade_history.jsonl"))
     _reconcile_realized_pnl(portfolio, trade_logger, config.initial_bankroll)
     # Reconciliation sonrası hemen persist — düzeltilmiş değer diske yazılsın
     positions_store.save(portfolio_snapshot.to_dict(portfolio))
@@ -77,7 +80,7 @@ def bootstrap(config: AppConfig, logs_dir: Path | str = "logs") -> RuntimeState:
         "Bootstrap complete: mode=%s bankroll=$%.2f positions=%d realized=$%.2f "
         "breaker_active=%s blacklist_conditions=%d",
         config.mode.value, portfolio.bankroll, portfolio.count(), portfolio.realized_pnl,
-        breaker.state.breaker_active_until is not None,
+        breaker.is_active,
         len(blacklist.condition_ids),
     )
 

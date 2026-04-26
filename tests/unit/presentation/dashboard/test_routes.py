@@ -27,16 +27,23 @@ def test_routes_module_has_no_infra_imports() -> None:
         assert forbidden not in source, f"Layer violation: {forbidden}"
 
 
-# ── Helper ──
+# ── Helpers ──
+
+def _logs(tmp_path: Path) -> Path:
+    """Standart logs_dir; data/ → tmp_path/data/, audit/ → logs/audit/."""
+    return tmp_path / "logs"
+
 
 def _client(tmp_path: Path):
-    app = create_app(config=AppConfig(), logs_dir=tmp_path)
+    app = create_app(config=AppConfig(), logs_dir=_logs(tmp_path))
     app.config["TESTING"] = True
     return app.test_client()
 
 
 def _write_positions(tmp_path: Path, positions: dict, realized: float = 0.0, hwm: float = 1000.0) -> None:
-    (tmp_path / "positions.json").write_text(json.dumps({
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "positions.json").write_text(json.dumps({
         "positions": positions, "realized_pnl": realized, "high_water_mark": hwm,
     }), encoding="utf-8")
 
@@ -106,11 +113,13 @@ def test_trades_empty(tmp_path: Path) -> None:
 
 
 def test_trades_returns_only_closed(tmp_path: Path) -> None:
+    audit_dir = _logs(tmp_path) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
     closed = json.dumps({"slug": "c-closed", "exit_price": 0.55,
                          "exit_timestamp": "2026-04-14T12:00:00Z"})
     open_trade = json.dumps({"slug": "c-open", "exit_price": None,
                              "exit_timestamp": ""})
-    (tmp_path / "trade_history.jsonl").write_text(
+    (audit_dir / "trade_history.jsonl").write_text(
         closed + "\n" + open_trade + "\n", encoding="utf-8",
     )
     data = _client(tmp_path).get("/api/trades").get_json()
@@ -125,9 +134,11 @@ def test_equity_history_empty(tmp_path: Path) -> None:
 
 
 def test_equity_history_returns_snapshots(tmp_path: Path) -> None:
+    audit_dir = _logs(tmp_path) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
     line = json.dumps({"timestamp": "t", "bankroll": 1000.0, "realized_pnl": 0.0,
                        "unrealized_pnl": 0.0, "invested": 0.0, "open_positions": 0})
-    (tmp_path / "equity_history.jsonl").write_text(line + "\n", encoding="utf-8")
+    (audit_dir / "equity_history.jsonl").write_text(line + "\n", encoding="utf-8")
     data = _client(tmp_path).get("/api/equity_history").get_json()
     assert len(data) == 1
     assert data[0]["bankroll"] == 1000.0
@@ -140,9 +151,11 @@ def test_skipped_empty(tmp_path: Path) -> None:
 
 
 def test_skipped_returns_records(tmp_path: Path) -> None:
+    runtime_dir = _logs(tmp_path) / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
     line = json.dumps({"slug": "s1", "skip_reason": "no_edge",
                        "timestamp": "t", "sport_tag": "tennis_atp"})
-    (tmp_path / "skipped_trades.jsonl").write_text(line + "\n", encoding="utf-8")
+    (runtime_dir / "skipped_trades.jsonl").write_text(line + "\n", encoding="utf-8")
     data = _client(tmp_path).get("/api/skipped").get_json()
     assert len(data) == 1
     assert data[0]["skip_reason"] == "no_edge"
@@ -155,7 +168,9 @@ def test_stock_empty(tmp_path: Path) -> None:
 
 
 def test_stock_returns_entries(tmp_path: Path) -> None:
-    (tmp_path / "stock_queue.json").write_text(
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "stock_queue.json").write_text(
         json.dumps([{"slug": "q1", "sport_tag": "basketball_nba"}]), encoding="utf-8",
     )
     data = _client(tmp_path).get("/api/stock").get_json()
