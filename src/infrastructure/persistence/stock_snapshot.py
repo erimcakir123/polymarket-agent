@@ -7,13 +7,11 @@ Dashboard da Stock sekmesini bu dosyadan besleyebilir.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from src.infrastructure.persistence.json_store import JsonStore
 from src.models.market import MarketData
-
-if TYPE_CHECKING:
-    from src.orchestration.stock_queue import StockEntry
+from src.models.stock import StockEntry
 
 
 class StockSnapshot:
@@ -37,8 +35,6 @@ class StockSnapshot:
         self._store.save(payload)
 
     def load(self) -> list[StockEntry]:
-        from src.orchestration.stock_queue import StockEntry  # avoid cycle
-
         raw = self._store.load([])
         if not isinstance(raw, list):
             return []
