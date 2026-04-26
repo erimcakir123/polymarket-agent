@@ -123,3 +123,37 @@ def test_spread_prefix_only_no_parenthetical() -> None:
     # Spread: soyulur → "Lakers" kalır; hiçbir 2-team pattern yok, (  yok → None
     assert a is None
     assert b is None
+
+
+# ── Totals question format ─────────────────────────────────────────────────────
+
+def test_totals_ou_suffix_stripped_vs_dot() -> None:
+    """'Team A vs. Team B: O/U XXX.X' → suffix temizlenmeli."""
+    a, b = extract_teams("Knicks vs. Hawks: O/U 215.5")
+    assert a == "Knicks"
+    assert b == "Hawks"
+
+
+def test_totals_ou_suffix_stripped_vs_no_dot() -> None:
+    a, b = extract_teams("Cavaliers vs Raptors: O/U 220.5")
+    assert a == "Cavaliers"
+    assert b == "Raptors"
+
+
+def test_totals_multiword_team() -> None:
+    a, b = extract_teams("Spurs vs Trail Blazers: O/U 219.5")
+    assert a == "Spurs"
+    assert b == "Trail Blazers"
+
+
+def test_totals_half_line() -> None:
+    a, b = extract_teams("Lakers vs Celtics: O/U 224.5")
+    assert a == "Lakers"
+    assert b == "Celtics"
+
+
+def test_totals_with_sport_prefix() -> None:
+    """NBA: prefix + totals suffix — her iki colon da temizlenmeli."""
+    a, b = extract_teams("NBA: Lakers vs Celtics: O/U 220.5")
+    assert a == "Lakers"
+    assert b == "Celtics"

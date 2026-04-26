@@ -49,6 +49,10 @@ def extract_teams(question: str) -> tuple[str | None, str | None]:
             # team_a'da ":" varsa son ":"'den sonrasını al.
             if ":" in a:
                 a = a.rsplit(":", 1)[-1].strip()
+            # Totals suffix (ör. "Raptors: O/U 220.5") —
+            # team_b'de ":" varsa ilk ":"'den öncesini al.
+            if ":" in b:
+                b = b.split(":", 1)[0].strip()
             # Parantez / dash ile biten kısımları temizle
             for ch in ("(", " -"):
                 if ch in a:

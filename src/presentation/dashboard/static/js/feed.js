@@ -145,7 +145,7 @@
             ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
           <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
         </div>
-        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.entry_reason || "normal")}</div>
+        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.question || p.entry_reason || "normal")}</div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(p.entry_price)}</span>
           <span>Now ${FMT.cents(p.current_price)}</span>
@@ -210,7 +210,7 @@
       //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
       const subRowText = isPartial
         ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-        : FMT.escapeHtml(t.entry_reason || "normal");
+        : FMT.escapeHtml(t.question || t.entry_reason || "normal");
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">

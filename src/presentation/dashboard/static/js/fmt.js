@@ -25,6 +25,13 @@
     nsh: "Nashville", nj: "NJ Devils", njd: "NJ Devils", nyi: "NY Islanders",
     nyr: "NY Rangers", ott: "Ottawa", sj: "San Jose", sjs: "San Jose",
     tbl: "Tampa Bay", van: "Vancouver", vgk: "Vegas", wpg: "Winnipeg",
+    // NBA (MLB/NHL ile çakışmayanlar — bos/hou/det/mil/min/phi/was/tor/cle/atl
+    // mevcut MLB/NHL kayıtlarından şehir adını alır)
+    bkn: "Brooklyn", cha: "Charlotte", den: "Denver", gsw: "Golden State",
+    ind: "Indiana", lac: "LA Clippers", lal: "LA Lakers", mem: "Memphis",
+    nop: "New Orleans", nyk: "NY Knicks", okc: "Oklahoma City", orl: "Orlando",
+    phx: "Phoenix", por: "Portland", sac: "Sacramento", sas: "San Antonio",
+    uta: "Utah",
     // Soccer team codes (SPEC-015 3-way). Slug'dan isim üretimi; draw+home+away
     // sub-market'lerin ortak event başlığı için.
     // Argentina (Primera)
@@ -136,12 +143,13 @@
     },
     polyUrl(slug) {
       if (!slug) return "#";
-      // 3-way market slug (<league>-<home>-<away>-<date>-<outcome>) → parent
-      // event slug = outcome suffix'i at. Aksi halde 2-way slug aynen geçer.
-      const threeWay = String(slug).match(
-        /^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})-[a-z0-9]+$/i
+      // Market slug → parent event slug. Tarih (YYYY-MM-DD) sonrasındaki tüm
+      // market suffix'i (3-way outcome, NBA/NFL spread, MLB total, vb.) atılır.
+      // Polymarket'te bet sayfası event seviyesinde açılır.
+      const m = String(slug).match(
+        /^([a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2})(?:-.+)?$/i
       );
-      const base = threeWay ? threeWay[1] : slug;
+      const base = m ? m[1] : slug;
       return "https://polymarket.com/event/" + encodeURIComponent(base);
     },
     cents(price) { return Math.round(price * 100) + "¢"; },
@@ -184,11 +192,12 @@
     _fromSlug(slug) {
       if (!slug) return null;
       const s = String(slug);
-      const team = s.match(/^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}$/i);
+      // Unified pattern: <league>-<t1>-<t2>-YYYY-MM-DD ile başlar, tarih sonrası
+      // suffix opsiyonel — hem 2-way moneyline (suffix yok), hem soccer 3-way
+      // outcome (`-arsenal`/`-draw`), hem NBA spread (`-spread-away-4pt5`),
+      // hem MLB total (`-total-over-8pt5`) tek regex ile yakalanır.
+      const team = s.match(/^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}(?:-.+)?$/i);
       if (team) return `${this._expandCode(team[1])} vs ${this._expandCode(team[2])}`;
-      // Soccer 3-way: <league>-<home>-<away>-<date>-<outcome> (outcome = home/away code or "draw")
-      const threeWay = s.match(/^[a-z0-9]+-([a-z0-9]{2,15})-([a-z0-9]{2,15})-\d{4}-\d{2}-\d{2}-[a-z0-9]+$/i);
-      if (threeWay) return `${this._expandCode(threeWay[1])} vs ${this._expandCode(threeWay[2])}`;
       const winner = s.match(/winner-([a-z-]+)$/i);
       if (winner) {
         return winner[1].split("-").map(
