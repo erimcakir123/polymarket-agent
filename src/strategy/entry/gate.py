@@ -186,7 +186,11 @@ class EntryGate:
     ) -> None:
         self.config = config
         self._portfolio = portfolio
+        self._circuit_breaker = circuit_breaker
+        self._cooldown = cooldown
+        self._blacklist = blacklist
         self._enricher = odds_enricher
+        self._manipulation_checker = manipulation_checker
         self._edge_enricher = edge_enricher
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:

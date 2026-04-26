@@ -589,3 +589,21 @@ def test_gate_run_graceful_fallback_on_unparseable_question() -> None:
     call_kwargs = mock_edge.enrich.call_args
     assert call_kwargs.kwargs.get("our_team_id") == ""
     assert call_kwargs.kwargs.get("opp_team_id") == ""
+
+
+def test_entry_gate_stores_safety_dependencies():
+    """EntryGate __init__ — circuit_breaker/cooldown/blacklist/manipulation_checker self.'ye atanmalı."""
+    cfg = _make_cfg()
+    cb = MagicMock(name="circuit_breaker")
+    cd = MagicMock(name="cooldown")
+    bl = MagicMock(name="blacklist")
+    mc = MagicMock(name="manipulation_checker")
+    gate = EntryGate(
+        config=cfg, portfolio=None,
+        circuit_breaker=cb, cooldown=cd, blacklist=bl,
+        odds_enricher=None, manipulation_checker=mc,
+    )
+    assert gate._circuit_breaker is cb
+    assert gate._cooldown is cd
+    assert gate._blacklist is bl
+    assert gate._manipulation_checker is mc
