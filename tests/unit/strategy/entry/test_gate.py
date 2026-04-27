@@ -858,3 +858,78 @@ def test_gate_reduces_stake_on_manipulation_medium():
 
     assert abs(medium_stake - low_stake * 0.5) < 0.01, \
         f"Medium stake ({medium_stake}) should be half of low stake ({low_stake})"
+
+
+# ── NHL sport dispatch smoke tests ───────────────────────────────
+
+def _make_dispatch_gate(nba_enricher=None, nhl_enricher=None):
+    """EntryGate with both enrichers — for sport dispatch smoke tests."""
+    cfg = _make_cfg(active_sports=["nhl", "basketball_nba"])
+    portfolio = MagicMock()
+    portfolio.bankroll = 1000.0
+    portfolio.total_invested.return_value = 0.0
+    portfolio.positions = {}
+
+    mock_prob = MagicMock()
+    mock_prob.probability = 0.70
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+    mock_enrich = MagicMock(probability=mock_prob, fail_reason=None)
+
+    return EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich,
+        manipulation_checker=MagicMock(return_value=MagicMock(risk_level="low")),
+        edge_enricher=nba_enricher,
+        nhl_edge_enricher=nhl_enricher,
+    )
+
+
+def _make_dispatch_market(sport_tag: str, question: str, slug: str = "t1-t2"):
+    """Minimal market mock for sport dispatch tests."""
+    m = MagicMock()
+    m.condition_id = "cid_dispatch"
+    m.event_id = "evt_dispatch"
+    m.sport_tag = sport_tag
+    m.question = question
+    m.yes_price = 0.45
+    m.volume_24h = 10_000.0
+    m.liquidity = 8_000.0
+    m.sports_market_type = "moneyline"
+    m.slug = slug
+    return m
+
+
+def test_gate_routes_nhl_market_to_nhl_enricher():
+    """sport_tag='nhl' → nhl_edge_enricher.enrich called; nba_enricher.enrich not called."""
+    from types import SimpleNamespace
+    nhl_mock = MagicMock()
+    nhl_mock.enrich.return_value = SimpleNamespace(
+        is_opponent_back_to_back=False,
+        is_our_back_to_back=False,
+    )
+    nba_mock = MagicMock()
+
+    gate = _make_dispatch_gate(nba_enricher=nba_mock, nhl_enricher=nhl_mock)
+    market = _make_dispatch_market(sport_tag="nhl", question="Bruins vs. Sabres")
+    gate.run([market])
+
+    nhl_mock.enrich.assert_called_once()
+    nba_mock.enrich.assert_not_called()
+
+
+def test_gate_routes_nba_market_to_nba_enricher():
+    """sport_tag='basketball_nba' → nba enricher called; nhl_enricher.enrich not called."""
+    from src.orchestration.edge_enricher import EdgeContext
+    nba_mock = MagicMock()
+    nba_mock.enrich.return_value = EdgeContext()
+    nhl_mock = MagicMock()
+
+    gate = _make_dispatch_gate(nba_enricher=nba_mock, nhl_enricher=nhl_mock)
+    market = _make_dispatch_market(
+        sport_tag="basketball_nba", question="Lakers vs. Warriors"
+    )
+    gate.run([market])
+
+    nhl_mock.enrich.assert_not_called()

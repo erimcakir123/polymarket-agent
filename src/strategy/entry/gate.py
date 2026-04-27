@@ -12,6 +12,7 @@ from src.domain.matching.team_resolver import resolve_nba_espn_id
 from src.models.enums import Direction, EntryReason
 from src.models.signal import Signal
 from src.strategy.enrichment.question_parser import extract_teams
+from src.strategy.entry._nhl_edge import apply_nhl_edge_modifiers
 
 if TYPE_CHECKING:
     from src.models.market import MarketData
@@ -60,6 +61,11 @@ class GateConfig:
     b2b_opponent_gap_bonus: float = field(default=0.03)
     b2b_self_gap_bonus: float = field(default=0.05)
     star_out_self_gap_bonus: float = field(default=0.05)
+    # NHL-specific edge modifiers
+    nhl_b2b_opponent_gap_bonus: float = field(default=0.02)
+    nhl_b2b_opponent_size_mult: float = field(default=1.10)
+    nhl_b2b_self_gap_bonus: float = field(default=0.02)
+    nhl_require_goalie_confirmation: bool = field(default=True)
 
 
 @dataclass
@@ -185,6 +191,7 @@ class EntryGate:
         odds_enricher: Any,
         manipulation_checker: Any,
         edge_enricher: Any = None,
+        nhl_edge_enricher: Any = None,
     ) -> None:
         self.config = config
         self._portfolio = portfolio
@@ -194,6 +201,7 @@ class EntryGate:
         self._enricher = odds_enricher
         self._manipulation_checker = manipulation_checker
         self._edge_enricher = edge_enricher
+        self._nhl_edge_enricher = nhl_edge_enricher
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         if not markets:
@@ -350,13 +358,15 @@ class EntryGate:
         market: Any,
         cid: str,
     ) -> tuple[float, float]:
-        """
-        Apply sport-specific edge modifiers to gap threshold and sizing multiplier.
+        """Apply sport-specific edge modifiers to gap threshold and sizing multiplier.
 
         Returns (gap_threshold_adj, size_multiplier_adj).
-
-        Currently NBA-only (injury + B2B). Sport dispatch will be added in Task 2C.
         """
+        sport_tag = (getattr(market, "sport_tag", "") or "").lower()
+        if sport_tag == "nhl":
+            return apply_nhl_edge_modifiers(market, self._nhl_edge_enricher, self.config)
+
+        # NBA / default path — behaviour unchanged
         gap_threshold_adj: float = 0.0
         size_multiplier_adj: float = 1.0
 

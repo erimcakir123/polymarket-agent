@@ -128,6 +128,11 @@ def build_agent(state: RuntimeState) -> Agent:
         totals_min_price=cfg.entry.totals_min_price,
         totals_max_price=cfg.entry.totals_max_price,
         totals_min_target_total=cfg.entry.totals_min_target_total,
+        # NHL edge modifiers
+        nhl_b2b_opponent_gap_bonus=cfg.entry.nhl_b2b_opponent_gap_bonus,
+        nhl_b2b_opponent_size_mult=cfg.entry.nhl_b2b_opponent_size_mult,
+        nhl_b2b_self_gap_bonus=cfg.entry.nhl_b2b_self_gap_bonus,
+        nhl_require_goalie_confirmation=cfg.entry.nhl_require_goalie_confirmation,
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma
@@ -163,9 +168,9 @@ def build_agent(state: RuntimeState) -> Agent:
         injury_window_hours=cfg.entry.injury_window_hours,
     )
 
-    # NHL edge enricher: B2B detection (Task 2C-1 — not yet injected into gate)
+    # NHL edge enricher: B2B detection
     _nhl_schedule_client = EspnHockeyScheduleClient()
-    _nhl_edge_enricher = NHLEdgeEnricher(schedule_client=_nhl_schedule_client)  # noqa: F841
+    _nhl_edge_enricher = NHLEdgeEnricher(schedule_client=_nhl_schedule_client)
 
     # Gate: cricket_client + edge_enricher hazır olduktan sonra inşa edilir (SPEC-011)
     gate = EntryGate(
@@ -177,6 +182,7 @@ def build_agent(state: RuntimeState) -> Agent:
         odds_enricher=_enricher,
         manipulation_checker=_manip,
         edge_enricher=_edge_enricher,
+        nhl_edge_enricher=_nhl_edge_enricher,
     )
 
     # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
