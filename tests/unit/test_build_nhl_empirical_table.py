@@ -33,11 +33,12 @@ def _make_shots(rows: list[dict]) -> pd.DataFrame:
 def test_reconstruct_tied_state_leading_team_won_none():
     """Berabere tick'lerde leading_team_won NaN olmalı."""
     df = _make_shots([
-        {"game_id": "g1", "period": 1, "time": 0.0,
+        # P1, game_seconds=10 (MoneyPuck kumulatif: P1 araligi 2-1200)
+        {"game_id": "g1", "period": 1, "time": 10.0,
          "homeTeamGoals": 0, "awayTeamGoals": 0, "homeTeamWon": 1, "goal": 0},
     ])
     states = reconstruct_game_states(df)
-    # İlk tick (seconds_remaining=3600) skor 0-0 → tied
+    # tick_time=0 → shot at 10s henuz gelmedi → skor 0-0 → tied → NaN
     first = states[states["seconds_remaining"] == 3600].iloc[0]
     assert pd.isna(first["leading_team_won"])
 
@@ -45,11 +46,12 @@ def test_reconstruct_tied_state_leading_team_won_none():
 def test_reconstruct_home_leading_home_wins():
     """Ev sahibi önde → leading_team_won = homeTeamWon = 1."""
     df = _make_shots([
-        {"game_id": "g1", "period": 2, "time": 600.0,
+        # P2 mid, game_seconds=1800 (MoneyPuck kumulatif: P2 araligi 1202-2400)
+        {"game_id": "g1", "period": 2, "time": 1800.0,
          "homeTeamGoals": 1, "awayTeamGoals": 0, "homeTeamWon": 1, "goal": 1},
     ])
     states = reconstruct_game_states(df)
-    # P2, 10 dk sonra (game_seconds=1800) → sonraki tick'ler home=1, away=0
+    # tick_time >= 1800 → home=1, away=0 → abs_diff=1, ltw=home_won=1.0
     leading_ticks = states[states["abs_score_diff"] == 1].dropna(subset=["leading_team_won"])
     assert len(leading_ticks) > 0
     assert (leading_ticks["leading_team_won"] == 1.0).all()
@@ -58,10 +60,12 @@ def test_reconstruct_home_leading_home_wins():
 def test_reconstruct_away_leading_home_loses():
     """Deplasman önde → leading_team_won = 1 - homeTeamWon = 1."""
     df = _make_shots([
-        {"game_id": "g1", "period": 3, "time": 0.0,
+        # P3 mid, game_seconds=2700 (MoneyPuck kumulatif: P3 araligi 2402-3600)
+        {"game_id": "g1", "period": 3, "time": 2700.0,
          "homeTeamGoals": 0, "awayTeamGoals": 2, "homeTeamWon": 0, "goal": 0},
     ])
     states = reconstruct_game_states(df)
+    # tick_time >= 2700 → away=2 → abs_diff=2, ltw=1-home_won=1-0=1.0
     leading_ticks = states[states["abs_score_diff"] == 2].dropna(subset=["leading_team_won"])
     assert len(leading_ticks) > 0
     assert (leading_ticks["leading_team_won"] == 1.0).all()
@@ -70,20 +74,22 @@ def test_reconstruct_away_leading_home_loses():
 def test_reconstruct_ot_periods_excluded():
     """Period 4 (OT) satırları output'a dahil edilmemeli."""
     df = _make_shots([
-        {"game_id": "g1", "period": 1, "time": 0.0,
+        # P1 shot (regulation)
+        {"game_id": "g1", "period": 1, "time": 10.0,
          "homeTeamGoals": 0, "awayTeamGoals": 0, "homeTeamWon": 1, "goal": 0},
-        {"game_id": "g1", "period": 4, "time": 100.0,
+        # P4 OT shot — MoneyPuck kumulatif OT araligi 3604-4798
+        {"game_id": "g1", "period": 4, "time": 3700.0,
          "homeTeamGoals": 1, "awayTeamGoals": 0, "homeTeamWon": 1, "goal": 1},
     ])
     states = reconstruct_game_states(df)
-    # Period 4 tick'i output'ta olmamalı (sadece 1-2-3)
+    # Period 4 period filtresi tarafindan elenmi┼č olmali
     assert (states["period"].isin([1, 2, 3])).all()
 
 
 def test_reconstruct_seconds_remaining_range():
     """seconds_remaining 0-3600 aralığında olmalı."""
     df = _make_shots([
-        {"game_id": "g1", "period": 1, "time": 0.0,
+        {"game_id": "g1", "period": 1, "time": 10.0,
          "homeTeamGoals": 0, "awayTeamGoals": 0, "homeTeamWon": 1, "goal": 0},
     ])
     states = reconstruct_game_states(df)
@@ -113,8 +119,8 @@ def test_aggregate_win_freq_high_sample_returns_entry():
     key = "3_1_60"
     assert key in table
     assert table[key] is not None
-    assert 0.0 < table[key]["win_prob"] < 1.0
-    assert table[key]["n"] == 50
+    assert 0.0 < table[key]["p_win"] < 1.0
+    assert table[key]["n_games"] == 50
 
 
 def test_aggregate_win_freq_low_sample_returns_none():
@@ -162,17 +168,18 @@ def test_aggregate_time_bucket_snaps_down():
 def test_avg_goals_simple():
     """2 maç, 6 gol → 3.0 gol/maç."""
     df = _make_shots([
+        # MoneyPuck kumulatif time: P1 0-1200, P2 1200-2400, P3 2400-3600
         {"game_id": "g1", "period": 1, "time": 300.0, "goal": 1,
          "homeTeamGoals": 1, "awayTeamGoals": 0, "homeTeamWon": 1},
-        {"game_id": "g1", "period": 2, "time": 600.0, "goal": 1,
+        {"game_id": "g1", "period": 2, "time": 1800.0, "goal": 1,
          "homeTeamGoals": 2, "awayTeamGoals": 0, "homeTeamWon": 1},
-        {"game_id": "g1", "period": 3, "time": 900.0, "goal": 1,
+        {"game_id": "g1", "period": 3, "time": 3000.0, "goal": 1,
          "homeTeamGoals": 3, "awayTeamGoals": 0, "homeTeamWon": 1},
         {"game_id": "g2", "period": 1, "time": 400.0, "goal": 1,
          "homeTeamGoals": 0, "awayTeamGoals": 1, "homeTeamWon": 0},
-        {"game_id": "g2", "period": 2, "time": 800.0, "goal": 1,
+        {"game_id": "g2", "period": 2, "time": 1900.0, "goal": 1,
          "homeTeamGoals": 0, "awayTeamGoals": 2, "homeTeamWon": 0},
-        {"game_id": "g2", "period": 3, "time": 1000.0, "goal": 1,
+        {"game_id": "g2", "period": 3, "time": 3100.0, "goal": 1,
          "homeTeamGoals": 0, "awayTeamGoals": 3, "homeTeamWon": 0},
     ])
     states_dummy = pd.DataFrame()  # not used in function
@@ -183,7 +190,7 @@ def test_avg_goals_simple():
 def test_avg_goals_no_shots_returns_zero():
     """Gol yok → 0.0."""
     df = _make_shots([
-        {"game_id": "g1", "period": 1, "time": 0.0, "goal": 0,
+        {"game_id": "g1", "period": 1, "time": 10.0, "goal": 0,
          "homeTeamGoals": 0, "awayTeamGoals": 0, "homeTeamWon": 1},
     ])
     result = compute_avg_goals_per_game(pd.DataFrame(), [df])

@@ -496,3 +496,72 @@ Kapsam dışı (scope kararı, 2026-04-22):
 - MMA/UFC/Boxing — pipeline eksik (TODO-002)
 - Golf — outright market pipeline eksik (TODO-003)
 - NFL — scanner'da drop (TODO-001, whitelist'te değil)
+
+---
+
+## NHL Empirical Win Probability Table — MoneyPuck — 2026-04-27
+
+### Karar
+NBA paketindeki "14-yıl empirical thresholds"un NHL muadili. MoneyPuck.com'un
+public play-by-play datasından kendi güncel empirical tablomuzu türettik.
+
+### Kaynak veri
+- 3 sezon: 2022-23, 2023-24, 2024-25
+- 4198 maç, 364368 satır
+- MoneyPuck.com, public CSV downloads
+- License: free for non-commercial use, credit required
+
+### Niye Pettigrew (2014) / Bernier (2018) kullanılmadı?
+8-10 yaşında. NHL scoring environment ciddi değişti:
+- 2024-25 ortalama 6.142 G/maç (MoneyPuck türevi)
+- 2024-25 comeback rate %43 (tarihsel %2'lik)
+- League SV% 0.915 → 0.904 (10 yılda)
+- Empty net pull timing daha agresif
+Bu değişimler eski thresholds'u yanıltırdı.
+
+### Yöntem
+1. Her maç için score timeline shots DataFrame'inden reconstructed
+2. 30-saniye bucket'larında score differential kayıt
+3. Final outcome (OT/SO dahil) per game
+4. Empirical frequency by (period, abs_diff_clamped, time_bucket)
+5. Wilson 95% CI
+6. <30 games olan bucket'lar None döner (yetersiz sample → fallback Skellam)
+
+### Output
+- data/nhl_empirical_win_table.json (committed, 53KB)
+- data/nhl_shots/*.csv (gitignored, ~198MB cache)
+
+### Sanity (8 anchor noktası, 2026-04-27 build)
+| State | p(leader wins) | n_games | CI |
+|---|---|---|---|
+| 3-gol P3 başı | 96.0% | 489 | [94.3, 97.7] |
+| 2-gol P3 başı | 89.6% | 1013 | [87.7, 91.5] |
+| 1-gol P3 başı | 74.0% | 1511 | [71.8, 76.2] |
+| 1-gol P3 mid (600s) | 80.8% | 1394 | [78.8, 82.9] |
+| 1-gol last 5min | 86.3% | 1373 | [84.5, 88.1] |
+| 1-gol last 60s | 92.3% | 1254 | [90.8, 93.8] |
+| 2-gol last 5min | 98.1% | 962 | [97.3, 99.0] |
+| 2-gol last 60s | 99.2% | 789 | [98.7, 99.8] |
+
+### Implementation bug log (referans)
+İlk build iki bug ile çıktı:
+1. `time` kümülatif game seconds, period-local DEĞİL — yanlış formül
+   `(period-1)*1200 + time` çift ekleme yapıyordu
+2. `game_id` sezonlar arası çakışıyor (2022 ve 2023'te 1391 ortak ID) —
+   season prefix ile çözüldü
+
+Fix sonrası 8/8 sanity anchor beklenen aralıkta.
+
+### Bilinen kısıtlamalar
+1. Symmetric (tied = 0.50, home edge yok v1)
+2. No talent adjustment (bookmaker prior yok)
+3. No goalie quality, no manpower (PP/PK), no travel
+4. Empty net dynamics dolaylı içerilir (final outcome'da görülür)
+5. Period 4+ (OT/SO) outcome'a bucketlanır, ayrı table değil
+
+### Sonraki adımlar
+- Task 1B: Skellam math + bu empirical tablo ile cross-validate
+- Task 1C: ESPN NHL probe + MatchClock + alias
+- Task 1D: Polymarket NHL parser
+- Task 2-5: Entry/Exit logic
+- Faz 2: Talent-aware Bayesian extension
