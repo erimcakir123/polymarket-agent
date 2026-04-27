@@ -109,6 +109,15 @@ class BasketballExitConfig(BaseModel):
     predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
 
 
+class ExitNhlConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    near_resolve_threshold: float = 0.94
+    scale_out_threshold: float = 0.85
+    shootout_profit_threshold: float = 0.52
+    structural_damage_ratio: float = 0.30
+    predictive_safety_margin: float = 0.03
+
+
 class EntryConfig(BaseModel):
     """Directional entry (SPEC-017) — edge-free entry kararı.
 
@@ -344,6 +353,7 @@ class AppConfig(BaseModel):
     score: ScoreConfig = ScoreConfig()
     sl: SLConfig = SLConfig()   # PLAN-014
     exit_basketball: BasketballExitConfig = BasketballExitConfig()
+    exit_nhl: ExitNhlConfig = ExitNhlConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011

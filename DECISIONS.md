@@ -707,3 +707,40 @@ dondurur, siralamay orchestration katmani (entry processor) slug'dan cozer.
 - Task 2: NHL Moneyline Entry Gate (parser'i kullanir)
 - Task 3: NHL Moneyline Exit Logic (NHLClock kullanir)
 - Task 4: NHL Moneyline Integration
+
+
+---
+
+## NHL MONEYLINE
+
+### Exit Logic — Priority Chain
+
+| Priority | Rule | Condition | Action |
+|---|---|---|---|
+| 1 | NEAR_RESOLVE | bid >= 0.94 | SELL_ALL |
+| 2 | SCALE_OUT | bid >= 0.85 AND not yet scaled | SELL_50 |
+| 3 | SHOOTOUT_PROFIT | is_shootout AND bid >= 0.52 | SELL_ALL |
+| 4 | PREDICTIVE_DEAD | p_win < bid + 0.03 | SELL_ALL |
+| 5 | STRUCTURAL_DAMAGE | price/entry < 0.30 | SELL_ALL |
+| 6 | HOLD | default | HOLD |
+
+### Threshold Rationale
+
+- **near_resolve_threshold = 0.94**: Sport-agnostic — consistent with NBA/soccer pipeline
+- **scale_out_threshold = 0.85**: Sport-agnostic — lock partial profit before near-resolve
+- **shootout_profit_threshold = 0.52**: SO is a 50/50 coin flip; if market gives 52c+ sell — holding for 1-2c extra EV not worth variance
+- **predictive_safety_margin = 0.03**: Slippage + bid-ask spread tolerance — consistent with NBA predictive exit
+- **structural_damage_ratio = 0.30**: Price collapsed to 30% of entry -> catastrophic loss, salvage remaining value
+
+### PREDICTIVE_DEAD Logic
+
+`win_probability_fn(period, abs_score_diff, seconds_remaining) -> (float, str)` is injected by Task 3C wiring (hybrid empirical-first + Skellam fallback). Fire condition: `p_win < bid + 0.03`. Exception from fn: p_win=None, skip check, fall through to STRUCTURAL_DAMAGE / HOLD.
+
+### Price Field Usage
+
+NEAR_RESOLVE / SCALE_OUT / SHOOTOUT_PROFIT / PREDICTIVE_DEAD: use `current_bid` (executable sell price).
+STRUCTURAL_DAMAGE: uses `current_price` (mid/last) — bid can be artificially low in thin books, causing false-positive structural exits.
+
+### v1 Scope
+
+Moneyline ONLY. No puck line (spread), no totals, no three-way ML.

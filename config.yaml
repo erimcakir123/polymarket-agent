@@ -327,6 +327,13 @@ exit_basketball:
     hold_threshold: 0.20
     safety_margin: 0.03
 
+exit_nhl:
+  near_resolve_threshold: 0.94
+  scale_out_threshold: 0.85
+  shootout_profit_threshold: 0.52
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.03
+
 dashboard:
   enabled: true
   host: "127.0.0.1"
