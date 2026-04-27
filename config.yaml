@@ -181,6 +181,28 @@ entry:
   b2b_opponent_gap_bonus: 0.03
   b2b_self_gap_bonus: 0.05
   star_out_self_gap_bonus: 0.05
+  # NHL-specific entry parameters
+  nhl_min_polymarket_price: 0.20
+  nhl_max_polymarket_price: 0.75
+  nhl_min_market_volume: 3000
+  nhl_min_favorite_probability: 0.55
+  nhl_max_match_start_hours: 4
+  nhl_commence_time_from_offset_hours: -8
+  nhl_min_gap_threshold: 0.08
+  nhl_gap_high_zone: 0.15
+  nhl_gap_extreme_zone: 0.25
+  nhl_confidence_a_pct: 0.05
+  nhl_confidence_b_pct: 0.03
+  nhl_high_gap_multiplier: 1.2
+  nhl_extreme_gap_multiplier: 1.3
+  nhl_max_bet_pct: 0.05
+  nhl_max_single_bet_usdc: 75
+  nhl_min_bet_usd: 5
+  nhl_confidence_min_weight: 5.0
+  nhl_require_goalie_confirmation: true
+  nhl_b2b_opponent_gap_bonus: 0.02
+  nhl_b2b_opponent_size_mult: 1.10
+  nhl_b2b_self_gap_bonus: 0.02
 
 stock:
   enabled: true

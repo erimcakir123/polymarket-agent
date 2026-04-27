@@ -105,6 +105,39 @@ def test_stock_config_max_stale_attempts_custom() -> None:
     assert cfg.max_stale_attempts == 5
 
 
+def test_entry_config_nhl_defaults() -> None:
+    cfg = EntryConfig()
+    assert cfg.nhl_min_polymarket_price == 0.20
+    assert cfg.nhl_max_polymarket_price == 0.75
+    assert cfg.nhl_min_market_volume == 3000.0
+    assert cfg.nhl_min_favorite_probability == 0.55
+    assert cfg.nhl_max_match_start_hours == 4.0
+    assert cfg.nhl_commence_time_from_offset_hours == -8
+    assert cfg.nhl_min_gap_threshold == 0.08
+    assert cfg.nhl_gap_high_zone == 0.15
+    assert cfg.nhl_gap_extreme_zone == 0.25
+    assert cfg.nhl_confidence_a_pct == 0.05
+    assert cfg.nhl_confidence_b_pct == 0.03
+    assert cfg.nhl_high_gap_multiplier == 1.2
+    assert cfg.nhl_extreme_gap_multiplier == 1.3
+    assert cfg.nhl_max_bet_pct == 0.05
+    assert cfg.nhl_max_single_bet_usdc == 75.0
+    assert cfg.nhl_min_bet_usd == 5.0
+    assert cfg.nhl_confidence_min_weight == 5.0
+    assert cfg.nhl_require_goalie_confirmation is True
+    assert cfg.nhl_b2b_opponent_gap_bonus == 0.02
+    assert cfg.nhl_b2b_opponent_size_mult == pytest.approx(1.10)
+    assert cfg.nhl_b2b_self_gap_bonus == 0.02
+
+
+def test_entry_config_nhl_from_yaml() -> None:
+    cfg = load_config()
+    assert cfg.entry.nhl_min_polymarket_price == 0.20
+    assert cfg.entry.nhl_require_goalie_confirmation is True
+    assert cfg.entry.nhl_b2b_opponent_gap_bonus == 0.02
+    assert cfg.entry.nhl_commence_time_from_offset_hours == -8
+
+
 def test_repo_config_yaml_parses() -> None:
     """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli."""
     cfg = load_config()  # default Path("config.yaml")

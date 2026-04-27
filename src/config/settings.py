@@ -151,6 +151,28 @@ class EntryConfig(BaseModel):
     b2b_opponent_gap_bonus: float = 0.03
     b2b_self_gap_bonus: float = 0.05
     star_out_self_gap_bonus: float = 0.05
+    # NHL-specific entry parameters
+    nhl_min_polymarket_price: float = 0.20
+    nhl_max_polymarket_price: float = 0.75
+    nhl_min_market_volume: float = 3000.0
+    nhl_min_favorite_probability: float = 0.55
+    nhl_max_match_start_hours: float = 4.0
+    nhl_commence_time_from_offset_hours: int = -8
+    nhl_min_gap_threshold: float = 0.08
+    nhl_gap_high_zone: float = 0.15
+    nhl_gap_extreme_zone: float = 0.25
+    nhl_confidence_a_pct: float = 0.05
+    nhl_confidence_b_pct: float = 0.03
+    nhl_high_gap_multiplier: float = 1.2
+    nhl_extreme_gap_multiplier: float = 1.3
+    nhl_max_bet_pct: float = 0.05
+    nhl_max_single_bet_usdc: float = 75.0
+    nhl_min_bet_usd: float = 5.0
+    nhl_confidence_min_weight: float = 5.0
+    nhl_require_goalie_confirmation: bool = True
+    nhl_b2b_opponent_gap_bonus: float = 0.02
+    nhl_b2b_opponent_size_mult: float = 1.10
+    nhl_b2b_self_gap_bonus: float = 0.02
 
 
 class StockConfig(BaseModel):

@@ -23,6 +23,7 @@ from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.infrastructure.apis.cricket_client import CricketAPIClient
 from src.infrastructure.apis.espn_client import fetch_scoreboard
+from src.infrastructure.apis.espn_hockey_schedule_client import EspnHockeyScheduleClient
 from src.infrastructure.apis.espn_injury_client import EspnInjuryClient
 from src.infrastructure.apis.espn_leagues_client import fetch_soccer_leagues  # PLAN-012
 from src.infrastructure.apis.espn_schedule_client import EspnScheduleClient
@@ -31,6 +32,7 @@ from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.counterfactual_tracker import CounterfactualTracker
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.edge_enricher import EdgeEnricher
+from src.orchestration.nhl_edge_enricher import NHLEdgeEnricher
 from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
@@ -160,6 +162,10 @@ def build_agent(state: RuntimeState) -> Agent:
         schedule_client=_schedule_client,
         injury_window_hours=cfg.entry.injury_window_hours,
     )
+
+    # NHL edge enricher: B2B detection (Task 2C-1 — not yet injected into gate)
+    _nhl_schedule_client = EspnHockeyScheduleClient()
+    _nhl_edge_enricher = NHLEdgeEnricher(schedule_client=_nhl_schedule_client)  # noqa: F841
 
     # Gate: cricket_client + edge_enricher hazır olduktan sonra inşa edilir (SPEC-011)
     gate = EntryGate(
