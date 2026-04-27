@@ -603,6 +603,62 @@ src/domain/math/nhl_win_probability.py:
 4. OT icin ayri 3v3 lambda kullanildi
 
 ### Sonraki adimlar
-- Task 1C: ESPN NHL probe + MatchClock + alias
 - Task 1D: Polymarket NHL parser
 - Task 2-5: Entry/Exit logic
+
+---
+
+## NHL MatchClock + Team Aliases (Task 1C)
+
+**Dosyalar:**
+- `src/domain/sports/nhl_match_clock.py` — ESPN status → NHLClock dataclass
+- `src/domain/sports/nhl_team_aliases.py` — 32 takim, alias normalizasyonu
+- `scripts/probe_espn_nhl.py` — ESPN endpoint probe (read-only, tek seferlik)
+- `data/probes/nhl/SUMMARY.md` — probe sonuclari (2026-04-27)
+
+### ESPN status ayrıstirma mantigi
+
+Probe'dan ogrenilenler (4 mac, 2026-04-27 playoffs):
+- `status.period`: int — 1/2/3 regulation, 4=OT, 5=SO
+- `status.displayClock`: str "MM:SS" countdown (final'de "0:00")
+- `status.type.state`: "pre" | "in" | "post"
+- `status.type.detail`: "Final", "Final/OT", "Final/SO", "OT", "Shootout", "1st Period", vb.
+
+Period promotion: ESPN bazen `period=3` ile `detail="Final/OT"` gonderiyor.
+`parse_nhl_status()` bunu yakaliyor, period'u 4'e yukar cekiyor.
+
+`is_pre` default: `state not in ("in", "post")` — tanimsiz/bos state
+guvenceli "pre" davranisi (ESPN hata halinde oyun henuz baslamamis gibi isleniyor).
+
+`seconds_remaining_in_regulation` hesabi:
+```
+regulation_remaining = max(0, 3600 - ((period-1)*1200 + (1200 - clock_seconds)))
+```
+Period >= 4 (OT/SO/final) icin 0 doner.
+
+### Takim alias tasarimi
+
+Canonical key: ESPN abbreviation (probe'dan dogrulanmis: BOS, EDM, ANA, BUF).
+Alt abbr gereksinimi: Odds API bazi takimlar icin farkli abbr kullaniyor:
+- LAK → LA, NJD → NJ, SJS → SJ, TBL → TB
+
+Eski isim: Utah Hockey Club → UTA (Mammoth oldu, sorularda her ikisi gorulebilir).
+
+`resolve_nhl_team()` None-safe, whitespace-stripped, case-insensitive.
+
+### Probe sonuclari ozeti
+
+Scoreboard'da `probables` field her zaman dolu (goalie kimlik + istatistik).
+Summary `boxscore.players[team].statistics[name="goalies"]` tam goalie stats.
+Live `situation` field final'de bos, live'da dolu (live probe eksik — SO hic gorulmedi).
+Linescore: summary `header.competitions.0.competitors.X.linescores` array, OT'de 4. eleman otomatik ekleniyor.
+
+### Bilinen kisitlamalar
+1. SO detail pattern ("Shootout", "Final/SO") live probe'da dogrulanamadi — teorik.
+2. Live "P1, 10:35" detail format'i gorulmedi; period number fallback kullaniliyor.
+3. Goalie confirmation logic (teyid, "probable" vs "actual starter") Task 2'de.
+
+### Sonraki adimlar
+- Task 1D: Polymarket NHL question parser
+- Task 2: NHL entry gate (goalie confirmation + Polymarket matching)
+- Task 3: NHL exit (NHLClock + hybrid WP → K1-K4 kurallar)

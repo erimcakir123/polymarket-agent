@@ -1,0 +1,3 @@
+# Probe outputs are point-in-time snapshots, regenerated on demand.
+# Do NOT commit raw probe JSONs — they may contain transient game state.
+nhl/*.json
