@@ -154,6 +154,7 @@ entry:
   min_sharps: 3
   active_sports:
     - basketball_nba
+    - icehockey_nhl
   min_gap_threshold: 0.05
   gap_high_zone: 0.15
   gap_extreme_zone: 0.25
