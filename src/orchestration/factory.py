@@ -37,12 +37,21 @@ from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.soccer_league_discovery import SoccerLeagueDiscovery  # PLAN-012
+from src.infrastructure.repositories.nhl_wp_repository import load_table as _load_nhl_wp_table_raw
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.enrichment.odds_enricher import enrich_market
 
 logger = logging.getLogger(__name__)
+
+
+def _load_nhl_wp_table() -> dict:
+    try:
+        return _load_nhl_wp_table_raw()
+    except FileNotFoundError:
+        logger.warning("NHL WP table not found at data/nhl_empirical_win_table.json — predictive exit disabled")
+        return {}
 
 
 def build_agent(state: RuntimeState) -> Agent:
@@ -220,6 +229,8 @@ def build_agent(state: RuntimeState) -> Agent:
             soccer_discovery=soccer_discovery,  # PLAN-012
         )
 
+    nhl_wp_table = _load_nhl_wp_table()
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -233,6 +244,7 @@ def build_agent(state: RuntimeState) -> Agent:
         cricket_client=cricket_client,  # SPEC-011
         counterfactual_tracker=counterfactual_tracker,
         gamma_client=gamma,
+        nhl_wp_table=nhl_wp_table,
     )
     agent = Agent(deps)
 

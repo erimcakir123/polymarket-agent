@@ -19,11 +19,14 @@ from src.config.settings import BasketballExitConfig, ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, nba_spread_exit, nba_totals_exit, near_resolve, nfl_score_exit, price_cap, scale_out, hockey_score_exit, soccer_score_exit, tennis_score_exit
-from src.strategy.exit.price_cap import SLParams
+from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, nba_spread_exit, nba_totals_exit, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
+from src.strategy.exit._nhl_exit_dispatch import check_nhl_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
+from src.strategy.exit.nhl_score_exit import NHLExitConfig
+from src.strategy.exit.price_cap import SLParams
 
 _DEFAULT_MONITOR_CFG = ExitMonitorConfig()
+_DEFAULT_NHL_CFG = NHLExitConfig()
 
 _SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
 
@@ -53,7 +56,6 @@ class MonitorResult:
     exit_signal: ExitSignal | None
     fav_transition: FavoredTransition
     elapsed_pct: float
-
 
 
 def compute_elapsed_pct(pos: Position) -> float:
@@ -167,12 +169,10 @@ def evaluate(
     scale_out_min_realized_usd: float = 0.0,   # PLAN-014b
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_threshold: float = 0.85,
+    nhl_exit_cfg: NHLExitConfig | None = None,
+    nhl_wp_table: dict | None = None,
 ) -> MonitorResult:
-    """Pozisyonu tüm exit kontrollerinden geçir (A3 score-only, tek-dal akış).
-
-    A-hold ayrımı kaldırıldı: tüm pozisyonlar aynı flow'dan geçer.
-    FAV transition ayrı (exit değil, pos.favored state update).
-    """
+    """Pozisyonu tüm exit kontrollerinden geçir. FAV transition ayrı (exit değil)."""
     score_info = score_info or {}
     scale_out_tiers = scale_out_tiers or []
     cfg = monitor_cfg if monitor_cfg is not None else _DEFAULT_MONITOR_CFG
@@ -181,26 +181,25 @@ def evaluate(
     if get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled"):
         elapsed_pct = -1.0
 
-    # 1. Near-resolve — en yüksek öncelik
-    _nr = near_resolve.check(pos.bid_price, near_resolve_threshold_cents / 100.0)
-    if _nr is not None:
-        return MonitorResult(
-            exit_signal=ExitSignal(reason=ExitReason.NEAR_RESOLVE, sell_pct=_nr.sell_pct, detail=_nr.reason),
-            fav_transition=_fav_transition(pos),
-            elapsed_pct=elapsed_pct,
-        )
-
-    # 2. Scale-out (partial exit)
-    _so = scale_out.check(pos.bid_price, pos.scaled_out_50, scale_out_threshold)
-    if _so is not None:
-        return MonitorResult(
-            exit_signal=ExitSignal(
-                reason=ExitReason.SCALE_OUT, partial=True,
-                sell_pct=_so.sell_pct, tier=_so.tier, detail=_so.reason,
-            ),
-            fav_transition=_fav_transition(pos),
-            elapsed_pct=elapsed_pct,
-        )
+    # 1+2. Near-resolve + Scale-out (NHL için atla — decide_nhl_exit dahili ele alır)
+    if not _is_hockey_family(pos.sport_tag):
+        _nr = near_resolve.check(pos.bid_price, near_resolve_threshold_cents / 100.0)
+        if _nr is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=ExitReason.NEAR_RESOLVE, sell_pct=_nr.sell_pct, detail=_nr.reason),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
+        _so = scale_out.check(pos.bid_price, pos.scaled_out_50, scale_out_threshold)
+        if _so is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(
+                    reason=ExitReason.SCALE_OUT, partial=True,
+                    sell_pct=_so.sell_pct, tier=_so.tier, detail=_so.reason,
+                ),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     # PLAN-019: Hold revoke (state-only, EXIT YAPMAZ)
     # Tetiklenirse pos.favored=False; SL ve diğer kurallar normal akışla karar verir.
@@ -222,15 +221,18 @@ def evaluate(
 
     # 3. Sport-specific score-based exit (tüm pozisyonlar — A-hold gate yok)
     if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
-        sc_result = hockey_score_exit.check(
-            sport_tag=pos.sport_tag,
-            confidence=pos.confidence,
-            score_info=score_info,
-            elapsed_pct=elapsed_pct,
-            current_price=pos.bid_price,
+        nhl_sig = check_nhl_exit(
+            pos, score_info, elapsed_pct,
+            nhl_exit_cfg if nhl_exit_cfg is not None else _DEFAULT_NHL_CFG,
+            nhl_wp_table if nhl_wp_table is not None else {},
         )
-        if sc_result is not None:
-            return _simple_mr(sc_result, pos, elapsed_pct)
+        if nhl_sig is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=nhl_sig.reason, detail=nhl_sig.detail,
+                                       partial=nhl_sig.partial, sell_pct=nhl_sig.sell_pct),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
         t_result = tennis_score_exit.check(
@@ -291,10 +293,6 @@ def evaluate(
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        # PLAN-019: hold_revocation EXIT dispatch silindi.
-        # Revoke şimdi state-only (yukarıda scale-out sonrası).
-        # Yeni mantık: revoke → pos.favored=False → SL (price_cap) karar verir.
-
     # 6. Exit yok — sadece favored transition dön
     return MonitorResult(exit_signal=None, fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
 

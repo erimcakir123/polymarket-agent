@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.cricket_client import CricketAPIClient
@@ -57,6 +57,7 @@ class AgentDeps:
     cricket_client: CricketAPIClient | None = None  # SPEC-011
     counterfactual_tracker: CounterfactualTracker | None = None
     gamma_client: object | None = None
+    nhl_wp_table: dict = field(default_factory=dict)
 
 
 class Agent:

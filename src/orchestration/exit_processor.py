@@ -57,6 +57,8 @@ class ExitProcessor:
                 scale_out_min_realized_usd=self._scale_out_min_realized(),
                 basketball_exit_cfg=self._basketball_exit_cfg(),
                 scale_out_threshold=self._scale_out_threshold(),
+                nhl_exit_cfg=self._nhl_exit_cfg(),
+                nhl_wp_table=self._nhl_wp_table(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -101,6 +103,25 @@ class ExitProcessor:
         if cfg and hasattr(cfg, "scale_out"):
             return float(getattr(cfg.scale_out, "price_threshold", 0.85))
         return 0.85
+
+    def _nhl_exit_cfg(self):
+        """exit_nhl config → NHLExitConfig (frozen). None → varsayılan eşikler."""
+        from src.strategy.exit.nhl_score_exit import NHLExitConfig
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg is None or not hasattr(cfg, "exit_nhl"):
+            return NHLExitConfig()
+        ec = cfg.exit_nhl
+        return NHLExitConfig(
+            near_resolve_threshold=ec.near_resolve_threshold,
+            scale_out_threshold=ec.scale_out_threshold,
+            shootout_profit_threshold=ec.shootout_profit_threshold,
+            structural_damage_ratio=ec.structural_damage_ratio,
+            predictive_safety_margin=ec.predictive_safety_margin,
+        )
+
+    def _nhl_wp_table(self) -> dict:
+        """AgentDeps'ten NHL WP tablosunu al (factory inject eder)."""
+        return getattr(self.deps, "nhl_wp_table", {}) or {}
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.

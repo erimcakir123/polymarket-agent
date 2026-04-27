@@ -34,3 +34,8 @@ class ExitReason(str, Enum):
     STOP_LOSS = "stop_loss"            # PLAN-014: dolar-bazlı cap (price<0.50 + loss>$10)
     BLIND_SL = "blind_sl"              # Skor gelmeyen maçlar için devreye giren SL
     PREDICTIVE_DEAD = "predictive_dead"
+    NHL_PREDICTIVE_DEAD = "nhl_predictive_dead"
+    NHL_STRUCTURAL_DAMAGE = "nhl_structural_damage"
+    NHL_SHOOTOUT_PROFIT = "nhl_shootout_profit"
+    NHL_NEAR_RESOLVE = "nhl_near_resolve"
+    NHL_SCALE_OUT = "nhl_scale_out"
