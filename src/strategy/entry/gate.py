@@ -263,32 +263,7 @@ class EntryGate:
                 continue
 
             # --- Edge context adjustments ---
-            edge_ctx: Any = None
-            if self._edge_enricher is not None:
-                try:
-                    _team_a, _team_b = extract_teams(market.question)
-                    _our_id = resolve_nba_espn_id(_team_a or "")
-                    _opp_id = resolve_nba_espn_id(_team_b or "")
-                    edge_ctx = self._edge_enricher.enrich(market, our_team_id=_our_id, opp_team_id=_opp_id)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("EdgeEnricher failed for %s: %s", cid, exc)
-
-            effective_gap_threshold_adj: float = 0.0
-            size_multiplier_adj: float = 1.0
-
-            if edge_ctx is not None:
-                if edge_ctx.has_recent_injury:
-                    if edge_ctx.is_own_team_injury:
-                        effective_gap_threshold_adj += self.config.star_out_self_gap_bonus
-                    else:
-                        effective_gap_threshold_adj -= self.config.injury_gap_threshold_drop
-                        size_multiplier_adj *= self.config.injury_size_multiplier
-
-                if edge_ctx.is_opponent_back_to_back:
-                    effective_gap_threshold_adj += self.config.b2b_opponent_gap_bonus
-
-                if edge_ctx.is_our_back_to_back:
-                    effective_gap_threshold_adj += self.config.b2b_self_gap_bonus
+            effective_gap_threshold_adj, size_multiplier_adj = self._apply_edge_modifiers(market, cid)
 
             # Market line parse (spread/totals için; moneyline'da None kalır)
             market_type = market.sports_market_type or "moneyline"
@@ -369,3 +344,46 @@ class EntryGate:
             results.append(GateResult(cid, signal=signal))
 
         return results
+
+    def _apply_edge_modifiers(
+        self,
+        market: Any,
+        cid: str,
+    ) -> tuple[float, float]:
+        """
+        Apply sport-specific edge modifiers to gap threshold and sizing multiplier.
+
+        Returns (gap_threshold_adj, size_multiplier_adj).
+
+        Currently NBA-only (injury + B2B). Sport dispatch will be added in Task 2C.
+        """
+        gap_threshold_adj: float = 0.0
+        size_multiplier_adj: float = 1.0
+
+        if self._edge_enricher is None:
+            return gap_threshold_adj, size_multiplier_adj
+
+        try:
+            _team_a, _team_b = extract_teams(market.question)
+            _our_id = resolve_nba_espn_id(_team_a or "")
+            _opp_id = resolve_nba_espn_id(_team_b or "")
+            edge_ctx = self._edge_enricher.enrich(market, our_team_id=_our_id, opp_team_id=_opp_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("EdgeEnricher failed for %s: %s", cid, exc)
+            return gap_threshold_adj, size_multiplier_adj
+
+        if edge_ctx is not None:
+            if edge_ctx.has_recent_injury:
+                if edge_ctx.is_own_team_injury:
+                    gap_threshold_adj += self.config.star_out_self_gap_bonus
+                else:
+                    gap_threshold_adj -= self.config.injury_gap_threshold_drop
+                    size_multiplier_adj *= self.config.injury_size_multiplier
+
+            if edge_ctx.is_opponent_back_to_back:
+                gap_threshold_adj += self.config.b2b_opponent_gap_bonus
+
+            if edge_ctx.is_our_back_to_back:
+                gap_threshold_adj += self.config.b2b_self_gap_bonus
+
+        return gap_threshold_adj, size_multiplier_adj
