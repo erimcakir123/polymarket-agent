@@ -68,6 +68,8 @@ class GateResult:
     signal: Signal | None = None
     skipped_reason: str | None = None
     skip_detail: str | None = None
+    anchor_probability: float = 0.0
+    gap: float | None = None
 
 
 # ── Pure helpers (tested directly) ──────────────────────────────
@@ -316,7 +318,10 @@ class EntryGate:
                 gap_threshold_adj=effective_gap_threshold_adj,
             )
             if skip:
-                results.append(GateResult(cid, skipped_reason=skip))
+                results.append(GateResult(
+                    cid, skipped_reason=skip,
+                    anchor_probability=prob.probability, gap=gap,
+                ))
                 continue
 
             direction = Direction.BUY_YES

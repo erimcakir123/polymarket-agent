@@ -30,6 +30,7 @@ class SkippedTradeRecord(BaseModel):
     direction: str = ""      # BUY_YES / BUY_NO / "" (skip karar öncesi)
     entry_price: float = 0.0
     anchor_probability: float = 0.0
+    gap: float | None = None
     confidence: str = ""
     skip_reason: str         # slot_full | exposure_cap | event_guard_duplicate | below_fav_prob | price_out_of_range | low_liquidity | manipulation | cb_active | ...
     skip_detail: str = ""    # Opsiyonel ek not

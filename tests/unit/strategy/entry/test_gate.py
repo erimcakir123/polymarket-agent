@@ -173,6 +173,49 @@ def test_gate_run_inactive_sport_skipped():
     assert result[0].skipped_reason == "INACTIVE_SPORT"
 
 
+def test_gate_result_gap_too_low_carries_anchor_and_gap():
+    """GAP_TOO_LOW skip'te GateResult.anchor_probability ve gap dolu gelmeli."""
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+
+    mock_prob = MagicMock()
+    mock_prob.probability = 0.65
+    mock_prob.has_sharp = True
+    mock_prob.num_bookmakers = 7.0
+
+    mock_enrich = MagicMock()
+    mock_enrich.probability = mock_prob
+    mock_enrich.fail_reason = None
+
+    mock_portfolio = MagicMock()
+    mock_portfolio.positions = {}
+    mock_portfolio.bankroll = 1000.0
+
+    gate = EntryGate(
+        config=cfg, portfolio=mock_portfolio, circuit_breaker=None,
+        cooldown=None, blacklist=None,
+        odds_enricher=lambda m: mock_enrich,
+        manipulation_checker=None,
+    )
+
+    market = MagicMock()
+    market.condition_id = "cid_gap_test"
+    market.sport_tag = "basketball_nba"
+    market.yes_price = 0.60   # gap = 0.65 - 0.60 = 0.05 < 0.08 → GAP_TOO_LOW
+    market.volume_24h = 10_000.0
+    market.liquidity = 5_000.0
+    market.event_id = "evt_gap"
+    market.sports_market_type = "moneyline"
+    market.question = "Lakers vs Celtics"
+
+    result = gate.run([market])
+    assert len(result) == 1
+    r = result[0]
+    assert r.skipped_reason == "GAP_TOO_LOW"
+    assert abs(r.anchor_probability - 0.65) < 0.001
+    assert r.gap is not None
+    assert abs(r.gap - 0.05) < 0.001
+
+
 def test_gate_run_same_event_same_direction_blocked():
     """Aynı event_id + aynı market_type → BLOCKED (same market type guard)."""
     from src.models.enums import Direction

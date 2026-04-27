@@ -127,6 +127,8 @@ class EntryProcessor:
                 operational_writers.log_skip(
                     self.deps.skipped_logger, market,
                     r.skipped_reason, detail=r.skip_detail,
+                    anchor_probability=r.anchor_probability,
+                    gap=r.gap,
                 )
                 self.deps.stock.add(market, r.skipped_reason)
 
