@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from src.domain.matching.pair_matcher import match_pair, match_team
+from src.domain.sports.nhl_match_clock import parse_nhl_status
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.infrastructure.apis.score_client import MatchScore
 from src.models.position import Position
@@ -119,7 +120,7 @@ def build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
     linescores: list = getattr(ms, "linescores", []) or []
     our_is_home = (pos.direction == "BUY_YES") == a_is_home
 
-    return {
+    result = {
         "available": True,
         "our_score": our_score,
         "opp_score": opp_score,
@@ -138,4 +139,19 @@ def build_score_info(pos: Position, ms: MatchScore | ESPNMatchScore) -> dict:
         "clock_seconds": getattr(ms, "clock_seconds", None),
         "home_team_id": getattr(ms, "home_team_id", ""),
         "away_team_id": getattr(ms, "away_team_id", ""),
+        "is_overtime": False,
+        "is_shootout": False,
     }
+
+    # NHL: parse raw ESPN status payload via NHLClock to set is_overtime / is_shootout
+    sport_tag = (getattr(pos, "sport_tag", "") or "").lower()
+    raw_status = getattr(ms, "raw_status", {}) or {}
+    if sport_tag in ("nhl", "ahl", "hockey") and raw_status:
+        try:
+            clock = parse_nhl_status(raw_status)
+            result["is_overtime"] = clock.is_overtime
+            result["is_shootout"] = clock.is_shootout
+        except Exception:
+            pass  # keep defaults False — pipeline must not break on parse failure
+
+    return result

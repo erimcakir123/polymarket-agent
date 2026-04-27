@@ -50,6 +50,7 @@ class ESPNMatchScore:
     current_set: int | None = None   # Tenis: oynanan set numarası (1-5)
     home_team_id: str = ""  # ESPN numeric team ID (e.g. "13" for Lakers)
     away_team_id: str = ""  # ESPN numeric team ID
+    raw_status: dict = field(default_factory=dict)  # NHL: ESPN status payload; diğer sporlar boş dict
 
 
 def _parse_clock_to_seconds(clock: str) -> int | None:
@@ -204,12 +205,15 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
     # SPEC-A4: NBA/NFL period (int 1-4, 5+=OT) + clock_seconds (displayClock "M:SS" parse)
     period_number: int | None = None
     clock_seconds: int | None = None
+    raw_nhl_status: dict = {}
     if sport in ("basketball", "football", "hockey"):
         raw_period = status_block.get("period")
         if isinstance(raw_period, int) and raw_period > 0:
             period_number = raw_period
         raw_clock = status_block.get("displayClock", "") or ""
         clock_seconds = _parse_clock_to_seconds(raw_clock)
+        if sport == "hockey":
+            raw_nhl_status = status_block
 
     # SPEC-015: Soccer minute parse from displayClock ("67'", "45+2'", "90'+13'")
     minute: int | None = None
@@ -295,6 +299,7 @@ def _parse_competition(comp: dict, sport: str = "") -> ESPNMatchScore | None:
         current_set=current_set,
         home_team_id=home_team_id,
         away_team_id=away_team_id,
+        raw_status=raw_nhl_status,
     )
 
 

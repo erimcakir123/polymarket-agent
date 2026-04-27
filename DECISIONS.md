@@ -744,3 +744,29 @@ STRUCTURAL_DAMAGE: uses `current_price` (mid/last) — bid can be artificially l
 ### v1 Scope
 
 Moneyline ONLY. No puck line (spread), no totals, no three-way ML.
+
+---
+
+## NHL Wire — Task 3B: is_overtime / is_shootout Flags
+
+### Değişiklik özeti (2026-04-27)
+
+`ESPNMatchScore.raw_status: dict` alanı eklendi. `_parse_competition()` içinde `sport == "hockey"` iken `status_block` tamamı bu alana yazılır; diğer sporlar için boş dict kalır.
+
+`build_score_info()` (`score_helpers.py`) NHL sport_tag'i algıladığında `parse_nhl_status(raw_status)` çağırır ve dönen `NHLClock.is_overtime` / `NHLClock.is_shootout` değerlerini score_info dict'ine ekler.
+
+### Neden bu yapı?
+
+- **raw_status dict olarak taşınır** — ESPNMatchScore domain modeli değil infrastructure DTO'su; ESPN status payload'ını olduğu gibi tutmak downcast sorununu önler.
+- **parse_nhl_status sadece hockey'de çağrılır** — diğer sporlar için sıfır maliyet; `sport_tag` kontrolü `score_helpers` katmanında yapılır.
+- **Hata yutma izni (tek istisna)** — `parse_nhl_status` başarısız olursa `is_overtime=False, is_shootout=False` default'u korunur ve pipeline kırılmaz. Bu "sessiz hata" değil; parse hatası exit kararını pasif tarafta bırakır, yanlış exit tetiklemez.
+- **raw_status boş dict → flag'ler False** — Odds API MatchScore veya pre-game ESPN skoru geldiyse `raw_status={}` olur; `if raw_status:` guard ile parse atlanır, güvenli default.
+
+### Etkilenen dosyalar
+
+| Dosya | Değişiklik |
+|---|---|
+| `src/infrastructure/apis/espn_client.py` | `ESPNMatchScore.raw_status: dict` field eklendi; `_parse_competition()` hockey için `raw_nhl_status = status_block` |
+| `src/orchestration/score_helpers.py` | `build_score_info()` NHL branch: `parse_nhl_status(raw_status)` → `is_overtime`, `is_shootout` |
+| `src/domain/sports/nhl_match_clock.py` | Değişmedi (Task 3A'dan geliyor) |
+| `tests/unit/orchestration/test_score_helpers.py` | 5 NHL flag testi eklendi |
