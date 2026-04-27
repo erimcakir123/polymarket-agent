@@ -1,8 +1,11 @@
 """CounterfactualTracker unit testleri."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
+
+_EXIT_TS = datetime.now(timezone.utc).isoformat()
 
 
 def _make_tracker(tmp_path: Path):
@@ -24,14 +27,14 @@ def _fake_gamma(token_prices: dict[str, float]) -> MagicMock:
 def test_add_starts_tracking(tmp_path: Path) -> None:
     """add() çağrısından sonra pending'de entry olmalı."""
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
     assert "trade-1" in tracker._pending
 
 
 def test_tick_records_price_point(tmp_path: Path) -> None:
     """tick() price point'i trace'e ekler."""
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
     gamma = _fake_gamma({"token-1": 0.35})
 
     tracker.tick(gamma)
@@ -43,7 +46,7 @@ def test_tick_records_price_point(tmp_path: Path) -> None:
 def test_tick_settles_at_high_price(tmp_path: Path) -> None:
     """≥0.98 fiyatta tracking_complete=True, final_settlement set edilir."""
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
     gamma = _fake_gamma({"token-1": 0.99})
 
     tracker.tick(gamma)
@@ -60,7 +63,7 @@ def test_tick_settles_at_high_price(tmp_path: Path) -> None:
 def test_tick_resolves_no_at_zero(tmp_path: Path) -> None:
     """≤0.02 fiyatta final_settlement=0.0 set edilir."""
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
     gamma = _fake_gamma({"token-1": 0.01})
 
     tracker.tick(gamma)
@@ -74,7 +77,7 @@ def test_tick_resolves_no_at_zero(tmp_path: Path) -> None:
 def test_flush_writes_incomplete_trace(tmp_path: Path) -> None:
     """flush() incomplete trace'i diske yazar."""
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
 
     tracker.flush()
 
@@ -91,7 +94,7 @@ def test_restore_continues_incomplete_trace(tmp_path: Path) -> None:
     from src.orchestration.counterfactual_tracker import CounterfactualTracker
 
     tracker = _make_tracker(tmp_path)
-    tracker.add("trade-1", "token-1", "2026-04-26T20:00:00+00:00", 0.40, "predictive_dead")
+    tracker.add("trade-1", "token-1", _EXIT_TS, 0.40, "predictive_dead")
     tracker.flush()
 
     tracker2 = CounterfactualTracker(audit_dir=tmp_path / "audit")
