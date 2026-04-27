@@ -154,7 +154,7 @@ entry:
   min_sharps: 3
   active_sports:
     - basketball_nba
-  min_gap_threshold: 0.08
+  min_gap_threshold: 0.05
   gap_high_zone: 0.15
   gap_extreme_zone: 0.25
   min_polymarket_price: 0.15
@@ -188,7 +188,7 @@ entry:
   nhl_min_favorite_probability: 0.55
   nhl_max_match_start_hours: 4
   nhl_commence_time_from_offset_hours: -8
-  nhl_min_gap_threshold: 0.08
+  nhl_min_gap_threshold: 0.05
   nhl_gap_high_zone: 0.15
   nhl_gap_extreme_zone: 0.25
   nhl_confidence_a_pct: 0.05
