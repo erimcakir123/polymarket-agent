@@ -15,8 +15,8 @@ from src.domain.math.nhl_skellam import (
 )
 from src.domain.math.nhl_empirical_wp import (
     leading_team_win_probability_empirical,
-    TABLE_PATH,
 )
+from src.infrastructure.repositories.nhl_wp_repository import TABLE_PATH, load_table
 
 
 class TestSkellamSemantics:
@@ -109,7 +109,10 @@ class TestCrossValidationAgainstEmpirical:
     def test_skellam_within_tolerance_of_empirical(
         self, period: int, deficit: int, seconds: int, tolerance_pp: int
     ) -> None:
-        p_emp_lead = leading_team_win_probability_empirical(period, deficit, seconds)
+        _table = load_table()
+        p_emp_lead = leading_team_win_probability_empirical(
+            period, deficit, seconds, table=_table
+        )
         if p_emp_lead is None:
             pytest.skip("Insufficient empirical sample")
 

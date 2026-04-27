@@ -8,6 +8,9 @@ Strategy:
 1. Try empirical lookup (MoneyPuck 2022-25, 4198 games)
 2. If empirical bucket has <30 samples (returns None), fall back to Skellam
 3. Tied state (deficit=0) returns 0.50 (v2: home edge)
+
+The caller supplies the preloaded table dict (from nhl_wp_repository).
+This keeps domain logic free of I/O.
 """
 from __future__ import annotations
 
@@ -18,9 +21,14 @@ def trailing_team_win_probability(
     period: int,
     deficit: int,
     seconds_remaining: int,
+    *,
+    table: dict,
 ) -> tuple[float, str]:
     """
     Hybrid trailing team win probability.
+
+    Args:
+        table: preloaded dict from nhl_wp_repository.load_table()
 
     Returns:
         (probability, source) where source in {"empirical", "skellam_fallback", "trivial"}
@@ -31,7 +39,7 @@ def trailing_team_win_probability(
         return 0.0, "trivial"
 
     p_emp = nhl_empirical_wp.trailing_team_win_probability_empirical(
-        period, deficit, seconds_remaining
+        period, deficit, seconds_remaining, table=table
     )
     if p_emp is not None:
         return p_emp, "empirical"
@@ -44,9 +52,14 @@ def leading_team_win_probability(
     period: int,
     lead: int,
     seconds_remaining: int,
+    *,
+    table: dict,
 ) -> tuple[float, str]:
     """
     Hybrid leading team win probability.
+
+    Args:
+        table: preloaded dict from nhl_wp_repository.load_table()
 
     Returns:
         (probability, source) where source in {"empirical", "skellam_fallback", "trivial"}
@@ -57,7 +70,7 @@ def leading_team_win_probability(
         return 1.0, "trivial"
 
     p_emp = nhl_empirical_wp.leading_team_win_probability_empirical(
-        period, lead, seconds_remaining
+        period, lead, seconds_remaining, table=table
     )
     if p_emp is not None:
         return p_emp, "empirical"
