@@ -1,7 +1,8 @@
 """team_resolver.py için birim testler (pure, static)."""
 from __future__ import annotations
 
-from src.domain.matching.team_resolver import canonicalize, normalize, resolve, resolve_nba_espn_id
+from src.domain.matching.team_resolver import canonicalize, normalize, resolve, resolve_nba_espn_id, resolve_nhl_espn_id
+from src.domain.sports.nhl_team_aliases import NHL_TEAMS
 
 
 def test_normalize_lowercase_and_strip() -> None:
@@ -120,3 +121,52 @@ def test_resolve_nba_espn_id_all_30_teams_covered() -> None:
     for abbrev in nba_abbrevs:
         result = resolve_nba_espn_id(abbrev)
         assert result != "", f"No ESPN ID for NBA team: {abbrev}"
+
+
+# ── resolve_nhl_espn_id ──────────────────────────────────────────
+
+def test_resolve_nhl_canonical_abbr() -> None:
+    assert resolve_nhl_espn_id("BOS") == "1"
+    assert resolve_nhl_espn_id("TOR") == "21"
+    assert resolve_nhl_espn_id("NYR") == "13"
+    assert resolve_nhl_espn_id("VGK") == "37"
+
+
+def test_resolve_nhl_alt_abbr() -> None:
+    assert resolve_nhl_espn_id("LAK") == "8"    # alt for LA
+    assert resolve_nhl_espn_id("NJD") == "11"   # alt for NJ
+    assert resolve_nhl_espn_id("SJS") == "18"   # alt for SJ
+    assert resolve_nhl_espn_id("TBL") == "20"   # alt for TB
+
+
+def test_resolve_nhl_lowercase() -> None:
+    assert resolve_nhl_espn_id("bos") == "1"
+    assert resolve_nhl_espn_id("tor") == "21"
+
+
+def test_resolve_nhl_whitespace() -> None:
+    assert resolve_nhl_espn_id("  BOS  ") == "1"
+    assert resolve_nhl_espn_id("  tor  ") == "21"
+
+
+def test_resolve_nhl_unknown() -> None:
+    assert resolve_nhl_espn_id("XXX") == ""
+
+
+def test_resolve_nhl_empty() -> None:
+    assert resolve_nhl_espn_id("") == ""
+
+
+def test_resolve_nhl_none() -> None:
+    assert resolve_nhl_espn_id(None) == ""  # type: ignore[arg-type]
+
+
+def test_resolve_nhl_utah_both_forms() -> None:
+    assert resolve_nhl_espn_id("UTA") == "129764"    # nhl_team_aliases canonical
+    assert resolve_nhl_espn_id("UTAH") == "129764"   # ESPN form
+
+
+def test_all_32_nhl_teams_have_espn_id() -> None:
+    for abbr in NHL_TEAMS:
+        result = resolve_nhl_espn_id(abbr)
+        assert result != "", f"No ESPN ID for NHL team: {abbr}"

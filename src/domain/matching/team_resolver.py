@@ -203,3 +203,55 @@ def resolve_nba_espn_id(team_name: str) -> str:
     """NBA takım adı → ESPN team ID (string). Bilinmeyen → ""."""
     canon = canonicalize(team_name)
     return _NBA_NAME_TO_ESPN_ID.get(canon, "")
+
+
+# ── NHL ESPN team ID lookup ──────────────────────────────────────
+_NHL_ABBR_TO_ESPN_ID: dict[str, str] = {
+    # ESPN-canonical abbreviations (live probe 2026-04-27)
+    "ANA":  "25",      # Anaheim Ducks
+    "BOS":  "1",       # Boston Bruins
+    "BUF":  "2",       # Buffalo Sabres
+    "CAR":  "7",       # Carolina Hurricanes
+    "CBJ":  "29",      # Columbus Blue Jackets
+    "CGY":  "3",       # Calgary Flames
+    "CHI":  "4",       # Chicago Blackhawks
+    "COL":  "17",      # Colorado Avalanche
+    "DAL":  "9",       # Dallas Stars
+    "DET":  "5",       # Detroit Red Wings
+    "EDM":  "6",       # Edmonton Oilers
+    "FLA":  "26",      # Florida Panthers
+    "LA":   "8",       # Los Angeles Kings
+    "MIN":  "30",      # Minnesota Wild
+    "MTL":  "10",      # Montreal Canadiens
+    "NJ":   "11",      # New Jersey Devils
+    "NSH":  "27",      # Nashville Predators
+    "NYI":  "12",      # New York Islanders
+    "NYR":  "13",      # New York Rangers
+    "OTT":  "14",      # Ottawa Senators
+    "PHI":  "15",      # Philadelphia Flyers
+    "PIT":  "16",      # Pittsburgh Penguins
+    "SEA":  "124292",  # Seattle Kraken
+    "SJ":   "18",      # San Jose Sharks
+    "STL":  "19",      # St. Louis Blues
+    "TB":   "20",      # Tampa Bay Lightning
+    "TOR":  "21",      # Toronto Maple Leafs
+    "UTAH": "129764",  # Utah Mammoth (ESPN abbr)
+    "VAN":  "22",      # Vancouver Canucks
+    "VGK":  "37",      # Vegas Golden Knights
+    "WPG":  "28",      # Winnipeg Jets
+    "WSH":  "23",      # Washington Capitals
+    # nhl_team_aliases.py canonical that differs from ESPN
+    "UTA":  "129764",  # Utah Mammoth (our canonical; ESPN uses "UTAH")
+    # alt_abbrs from nhl_team_aliases (external sources, e.g. Odds API)
+    "LAK":  "8",       # → LA
+    "NJD":  "11",      # → NJ
+    "SJS":  "18",      # → SJ
+    "TBL":  "20",      # → TB
+}
+
+
+def resolve_nhl_espn_id(abbr: str) -> str:
+    """NHL ESPN abbreviation → ESPN team ID. Bilinmeyen → ""."""
+    if not abbr or not isinstance(abbr, str):
+        return ""
+    return _NHL_ABBR_TO_ESPN_ID.get(abbr.strip().upper(), "")
