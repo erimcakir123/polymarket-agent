@@ -659,6 +659,51 @@ Linescore: summary `header.competitions.0.competitors.X.linescores` array, OT'de
 3. Goalie confirmation logic (teyid, "probable" vs "actual starter") Task 2'de.
 
 ### Sonraki adimlar
-- Task 1D: Polymarket NHL question parser
 - Task 2: NHL entry gate (goalie confirmation + Polymarket matching)
 - Task 3: NHL exit (NHLClock + hybrid WP → K1-K4 kurallar)
+
+---
+
+## NHL Polymarket Question Parser (Task 1D) — 2026-04-27
+
+**Dosya:** `src/domain/sports/nhl_question_parser.py`
+
+### Karar
+Polymarket NHL market question metninden iki takim abbreviation'ini cikaran
+parser. Home/away siralamasini YAPMAZ — slug parser'in isi.
+
+### Desteklenen pattern'lar (gercek Polymarket ornekleri)
+- "Bruins vs. Sabres" / "Bruins vs Sabres"  (mascot, en yaygin)
+- "NHL: Lightning vs. Canadiens"
+- "NHL Playoffs: Oilers vs. Ducks"
+- "Boston Bruins vs. Buffalo Sabres"
+- "Will the Bruins win against the Sabres?"
+- "Will the Oilers beat the Ducks?"
+
+### Tasarim kararlari
+1. Pattern oncelik sirasi onemli: spesifik (Will/NHL prefix) once, generic
+   (X vs Y) sonra — "NHL: Bruins vs. Sabres" generic'e dusmesini engeller
+2. Same-team kontrol: "Bruins vs. Bruins" None doner
+3. Case-insensitive matching
+4. Whitespace tolerant
+5. Bilinmeyen takim her iki tarafta None
+6. nhl_team_aliases.resolve_nhl_team ile decoupled (32 takim listesi
+   orada, parser sadece extraction yapar)
+
+### Niye home/away yok?
+Polymarket question metni "X vs Y" formatinda ama hangi taraf home
+GUVENILIR DEGIL. Slug formati (nhl-AWAY-HOME-DATE) explicit. Cross-source
+discrepancy riskini azaltmak icin question parser sadece takim ciftini
+dondurur, siralamay orchestration katmani (entry processor) slug'dan cozer.
+
+### Bilinen kisitlamalar
+1. Cok eski question formatlari (orn. "Game 7: ...") henuz gorulmedi,
+   gerekirse pattern eklenir
+2. All-Star, 4 Nations, Olympics gibi exhibition match'ler v1'de skip
+   ediliyor zaten (entry gate)
+3. Pre-season match'ler icin ayri sport_key, parser etkilenmez
+
+### Sonraki adimlar
+- Task 2: NHL Moneyline Entry Gate (parser'i kullanir)
+- Task 3: NHL Moneyline Exit Logic (NHLClock kullanir)
+- Task 4: NHL Moneyline Integration
