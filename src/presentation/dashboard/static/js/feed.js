@@ -126,6 +126,11 @@
       return `<a class="feed-item" href="${url}" target="_blank" rel="noopener noreferrer">`;
     },
 
+    _marketTypeBadge(question, slug) {
+      const t = FMT.marketType(question, slug);
+      return t ? `<span class="feed-badge market-tag">${t}</span>` : "";
+    },
+
     _activeCard(p) {
       const icon = ICONS.getSportEmoji(p.sport_tag, p.slug);
       const dir = FMT.sideCode(p.direction, p.slug);
@@ -143,7 +148,10 @@
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
-          <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
+          <div class="feed-badges">
+            <div class="feed-badges-row">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
+            ${this._marketTypeBadge(p.question, p.slug)}
+          </div>
         </div>
         <div class="feed-entry-reason-row">${FMT.escapeHtml(p.question || p.entry_reason || "normal")}</div>
         <div class="feed-details">
@@ -216,7 +224,10 @@
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(t.question, t.slug, t.match_title)}</div>
-          <div class="feed-badges"><span class="feed-badge ${dirCls}">${dir}</span></div>
+          <div class="feed-badges">
+            <div class="feed-badges-row"><span class="feed-badge ${dirCls}">${dir}</span></div>
+            ${this._marketTypeBadge(t.question, t.slug)}
+          </div>
         </div>
         <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">

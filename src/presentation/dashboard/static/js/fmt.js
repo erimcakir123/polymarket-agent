@@ -212,6 +212,25 @@
       return code.length <= 4 ? code.toUpperCase()
         : code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
     },
+    // Market type kısa etiketi — kart badge'inde "SPREAD"/"ML"/"TOTAL"/"DRAW"
+    // gibi gösterilir. Question prefix'i öncelikli (backend canonical), slug
+    // suffix'i fallback. Tanınmazsa "" döner → caller badge render etmez.
+    marketType(question, slug) {
+      const q = String(question || "");
+      if (/^Spread\b/i.test(q)) return "SPREAD";
+      if (/^Total\b/i.test(q)) return "TOTAL";
+      if (/^Moneyline\b/i.test(q)) return "ML";
+      if (/end\s+in\s+a\s+draw\??$/i.test(q)) return "DRAW";
+      if (/^Will\s+.+\s+win\??$/i.test(q)) return "WIN";
+      const s = String(slug || "");
+      const suffix = s.match(/^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2}-([a-z]+)/i);
+      if (!suffix) return "ML";
+      const tag = suffix[1].toLowerCase();
+      if (tag === "spread") return "SPREAD";
+      if (tag === "total") return "TOTAL";
+      if (tag === "draw") return "DRAW";
+      return "WIN";
+    },
     // Raw exit_reason → { text, emoji, tone }. Tek kaynak — map burada yaşar.
     // Producer: src/models/enums.py::ExitReason + computed.py scale_out_tier_N synth.
     // Python tarafında yeni reason eklendiğinde bu map'e de branch eklenmeli.
