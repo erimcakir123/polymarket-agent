@@ -560,8 +560,49 @@ Fix sonrası 8/8 sanity anchor beklenen aralıkta.
 5. Period 4+ (OT/SO) outcome'a bucketlanır, ayrı table değil
 
 ### Sonraki adımlar
-- Task 1B: Skellam math + bu empirical tablo ile cross-validate
+- Task 1B: Skellam math + bu empirical tablo ile cross-validate ✓
 - Task 1C: ESPN NHL probe + MatchClock + alias
 - Task 1D: Polymarket NHL parser
 - Task 2-5: Entry/Exit logic
 - Faz 2: Talent-aware Bayesian extension
+
+---
+
+## NHL Skellam Math + Hybrid Wrapper — 2026-04-27
+
+### Karar
+Skellam-distribution-based theoretical win probability empirical lookup'a
+FALLBACK olarak eklendi. Empirical bucket <30 sample ise Skellam kullanılır.
+
+### Neden iki katman?
+1. Empirical (MoneyPuck 2022-25, 4198 maç): yüksek kalite, sample sınırı var
+2. Skellam: tüm state'lere yanıt veriyor, theoretical floor
+
+### Lambda kalibrasyonu
+lambda_5v5_per_sec = 0.000853 (6.142 G/mac MoneyPuck turev / 2 / 3600)
+lambda_3v3_OT_per_sec = 0.001400 (~1.65x reg)
+
+### Cross-validation
+Skellam vs empirical 8 anchor noktasi:
+- +/-10pp tolerance (P3 mid-late, P3 basi)
+- +/-15pp tolerance (last 5min — EN etkisi baslar)
+- +/-25pp tolerance (last 60s — EN heavy, Skellam underestimate beklenen)
+
+Gercek diff'ler: max 5.28pp (3_1_60), diger 7 kase <4pp.
+
+### Hybrid wrapper davranisi
+src/domain/math/nhl_win_probability.py:
+- (probability, source) tuple doner
+- source in {"empirical", "skellam_fallback", "trivial"}
+- Production exit logic bunu cagiracak (Task 3'te)
+
+### Bilinen kisitlamalar
+1. Symmetric lambda (talent yok, v2)
+2. Constant lambda (score-state aware DEGIL)
+3. Empty net dynamics SADECE empirical layer'da yakalanir
+4. OT icin ayri 3v3 lambda kullanildi
+
+### Sonraki adimlar
+- Task 1C: ESPN NHL probe + MatchClock + alias
+- Task 1D: Polymarket NHL parser
+- Task 2-5: Entry/Exit logic
