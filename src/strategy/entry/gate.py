@@ -191,13 +191,15 @@ def _check_event_guard(
     market_type: str,
     direction: Direction,
     positions: dict,
-    max_per_event: int = 2,
+    max_per_event: int = 3,
 ) -> str | None:
     """Event-level pozisyon guard. None = geçti.
 
-    Block: aynı market_type + aynı event.
+    Block: aynı market_type + aynı event (line varyantları, Over+Under).
     Block: ML + Spread aynı yön (yüksek korelasyon).
-    Allow: ML + Totals veya Spread + Totals (bağımsız sonuçlar).
+    Allow: ML + Spread (zit yön) + Totals → full slate (üç farklı edge).
+    Cap: max 3 pozisyon/event (worst case bankroll %18.75 risk; daily
+    circuit_breaker %8 tetiklenirse bot ertesi gün durur).
     """
     if not event_id:
         return None

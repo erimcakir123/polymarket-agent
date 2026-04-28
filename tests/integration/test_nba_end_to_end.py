@@ -461,20 +461,45 @@ def test_event_guard_same_event_ml_totals_allows() -> None:
     assert results[0].signal is not None, "ML + Totals same event should be allowed"
 
 
-def test_event_guard_max_2_per_event_blocks_third() -> None:
-    """2 open positions same event → 3rd blocked (hard cap)."""
-    pos1 = _make_open_position("evt_001", "moneyline")
-    pos2 = _make_open_position("evt_001", "totals")
+def test_event_guard_full_slate_3_types_allowed() -> None:
+    """ML + Spread (zit yön) + Totals → 3rd Totals position should be ALLOWED.
+
+    ML(BUY_YES Lakers) + Spread(BUY_NO underdog cover) zaten event'te açık;
+    Totals (3rd, farklı resolve criteria) izin verilmeli — full slate edge yakala.
+    """
+    pos1 = _make_open_position("evt_001", "moneyline", "BUY_YES")
+    pos2 = _make_open_position("evt_001", "spreads", "BUY_NO")  # zit yön → izinli
     gate, enricher_fn = make_gate(positions={"p1": pos1, "p2": pos2})
     enrich = make_enricher_result(prob=0.65)
     enricher_fn.return_value = enrich
 
     market = make_market(
-        condition_id="cid_spread",
+        condition_id="cid_totals",
         event_id="evt_001",
-        sports_market_type="spreads",
-        question="Spread: Los Angeles Lakers (-5.5)",
+        sports_market_type="totals",
+        question="Los Angeles Lakers vs Boston Celtics: O/U 220.5",
         yes_price=0.52,
+    )
+    results = gate.run([market])
+
+    assert results[0].signal is not None, "3rd type (Totals) same event should be allowed"
+
+
+def test_event_guard_max_3_per_event_blocks_fourth() -> None:
+    """3 open positions same event → 4th blocked (hard cap, full slate dolu)."""
+    pos1 = _make_open_position("evt_001", "moneyline", "BUY_YES")
+    pos2 = _make_open_position("evt_001", "spreads", "BUY_NO")
+    pos3 = _make_open_position("evt_001", "totals", "BUY_YES")
+    gate, enricher_fn = make_gate(positions={"p1": pos1, "p2": pos2, "p3": pos3})
+    enrich = make_enricher_result(prob=0.65)
+    enricher_fn.return_value = enrich
+
+    market = make_market(
+        condition_id="cid_4th",
+        event_id="evt_001",
+        sports_market_type="totals",
+        question="Los Angeles Lakers vs Boston Celtics: O/U 218.5",
+        yes_price=0.48,
     )
     results = gate.run([market])
 
