@@ -70,6 +70,11 @@ class GateConfig:
     nhl_puck_line_min_price: float = field(default=0.20)
     nhl_puck_line_max_price: float = field(default=0.80)
     nhl_puck_line_min_volume: float = field(default=3000.0)
+    # NHL Totals filters
+    nhl_totals_min_price: float = field(default=0.20)
+    nhl_totals_max_price: float = field(default=0.80)
+    nhl_totals_min_target_total: float = field(default=4.5)
+    nhl_totals_min_volume: float = field(default=3000.0)
 
 
 @dataclass
@@ -125,6 +130,10 @@ def _passes_filters(
         market_type == "spreads"
         and sport_low in ("nhl", "ahl", "icehockey_nhl")
     )
+    is_nhl_totals = (
+        market_type == "totals"
+        and sport_low in ("nhl", "ahl", "icehockey_nhl")
+    )
 
     if market_type == "spreads":
         if is_nhl_puck_line:
@@ -136,18 +145,26 @@ def _passes_filters(
             if polymarket_price < cfg.spread_min_price or polymarket_price > cfg.spread_max_price:
                 return "PRICE_OUT_OF_RANGE"
     elif market_type == "totals":
-        if polymarket_price < cfg.totals_min_price or polymarket_price > cfg.totals_max_price:
-            return "PRICE_OUT_OF_RANGE"
-        if total_line is not None and total_line < cfg.totals_min_target_total:
-            return "TOTAL_TOO_LOW"
+        if is_nhl_totals:
+            if polymarket_price < cfg.nhl_totals_min_price or polymarket_price > cfg.nhl_totals_max_price:
+                return "PRICE_OUT_OF_RANGE"
+            if total_line is not None and total_line < cfg.nhl_totals_min_target_total:
+                return "TOTAL_TOO_LOW"
+            if volume < cfg.nhl_totals_min_volume:
+                return "VOLUME_TOO_LOW"
+        else:
+            if polymarket_price < cfg.totals_min_price or polymarket_price > cfg.totals_max_price:
+                return "PRICE_OUT_OF_RANGE"
+            if total_line is not None and total_line < cfg.totals_min_target_total:
+                return "TOTAL_TOO_LOW"
     else:  # moneyline
         if polymarket_price < cfg.min_polymarket_price or polymarket_price > cfg.max_entry_price:
             return "PRICE_OUT_OF_RANGE"
 
     if bookmaker_prob < cfg.min_favorite_probability:
         return "BOOKMAKER_PROB_TOO_LOW"
-    # NHL puck line volume already checked above; skip generic for that path.
-    if not is_nhl_puck_line:
+    # NHL puck line / totals volume already checked above; skip generic for those paths.
+    if not (is_nhl_puck_line or is_nhl_totals):
         if volume < cfg.min_market_volume:
             return "VOLUME_TOO_LOW"
     return None

@@ -209,6 +209,11 @@ entry:
   nhl_puck_line_max_price: 0.80
   nhl_puck_line_threshold: 1.5
   nhl_puck_line_min_volume: 3000.0
+  # NHL Totals entry filters
+  nhl_totals_min_price: 0.20
+  nhl_totals_max_price: 0.80
+  nhl_totals_min_target_total: 4.5
+  nhl_totals_min_volume: 3000.0
 
 stock:
   enabled: true
@@ -341,6 +346,12 @@ exit_nhl:
   predictive_safety_margin: 0.03
 
 exit_nhl_puck_line:
+  near_resolve_threshold: 0.94
+  scale_out_threshold: 0.85
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.03
+
+exit_nhl_totals:
   near_resolve_threshold: 0.94
   scale_out_threshold: 0.85
   structural_damage_ratio: 0.30

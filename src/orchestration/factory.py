@@ -155,6 +155,11 @@ def build_agent(state: RuntimeState) -> Agent:
         nhl_puck_line_min_price=cfg.entry.nhl_puck_line_min_price,
         nhl_puck_line_max_price=cfg.entry.nhl_puck_line_max_price,
         nhl_puck_line_min_volume=cfg.entry.nhl_puck_line_min_volume,
+        # NHL Totals filters
+        nhl_totals_min_price=cfg.entry.nhl_totals_min_price,
+        nhl_totals_max_price=cfg.entry.nhl_totals_max_price,
+        nhl_totals_min_target_total=cfg.entry.nhl_totals_min_target_total,
+        nhl_totals_min_volume=cfg.entry.nhl_totals_min_volume,
     )
 
     # Telegram command poller — /stop ile botu uzaktan durdurma

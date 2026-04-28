@@ -126,6 +126,14 @@ class ExitNhlPuckLineConfig(BaseModel):
     predictive_safety_margin: float = 0.03
 
 
+class ExitNhlTotalsConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    near_resolve_threshold: float = 0.94
+    scale_out_threshold: float = 0.85
+    structural_damage_ratio: float = 0.30
+    predictive_safety_margin: float = 0.03
+
+
 class EntryConfig(BaseModel):
     """Directional entry (SPEC-017) — edge-free entry kararı.
 
@@ -195,6 +203,11 @@ class EntryConfig(BaseModel):
     nhl_puck_line_max_price: float = 0.80
     nhl_puck_line_threshold: float = 1.5
     nhl_puck_line_min_volume: float = 3000.0
+    # NHL Totals entry filters
+    nhl_totals_min_price: float = 0.20
+    nhl_totals_max_price: float = 0.80
+    nhl_totals_min_target_total: float = 4.5
+    nhl_totals_min_volume: float = 3000.0
 
 
 class StockConfig(BaseModel):
@@ -368,6 +381,7 @@ class AppConfig(BaseModel):
     exit_basketball: BasketballExitConfig = BasketballExitConfig()
     exit_nhl: ExitNhlConfig = ExitNhlConfig()
     exit_nhl_puck_line: ExitNhlPuckLineConfig = ExitNhlPuckLineConfig()
+    exit_nhl_totals: ExitNhlTotalsConfig = ExitNhlTotalsConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011

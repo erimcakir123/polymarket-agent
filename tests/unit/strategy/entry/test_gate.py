@@ -996,3 +996,44 @@ def test_nhl_puck_line_passes_volume_below_nba_default():
         sport_tag="nhl",
     )
     assert nhl_reason is None
+
+
+# ── NHL Totals filter tests (Task 7I) ────────────────────────────
+
+def test_nhl_totals_market_passes_filter():
+    """NHL totals market: price 0.45, volume 4000, total_line 5.5 → geçer."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="totals",
+        total_line=5.5,
+        sport_tag="nhl",
+    )
+    assert reason is None
+
+
+def test_nhl_totals_volume_too_low_rejected():
+    """NHL totals volume < 3000 → VOLUME_TOO_LOW (NHL-specific threshold)."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=1_000.0, cfg=cfg,
+        market_type="totals",
+        total_line=5.5,
+        sport_tag="nhl",
+    )
+    assert reason == "VOLUME_TOO_LOW"
+
+
+def test_nhl_totals_total_line_too_low_rejected():
+    """NHL totals total_line < 4.5 → TOTAL_TOO_LOW."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="totals",
+        total_line=4.0,
+        sport_tag="nhl",
+    )
+    assert reason == "TOTAL_TOO_LOW"
