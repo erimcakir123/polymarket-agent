@@ -1,0 +1,6331 @@
+{
+  "metadata": {
+    "seasons": [
+      2022,
+      2023,
+      2024
+    ],
+    "time_bucket_sec": 30,
+    "margin_cap": 5,
+    "puck_line": 1.5,
+    "min_sample_size": 30,
+    "wilson_z": 1.96,
+    "total_games": 4198,
+    "favorite_assumption": "home (heuristic; runtime uses Pinnacle line)",
+    "key_format": "period_currentMargin_secondsRemaining"
+  },
+  "puck_line_cover": {
+    "1_-5_2430": null,
+    "1_-5_2460": null,
+    "1_-5_2490": null,
+    "1_-5_2520": null,
+    "1_-5_2550": null,
+    "1_-5_2580": null,
+    "1_-5_2610": null,
+    "1_-5_2640": null,
+    "1_-5_2670": null,
+    "1_-5_2700": null,
+    "1_-4_2430": null,
+    "1_-4_2460": null,
+    "1_-4_2490": null,
+    "1_-4_2520": null,
+    "1_-4_2550": null,
+    "1_-4_2580": null,
+    "1_-4_2610": null,
+    "1_-4_2640": null,
+    "1_-4_2670": null,
+    "1_-4_2700": null,
+    "1_-4_2730": null,
+    "1_-4_2760": null,
+    "1_-4_2790": null,
+    "1_-4_2820": null,
+    "1_-4_2850": null,
+    "1_-4_2880": null,
+    "1_-4_2910": null,
+    "1_-4_2940": null,
+    "1_-4_2970": null,
+    "1_-4_3000": null,
+    "1_-4_3030": null,
+    "1_-4_3060": null,
+    "1_-4_3090": null,
+    "1_-3_2430": {
+      "p_favorite_covers": 0.0296,
+      "ci_low": 0.0,
+      "ci_high": 0.0592,
+      "n_games": 61
+    },
+    "1_-3_2460": {
+      "p_favorite_covers": 0.0287,
+      "ci_low": 0.0,
+      "ci_high": 0.0575,
+      "n_games": 63
+    },
+    "1_-3_2490": {
+      "p_favorite_covers": 0.0275,
+      "ci_low": 0.0,
+      "ci_high": 0.055,
+      "n_games": 66
+    },
+    "1_-3_2520": {
+      "p_favorite_covers": 0.0292,
+      "ci_low": 0.0,
+      "ci_high": 0.0583,
+      "n_games": 62
+    },
+    "1_-3_2550": {
+      "p_favorite_covers": 0.0311,
+      "ci_low": 0.0,
+      "ci_high": 0.0621,
+      "n_games": 58
+    },
+    "1_-3_2580": {
+      "p_favorite_covers": 0.0316,
+      "ci_low": 0.0,
+      "ci_high": 0.0631,
+      "n_games": 57
+    },
+    "1_-3_2610": {
+      "p_favorite_covers": 0.0338,
+      "ci_low": 0.0,
+      "ci_high": 0.0676,
+      "n_games": 53
+    },
+    "1_-3_2640": {
+      "p_favorite_covers": 0.0378,
+      "ci_low": 0.0,
+      "ci_high": 0.0756,
+      "n_games": 47
+    },
+    "1_-3_2670": {
+      "p_favorite_covers": 0.0419,
+      "ci_low": 0.0,
+      "ci_high": 0.0838,
+      "n_games": 42
+    },
+    "1_-3_2700": {
+      "p_favorite_covers": 0.0482,
+      "ci_low": 0.0,
+      "ci_high": 0.0964,
+      "n_games": 36
+    },
+    "1_-3_2730": {
+      "p_favorite_covers": 0.0508,
+      "ci_low": 0.0,
+      "ci_high": 0.1015,
+      "n_games": 34
+    },
+    "1_-3_2760": {
+      "p_favorite_covers": 0.0568,
+      "ci_low": 0.0,
+      "ci_high": 0.1135,
+      "n_games": 30
+    },
+    "1_-3_2790": {
+      "p_favorite_covers": 0.0568,
+      "ci_low": 0.0,
+      "ci_high": 0.1135,
+      "n_games": 30
+    },
+    "1_-3_2820": null,
+    "1_-3_2850": null,
+    "1_-3_2880": null,
+    "1_-3_2910": null,
+    "1_-3_2940": null,
+    "1_-3_2970": null,
+    "1_-3_3000": null,
+    "1_-3_3030": null,
+    "1_-3_3060": null,
+    "1_-3_3090": null,
+    "1_-3_3120": null,
+    "1_-3_3150": null,
+    "1_-3_3180": null,
+    "1_-3_3210": null,
+    "1_-3_3240": null,
+    "1_-3_3270": null,
+    "1_-3_3420": null,
+    "1_-2_2430": {
+      "p_favorite_covers": 0.0577,
+      "ci_low": 0.033,
+      "ci_high": 0.0824,
+      "n_games": 324
+    },
+    "1_-2_2460": {
+      "p_favorite_covers": 0.0654,
+      "ci_low": 0.0388,
+      "ci_high": 0.092,
+      "n_games": 316
+    },
+    "1_-2_2490": {
+      "p_favorite_covers": 0.069,
+      "ci_low": 0.0416,
+      "ci_high": 0.0963,
+      "n_games": 314
+    },
+    "1_-2_2520": {
+      "p_favorite_covers": 0.0742,
+      "ci_low": 0.0455,
+      "ci_high": 0.103,
+      "n_games": 305
+    },
+    "1_-2_2550": {
+      "p_favorite_covers": 0.0772,
+      "ci_low": 0.0474,
+      "ci_high": 0.1071,
+      "n_games": 293
+    },
+    "1_-2_2580": {
+      "p_favorite_covers": 0.0729,
+      "ci_low": 0.0434,
+      "ci_high": 0.1025,
+      "n_games": 283
+    },
+    "1_-2_2610": {
+      "p_favorite_covers": 0.0683,
+      "ci_low": 0.0392,
+      "ci_high": 0.0975,
+      "n_games": 273
+    },
+    "1_-2_2640": {
+      "p_favorite_covers": 0.0704,
+      "ci_low": 0.0404,
+      "ci_high": 0.1003,
+      "n_games": 265
+    },
+    "1_-2_2670": {
+      "p_favorite_covers": 0.0734,
+      "ci_low": 0.0422,
+      "ci_high": 0.1046,
+      "n_games": 254
+    },
+    "1_-2_2700": {
+      "p_favorite_covers": 0.0706,
+      "ci_low": 0.0398,
+      "ci_high": 0.1014,
+      "n_games": 250
+    },
+    "1_-2_2730": {
+      "p_favorite_covers": 0.0723,
+      "ci_low": 0.0408,
+      "ci_high": 0.1039,
+      "n_games": 244
+    },
+    "1_-2_2760": {
+      "p_favorite_covers": 0.0717,
+      "ci_low": 0.0396,
+      "ci_high": 0.1039,
+      "n_games": 232
+    },
+    "1_-2_2790": {
+      "p_favorite_covers": 0.0688,
+      "ci_low": 0.036,
+      "ci_high": 0.1016,
+      "n_games": 213
+    },
+    "1_-2_2820": {
+      "p_favorite_covers": 0.068,
+      "ci_low": 0.0345,
+      "ci_high": 0.1014,
+      "n_games": 201
+    },
+    "1_-2_2850": {
+      "p_favorite_covers": 0.0653,
+      "ci_low": 0.032,
+      "ci_high": 0.0987,
+      "n_games": 194
+    },
+    "1_-2_2880": {
+      "p_favorite_covers": 0.0618,
+      "ci_low": 0.0276,
+      "ci_high": 0.0959,
+      "n_games": 173
+    },
+    "1_-2_2910": {
+      "p_favorite_covers": 0.0639,
+      "ci_low": 0.0286,
+      "ci_high": 0.0992,
+      "n_games": 167
+    },
+    "1_-2_2940": {
+      "p_favorite_covers": 0.0558,
+      "ci_low": 0.0219,
+      "ci_high": 0.0897,
+      "n_games": 156
+    },
+    "1_-2_2970": {
+      "p_favorite_covers": 0.0499,
+      "ci_low": 0.0179,
+      "ci_high": 0.0819,
+      "n_games": 155
+    },
+    "1_-2_3000": {
+      "p_favorite_covers": 0.0532,
+      "ci_low": 0.0191,
+      "ci_high": 0.0873,
+      "n_games": 145
+    },
+    "1_-2_3030": {
+      "p_favorite_covers": 0.0592,
+      "ci_low": 0.0213,
+      "ci_high": 0.097,
+      "n_games": 130
+    },
+    "1_-2_3060": {
+      "p_favorite_covers": 0.0645,
+      "ci_low": 0.0233,
+      "ci_high": 0.1056,
+      "n_games": 119
+    },
+    "1_-2_3090": {
+      "p_favorite_covers": 0.0554,
+      "ci_low": 0.0152,
+      "ci_high": 0.0956,
+      "n_games": 103
+    },
+    "1_-2_3120": {
+      "p_favorite_covers": 0.0722,
+      "ci_low": 0.0234,
+      "ci_high": 0.121,
+      "n_games": 92
+    },
+    "1_-2_3150": {
+      "p_favorite_covers": 0.0674,
+      "ci_low": 0.0187,
+      "ci_high": 0.1161,
+      "n_games": 84
+    },
+    "1_-2_3180": {
+      "p_favorite_covers": 0.0524,
+      "ci_low": 0.0078,
+      "ci_high": 0.097,
+      "n_games": 71
+    },
+    "1_-2_3210": {
+      "p_favorite_covers": 0.0605,
+      "ci_low": 0.009,
+      "ci_high": 0.1119,
+      "n_games": 61
+    },
+    "1_-2_3240": {
+      "p_favorite_covers": 0.0728,
+      "ci_low": 0.011,
+      "ci_high": 0.1346,
+      "n_games": 50
+    },
+    "1_-2_3270": {
+      "p_favorite_covers": 0.0698,
+      "ci_low": 0.0047,
+      "ci_high": 0.135,
+      "n_games": 38
+    },
+    "1_-2_3300": {
+      "p_favorite_covers": 0.0752,
+      "ci_low": 0.0051,
+      "ci_high": 0.1453,
+      "n_games": 35
+    },
+    "1_-2_3330": {
+      "p_favorite_covers": 0.0815,
+      "ci_low": 0.0055,
+      "ci_high": 0.1574,
+      "n_games": 32
+    },
+    "1_-2_3360": null,
+    "1_-2_3390": null,
+    "1_-2_3420": null,
+    "1_-2_3450": null,
+    "1_-2_3480": null,
+    "1_-2_3510": null,
+    "1_-1_2430": {
+      "p_favorite_covers": 0.1322,
+      "ci_low": 0.11,
+      "ci_high": 0.1544,
+      "n_games": 888
+    },
+    "1_-1_2460": {
+      "p_favorite_covers": 0.1324,
+      "ci_low": 0.1102,
+      "ci_high": 0.1546,
+      "n_games": 887
+    },
+    "1_-1_2490": {
+      "p_favorite_covers": 0.135,
+      "ci_low": 0.1125,
+      "ci_high": 0.1575,
+      "n_games": 877
+    },
+    "1_-1_2520": {
+      "p_favorite_covers": 0.1379,
+      "ci_low": 0.1151,
+      "ci_high": 0.1607,
+      "n_games": 873
+    },
+    "1_-1_2550": {
+      "p_favorite_covers": 0.1407,
+      "ci_low": 0.1178,
+      "ci_high": 0.1636,
+      "n_games": 877
+    },
+    "1_-1_2580": {
+      "p_favorite_covers": 0.1431,
+      "ci_low": 0.1201,
+      "ci_high": 0.1661,
+      "n_games": 883
+    },
+    "1_-1_2610": {
+      "p_favorite_covers": 0.1434,
+      "ci_low": 0.1205,
+      "ci_high": 0.1664,
+      "n_games": 888
+    },
+    "1_-1_2640": {
+      "p_favorite_covers": 0.1433,
+      "ci_low": 0.1203,
+      "ci_high": 0.1662,
+      "n_games": 889
+    },
+    "1_-1_2670": {
+      "p_favorite_covers": 0.1452,
+      "ci_low": 0.1222,
+      "ci_high": 0.1682,
+      "n_games": 891
+    },
+    "1_-1_2700": {
+      "p_favorite_covers": 0.1416,
+      "ci_low": 0.1186,
+      "ci_high": 0.1647,
+      "n_games": 871
+    },
+    "1_-1_2730": {
+      "p_favorite_covers": 0.1418,
+      "ci_low": 0.1186,
+      "ci_high": 0.165,
+      "n_games": 863
+    },
+    "1_-1_2760": {
+      "p_favorite_covers": 0.1443,
+      "ci_low": 0.121,
+      "ci_high": 0.1675,
+      "n_games": 869
+    },
+    "1_-1_2790": {
+      "p_favorite_covers": 0.1491,
+      "ci_low": 0.1256,
+      "ci_high": 0.1727,
+      "n_games": 874
+    },
+    "1_-1_2820": {
+      "p_favorite_covers": 0.1495,
+      "ci_low": 0.1259,
+      "ci_high": 0.1732,
+      "n_games": 865
+    },
+    "1_-1_2850": {
+      "p_favorite_covers": 0.1515,
+      "ci_low": 0.1275,
+      "ci_high": 0.1756,
+      "n_games": 847
+    },
+    "1_-1_2880": {
+      "p_favorite_covers": 0.1502,
+      "ci_low": 0.1262,
+      "ci_high": 0.1743,
+      "n_games": 841
+    },
+    "1_-1_2910": {
+      "p_favorite_covers": 0.1496,
+      "ci_low": 0.1255,
+      "ci_high": 0.1738,
+      "n_games": 831
+    },
+    "1_-1_2940": {
+      "p_favorite_covers": 0.1398,
+      "ci_low": 0.1162,
+      "ci_high": 0.1635,
+      "n_games": 818
+    },
+    "1_-1_2970": {
+      "p_favorite_covers": 0.1433,
+      "ci_low": 0.1193,
+      "ci_high": 0.1673,
+      "n_games": 812
+    },
+    "1_-1_3000": {
+      "p_favorite_covers": 0.1462,
+      "ci_low": 0.1216,
+      "ci_high": 0.1709,
+      "n_games": 782
+    },
+    "1_-1_3030": {
+      "p_favorite_covers": 0.1452,
+      "ci_low": 0.1203,
+      "ci_high": 0.1701,
+      "n_games": 760
+    },
+    "1_-1_3060": {
+      "p_favorite_covers": 0.1439,
+      "ci_low": 0.1186,
+      "ci_high": 0.1692,
+      "n_games": 732
+    },
+    "1_-1_3090": {
+      "p_favorite_covers": 0.1533,
+      "ci_low": 0.1273,
+      "ci_high": 0.1794,
+      "n_games": 726
+    },
+    "1_-1_3120": {
+      "p_favorite_covers": 0.1554,
+      "ci_low": 0.1287,
+      "ci_high": 0.1822,
+      "n_games": 697
+    },
+    "1_-1_3150": {
+      "p_favorite_covers": 0.1624,
+      "ci_low": 0.1347,
+      "ci_high": 0.1901,
+      "n_games": 673
+    },
+    "1_-1_3180": {
+      "p_favorite_covers": 0.1539,
+      "ci_low": 0.1261,
+      "ci_high": 0.1817,
+      "n_games": 639
+    },
+    "1_-1_3210": {
+      "p_favorite_covers": 0.1488,
+      "ci_low": 0.1207,
+      "ci_high": 0.177,
+      "n_games": 607
+    },
+    "1_-1_3240": {
+      "p_favorite_covers": 0.146,
+      "ci_low": 0.1171,
+      "ci_high": 0.175,
+      "n_games": 564
+    },
+    "1_-1_3270": {
+      "p_favorite_covers": 0.1523,
+      "ci_low": 0.1216,
+      "ci_high": 0.1829,
+      "n_games": 521
+    },
+    "1_-1_3300": {
+      "p_favorite_covers": 0.1589,
+      "ci_low": 0.1262,
+      "ci_high": 0.1915,
+      "n_games": 474
+    },
+    "1_-1_3330": {
+      "p_favorite_covers": 0.1591,
+      "ci_low": 0.1246,
+      "ci_high": 0.1937,
+      "n_games": 423
+    },
+    "1_-1_3360": {
+      "p_favorite_covers": 0.1393,
+      "ci_low": 0.1043,
+      "ci_high": 0.1742,
+      "n_games": 369
+    },
+    "1_-1_3390": {
+      "p_favorite_covers": 0.1468,
+      "ci_low": 0.1078,
+      "ci_high": 0.1858,
+      "n_games": 309
+    },
+    "1_-1_3420": {
+      "p_favorite_covers": 0.1592,
+      "ci_low": 0.1163,
+      "ci_high": 0.2021,
+      "n_games": 272
+    },
+    "1_-1_3450": {
+      "p_favorite_covers": 0.1926,
+      "ci_low": 0.1411,
+      "ci_high": 0.2441,
+      "n_games": 219
+    },
+    "1_-1_3480": {
+      "p_favorite_covers": 0.1927,
+      "ci_low": 0.134,
+      "ci_high": 0.2514,
+      "n_games": 167
+    },
+    "1_-1_3510": {
+      "p_favorite_covers": 0.189,
+      "ci_low": 0.1112,
+      "ci_high": 0.2667,
+      "n_games": 91
+    },
+    "1_-1_3540": {
+      "p_favorite_covers": 0.2441,
+      "ci_low": 0.1254,
+      "ci_high": 0.3627,
+      "n_games": 45
+    },
+    "1_-1_3570": null,
+    "1_0_2430": {
+      "p_favorite_covers": 0.265,
+      "ci_low": 0.2424,
+      "ci_high": 0.2875,
+      "n_games": 1464
+    },
+    "1_0_2460": {
+      "p_favorite_covers": 0.2661,
+      "ci_low": 0.2438,
+      "ci_high": 0.2884,
+      "n_games": 1503
+    },
+    "1_0_2490": {
+      "p_favorite_covers": 0.2697,
+      "ci_low": 0.2475,
+      "ci_high": 0.292,
+      "n_games": 1527
+    },
+    "1_0_2520": {
+      "p_favorite_covers": 0.2676,
+      "ci_low": 0.2456,
+      "ci_high": 0.2895,
+      "n_games": 1558
+    },
+    "1_0_2550": {
+      "p_favorite_covers": 0.2671,
+      "ci_low": 0.2454,
+      "ci_high": 0.2888,
+      "n_games": 1587
+    },
+    "1_0_2580": {
+      "p_favorite_covers": 0.2712,
+      "ci_low": 0.2496,
+      "ci_high": 0.2929,
+      "n_games": 1618
+    },
+    "1_0_2610": {
+      "p_favorite_covers": 0.2786,
+      "ci_low": 0.2569,
+      "ci_high": 0.3002,
+      "n_games": 1640
+    },
+    "1_0_2640": {
+      "p_favorite_covers": 0.2779,
+      "ci_low": 0.2563,
+      "ci_high": 0.2994,
+      "n_games": 1655
+    },
+    "1_0_2670": {
+      "p_favorite_covers": 0.2809,
+      "ci_low": 0.2596,
+      "ci_high": 0.3022,
+      "n_games": 1701
+    },
+    "1_0_2700": {
+      "p_favorite_covers": 0.2879,
+      "ci_low": 0.2667,
+      "ci_high": 0.3091,
+      "n_games": 1750
+    },
+    "1_0_2730": {
+      "p_favorite_covers": 0.2859,
+      "ci_low": 0.2649,
+      "ci_high": 0.3068,
+      "n_games": 1780
+    },
+    "1_0_2760": {
+      "p_favorite_covers": 0.2877,
+      "ci_low": 0.2669,
+      "ci_high": 0.3086,
+      "n_games": 1810
+    },
+    "1_0_2790": {
+      "p_favorite_covers": 0.2841,
+      "ci_low": 0.2635,
+      "ci_high": 0.3047,
+      "n_games": 1837
+    },
+    "1_0_2820": {
+      "p_favorite_covers": 0.284,
+      "ci_low": 0.2637,
+      "ci_high": 0.3044,
+      "n_games": 1883
+    },
+    "1_0_2850": {
+      "p_favorite_covers": 0.2855,
+      "ci_low": 0.2655,
+      "ci_high": 0.3056,
+      "n_games": 1936
+    },
+    "1_0_2880": {
+      "p_favorite_covers": 0.2887,
+      "ci_low": 0.2688,
+      "ci_high": 0.3086,
+      "n_games": 1984
+    },
+    "1_0_2910": {
+      "p_favorite_covers": 0.2922,
+      "ci_low": 0.2725,
+      "ci_high": 0.312,
+      "n_games": 2032
+    },
+    "1_0_2940": {
+      "p_favorite_covers": 0.2954,
+      "ci_low": 0.2759,
+      "ci_high": 0.315,
+      "n_games": 2091
+    },
+    "1_0_2970": {
+      "p_favorite_covers": 0.2987,
+      "ci_low": 0.2793,
+      "ci_high": 0.3181,
+      "n_games": 2132
+    },
+    "1_0_3000": {
+      "p_favorite_covers": 0.297,
+      "ci_low": 0.278,
+      "ci_high": 0.316,
+      "n_games": 2208
+    },
+    "1_0_3030": {
+      "p_favorite_covers": 0.2986,
+      "ci_low": 0.2799,
+      "ci_high": 0.3172,
+      "n_games": 2297
+    },
+    "1_0_3060": {
+      "p_favorite_covers": 0.2978,
+      "ci_low": 0.2795,
+      "ci_high": 0.3162,
+      "n_games": 2373
+    },
+    "1_0_3090": {
+      "p_favorite_covers": 0.2949,
+      "ci_low": 0.2768,
+      "ci_high": 0.3129,
+      "n_games": 2441
+    },
+    "1_0_3120": {
+      "p_favorite_covers": 0.2927,
+      "ci_low": 0.2749,
+      "ci_high": 0.3104,
+      "n_games": 2521
+    },
+    "1_0_3150": {
+      "p_favorite_covers": 0.2946,
+      "ci_low": 0.277,
+      "ci_high": 0.3121,
+      "n_games": 2593
+    },
+    "1_0_3180": {
+      "p_favorite_covers": 0.2966,
+      "ci_low": 0.2794,
+      "ci_high": 0.3139,
+      "n_games": 2686
+    },
+    "1_0_3210": {
+      "p_favorite_covers": 0.2981,
+      "ci_low": 0.2811,
+      "ci_high": 0.3152,
+      "n_games": 2760
+    },
+    "1_0_3240": {
+      "p_favorite_covers": 0.2992,
+      "ci_low": 0.2825,
+      "ci_high": 0.316,
+      "n_games": 2870
+    },
+    "1_0_3270": {
+      "p_favorite_covers": 0.3032,
+      "ci_low": 0.2867,
+      "ci_high": 0.3196,
+      "n_games": 3001
+    },
+    "1_0_3300": {
+      "p_favorite_covers": 0.3013,
+      "ci_low": 0.2852,
+      "ci_high": 0.3174,
+      "n_games": 3106
+    },
+    "1_0_3330": {
+      "p_favorite_covers": 0.3053,
+      "ci_low": 0.2894,
+      "ci_high": 0.3212,
+      "n_games": 3229
+    },
+    "1_0_3360": {
+      "p_favorite_covers": 0.3061,
+      "ci_low": 0.2906,
+      "ci_high": 0.3217,
+      "n_games": 3357
+    },
+    "1_0_3390": {
+      "p_favorite_covers": 0.3053,
+      "ci_low": 0.29,
+      "ci_high": 0.3206,
+      "n_games": 3481
+    },
+    "1_0_3420": {
+      "p_favorite_covers": 0.3066,
+      "ci_low": 0.2915,
+      "ci_high": 0.3216,
+      "n_games": 3607
+    },
+    "1_0_3450": {
+      "p_favorite_covers": 0.3075,
+      "ci_low": 0.2927,
+      "ci_high": 0.3223,
+      "n_games": 3752
+    },
+    "1_0_3480": {
+      "p_favorite_covers": 0.3081,
+      "ci_low": 0.2936,
+      "ci_high": 0.3227,
+      "n_games": 3871
+    },
+    "1_0_3510": {
+      "p_favorite_covers": 0.3085,
+      "ci_low": 0.2942,
+      "ci_high": 0.3228,
+      "n_games": 4006
+    },
+    "1_0_3540": {
+      "p_favorite_covers": 0.3081,
+      "ci_low": 0.294,
+      "ci_high": 0.3222,
+      "n_games": 4105
+    },
+    "1_0_3570": {
+      "p_favorite_covers": 0.3089,
+      "ci_low": 0.295,
+      "ci_high": 0.3229,
+      "n_games": 4191
+    },
+    "1_0_3600": {
+      "p_favorite_covers": 0.3089,
+      "ci_low": 0.2949,
+      "ci_high": 0.3229,
+      "n_games": 4198
+    },
+    "1_1_2430": {
+      "p_favorite_covers": 0.4632,
+      "ci_low": 0.4316,
+      "ci_high": 0.4949,
+      "n_games": 948
+    },
+    "1_1_2460": {
+      "p_favorite_covers": 0.4691,
+      "ci_low": 0.4372,
+      "ci_high": 0.501,
+      "n_games": 936
+    },
+    "1_1_2490": {
+      "p_favorite_covers": 0.4602,
+      "ci_low": 0.4284,
+      "ci_high": 0.492,
+      "n_games": 939
+    },
+    "1_1_2520": {
+      "p_favorite_covers": 0.4639,
+      "ci_low": 0.4321,
+      "ci_high": 0.4957,
+      "n_games": 938
+    },
+    "1_1_2550": {
+      "p_favorite_covers": 0.4634,
+      "ci_low": 0.4318,
+      "ci_high": 0.495,
+      "n_games": 952
+    },
+    "1_1_2580": {
+      "p_favorite_covers": 0.4646,
+      "ci_low": 0.4329,
+      "ci_high": 0.4964,
+      "n_games": 943
+    },
+    "1_1_2610": {
+      "p_favorite_covers": 0.4589,
+      "ci_low": 0.4271,
+      "ci_high": 0.4906,
+      "n_games": 944
+    },
+    "1_1_2640": {
+      "p_favorite_covers": 0.4559,
+      "ci_low": 0.4244,
+      "ci_high": 0.4873,
+      "n_games": 959
+    },
+    "1_1_2670": {
+      "p_favorite_covers": 0.4539,
+      "ci_low": 0.4223,
+      "ci_high": 0.4855,
+      "n_games": 950
+    },
+    "1_1_2700": {
+      "p_favorite_covers": 0.4449,
+      "ci_low": 0.4133,
+      "ci_high": 0.4765,
+      "n_games": 949
+    },
+    "1_1_2730": {
+      "p_favorite_covers": 0.4535,
+      "ci_low": 0.4219,
+      "ci_high": 0.485,
+      "n_games": 953
+    },
+    "1_1_2760": {
+      "p_favorite_covers": 0.4525,
+      "ci_low": 0.4208,
+      "ci_high": 0.4842,
+      "n_games": 944
+    },
+    "1_1_2790": {
+      "p_favorite_covers": 0.4543,
+      "ci_low": 0.4227,
+      "ci_high": 0.486,
+      "n_games": 949
+    },
+    "1_1_2820": {
+      "p_favorite_covers": 0.4558,
+      "ci_low": 0.4241,
+      "ci_high": 0.4875,
+      "n_games": 946
+    },
+    "1_1_2850": {
+      "p_favorite_covers": 0.4538,
+      "ci_low": 0.422,
+      "ci_high": 0.4856,
+      "n_games": 937
+    },
+    "1_1_2880": {
+      "p_favorite_covers": 0.4504,
+      "ci_low": 0.4185,
+      "ci_high": 0.4822,
+      "n_games": 933
+    },
+    "1_1_2910": {
+      "p_favorite_covers": 0.4428,
+      "ci_low": 0.4108,
+      "ci_high": 0.4747,
+      "n_games": 922
+    },
+    "1_1_2940": {
+      "p_favorite_covers": 0.4504,
+      "ci_low": 0.4181,
+      "ci_high": 0.4828,
+      "n_games": 904
+    },
+    "1_1_2970": {
+      "p_favorite_covers": 0.4483,
+      "ci_low": 0.4156,
+      "ci_high": 0.481,
+      "n_games": 886
+    },
+    "1_1_3000": {
+      "p_favorite_covers": 0.4518,
+      "ci_low": 0.4188,
+      "ci_high": 0.4849,
+      "n_games": 868
+    },
+    "1_1_3030": {
+      "p_favorite_covers": 0.447,
+      "ci_low": 0.4133,
+      "ci_high": 0.4806,
+      "n_games": 835
+    },
+    "1_1_3060": {
+      "p_favorite_covers": 0.454,
+      "ci_low": 0.4198,
+      "ci_high": 0.4882,
+      "n_games": 811
+    },
+    "1_1_3090": {
+      "p_favorite_covers": 0.4638,
+      "ci_low": 0.4289,
+      "ci_high": 0.4986,
+      "n_games": 783
+    },
+    "1_1_3120": {
+      "p_favorite_covers": 0.471,
+      "ci_low": 0.4356,
+      "ci_high": 0.5065,
+      "n_games": 756
+    },
+    "1_1_3150": {
+      "p_favorite_covers": 0.4691,
+      "ci_low": 0.4332,
+      "ci_high": 0.5049,
+      "n_games": 740
+    },
+    "1_1_3180": {
+      "p_favorite_covers": 0.4763,
+      "ci_low": 0.4397,
+      "ci_high": 0.5128,
+      "n_games": 712
+    },
+    "1_1_3210": {
+      "p_favorite_covers": 0.4727,
+      "ci_low": 0.4356,
+      "ci_high": 0.5098,
+      "n_games": 692
+    },
+    "1_1_3240": {
+      "p_favorite_covers": 0.4787,
+      "ci_low": 0.4404,
+      "ci_high": 0.5169,
+      "n_games": 652
+    },
+    "1_1_3270": {
+      "p_favorite_covers": 0.4627,
+      "ci_low": 0.4225,
+      "ci_high": 0.5029,
+      "n_games": 586
+    },
+    "1_1_3300": {
+      "p_favorite_covers": 0.4774,
+      "ci_low": 0.4358,
+      "ci_high": 0.519,
+      "n_games": 549
+    },
+    "1_1_3330": {
+      "p_favorite_covers": 0.4633,
+      "ci_low": 0.4191,
+      "ci_high": 0.5074,
+      "n_games": 486
+    },
+    "1_1_3360": {
+      "p_favorite_covers": 0.4778,
+      "ci_low": 0.4306,
+      "ci_high": 0.5251,
+      "n_games": 425
+    },
+    "1_1_3390": {
+      "p_favorite_covers": 0.4777,
+      "ci_low": 0.4275,
+      "ci_high": 0.5278,
+      "n_games": 377
+    },
+    "1_1_3420": {
+      "p_favorite_covers": 0.4756,
+      "ci_low": 0.4197,
+      "ci_high": 0.5314,
+      "n_games": 303
+    },
+    "1_1_3450": {
+      "p_favorite_covers": 0.4566,
+      "ci_low": 0.3906,
+      "ci_high": 0.5226,
+      "n_games": 215
+    },
+    "1_1_3480": {
+      "p_favorite_covers": 0.462,
+      "ci_low": 0.3842,
+      "ci_high": 0.5398,
+      "n_games": 154
+    },
+    "1_1_3510": {
+      "p_favorite_covers": 0.4455,
+      "ci_low": 0.3485,
+      "ci_high": 0.5424,
+      "n_games": 97
+    },
+    "1_1_3540": {
+      "p_favorite_covers": 0.4599,
+      "ci_low": 0.3215,
+      "ci_high": 0.5982,
+      "n_games": 46
+    },
+    "1_1_3570": null,
+    "1_2_2430": {
+      "p_favorite_covers": 0.6439,
+      "ci_low": 0.5948,
+      "ci_high": 0.693,
+      "n_games": 361
+    },
+    "1_2_2460": {
+      "p_favorite_covers": 0.6375,
+      "ci_low": 0.5873,
+      "ci_high": 0.6876,
+      "n_games": 349
+    },
+    "1_2_2490": {
+      "p_favorite_covers": 0.6388,
+      "ci_low": 0.5882,
+      "ci_high": 0.6894,
+      "n_games": 342
+    },
+    "1_2_2520": {
+      "p_favorite_covers": 0.628,
+      "ci_low": 0.5769,
+      "ci_high": 0.679,
+      "n_games": 340
+    },
+    "1_2_2550": {
+      "p_favorite_covers": 0.6364,
+      "ci_low": 0.5837,
+      "ci_high": 0.6892,
+      "n_games": 315
+    },
+    "1_2_2580": {
+      "p_favorite_covers": 0.6291,
+      "ci_low": 0.5753,
+      "ci_high": 0.6829,
+      "n_games": 306
+    },
+    "1_2_2610": {
+      "p_favorite_covers": 0.6238,
+      "ci_low": 0.5693,
+      "ci_high": 0.6784,
+      "n_games": 299
+    },
+    "1_2_2640": {
+      "p_favorite_covers": 0.6511,
+      "ci_low": 0.597,
+      "ci_high": 0.7052,
+      "n_games": 294
+    },
+    "1_2_2670": {
+      "p_favorite_covers": 0.6573,
+      "ci_low": 0.6021,
+      "ci_high": 0.7126,
+      "n_games": 279
+    },
+    "1_2_2700": {
+      "p_favorite_covers": 0.6655,
+      "ci_low": 0.6095,
+      "ci_high": 0.7216,
+      "n_games": 268
+    },
+    "1_2_2730": {
+      "p_favorite_covers": 0.6591,
+      "ci_low": 0.6016,
+      "ci_high": 0.7166,
+      "n_games": 257
+    },
+    "1_2_2760": {
+      "p_favorite_covers": 0.655,
+      "ci_low": 0.5967,
+      "ci_high": 0.7133,
+      "n_games": 251
+    },
+    "1_2_2790": {
+      "p_favorite_covers": 0.6806,
+      "ci_low": 0.6218,
+      "ci_high": 0.7394,
+      "n_games": 237
+    },
+    "1_2_2820": {
+      "p_favorite_covers": 0.6843,
+      "ci_low": 0.6241,
+      "ci_high": 0.7446,
+      "n_games": 224
+    },
+    "1_2_2850": {
+      "p_favorite_covers": 0.6942,
+      "ci_low": 0.6333,
+      "ci_high": 0.7552,
+      "n_games": 215
+    },
+    "1_2_2880": {
+      "p_favorite_covers": 0.6962,
+      "ci_low": 0.6332,
+      "ci_high": 0.7593,
+      "n_games": 200
+    },
+    "1_2_2910": {
+      "p_favorite_covers": 0.726,
+      "ci_low": 0.662,
+      "ci_high": 0.79,
+      "n_games": 182
+    },
+    "1_2_2940": {
+      "p_favorite_covers": 0.7193,
+      "ci_low": 0.6534,
+      "ci_high": 0.7852,
+      "n_games": 174
+    },
+    "1_2_2970": {
+      "p_favorite_covers": 0.7061,
+      "ci_low": 0.6377,
+      "ci_high": 0.7744,
+      "n_games": 166
+    },
+    "1_2_3000": {
+      "p_favorite_covers": 0.7164,
+      "ci_low": 0.6456,
+      "ci_high": 0.7871,
+      "n_games": 151
+    },
+    "1_2_3030": {
+      "p_favorite_covers": 0.7364,
+      "ci_low": 0.6647,
+      "ci_high": 0.8081,
+      "n_games": 140
+    },
+    "1_2_3060": {
+      "p_favorite_covers": 0.7249,
+      "ci_low": 0.6506,
+      "ci_high": 0.7992,
+      "n_games": 134
+    },
+    "1_2_3090": {
+      "p_favorite_covers": 0.7276,
+      "ci_low": 0.6485,
+      "ci_high": 0.8066,
+      "n_games": 117
+    },
+    "1_2_3120": {
+      "p_favorite_covers": 0.7284,
+      "ci_low": 0.6471,
+      "ci_high": 0.8097,
+      "n_games": 110
+    },
+    "1_2_3150": {
+      "p_favorite_covers": 0.7208,
+      "ci_low": 0.63,
+      "ci_high": 0.8116,
+      "n_games": 89
+    },
+    "1_2_3180": {
+      "p_favorite_covers": 0.6917,
+      "ci_low": 0.5915,
+      "ci_high": 0.792,
+      "n_games": 77
+    },
+    "1_2_3210": {
+      "p_favorite_covers": 0.7031,
+      "ci_low": 0.5995,
+      "ci_high": 0.8068,
+      "n_games": 70
+    },
+    "1_2_3240": {
+      "p_favorite_covers": 0.6838,
+      "ci_low": 0.5666,
+      "ci_high": 0.801,
+      "n_games": 56
+    },
+    "1_2_3270": {
+      "p_favorite_covers": 0.6987,
+      "ci_low": 0.5759,
+      "ci_high": 0.8215,
+      "n_games": 49
+    },
+    "1_2_3300": {
+      "p_favorite_covers": 0.685,
+      "ci_low": 0.5383,
+      "ci_high": 0.8317,
+      "n_games": 34
+    },
+    "1_2_3330": null,
+    "1_2_3360": null,
+    "1_2_3390": null,
+    "1_2_3420": null,
+    "1_2_3450": null,
+    "1_2_3480": null,
+    "1_2_3510": null,
+    "1_2_3540": null,
+    "1_3_2430": {
+      "p_favorite_covers": 0.7668,
+      "ci_low": 0.6872,
+      "ci_high": 0.8463,
+      "n_games": 103
+    },
+    "1_3_2460": {
+      "p_favorite_covers": 0.7651,
+      "ci_low": 0.6834,
+      "ci_high": 0.8468,
+      "n_games": 98
+    },
+    "1_3_2490": {
+      "p_favorite_covers": 0.784,
+      "ci_low": 0.7028,
+      "ci_high": 0.8651,
+      "n_games": 93
+    },
+    "1_3_2520": {
+      "p_favorite_covers": 0.8117,
+      "ci_low": 0.732,
+      "ci_high": 0.8914,
+      "n_games": 86
+    },
+    "1_3_2550": {
+      "p_favorite_covers": 0.8188,
+      "ci_low": 0.7395,
+      "ci_high": 0.898,
+      "n_games": 84
+    },
+    "1_3_2580": {
+      "p_favorite_covers": 0.8262,
+      "ci_low": 0.7474,
+      "ci_high": 0.9049,
+      "n_games": 82
+    },
+    "1_3_2610": {
+      "p_favorite_covers": 0.8212,
+      "ci_low": 0.7376,
+      "ci_high": 0.9047,
+      "n_games": 74
+    },
+    "1_3_2640": {
+      "p_favorite_covers": 0.7768,
+      "ci_low": 0.6783,
+      "ci_high": 0.8752,
+      "n_games": 63
+    },
+    "1_3_2670": {
+      "p_favorite_covers": 0.7674,
+      "ci_low": 0.6618,
+      "ci_high": 0.8729,
+      "n_games": 56
+    },
+    "1_3_2700": {
+      "p_favorite_covers": 0.7686,
+      "ci_low": 0.6597,
+      "ci_high": 0.8776,
+      "n_games": 52
+    },
+    "1_3_2730": {
+      "p_favorite_covers": 0.7555,
+      "ci_low": 0.6412,
+      "ci_high": 0.8698,
+      "n_games": 49
+    },
+    "1_3_2760": {
+      "p_favorite_covers": 0.7608,
+      "ci_low": 0.6443,
+      "ci_high": 0.8774,
+      "n_games": 46
+    },
+    "1_3_2790": {
+      "p_favorite_covers": 0.7299,
+      "ci_low": 0.6056,
+      "ci_high": 0.8543,
+      "n_games": 44
+    },
+    "1_3_2820": {
+      "p_favorite_covers": 0.7629,
+      "ci_low": 0.6365,
+      "ci_high": 0.8893,
+      "n_games": 38
+    },
+    "1_3_2850": {
+      "p_favorite_covers": 0.7232,
+      "ci_low": 0.5789,
+      "ci_high": 0.8675,
+      "n_games": 32
+    },
+    "1_3_2880": null,
+    "1_3_2910": null,
+    "1_3_2940": null,
+    "1_3_2970": null,
+    "1_3_3000": null,
+    "1_3_3030": null,
+    "1_3_3060": null,
+    "1_3_3090": null,
+    "1_3_3120": null,
+    "1_3_3150": null,
+    "1_3_3180": null,
+    "1_3_3210": null,
+    "1_3_3240": null,
+    "1_3_3270": null,
+    "1_4_2430": null,
+    "1_4_2460": null,
+    "1_4_2490": null,
+    "1_4_2520": null,
+    "1_4_2550": null,
+    "1_4_2580": null,
+    "1_4_2610": null,
+    "1_4_2640": null,
+    "1_4_2670": null,
+    "1_4_2700": null,
+    "1_4_2730": null,
+    "1_4_2760": null,
+    "1_4_2790": null,
+    "1_4_2820": null,
+    "1_4_2850": null,
+    "1_4_2880": null,
+    "1_4_2910": null,
+    "1_4_2940": null,
+    "1_4_2970": null,
+    "1_4_3000": null,
+    "1_4_3030": null,
+    "1_4_3060": null,
+    "1_4_3090": null,
+    "1_4_3120": null,
+    "1_5_2430": null,
+    "1_5_2460": null,
+    "1_5_2490": null,
+    "1_5_2520": null,
+    "1_5_2550": null,
+    "1_5_2580": null,
+    "1_5_2610": null,
+    "1_5_2640": null,
+    "1_5_2670": null,
+    "1_5_2700": null,
+    "1_5_2730": null,
+    "1_5_2760": null,
+    "1_5_2790": null,
+    "1_5_2820": null,
+    "1_5_2850": null,
+    "1_5_2880": null,
+    "1_5_2910": null,
+    "2_-5_1230": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "2_-5_1260": {
+      "p_favorite_covers": 0.0508,
+      "ci_low": 0.0,
+      "ci_high": 0.1015,
+      "n_games": 34
+    },
+    "2_-5_1290": null,
+    "2_-5_1320": null,
+    "2_-5_1350": null,
+    "2_-5_1380": null,
+    "2_-5_1410": null,
+    "2_-5_1440": null,
+    "2_-5_1470": null,
+    "2_-5_1500": null,
+    "2_-5_1530": null,
+    "2_-5_1560": null,
+    "2_-5_1590": null,
+    "2_-5_1620": null,
+    "2_-5_1650": null,
+    "2_-5_1680": null,
+    "2_-5_1710": null,
+    "2_-5_1740": null,
+    "2_-5_1770": null,
+    "2_-5_1800": null,
+    "2_-5_1830": null,
+    "2_-5_1860": null,
+    "2_-5_1890": null,
+    "2_-5_1920": null,
+    "2_-5_1950": null,
+    "2_-5_1980": null,
+    "2_-5_2010": null,
+    "2_-5_2040": null,
+    "2_-5_2070": null,
+    "2_-5_2100": null,
+    "2_-5_2130": null,
+    "2_-5_2160": null,
+    "2_-5_2190": null,
+    "2_-5_2220": null,
+    "2_-5_2250": null,
+    "2_-5_2280": null,
+    "2_-5_2310": null,
+    "2_-5_2340": null,
+    "2_-5_2370": null,
+    "2_-5_2400": null,
+    "2_-4_1230": {
+      "p_favorite_covers": 0.0235,
+      "ci_low": 0.0,
+      "ci_high": 0.0469,
+      "n_games": 78
+    },
+    "2_-4_1260": {
+      "p_favorite_covers": 0.0241,
+      "ci_low": 0.0,
+      "ci_high": 0.0481,
+      "n_games": 76
+    },
+    "2_-4_1290": {
+      "p_favorite_covers": 0.0232,
+      "ci_low": 0.0,
+      "ci_high": 0.0464,
+      "n_games": 79
+    },
+    "2_-4_1320": {
+      "p_favorite_covers": 0.0238,
+      "ci_low": 0.0,
+      "ci_high": 0.0475,
+      "n_games": 77
+    },
+    "2_-4_1350": {
+      "p_favorite_covers": 0.0247,
+      "ci_low": 0.0,
+      "ci_high": 0.0494,
+      "n_games": 74
+    },
+    "2_-4_1380": {
+      "p_favorite_covers": 0.0238,
+      "ci_low": 0.0,
+      "ci_high": 0.0475,
+      "n_games": 77
+    },
+    "2_-4_1410": {
+      "p_favorite_covers": 0.0244,
+      "ci_low": 0.0,
+      "ci_high": 0.0487,
+      "n_games": 75
+    },
+    "2_-4_1440": {
+      "p_favorite_covers": 0.0247,
+      "ci_low": 0.0,
+      "ci_high": 0.0494,
+      "n_games": 74
+    },
+    "2_-4_1470": {
+      "p_favorite_covers": 0.026,
+      "ci_low": 0.0,
+      "ci_high": 0.052,
+      "n_games": 70
+    },
+    "2_-4_1500": {
+      "p_favorite_covers": 0.0271,
+      "ci_low": 0.0,
+      "ci_high": 0.0542,
+      "n_games": 67
+    },
+    "2_-4_1530": {
+      "p_favorite_covers": 0.0283,
+      "ci_low": 0.0,
+      "ci_high": 0.0566,
+      "n_games": 64
+    },
+    "2_-4_1560": {
+      "p_favorite_covers": 0.0301,
+      "ci_low": 0.0,
+      "ci_high": 0.0602,
+      "n_games": 60
+    },
+    "2_-4_1590": {
+      "p_favorite_covers": 0.0296,
+      "ci_low": 0.0,
+      "ci_high": 0.0592,
+      "n_games": 61
+    },
+    "2_-4_1620": {
+      "p_favorite_covers": 0.0311,
+      "ci_low": 0.0,
+      "ci_high": 0.0621,
+      "n_games": 58
+    },
+    "2_-4_1650": {
+      "p_favorite_covers": 0.035,
+      "ci_low": 0.0,
+      "ci_high": 0.07,
+      "n_games": 51
+    },
+    "2_-4_1680": {
+      "p_favorite_covers": 0.0378,
+      "ci_low": 0.0,
+      "ci_high": 0.0756,
+      "n_games": 47
+    },
+    "2_-4_1710": {
+      "p_favorite_covers": 0.041,
+      "ci_low": 0.0,
+      "ci_high": 0.082,
+      "n_games": 43
+    },
+    "2_-4_1740": {
+      "p_favorite_covers": 0.0428,
+      "ci_low": 0.0,
+      "ci_high": 0.0857,
+      "n_games": 41
+    },
+    "2_-4_1770": {
+      "p_favorite_covers": 0.0438,
+      "ci_low": 0.0,
+      "ci_high": 0.0876,
+      "n_games": 40
+    },
+    "2_-4_1800": {
+      "p_favorite_covers": 0.0438,
+      "ci_low": 0.0,
+      "ci_high": 0.0876,
+      "n_games": 40
+    },
+    "2_-4_1830": {
+      "p_favorite_covers": 0.0459,
+      "ci_low": 0.0,
+      "ci_high": 0.0918,
+      "n_games": 38
+    },
+    "2_-4_1860": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "2_-4_1890": {
+      "p_favorite_covers": 0.0459,
+      "ci_low": 0.0,
+      "ci_high": 0.0918,
+      "n_games": 38
+    },
+    "2_-4_1920": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "2_-4_1950": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "2_-4_1980": {
+      "p_favorite_covers": 0.0521,
+      "ci_low": 0.0,
+      "ci_high": 0.1043,
+      "n_games": 33
+    },
+    "2_-4_2010": {
+      "p_favorite_covers": 0.0536,
+      "ci_low": 0.0,
+      "ci_high": 0.1072,
+      "n_games": 32
+    },
+    "2_-4_2040": {
+      "p_favorite_covers": 0.0551,
+      "ci_low": 0.0,
+      "ci_high": 0.1103,
+      "n_games": 31
+    },
+    "2_-4_2070": {
+      "p_favorite_covers": 0.0568,
+      "ci_low": 0.0,
+      "ci_high": 0.1135,
+      "n_games": 30
+    },
+    "2_-4_2100": {
+      "p_favorite_covers": 0.0551,
+      "ci_low": 0.0,
+      "ci_high": 0.1103,
+      "n_games": 31
+    },
+    "2_-4_2130": null,
+    "2_-4_2160": null,
+    "2_-4_2190": null,
+    "2_-4_2220": null,
+    "2_-4_2250": null,
+    "2_-4_2280": null,
+    "2_-4_2310": null,
+    "2_-4_2340": null,
+    "2_-4_2370": null,
+    "2_-4_2400": null,
+    "2_-3_1230": {
+      "p_favorite_covers": 0.0184,
+      "ci_low": 0.0026,
+      "ci_high": 0.0342,
+      "n_games": 209
+    },
+    "2_-3_1260": {
+      "p_favorite_covers": 0.0183,
+      "ci_low": 0.0026,
+      "ci_high": 0.0341,
+      "n_games": 210
+    },
+    "2_-3_1290": {
+      "p_favorite_covers": 0.0186,
+      "ci_low": 0.0027,
+      "ci_high": 0.0345,
+      "n_games": 207
+    },
+    "2_-3_1320": {
+      "p_favorite_covers": 0.0142,
+      "ci_low": 0.0009,
+      "ci_high": 0.0275,
+      "n_games": 202
+    },
+    "2_-3_1350": {
+      "p_favorite_covers": 0.0147,
+      "ci_low": 0.0009,
+      "ci_high": 0.0285,
+      "n_games": 195
+    },
+    "2_-3_1380": {
+      "p_favorite_covers": 0.0151,
+      "ci_low": 0.0009,
+      "ci_high": 0.0294,
+      "n_games": 189
+    },
+    "2_-3_1410": {
+      "p_favorite_covers": 0.0155,
+      "ci_low": 0.001,
+      "ci_high": 0.0301,
+      "n_games": 184
+    },
+    "2_-3_1440": {
+      "p_favorite_covers": 0.0155,
+      "ci_low": 0.001,
+      "ci_high": 0.0301,
+      "n_games": 184
+    },
+    "2_-3_1470": {
+      "p_favorite_covers": 0.0162,
+      "ci_low": 0.001,
+      "ci_high": 0.0313,
+      "n_games": 177
+    },
+    "2_-3_1500": {
+      "p_favorite_covers": 0.0162,
+      "ci_low": 0.001,
+      "ci_high": 0.0315,
+      "n_games": 176
+    },
+    "2_-3_1530": {
+      "p_favorite_covers": 0.011,
+      "ci_low": 0.0,
+      "ci_high": 0.022,
+      "n_games": 171
+    },
+    "2_-3_1560": {
+      "p_favorite_covers": 0.0109,
+      "ci_low": 0.0,
+      "ci_high": 0.0217,
+      "n_games": 173
+    },
+    "2_-3_1590": {
+      "p_favorite_covers": 0.0106,
+      "ci_low": 0.0,
+      "ci_high": 0.0211,
+      "n_games": 178
+    },
+    "2_-3_1620": {
+      "p_favorite_covers": 0.0165,
+      "ci_low": 0.001,
+      "ci_high": 0.032,
+      "n_games": 173
+    },
+    "2_-3_1650": {
+      "p_favorite_covers": 0.0162,
+      "ci_low": 0.001,
+      "ci_high": 0.0315,
+      "n_games": 176
+    },
+    "2_-3_1680": {
+      "p_favorite_covers": 0.0168,
+      "ci_low": 0.001,
+      "ci_high": 0.0326,
+      "n_games": 170
+    },
+    "2_-3_1710": {
+      "p_favorite_covers": 0.0229,
+      "ci_low": 0.0033,
+      "ci_high": 0.0426,
+      "n_games": 167
+    },
+    "2_-3_1740": {
+      "p_favorite_covers": 0.0291,
+      "ci_low": 0.0062,
+      "ci_high": 0.0521,
+      "n_games": 165
+    },
+    "2_-3_1770": {
+      "p_favorite_covers": 0.0297,
+      "ci_low": 0.0063,
+      "ci_high": 0.053,
+      "n_games": 162
+    },
+    "2_-3_1800": {
+      "p_favorite_covers": 0.0316,
+      "ci_low": 0.0067,
+      "ci_high": 0.0564,
+      "n_games": 152
+    },
+    "2_-3_1830": {
+      "p_favorite_covers": 0.0258,
+      "ci_low": 0.0037,
+      "ci_high": 0.0479,
+      "n_games": 148
+    },
+    "2_-3_1860": {
+      "p_favorite_covers": 0.0196,
+      "ci_low": 0.0012,
+      "ci_high": 0.038,
+      "n_games": 145
+    },
+    "2_-3_1890": {
+      "p_favorite_covers": 0.0204,
+      "ci_low": 0.0013,
+      "ci_high": 0.0396,
+      "n_games": 139
+    },
+    "2_-3_1920": {
+      "p_favorite_covers": 0.0207,
+      "ci_low": 0.0013,
+      "ci_high": 0.0402,
+      "n_games": 137
+    },
+    "2_-3_1950": {
+      "p_favorite_covers": 0.0217,
+      "ci_low": 0.0013,
+      "ci_high": 0.042,
+      "n_games": 131
+    },
+    "2_-3_1980": {
+      "p_favorite_covers": 0.022,
+      "ci_low": 0.0014,
+      "ci_high": 0.0426,
+      "n_games": 129
+    },
+    "2_-3_2010": {
+      "p_favorite_covers": 0.0223,
+      "ci_low": 0.0014,
+      "ci_high": 0.0433,
+      "n_games": 127
+    },
+    "2_-3_2040": {
+      "p_favorite_covers": 0.023,
+      "ci_low": 0.0014,
+      "ci_high": 0.0446,
+      "n_games": 123
+    },
+    "2_-3_2070": {
+      "p_favorite_covers": 0.0238,
+      "ci_low": 0.0015,
+      "ci_high": 0.0461,
+      "n_games": 119
+    },
+    "2_-3_2100": {
+      "p_favorite_covers": 0.0259,
+      "ci_low": 0.0016,
+      "ci_high": 0.0501,
+      "n_games": 109
+    },
+    "2_-3_2130": {
+      "p_favorite_covers": 0.0266,
+      "ci_low": 0.0017,
+      "ci_high": 0.0515,
+      "n_games": 106
+    },
+    "2_-3_2160": {
+      "p_favorite_covers": 0.0203,
+      "ci_low": 0.0,
+      "ci_high": 0.0405,
+      "n_games": 91
+    },
+    "2_-3_2190": {
+      "p_favorite_covers": 0.0221,
+      "ci_low": 0.0,
+      "ci_high": 0.0442,
+      "n_games": 83
+    },
+    "2_-3_2220": {
+      "p_favorite_covers": 0.0219,
+      "ci_low": 0.0,
+      "ci_high": 0.0437,
+      "n_games": 84
+    },
+    "2_-3_2250": {
+      "p_favorite_covers": 0.0216,
+      "ci_low": 0.0,
+      "ci_high": 0.0432,
+      "n_games": 85
+    },
+    "2_-3_2280": {
+      "p_favorite_covers": 0.0211,
+      "ci_low": 0.0,
+      "ci_high": 0.0423,
+      "n_games": 87
+    },
+    "2_-3_2310": {
+      "p_favorite_covers": 0.0219,
+      "ci_low": 0.0,
+      "ci_high": 0.0437,
+      "n_games": 84
+    },
+    "2_-3_2340": {
+      "p_favorite_covers": 0.0232,
+      "ci_low": 0.0,
+      "ci_high": 0.0464,
+      "n_games": 79
+    },
+    "2_-3_2370": {
+      "p_favorite_covers": 0.0238,
+      "ci_low": 0.0,
+      "ci_high": 0.0475,
+      "n_games": 77
+    },
+    "2_-3_2400": {
+      "p_favorite_covers": 0.0247,
+      "ci_low": 0.0,
+      "ci_high": 0.0494,
+      "n_games": 74
+    },
+    "2_-2_1230": {
+      "p_favorite_covers": 0.02,
+      "ci_low": 0.0083,
+      "ci_high": 0.0318,
+      "n_games": 491
+    },
+    "2_-2_1260": {
+      "p_favorite_covers": 0.0204,
+      "ci_low": 0.0084,
+      "ci_high": 0.0323,
+      "n_games": 483
+    },
+    "2_-2_1290": {
+      "p_favorite_covers": 0.0208,
+      "ci_low": 0.0086,
+      "ci_high": 0.0331,
+      "n_games": 472
+    },
+    "2_-2_1320": {
+      "p_favorite_covers": 0.0228,
+      "ci_low": 0.01,
+      "ci_high": 0.0355,
+      "n_games": 476
+    },
+    "2_-2_1350": {
+      "p_favorite_covers": 0.0186,
+      "ci_low": 0.0071,
+      "ci_high": 0.03,
+      "n_games": 477
+    },
+    "2_-2_1380": {
+      "p_favorite_covers": 0.0187,
+      "ci_low": 0.0072,
+      "ci_high": 0.0303,
+      "n_games": 472
+    },
+    "2_-2_1410": {
+      "p_favorite_covers": 0.0189,
+      "ci_low": 0.0073,
+      "ci_high": 0.0305,
+      "n_games": 468
+    },
+    "2_-2_1440": {
+      "p_favorite_covers": 0.0251,
+      "ci_low": 0.0115,
+      "ci_high": 0.0386,
+      "n_games": 472
+    },
+    "2_-2_1470": {
+      "p_favorite_covers": 0.0291,
+      "ci_low": 0.0145,
+      "ci_high": 0.0436,
+      "n_games": 475
+    },
+    "2_-2_1500": {
+      "p_favorite_covers": 0.0291,
+      "ci_low": 0.0145,
+      "ci_high": 0.0437,
+      "n_games": 474
+    },
+    "2_-2_1530": {
+      "p_favorite_covers": 0.033,
+      "ci_low": 0.0175,
+      "ci_high": 0.0486,
+      "n_games": 478
+    },
+    "2_-2_1560": {
+      "p_favorite_covers": 0.0318,
+      "ci_low": 0.0164,
+      "ci_high": 0.0471,
+      "n_games": 466
+    },
+    "2_-2_1590": {
+      "p_favorite_covers": 0.035,
+      "ci_low": 0.0186,
+      "ci_high": 0.0514,
+      "n_games": 451
+    },
+    "2_-2_1620": {
+      "p_favorite_covers": 0.0358,
+      "ci_low": 0.019,
+      "ci_high": 0.0526,
+      "n_games": 441
+    },
+    "2_-2_1650": {
+      "p_favorite_covers": 0.0413,
+      "ci_low": 0.023,
+      "ci_high": 0.0596,
+      "n_games": 430
+    },
+    "2_-2_1680": {
+      "p_favorite_covers": 0.0413,
+      "ci_low": 0.023,
+      "ci_high": 0.0596,
+      "n_games": 430
+    },
+    "2_-2_1710": {
+      "p_favorite_covers": 0.044,
+      "ci_low": 0.0251,
+      "ci_high": 0.063,
+      "n_games": 426
+    },
+    "2_-2_1740": {
+      "p_favorite_covers": 0.0465,
+      "ci_low": 0.027,
+      "ci_high": 0.0659,
+      "n_games": 425
+    },
+    "2_-2_1770": {
+      "p_favorite_covers": 0.0459,
+      "ci_low": 0.0266,
+      "ci_high": 0.0652,
+      "n_games": 430
+    },
+    "2_-2_1800": {
+      "p_favorite_covers": 0.0453,
+      "ci_low": 0.0263,
+      "ci_high": 0.0643,
+      "n_games": 436
+    },
+    "2_-2_1830": {
+      "p_favorite_covers": 0.0494,
+      "ci_low": 0.0296,
+      "ci_high": 0.0692,
+      "n_games": 440
+    },
+    "2_-2_1860": {
+      "p_favorite_covers": 0.0526,
+      "ci_low": 0.032,
+      "ci_high": 0.0732,
+      "n_games": 432
+    },
+    "2_-2_1890": {
+      "p_favorite_covers": 0.0514,
+      "ci_low": 0.0308,
+      "ci_high": 0.0719,
+      "n_games": 423
+    },
+    "2_-2_1920": {
+      "p_favorite_covers": 0.0508,
+      "ci_low": 0.03,
+      "ci_high": 0.0716,
+      "n_games": 408
+    },
+    "2_-2_1950": {
+      "p_favorite_covers": 0.0509,
+      "ci_low": 0.0301,
+      "ci_high": 0.0718,
+      "n_games": 407
+    },
+    "2_-2_1980": {
+      "p_favorite_covers": 0.048,
+      "ci_low": 0.0274,
+      "ci_high": 0.0687,
+      "n_games": 390
+    },
+    "2_-2_2010": {
+      "p_favorite_covers": 0.0453,
+      "ci_low": 0.0253,
+      "ci_high": 0.0653,
+      "n_games": 392
+    },
+    "2_-2_2040": {
+      "p_favorite_covers": 0.0432,
+      "ci_low": 0.0236,
+      "ci_high": 0.0628,
+      "n_games": 388
+    },
+    "2_-2_2070": {
+      "p_favorite_covers": 0.0467,
+      "ci_low": 0.0266,
+      "ci_high": 0.0668,
+      "n_games": 401
+    },
+    "2_-2_2100": {
+      "p_favorite_covers": 0.0421,
+      "ci_low": 0.023,
+      "ci_high": 0.0612,
+      "n_games": 398
+    },
+    "2_-2_2130": {
+      "p_favorite_covers": 0.0453,
+      "ci_low": 0.0253,
+      "ci_high": 0.0653,
+      "n_games": 392
+    },
+    "2_-2_2160": {
+      "p_favorite_covers": 0.0464,
+      "ci_low": 0.0264,
+      "ci_high": 0.0663,
+      "n_games": 404
+    },
+    "2_-2_2190": {
+      "p_favorite_covers": 0.0499,
+      "ci_low": 0.029,
+      "ci_high": 0.0709,
+      "n_games": 395
+    },
+    "2_-2_2220": {
+      "p_favorite_covers": 0.0515,
+      "ci_low": 0.0299,
+      "ci_high": 0.0731,
+      "n_games": 383
+    },
+    "2_-2_2250": {
+      "p_favorite_covers": 0.0509,
+      "ci_low": 0.029,
+      "ci_high": 0.0727,
+      "n_games": 368
+    },
+    "2_-2_2280": {
+      "p_favorite_covers": 0.0554,
+      "ci_low": 0.0322,
+      "ci_high": 0.0785,
+      "n_games": 356
+    },
+    "2_-2_2310": {
+      "p_favorite_covers": 0.0555,
+      "ci_low": 0.0323,
+      "ci_high": 0.0787,
+      "n_games": 355
+    },
+    "2_-2_2340": {
+      "p_favorite_covers": 0.0552,
+      "ci_low": 0.0315,
+      "ci_high": 0.0788,
+      "n_games": 339
+    },
+    "2_-2_2370": {
+      "p_favorite_covers": 0.0584,
+      "ci_low": 0.034,
+      "ci_high": 0.0828,
+      "n_games": 337
+    },
+    "2_-2_2400": {
+      "p_favorite_covers": 0.0584,
+      "ci_low": 0.034,
+      "ci_high": 0.0828,
+      "n_games": 337
+    },
+    "2_-1_1230": {
+      "p_favorite_covers": 0.0628,
+      "ci_low": 0.0451,
+      "ci_high": 0.0804,
+      "n_games": 712
+    },
+    "2_-1_1260": {
+      "p_favorite_covers": 0.0662,
+      "ci_low": 0.0482,
+      "ci_high": 0.0842,
+      "n_games": 720
+    },
+    "2_-1_1290": {
+      "p_favorite_covers": 0.0692,
+      "ci_low": 0.051,
+      "ci_high": 0.0874,
+      "n_games": 732
+    },
+    "2_-1_1320": {
+      "p_favorite_covers": 0.0693,
+      "ci_low": 0.0511,
+      "ci_high": 0.0875,
+      "n_games": 731
+    },
+    "2_-1_1350": {
+      "p_favorite_covers": 0.0695,
+      "ci_low": 0.0514,
+      "ci_high": 0.0876,
+      "n_games": 743
+    },
+    "2_-1_1380": {
+      "p_favorite_covers": 0.0701,
+      "ci_low": 0.0522,
+      "ci_high": 0.0881,
+      "n_games": 765
+    },
+    "2_-1_1410": {
+      "p_favorite_covers": 0.0702,
+      "ci_low": 0.0523,
+      "ci_high": 0.0882,
+      "n_games": 764
+    },
+    "2_-1_1440": {
+      "p_favorite_covers": 0.0711,
+      "ci_low": 0.0531,
+      "ci_high": 0.0891,
+      "n_games": 769
+    },
+    "2_-1_1470": {
+      "p_favorite_covers": 0.0718,
+      "ci_low": 0.0538,
+      "ci_high": 0.0898,
+      "n_games": 775
+    },
+    "2_-1_1500": {
+      "p_favorite_covers": 0.0751,
+      "ci_low": 0.0568,
+      "ci_high": 0.0934,
+      "n_games": 781
+    },
+    "2_-1_1530": {
+      "p_favorite_covers": 0.0786,
+      "ci_low": 0.0598,
+      "ci_high": 0.0975,
+      "n_games": 771
+    },
+    "2_-1_1560": {
+      "p_favorite_covers": 0.0789,
+      "ci_low": 0.0601,
+      "ci_high": 0.0976,
+      "n_games": 781
+    },
+    "2_-1_1590": {
+      "p_favorite_covers": 0.0806,
+      "ci_low": 0.0616,
+      "ci_high": 0.0996,
+      "n_games": 777
+    },
+    "2_-1_1620": {
+      "p_favorite_covers": 0.0766,
+      "ci_low": 0.0583,
+      "ci_high": 0.095,
+      "n_games": 791
+    },
+    "2_-1_1650": {
+      "p_favorite_covers": 0.077,
+      "ci_low": 0.0587,
+      "ci_high": 0.0954,
+      "n_games": 800
+    },
+    "2_-1_1680": {
+      "p_favorite_covers": 0.0766,
+      "ci_low": 0.0584,
+      "ci_high": 0.0949,
+      "n_games": 804
+    },
+    "2_-1_1710": {
+      "p_favorite_covers": 0.0738,
+      "ci_low": 0.0559,
+      "ci_high": 0.0917,
+      "n_games": 808
+    },
+    "2_-1_1740": {
+      "p_favorite_covers": 0.0725,
+      "ci_low": 0.0548,
+      "ci_high": 0.0902,
+      "n_games": 809
+    },
+    "2_-1_1770": {
+      "p_favorite_covers": 0.0792,
+      "ci_low": 0.0607,
+      "ci_high": 0.0978,
+      "n_games": 803
+    },
+    "2_-1_1800": {
+      "p_favorite_covers": 0.0793,
+      "ci_low": 0.0608,
+      "ci_high": 0.0979,
+      "n_games": 802
+    },
+    "2_-1_1830": {
+      "p_favorite_covers": 0.0839,
+      "ci_low": 0.0649,
+      "ci_high": 0.1029,
+      "n_games": 806
+    },
+    "2_-1_1860": {
+      "p_favorite_covers": 0.0846,
+      "ci_low": 0.0656,
+      "ci_high": 0.1036,
+      "n_games": 811
+    },
+    "2_-1_1890": {
+      "p_favorite_covers": 0.0846,
+      "ci_low": 0.0657,
+      "ci_high": 0.1034,
+      "n_games": 823
+    },
+    "2_-1_1920": {
+      "p_favorite_covers": 0.087,
+      "ci_low": 0.0681,
+      "ci_high": 0.1058,
+      "n_games": 846
+    },
+    "2_-1_1950": {
+      "p_favorite_covers": 0.0869,
+      "ci_low": 0.0682,
+      "ci_high": 0.1057,
+      "n_games": 858
+    },
+    "2_-1_1980": {
+      "p_favorite_covers": 0.0925,
+      "ci_low": 0.0734,
+      "ci_high": 0.1116,
+      "n_games": 871
+    },
+    "2_-1_2010": {
+      "p_favorite_covers": 0.0908,
+      "ci_low": 0.0718,
+      "ci_high": 0.1099,
+      "n_games": 865
+    },
+    "2_-1_2040": {
+      "p_favorite_covers": 0.1019,
+      "ci_low": 0.0819,
+      "ci_high": 0.1219,
+      "n_games": 869
+    },
+    "2_-1_2070": {
+      "p_favorite_covers": 0.1055,
+      "ci_low": 0.0851,
+      "ci_high": 0.1259,
+      "n_games": 858
+    },
+    "2_-1_2100": {
+      "p_favorite_covers": 0.1131,
+      "ci_low": 0.0922,
+      "ci_high": 0.134,
+      "n_games": 871
+    },
+    "2_-1_2130": {
+      "p_favorite_covers": 0.1195,
+      "ci_low": 0.0981,
+      "ci_high": 0.1409,
+      "n_games": 874
+    },
+    "2_-1_2160": {
+      "p_favorite_covers": 0.1259,
+      "ci_low": 0.104,
+      "ci_high": 0.1479,
+      "n_games": 869
+    },
+    "2_-1_2190": {
+      "p_favorite_covers": 0.1254,
+      "ci_low": 0.1037,
+      "ci_high": 0.147,
+      "n_games": 889
+    },
+    "2_-1_2220": {
+      "p_favorite_covers": 0.1254,
+      "ci_low": 0.1037,
+      "ci_high": 0.147,
+      "n_games": 889
+    },
+    "2_-1_2250": {
+      "p_favorite_covers": 0.1273,
+      "ci_low": 0.1056,
+      "ci_high": 0.149,
+      "n_games": 899
+    },
+    "2_-1_2280": {
+      "p_favorite_covers": 0.1281,
+      "ci_low": 0.1063,
+      "ci_high": 0.15,
+      "n_games": 893
+    },
+    "2_-1_2310": {
+      "p_favorite_covers": 0.1312,
+      "ci_low": 0.1091,
+      "ci_high": 0.1534,
+      "n_games": 887
+    },
+    "2_-1_2340": {
+      "p_favorite_covers": 0.1337,
+      "ci_low": 0.1115,
+      "ci_high": 0.1559,
+      "n_games": 893
+    },
+    "2_-1_2370": {
+      "p_favorite_covers": 0.1381,
+      "ci_low": 0.1154,
+      "ci_high": 0.1608,
+      "n_games": 879
+    },
+    "2_-1_2400": {
+      "p_favorite_covers": 0.1382,
+      "ci_low": 0.1154,
+      "ci_high": 0.161,
+      "n_games": 871
+    },
+    "2_0_1230": {
+      "p_favorite_covers": 0.1728,
+      "ci_low": 0.1484,
+      "ci_high": 0.1972,
+      "n_games": 916
+    },
+    "2_0_1260": {
+      "p_favorite_covers": 0.1762,
+      "ci_low": 0.1516,
+      "ci_high": 0.2007,
+      "n_games": 921
+    },
+    "2_0_1290": {
+      "p_favorite_covers": 0.1803,
+      "ci_low": 0.1557,
+      "ci_high": 0.2049,
+      "n_games": 933
+    },
+    "2_0_1320": {
+      "p_favorite_covers": 0.1897,
+      "ci_low": 0.1648,
+      "ci_high": 0.2145,
+      "n_games": 950
+    },
+    "2_0_1350": {
+      "p_favorite_covers": 0.1964,
+      "ci_low": 0.1713,
+      "ci_high": 0.2215,
+      "n_games": 953
+    },
+    "2_0_1380": {
+      "p_favorite_covers": 0.2006,
+      "ci_low": 0.1753,
+      "ci_high": 0.2259,
+      "n_games": 958
+    },
+    "2_0_1410": {
+      "p_favorite_covers": 0.2032,
+      "ci_low": 0.1781,
+      "ci_high": 0.2283,
+      "n_games": 980
+    },
+    "2_0_1440": {
+      "p_favorite_covers": 0.2002,
+      "ci_low": 0.1752,
+      "ci_high": 0.2251,
+      "n_games": 985
+    },
+    "2_0_1470": {
+      "p_favorite_covers": 0.2016,
+      "ci_low": 0.1767,
+      "ci_high": 0.2264,
+      "n_games": 993
+    },
+    "2_0_1500": {
+      "p_favorite_covers": 0.2077,
+      "ci_low": 0.1827,
+      "ci_high": 0.2328,
+      "n_games": 1002
+    },
+    "2_0_1530": {
+      "p_favorite_covers": 0.2045,
+      "ci_low": 0.1797,
+      "ci_high": 0.2292,
+      "n_games": 1013
+    },
+    "2_0_1560": {
+      "p_favorite_covers": 0.212,
+      "ci_low": 0.1871,
+      "ci_high": 0.2369,
+      "n_games": 1029
+    },
+    "2_0_1590": {
+      "p_favorite_covers": 0.217,
+      "ci_low": 0.192,
+      "ci_high": 0.2419,
+      "n_games": 1042
+    },
+    "2_0_1620": {
+      "p_favorite_covers": 0.2191,
+      "ci_low": 0.1942,
+      "ci_high": 0.2441,
+      "n_games": 1050
+    },
+    "2_0_1650": {
+      "p_favorite_covers": 0.2184,
+      "ci_low": 0.1936,
+      "ci_high": 0.2432,
+      "n_games": 1058
+    },
+    "2_0_1680": {
+      "p_favorite_covers": 0.2265,
+      "ci_low": 0.2016,
+      "ci_high": 0.2514,
+      "n_games": 1082
+    },
+    "2_0_1710": {
+      "p_favorite_covers": 0.2331,
+      "ci_low": 0.2081,
+      "ci_high": 0.2581,
+      "n_games": 1094
+    },
+    "2_0_1740": {
+      "p_favorite_covers": 0.235,
+      "ci_low": 0.21,
+      "ci_high": 0.26,
+      "n_games": 1098
+    },
+    "2_0_1770": {
+      "p_favorite_covers": 0.2346,
+      "ci_low": 0.2098,
+      "ci_high": 0.2594,
+      "n_games": 1117
+    },
+    "2_0_1800": {
+      "p_favorite_covers": 0.2416,
+      "ci_low": 0.2167,
+      "ci_high": 0.2665,
+      "n_games": 1130
+    },
+    "2_0_1830": {
+      "p_favorite_covers": 0.2403,
+      "ci_low": 0.2155,
+      "ci_high": 0.2651,
+      "n_games": 1136
+    },
+    "2_0_1860": {
+      "p_favorite_covers": 0.2449,
+      "ci_low": 0.22,
+      "ci_high": 0.2699,
+      "n_games": 1139
+    },
+    "2_0_1890": {
+      "p_favorite_covers": 0.2467,
+      "ci_low": 0.2219,
+      "ci_high": 0.2715,
+      "n_games": 1155
+    },
+    "2_0_1920": {
+      "p_favorite_covers": 0.2457,
+      "ci_low": 0.221,
+      "ci_high": 0.2704,
+      "n_games": 1160
+    },
+    "2_0_1950": {
+      "p_favorite_covers": 0.2569,
+      "ci_low": 0.2321,
+      "ci_high": 0.2817,
+      "n_games": 1187
+    },
+    "2_0_1980": {
+      "p_favorite_covers": 0.257,
+      "ci_low": 0.2323,
+      "ci_high": 0.2817,
+      "n_games": 1198
+    },
+    "2_0_2010": {
+      "p_favorite_covers": 0.266,
+      "ci_low": 0.2412,
+      "ci_high": 0.2909,
+      "n_games": 1210
+    },
+    "2_0_2040": {
+      "p_favorite_covers": 0.2574,
+      "ci_low": 0.2328,
+      "ci_high": 0.2819,
+      "n_games": 1212
+    },
+    "2_0_2070": {
+      "p_favorite_covers": 0.2522,
+      "ci_low": 0.2279,
+      "ci_high": 0.2766,
+      "n_games": 1217
+    },
+    "2_0_2100": {
+      "p_favorite_covers": 0.2512,
+      "ci_low": 0.227,
+      "ci_high": 0.2754,
+      "n_games": 1230
+    },
+    "2_0_2130": {
+      "p_favorite_covers": 0.2524,
+      "ci_low": 0.2283,
+      "ci_high": 0.2764,
+      "n_games": 1252
+    },
+    "2_0_2160": {
+      "p_favorite_covers": 0.2556,
+      "ci_low": 0.2318,
+      "ci_high": 0.2795,
+      "n_games": 1279
+    },
+    "2_0_2190": {
+      "p_favorite_covers": 0.2585,
+      "ci_low": 0.2346,
+      "ci_high": 0.2825,
+      "n_games": 1280
+    },
+    "2_0_2220": {
+      "p_favorite_covers": 0.2589,
+      "ci_low": 0.2352,
+      "ci_high": 0.2826,
+      "n_games": 1309
+    },
+    "2_0_2250": {
+      "p_favorite_covers": 0.2616,
+      "ci_low": 0.238,
+      "ci_high": 0.2852,
+      "n_games": 1326
+    },
+    "2_0_2280": {
+      "p_favorite_covers": 0.2637,
+      "ci_low": 0.2402,
+      "ci_high": 0.2872,
+      "n_games": 1342
+    },
+    "2_0_2310": {
+      "p_favorite_covers": 0.2624,
+      "ci_low": 0.2391,
+      "ci_high": 0.2857,
+      "n_games": 1364
+    },
+    "2_0_2340": {
+      "p_favorite_covers": 0.2607,
+      "ci_low": 0.2377,
+      "ci_high": 0.2836,
+      "n_games": 1400
+    },
+    "2_0_2370": {
+      "p_favorite_covers": 0.258,
+      "ci_low": 0.2354,
+      "ci_high": 0.2806,
+      "n_games": 1430
+    },
+    "2_0_2400": {
+      "p_favorite_covers": 0.2599,
+      "ci_low": 0.2374,
+      "ci_high": 0.2824,
+      "n_games": 1454
+    },
+    "2_1_1230": {
+      "p_favorite_covers": 0.405,
+      "ci_low": 0.371,
+      "ci_high": 0.439,
+      "n_games": 796
+    },
+    "2_1_1260": {
+      "p_favorite_covers": 0.4037,
+      "ci_low": 0.3698,
+      "ci_high": 0.4376,
+      "n_games": 801
+    },
+    "2_1_1290": {
+      "p_favorite_covers": 0.4082,
+      "ci_low": 0.3742,
+      "ci_high": 0.4423,
+      "n_games": 797
+    },
+    "2_1_1320": {
+      "p_favorite_covers": 0.4047,
+      "ci_low": 0.3707,
+      "ci_high": 0.4388,
+      "n_games": 794
+    },
+    "2_1_1350": {
+      "p_favorite_covers": 0.4062,
+      "ci_low": 0.3722,
+      "ci_high": 0.4403,
+      "n_games": 796
+    },
+    "2_1_1380": {
+      "p_favorite_covers": 0.4113,
+      "ci_low": 0.3771,
+      "ci_high": 0.4455,
+      "n_games": 791
+    },
+    "2_1_1410": {
+      "p_favorite_covers": 0.416,
+      "ci_low": 0.3816,
+      "ci_high": 0.4505,
+      "n_games": 782
+    },
+    "2_1_1440": {
+      "p_favorite_covers": 0.4291,
+      "ci_low": 0.3944,
+      "ci_high": 0.4638,
+      "n_games": 779
+    },
+    "2_1_1470": {
+      "p_favorite_covers": 0.4312,
+      "ci_low": 0.3969,
+      "ci_high": 0.4656,
+      "n_games": 796
+    },
+    "2_1_1500": {
+      "p_favorite_covers": 0.4273,
+      "ci_low": 0.3928,
+      "ci_high": 0.4618,
+      "n_games": 787
+    },
+    "2_1_1530": {
+      "p_favorite_covers": 0.4326,
+      "ci_low": 0.3986,
+      "ci_high": 0.4666,
+      "n_games": 812
+    },
+    "2_1_1560": {
+      "p_favorite_covers": 0.4303,
+      "ci_low": 0.3962,
+      "ci_high": 0.4644,
+      "n_games": 807
+    },
+    "2_1_1590": {
+      "p_favorite_covers": 0.4272,
+      "ci_low": 0.3932,
+      "ci_high": 0.4611,
+      "n_games": 813
+    },
+    "2_1_1620": {
+      "p_favorite_covers": 0.4358,
+      "ci_low": 0.402,
+      "ci_high": 0.4696,
+      "n_games": 822
+    },
+    "2_1_1650": {
+      "p_favorite_covers": 0.4428,
+      "ci_low": 0.4093,
+      "ci_high": 0.4764,
+      "n_games": 836
+    },
+    "2_1_1680": {
+      "p_favorite_covers": 0.4478,
+      "ci_low": 0.414,
+      "ci_high": 0.4815,
+      "n_games": 829
+    },
+    "2_1_1710": {
+      "p_favorite_covers": 0.4418,
+      "ci_low": 0.408,
+      "ci_high": 0.4755,
+      "n_games": 829
+    },
+    "2_1_1740": {
+      "p_favorite_covers": 0.4401,
+      "ci_low": 0.4066,
+      "ci_high": 0.4736,
+      "n_games": 839
+    },
+    "2_1_1770": {
+      "p_favorite_covers": 0.4422,
+      "ci_low": 0.4088,
+      "ci_high": 0.4756,
+      "n_games": 844
+    },
+    "2_1_1800": {
+      "p_favorite_covers": 0.442,
+      "ci_low": 0.4088,
+      "ci_high": 0.4751,
+      "n_games": 858
+    },
+    "2_1_1830": {
+      "p_favorite_covers": 0.4472,
+      "ci_low": 0.4142,
+      "ci_high": 0.4802,
+      "n_games": 868
+    },
+    "2_1_1860": {
+      "p_favorite_covers": 0.4403,
+      "ci_low": 0.4074,
+      "ci_high": 0.4731,
+      "n_games": 875
+    },
+    "2_1_1890": {
+      "p_favorite_covers": 0.4514,
+      "ci_low": 0.4184,
+      "ci_high": 0.4844,
+      "n_games": 871
+    },
+    "2_1_1920": {
+      "p_favorite_covers": 0.4622,
+      "ci_low": 0.4294,
+      "ci_high": 0.495,
+      "n_games": 883
+    },
+    "2_1_1950": {
+      "p_favorite_covers": 0.4559,
+      "ci_low": 0.4227,
+      "ci_high": 0.4892,
+      "n_games": 858
+    },
+    "2_1_1980": {
+      "p_favorite_covers": 0.4494,
+      "ci_low": 0.4164,
+      "ci_high": 0.4825,
+      "n_games": 866
+    },
+    "2_1_2010": {
+      "p_favorite_covers": 0.4403,
+      "ci_low": 0.4074,
+      "ci_high": 0.4731,
+      "n_games": 875
+    },
+    "2_1_2040": {
+      "p_favorite_covers": 0.4469,
+      "ci_low": 0.4143,
+      "ci_high": 0.4795,
+      "n_games": 891
+    },
+    "2_1_2070": {
+      "p_favorite_covers": 0.4558,
+      "ci_low": 0.4234,
+      "ci_high": 0.4883,
+      "n_games": 902
+    },
+    "2_1_2100": {
+      "p_favorite_covers": 0.4568,
+      "ci_low": 0.4242,
+      "ci_high": 0.4893,
+      "n_games": 898
+    },
+    "2_1_2130": {
+      "p_favorite_covers": 0.4542,
+      "ci_low": 0.4218,
+      "ci_high": 0.4866,
+      "n_games": 903
+    },
+    "2_1_2160": {
+      "p_favorite_covers": 0.4506,
+      "ci_low": 0.4181,
+      "ci_high": 0.4831,
+      "n_games": 897
+    },
+    "2_1_2190": {
+      "p_favorite_covers": 0.4521,
+      "ci_low": 0.4199,
+      "ci_high": 0.4843,
+      "n_games": 914
+    },
+    "2_1_2220": {
+      "p_favorite_covers": 0.4573,
+      "ci_low": 0.4252,
+      "ci_high": 0.4894,
+      "n_games": 921
+    },
+    "2_1_2250": {
+      "p_favorite_covers": 0.4574,
+      "ci_low": 0.4253,
+      "ci_high": 0.4895,
+      "n_games": 923
+    },
+    "2_1_2280": {
+      "p_favorite_covers": 0.4514,
+      "ci_low": 0.4197,
+      "ci_high": 0.4831,
+      "n_games": 942
+    },
+    "2_1_2310": {
+      "p_favorite_covers": 0.4543,
+      "ci_low": 0.4229,
+      "ci_high": 0.4858,
+      "n_games": 960
+    },
+    "2_1_2340": {
+      "p_favorite_covers": 0.4589,
+      "ci_low": 0.4273,
+      "ci_high": 0.4906,
+      "n_games": 946
+    },
+    "2_1_2370": {
+      "p_favorite_covers": 0.4615,
+      "ci_low": 0.4296,
+      "ci_high": 0.4935,
+      "n_games": 932
+    },
+    "2_1_2400": {
+      "p_favorite_covers": 0.466,
+      "ci_low": 0.4341,
+      "ci_high": 0.4978,
+      "n_games": 936
+    },
+    "2_2_1230": {
+      "p_favorite_covers": 0.6892,
+      "ci_low": 0.6494,
+      "ci_high": 0.7291,
+      "n_games": 514
+    },
+    "2_2_1260": {
+      "p_favorite_covers": 0.6859,
+      "ci_low": 0.6461,
+      "ci_high": 0.7257,
+      "n_games": 518
+    },
+    "2_2_1290": {
+      "p_favorite_covers": 0.6781,
+      "ci_low": 0.6382,
+      "ci_high": 0.7179,
+      "n_games": 524
+    },
+    "2_2_1320": {
+      "p_favorite_covers": 0.6744,
+      "ci_low": 0.6342,
+      "ci_high": 0.7146,
+      "n_games": 518
+    },
+    "2_2_1350": {
+      "p_favorite_covers": 0.6749,
+      "ci_low": 0.6351,
+      "ci_high": 0.7147,
+      "n_games": 528
+    },
+    "2_2_1380": {
+      "p_favorite_covers": 0.678,
+      "ci_low": 0.6383,
+      "ci_high": 0.7177,
+      "n_games": 527
+    },
+    "2_2_1410": {
+      "p_favorite_covers": 0.6734,
+      "ci_low": 0.6341,
+      "ci_high": 0.7128,
+      "n_games": 541
+    },
+    "2_2_1440": {
+      "p_favorite_covers": 0.6729,
+      "ci_low": 0.6333,
+      "ci_high": 0.7125,
+      "n_games": 534
+    },
+    "2_2_1470": {
+      "p_favorite_covers": 0.6863,
+      "ci_low": 0.6467,
+      "ci_high": 0.7258,
+      "n_games": 525
+    },
+    "2_2_1500": {
+      "p_favorite_covers": 0.6861,
+      "ci_low": 0.6467,
+      "ci_high": 0.7256,
+      "n_games": 528
+    },
+    "2_2_1530": {
+      "p_favorite_covers": 0.6797,
+      "ci_low": 0.6393,
+      "ci_high": 0.7201,
+      "n_games": 508
+    },
+    "2_2_1560": {
+      "p_favorite_covers": 0.676,
+      "ci_low": 0.6351,
+      "ci_high": 0.7169,
+      "n_games": 499
+    },
+    "2_2_1590": {
+      "p_favorite_covers": 0.6758,
+      "ci_low": 0.6354,
+      "ci_high": 0.7162,
+      "n_games": 511
+    },
+    "2_2_1620": {
+      "p_favorite_covers": 0.6726,
+      "ci_low": 0.6318,
+      "ci_high": 0.7135,
+      "n_games": 503
+    },
+    "2_2_1650": {
+      "p_favorite_covers": 0.6681,
+      "ci_low": 0.6267,
+      "ci_high": 0.7094,
+      "n_games": 493
+    },
+    "2_2_1680": {
+      "p_favorite_covers": 0.6545,
+      "ci_low": 0.6125,
+      "ci_high": 0.6965,
+      "n_games": 488
+    },
+    "2_2_1710": {
+      "p_favorite_covers": 0.6505,
+      "ci_low": 0.6083,
+      "ci_high": 0.6926,
+      "n_games": 488
+    },
+    "2_2_1740": {
+      "p_favorite_covers": 0.6532,
+      "ci_low": 0.6112,
+      "ci_high": 0.6952,
+      "n_games": 489
+    },
+    "2_2_1770": {
+      "p_favorite_covers": 0.6548,
+      "ci_low": 0.612,
+      "ci_high": 0.6975,
+      "n_games": 471
+    },
+    "2_2_1800": {
+      "p_favorite_covers": 0.6536,
+      "ci_low": 0.6101,
+      "ci_high": 0.6972,
+      "n_games": 455
+    },
+    "2_2_1830": {
+      "p_favorite_covers": 0.6623,
+      "ci_low": 0.6186,
+      "ci_high": 0.706,
+      "n_games": 446
+    },
+    "2_2_1860": {
+      "p_favorite_covers": 0.6624,
+      "ci_low": 0.6193,
+      "ci_high": 0.7055,
+      "n_games": 458
+    },
+    "2_2_1890": {
+      "p_favorite_covers": 0.646,
+      "ci_low": 0.6026,
+      "ci_high": 0.6894,
+      "n_games": 462
+    },
+    "2_2_1920": {
+      "p_favorite_covers": 0.642,
+      "ci_low": 0.5981,
+      "ci_high": 0.6859,
+      "n_games": 454
+    },
+    "2_2_1950": {
+      "p_favorite_covers": 0.6451,
+      "ci_low": 0.6014,
+      "ci_high": 0.6887,
+      "n_games": 458
+    },
+    "2_2_1980": {
+      "p_favorite_covers": 0.6494,
+      "ci_low": 0.6059,
+      "ci_high": 0.6929,
+      "n_games": 458
+    },
+    "2_2_2010": {
+      "p_favorite_covers": 0.6623,
+      "ci_low": 0.6189,
+      "ci_high": 0.7057,
+      "n_games": 452
+    },
+    "2_2_2040": {
+      "p_favorite_covers": 0.6519,
+      "ci_low": 0.608,
+      "ci_high": 0.6959,
+      "n_games": 447
+    },
+    "2_2_2070": {
+      "p_favorite_covers": 0.6426,
+      "ci_low": 0.5979,
+      "ci_high": 0.6873,
+      "n_games": 438
+    },
+    "2_2_2100": {
+      "p_favorite_covers": 0.6524,
+      "ci_low": 0.6081,
+      "ci_high": 0.6968,
+      "n_games": 439
+    },
+    "2_2_2130": {
+      "p_favorite_covers": 0.649,
+      "ci_low": 0.6041,
+      "ci_high": 0.694,
+      "n_games": 429
+    },
+    "2_2_2160": {
+      "p_favorite_covers": 0.6482,
+      "ci_low": 0.6032,
+      "ci_high": 0.6932,
+      "n_games": 428
+    },
+    "2_2_2190": {
+      "p_favorite_covers": 0.6486,
+      "ci_low": 0.6032,
+      "ci_high": 0.6941,
+      "n_games": 420
+    },
+    "2_2_2220": {
+      "p_favorite_covers": 0.6461,
+      "ci_low": 0.5995,
+      "ci_high": 0.6927,
+      "n_games": 400
+    },
+    "2_2_2250": {
+      "p_favorite_covers": 0.6427,
+      "ci_low": 0.596,
+      "ci_high": 0.6895,
+      "n_games": 399
+    },
+    "2_2_2280": {
+      "p_favorite_covers": 0.648,
+      "ci_low": 0.6008,
+      "ci_high": 0.6953,
+      "n_games": 388
+    },
+    "2_2_2310": {
+      "p_favorite_covers": 0.6595,
+      "ci_low": 0.6113,
+      "ci_high": 0.7078,
+      "n_games": 366
+    },
+    "2_2_2340": {
+      "p_favorite_covers": 0.6515,
+      "ci_low": 0.6032,
+      "ci_high": 0.6999,
+      "n_games": 369
+    },
+    "2_2_2370": {
+      "p_favorite_covers": 0.6476,
+      "ci_low": 0.5997,
+      "ci_high": 0.6954,
+      "n_games": 379
+    },
+    "2_2_2400": {
+      "p_favorite_covers": 0.6425,
+      "ci_low": 0.5938,
+      "ci_high": 0.6912,
+      "n_games": 368
+    },
+    "2_3_1230": {
+      "p_favorite_covers": 0.8752,
+      "ci_low": 0.8368,
+      "ci_high": 0.9136,
+      "n_games": 276
+    },
+    "2_3_1260": {
+      "p_favorite_covers": 0.8815,
+      "ci_low": 0.8439,
+      "ci_high": 0.9191,
+      "n_games": 274
+    },
+    "2_3_1290": {
+      "p_favorite_covers": 0.8761,
+      "ci_low": 0.8375,
+      "ci_high": 0.9148,
+      "n_games": 270
+    },
+    "2_3_1320": {
+      "p_favorite_covers": 0.8725,
+      "ci_low": 0.8333,
+      "ci_high": 0.9116,
+      "n_games": 270
+    },
+    "2_3_1350": {
+      "p_favorite_covers": 0.8738,
+      "ci_low": 0.8339,
+      "ci_high": 0.9137,
+      "n_games": 257
+    },
+    "2_3_1380": {
+      "p_favorite_covers": 0.8727,
+      "ci_low": 0.8319,
+      "ci_high": 0.9136,
+      "n_games": 247
+    },
+    "2_3_1410": {
+      "p_favorite_covers": 0.87,
+      "ci_low": 0.8277,
+      "ci_high": 0.9123,
+      "n_games": 234
+    },
+    "2_3_1440": {
+      "p_favorite_covers": 0.8562,
+      "ci_low": 0.8118,
+      "ci_high": 0.9006,
+      "n_games": 232
+    },
+    "2_3_1470": {
+      "p_favorite_covers": 0.8394,
+      "ci_low": 0.7922,
+      "ci_high": 0.8865,
+      "n_games": 226
+    },
+    "2_3_1500": {
+      "p_favorite_covers": 0.8212,
+      "ci_low": 0.7718,
+      "ci_high": 0.8705,
+      "n_games": 225
+    },
+    "2_3_1530": {
+      "p_favorite_covers": 0.8299,
+      "ci_low": 0.7816,
+      "ci_high": 0.8783,
+      "n_games": 225
+    },
+    "2_3_1560": {
+      "p_favorite_covers": 0.8203,
+      "ci_low": 0.7719,
+      "ci_high": 0.8687,
+      "n_games": 235
+    },
+    "2_3_1590": {
+      "p_favorite_covers": 0.8055,
+      "ci_low": 0.7542,
+      "ci_high": 0.8569,
+      "n_games": 222
+    },
+    "2_3_1620": {
+      "p_favorite_covers": 0.8038,
+      "ci_low": 0.752,
+      "ci_high": 0.8555,
+      "n_games": 220
+    },
+    "2_3_1650": {
+      "p_favorite_covers": 0.7984,
+      "ci_low": 0.7454,
+      "ci_high": 0.8514,
+      "n_games": 214
+    },
+    "2_3_1680": {
+      "p_favorite_covers": 0.8002,
+      "ci_low": 0.7476,
+      "ci_high": 0.8528,
+      "n_games": 216
+    },
+    "2_3_1710": {
+      "p_favorite_covers": 0.815,
+      "ci_low": 0.7636,
+      "ci_high": 0.8665,
+      "n_games": 212
+    },
+    "2_3_1740": {
+      "p_favorite_covers": 0.8154,
+      "ci_low": 0.7634,
+      "ci_high": 0.8674,
+      "n_games": 207
+    },
+    "2_3_1770": {
+      "p_favorite_covers": 0.8095,
+      "ci_low": 0.7573,
+      "ci_high": 0.8617,
+      "n_games": 211
+    },
+    "2_3_1800": {
+      "p_favorite_covers": 0.8002,
+      "ci_low": 0.747,
+      "ci_high": 0.8534,
+      "n_games": 211
+    },
+    "2_3_1830": {
+      "p_favorite_covers": 0.7927,
+      "ci_low": 0.7383,
+      "ci_high": 0.847,
+      "n_games": 208
+    },
+    "2_3_1860": {
+      "p_favorite_covers": 0.7954,
+      "ci_low": 0.7404,
+      "ci_high": 0.8503,
+      "n_games": 201
+    },
+    "2_3_1890": {
+      "p_favorite_covers": 0.8033,
+      "ci_low": 0.7482,
+      "ci_high": 0.8583,
+      "n_games": 194
+    },
+    "2_3_1920": {
+      "p_favorite_covers": 0.7906,
+      "ci_low": 0.7324,
+      "ci_high": 0.8488,
+      "n_games": 182
+    },
+    "2_3_1950": {
+      "p_favorite_covers": 0.8014,
+      "ci_low": 0.7428,
+      "ci_high": 0.86,
+      "n_games": 172
+    },
+    "2_3_1980": {
+      "p_favorite_covers": 0.8158,
+      "ci_low": 0.7576,
+      "ci_high": 0.874,
+      "n_games": 164
+    },
+    "2_3_2010": {
+      "p_favorite_covers": 0.7978,
+      "ci_low": 0.7366,
+      "ci_high": 0.8591,
+      "n_games": 159
+    },
+    "2_3_2040": {
+      "p_favorite_covers": 0.8151,
+      "ci_low": 0.7558,
+      "ci_high": 0.8745,
+      "n_games": 158
+    },
+    "2_3_2070": {
+      "p_favorite_covers": 0.8235,
+      "ci_low": 0.7656,
+      "ci_high": 0.8814,
+      "n_games": 160
+    },
+    "2_3_2100": {
+      "p_favorite_covers": 0.7952,
+      "ci_low": 0.7322,
+      "ci_high": 0.8581,
+      "n_games": 152
+    },
+    "2_3_2130": {
+      "p_favorite_covers": 0.7964,
+      "ci_low": 0.7328,
+      "ci_high": 0.86,
+      "n_games": 148
+    },
+    "2_3_2160": {
+      "p_favorite_covers": 0.7948,
+      "ci_low": 0.7298,
+      "ci_high": 0.8599,
+      "n_games": 142
+    },
+    "2_3_2190": {
+      "p_favorite_covers": 0.7989,
+      "ci_low": 0.7315,
+      "ci_high": 0.8662,
+      "n_games": 130
+    },
+    "2_3_2220": {
+      "p_favorite_covers": 0.7973,
+      "ci_low": 0.7295,
+      "ci_high": 0.8651,
+      "n_games": 129
+    },
+    "2_3_2250": {
+      "p_favorite_covers": 0.8053,
+      "ci_low": 0.7359,
+      "ci_high": 0.8746,
+      "n_games": 119
+    },
+    "2_3_2280": {
+      "p_favorite_covers": 0.8053,
+      "ci_low": 0.7359,
+      "ci_high": 0.8746,
+      "n_games": 119
+    },
+    "2_3_2310": {
+      "p_favorite_covers": 0.7971,
+      "ci_low": 0.7266,
+      "ci_high": 0.8676,
+      "n_games": 119
+    },
+    "2_3_2340": {
+      "p_favorite_covers": 0.8091,
+      "ci_low": 0.738,
+      "ci_high": 0.8802,
+      "n_games": 111
+    },
+    "2_3_2370": {
+      "p_favorite_covers": 0.7913,
+      "ci_low": 0.716,
+      "ci_high": 0.8666,
+      "n_games": 106
+    },
+    "2_3_2400": {
+      "p_favorite_covers": 0.771,
+      "ci_low": 0.6927,
+      "ci_high": 0.8494,
+      "n_games": 105
+    },
+    "2_4_1230": {
+      "p_favorite_covers": 0.9408,
+      "ci_low": 0.9006,
+      "ci_high": 0.981,
+      "n_games": 113
+    },
+    "2_4_1260": {
+      "p_favorite_covers": 0.9451,
+      "ci_low": 0.9053,
+      "ci_high": 0.9849,
+      "n_games": 104
+    },
+    "2_4_1290": {
+      "p_favorite_covers": 0.9419,
+      "ci_low": 0.8997,
+      "ci_high": 0.984,
+      "n_games": 98
+    },
+    "2_4_1320": {
+      "p_favorite_covers": 0.9713,
+      "ci_low": 0.9444,
+      "ci_high": 0.9982,
+      "n_games": 98
+    },
+    "2_4_1350": {
+      "p_favorite_covers": 0.9701,
+      "ci_low": 0.9422,
+      "ci_high": 0.9981,
+      "n_games": 94
+    },
+    "2_4_1380": {
+      "p_favorite_covers": 0.9599,
+      "ci_low": 0.9257,
+      "ci_high": 0.9941,
+      "n_games": 94
+    },
+    "2_4_1410": {
+      "p_favorite_covers": 0.9595,
+      "ci_low": 0.9249,
+      "ci_high": 0.9941,
+      "n_games": 93
+    },
+    "2_4_1440": {
+      "p_favorite_covers": 0.9512,
+      "ci_low": 0.913,
+      "ci_high": 0.9894,
+      "n_games": 97
+    },
+    "2_4_1470": {
+      "p_favorite_covers": 0.9582,
+      "ci_low": 0.9226,
+      "ci_high": 0.9939,
+      "n_games": 90
+    },
+    "2_4_1500": {
+      "p_favorite_covers": 0.9692,
+      "ci_low": 0.9403,
+      "ci_high": 0.9981,
+      "n_games": 91
+    },
+    "2_4_1530": {
+      "p_favorite_covers": 0.9599,
+      "ci_low": 0.9257,
+      "ci_high": 0.9941,
+      "n_games": 94
+    },
+    "2_4_1560": {
+      "p_favorite_covers": 0.9689,
+      "ci_low": 0.9397,
+      "ci_high": 0.998,
+      "n_games": 90
+    },
+    "2_4_1590": {
+      "p_favorite_covers": 0.9689,
+      "ci_low": 0.9397,
+      "ci_high": 0.998,
+      "n_games": 90
+    },
+    "2_4_1620": {
+      "p_favorite_covers": 0.9685,
+      "ci_low": 0.9391,
+      "ci_high": 0.998,
+      "n_games": 89
+    },
+    "2_4_1650": {
+      "p_favorite_covers": 0.9689,
+      "ci_low": 0.9397,
+      "ci_high": 0.998,
+      "n_games": 90
+    },
+    "2_4_1680": {
+      "p_favorite_covers": 0.9671,
+      "ci_low": 0.9363,
+      "ci_high": 0.9979,
+      "n_games": 85
+    },
+    "2_4_1710": {
+      "p_favorite_covers": 0.9678,
+      "ci_low": 0.9377,
+      "ci_high": 0.998,
+      "n_games": 87
+    },
+    "2_4_1740": {
+      "p_favorite_covers": 0.966,
+      "ci_low": 0.9341,
+      "ci_high": 0.9978,
+      "n_games": 82
+    },
+    "2_4_1770": {
+      "p_favorite_covers": 0.9647,
+      "ci_low": 0.9317,
+      "ci_high": 0.9978,
+      "n_games": 79
+    },
+    "2_4_1800": {
+      "p_favorite_covers": 0.9639,
+      "ci_low": 0.93,
+      "ci_high": 0.9977,
+      "n_games": 77
+    },
+    "2_4_1830": {
+      "p_favorite_covers": 0.9334,
+      "ci_low": 0.8814,
+      "ci_high": 0.9853,
+      "n_games": 70
+    },
+    "2_4_1860": {
+      "p_favorite_covers": 0.9413,
+      "ci_low": 0.8914,
+      "ci_high": 0.9913,
+      "n_games": 63
+    },
+    "2_4_1890": {
+      "p_favorite_covers": 0.9229,
+      "ci_low": 0.863,
+      "ci_high": 0.9829,
+      "n_games": 60
+    },
+    "2_4_1920": {
+      "p_favorite_covers": 0.9264,
+      "ci_low": 0.8691,
+      "ci_high": 0.9837,
+      "n_games": 63
+    },
+    "2_4_1950": {
+      "p_favorite_covers": 0.9127,
+      "ci_low": 0.85,
+      "ci_high": 0.9754,
+      "n_games": 64
+    },
+    "2_4_1980": {
+      "p_favorite_covers": 0.8949,
+      "ci_low": 0.8247,
+      "ci_high": 0.9651,
+      "n_games": 62
+    },
+    "2_4_2010": {
+      "p_favorite_covers": 0.9058,
+      "ci_low": 0.8382,
+      "ci_high": 0.9733,
+      "n_games": 59
+    },
+    "2_4_2040": {
+      "p_favorite_covers": 0.8958,
+      "ci_low": 0.8214,
+      "ci_high": 0.9703,
+      "n_games": 53
+    },
+    "2_4_2070": {
+      "p_favorite_covers": 0.8858,
+      "ci_low": 0.8045,
+      "ci_high": 0.9671,
+      "n_games": 48
+    },
+    "2_4_2100": {
+      "p_favorite_covers": 0.89,
+      "ci_low": 0.8116,
+      "ci_high": 0.9685,
+      "n_games": 50
+    },
+    "2_4_2130": {
+      "p_favorite_covers": 0.888,
+      "ci_low": 0.8081,
+      "ci_high": 0.9678,
+      "n_games": 49
+    },
+    "2_4_2160": {
+      "p_favorite_covers": 0.8812,
+      "ci_low": 0.7968,
+      "ci_high": 0.9657,
+      "n_games": 46
+    },
+    "2_4_2190": {
+      "p_favorite_covers": 0.8639,
+      "ci_low": 0.7741,
+      "ci_high": 0.9537,
+      "n_games": 47
+    },
+    "2_4_2220": {
+      "p_favorite_covers": 0.8611,
+      "ci_low": 0.7696,
+      "ci_high": 0.9527,
+      "n_games": 46
+    },
+    "2_4_2250": {
+      "p_favorite_covers": 0.8553,
+      "ci_low": 0.7602,
+      "ci_high": 0.9505,
+      "n_games": 44
+    },
+    "2_4_2280": {
+      "p_favorite_covers": 0.8305,
+      "ci_low": 0.7202,
+      "ci_high": 0.9409,
+      "n_games": 37
+    },
+    "2_4_2310": {
+      "p_favorite_covers": 0.8301,
+      "ci_low": 0.7115,
+      "ci_high": 0.9487,
+      "n_games": 31
+    },
+    "2_4_2340": null,
+    "2_4_2370": null,
+    "2_4_2400": null,
+    "2_5_1230": {
+      "p_favorite_covers": 0.9689,
+      "ci_low": 0.9379,
+      "ci_high": 1.0,
+      "n_games": 58
+    },
+    "2_5_1260": {
+      "p_favorite_covers": 0.9684,
+      "ci_low": 0.9369,
+      "ci_high": 1.0,
+      "n_games": 57
+    },
+    "2_5_1290": {
+      "p_favorite_covers": 0.9684,
+      "ci_low": 0.9369,
+      "ci_high": 1.0,
+      "n_games": 57
+    },
+    "2_5_1320": {
+      "p_favorite_covers": 0.9662,
+      "ci_low": 0.9324,
+      "ci_high": 1.0,
+      "n_games": 53
+    },
+    "2_5_1350": {
+      "p_favorite_covers": 0.9662,
+      "ci_low": 0.9324,
+      "ci_high": 1.0,
+      "n_games": 53
+    },
+    "2_5_1380": {
+      "p_favorite_covers": 0.9662,
+      "ci_low": 0.9324,
+      "ci_high": 1.0,
+      "n_games": 53
+    },
+    "2_5_1410": {
+      "p_favorite_covers": 0.9656,
+      "ci_low": 0.9312,
+      "ci_high": 1.0,
+      "n_games": 52
+    },
+    "2_5_1440": {
+      "p_favorite_covers": 0.9629,
+      "ci_low": 0.9259,
+      "ci_high": 1.0,
+      "n_games": 48
+    },
+    "2_5_1470": {
+      "p_favorite_covers": 0.9622,
+      "ci_low": 0.9244,
+      "ci_high": 1.0,
+      "n_games": 47
+    },
+    "2_5_1500": {
+      "p_favorite_covers": 0.9599,
+      "ci_low": 0.9197,
+      "ci_high": 1.0,
+      "n_games": 44
+    },
+    "2_5_1530": {
+      "p_favorite_covers": 0.9562,
+      "ci_low": 0.9124,
+      "ci_high": 1.0,
+      "n_games": 40
+    },
+    "2_5_1560": {
+      "p_favorite_covers": 0.9541,
+      "ci_low": 0.9082,
+      "ci_high": 1.0,
+      "n_games": 38
+    },
+    "2_5_1590": {
+      "p_favorite_covers": 0.9492,
+      "ci_low": 0.8985,
+      "ci_high": 1.0,
+      "n_games": 34
+    },
+    "2_5_1620": {
+      "p_favorite_covers": 0.9432,
+      "ci_low": 0.8865,
+      "ci_high": 1.0,
+      "n_games": 30
+    },
+    "2_5_1650": null,
+    "2_5_1680": null,
+    "2_5_1710": null,
+    "2_5_1740": null,
+    "2_5_1770": null,
+    "2_5_1800": null,
+    "2_5_1830": null,
+    "2_5_1860": null,
+    "2_5_1890": null,
+    "2_5_1920": null,
+    "2_5_1950": null,
+    "2_5_1980": null,
+    "2_5_2010": null,
+    "2_5_2040": null,
+    "2_5_2070": null,
+    "2_5_2100": null,
+    "2_5_2130": null,
+    "2_5_2160": null,
+    "2_5_2190": null,
+    "2_5_2220": null,
+    "2_5_2250": null,
+    "2_5_2280": null,
+    "2_5_2310": null,
+    "2_5_2340": null,
+    "2_5_2370": null,
+    "2_5_2400": null,
+    "3_-5_0": {
+      "p_favorite_covers": 0.02,
+      "ci_low": 0.0,
+      "ci_high": 0.0401,
+      "n_games": 92
+    },
+    "3_-5_30": {
+      "p_favorite_covers": 0.02,
+      "ci_low": 0.0,
+      "ci_high": 0.0401,
+      "n_games": 92
+    },
+    "3_-5_60": {
+      "p_favorite_covers": 0.0194,
+      "ci_low": 0.0,
+      "ci_high": 0.0389,
+      "n_games": 95
+    },
+    "3_-5_90": {
+      "p_favorite_covers": 0.0198,
+      "ci_low": 0.0,
+      "ci_high": 0.0397,
+      "n_games": 93
+    },
+    "3_-5_120": {
+      "p_favorite_covers": 0.0209,
+      "ci_low": 0.0,
+      "ci_high": 0.0418,
+      "n_games": 88
+    },
+    "3_-5_150": {
+      "p_favorite_covers": 0.0214,
+      "ci_low": 0.0,
+      "ci_high": 0.0428,
+      "n_games": 86
+    },
+    "3_-5_180": {
+      "p_favorite_covers": 0.0211,
+      "ci_low": 0.0,
+      "ci_high": 0.0423,
+      "n_games": 87
+    },
+    "3_-5_210": {
+      "p_favorite_covers": 0.0229,
+      "ci_low": 0.0,
+      "ci_high": 0.0458,
+      "n_games": 80
+    },
+    "3_-5_240": {
+      "p_favorite_covers": 0.0244,
+      "ci_low": 0.0,
+      "ci_high": 0.0487,
+      "n_games": 75
+    },
+    "3_-5_270": {
+      "p_favorite_covers": 0.0241,
+      "ci_low": 0.0,
+      "ci_high": 0.0481,
+      "n_games": 76
+    },
+    "3_-5_300": {
+      "p_favorite_covers": 0.0244,
+      "ci_low": 0.0,
+      "ci_high": 0.0487,
+      "n_games": 75
+    },
+    "3_-5_330": {
+      "p_favorite_covers": 0.0244,
+      "ci_low": 0.0,
+      "ci_high": 0.0487,
+      "n_games": 75
+    },
+    "3_-5_360": {
+      "p_favorite_covers": 0.026,
+      "ci_low": 0.0,
+      "ci_high": 0.052,
+      "n_games": 70
+    },
+    "3_-5_390": {
+      "p_favorite_covers": 0.0264,
+      "ci_low": 0.0,
+      "ci_high": 0.0527,
+      "n_games": 69
+    },
+    "3_-5_420": {
+      "p_favorite_covers": 0.0267,
+      "ci_low": 0.0,
+      "ci_high": 0.0535,
+      "n_games": 68
+    },
+    "3_-5_450": {
+      "p_favorite_covers": 0.0275,
+      "ci_low": 0.0,
+      "ci_high": 0.055,
+      "n_games": 66
+    },
+    "3_-5_480": {
+      "p_favorite_covers": 0.0296,
+      "ci_low": 0.0,
+      "ci_high": 0.0592,
+      "n_games": 61
+    },
+    "3_-5_510": {
+      "p_favorite_covers": 0.0326,
+      "ci_low": 0.0,
+      "ci_high": 0.0653,
+      "n_games": 55
+    },
+    "3_-5_540": {
+      "p_favorite_covers": 0.035,
+      "ci_low": 0.0,
+      "ci_high": 0.07,
+      "n_games": 51
+    },
+    "3_-5_570": {
+      "p_favorite_covers": 0.0364,
+      "ci_low": 0.0,
+      "ci_high": 0.0727,
+      "n_games": 49
+    },
+    "3_-5_600": {
+      "p_favorite_covers": 0.035,
+      "ci_low": 0.0,
+      "ci_high": 0.07,
+      "n_games": 51
+    },
+    "3_-5_630": {
+      "p_favorite_covers": 0.0364,
+      "ci_low": 0.0,
+      "ci_high": 0.0727,
+      "n_games": 49
+    },
+    "3_-5_660": {
+      "p_favorite_covers": 0.0385,
+      "ci_low": 0.0,
+      "ci_high": 0.0771,
+      "n_games": 46
+    },
+    "3_-5_690": {
+      "p_favorite_covers": 0.0393,
+      "ci_low": 0.0,
+      "ci_high": 0.0787,
+      "n_games": 45
+    },
+    "3_-5_720": {
+      "p_favorite_covers": 0.041,
+      "ci_low": 0.0,
+      "ci_high": 0.082,
+      "n_games": 43
+    },
+    "3_-5_750": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_780": {
+      "p_favorite_covers": 0.0459,
+      "ci_low": 0.0,
+      "ci_high": 0.0918,
+      "n_games": 38
+    },
+    "3_-5_810": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_840": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_870": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_900": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_930": {
+      "p_favorite_covers": 0.0438,
+      "ci_low": 0.0,
+      "ci_high": 0.0876,
+      "n_games": 40
+    },
+    "3_-5_960": {
+      "p_favorite_covers": 0.0438,
+      "ci_low": 0.0,
+      "ci_high": 0.0876,
+      "n_games": 40
+    },
+    "3_-5_990": {
+      "p_favorite_covers": 0.0448,
+      "ci_low": 0.0,
+      "ci_high": 0.0897,
+      "n_games": 39
+    },
+    "3_-5_1020": {
+      "p_favorite_covers": 0.047,
+      "ci_low": 0.0,
+      "ci_high": 0.0941,
+      "n_games": 37
+    },
+    "3_-5_1050": {
+      "p_favorite_covers": 0.0482,
+      "ci_low": 0.0,
+      "ci_high": 0.0964,
+      "n_games": 36
+    },
+    "3_-5_1080": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "3_-5_1110": {
+      "p_favorite_covers": 0.0508,
+      "ci_low": 0.0,
+      "ci_high": 0.1015,
+      "n_games": 34
+    },
+    "3_-5_1140": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "3_-5_1170": {
+      "p_favorite_covers": 0.0495,
+      "ci_low": 0.0,
+      "ci_high": 0.0989,
+      "n_games": 35
+    },
+    "3_-5_1200": {
+      "p_favorite_covers": 0.0508,
+      "ci_low": 0.0,
+      "ci_high": 0.1015,
+      "n_games": 34
+    },
+    "3_-4_0": {
+      "p_favorite_covers": 0.0095,
+      "ci_low": 0.0,
+      "ci_high": 0.0189,
+      "n_games": 199
+    },
+    "3_-4_30": {
+      "p_favorite_covers": 0.01,
+      "ci_low": 0.0,
+      "ci_high": 0.0199,
+      "n_games": 189
+    },
+    "3_-4_60": {
+      "p_favorite_covers": 0.0106,
+      "ci_low": 0.0,
+      "ci_high": 0.0212,
+      "n_games": 177
+    },
+    "3_-4_90": {
+      "p_favorite_covers": 0.0106,
+      "ci_low": 0.0,
+      "ci_high": 0.0212,
+      "n_games": 177
+    },
+    "3_-4_120": {
+      "p_favorite_covers": 0.0114,
+      "ci_low": 0.0,
+      "ci_high": 0.0228,
+      "n_games": 165
+    },
+    "3_-4_150": {
+      "p_favorite_covers": 0.0119,
+      "ci_low": 0.0,
+      "ci_high": 0.0237,
+      "n_games": 158
+    },
+    "3_-4_180": {
+      "p_favorite_covers": 0.0123,
+      "ci_low": 0.0,
+      "ci_high": 0.0247,
+      "n_games": 152
+    },
+    "3_-4_210": {
+      "p_favorite_covers": 0.0127,
+      "ci_low": 0.0,
+      "ci_high": 0.0253,
+      "n_games": 148
+    },
+    "3_-4_240": {
+      "p_favorite_covers": 0.013,
+      "ci_low": 0.0,
+      "ci_high": 0.026,
+      "n_games": 144
+    },
+    "3_-4_270": {
+      "p_favorite_covers": 0.0134,
+      "ci_low": 0.0,
+      "ci_high": 0.0267,
+      "n_games": 140
+    },
+    "3_-4_300": {
+      "p_favorite_covers": 0.0136,
+      "ci_low": 0.0,
+      "ci_high": 0.0273,
+      "n_games": 137
+    },
+    "3_-4_330": {
+      "p_favorite_covers": 0.0142,
+      "ci_low": 0.0,
+      "ci_high": 0.0285,
+      "n_games": 131
+    },
+    "3_-4_360": {
+      "p_favorite_covers": 0.0137,
+      "ci_low": 0.0,
+      "ci_high": 0.0275,
+      "n_games": 136
+    },
+    "3_-4_390": {
+      "p_favorite_covers": 0.0141,
+      "ci_low": 0.0,
+      "ci_high": 0.0283,
+      "n_games": 132
+    },
+    "3_-4_420": {
+      "p_favorite_covers": 0.0144,
+      "ci_low": 0.0,
+      "ci_high": 0.0287,
+      "n_games": 130
+    },
+    "3_-4_450": {
+      "p_favorite_covers": 0.0141,
+      "ci_low": 0.0,
+      "ci_high": 0.0283,
+      "n_games": 132
+    },
+    "3_-4_480": {
+      "p_favorite_covers": 0.0141,
+      "ci_low": 0.0,
+      "ci_high": 0.0283,
+      "n_games": 132
+    },
+    "3_-4_510": {
+      "p_favorite_covers": 0.0144,
+      "ci_low": 0.0,
+      "ci_high": 0.0287,
+      "n_games": 130
+    },
+    "3_-4_540": {
+      "p_favorite_covers": 0.0142,
+      "ci_low": 0.0,
+      "ci_high": 0.0285,
+      "n_games": 131
+    },
+    "3_-4_570": {
+      "p_favorite_covers": 0.0147,
+      "ci_low": 0.0,
+      "ci_high": 0.0294,
+      "n_games": 127
+    },
+    "3_-4_600": {
+      "p_favorite_covers": 0.0155,
+      "ci_low": 0.0,
+      "ci_high": 0.031,
+      "n_games": 120
+    },
+    "3_-4_630": {
+      "p_favorite_covers": 0.0156,
+      "ci_low": 0.0,
+      "ci_high": 0.0313,
+      "n_games": 119
+    },
+    "3_-4_660": {
+      "p_favorite_covers": 0.0158,
+      "ci_low": 0.0,
+      "ci_high": 0.0315,
+      "n_games": 118
+    },
+    "3_-4_690": {
+      "p_favorite_covers": 0.0164,
+      "ci_low": 0.0,
+      "ci_high": 0.0329,
+      "n_games": 113
+    },
+    "3_-4_720": {
+      "p_favorite_covers": 0.0166,
+      "ci_low": 0.0,
+      "ci_high": 0.0332,
+      "n_games": 112
+    },
+    "3_-4_750": {
+      "p_favorite_covers": 0.0159,
+      "ci_low": 0.0,
+      "ci_high": 0.0318,
+      "n_games": 117
+    },
+    "3_-4_780": {
+      "p_favorite_covers": 0.0163,
+      "ci_low": 0.0,
+      "ci_high": 0.0326,
+      "n_games": 114
+    },
+    "3_-4_810": {
+      "p_favorite_covers": 0.0164,
+      "ci_low": 0.0,
+      "ci_high": 0.0329,
+      "n_games": 113
+    },
+    "3_-4_840": {
+      "p_favorite_covers": 0.0164,
+      "ci_low": 0.0,
+      "ci_high": 0.0329,
+      "n_games": 113
+    },
+    "3_-4_870": {
+      "p_favorite_covers": 0.0167,
+      "ci_low": 0.0,
+      "ci_high": 0.0335,
+      "n_games": 111
+    },
+    "3_-4_900": {
+      "p_favorite_covers": 0.0169,
+      "ci_low": 0.0,
+      "ci_high": 0.0337,
+      "n_games": 110
+    },
+    "3_-4_930": {
+      "p_favorite_covers": 0.0175,
+      "ci_low": 0.0,
+      "ci_high": 0.035,
+      "n_games": 106
+    },
+    "3_-4_960": {
+      "p_favorite_covers": 0.0173,
+      "ci_low": 0.0,
+      "ci_high": 0.0347,
+      "n_games": 107
+    },
+    "3_-4_990": {
+      "p_favorite_covers": 0.017,
+      "ci_low": 0.0,
+      "ci_high": 0.034,
+      "n_games": 109
+    },
+    "3_-4_1020": {
+      "p_favorite_covers": 0.0178,
+      "ci_low": 0.0,
+      "ci_high": 0.0356,
+      "n_games": 104
+    },
+    "3_-4_1050": {
+      "p_favorite_covers": 0.0187,
+      "ci_low": 0.0,
+      "ci_high": 0.0374,
+      "n_games": 99
+    },
+    "3_-4_1080": {
+      "p_favorite_covers": 0.0198,
+      "ci_low": 0.0,
+      "ci_high": 0.0397,
+      "n_games": 93
+    },
+    "3_-4_1110": {
+      "p_favorite_covers": 0.0207,
+      "ci_low": 0.0,
+      "ci_high": 0.0414,
+      "n_games": 89
+    },
+    "3_-4_1140": {
+      "p_favorite_covers": 0.0216,
+      "ci_low": 0.0,
+      "ci_high": 0.0432,
+      "n_games": 85
+    },
+    "3_-4_1170": {
+      "p_favorite_covers": 0.0221,
+      "ci_low": 0.0,
+      "ci_high": 0.0442,
+      "n_games": 83
+    },
+    "3_-4_1200": {
+      "p_favorite_covers": 0.0226,
+      "ci_low": 0.0,
+      "ci_high": 0.0453,
+      "n_games": 81
+    },
+    "3_-3_0": {
+      "p_favorite_covers": 0.0053,
+      "ci_low": 0.0,
+      "ci_high": 0.0106,
+      "n_games": 360
+    },
+    "3_-3_30": {
+      "p_favorite_covers": 0.0057,
+      "ci_low": 0.0,
+      "ci_high": 0.0115,
+      "n_games": 331
+    },
+    "3_-3_60": {
+      "p_favorite_covers": 0.0063,
+      "ci_low": 0.0,
+      "ci_high": 0.0127,
+      "n_games": 299
+    },
+    "3_-3_90": {
+      "p_favorite_covers": 0.007,
+      "ci_low": 0.0,
+      "ci_high": 0.0141,
+      "n_games": 269
+    },
+    "3_-3_120": {
+      "p_favorite_covers": 0.0073,
+      "ci_low": 0.0,
+      "ci_high": 0.0145,
+      "n_games": 261
+    },
+    "3_-3_150": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0,
+      "ci_high": 0.0148,
+      "n_games": 256
+    },
+    "3_-3_180": {
+      "p_favorite_covers": 0.0079,
+      "ci_low": 0.0,
+      "ci_high": 0.0158,
+      "n_games": 240
+    },
+    "3_-3_210": {
+      "p_favorite_covers": 0.0078,
+      "ci_low": 0.0,
+      "ci_high": 0.0157,
+      "n_games": 241
+    },
+    "3_-3_240": {
+      "p_favorite_covers": 0.0079,
+      "ci_low": 0.0,
+      "ci_high": 0.0158,
+      "n_games": 239
+    },
+    "3_-3_270": {
+      "p_favorite_covers": 0.0078,
+      "ci_low": 0.0,
+      "ci_high": 0.0157,
+      "n_games": 241
+    },
+    "3_-3_300": {
+      "p_favorite_covers": 0.0077,
+      "ci_low": 0.0,
+      "ci_high": 0.0153,
+      "n_games": 247
+    },
+    "3_-3_330": {
+      "p_favorite_covers": 0.0077,
+      "ci_low": 0.0,
+      "ci_high": 0.0153,
+      "n_games": 247
+    },
+    "3_-3_360": {
+      "p_favorite_covers": 0.0077,
+      "ci_low": 0.0,
+      "ci_high": 0.0154,
+      "n_games": 245
+    },
+    "3_-3_390": {
+      "p_favorite_covers": 0.0076,
+      "ci_low": 0.0,
+      "ci_high": 0.0153,
+      "n_games": 248
+    },
+    "3_-3_420": {
+      "p_favorite_covers": 0.0076,
+      "ci_low": 0.0,
+      "ci_high": 0.0152,
+      "n_games": 249
+    },
+    "3_-3_450": {
+      "p_favorite_covers": 0.0076,
+      "ci_low": 0.0,
+      "ci_high": 0.0151,
+      "n_games": 250
+    },
+    "3_-3_480": {
+      "p_favorite_covers": 0.0076,
+      "ci_low": 0.0,
+      "ci_high": 0.0151,
+      "n_games": 250
+    },
+    "3_-3_510": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0,
+      "ci_high": 0.0147,
+      "n_games": 257
+    },
+    "3_-3_540": {
+      "p_favorite_covers": 0.0073,
+      "ci_low": 0.0,
+      "ci_high": 0.0147,
+      "n_games": 258
+    },
+    "3_-3_570": {
+      "p_favorite_covers": 0.0073,
+      "ci_low": 0.0,
+      "ci_high": 0.0147,
+      "n_games": 258
+    },
+    "3_-3_600": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0,
+      "ci_high": 0.0148,
+      "n_games": 255
+    },
+    "3_-3_630": {
+      "p_favorite_covers": 0.0075,
+      "ci_low": 0.0,
+      "ci_high": 0.015,
+      "n_games": 253
+    },
+    "3_-3_660": {
+      "p_favorite_covers": 0.0076,
+      "ci_low": 0.0,
+      "ci_high": 0.0152,
+      "n_games": 249
+    },
+    "3_-3_690": {
+      "p_favorite_covers": 0.0116,
+      "ci_low": 0.0007,
+      "ci_high": 0.0225,
+      "n_games": 248
+    },
+    "3_-3_720": {
+      "p_favorite_covers": 0.0116,
+      "ci_low": 0.0007,
+      "ci_high": 0.0224,
+      "n_games": 249
+    },
+    "3_-3_750": {
+      "p_favorite_covers": 0.0119,
+      "ci_low": 0.0007,
+      "ci_high": 0.023,
+      "n_games": 242
+    },
+    "3_-3_780": {
+      "p_favorite_covers": 0.0118,
+      "ci_low": 0.0007,
+      "ci_high": 0.0229,
+      "n_games": 243
+    },
+    "3_-3_810": {
+      "p_favorite_covers": 0.0122,
+      "ci_low": 0.0007,
+      "ci_high": 0.0236,
+      "n_games": 236
+    },
+    "3_-3_840": {
+      "p_favorite_covers": 0.0123,
+      "ci_low": 0.0008,
+      "ci_high": 0.0239,
+      "n_games": 233
+    },
+    "3_-3_870": {
+      "p_favorite_covers": 0.0123,
+      "ci_low": 0.0008,
+      "ci_high": 0.0238,
+      "n_games": 234
+    },
+    "3_-3_900": {
+      "p_favorite_covers": 0.0126,
+      "ci_low": 0.0008,
+      "ci_high": 0.0244,
+      "n_games": 228
+    },
+    "3_-3_930": {
+      "p_favorite_covers": 0.0129,
+      "ci_low": 0.0008,
+      "ci_high": 0.025,
+      "n_games": 223
+    },
+    "3_-3_960": {
+      "p_favorite_covers": 0.0128,
+      "ci_low": 0.0008,
+      "ci_high": 0.0249,
+      "n_games": 224
+    },
+    "3_-3_990": {
+      "p_favorite_covers": 0.0135,
+      "ci_low": 0.0008,
+      "ci_high": 0.0262,
+      "n_games": 212
+    },
+    "3_-3_1020": {
+      "p_favorite_covers": 0.0135,
+      "ci_low": 0.0008,
+      "ci_high": 0.0261,
+      "n_games": 213
+    },
+    "3_-3_1050": {
+      "p_favorite_covers": 0.0133,
+      "ci_low": 0.0008,
+      "ci_high": 0.0259,
+      "n_games": 215
+    },
+    "3_-3_1080": {
+      "p_favorite_covers": 0.0133,
+      "ci_low": 0.0008,
+      "ci_high": 0.0259,
+      "n_games": 215
+    },
+    "3_-3_1110": {
+      "p_favorite_covers": 0.0135,
+      "ci_low": 0.0008,
+      "ci_high": 0.0262,
+      "n_games": 212
+    },
+    "3_-3_1140": {
+      "p_favorite_covers": 0.0133,
+      "ci_low": 0.0008,
+      "ci_high": 0.0258,
+      "n_games": 216
+    },
+    "3_-3_1170": {
+      "p_favorite_covers": 0.0132,
+      "ci_low": 0.0008,
+      "ci_high": 0.0255,
+      "n_games": 218
+    },
+    "3_-3_1200": {
+      "p_favorite_covers": 0.0134,
+      "ci_low": 0.0008,
+      "ci_high": 0.026,
+      "n_games": 214
+    },
+    "3_-2_0": {
+      "p_favorite_covers": 0.005,
+      "ci_low": 0.0,
+      "ci_high": 0.0099,
+      "n_games": 384
+    },
+    "3_-2_30": {
+      "p_favorite_covers": 0.005,
+      "ci_low": 0.0,
+      "ci_high": 0.0101,
+      "n_games": 378
+    },
+    "3_-2_60": {
+      "p_favorite_covers": 0.0052,
+      "ci_low": 0.0,
+      "ci_high": 0.0103,
+      "n_games": 368
+    },
+    "3_-2_90": {
+      "p_favorite_covers": 0.0051,
+      "ci_low": 0.0,
+      "ci_high": 0.0102,
+      "n_games": 374
+    },
+    "3_-2_120": {
+      "p_favorite_covers": 0.0048,
+      "ci_low": 0.0,
+      "ci_high": 0.0097,
+      "n_games": 393
+    },
+    "3_-2_150": {
+      "p_favorite_covers": 0.0047,
+      "ci_low": 0.0,
+      "ci_high": 0.0093,
+      "n_games": 408
+    },
+    "3_-2_180": {
+      "p_favorite_covers": 0.0045,
+      "ci_low": 0.0,
+      "ci_high": 0.009,
+      "n_games": 422
+    },
+    "3_-2_210": {
+      "p_favorite_covers": 0.0044,
+      "ci_low": 0.0,
+      "ci_high": 0.0088,
+      "n_games": 433
+    },
+    "3_-2_240": {
+      "p_favorite_covers": 0.0043,
+      "ci_low": 0.0,
+      "ci_high": 0.0086,
+      "n_games": 444
+    },
+    "3_-2_270": {
+      "p_favorite_covers": 0.0043,
+      "ci_low": 0.0,
+      "ci_high": 0.0086,
+      "n_games": 444
+    },
+    "3_-2_300": {
+      "p_favorite_covers": 0.0044,
+      "ci_low": 0.0,
+      "ci_high": 0.0088,
+      "n_games": 435
+    },
+    "3_-2_330": {
+      "p_favorite_covers": 0.0043,
+      "ci_low": 0.0,
+      "ci_high": 0.0087,
+      "n_games": 439
+    },
+    "3_-2_360": {
+      "p_favorite_covers": 0.0043,
+      "ci_low": 0.0,
+      "ci_high": 0.0086,
+      "n_games": 441
+    },
+    "3_-2_390": {
+      "p_favorite_covers": 0.0044,
+      "ci_low": 0.0,
+      "ci_high": 0.0088,
+      "n_games": 433
+    },
+    "3_-2_420": {
+      "p_favorite_covers": 0.0043,
+      "ci_low": 0.0,
+      "ci_high": 0.0087,
+      "n_games": 438
+    },
+    "3_-2_450": {
+      "p_favorite_covers": 0.0044,
+      "ci_low": 0.0,
+      "ci_high": 0.0088,
+      "n_games": 434
+    },
+    "3_-2_480": {
+      "p_favorite_covers": 0.0044,
+      "ci_low": 0.0,
+      "ci_high": 0.0088,
+      "n_games": 434
+    },
+    "3_-2_510": {
+      "p_favorite_covers": 0.0067,
+      "ci_low": 0.0004,
+      "ci_high": 0.013,
+      "n_games": 432
+    },
+    "3_-2_540": {
+      "p_favorite_covers": 0.0066,
+      "ci_low": 0.0004,
+      "ci_high": 0.0127,
+      "n_games": 442
+    },
+    "3_-2_570": {
+      "p_favorite_covers": 0.0064,
+      "ci_low": 0.0004,
+      "ci_high": 0.0124,
+      "n_games": 452
+    },
+    "3_-2_600": {
+      "p_favorite_covers": 0.0063,
+      "ci_low": 0.0004,
+      "ci_high": 0.0123,
+      "n_games": 458
+    },
+    "3_-2_630": {
+      "p_favorite_covers": 0.0062,
+      "ci_low": 0.0004,
+      "ci_high": 0.012,
+      "n_games": 470
+    },
+    "3_-2_660": {
+      "p_favorite_covers": 0.0082,
+      "ci_low": 0.0012,
+      "ci_high": 0.0152,
+      "n_games": 476
+    },
+    "3_-2_690": {
+      "p_favorite_covers": 0.0061,
+      "ci_low": 0.0004,
+      "ci_high": 0.0118,
+      "n_games": 476
+    },
+    "3_-2_720": {
+      "p_favorite_covers": 0.0062,
+      "ci_low": 0.0004,
+      "ci_high": 0.012,
+      "n_games": 470
+    },
+    "3_-2_750": {
+      "p_favorite_covers": 0.0061,
+      "ci_low": 0.0004,
+      "ci_high": 0.0119,
+      "n_games": 473
+    },
+    "3_-2_780": {
+      "p_favorite_covers": 0.0062,
+      "ci_low": 0.0004,
+      "ci_high": 0.0119,
+      "n_games": 471
+    },
+    "3_-2_810": {
+      "p_favorite_covers": 0.0062,
+      "ci_low": 0.0004,
+      "ci_high": 0.012,
+      "n_games": 470
+    },
+    "3_-2_840": {
+      "p_favorite_covers": 0.0103,
+      "ci_low": 0.0021,
+      "ci_high": 0.0184,
+      "n_games": 476
+    },
+    "3_-2_870": {
+      "p_favorite_covers": 0.0104,
+      "ci_low": 0.0022,
+      "ci_high": 0.0186,
+      "n_games": 470
+    },
+    "3_-2_900": {
+      "p_favorite_covers": 0.0104,
+      "ci_low": 0.0022,
+      "ci_high": 0.0186,
+      "n_games": 470
+    },
+    "3_-2_930": {
+      "p_favorite_covers": 0.0124,
+      "ci_low": 0.0033,
+      "ci_high": 0.0215,
+      "n_games": 473
+    },
+    "3_-2_960": {
+      "p_favorite_covers": 0.0147,
+      "ci_low": 0.0046,
+      "ci_high": 0.0249,
+      "n_games": 466
+    },
+    "3_-2_990": {
+      "p_favorite_covers": 0.0145,
+      "ci_low": 0.0045,
+      "ci_high": 0.0246,
+      "n_games": 472
+    },
+    "3_-2_1020": {
+      "p_favorite_covers": 0.0144,
+      "ci_low": 0.0045,
+      "ci_high": 0.0243,
+      "n_games": 477
+    },
+    "3_-2_1050": {
+      "p_favorite_covers": 0.0162,
+      "ci_low": 0.0057,
+      "ci_high": 0.0267,
+      "n_games": 486
+    },
+    "3_-2_1080": {
+      "p_favorite_covers": 0.0161,
+      "ci_low": 0.0056,
+      "ci_high": 0.0265,
+      "n_games": 489
+    },
+    "3_-2_1110": {
+      "p_favorite_covers": 0.0159,
+      "ci_low": 0.0056,
+      "ci_high": 0.0262,
+      "n_games": 495
+    },
+    "3_-2_1140": {
+      "p_favorite_covers": 0.0177,
+      "ci_low": 0.0068,
+      "ci_high": 0.0286,
+      "n_games": 500
+    },
+    "3_-2_1170": {
+      "p_favorite_covers": 0.0202,
+      "ci_low": 0.0083,
+      "ci_high": 0.032,
+      "n_games": 488
+    },
+    "3_-2_1200": {
+      "p_favorite_covers": 0.02,
+      "ci_low": 0.0083,
+      "ci_high": 0.0318,
+      "n_games": 491
+    },
+    "3_-1_0": {
+      "p_favorite_covers": 0.0038,
+      "ci_low": 0.0,
+      "ci_high": 0.0076,
+      "n_games": 502
+    },
+    "3_-1_30": {
+      "p_favorite_covers": 0.0034,
+      "ci_low": 0.0,
+      "ci_high": 0.0068,
+      "n_games": 559
+    },
+    "3_-1_60": {
+      "p_favorite_covers": 0.0031,
+      "ci_low": 0.0,
+      "ci_high": 0.0062,
+      "n_games": 615
+    },
+    "3_-1_90": {
+      "p_favorite_covers": 0.003,
+      "ci_low": 0.0,
+      "ci_high": 0.006,
+      "n_games": 640
+    },
+    "3_-1_120": {
+      "p_favorite_covers": 0.003,
+      "ci_low": 0.0,
+      "ci_high": 0.006,
+      "n_games": 641
+    },
+    "3_-1_150": {
+      "p_favorite_covers": 0.006,
+      "ci_low": 0.0008,
+      "ci_high": 0.0111,
+      "n_games": 651
+    },
+    "3_-1_180": {
+      "p_favorite_covers": 0.0059,
+      "ci_low": 0.0008,
+      "ci_high": 0.011,
+      "n_games": 657
+    },
+    "3_-1_210": {
+      "p_favorite_covers": 0.0059,
+      "ci_low": 0.0008,
+      "ci_high": 0.011,
+      "n_games": 657
+    },
+    "3_-1_240": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0015,
+      "ci_high": 0.0132,
+      "n_games": 664
+    },
+    "3_-1_270": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0016,
+      "ci_high": 0.0133,
+      "n_games": 658
+    },
+    "3_-1_300": {
+      "p_favorite_covers": 0.0073,
+      "ci_low": 0.0015,
+      "ci_high": 0.0131,
+      "n_games": 667
+    },
+    "3_-1_330": {
+      "p_favorite_covers": 0.0073,
+      "ci_low": 0.0015,
+      "ci_high": 0.0131,
+      "n_games": 667
+    },
+    "3_-1_360": {
+      "p_favorite_covers": 0.0074,
+      "ci_low": 0.0015,
+      "ci_high": 0.0133,
+      "n_games": 660
+    },
+    "3_-1_390": {
+      "p_favorite_covers": 0.0089,
+      "ci_low": 0.0023,
+      "ci_high": 0.0154,
+      "n_games": 663
+    },
+    "3_-1_420": {
+      "p_favorite_covers": 0.0103,
+      "ci_low": 0.0032,
+      "ci_high": 0.0174,
+      "n_games": 668
+    },
+    "3_-1_450": {
+      "p_favorite_covers": 0.0103,
+      "ci_low": 0.0032,
+      "ci_high": 0.0174,
+      "n_games": 667
+    },
+    "3_-1_480": {
+      "p_favorite_covers": 0.0162,
+      "ci_low": 0.0071,
+      "ci_high": 0.0253,
+      "n_games": 671
+    },
+    "3_-1_510": {
+      "p_favorite_covers": 0.0174,
+      "ci_low": 0.008,
+      "ci_high": 0.0268,
+      "n_games": 681
+    },
+    "3_-1_540": {
+      "p_favorite_covers": 0.0177,
+      "ci_low": 0.0081,
+      "ci_high": 0.0273,
+      "n_games": 669
+    },
+    "3_-1_570": {
+      "p_favorite_covers": 0.0193,
+      "ci_low": 0.0093,
+      "ci_high": 0.0294,
+      "n_games": 665
+    },
+    "3_-1_600": {
+      "p_favorite_covers": 0.0222,
+      "ci_low": 0.0114,
+      "ci_high": 0.033,
+      "n_games": 668
+    },
+    "3_-1_630": {
+      "p_favorite_covers": 0.0239,
+      "ci_low": 0.0126,
+      "ci_high": 0.0351,
+      "n_games": 663
+    },
+    "3_-1_660": {
+      "p_favorite_covers": 0.0238,
+      "ci_low": 0.0126,
+      "ci_high": 0.035,
+      "n_games": 666
+    },
+    "3_-1_690": {
+      "p_favorite_covers": 0.0264,
+      "ci_low": 0.0147,
+      "ci_high": 0.0382,
+      "n_games": 674
+    },
+    "3_-1_720": {
+      "p_favorite_covers": 0.0273,
+      "ci_low": 0.0155,
+      "ci_high": 0.0392,
+      "n_games": 688
+    },
+    "3_-1_750": {
+      "p_favorite_covers": 0.0317,
+      "ci_low": 0.0189,
+      "ci_high": 0.0445,
+      "n_games": 688
+    },
+    "3_-1_780": {
+      "p_favorite_covers": 0.036,
+      "ci_low": 0.0224,
+      "ci_high": 0.0497,
+      "n_games": 688
+    },
+    "3_-1_810": {
+      "p_favorite_covers": 0.0345,
+      "ci_low": 0.0211,
+      "ci_high": 0.0478,
+      "n_games": 690
+    },
+    "3_-1_840": {
+      "p_favorite_covers": 0.0357,
+      "ci_low": 0.0222,
+      "ci_high": 0.0492,
+      "n_games": 694
+    },
+    "3_-1_870": {
+      "p_favorite_covers": 0.0376,
+      "ci_low": 0.0239,
+      "ci_high": 0.0512,
+      "n_games": 713
+    },
+    "3_-1_900": {
+      "p_favorite_covers": 0.043,
+      "ci_low": 0.0284,
+      "ci_high": 0.0576,
+      "n_games": 715
+    },
+    "3_-1_930": {
+      "p_favorite_covers": 0.0457,
+      "ci_low": 0.0307,
+      "ci_high": 0.0608,
+      "n_games": 716
+    },
+    "3_-1_960": {
+      "p_favorite_covers": 0.0459,
+      "ci_low": 0.0308,
+      "ci_high": 0.0611,
+      "n_games": 713
+    },
+    "3_-1_990": {
+      "p_favorite_covers": 0.0454,
+      "ci_low": 0.0305,
+      "ci_high": 0.0604,
+      "n_games": 721
+    },
+    "3_-1_1020": {
+      "p_favorite_covers": 0.0466,
+      "ci_low": 0.0315,
+      "ci_high": 0.0617,
+      "n_games": 724
+    },
+    "3_-1_1050": {
+      "p_favorite_covers": 0.0504,
+      "ci_low": 0.0348,
+      "ci_high": 0.0661,
+      "n_games": 728
+    },
+    "3_-1_1080": {
+      "p_favorite_covers": 0.0522,
+      "ci_low": 0.0362,
+      "ci_high": 0.0683,
+      "n_games": 722
+    },
+    "3_-1_1110": {
+      "p_favorite_covers": 0.0561,
+      "ci_low": 0.0395,
+      "ci_high": 0.0726,
+      "n_games": 726
+    },
+    "3_-1_1140": {
+      "p_favorite_covers": 0.061,
+      "ci_low": 0.0437,
+      "ci_high": 0.0783,
+      "n_games": 716
+    },
+    "3_-1_1170": {
+      "p_favorite_covers": 0.0586,
+      "ci_low": 0.0417,
+      "ci_high": 0.0754,
+      "n_games": 729
+    },
+    "3_-1_1200": {
+      "p_favorite_covers": 0.06,
+      "ci_low": 0.043,
+      "ci_high": 0.0771,
+      "n_games": 728
+    },
+    "3_0_0": {
+      "p_favorite_covers": 0.0023,
+      "ci_low": 0.0,
+      "ci_high": 0.0046,
+      "n_games": 838
+    },
+    "3_0_30": {
+      "p_favorite_covers": 0.0023,
+      "ci_low": 0.0,
+      "ci_high": 0.0046,
+      "n_games": 825
+    },
+    "3_0_60": {
+      "p_favorite_covers": 0.006,
+      "ci_low": 0.0012,
+      "ci_high": 0.0107,
+      "n_games": 817
+    },
+    "3_0_90": {
+      "p_favorite_covers": 0.0098,
+      "ci_low": 0.0034,
+      "ci_high": 0.0161,
+      "n_games": 806
+    },
+    "3_0_120": {
+      "p_favorite_covers": 0.0158,
+      "ci_low": 0.0075,
+      "ci_high": 0.024,
+      "n_games": 816
+    },
+    "3_0_150": {
+      "p_favorite_covers": 0.0197,
+      "ci_low": 0.0104,
+      "ci_high": 0.0289,
+      "n_games": 806
+    },
+    "3_0_180": {
+      "p_favorite_covers": 0.0198,
+      "ci_low": 0.0104,
+      "ci_high": 0.0291,
+      "n_games": 802
+    },
+    "3_0_210": {
+      "p_favorite_covers": 0.0311,
+      "ci_low": 0.0193,
+      "ci_high": 0.0429,
+      "n_games": 797
+    },
+    "3_0_240": {
+      "p_favorite_covers": 0.0341,
+      "ci_low": 0.0216,
+      "ci_high": 0.0465,
+      "n_games": 786
+    },
+    "3_0_270": {
+      "p_favorite_covers": 0.0447,
+      "ci_low": 0.0306,
+      "ci_high": 0.0588,
+      "n_games": 800
+    },
+    "3_0_300": {
+      "p_favorite_covers": 0.0438,
+      "ci_low": 0.0298,
+      "ci_high": 0.0579,
+      "n_games": 793
+    },
+    "3_0_330": {
+      "p_favorite_covers": 0.0514,
+      "ci_low": 0.0362,
+      "ci_high": 0.0665,
+      "n_games": 793
+    },
+    "3_0_360": {
+      "p_favorite_covers": 0.052,
+      "ci_low": 0.0368,
+      "ci_high": 0.0671,
+      "n_games": 803
+    },
+    "3_0_390": {
+      "p_favorite_covers": 0.0542,
+      "ci_low": 0.0388,
+      "ci_high": 0.0697,
+      "n_games": 806
+    },
+    "3_0_420": {
+      "p_favorite_covers": 0.0596,
+      "ci_low": 0.0434,
+      "ci_high": 0.0758,
+      "n_games": 800
+    },
+    "3_0_450": {
+      "p_favorite_covers": 0.0642,
+      "ci_low": 0.0474,
+      "ci_high": 0.081,
+      "n_games": 805
+    },
+    "3_0_480": {
+      "p_favorite_covers": 0.0705,
+      "ci_low": 0.053,
+      "ci_high": 0.0881,
+      "n_games": 803
+    },
+    "3_0_510": {
+      "p_favorite_covers": 0.0749,
+      "ci_low": 0.057,
+      "ci_high": 0.0929,
+      "n_games": 809
+    },
+    "3_0_540": {
+      "p_favorite_covers": 0.081,
+      "ci_low": 0.0624,
+      "ci_high": 0.0996,
+      "n_games": 810
+    },
+    "3_0_570": {
+      "p_favorite_covers": 0.0842,
+      "ci_low": 0.0651,
+      "ci_high": 0.1032,
+      "n_games": 803
+    },
+    "3_0_600": {
+      "p_favorite_covers": 0.0842,
+      "ci_low": 0.0651,
+      "ci_high": 0.1032,
+      "n_games": 803
+    },
+    "3_0_630": {
+      "p_favorite_covers": 0.0875,
+      "ci_low": 0.0681,
+      "ci_high": 0.1068,
+      "n_games": 807
+    },
+    "3_0_660": {
+      "p_favorite_covers": 0.0965,
+      "ci_low": 0.0764,
+      "ci_high": 0.1166,
+      "n_games": 814
+    },
+    "3_0_690": {
+      "p_favorite_covers": 0.1017,
+      "ci_low": 0.0812,
+      "ci_high": 0.1223,
+      "n_games": 821
+    },
+    "3_0_720": {
+      "p_favorite_covers": 0.1024,
+      "ci_low": 0.0817,
+      "ci_high": 0.123,
+      "n_games": 816
+    },
+    "3_0_750": {
+      "p_favorite_covers": 0.1061,
+      "ci_low": 0.0852,
+      "ci_high": 0.127,
+      "n_games": 825
+    },
+    "3_0_780": {
+      "p_favorite_covers": 0.1092,
+      "ci_low": 0.0881,
+      "ci_high": 0.1303,
+      "n_games": 829
+    },
+    "3_0_810": {
+      "p_favorite_covers": 0.1209,
+      "ci_low": 0.099,
+      "ci_high": 0.1429,
+      "n_games": 839
+    },
+    "3_0_840": {
+      "p_favorite_covers": 0.1208,
+      "ci_low": 0.0989,
+      "ci_high": 0.1427,
+      "n_games": 840
+    },
+    "3_0_870": {
+      "p_favorite_covers": 0.1272,
+      "ci_low": 0.1046,
+      "ci_high": 0.1497,
+      "n_games": 829
+    },
+    "3_0_900": {
+      "p_favorite_covers": 0.1261,
+      "ci_low": 0.1037,
+      "ci_high": 0.1485,
+      "n_games": 836
+    },
+    "3_0_930": {
+      "p_favorite_covers": 0.133,
+      "ci_low": 0.1102,
+      "ci_high": 0.1558,
+      "n_games": 845
+    },
+    "3_0_960": {
+      "p_favorite_covers": 0.1369,
+      "ci_low": 0.1141,
+      "ci_high": 0.1597,
+      "n_games": 865
+    },
+    "3_0_990": {
+      "p_favorite_covers": 0.1444,
+      "ci_low": 0.1211,
+      "ci_high": 0.1678,
+      "n_games": 861
+    },
+    "3_0_1020": {
+      "p_favorite_covers": 0.1516,
+      "ci_low": 0.1277,
+      "ci_high": 0.1754,
+      "n_games": 860
+    },
+    "3_0_1050": {
+      "p_favorite_covers": 0.1524,
+      "ci_low": 0.1284,
+      "ci_high": 0.1764,
+      "n_games": 855
+    },
+    "3_0_1080": {
+      "p_favorite_covers": 0.1598,
+      "ci_low": 0.1355,
+      "ci_high": 0.184,
+      "n_games": 872
+    },
+    "3_0_1110": {
+      "p_favorite_covers": 0.1613,
+      "ci_low": 0.1372,
+      "ci_high": 0.1855,
+      "n_games": 882
+    },
+    "3_0_1140": {
+      "p_favorite_covers": 0.1655,
+      "ci_low": 0.1412,
+      "ci_high": 0.1898,
+      "n_games": 890
+    },
+    "3_0_1170": {
+      "p_favorite_covers": 0.1728,
+      "ci_low": 0.148,
+      "ci_high": 0.1977,
+      "n_games": 881
+    },
+    "3_0_1200": {
+      "p_favorite_covers": 0.1722,
+      "ci_low": 0.1475,
+      "ci_high": 0.1969,
+      "n_games": 890
+    },
+    "3_1_0": {
+      "p_favorite_covers": 0.0036,
+      "ci_low": 0.0,
+      "ci_high": 0.0072,
+      "n_games": 527
+    },
+    "3_1_30": {
+      "p_favorite_covers": 0.1217,
+      "ci_low": 0.0953,
+      "ci_high": 0.1481,
+      "n_games": 579
+    },
+    "3_1_60": {
+      "p_favorite_covers": 0.2177,
+      "ci_low": 0.1858,
+      "ci_high": 0.2495,
+      "n_games": 639
+    },
+    "3_1_90": {
+      "p_favorite_covers": 0.2488,
+      "ci_low": 0.2164,
+      "ci_high": 0.2812,
+      "n_games": 679
+    },
+    "3_1_120": {
+      "p_favorite_covers": 0.264,
+      "ci_low": 0.2308,
+      "ci_high": 0.2971,
+      "n_games": 674
+    },
+    "3_1_150": {
+      "p_favorite_covers": 0.2716,
+      "ci_low": 0.2382,
+      "ci_high": 0.305,
+      "n_games": 677
+    },
+    "3_1_180": {
+      "p_favorite_covers": 0.2807,
+      "ci_low": 0.247,
+      "ci_high": 0.3143,
+      "n_games": 680
+    },
+    "3_1_210": {
+      "p_favorite_covers": 0.2853,
+      "ci_low": 0.2517,
+      "ci_high": 0.3188,
+      "n_games": 690
+    },
+    "3_1_240": {
+      "p_favorite_covers": 0.2954,
+      "ci_low": 0.2617,
+      "ci_high": 0.3291,
+      "n_games": 700
+    },
+    "3_1_270": {
+      "p_favorite_covers": 0.2914,
+      "ci_low": 0.2577,
+      "ci_high": 0.325,
+      "n_games": 696
+    },
+    "3_1_300": {
+      "p_favorite_covers": 0.3028,
+      "ci_low": 0.269,
+      "ci_high": 0.3366,
+      "n_games": 706
+    },
+    "3_1_330": {
+      "p_favorite_covers": 0.31,
+      "ci_low": 0.2761,
+      "ci_high": 0.3439,
+      "n_games": 712
+    },
+    "3_1_360": {
+      "p_favorite_covers": 0.3198,
+      "ci_low": 0.2858,
+      "ci_high": 0.3539,
+      "n_games": 715
+    },
+    "3_1_390": {
+      "p_favorite_covers": 0.3179,
+      "ci_low": 0.2837,
+      "ci_high": 0.352,
+      "n_games": 710
+    },
+    "3_1_420": {
+      "p_favorite_covers": 0.3234,
+      "ci_low": 0.289,
+      "ci_high": 0.3579,
+      "n_games": 704
+    },
+    "3_1_450": {
+      "p_favorite_covers": 0.3285,
+      "ci_low": 0.2937,
+      "ci_high": 0.3633,
+      "n_games": 696
+    },
+    "3_1_480": {
+      "p_favorite_covers": 0.3277,
+      "ci_low": 0.2933,
+      "ci_high": 0.3621,
+      "n_games": 710
+    },
+    "3_1_510": {
+      "p_favorite_covers": 0.3422,
+      "ci_low": 0.3073,
+      "ci_high": 0.3771,
+      "n_games": 706
+    },
+    "3_1_540": {
+      "p_favorite_covers": 0.3476,
+      "ci_low": 0.3129,
+      "ci_high": 0.3823,
+      "n_games": 718
+    },
+    "3_1_570": {
+      "p_favorite_covers": 0.347,
+      "ci_low": 0.3125,
+      "ci_high": 0.3814,
+      "n_games": 728
+    },
+    "3_1_600": {
+      "p_favorite_covers": 0.3589,
+      "ci_low": 0.3241,
+      "ci_high": 0.3937,
+      "n_games": 726
+    },
+    "3_1_630": {
+      "p_favorite_covers": 0.363,
+      "ci_low": 0.3278,
+      "ci_high": 0.3981,
+      "n_games": 715
+    },
+    "3_1_660": {
+      "p_favorite_covers": 0.3636,
+      "ci_low": 0.3283,
+      "ci_high": 0.3989,
+      "n_games": 711
+    },
+    "3_1_690": {
+      "p_favorite_covers": 0.3682,
+      "ci_low": 0.3327,
+      "ci_high": 0.4038,
+      "n_games": 702
+    },
+    "3_1_720": {
+      "p_favorite_covers": 0.3739,
+      "ci_low": 0.3382,
+      "ci_high": 0.4096,
+      "n_games": 702
+    },
+    "3_1_750": {
+      "p_favorite_covers": 0.3744,
+      "ci_low": 0.3387,
+      "ci_high": 0.4102,
+      "n_games": 701
+    },
+    "3_1_780": {
+      "p_favorite_covers": 0.37,
+      "ci_low": 0.3345,
+      "ci_high": 0.4056,
+      "n_games": 704
+    },
+    "3_1_810": {
+      "p_favorite_covers": 0.3771,
+      "ci_low": 0.3416,
+      "ci_high": 0.4126,
+      "n_games": 712
+    },
+    "3_1_840": {
+      "p_favorite_covers": 0.3906,
+      "ci_low": 0.355,
+      "ci_high": 0.4261,
+      "n_games": 718
+    },
+    "3_1_870": {
+      "p_favorite_covers": 0.3951,
+      "ci_low": 0.3599,
+      "ci_high": 0.4304,
+      "n_games": 735
+    },
+    "3_1_900": {
+      "p_favorite_covers": 0.3989,
+      "ci_low": 0.3635,
+      "ci_high": 0.4342,
+      "n_games": 733
+    },
+    "3_1_930": {
+      "p_favorite_covers": 0.3929,
+      "ci_low": 0.3577,
+      "ci_high": 0.4282,
+      "n_games": 734
+    },
+    "3_1_960": {
+      "p_favorite_covers": 0.4002,
+      "ci_low": 0.3649,
+      "ci_high": 0.4356,
+      "n_games": 733
+    },
+    "3_1_990": {
+      "p_favorite_covers": 0.3989,
+      "ci_low": 0.3637,
+      "ci_high": 0.4341,
+      "n_games": 738
+    },
+    "3_1_1020": {
+      "p_favorite_covers": 0.3936,
+      "ci_low": 0.3587,
+      "ci_high": 0.4285,
+      "n_games": 748
+    },
+    "3_1_1050": {
+      "p_favorite_covers": 0.3973,
+      "ci_low": 0.3626,
+      "ci_high": 0.4321,
+      "n_games": 756
+    },
+    "3_1_1080": {
+      "p_favorite_covers": 0.3971,
+      "ci_low": 0.3624,
+      "ci_high": 0.4318,
+      "n_games": 759
+    },
+    "3_1_1110": {
+      "p_favorite_covers": 0.4018,
+      "ci_low": 0.3668,
+      "ci_high": 0.4368,
+      "n_games": 750
+    },
+    "3_1_1140": {
+      "p_favorite_covers": 0.3952,
+      "ci_low": 0.3603,
+      "ci_high": 0.4301,
+      "n_games": 750
+    },
+    "3_1_1170": {
+      "p_favorite_covers": 0.3933,
+      "ci_low": 0.3591,
+      "ci_high": 0.4276,
+      "n_games": 779
+    },
+    "3_1_1200": {
+      "p_favorite_covers": 0.4002,
+      "ci_low": 0.366,
+      "ci_high": 0.4345,
+      "n_games": 783
+    },
+    "3_2_0": {
+      "p_favorite_covers": 0.9957,
+      "ci_low": 0.9915,
+      "ci_high": 1.0,
+      "n_games": 447
+    },
+    "3_2_30": {
+      "p_favorite_covers": 0.9552,
+      "ci_low": 0.9364,
+      "ci_high": 0.974,
+      "n_games": 441
+    },
+    "3_2_60": {
+      "p_favorite_covers": 0.9202,
+      "ci_low": 0.8947,
+      "ci_high": 0.9456,
+      "n_games": 421
+    },
+    "3_2_90": {
+      "p_favorite_covers": 0.9107,
+      "ci_low": 0.8842,
+      "ci_high": 0.9372,
+      "n_games": 432
+    },
+    "3_2_120": {
+      "p_favorite_covers": 0.8854,
+      "ci_low": 0.8565,
+      "ci_high": 0.9143,
+      "n_games": 458
+    },
+    "3_2_150": {
+      "p_favorite_covers": 0.8774,
+      "ci_low": 0.8485,
+      "ci_high": 0.9063,
+      "n_games": 485
+    },
+    "3_2_180": {
+      "p_favorite_covers": 0.8698,
+      "ci_low": 0.8411,
+      "ci_high": 0.8986,
+      "n_games": 518
+    },
+    "3_2_210": {
+      "p_favorite_covers": 0.8543,
+      "ci_low": 0.8243,
+      "ci_high": 0.8843,
+      "n_games": 524
+    },
+    "3_2_240": {
+      "p_favorite_covers": 0.8426,
+      "ci_low": 0.8116,
+      "ci_high": 0.8736,
+      "n_games": 523
+    },
+    "3_2_270": {
+      "p_favorite_covers": 0.8425,
+      "ci_low": 0.8117,
+      "ci_high": 0.8733,
+      "n_games": 529
+    },
+    "3_2_300": {
+      "p_favorite_covers": 0.8344,
+      "ci_low": 0.8028,
+      "ci_high": 0.8659,
+      "n_games": 527
+    },
+    "3_2_330": {
+      "p_favorite_covers": 0.8198,
+      "ci_low": 0.7871,
+      "ci_high": 0.8526,
+      "n_games": 523
+    },
+    "3_2_360": {
+      "p_favorite_covers": 0.8134,
+      "ci_low": 0.7802,
+      "ci_high": 0.8467,
+      "n_games": 521
+    },
+    "3_2_390": {
+      "p_favorite_covers": 0.8053,
+      "ci_low": 0.7719,
+      "ci_high": 0.8386,
+      "n_games": 535
+    },
+    "3_2_420": {
+      "p_favorite_covers": 0.7911,
+      "ci_low": 0.7573,
+      "ci_high": 0.8248,
+      "n_games": 551
+    },
+    "3_2_450": {
+      "p_favorite_covers": 0.7745,
+      "ci_low": 0.74,
+      "ci_high": 0.809,
+      "n_games": 559
+    },
+    "3_2_480": {
+      "p_favorite_covers": 0.7664,
+      "ci_low": 0.7311,
+      "ci_high": 0.8016,
+      "n_games": 548
+    },
+    "3_2_510": {
+      "p_favorite_covers": 0.7565,
+      "ci_low": 0.7205,
+      "ci_high": 0.7924,
+      "n_games": 542
+    },
+    "3_2_540": {
+      "p_favorite_covers": 0.7487,
+      "ci_low": 0.7122,
+      "ci_high": 0.7852,
+      "n_games": 537
+    },
+    "3_2_570": {
+      "p_favorite_covers": 0.744,
+      "ci_low": 0.7072,
+      "ci_high": 0.7808,
+      "n_games": 535
+    },
+    "3_2_600": {
+      "p_favorite_covers": 0.7282,
+      "ci_low": 0.6906,
+      "ci_high": 0.7658,
+      "n_games": 533
+    },
+    "3_2_630": {
+      "p_favorite_covers": 0.7214,
+      "ci_low": 0.6839,
+      "ci_high": 0.7589,
+      "n_games": 545
+    },
+    "3_2_660": {
+      "p_favorite_covers": 0.7216,
+      "ci_low": 0.6843,
+      "ci_high": 0.7589,
+      "n_games": 549
+    },
+    "3_2_690": {
+      "p_favorite_covers": 0.7126,
+      "ci_low": 0.6751,
+      "ci_high": 0.75,
+      "n_games": 556
+    },
+    "3_2_720": {
+      "p_favorite_covers": 0.707,
+      "ci_low": 0.6694,
+      "ci_high": 0.7446,
+      "n_games": 559
+    },
+    "3_2_750": {
+      "p_favorite_covers": 0.7029,
+      "ci_low": 0.6651,
+      "ci_high": 0.7407,
+      "n_games": 558
+    },
+    "3_2_780": {
+      "p_favorite_covers": 0.7015,
+      "ci_low": 0.6638,
+      "ci_high": 0.7392,
+      "n_games": 562
+    },
+    "3_2_810": {
+      "p_favorite_covers": 0.6876,
+      "ci_low": 0.6492,
+      "ci_high": 0.7259,
+      "n_games": 556
+    },
+    "3_2_840": {
+      "p_favorite_covers": 0.6861,
+      "ci_low": 0.6473,
+      "ci_high": 0.7248,
+      "n_games": 547
+    },
+    "3_2_870": {
+      "p_favorite_covers": 0.6798,
+      "ci_low": 0.6403,
+      "ci_high": 0.7194,
+      "n_games": 530
+    },
+    "3_2_900": {
+      "p_favorite_covers": 0.6734,
+      "ci_low": 0.6341,
+      "ci_high": 0.7128,
+      "n_games": 541
+    },
+    "3_2_930": {
+      "p_favorite_covers": 0.6794,
+      "ci_low": 0.6405,
+      "ci_high": 0.7183,
+      "n_games": 548
+    },
+    "3_2_960": {
+      "p_favorite_covers": 0.6841,
+      "ci_low": 0.6455,
+      "ci_high": 0.7227,
+      "n_games": 553
+    },
+    "3_2_990": {
+      "p_favorite_covers": 0.6787,
+      "ci_low": 0.6399,
+      "ci_high": 0.7175,
+      "n_games": 553
+    },
+    "3_2_1020": {
+      "p_favorite_covers": 0.6806,
+      "ci_low": 0.6417,
+      "ci_high": 0.7194,
+      "n_games": 550
+    },
+    "3_2_1050": {
+      "p_favorite_covers": 0.6831,
+      "ci_low": 0.6442,
+      "ci_high": 0.722,
+      "n_games": 545
+    },
+    "3_2_1080": {
+      "p_favorite_covers": 0.6784,
+      "ci_low": 0.6391,
+      "ci_high": 0.7178,
+      "n_games": 537
+    },
+    "3_2_1110": {
+      "p_favorite_covers": 0.6761,
+      "ci_low": 0.6363,
+      "ci_high": 0.7159,
+      "n_games": 527
+    },
+    "3_2_1140": {
+      "p_favorite_covers": 0.6848,
+      "ci_low": 0.6454,
+      "ci_high": 0.7241,
+      "n_games": 532
+    },
+    "3_2_1170": {
+      "p_favorite_covers": 0.6966,
+      "ci_low": 0.6573,
+      "ci_high": 0.736,
+      "n_games": 520
+    },
+    "3_2_1200": {
+      "p_favorite_covers": 0.6921,
+      "ci_low": 0.6526,
+      "ci_high": 0.7315,
+      "n_games": 522
+    },
+    "3_3_0": {
+      "p_favorite_covers": 0.9958,
+      "ci_low": 0.9917,
+      "ci_high": 1.0,
+      "n_games": 459
+    },
+    "3_3_30": {
+      "p_favorite_covers": 0.9955,
+      "ci_low": 0.991,
+      "ci_high": 1.0,
+      "n_games": 423
+    },
+    "3_3_60": {
+      "p_favorite_covers": 0.9927,
+      "ci_low": 0.9858,
+      "ci_high": 0.9996,
+      "n_games": 395
+    },
+    "3_3_90": {
+      "p_favorite_covers": 0.9922,
+      "ci_low": 0.9849,
+      "ci_high": 0.9995,
+      "n_games": 370
+    },
+    "3_3_120": {
+      "p_favorite_covers": 0.9919,
+      "ci_low": 0.9842,
+      "ci_high": 0.9995,
+      "n_games": 355
+    },
+    "3_3_150": {
+      "p_favorite_covers": 0.9913,
+      "ci_low": 0.9832,
+      "ci_high": 0.9995,
+      "n_games": 333
+    },
+    "3_3_180": {
+      "p_favorite_covers": 0.9875,
+      "ci_low": 0.9767,
+      "ci_high": 0.9982,
+      "n_games": 309
+    },
+    "3_3_210": {
+      "p_favorite_covers": 0.9873,
+      "ci_low": 0.9764,
+      "ci_high": 0.9982,
+      "n_games": 305
+    },
+    "3_3_240": {
+      "p_favorite_covers": 0.984,
+      "ci_low": 0.9714,
+      "ci_high": 0.9966,
+      "n_games": 304
+    },
+    "3_3_270": {
+      "p_favorite_covers": 0.9803,
+      "ci_low": 0.9659,
+      "ci_high": 0.9948,
+      "n_games": 297
+    },
+    "3_3_300": {
+      "p_favorite_covers": 0.9771,
+      "ci_low": 0.9615,
+      "ci_high": 0.9928,
+      "n_games": 299
+    },
+    "3_3_330": {
+      "p_favorite_covers": 0.971,
+      "ci_low": 0.9532,
+      "ci_high": 0.9888,
+      "n_games": 304
+    },
+    "3_3_360": {
+      "p_favorite_covers": 0.9713,
+      "ci_low": 0.9537,
+      "ci_high": 0.9889,
+      "n_games": 307
+    },
+    "3_3_390": {
+      "p_favorite_covers": 0.9654,
+      "ci_low": 0.9461,
+      "ci_high": 0.9848,
+      "n_games": 312
+    },
+    "3_3_420": {
+      "p_favorite_covers": 0.9648,
+      "ci_low": 0.9451,
+      "ci_high": 0.9845,
+      "n_games": 306
+    },
+    "3_3_450": {
+      "p_favorite_covers": 0.9625,
+      "ci_low": 0.9424,
+      "ci_high": 0.9826,
+      "n_games": 314
+    },
+    "3_3_480": {
+      "p_favorite_covers": 0.9632,
+      "ci_low": 0.9434,
+      "ci_high": 0.9829,
+      "n_games": 320
+    },
+    "3_3_510": {
+      "p_favorite_covers": 0.9575,
+      "ci_low": 0.9364,
+      "ci_high": 0.9787,
+      "n_games": 324
+    },
+    "3_3_540": {
+      "p_favorite_covers": 0.9539,
+      "ci_low": 0.9317,
+      "ci_high": 0.9761,
+      "n_games": 320
+    },
+    "3_3_570": {
+      "p_favorite_covers": 0.9517,
+      "ci_low": 0.9292,
+      "ci_high": 0.9742,
+      "n_games": 326
+    },
+    "3_3_600": {
+      "p_favorite_covers": 0.9443,
+      "ci_low": 0.9205,
+      "ci_high": 0.9682,
+      "n_games": 336
+    },
+    "3_3_630": {
+      "p_favorite_covers": 0.9417,
+      "ci_low": 0.9174,
+      "ci_high": 0.9661,
+      "n_games": 338
+    },
+    "3_3_660": {
+      "p_favorite_covers": 0.9315,
+      "ci_low": 0.905,
+      "ci_high": 0.9581,
+      "n_games": 331
+    },
+    "3_3_690": {
+      "p_favorite_covers": 0.9264,
+      "ci_low": 0.8984,
+      "ci_high": 0.9543,
+      "n_games": 321
+    },
+    "3_3_720": {
+      "p_favorite_covers": 0.9273,
+      "ci_low": 0.8996,
+      "ci_high": 0.9549,
+      "n_games": 325
+    },
+    "3_3_750": {
+      "p_favorite_covers": 0.9297,
+      "ci_low": 0.9024,
+      "ci_high": 0.957,
+      "n_games": 322
+    },
+    "3_3_780": {
+      "p_favorite_covers": 0.9329,
+      "ci_low": 0.9063,
+      "ci_high": 0.9596,
+      "n_games": 323
+    },
+    "3_3_810": {
+      "p_favorite_covers": 0.9323,
+      "ci_low": 0.9054,
+      "ci_high": 0.9592,
+      "n_games": 320
+    },
+    "3_3_840": {
+      "p_favorite_covers": 0.9226,
+      "ci_low": 0.8938,
+      "ci_high": 0.9513,
+      "n_games": 318
+    },
+    "3_3_870": {
+      "p_favorite_covers": 0.9242,
+      "ci_low": 0.896,
+      "ci_high": 0.9524,
+      "n_games": 325
+    },
+    "3_3_900": {
+      "p_favorite_covers": 0.9279,
+      "ci_low": 0.8999,
+      "ci_high": 0.9558,
+      "n_games": 314
+    },
+    "3_3_930": {
+      "p_favorite_covers": 0.922,
+      "ci_low": 0.8925,
+      "ci_high": 0.9516,
+      "n_games": 303
+    },
+    "3_3_960": {
+      "p_favorite_covers": 0.9155,
+      "ci_low": 0.8842,
+      "ci_high": 0.9468,
+      "n_games": 291
+    },
+    "3_3_990": {
+      "p_favorite_covers": 0.918,
+      "ci_low": 0.8871,
+      "ci_high": 0.949,
+      "n_games": 288
+    },
+    "3_3_1020": {
+      "p_favorite_covers": 0.9251,
+      "ci_low": 0.8955,
+      "ci_high": 0.9548,
+      "n_games": 289
+    },
+    "3_3_1050": {
+      "p_favorite_covers": 0.9236,
+      "ci_low": 0.8934,
+      "ci_high": 0.9538,
+      "n_games": 283
+    },
+    "3_3_1080": {
+      "p_favorite_covers": 0.9228,
+      "ci_low": 0.8923,
+      "ci_high": 0.9533,
+      "n_games": 280
+    },
+    "3_3_1110": {
+      "p_favorite_covers": 0.909,
+      "ci_low": 0.8767,
+      "ci_high": 0.9413,
+      "n_games": 292
+    },
+    "3_3_1140": {
+      "p_favorite_covers": 0.8968,
+      "ci_low": 0.8621,
+      "ci_high": 0.9314,
+      "n_games": 286
+    },
+    "3_3_1170": {
+      "p_favorite_covers": 0.8774,
+      "ci_low": 0.8397,
+      "ci_high": 0.9151,
+      "n_games": 281
+    },
+    "3_3_1200": {
+      "p_favorite_covers": 0.8784,
+      "ci_low": 0.8403,
+      "ci_high": 0.9164,
+      "n_games": 275
+    },
+    "3_4_0": {
+      "p_favorite_covers": 0.9918,
+      "ci_low": 0.9836,
+      "ci_high": 1.0,
+      "n_games": 231
+    },
+    "3_4_30": {
+      "p_favorite_covers": 0.9917,
+      "ci_low": 0.9834,
+      "ci_high": 1.0,
+      "n_games": 227
+    },
+    "3_4_60": {
+      "p_favorite_covers": 0.9915,
+      "ci_low": 0.9829,
+      "ci_high": 1.0,
+      "n_games": 221
+    },
+    "3_4_90": {
+      "p_favorite_covers": 0.9911,
+      "ci_low": 0.9821,
+      "ci_high": 1.0,
+      "n_games": 211
+    },
+    "3_4_120": {
+      "p_favorite_covers": 0.9907,
+      "ci_low": 0.9813,
+      "ci_high": 1.0,
+      "n_games": 202
+    },
+    "3_4_150": {
+      "p_favorite_covers": 0.9905,
+      "ci_low": 0.981,
+      "ci_high": 1.0,
+      "n_games": 198
+    },
+    "3_4_180": {
+      "p_favorite_covers": 0.9903,
+      "ci_low": 0.9807,
+      "ci_high": 1.0,
+      "n_games": 195
+    },
+    "3_4_210": {
+      "p_favorite_covers": 0.99,
+      "ci_low": 0.9801,
+      "ci_high": 1.0,
+      "n_games": 189
+    },
+    "3_4_240": {
+      "p_favorite_covers": 0.99,
+      "ci_low": 0.9801,
+      "ci_high": 1.0,
+      "n_games": 189
+    },
+    "3_4_270": {
+      "p_favorite_covers": 0.9899,
+      "ci_low": 0.9799,
+      "ci_high": 1.0,
+      "n_games": 187
+    },
+    "3_4_300": {
+      "p_favorite_covers": 0.9898,
+      "ci_low": 0.9797,
+      "ci_high": 1.0,
+      "n_games": 185
+    },
+    "3_4_330": {
+      "p_favorite_covers": 0.9897,
+      "ci_low": 0.9793,
+      "ci_high": 1.0,
+      "n_games": 182
+    },
+    "3_4_360": {
+      "p_favorite_covers": 0.9894,
+      "ci_low": 0.9788,
+      "ci_high": 1.0,
+      "n_games": 177
+    },
+    "3_4_390": {
+      "p_favorite_covers": 0.989,
+      "ci_low": 0.9779,
+      "ci_high": 1.0,
+      "n_games": 170
+    },
+    "3_4_420": {
+      "p_favorite_covers": 0.9886,
+      "ci_low": 0.9772,
+      "ci_high": 1.0,
+      "n_games": 165
+    },
+    "3_4_450": {
+      "p_favorite_covers": 0.9882,
+      "ci_low": 0.9764,
+      "ci_high": 1.0,
+      "n_games": 159
+    },
+    "3_4_480": {
+      "p_favorite_covers": 0.9878,
+      "ci_low": 0.9755,
+      "ci_high": 1.0,
+      "n_games": 153
+    },
+    "3_4_510": {
+      "p_favorite_covers": 0.9876,
+      "ci_low": 0.9752,
+      "ci_high": 1.0,
+      "n_games": 151
+    },
+    "3_4_540": {
+      "p_favorite_covers": 0.9879,
+      "ci_low": 0.9758,
+      "ci_high": 1.0,
+      "n_games": 155
+    },
+    "3_4_570": {
+      "p_favorite_covers": 0.9878,
+      "ci_low": 0.9755,
+      "ci_high": 1.0,
+      "n_games": 153
+    },
+    "3_4_600": {
+      "p_favorite_covers": 0.9873,
+      "ci_low": 0.9747,
+      "ci_high": 1.0,
+      "n_games": 148
+    },
+    "3_4_630": {
+      "p_favorite_covers": 0.9869,
+      "ci_low": 0.9738,
+      "ci_high": 1.0,
+      "n_games": 143
+    },
+    "3_4_660": {
+      "p_favorite_covers": 0.9869,
+      "ci_low": 0.9738,
+      "ci_high": 1.0,
+      "n_games": 143
+    },
+    "3_4_690": {
+      "p_favorite_covers": 0.9875,
+      "ci_low": 0.975,
+      "ci_high": 1.0,
+      "n_games": 150
+    },
+    "3_4_720": {
+      "p_favorite_covers": 0.9866,
+      "ci_low": 0.9733,
+      "ci_high": 1.0,
+      "n_games": 140
+    },
+    "3_4_750": {
+      "p_favorite_covers": 0.9796,
+      "ci_low": 0.9604,
+      "ci_high": 0.9987,
+      "n_games": 139
+    },
+    "3_4_780": {
+      "p_favorite_covers": 0.9713,
+      "ci_low": 0.9468,
+      "ci_high": 0.9959,
+      "n_games": 133
+    },
+    "3_4_810": {
+      "p_favorite_covers": 0.9711,
+      "ci_low": 0.9464,
+      "ci_high": 0.9958,
+      "n_games": 132
+    },
+    "3_4_840": {
+      "p_favorite_covers": 0.9716,
+      "ci_low": 0.9472,
+      "ci_high": 0.9959,
+      "n_games": 134
+    },
+    "3_4_870": {
+      "p_favorite_covers": 0.9709,
+      "ci_low": 0.946,
+      "ci_high": 0.9958,
+      "n_games": 131
+    },
+    "3_4_900": {
+      "p_favorite_covers": 0.9638,
+      "ci_low": 0.9353,
+      "ci_high": 0.9922,
+      "n_games": 132
+    },
+    "3_4_930": {
+      "p_favorite_covers": 0.964,
+      "ci_low": 0.9358,
+      "ci_high": 0.9923,
+      "n_games": 133
+    },
+    "3_4_960": {
+      "p_favorite_covers": 0.957,
+      "ci_low": 0.9258,
+      "ci_high": 0.9883,
+      "n_games": 134
+    },
+    "3_4_990": {
+      "p_favorite_covers": 0.9502,
+      "ci_low": 0.9162,
+      "ci_high": 0.9841,
+      "n_games": 135
+    },
+    "3_4_1020": {
+      "p_favorite_covers": 0.9471,
+      "ci_low": 0.9111,
+      "ci_high": 0.9831,
+      "n_games": 127
+    },
+    "3_4_1050": {
+      "p_favorite_covers": 0.9395,
+      "ci_low": 0.9008,
+      "ci_high": 0.9782,
+      "n_games": 127
+    },
+    "3_4_1080": {
+      "p_favorite_covers": 0.9333,
+      "ci_low": 0.893,
+      "ci_high": 0.9737,
+      "n_games": 130
+    },
+    "3_4_1110": {
+      "p_favorite_covers": 0.9308,
+      "ci_low": 0.8889,
+      "ci_high": 0.9726,
+      "n_games": 125
+    },
+    "3_4_1140": {
+      "p_favorite_covers": 0.9285,
+      "ci_low": 0.8854,
+      "ci_high": 0.9717,
+      "n_games": 121
+    },
+    "3_4_1170": {
+      "p_favorite_covers": 0.9355,
+      "ci_low": 0.8944,
+      "ci_high": 0.9767,
+      "n_games": 119
+    },
+    "3_4_1200": {
+      "p_favorite_covers": 0.9423,
+      "ci_low": 0.9031,
+      "ci_high": 0.9815,
+      "n_games": 116
+    },
+    "3_5_0": {
+      "p_favorite_covers": 0.9882,
+      "ci_low": 0.9764,
+      "ci_high": 1.0,
+      "n_games": 159
+    },
+    "3_5_30": {
+      "p_favorite_covers": 0.9878,
+      "ci_low": 0.9757,
+      "ci_high": 1.0,
+      "n_games": 154
+    },
+    "3_5_60": {
+      "p_favorite_covers": 0.9876,
+      "ci_low": 0.9752,
+      "ci_high": 1.0,
+      "n_games": 151
+    },
+    "3_5_90": {
+      "p_favorite_covers": 0.9873,
+      "ci_low": 0.9745,
+      "ci_high": 1.0,
+      "n_games": 147
+    },
+    "3_5_120": {
+      "p_favorite_covers": 0.9871,
+      "ci_low": 0.9742,
+      "ci_high": 1.0,
+      "n_games": 145
+    },
+    "3_5_150": {
+      "p_favorite_covers": 0.9866,
+      "ci_low": 0.9733,
+      "ci_high": 1.0,
+      "n_games": 140
+    },
+    "3_5_180": {
+      "p_favorite_covers": 0.9863,
+      "ci_low": 0.9725,
+      "ci_high": 1.0,
+      "n_games": 136
+    },
+    "3_5_210": {
+      "p_favorite_covers": 0.9861,
+      "ci_low": 0.9721,
+      "ci_high": 1.0,
+      "n_games": 134
+    },
+    "3_5_240": {
+      "p_favorite_covers": 0.9856,
+      "ci_low": 0.9713,
+      "ci_high": 1.0,
+      "n_games": 130
+    },
+    "3_5_270": {
+      "p_favorite_covers": 0.9856,
+      "ci_low": 0.9713,
+      "ci_high": 1.0,
+      "n_games": 130
+    },
+    "3_5_300": {
+      "p_favorite_covers": 0.9853,
+      "ci_low": 0.9706,
+      "ci_high": 1.0,
+      "n_games": 127
+    },
+    "3_5_330": {
+      "p_favorite_covers": 0.9851,
+      "ci_low": 0.9702,
+      "ci_high": 1.0,
+      "n_games": 125
+    },
+    "3_5_360": {
+      "p_favorite_covers": 0.9849,
+      "ci_low": 0.9697,
+      "ci_high": 1.0,
+      "n_games": 123
+    },
+    "3_5_390": {
+      "p_favorite_covers": 0.9845,
+      "ci_low": 0.969,
+      "ci_high": 1.0,
+      "n_games": 120
+    },
+    "3_5_420": {
+      "p_favorite_covers": 0.9844,
+      "ci_low": 0.9687,
+      "ci_high": 1.0,
+      "n_games": 119
+    },
+    "3_5_450": {
+      "p_favorite_covers": 0.984,
+      "ci_low": 0.9679,
+      "ci_high": 1.0,
+      "n_games": 116
+    },
+    "3_5_480": {
+      "p_favorite_covers": 0.984,
+      "ci_low": 0.9679,
+      "ci_high": 1.0,
+      "n_games": 116
+    },
+    "3_5_510": {
+      "p_favorite_covers": 0.9833,
+      "ci_low": 0.9665,
+      "ci_high": 1.0,
+      "n_games": 111
+    },
+    "3_5_540": {
+      "p_favorite_covers": 0.9827,
+      "ci_low": 0.9653,
+      "ci_high": 1.0,
+      "n_games": 107
+    },
+    "3_5_570": {
+      "p_favorite_covers": 0.9819,
+      "ci_low": 0.9637,
+      "ci_high": 1.0,
+      "n_games": 102
+    },
+    "3_5_600": {
+      "p_favorite_covers": 0.9815,
+      "ci_low": 0.963,
+      "ci_high": 1.0,
+      "n_games": 100
+    },
+    "3_5_630": {
+      "p_favorite_covers": 0.9808,
+      "ci_low": 0.9615,
+      "ci_high": 1.0,
+      "n_games": 96
+    },
+    "3_5_660": {
+      "p_favorite_covers": 0.9806,
+      "ci_low": 0.9611,
+      "ci_high": 1.0,
+      "n_games": 95
+    },
+    "3_5_690": {
+      "p_favorite_covers": 0.98,
+      "ci_low": 0.9599,
+      "ci_high": 1.0,
+      "n_games": 92
+    },
+    "3_5_720": {
+      "p_favorite_covers": 0.9804,
+      "ci_low": 0.9607,
+      "ci_high": 1.0,
+      "n_games": 94
+    },
+    "3_5_750": {
+      "p_favorite_covers": 0.9804,
+      "ci_low": 0.9607,
+      "ci_high": 1.0,
+      "n_games": 94
+    },
+    "3_5_780": {
+      "p_favorite_covers": 0.9802,
+      "ci_low": 0.9603,
+      "ci_high": 1.0,
+      "n_games": 93
+    },
+    "3_5_810": {
+      "p_favorite_covers": 0.9797,
+      "ci_low": 0.9595,
+      "ci_high": 1.0,
+      "n_games": 91
+    },
+    "3_5_840": {
+      "p_favorite_covers": 0.9786,
+      "ci_low": 0.9572,
+      "ci_high": 1.0,
+      "n_games": 86
+    },
+    "3_5_870": {
+      "p_favorite_covers": 0.9774,
+      "ci_low": 0.9547,
+      "ci_high": 1.0,
+      "n_games": 81
+    },
+    "3_5_900": {
+      "p_favorite_covers": 0.9771,
+      "ci_low": 0.9542,
+      "ci_high": 1.0,
+      "n_games": 80
+    },
+    "3_5_930": {
+      "p_favorite_covers": 0.9762,
+      "ci_low": 0.9525,
+      "ci_high": 1.0,
+      "n_games": 77
+    },
+    "3_5_960": {
+      "p_favorite_covers": 0.9747,
+      "ci_low": 0.9493,
+      "ci_high": 1.0,
+      "n_games": 72
+    },
+    "3_5_990": {
+      "p_favorite_covers": 0.974,
+      "ci_low": 0.948,
+      "ci_high": 1.0,
+      "n_games": 70
+    },
+    "3_5_1020": {
+      "p_favorite_covers": 0.9736,
+      "ci_low": 0.9473,
+      "ci_high": 1.0,
+      "n_games": 69
+    },
+    "3_5_1050": {
+      "p_favorite_covers": 0.9733,
+      "ci_low": 0.9465,
+      "ci_high": 1.0,
+      "n_games": 68
+    },
+    "3_5_1080": {
+      "p_favorite_covers": 0.9725,
+      "ci_low": 0.945,
+      "ci_high": 1.0,
+      "n_games": 66
+    },
+    "3_5_1110": {
+      "p_favorite_covers": 0.9725,
+      "ci_low": 0.945,
+      "ci_high": 1.0,
+      "n_games": 66
+    },
+    "3_5_1140": {
+      "p_favorite_covers": 0.9729,
+      "ci_low": 0.9458,
+      "ci_high": 1.0,
+      "n_games": 67
+    },
+    "3_5_1170": {
+      "p_favorite_covers": 0.9721,
+      "ci_low": 0.9442,
+      "ci_high": 1.0,
+      "n_games": 65
+    },
+    "3_5_1200": {
+      "p_favorite_covers": 0.9717,
+      "ci_low": 0.9434,
+      "ci_high": 1.0,
+      "n_games": 64
+    }
+  }
+}
