@@ -97,3 +97,20 @@ class TestNHLPuckLine:
     def test_returns_none_for_unparsable(self):
         from src.domain.matching.market_line_parser import parse_spread_line
         assert parse_spread_line("Bruins vs Sabres") is None
+
+
+# ── NHL totals (over/under) ───────────────────────────────────────
+class TestNHLTotals:
+    def test_parses_nhl_total_line(self):
+        from src.domain.matching.market_line_parser import parse_total_line
+        result = parse_total_line("Boston Bruins vs. Buffalo Sabres: O/U 5.5")
+        assert result == (5.5, "over")
+
+    def test_parses_short_nhl_total(self):
+        from src.domain.matching.market_line_parser import parse_total_line
+        result = parse_total_line("Bruins vs Sabres: O/U 6.5")
+        assert result == (6.5, "over")
+
+    def test_returns_none_for_unparsable(self):
+        from src.domain.matching.market_line_parser import parse_total_line
+        assert parse_total_line("Bruins win in regulation") is None
