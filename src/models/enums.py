@@ -44,3 +44,8 @@ class ExitReason(str, Enum):
     NHL_PUCK_LINE_PREDICTIVE_DEAD = "nhl_puck_line_predictive_dead"
     NHL_PUCK_LINE_STRUCTURAL_DAMAGE = "nhl_puck_line_structural_damage"
     NHL_PUCK_LINE_HOLD = "nhl_puck_line_hold"
+    NHL_TOTALS_NEAR_RESOLVE = "nhl_totals_near_resolve"
+    NHL_TOTALS_SCALE_OUT = "nhl_totals_scale_out"
+    NHL_TOTALS_PREDICTIVE_DEAD = "nhl_totals_predictive_dead"
+    NHL_TOTALS_STRUCTURAL_DAMAGE = "nhl_totals_structural_damage"
+    NHL_TOTALS_HOLD = "nhl_totals_hold"

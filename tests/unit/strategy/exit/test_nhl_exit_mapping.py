@@ -57,3 +57,43 @@ class TestPuckLineMapping:
         assert sig.reason == GExitReason.NHL_PUCK_LINE_PREDICTIVE_DEAD
         assert "p_cover=0.100" in sig.detail
         assert "empirical" in sig.detail
+
+
+class TestTotalsMapping:
+    def test_hold_returns_none(self):
+        from src.strategy.exit._nhl_exit_mapping import map_nhl_totals_decision
+        from src.strategy.exit.nhl_totals_exit import (
+            NHLTotalsExitDecision, ExitAction, ExitReason,
+        )
+        d = NHLTotalsExitDecision(
+            action=ExitAction.HOLD, reason=ExitReason.HOLD,
+            p_side=0.5, p_source="x", note="",
+        )
+        assert map_nhl_totals_decision(d) is None
+
+    def test_predictive_dead_maps_to_nhl_totals_reason(self):
+        from src.strategy.exit._nhl_exit_mapping import map_nhl_totals_decision
+        from src.strategy.exit.nhl_totals_exit import (
+            NHLTotalsExitDecision, ExitAction, ExitReason,
+        )
+        from src.models.enums import ExitReason as GExitReason
+        d = NHLTotalsExitDecision(
+            action=ExitAction.SELL_ALL, reason=ExitReason.PREDICTIVE_DEAD,
+            p_side=0.10, p_source="empirical", note="p_over=0.10",
+        )
+        sig = map_nhl_totals_decision(d)
+        assert sig.reason == GExitReason.NHL_TOTALS_PREDICTIVE_DEAD
+        assert sig.partial is False
+
+    def test_scale_out_partial_50(self):
+        from src.strategy.exit._nhl_exit_mapping import map_nhl_totals_decision
+        from src.strategy.exit.nhl_totals_exit import (
+            NHLTotalsExitDecision, ExitAction, ExitReason,
+        )
+        d = NHLTotalsExitDecision(
+            action=ExitAction.SELL_50, reason=ExitReason.SCALE_OUT,
+            p_side=0.85, p_source="price", note="bid=0.85",
+        )
+        sig = map_nhl_totals_decision(d)
+        assert sig.partial is True
+        assert sig.sell_pct == 0.50

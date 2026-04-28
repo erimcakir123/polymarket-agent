@@ -11,6 +11,11 @@ from src.strategy.exit.nhl_puck_line_exit import (
     ExitAction as PLExitAction,
     ExitReason as PLExitReason,
 )
+from src.strategy.exit.nhl_totals_exit import (
+    NHLTotalsExitDecision,
+    ExitAction as TExitAction,
+    ExitReason as TExitReason,
+)
 from src.models.enums import ExitReason
 
 _REASON_MAP: dict[NHLExitReason, ExitReason] = {
@@ -26,6 +31,13 @@ _PUCK_LINE_REASON_MAP: dict[PLExitReason, ExitReason] = {
     PLExitReason.SCALE_OUT: ExitReason.NHL_PUCK_LINE_SCALE_OUT,
     PLExitReason.PREDICTIVE_DEAD: ExitReason.NHL_PUCK_LINE_PREDICTIVE_DEAD,
     PLExitReason.STRUCTURAL_DAMAGE: ExitReason.NHL_PUCK_LINE_STRUCTURAL_DAMAGE,
+}
+
+_TOTALS_REASON_MAP: dict[TExitReason, ExitReason] = {
+    TExitReason.NEAR_RESOLVE: ExitReason.NHL_TOTALS_NEAR_RESOLVE,
+    TExitReason.SCALE_OUT: ExitReason.NHL_TOTALS_SCALE_OUT,
+    TExitReason.PREDICTIVE_DEAD: ExitReason.NHL_TOTALS_PREDICTIVE_DEAD,
+    TExitReason.STRUCTURAL_DAMAGE: ExitReason.NHL_TOTALS_STRUCTURAL_DAMAGE,
 }
 
 
@@ -63,6 +75,23 @@ def map_nhl_puck_line_decision(decision: NHLPuckLineExitDecision) -> NHLSignal |
     if decision.p_cover is not None:
         detail += f" | p_cover={decision.p_cover:.3f} ({decision.p_cover_source})"
     partial = decision.action == PLExitAction.SELL_50
+    return NHLSignal(
+        reason=reason,
+        partial=partial,
+        sell_pct=0.50 if partial else 1.00,
+        detail=detail,
+    )
+
+
+def map_nhl_totals_decision(decision: NHLTotalsExitDecision) -> NHLSignal | None:
+    """NHLTotalsExitDecision -> NHLSignal. HOLD action → None."""
+    if decision.action == TExitAction.HOLD:
+        return None
+    reason = _TOTALS_REASON_MAP.get(decision.reason, ExitReason.SCORE_EXIT)
+    detail = decision.note
+    if decision.p_side is not None:
+        detail += f" | p_side={decision.p_side:.3f} ({decision.p_source})"
+    partial = decision.action == TExitAction.SELL_50
     return NHLSignal(
         reason=reason,
         partial=partial,
