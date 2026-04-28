@@ -1,6 +1,7 @@
 """EntryGate + GateConfig testleri — gap-based entry logic."""
 from __future__ import annotations
 
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
 from src.strategy.entry.gate import (
@@ -1037,3 +1038,62 @@ def test_nhl_totals_total_line_too_low_rejected():
         sport_tag="nhl",
     )
     assert reason == "TOTAL_TOO_LOW"
+
+
+# ── Match Finished Guard (entry-time finish heuristic) ────────────────
+
+
+def _make_finished_match_gate() -> EntryGate:
+    """Minimal gate for match-finished tests (no other guards interfere)."""
+    cfg = _make_cfg(active_sports=["basketball_nba"])
+    portfolio = MagicMock()
+    portfolio.positions = {}
+    portfolio.bankroll = 1000.0
+
+    # Real values for odds chain — MagicMock auto-attrs fail numeric compares
+    prob = MagicMock()
+    prob.probability = 0.75
+    prob.has_sharp = True
+    prob.num_bookmakers = 7.0
+    enrich = MagicMock()
+    enrich.probability = prob
+    enrich.fail_reason = None
+
+    return EntryGate(
+        config=cfg, portfolio=portfolio,
+        circuit_breaker=None, cooldown=None, blacklist=None,
+        odds_enricher=lambda m: enrich,
+        manipulation_checker=None,
+    )
+
+
+def test_gate_skips_finished_match():
+    """NBA maç 6h önce başladı (Trade 2 senaryosu) → MATCH_FINISHED skip."""
+    gate = _make_finished_match_gate()
+    market = _make_market_mock("cid_old", "Lakers vs Celtics")
+    market.match_start_iso = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+
+    results = gate.run([market])
+    assert len(results) == 1
+    assert results[0].skipped_reason == "MATCH_FINISHED"
+    assert "hours_since_start" in (results[0].skip_detail or "")
+
+
+def test_gate_passes_live_match():
+    """NBA maç 1h önce başladı → MATCH_FINISHED tetiklenmez (live)."""
+    gate = _make_finished_match_gate()
+    market = _make_market_mock("cid_live", "Lakers vs Celtics")
+    market.match_start_iso = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+
+    results = gate.run([market])
+    assert results[0].skipped_reason != "MATCH_FINISHED"
+
+
+def test_gate_no_match_start_iso_does_not_skip_for_finish():
+    """match_start_iso boş → MATCH_FINISHED kontrolü atlanır (graceful)."""
+    gate = _make_finished_match_gate()
+    market = _make_market_mock("cid_no_start", "Lakers vs Celtics")
+    market.match_start_iso = ""
+
+    results = gate.run([market])
+    assert results[0].skipped_reason != "MATCH_FINISHED"

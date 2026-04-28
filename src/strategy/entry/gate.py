@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from src.config.sport_rules import _normalize
+from src.strategy.entry._match_status import is_match_likely_finished
 from src.domain.guards.manipulation import adjust_position_size
 from src.domain.matching.market_line_parser import parse_home_away_side, parse_spread_line, parse_total_line
 from src.domain.matching.team_resolver import resolve_nba_espn_id
@@ -267,6 +268,17 @@ class EntryGate:
 
         for market in markets:
             cid = market.condition_id
+
+            # Bitmiş maç kontrolü — instant entry/exit pattern'ini engelle.
+            # Bu kontrol ucuz ve INACTIVE_SPORT'tan önce çalışır (sport bağımsız).
+            finished, finish_reason = is_match_likely_finished(
+                market.match_start_iso or "", market.sport_tag,
+            )
+            if finished:
+                results.append(GateResult(
+                    cid, skipped_reason="MATCH_FINISHED", skip_detail=finish_reason,
+                ))
+                continue
 
             if _normalize(market.sport_tag) not in active:
                 results.append(GateResult(cid, skipped_reason="INACTIVE_SPORT"))
