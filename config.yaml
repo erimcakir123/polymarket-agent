@@ -204,6 +204,11 @@ entry:
   nhl_b2b_opponent_gap_bonus: 0.02
   nhl_b2b_opponent_size_mult: 1.10
   nhl_b2b_self_gap_bonus: 0.02
+  # NHL Puck Line entry filters
+  nhl_puck_line_min_price: 0.20
+  nhl_puck_line_max_price: 0.80
+  nhl_puck_line_threshold: 1.5
+  nhl_puck_line_min_volume: 3000.0
 
 stock:
   enabled: true
@@ -332,6 +337,12 @@ exit_nhl:
   near_resolve_threshold: 0.94
   scale_out_threshold: 0.85
   shootout_profit_threshold: 0.52
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.03
+
+exit_nhl_puck_line:
+  near_resolve_threshold: 0.94
+  scale_out_threshold: 0.85
   structural_damage_ratio: 0.30
   predictive_safety_margin: 0.03
 

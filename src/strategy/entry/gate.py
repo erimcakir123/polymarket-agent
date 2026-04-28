@@ -66,6 +66,10 @@ class GateConfig:
     nhl_b2b_opponent_size_mult: float = field(default=1.10)
     nhl_b2b_self_gap_bonus: float = field(default=0.02)
     nhl_require_goalie_confirmation: bool = field(default=True)
+    # NHL Puck Line filters
+    nhl_puck_line_min_price: float = field(default=0.20)
+    nhl_puck_line_max_price: float = field(default=0.80)
+    nhl_puck_line_min_volume: float = field(default=3000.0)
 
 
 @dataclass
@@ -106,6 +110,7 @@ def _passes_filters(
     spread_line: float | None = None,
     total_line: float | None = None,
     gap_threshold_adj: float = 0.0,
+    sport_tag: str = "",
 ) -> str | None:
     """Tüm filtrelerden geç. None = geçti, string = skip sebebi."""
     effective_gap_threshold = max(0.0, cfg.min_gap_threshold + gap_threshold_adj)
@@ -115,9 +120,21 @@ def _passes_filters(
     if gap < effective_gap_threshold:
         return "GAP_TOO_LOW"
 
+    sport_low = (sport_tag or "").lower()
+    is_nhl_puck_line = (
+        market_type == "spreads"
+        and sport_low in ("nhl", "ahl", "icehockey_nhl")
+    )
+
     if market_type == "spreads":
-        if polymarket_price < cfg.spread_min_price or polymarket_price > cfg.spread_max_price:
-            return "PRICE_OUT_OF_RANGE"
+        if is_nhl_puck_line:
+            if polymarket_price < cfg.nhl_puck_line_min_price or polymarket_price > cfg.nhl_puck_line_max_price:
+                return "PRICE_OUT_OF_RANGE"
+            if volume < cfg.nhl_puck_line_min_volume:
+                return "VOLUME_TOO_LOW"
+        else:
+            if polymarket_price < cfg.spread_min_price or polymarket_price > cfg.spread_max_price:
+                return "PRICE_OUT_OF_RANGE"
     elif market_type == "totals":
         if polymarket_price < cfg.totals_min_price or polymarket_price > cfg.totals_max_price:
             return "PRICE_OUT_OF_RANGE"
@@ -129,8 +146,10 @@ def _passes_filters(
 
     if bookmaker_prob < cfg.min_favorite_probability:
         return "BOOKMAKER_PROB_TOO_LOW"
-    if volume < cfg.min_market_volume:
-        return "VOLUME_TOO_LOW"
+    # NHL puck line volume already checked above; skip generic for that path.
+    if not is_nhl_puck_line:
+        if volume < cfg.min_market_volume:
+            return "VOLUME_TOO_LOW"
     return None
 
 
@@ -299,6 +318,7 @@ class EntryGate:
                 spread_line=spread_line,
                 total_line=total_line,
                 gap_threshold_adj=effective_gap_threshold_adj,
+                sport_tag=market.sport_tag,
             )
             if skip:
                 results.append(GateResult(

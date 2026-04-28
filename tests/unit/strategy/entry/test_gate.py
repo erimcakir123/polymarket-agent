@@ -933,3 +933,66 @@ def test_gate_routes_nba_market_to_nba_enricher():
     gate.run([market])
 
     nhl_mock.enrich.assert_not_called()
+
+
+# ── NHL Puck Line filter tests (Task 6I) ─────────────────────────
+
+def test_nhl_puck_line_market_passes_filter():
+    """NHL spreads + sport_tag='nhl': price 0.45, volume 4000 → no filter skip."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="spreads",
+        sport_tag="nhl",
+    )
+    assert reason is None
+
+
+def test_nhl_puck_line_volume_too_low_rejected():
+    """NHL puck line, volume 1000 < 3000 → VOLUME_TOO_LOW (NHL-specific threshold)."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=1_000.0, cfg=cfg,
+        market_type="spreads",
+        sport_tag="nhl",
+    )
+    assert reason == "VOLUME_TOO_LOW"
+
+
+def test_nhl_puck_line_price_out_of_range_rejected():
+    """NHL puck line, price 0.10 < 0.20 → PRICE_OUT_OF_RANGE."""
+    cfg = _make_cfg()
+    reason = _passes_filters(
+        gap=0.10, polymarket_price=0.10, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="spreads",
+        sport_tag="nhl",
+    )
+    assert reason == "PRICE_OUT_OF_RANGE"
+
+
+def test_nhl_puck_line_passes_volume_below_nba_default():
+    """NHL puck line, volume 4000 < NBA min_market_volume(5000) ama NHL eşik 3000 → PASS.
+
+    Sport-aware split garantisi: NBA spread için 4000 volume reject olmalıydı,
+    NHL için pass eder.
+    """
+    cfg = _make_cfg()
+    # Sanity: NBA spread aynı volume reject eder
+    nba_reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="spreads",
+        sport_tag="basketball_nba",
+    )
+    assert nba_reason == "VOLUME_TOO_LOW"
+    # NHL: aynı volume passes
+    nhl_reason = _passes_filters(
+        gap=0.10, polymarket_price=0.45, bookmaker_prob=0.65,
+        volume=4_000.0, cfg=cfg,
+        market_type="spreads",
+        sport_tag="nhl",
+    )
+    assert nhl_reason is None
