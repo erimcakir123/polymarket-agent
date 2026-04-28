@@ -59,6 +59,8 @@ class ExitProcessor:
                 scale_out_threshold=self._scale_out_threshold(),
                 nhl_exit_cfg=self._nhl_exit_cfg(),
                 nhl_wp_table=self._nhl_wp_table(),
+                nhl_puck_line_cfg=self._nhl_puck_line_cfg(),
+                nhl_puck_line_table=self._nhl_puck_line_table(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -122,6 +124,24 @@ class ExitProcessor:
     def _nhl_wp_table(self) -> dict:
         """AgentDeps'ten NHL WP tablosunu al (factory inject eder)."""
         return getattr(self.deps, "nhl_wp_table", {}) or {}
+
+    def _nhl_puck_line_cfg(self):
+        """exit_nhl_puck_line config → NHLPuckLineExitConfig. None → varsayılan eşikler."""
+        from src.strategy.exit.nhl_puck_line_exit import NHLPuckLineExitConfig
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg is None or not hasattr(cfg, "exit_nhl_puck_line"):
+            return NHLPuckLineExitConfig()
+        pc = cfg.exit_nhl_puck_line
+        return NHLPuckLineExitConfig(
+            near_resolve_threshold=pc.near_resolve_threshold,
+            scale_out_threshold=pc.scale_out_threshold,
+            structural_damage_ratio=pc.structural_damage_ratio,
+            predictive_safety_margin=pc.predictive_safety_margin,
+        )
+
+    def _nhl_puck_line_table(self) -> dict:
+        """AgentDeps'ten NHL puck line tablosunu al (factory inject eder)."""
+        return getattr(self.deps, "nhl_puck_line_table", {}) or {}
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.

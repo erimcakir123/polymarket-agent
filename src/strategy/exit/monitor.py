@@ -20,13 +20,17 @@ from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _no
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, nba_spread_exit, nba_totals_exit, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
+from src.strategy.exit._guard_helpers import never_in_profit_exit_check
 from src.strategy.exit._nhl_exit_dispatch import check_nhl_exit
+from src.strategy.exit._nhl_puck_line_dispatch import check_nhl_puck_line_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
+from src.strategy.exit.nhl_puck_line_exit import NHLPuckLineExitConfig
 from src.strategy.exit.nhl_score_exit import NHLExitConfig
 from src.strategy.exit.price_cap import SLParams
 
 _DEFAULT_MONITOR_CFG = ExitMonitorConfig()
 _DEFAULT_NHL_CFG = NHLExitConfig()
+_DEFAULT_NHL_PUCK_LINE_CFG = NHLPuckLineExitConfig()
 
 _SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
 
@@ -72,29 +76,6 @@ def compute_elapsed_pct(pos: Position) -> float:
     elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
     duration_min = duration_hours * 60.0
     return elapsed_min / duration_min
-
-
-def _never_in_profit_exit(
-    pos: Position,
-    elapsed_pct: float,
-    score_info: dict,
-    cfg: ExitMonitorConfig = _DEFAULT_MONITOR_CFG,
-) -> bool:
-    """Never-in-profit guard (TDD §6.10). pos hiç kâra geçmedi + maç ≥ elapsed_gate + fiyat çok düştü."""
-    if pos.ever_in_profit or pos.peak_pnl_pct > 0.01:
-        return False
-    if elapsed_pct < cfg.never_in_profit_elapsed_gate:
-        return False
-    eff_entry = pos.entry_price
-    eff_current = pos.bid_price
-    score_ahead = score_info.get("available") and score_info.get("map_diff", 0) > 0
-    if score_ahead:
-        return False
-    if eff_current >= eff_entry * cfg.never_in_profit_recovery_ratio:
-        return False
-    if eff_current < eff_entry * cfg.never_in_profit_drop_ratio:
-        return True
-    return False  # recovery_ratio ~ drop_ratio aralığı: bekle
 
 
 def _ultra_low_guard_exit(
@@ -171,6 +152,8 @@ def evaluate(
     scale_out_threshold: float = 0.85,
     nhl_exit_cfg: NHLExitConfig | None = None,
     nhl_wp_table: dict | None = None,
+    nhl_puck_line_cfg: NHLPuckLineExitConfig | None = None,
+    nhl_puck_line_table: dict | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. FAV transition ayrı (exit değil)."""
     score_info = score_info or {}
@@ -221,11 +204,19 @@ def evaluate(
 
     # 3. Sport-specific score-based exit (tüm pozisyonlar — A-hold gate yok)
     if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
-        nhl_sig = check_nhl_exit(
-            pos, score_info, elapsed_pct,
-            nhl_exit_cfg if nhl_exit_cfg is not None else _DEFAULT_NHL_CFG,
-            nhl_wp_table if nhl_wp_table is not None else {},
-        )
+        smt = (pos.sports_market_type or "moneyline").lower()
+        if smt == "spreads":
+            nhl_sig = check_nhl_puck_line_exit(
+                pos, score_info, elapsed_pct,
+                nhl_puck_line_cfg if nhl_puck_line_cfg is not None else _DEFAULT_NHL_PUCK_LINE_CFG,
+                nhl_puck_line_table if nhl_puck_line_table is not None else {},
+            )
+        else:
+            nhl_sig = check_nhl_exit(
+                pos, score_info, elapsed_pct,
+                nhl_exit_cfg if nhl_exit_cfg is not None else _DEFAULT_NHL_CFG,
+                nhl_wp_table if nhl_wp_table is not None else {},
+            )
         if nhl_sig is not None:
             return MonitorResult(
                 exit_signal=ExitSignal(reason=nhl_sig.reason, detail=nhl_sig.detail,
@@ -287,7 +278,7 @@ def evaluate(
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        if _never_in_profit_exit(pos, elapsed_pct, score_info, cfg):
+        if never_in_profit_exit_check(pos, elapsed_pct, score_info, cfg):
             return MonitorResult(
                 exit_signal=ExitSignal(reason=ExitReason.NEVER_IN_PROFIT, detail="never profited + late + dropped"),
                 fav_transition=_fav_transition(pos),

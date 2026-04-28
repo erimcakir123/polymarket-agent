@@ -58,6 +58,7 @@ class AgentDeps:
     counterfactual_tracker: CounterfactualTracker | None = None
     gamma_client: object | None = None
     nhl_wp_table: dict = field(default_factory=dict)
+    nhl_puck_line_table: dict = field(default_factory=dict)
 
 
 class Agent:
