@@ -770,3 +770,95 @@ Moneyline ONLY. No puck line (spread), no totals, no three-way ML.
 | `src/orchestration/score_helpers.py` | `build_score_info()` NHL branch: `parse_nhl_status(raw_status)` → `is_overtime`, `is_shootout` |
 | `src/domain/sports/nhl_match_clock.py` | Değişmedi (Task 3A'dan geliyor) |
 | `tests/unit/orchestration/test_score_helpers.py` | 5 NHL flag testi eklendi |
+
+---
+
+## NHL Puck Line (Task 6, 2026-04-28)
+
+**Entry:**
+- Standart line: -1.5 (Polymarket'te %95 örnekler).
+- Fiyat aralığı 0.20-0.80, volume ≥ 3000 USDC.
+- Gap threshold ana moneyline ile aynı (0.05).
+
+**Exit (decide_nhl_puck_line_exit, priority sıralı):**
+1. NEAR_RESOLVE — bid ≥ 0.94 → SELL_ALL
+2. SCALE_OUT — bid ≥ 0.85 + ilk kez → SELL_50
+3. PREDICTIVE_DEAD — p_cover < bid + 0.03 (hybrid: empirical → Skellam fallback) → SELL_ALL
+4. STRUCTURAL_DAMAGE — current_price/entry < 0.30 → SELL_ALL
+5. HOLD
+
+**Math:**
+- Skellam dağılımı: home-away skor farkı değişimi ~ Skellam(λ_home×t, λ_away×t).
+- λ_5v5 = 0.000853 per-team-per-second (lig avg 6.142 / 2 / 3600).
+- Cover threshold: final_margin >= 2 (favori -1.5 için).
+
+**Empirical tablo:**
+- 4198 maç, MoneyPuck 2022-2024 sezonları.
+- Key: `period_currentMargin_secondsRemaining` → p_favorite_covers.
+- 1217 entry (1019 non-null, n>=30).
+- Wilson CI %95, min_sample=30.
+- SO winner +1 gol konvansiyonu (Polymarket "incl. OT/SO" resolution).
+
+**Empty net:** Heuristik — ESPN raw_status'ta flag yok. P3 son 3dk + 1 gol fark → empirical tabloda inheresi yansır (modifier gereksiz).
+
+---
+
+## NHL Totals (Task 7, 2026-04-28)
+
+**Entry:**
+- Target lines: 5.5 ve 6.5 (Polymarket NHL standart).
+- Fiyat aralığı 0.20-0.80, min target 4.5 (4.5 altı thin market).
+- Volume ≥ 3000 USDC.
+- YES = OVER, NO = UNDER (NBA konvansiyonu paralel).
+
+**Exit (decide_nhl_totals_exit, priority sıralı):**
+1. NEAR_RESOLVE — bid ≥ 0.94 → SELL_ALL
+2. SCALE_OUT — bid ≥ 0.85 + ilk kez → SELL_50
+3. PREDICTIVE_DEAD — p_side < bid + 0.03 (over: p_over; under: 1 - p_over) → SELL_ALL
+4. STRUCTURAL_DAMAGE — current_price/entry < 0.30 → SELL_ALL
+5. HOLD
+
+**Math:**
+- Poisson dağılımı: future_total_goals ~ Poisson(λ_total × t).
+- λ_total = 6.142 / 3600 = 0.001706 per-second.
+- P(over X.5) = P(future_goals >= ceil(X + 0.5 - current)).
+
+**Empirical tablo:**
+- Aynı 4198 maç, target 5.5 + 6.5 için ayrı bucket.
+- Key: `period_currentTotal_secondsRemaining_targetTotal` → p_over.
+- 2484 entry (1816 non-null, n>=30).
+- SO winner +1 gol konvansiyonu (Karar 3).
+
+**Pulled-goalie effect:** Empirik tabloda otomatik gömülü. Son 5 dk'da empirical p_over Poisson'dan **+5-10pp daha yüksek** (kayıp takım kaleciyi çekince gol oranı artar). Modeling ek modifier gerektirmez.
+
+**OT/SO modifier:** OT'ye gidince Over yararı yansır (her OT goal +1, SO +1). Empirical tabloda final_total bu kuralla hesaplanmıştır.
+
+---
+
+## NHL 3-way ML — Skip (v1)
+
+**Karar (2026-04-28)**: NHL 3-way regulation winner market'i Task 6/7 kapsamı dışı bırakıldı. Polymarket NHL'de bu market type %5'ten az gözlemlendi (manuel inceleme). MVP scope odakta tutmak için skip; Task 5 dry-run verisinde sıkça yakalanırsa Task 8 olarak açılır.
+
+---
+
+## Match Finished Entry Guard (2026-04-28)
+
+**Sorun:** Bot bitmiş NBA maçına girdi. Pattern: Trade 1 NEAR_RESOLVE @ 04:45 (kâr) → Trade 2 entry @ 05:18 (33dk sonra, aynı event farklı spread) → 1 saniye sonra score_exit (SPREAD_MATH_DEAD margin=9.5 clock=0). Production'da round-trip fee ~$2/trade, worst case 10 maç/gün × 3 trade = ~$150/gün burn riski.
+
+**Kök neden:** `gate.py` `max_match_start_hours: 6.0` config field tanımlı ama hiçbir yerde enforce edilmiyor. Scanner'ın `_match_start_recent_or_future` 8h post-start'a kadar kabul ediyor — NBA 2.5h maç → 5.5h dead window'da bot resolve-edilmemiş market'e giriyor.
+
+**Çözüm:** `src/strategy/entry/_match_status.py` (yeni) — `is_match_likely_finished(match_start_iso, sport_tag)` → sport-aware heuristic. Threshold: `get_match_duration_hours(sport) + 0.5h tampon`.
+
+| Sport | Duration | Threshold (bitmiş kabul) |
+|---|---|---|
+| NBA | 2.5h | 3.0h |
+| NHL | 2.5h | 3.0h |
+| NFL | 3.25h | 3.75h |
+| MLB | 3.0h | 3.5h |
+| Tennis | 2.5h | 3.0h |
+
+`gate.run()` market loop başına check eklendi → MATCH_FINISHED skip with debug detail. Sport-agnostic, score data gerekmez (cheap entry-time heuristic).
+
+**Trade 2 senaryosu:** hours_since=6.3 > NBA threshold=3.0 → reddedildi.
+
+**Test:** 9 unit test (`tests/unit/strategy/entry/test_match_status.py`) + 3 integration test (gate skip path).
