@@ -61,6 +61,8 @@ class ExitProcessor:
                 nhl_wp_table=self._nhl_wp_table(),
                 nhl_puck_line_cfg=self._nhl_puck_line_cfg(),
                 nhl_puck_line_table=self._nhl_puck_line_table(),
+                nhl_totals_cfg=self._nhl_totals_cfg(),
+                nhl_totals_table=self._nhl_totals_table(),
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
@@ -142,6 +144,24 @@ class ExitProcessor:
     def _nhl_puck_line_table(self) -> dict:
         """AgentDeps'ten NHL puck line tablosunu al (factory inject eder)."""
         return getattr(self.deps, "nhl_puck_line_table", {}) or {}
+
+    def _nhl_totals_cfg(self):
+        """exit_nhl_totals config → NHLTotalsExitConfig. None → varsayılan eşikler."""
+        from src.strategy.exit.nhl_totals_exit import NHLTotalsExitConfig
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg is None or not hasattr(cfg, "exit_nhl_totals"):
+            return NHLTotalsExitConfig()
+        tc = cfg.exit_nhl_totals
+        return NHLTotalsExitConfig(
+            near_resolve_threshold=tc.near_resolve_threshold,
+            scale_out_threshold=tc.scale_out_threshold,
+            structural_damage_ratio=tc.structural_damage_ratio,
+            predictive_safety_margin=tc.predictive_safety_margin,
+        )
+
+    def _nhl_totals_table(self) -> dict:
+        """AgentDeps'ten NHL totals tablosunu al (factory inject eder)."""
+        return getattr(self.deps, "nhl_totals_table", {}) or {}
 
     def _scale_out_tiers(self) -> list[dict]:
         """Config'den scale-out tier listesini dict olarak döndür.

@@ -19,18 +19,22 @@ from src.config.settings import BasketballExitConfig, ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import market_flip, baseball_score_exit, favored, nba_score_exit, nba_spread_exit, nba_totals_exit, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
+from src.strategy.exit import market_flip, baseball_score_exit, favored, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
 from src.strategy.exit._guard_helpers import never_in_profit_exit_check
+from src.strategy.exit._nba_dispatch import check_nba_exit
 from src.strategy.exit._nhl_exit_dispatch import check_nhl_exit
 from src.strategy.exit._nhl_puck_line_dispatch import check_nhl_puck_line_exit
+from src.strategy.exit._nhl_totals_dispatch import check_nhl_totals_exit
 from src.strategy.exit.hockey_score_exit import _is_hockey_family
 from src.strategy.exit.nhl_puck_line_exit import NHLPuckLineExitConfig
 from src.strategy.exit.nhl_score_exit import NHLExitConfig
+from src.strategy.exit.nhl_totals_exit import NHLTotalsExitConfig
 from src.strategy.exit.price_cap import SLParams
 
 _DEFAULT_MONITOR_CFG = ExitMonitorConfig()
 _DEFAULT_NHL_CFG = NHLExitConfig()
 _DEFAULT_NHL_PUCK_LINE_CFG = NHLPuckLineExitConfig()
+_DEFAULT_NHL_TOTALS_CFG = NHLTotalsExitConfig()
 
 _SOCCER_SPORT_TAGS = frozenset({"soccer", "rugby", "afl", "handball"})
 
@@ -154,6 +158,8 @@ def evaluate(
     nhl_wp_table: dict | None = None,
     nhl_puck_line_cfg: NHLPuckLineExitConfig | None = None,
     nhl_puck_line_table: dict | None = None,
+    nhl_totals_cfg: NHLTotalsExitConfig | None = None,
+    nhl_totals_table: dict | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. FAV transition ayrı (exit değil)."""
     score_info = score_info or {}
@@ -204,19 +210,12 @@ def evaluate(
 
     # 3. Sport-specific score-based exit (tüm pozisyonlar — A-hold gate yok)
     if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
-        smt = (pos.sports_market_type or "moneyline").lower()
-        if smt == "spreads":
-            nhl_sig = check_nhl_puck_line_exit(
-                pos, score_info, elapsed_pct,
-                nhl_puck_line_cfg if nhl_puck_line_cfg is not None else _DEFAULT_NHL_PUCK_LINE_CFG,
-                nhl_puck_line_table if nhl_puck_line_table is not None else {},
-            )
-        else:
-            nhl_sig = check_nhl_exit(
-                pos, score_info, elapsed_pct,
-                nhl_exit_cfg if nhl_exit_cfg is not None else _DEFAULT_NHL_CFG,
-                nhl_wp_table if nhl_wp_table is not None else {},
-            )
+        nhl_sig = _dispatch_nhl_exit(
+            pos, score_info, elapsed_pct,
+            nhl_exit_cfg, nhl_wp_table,
+            nhl_puck_line_cfg, nhl_puck_line_table,
+            nhl_totals_cfg, nhl_totals_table,
+        )
         if nhl_sig is not None:
             return MonitorResult(
                 exit_signal=ExitSignal(reason=nhl_sig.reason, detail=nhl_sig.detail,
@@ -249,9 +248,16 @@ def evaluate(
             return _simple_mr(s_result, pos, elapsed_pct)
 
     if _normalize(pos.sport_tag) == "nba" and score_info.get("available"):
-        nba_mr = _check_nba_exit(pos, score_info, elapsed_pct, basketball_exit_cfg)
-        if nba_mr is not None:
-            return nba_mr
+        nba_res = check_nba_exit(pos, score_info, elapsed_pct, basketball_exit_cfg)
+        if nba_res is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(
+                    reason=nba_res.reason, detail=nba_res.detail,
+                    partial=nba_res.partial, sell_pct=nba_res.sell_pct,
+                ),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     if _normalize(pos.sport_tag) == "nfl" and score_info.get("available"):
         nfl_result = nfl_score_exit.check(
@@ -288,98 +294,40 @@ def evaluate(
     return MonitorResult(exit_signal=None, fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
 
 
-def _simple_mr(r, pos: Position, elapsed_pct: float) -> MonitorResult:
-    return MonitorResult(exit_signal=ExitSignal(reason=r.reason, detail=r.detail), fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
-
-
-def _nba_mr(r, pos: Position, elapsed_pct: float) -> MonitorResult:
-    return MonitorResult(exit_signal=ExitSignal(reason=r.reason, detail=r.detail, partial=r.partial, sell_pct=r.sell_pct), fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
-
-
-def _check_nba_exit(
+def _dispatch_nhl_exit(
     pos: Position,
     score_info: dict,
     elapsed_pct: float,
-    basketball_exit_cfg: BasketballExitConfig | None,
-) -> MonitorResult | None:
-    """NBA market-type dispatch: spreads → nba_spread_exit, totals → nba_totals_exit, else → nba_score_exit."""
-    _bk = basketball_exit_cfg or BasketballExitConfig()
-    mtype = pos.sports_market_type or "moneyline"
-    _predictive = dict(
-        predictive_enabled=_bk.predictive_exit.enabled,
-        predictive_safety_margin=_bk.predictive_exit.safety_margin,
-        predictive_hold_threshold=_bk.predictive_exit.hold_threshold,
+    nhl_exit_cfg: NHLExitConfig | None,
+    nhl_wp_table: dict | None,
+    nhl_puck_line_cfg: NHLPuckLineExitConfig | None,
+    nhl_puck_line_table: dict | None,
+    nhl_totals_cfg: NHLTotalsExitConfig | None,
+    nhl_totals_table: dict | None,
+):
+    """NHL market_type-aware dispatch: spreads → puck line, totals → totals, else → moneyline."""
+    smt = (pos.sports_market_type or "moneyline").lower()
+    if smt == "spreads":
+        return check_nhl_puck_line_exit(
+            pos, score_info, elapsed_pct,
+            nhl_puck_line_cfg if nhl_puck_line_cfg is not None else _DEFAULT_NHL_PUCK_LINE_CFG,
+            nhl_puck_line_table if nhl_puck_line_table is not None else {},
+        )
+    if smt == "totals":
+        return check_nhl_totals_exit(
+            pos, score_info, elapsed_pct,
+            nhl_totals_cfg if nhl_totals_cfg is not None else _DEFAULT_NHL_TOTALS_CFG,
+            nhl_totals_table if nhl_totals_table is not None else {},
+        )
+    return check_nhl_exit(
+        pos, score_info, elapsed_pct,
+        nhl_exit_cfg if nhl_exit_cfg is not None else _DEFAULT_NHL_CFG,
+        nhl_wp_table if nhl_wp_table is not None else {},
     )
 
-    if mtype == "spreads" and pos.spread_line is not None:
-        sp_result = nba_spread_exit.check(
-            score_info=score_info,
-            spread_line=pos.spread_line,
-            direction=pos.direction,
-            bid_price=pos.bid_price,
-            entry_price=pos.entry_price,
-            bill_james_multiplier=_bk.bill_james_multiplier,
-            structural_damage_ratio=_bk.structural_damage_ratio,
-            ot_seconds=_bk.overtime.seconds,
-            ot_margin=_bk.overtime.deficit,
-            q4_late_seconds=_bk.spread_empirical.q4_late_seconds,
-            q4_late_margin=_bk.spread_empirical.q4_late_margin,
-            q4_final_seconds=_bk.spread_empirical.q4_final_seconds,
-            q4_final_margin=_bk.spread_empirical.q4_final_margin,
-            q4_endgame_seconds=_bk.spread_empirical.q4_endgame_seconds,
-            q4_endgame_margin=_bk.spread_empirical.q4_endgame_margin,
-            **_predictive,
-        )
-        if sp_result is not None:
-            return _nba_mr(sp_result, pos, elapsed_pct)
 
-    elif mtype == "totals" and pos.total_line is not None:
-        effective_side = pos.total_side or "over"
-        tot_result = nba_totals_exit.check(
-            score_info=score_info,
-            target_total=pos.total_line,
-            side=effective_side,
-            bid_price=pos.bid_price,
-            entry_price=pos.entry_price,
-            totals_multiplier=_bk.totals_multiplier,
-            structural_damage_ratio=_bk.structural_damage_ratio,
-            ot_over_scale_pct=_bk.totals_empirical.ot_over_scale_pct,
-            q4_late_seconds=_bk.totals_empirical.q4_late_seconds,
-            q4_late_gap=_bk.totals_empirical.q4_late_gap,
-            q4_final_seconds=_bk.totals_empirical.q4_final_seconds,
-            q4_final_gap=_bk.totals_empirical.q4_final_gap,
-            q4_endgame_seconds=_bk.totals_empirical.q4_endgame_seconds,
-            q4_endgame_gap=_bk.totals_empirical.q4_endgame_gap,
-            **_predictive,
-        )
-        if tot_result is not None:
-            return _nba_mr(tot_result, pos, elapsed_pct)
-
-    else:  # moneyline (or spread_line/total_line missing — disabled)
-        nba_result = nba_score_exit.check(
-            score_info=score_info,
-            elapsed_pct=elapsed_pct,
-            sport_tag=pos.sport_tag,
-            bid_price=pos.bid_price,
-            entry_price=pos.entry_price,
-            bill_james_multiplier=_bk.bill_james_multiplier,
-            structural_damage_ratio=_bk.structural_damage_ratio,
-            ot_seconds=_bk.overtime.seconds,
-            ot_deficit=_bk.overtime.deficit,
-            q4_blowout_seconds=_bk.empirical.q4_blowout_seconds,
-            q4_blowout_deficit=_bk.empirical.q4_blowout_deficit,
-            q4_late_seconds=_bk.empirical.q4_late_seconds,
-            q4_late_deficit=_bk.empirical.q4_late_deficit,
-            q4_final_seconds=_bk.empirical.q4_final_seconds,
-            q4_final_deficit=_bk.empirical.q4_final_deficit,
-            q4_endgame_seconds=_bk.empirical.q4_endgame_seconds,
-            q4_endgame_deficit=_bk.empirical.q4_endgame_deficit,
-            **_predictive,
-        )
-        if nba_result is not None:
-            return _nba_mr(nba_result, pos, elapsed_pct)
-
-    return None
+def _simple_mr(r, pos: Position, elapsed_pct: float) -> MonitorResult:
+    return MonitorResult(exit_signal=ExitSignal(reason=r.reason, detail=r.detail), fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)
 
 
 def _fav_transition(pos: Position) -> FavoredTransition:

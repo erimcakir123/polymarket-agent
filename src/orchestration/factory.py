@@ -38,6 +38,7 @@ from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.soccer_league_discovery import SoccerLeagueDiscovery  # PLAN-012
 from src.infrastructure.repositories.nhl_puck_line_repository import load_table as _load_nhl_puck_line_table_raw
+from src.infrastructure.repositories.nhl_totals_repository import load_table as _load_nhl_totals_table_raw
 from src.infrastructure.repositories.nhl_wp_repository import load_table as _load_nhl_wp_table_raw
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
@@ -60,6 +61,14 @@ def _load_nhl_puck_line_table() -> dict:
         return _load_nhl_puck_line_table_raw()
     except FileNotFoundError:
         logger.warning("NHL puck line table not found at data/nhl_empirical_puck_line_table.json — Skellam fallback only")
+        return {}
+
+
+def _load_nhl_totals_table() -> dict:
+    try:
+        return _load_nhl_totals_table_raw()
+    except FileNotFoundError:
+        logger.warning("NHL totals table not found at data/nhl_empirical_totals_table.json — Poisson fallback only")
         return {}
 
 
@@ -249,6 +258,7 @@ def build_agent(state: RuntimeState) -> Agent:
 
     nhl_wp_table = _load_nhl_wp_table()
     nhl_puck_line_table = _load_nhl_puck_line_table()
+    nhl_totals_table = _load_nhl_totals_table()
 
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
@@ -265,6 +275,7 @@ def build_agent(state: RuntimeState) -> Agent:
         gamma_client=gamma,
         nhl_wp_table=nhl_wp_table,
         nhl_puck_line_table=nhl_puck_line_table,
+        nhl_totals_table=nhl_totals_table,
     )
     agent = Agent(deps)
 
