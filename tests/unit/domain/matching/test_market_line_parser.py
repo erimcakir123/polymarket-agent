@@ -78,3 +78,22 @@ def test_total_no_match_returns_none():
 
 def test_total_empty_returns_none():
     assert parse_total_line("") is None
+
+
+# ── NHL puck line (no parentheses) ────────────────────────────────
+class TestNHLPuckLine:
+    def test_parses_will_team_cover_pattern(self):
+        from src.domain.matching.market_line_parser import parse_spread_line
+        assert parse_spread_line("Will the Boston Bruins cover -1.5 vs Buffalo Sabres?") == 1.5
+
+    def test_parses_simple_minus_pattern(self):
+        from src.domain.matching.market_line_parser import parse_spread_line
+        assert parse_spread_line("Bruins -1.5") == 1.5
+
+    def test_parses_plus_underdog(self):
+        from src.domain.matching.market_line_parser import parse_spread_line
+        assert parse_spread_line("Sabres +1.5") == 1.5
+
+    def test_returns_none_for_unparsable(self):
+        from src.domain.matching.market_line_parser import parse_spread_line
+        assert parse_spread_line("Bruins vs Sabres") is None

@@ -39,3 +39,8 @@ class ExitReason(str, Enum):
     NHL_SHOOTOUT_PROFIT = "nhl_shootout_profit"
     NHL_NEAR_RESOLVE = "nhl_near_resolve"
     NHL_SCALE_OUT = "nhl_scale_out"
+    NHL_PUCK_LINE_NEAR_RESOLVE = "nhl_puck_line_near_resolve"
+    NHL_PUCK_LINE_SCALE_OUT = "nhl_puck_line_scale_out"
+    NHL_PUCK_LINE_PREDICTIVE_DEAD = "nhl_puck_line_predictive_dead"
+    NHL_PUCK_LINE_STRUCTURAL_DAMAGE = "nhl_puck_line_structural_damage"
+    NHL_PUCK_LINE_HOLD = "nhl_puck_line_hold"

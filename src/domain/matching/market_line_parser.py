@@ -16,6 +16,9 @@ from typing import Literal
 # Spread: parantez içi ±X.5 (1-30 puan arası NBA spreads için yeterli)
 _SPREAD_RE = re.compile(r'\([+-]?(\d{1,2}(?:\.\d)?)\)')
 
+# NHL puck line: "Bruins -1.5" / "cover -1.5" — parantez yok
+_SPREAD_NO_PAREN_RE = re.compile(r'(?:cover\s+)?[+-](\d{1,2}(?:\.\d)?)\b')
+
 # Totals: "O/U X.5" veya "o/u X"
 _TOTAL_RE = re.compile(r'[Oo]/[Uu]\s+(\d+(?:\.\d+)?)')
 
@@ -26,13 +29,18 @@ _HOME_AWAY_RE = re.compile(r'(?:^|-)(?P<side>home|away)(?:-|$)', re.IGNORECASE)
 def parse_spread_line(question: str) -> float | None:
     """Spread line'ı parçalar.
 
-    "Spread: Lakers (-5.5)" → 5.5
-    "Lakers (-5.5)"         → 5.5
+    NBA: "Spread: Lakers (-5.5)" → 5.5
+    NBA: "Lakers (-5.5)"         → 5.5
+    NHL: "Bruins -1.5"                        → 1.5
+    NHL: "Will Bruins cover -1.5 vs Sabres?"  → 1.5
     Eşleşme yoksa → None (exit devre dışı).
     """
     m = _SPREAD_RE.search(question)
     if m:
         return float(m.group(1))
+    m2 = _SPREAD_NO_PAREN_RE.search(question)
+    if m2:
+        return float(m2.group(1))
     return None
 
 
