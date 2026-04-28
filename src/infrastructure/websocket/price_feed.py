@@ -37,6 +37,11 @@ RECONNECT_DELAY_MAX_SEC = 60.0
 HEARTBEAT_INTERVAL_SEC = 30.0
 STALE_TIMEOUT_SEC = 120.0
 
+# Phantom-price threshold: active market'te bid/ask >= 1.0 imkansız (sadece
+# resolved token'da olur). WS message corruption veya wrong-token snapshot
+# durumunda phantom 1.0+ değer geliyor → reject et, önceki valid snapshot kalır.
+_MAX_VALID_BID: float = 1.0
+
 
 @dataclass
 class PriceSnapshot:
@@ -215,6 +220,15 @@ class PriceFeed:
 
     def _update_price(self, token_id: str, yes_price: float, bid_price: float) -> None:
         if not token_id or yes_price <= 0:
+            return
+        # Phantom-bid guard: aktif market'te bid >= 1.0 imkansız (sadece resolved
+        # token'da gerçekleşir). WS reconnect sonrası bozuk message veya wrong
+        # token snapshot'ı dropla — önceki valid bid korunur.
+        if bid_price >= _MAX_VALID_BID or yes_price >= _MAX_VALID_BID:
+            logger.warning(
+                "PriceFeed: phantom price dropped — token=%s yes=%.4f bid=%.4f",
+                token_id[:16], yes_price, bid_price,
+            )
             return
         snap = PriceSnapshot(
             token_id=token_id, yes_price=yes_price,

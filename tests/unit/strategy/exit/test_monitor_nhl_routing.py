@@ -5,6 +5,8 @@ and non-NHL positions keep the generic near_resolve / scale_out reasons.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone, timedelta
+
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.strategy.exit.monitor import evaluate
@@ -13,10 +15,13 @@ from src.strategy.exit.monitor import evaluate
 def _make_pos(sport_tag: str, bid: float, entry: float = 0.45,
               current: float | None = None, scaled_out_50: bool = False) -> Position:
     cp = current if current is not None else bid
+    # Live match (1h ago) → pre-match guard'ı geç (near_resolve/scale_out aktif)
+    match_start = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     return Position(
         condition_id=f"test-{sport_tag}-cid",
         token_id=f"test-{sport_tag}-token",
         direction="BUY_YES",
+        match_start_iso=match_start,
         entry_price=entry,
         current_price=cp,
         bid_price=bid,
@@ -68,3 +73,27 @@ def test_nhl_position_returns_nhl_scale_out_not_generic():
     assert result.exit_signal is not None
     assert result.exit_signal.reason == ExitReason.NHL_SCALE_OUT
     assert result.exit_signal.reason != ExitReason.SCALE_OUT
+
+
+# ---------------------------------------------------------------------------
+# 4. Pre-match guard: maç başlamamış → near_resolve fire ETMEZ (phantom bid)
+# ---------------------------------------------------------------------------
+def test_pre_match_phantom_high_bid_does_not_fire_near_resolve():
+    """28 Apr 11:57 UTC bug repro: maç başlamadan bid=1.00 phantom geldi.
+    Pre-match guard near_resolve'ı atlatmalı."""
+    pos = _make_pos("nba", bid=0.99, entry=0.50, current=0.99)
+    # Match start FUTURE (8 saat sonra)
+    pos.match_start_iso = (datetime.now(timezone.utc) + timedelta(hours=8)).isoformat()
+    score_info = {"available": False}
+    result = evaluate(pos, score_info=score_info)
+    # Pre-match guard → near_resolve fire ETMEZ
+    assert result.exit_signal is None or result.exit_signal.reason != ExitReason.NEAR_RESOLVE
+
+
+def test_pre_match_phantom_high_bid_does_not_fire_scale_out():
+    """Maç başlamadan bid=0.87 phantom → scale_out ATLAMALI."""
+    pos = _make_pos("nba", bid=0.87, entry=0.50, current=0.87, scaled_out_50=False)
+    pos.match_start_iso = (datetime.now(timezone.utc) + timedelta(hours=8)).isoformat()
+    score_info = {"available": False}
+    result = evaluate(pos, score_info=score_info)
+    assert result.exit_signal is None or result.exit_signal.reason != ExitReason.SCALE_OUT

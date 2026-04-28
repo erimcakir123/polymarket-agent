@@ -167,11 +167,18 @@ def evaluate(
     cfg = monitor_cfg if monitor_cfg is not None else _DEFAULT_MONITOR_CFG
     elapsed_pct = compute_elapsed_pct(pos)
     # MMA/combat: card saati ≠ maç saati, elapsed güvenilmez → -1 (devre dışı)
-    if get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled"):
+    elapsed_disabled = get_sport_rule(_normalize(pos.sport_tag), "elapsed_exit_disabled")
+    if elapsed_disabled:
         elapsed_pct = -1.0
 
+    # Pre-match guard: maç başlamadıysa fiyat-tabanlı exit'ler (near_resolve,
+    # scale_out) çalışmamalı — bid 94¢+ phantom WS message olabilir (resolved
+    # token snapshot leak veya stale data). elapsed_disabled durumunda
+    # (MMA combat) bid-based exit normal çalışsın.
+    match_pre_start = elapsed_pct < 0 and not elapsed_disabled
+
     # 1+2. Near-resolve + Scale-out (NHL için atla — decide_nhl_exit dahili ele alır)
-    if not _is_hockey_family(pos.sport_tag):
+    if not _is_hockey_family(pos.sport_tag) and not match_pre_start:
         _nr = near_resolve.check(pos.bid_price, near_resolve_threshold_cents / 100.0)
         if _nr is not None:
             return MonitorResult(

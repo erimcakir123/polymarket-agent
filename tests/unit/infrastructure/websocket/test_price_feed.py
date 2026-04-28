@@ -133,3 +133,57 @@ def test_callback_exception_does_not_crash() -> None:
     evt = {"event_type": "best_bid_ask", "asset_id": "x", "best_ask": "0.5", "best_bid": "0.49"}
     # Dispatch should not raise
     feed._dispatch_event(evt)
+
+
+# ── Phantom-bid guard (28 Apr 11:57 UTC bug repro) ──────────────────
+
+
+def test_phantom_bid_1_0_rejected() -> None:
+    """bid >= 1.0 active market'te imkansız → drop, callback tetiklenmez."""
+    events: list[tuple] = []
+    feed = PriceFeed(on_price_update=lambda t, a, b, ts: events.append((t, a, b)))
+    evt = {"event_type": "best_bid_ask", "asset_id": "tok", "best_ask": "0.5", "best_bid": "1.0"}
+    feed._dispatch_event(evt)
+    assert events == [], "phantom bid 1.0 should not fire callback"
+
+
+def test_phantom_ask_1_0_rejected() -> None:
+    """ask >= 1.0 da imkansız (resolved token = $1, aktif market'te değil)."""
+    events: list[tuple] = []
+    feed = PriceFeed(on_price_update=lambda t, a, b, ts: events.append((t, a, b)))
+    evt = {"event_type": "best_bid_ask", "asset_id": "tok", "best_ask": "1.0", "best_bid": "0.5"}
+    feed._dispatch_event(evt)
+    assert events == []
+
+
+def test_phantom_bid_above_1_rejected() -> None:
+    """bid > 1.0 (örn 1.5) — kesinlikle invalid."""
+    events: list[tuple] = []
+    feed = PriceFeed(on_price_update=lambda t, a, b, ts: events.append((t, a, b)))
+    evt = {"event_type": "best_bid_ask", "asset_id": "tok", "best_ask": "0.5", "best_bid": "1.5"}
+    feed._dispatch_event(evt)
+    assert events == []
+
+
+def test_valid_bid_at_99_cents_passes() -> None:
+    """bid 0.99 < 1.0 normal yüksek değer → kabul."""
+    events: list[tuple] = []
+    feed = PriceFeed(on_price_update=lambda t, a, b, ts: events.append((t, a, b)))
+    evt = {"event_type": "best_bid_ask", "asset_id": "tok", "best_ask": "0.99", "best_bid": "0.98"}
+    feed._dispatch_event(evt)
+    assert len(events) == 1
+    assert events[0] == ("tok", 0.99, 0.98)
+
+
+def test_book_event_phantom_bid_rejected() -> None:
+    """book event'inde de phantom bid drop edilmeli."""
+    events: list[tuple] = []
+    feed = PriceFeed(on_price_update=lambda t, a, b, ts: events.append((t, a, b)))
+    evt = {
+        "event_type": "book",
+        "asset_id": "tok",
+        "asks": [{"price": "0.51", "size": "10"}],
+        "bids": [{"price": "1.00", "size": "5"}],
+    }
+    feed._dispatch_event(evt)
+    assert events == []
