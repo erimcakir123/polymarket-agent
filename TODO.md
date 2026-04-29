@@ -182,4 +182,19 @@ T20 için yeterli (1 maç ≈ 42 poll), ama:
 
 ---
 
-## TODO-007: [sonraki eklenecekler]
+## TODO-007: Tennis Phase 0 follow-ups
+
+- **Durum**: PARTIAL (cleanup committed before merge; runtime smoke + extra tests pending)
+- **Tarih**: 2026-04-29
+- **Çözülenler (merge öncesi)**:
+  - [x] `src/config/settings.py` 459 → 410 satır: Tennis* Pydantic modelleri `src/config/tennis_settings.py`'ye taşındı, 400 satır mimari cap'i altına döndü.
+  - [x] Plan markdown `monitor.py` → `exit_processor.py` referansları düzeltildi (Task 6 implementation gerçekte `ExitProcessor` + `AgentDeps` kullandı, plan'daki `Monitor` class adı yanıltıcıydı).
+- **Bekleyenler (Phase 1 öncesi)**:
+  - [ ] Phase 0 actual smoke test (user-initiated): bot dry_run ile gerçek tenis turnuvası penceresinde çalışsın, paper log JSONL'i doğrula. Madrid/Roma/French Open dönemini bekle.
+  - [ ] Sackmann HTTP error-path testleri: `fetch_csv_to_cache` failure modları (network down, 404, malformed CSV) için coverage.
+  - [ ] Tennis player resolver edge-case testleri: çok uzun isimler (>50 char), Cyrillic, leading/trailing whitespace.
+- **Phase 1 başlangıç koşulu**: Paper log'da ≥50 finished match, directional accuracy ≥%65 (yüksek-confidence kararlar için, model ≥0.55).
+
+---
+
+## TODO-008: [sonraki eklenecekler]

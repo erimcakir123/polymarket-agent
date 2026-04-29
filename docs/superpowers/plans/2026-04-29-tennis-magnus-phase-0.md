@@ -4,7 +4,7 @@
 
 **Goal:** Build the complete tennis paper-trade infrastructure: Sackmann data fetcher, player name resolver across 3 data sources, Klaassen-Magnus + O'Malley closed-form match probability chain (H2H only, BO3 only), tournament/surface metadata, and JSONL paper logger. Bot logs would-be predictions for 50-100 eligible matches without placing real trades, gating Phase 1 on directional accuracy ≥ 65%.
 
-**Architecture:** Pure domain math (`src/domain/math/tennis_magnus.py`) + pure domain matching (`src/domain/matching/tennis_player_resolver.py`) + infrastructure I/O (`src/infrastructure/apis/sackmann_client.py`) + orchestration glue (`src/orchestration/tennis_paper_logger.py`). Read-only integration into existing `monitor.py` via new `tennis_paper_observer` hook. Zero changes to existing exit logic during Phase 0 (tennis_score_exit.py stays STUB).
+**Architecture:** Pure domain math (`src/domain/math/tennis_magnus.py`) + pure domain matching (`src/domain/matching/tennis_player_resolver.py`) + infrastructure I/O (`src/infrastructure/apis/sackmann_client.py`) + orchestration glue (`src/orchestration/tennis_paper_logger.py`). Read-only integration into existing `exit_processor.py` via new `tennis_paper_observer` hook. Zero changes to existing exit logic during Phase 0 (tennis_score_exit.py stays STUB).
 
 **Tech Stack:** Python 3.12+, pandas (CSV parsing), requests (HTTP), rapidfuzz (fuzzy name matching, already in deps), Pydantic v2 (data models), pytest. No new heavy deps.
 
@@ -57,7 +57,7 @@ Plan başında verilen kararlar — değiştirilecekse plan baştan yazılır.
 | CREATE | `tests/unit/domain/matching/test_tennis_tournament_resolver.py` | Tier/surface tests |
 | CREATE | `src/orchestration/tennis_paper_logger.py` | JSONL log of would-be decisions |
 | CREATE | `tests/unit/orchestration/test_tennis_paper_logger.py` | Logger tests |
-| CREATE | `src/orchestration/tennis_paper_observer.py` | Hook into monitor.py read-only path |
+| CREATE | `src/orchestration/tennis_paper_observer.py` | Hook into exit_processor.py read-only path |
 | CREATE | `tests/unit/orchestration/test_tennis_paper_observer.py` | Observer tests |
 | CREATE | `tests/fixtures/sackmann/atp_matches_2025_sample.csv` | 50-row CSV fixture for tests |
 | CREATE | `tests/fixtures/sackmann/atp_players_sample.csv` | Player fixture for tests |
@@ -65,7 +65,7 @@ Plan başında verilen kararlar — değiştirilecekse plan baştan yazılır.
 | CREATE | `tests/fixtures/polymarket/tennis/atp_event_sample.json` | Polymarket fixture |
 | MODIFY | `config.yaml` | Add `tennis:` block (phase=disabled, paper config, surface factors) |
 | MODIFY | `src/config/settings.py` | Add `TennisConfig` Pydantic model |
-| MODIFY | `src/orchestration/monitor.py` | Wire tennis_paper_observer (read-only path) |
+| MODIFY | `src/orchestration/exit_processor.py` | Wire tennis_paper_observer (read-only path) |
 | MODIFY | `src/orchestration/factory.py` | Wire paper observer into agent |
 | MODIFY | `DECISIONS.md` | Document tennis Phase 0 thresholds + sources |
 | CREATE | `scripts/diag_tennis_magnus.py` | Sanity check Magnus output for one match |
@@ -1727,12 +1727,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 6: Tennis Paper Observer (monitor.py wiring)
+## Task 6: Tennis Paper Observer (exit_processor.py wiring)
 
 **Files:**
 - Create: `src/orchestration/tennis_paper_observer.py`
 - Test: `tests/unit/orchestration/test_tennis_paper_observer.py`
-- Modify: `src/orchestration/monitor.py` (add hook)
+- Modify: `src/orchestration/exit_processor.py` (add hook)
 - Modify: `src/orchestration/factory.py` (wire observer)
 
 - [ ] **Step 1: Write failing test**
@@ -1816,13 +1816,13 @@ Expected: FAIL — module does not exist.
 Create `src/orchestration/tennis_paper_observer.py`:
 
 ```python
-"""Tennis paper observer — read-only hook into monitor.py for Phase 0.
+"""Tennis paper observer — read-only hook into exit_processor.py for Phase 0.
 
 Observes existing tennis positions (or potential entries from scanner),
 runs Magnus prediction, and logs would-be decisions. NEVER places trades
 or modifies real position state during Phase 0.
 
-Wired into monitor.py via observe_position() after existing exit
+Wired into exit_processor.py via observe_position() after existing exit
 evaluation. Skips silently for non-tennis markets and when phase is
 disabled.
 """
@@ -1889,9 +1889,9 @@ pytest tests/unit/orchestration/test_tennis_paper_observer.py -v
 
 Expected: 5 tests PASS (the _record_observation is not yet called by tests; placeholder).
 
-- [ ] **Step 5: Wire into monitor.py**
+- [ ] **Step 5: Wire into exit_processor.py**
 
-Open `src/orchestration/monitor.py`. Find the section after exit evaluation. Add a hook call (read the file first to find right location — likely after `evaluate_exit` returns and the position update):
+Open `src/orchestration/exit_processor.py`. Find the section after exit evaluation. Add a hook call (read the file first to find right location — likely after `evaluate_exit` returns and the position update):
 
 ```python
 # Find this section (existing):
@@ -1906,7 +1906,7 @@ if self._tennis_observer is not None:
         pass
 ```
 
-Add `tennis_observer` parameter to `Monitor.__init__`:
+Add `tennis_observer` parameter to `ExitProcessor.__init__`:
 
 ```python
 def __init__(
@@ -1920,7 +1920,7 @@ def __init__(
 
 - [ ] **Step 6: Wire into factory.py**
 
-Open `src/orchestration/factory.py`. Find `Monitor` construction. Add observer:
+Open `src/orchestration/factory.py`. Add tennis observer construction and wire it through `AgentDeps` (the existing DI pattern — no `Monitor` class exists; `ExitProcessor` is constructed inside `Agent.__init__` from deps):
 
 ```python
 from src.orchestration.tennis_paper_logger import TennisPaperLogger
@@ -1939,9 +1939,9 @@ if tennis_cfg.phase != "disabled":
         phase=tennis_cfg.phase,
     )
 
-# Pass to Monitor:
-monitor = Monitor(
-    # ... existing args ...
+# Pass to AgentDeps (which Agent constructor uses to build ExitProcessor):
+deps = AgentDeps(
+    # ... existing fields ...
     tennis_observer=tennis_observer,
 )
 ```
@@ -1957,10 +1957,10 @@ Expected: all existing tests still pass + new tests pass.
 - [ ] **Step 8: Commit Task 6**
 
 ```bash
-git add src/orchestration/tennis_paper_observer.py tests/unit/orchestration/test_tennis_paper_observer.py src/orchestration/monitor.py src/orchestration/factory.py
+git add src/orchestration/tennis_paper_observer.py tests/unit/orchestration/test_tennis_paper_observer.py src/orchestration/exit_processor.py src/orchestration/factory.py
 git commit -m "feat(tennis): paper observer wired into monitor (read-only)
 
-Phase 0 observation hook into Monitor. Skips non-tennis markets and
+Phase 0 observation hook into ExitProcessor. Skips non-tennis markets and
 when phase=disabled. Wrapped in try/except so observer errors never
 break exit pipeline. Factory creates TennisPaperLogger when phase
 active. Magnus predictor wiring stub for Task 7.
@@ -2734,7 +2734,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 Estimated 12-15 tasks:
 1. Replace `tennis_score_exit.py` STUB with set-bazlı sabit tablo + Magnus base lookup
 2. Sport-specific exit dispatcher in `_tennis_exit_dispatch.py`
-3. Wire into `monitor.py` exit loop (replaces paper observer for tennis)
+3. Wire into `exit_processor.py` exit loop (replaces paper observer for tennis)
 4. Tighten filters in `config.yaml` (drop ATP/WTA 250)
 5. Set `tennis.phase = v1`, position cap $15
 6. Smoke test in dry_run, then mode switch to live
