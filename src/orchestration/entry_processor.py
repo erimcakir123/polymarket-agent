@@ -200,7 +200,10 @@ class EntryProcessor:
             for market in markets:
                 try:
                     info = resolve_tournament(
-                        market.slug, tournaments, excluded_tiers,
+                        market.slug,
+                        tournaments,
+                        excluded_tiers,
+                        question=market.question,
                     )
                     if info is None:
                         continue

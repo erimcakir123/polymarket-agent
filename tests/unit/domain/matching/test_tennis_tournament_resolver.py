@@ -55,3 +55,58 @@ def test_resolve_unknown_tournament_returns_none() -> None:
 def test_resolve_invalid_slug_returns_none() -> None:
     info = resolve_tournament("not-a-tennis-slug", _TOURNAMENTS, _EXCLUDED)
     assert info is None
+
+
+def test_resolve_from_question_madrid_open() -> None:
+    """Real Polymarket H2H slug with tournament in question text."""
+    info = resolve_tournament(
+        slug="atp-fils-lehecka-2026-04-29",
+        tournaments=_TOURNAMENTS,
+        excluded_tiers=_EXCLUDED,
+        question="Madrid Open: Arthur Fils vs Jiri Lehecka",
+    )
+    assert info == TournamentInfo(tier="masters_1000", surface="clay", format="BO3")
+
+
+def test_resolve_from_question_french_open_atp_bo5() -> None:
+    """Grand Slam ATP -> BO5."""
+    info = resolve_tournament(
+        slug="atp-medvedev-cobolli-2026-06-01",
+        tournaments=_TOURNAMENTS,
+        excluded_tiers=_EXCLUDED,
+        question="French Open: Daniil Medvedev vs Flavio Cobolli",
+    )
+    assert info == TournamentInfo(tier="grand_slam", surface="clay", format="BO5")
+
+
+def test_resolve_from_question_french_open_wta_bo3() -> None:
+    """Grand Slam WTA -> BO3."""
+    info = resolve_tournament(
+        slug="wta-swiatek-gauff-2026-06-01",
+        tournaments=_TOURNAMENTS,
+        excluded_tiers=_EXCLUDED,
+        question="French Open: Iga Swiatek vs Coco Gauff",
+    )
+    assert info == TournamentInfo(tier="grand_slam", surface="clay", format="BO3")
+
+
+def test_resolve_question_takes_precedence_over_slug() -> None:
+    """If both slug and question contain tournament info, both should agree (use either)."""
+    info = resolve_tournament(
+        slug="atp-madrid-open-fils-lehecka-2026-04-29",
+        tournaments=_TOURNAMENTS,
+        excluded_tiers=_EXCLUDED,
+        question="Madrid Open: Arthur Fils vs Jiri Lehecka",
+    )
+    assert info == TournamentInfo(tier="masters_1000", surface="clay", format="BO3")
+
+
+def test_resolve_question_none_returns_none_when_slug_lacks_tournament() -> None:
+    """Sub-market with no tournament info anywhere -> None."""
+    info = resolve_tournament(
+        slug="atp-fils-lehecka-2026-04-29-set-handicap-home-1pt5",
+        tournaments=_TOURNAMENTS,
+        excluded_tiers=_EXCLUDED,
+        question="Set Handicap: Fils (-1.5) vs Lehecka (+1.5)",
+    )
+    assert info is None
