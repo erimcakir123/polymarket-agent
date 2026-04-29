@@ -379,8 +379,8 @@ odds_api:
   daily_credit_cap: 800  # SPEC-015: günlük hard cap (soccer 60+ lig budget koruma)
 
 tennis:
-  enabled: false
-  phase: disabled  # disabled | paper_trade | v1 | v2 | v3
+  enabled: true
+  phase: paper_trade  # disabled | paper_trade | v1 | v2 | v3
   position_size_usdc:
     paper_trade: 0
     v1: 15
