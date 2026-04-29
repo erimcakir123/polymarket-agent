@@ -26,6 +26,11 @@ _SACKMANN_BASE_ATP = "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/
 _SACKMANN_BASE_WTA = "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master"
 _HTTP_TIMEOUT = 30
 
+# Sackmann publishes match CSVs with multi-year lag; try recent N years
+# until at least one succeeds. 4 covers typical 1-2 year publish delay
+# plus headroom.
+_MATCH_FALLBACK_YEARS: int = 4
+
 
 @dataclass(frozen=True)
 class PlayerServeStats:
@@ -158,11 +163,13 @@ def fetch_csv_to_cache(
 def refresh_atp_data(cache: SackmannCache, current_year: int) -> dict[str, Path]:
     """Refresh ATP player + recent year matches CSVs. Returns paths."""
     paths: dict[str, Path] = {}
-    files = [
+    files: list[tuple[str, str]] = [
         ("atp_players.csv", f"{_SACKMANN_BASE_ATP}/atp_players.csv"),
-        (f"atp_matches_{current_year}.csv", f"{_SACKMANN_BASE_ATP}/atp_matches_{current_year}.csv"),
-        (f"atp_matches_{current_year - 1}.csv", f"{_SACKMANN_BASE_ATP}/atp_matches_{current_year - 1}.csv"),
     ]
+    for year_offset in range(_MATCH_FALLBACK_YEARS):
+        year = current_year - year_offset
+        filename = f"atp_matches_{year}.csv"
+        files.append((filename, f"{_SACKMANN_BASE_ATP}/{filename}"))
     for filename, url in files:
         cache_path = cache.cache_dir / filename
         if cache.needs_refresh(filename):
@@ -176,11 +183,13 @@ def refresh_atp_data(cache: SackmannCache, current_year: int) -> dict[str, Path]
 def refresh_wta_data(cache: SackmannCache, current_year: int) -> dict[str, Path]:
     """Refresh WTA player + recent year matches CSVs."""
     paths: dict[str, Path] = {}
-    files = [
+    files: list[tuple[str, str]] = [
         ("wta_players.csv", f"{_SACKMANN_BASE_WTA}/wta_players.csv"),
-        (f"wta_matches_{current_year}.csv", f"{_SACKMANN_BASE_WTA}/wta_matches_{current_year}.csv"),
-        (f"wta_matches_{current_year - 1}.csv", f"{_SACKMANN_BASE_WTA}/wta_matches_{current_year - 1}.csv"),
     ]
+    for year_offset in range(_MATCH_FALLBACK_YEARS):
+        year = current_year - year_offset
+        filename = f"wta_matches_{year}.csv"
+        files.append((filename, f"{_SACKMANN_BASE_WTA}/{filename}"))
     for filename, url in files:
         cache_path = cache.cache_dir / filename
         if cache.needs_refresh(filename):

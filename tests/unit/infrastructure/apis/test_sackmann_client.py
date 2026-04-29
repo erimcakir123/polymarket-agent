@@ -59,3 +59,68 @@ def test_aggregate_player_stats_unknown_returns_none() -> None:
     matches = parse_matches_csv(_FIXTURE_DIR / "atp_matches_2025_sample.csv")
     stats = aggregate_player_stats("Unknown Player", matches, surface=None)
     assert stats is None
+
+
+def test_refresh_atp_data_falls_back_through_year_window(tmp_path, monkeypatch):
+    """When current and recent years 404, refresh tries older years until one succeeds."""
+    from src.infrastructure.apis.sackmann_client import SackmannCache, refresh_atp_data
+
+    cache = SackmannCache(cache_dir=tmp_path, refresh_days=7)
+
+    # Stub fetch: succeeds only for atp_players.csv and atp_matches_2024.csv
+    def fake_fetch(url, cache_path, timeout=30):
+        # Players file: succeed (write empty CSV)
+        if "atp_players.csv" in url:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text("player_id,name_first,name_last,hand,dob,country\n")
+            return True
+        # Matches: only 2024 succeeds (simulate Sackmann publish lag)
+        if "atp_matches_2024.csv" in url:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text("tourney_id,winner_name\n")
+            return True
+        return False
+
+    monkeypatch.setattr(
+        "src.infrastructure.apis.sackmann_client.fetch_csv_to_cache",
+        fake_fetch,
+    )
+
+    # Pretend it's 2026 — current_year=2026, prev=2025 both 404, must fall back
+    paths = refresh_atp_data(cache, current_year=2026)
+
+    # Players file should be present
+    assert "atp_players.csv" in paths
+    # At least one matches file present (the 2024 one that succeeded)
+    matches_keys = [k for k in paths.keys() if "matches" in k]
+    assert len(matches_keys) >= 1
+    assert any("2024" in k for k in matches_keys)
+
+
+def test_refresh_atp_data_window_size_four_years(tmp_path, monkeypatch):
+    """Year fallback tries up to 4 years (current + 3 previous)."""
+    from src.infrastructure.apis.sackmann_client import SackmannCache, refresh_atp_data
+
+    attempted_urls: list[str] = []
+
+    def track_fetch(url, cache_path, timeout=30):
+        attempted_urls.append(url)
+        # Players succeeds, all match years fail
+        if "atp_players.csv" in url:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text("\n")
+            return True
+        return False
+
+    monkeypatch.setattr(
+        "src.infrastructure.apis.sackmann_client.fetch_csv_to_cache",
+        track_fetch,
+    )
+
+    cache = SackmannCache(cache_dir=tmp_path, refresh_days=7)
+    refresh_atp_data(cache, current_year=2026)
+
+    # Should have attempted matches files for 2026, 2025, 2024, 2023
+    matches_attempts = [u for u in attempted_urls if "matches" in u]
+    years_tried = sorted({int(u.split("matches_")[1].split(".csv")[0]) for u in matches_attempts}, reverse=True)
+    assert years_tried == [2026, 2025, 2024, 2023], f"Expected last 4 years, got {years_tried}"
