@@ -274,6 +274,7 @@ def build_agent(state: RuntimeState) -> Agent:
             paper_logger=tennis_paper_logger,
             magnus_predictor=None,
             phase=tennis_cfg.phase,
+            min_edge_threshold=tennis_cfg.filters.min_edge,
         )
 
     deps = AgentDeps(

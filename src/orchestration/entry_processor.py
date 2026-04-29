@@ -112,6 +112,13 @@ class EntryProcessor:
         """Gate → cap-clip → match_start ASC priority → execute."""
         mode = self.deps.state.config.mode.value
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="analyzing")
+
+        # Tennis paper observer (Phase 0 read-only hook).
+        # Runs BEFORE gate so tennis markets are observed even though
+        # active_sports filter blocks their entry. Wrapped in try/except
+        # so observer errors never break entry pipeline.
+        self._observe_tennis_pre_match(markets)
+
         results = self.deps.gate.run(markets)
         by_cid = {m.condition_id: m for m in markets}
         max_exposure_pct = self.deps.gate.config.max_exposure_pct
@@ -171,6 +178,45 @@ class EntryProcessor:
                 executing_written = True
             self._execute_entry(market, clipped_signal)
             self.deps.stock.remove(market.condition_id)
+
+    def _observe_tennis_pre_match(self, markets: list[MarketData]) -> None:
+        """Phase 0 read-only hook: log Magnus prediction for tennis candidates.
+
+        Runs before gate.run() so tennis markets are observed even when
+        active_sports filter excludes them from production entry. All
+        errors are swallowed (observation must never break entry pipeline).
+        """
+        observer = getattr(self.deps, "tennis_observer", None)
+        if observer is None:
+            return
+        cfg = getattr(self.deps.state, "config", None)
+        tennis_cfg = getattr(cfg, "tennis", None) if cfg is not None else None
+        if tennis_cfg is None:
+            return
+        try:
+            from src.domain.matching.tennis_tournament_resolver import resolve_tournament
+            tournaments = getattr(tennis_cfg, "tournaments", {}) or {}
+            excluded_tiers = getattr(tennis_cfg, "excluded_tiers", []) or []
+            for market in markets:
+                try:
+                    info = resolve_tournament(
+                        market.slug, tournaments, excluded_tiers,
+                    )
+                    if info is None:
+                        continue
+                    observer.observe_pre_match(
+                        market=market,
+                        tournament_info=info,
+                        polymarket_a_price=market.yes_price,
+                        polymarket_b_price=1.0 - market.yes_price,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "tennis pre-match hook failed for %s",
+                        getattr(market, "slug", "?")[:35],
+                    )
+        except Exception:  # noqa: BLE001
+            logger.warning("tennis pre-match observer setup failed")
 
     def _execute_entry(self, market: MarketData, signal) -> None:
         """Sim/live order → position open → trade record."""
