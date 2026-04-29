@@ -234,14 +234,26 @@ def evaluate(
                 elapsed_pct=elapsed_pct,
             )
 
-    if _normalize(pos.sport_tag) == "tennis" and score_info.get("available"):
+    _tennis_tag = _normalize(pos.sport_tag)
+    if _tennis_tag in ("tennis", "tennis_wta") and score_info.get("available"):
         t_result = tennis_score_exit.check(
             score_info=score_info,
             current_price=pos.bid_price,
             sport_tag=pos.sport_tag,
+            entry_price=pos.entry_price,
+            direction=pos.direction,
         )
         if t_result is not None:
-            return _simple_mr(t_result, pos, elapsed_pct)
+            return MonitorResult(
+                exit_signal=ExitSignal(
+                    reason=t_result.reason,
+                    detail=t_result.detail,
+                    partial=t_result.partial,
+                    sell_pct=t_result.sell_pct,
+                ),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     if _normalize(pos.sport_tag) in ("mlb", "kbo", "npb", "baseball") and score_info.get("available"):
         b_result = baseball_score_exit.check(

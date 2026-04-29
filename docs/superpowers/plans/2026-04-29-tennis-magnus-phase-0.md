@@ -2584,7 +2584,7 @@ git add scripts/diag_tennis_magnus.py scripts/diag_tennis_paper_replay.py
 git commit -m "feat(tennis): diag scripts for Magnus + paper replay
 
 diag_tennis_magnus runs predictor for known Sinner vs Cobolli scenarios
-(pre-match, set 1 won/lost, matematical death). diag_tennis_paper_replay
+(pre-match, set 1 won/lost, mathematical death). diag_tennis_paper_replay
 computes accuracy metrics from logged paper trades + Phase 1 gate
 indicator (>= 65% high-confidence accuracy).
 

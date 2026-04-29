@@ -49,3 +49,10 @@ class ExitReason(str, Enum):
     NHL_TOTALS_PREDICTIVE_DEAD = "nhl_totals_predictive_dead"
     NHL_TOTALS_STRUCTURAL_DAMAGE = "nhl_totals_structural_damage"
     NHL_TOTALS_HOLD = "nhl_totals_hold"
+    # Tennis Phase 1 v1 set-bazlı exits
+    TENNIS_NEAR_RESOLVE = "tennis_near_resolve"
+    TENNIS_PROFIT_LOCK = "tennis_profit_lock"
+    TENNIS_SET_LOSS_DECISIVE = "tennis_set_loss_decisive"
+    TENNIS_SET_LOSS_BAGEL = "tennis_set_loss_bagel"
+    TENNIS_MATHEMATICAL_DEATH = "tennis_mathematical_death"
+    TENNIS_STRUCTURAL_DAMAGE = "tennis_structural_damage"
