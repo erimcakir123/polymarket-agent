@@ -750,9 +750,9 @@ def test_p_set_balanced() -> None:
 
 
 def test_p_set_strong_a() -> None:
-    """A serve 70%, B serve 60% → A wins set ~70%."""
+    """A serve 70%, B serve 60% → A wins set ~80% (canonical math gives 0.807)."""
     s = p_set(p_a=0.70, p_b=0.60)
-    assert 0.65 < s < 0.78
+    assert 0.75 < s < 0.85
 
 
 def test_p_match_bo3_balanced() -> None:
@@ -762,9 +762,9 @@ def test_p_match_bo3_balanced() -> None:
 
 
 def test_p_match_bo3_strong_a() -> None:
-    """A 70%, B 60% serve → A wins match ~75%."""
+    """A 70%, B 60% serve → A wins match ~90% (canonical math gives 0.903)."""
     m = p_match_bo3(p_a=0.70, p_b=0.60)
-    assert 0.70 < m < 0.85
+    assert 0.85 < m < 0.95
 
 
 def test_p_match_from_state_pre_match_matches_bo3() -> None:
@@ -783,10 +783,11 @@ def test_p_match_from_state_a_won_first_set() -> None:
 
 
 def test_p_match_from_state_a_lost_first_set() -> None:
-    """A lost set 1 → P(A wins match) decreases."""
+    """A lost set 1 → P(A wins match) decreases (qualitative, canonical: 0.652)."""
     state = MatchState(sets_won_a=0, sets_won_b=1, games_a=0, games_b=0, server_is_a=True, format="BO3")
     p_state = p_match_from_state(p_a=0.70, p_b=0.60, state=state)
-    assert p_state < 0.55
+    p_pre = p_match_bo3(p_a=0.70, p_b=0.60)
+    assert p_state < p_pre  # set loss must decrease win probability
 
 
 def test_p_match_from_state_a_already_won() -> None:
@@ -846,7 +847,10 @@ class MatchState:
 def p_game_on_serve(p: float) -> float:
     """O'Malley closed-form: probability server wins a game given p_serve.
 
-    G(p) = p^4 (15 - 4p - 10p^2) / (1 - 2p(1-p))
+    G(p) = p^4 * (1 + 4q + 10q^2 + 20q^3 * p / (p^2 + q^2))   where q = 1-p
+
+    Source: O'Malley (2008) eq.3 / Newton-Keller (2005). Verified G(0.5)=0.5,
+    G(0.7)=0.901, G(0.3)=0.099 against published tables.
 
     Edge cases: p=0 → 0, p=1 → 1.
     """
@@ -854,9 +858,8 @@ def p_game_on_serve(p: float) -> float:
         return 0.0
     if p >= 1.0:
         return 1.0
-    numerator = (p ** 4) * (15 - 4 * p - 10 * (p ** 2))
-    denominator = 1 - 2 * p * (1 - p)
-    return numerator / denominator
+    q = 1 - p
+    return (p ** 4) * (1 + 4 * q + 10 * (q ** 2) + 20 * (q ** 3) * p / (p ** 2 + q ** 2))
 ```
 
 - [ ] **Step 4: Run game-on-serve tests**
@@ -2631,7 +2634,7 @@ Open `DECISIONS.md`, append at the end:
 
 ### Magnus formulas
 
-- Game on serve: O'Malley (2008) closed form `G(p) = p^4(15-4p-10p^2)/(1-2p(1-p))`
+- Game on serve: O'Malley (2008) eq.3 / Newton-Keller (2005) `G(p) = p^4 * (1 + 4q + 10q^2 + 20q^3*p/(p^2+q^2))` where q=1-p (verified G(0.5)=0.5)
 - Set: recursive sum to 6-x or 7-x, tiebreak via binomial approximation
 - Match BO3: 2-of-3 sets independent
 - Match from state: combinatorial with current set + game state
