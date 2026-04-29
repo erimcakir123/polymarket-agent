@@ -4,7 +4,7 @@
 
 **Goal:** Build the complete tennis paper-trade infrastructure: Sackmann data fetcher, player name resolver across 3 data sources, Klaassen-Magnus + O'Malley closed-form match probability chain (H2H only, BO3 only), tournament/surface metadata, and JSONL paper logger. Bot logs would-be predictions for 50-100 eligible matches without placing real trades, gating Phase 1 on directional accuracy ≥ 65%.
 
-**Architecture:** Pure domain math (`src/domain/math/tennis_magnus.py`) + pure domain matching (`src/domain/matching/tennis_player_resolver.py`) + infrastructure I/O (`src/infrastructure/apis/sackmann_client.py`) + orchestration glue (`src/orchestration/tennis_paper_logger.py`). Read-only integration into existing `monitor.py` via new `tennis_paper_observer` hook. Zero changes to existing exit logic during Phase 0 (tennis_score_exit.py stays STUB).
+**Architecture:** Pure domain math (`src/domain/math/tennis_magnus.py`) + pure domain matching (`src/domain/matching/tennis_player_resolver.py`) + infrastructure I/O (`src/infrastructure/apis/sackmann_client.py`) + orchestration glue (`src/orchestration/tennis_paper_logger.py`). Read-only integration into existing `exit_processor.py` via new `tennis_paper_observer` hook. Zero changes to existing exit logic during Phase 0 (tennis_score_exit.py stays STUB).
 
 **Tech Stack:** Python 3.12+, pandas (CSV parsing), requests (HTTP), rapidfuzz (fuzzy name matching, already in deps), Pydantic v2 (data models), pytest. No new heavy deps.
 
@@ -57,7 +57,7 @@ Plan başında verilen kararlar — değiştirilecekse plan baştan yazılır.
 | CREATE | `tests/unit/domain/matching/test_tennis_tournament_resolver.py` | Tier/surface tests |
 | CREATE | `src/orchestration/tennis_paper_logger.py` | JSONL log of would-be decisions |
 | CREATE | `tests/unit/orchestration/test_tennis_paper_logger.py` | Logger tests |
-| CREATE | `src/orchestration/tennis_paper_observer.py` | Hook into monitor.py read-only path |
+| CREATE | `src/orchestration/tennis_paper_observer.py` | Hook into exit_processor.py read-only path |
 | CREATE | `tests/unit/orchestration/test_tennis_paper_observer.py` | Observer tests |
 | CREATE | `tests/fixtures/sackmann/atp_matches_2025_sample.csv` | 50-row CSV fixture for tests |
 | CREATE | `tests/fixtures/sackmann/atp_players_sample.csv` | Player fixture for tests |
@@ -65,7 +65,7 @@ Plan başında verilen kararlar — değiştirilecekse plan baştan yazılır.
 | CREATE | `tests/fixtures/polymarket/tennis/atp_event_sample.json` | Polymarket fixture |
 | MODIFY | `config.yaml` | Add `tennis:` block (phase=disabled, paper config, surface factors) |
 | MODIFY | `src/config/settings.py` | Add `TennisConfig` Pydantic model |
-| MODIFY | `src/orchestration/monitor.py` | Wire tennis_paper_observer (read-only path) |
+| MODIFY | `src/orchestration/exit_processor.py` | Wire tennis_paper_observer (read-only path) |
 | MODIFY | `src/orchestration/factory.py` | Wire paper observer into agent |
 | MODIFY | `DECISIONS.md` | Document tennis Phase 0 thresholds + sources |
 | CREATE | `scripts/diag_tennis_magnus.py` | Sanity check Magnus output for one match |
@@ -750,9 +750,9 @@ def test_p_set_balanced() -> None:
 
 
 def test_p_set_strong_a() -> None:
-    """A serve 70%, B serve 60% → A wins set ~70%."""
+    """A serve 70%, B serve 60% → A wins set ~80% (canonical math gives 0.807)."""
     s = p_set(p_a=0.70, p_b=0.60)
-    assert 0.65 < s < 0.78
+    assert 0.75 < s < 0.85
 
 
 def test_p_match_bo3_balanced() -> None:
@@ -762,9 +762,9 @@ def test_p_match_bo3_balanced() -> None:
 
 
 def test_p_match_bo3_strong_a() -> None:
-    """A 70%, B 60% serve → A wins match ~75%."""
+    """A 70%, B 60% serve → A wins match ~90% (canonical math gives 0.903)."""
     m = p_match_bo3(p_a=0.70, p_b=0.60)
-    assert 0.70 < m < 0.85
+    assert 0.85 < m < 0.95
 
 
 def test_p_match_from_state_pre_match_matches_bo3() -> None:
@@ -783,10 +783,11 @@ def test_p_match_from_state_a_won_first_set() -> None:
 
 
 def test_p_match_from_state_a_lost_first_set() -> None:
-    """A lost set 1 → P(A wins match) decreases."""
+    """A lost set 1 → P(A wins match) decreases (qualitative, canonical: 0.652)."""
     state = MatchState(sets_won_a=0, sets_won_b=1, games_a=0, games_b=0, server_is_a=True, format="BO3")
     p_state = p_match_from_state(p_a=0.70, p_b=0.60, state=state)
-    assert p_state < 0.55
+    p_pre = p_match_bo3(p_a=0.70, p_b=0.60)
+    assert p_state < p_pre  # set loss must decrease win probability
 
 
 def test_p_match_from_state_a_already_won() -> None:
@@ -846,7 +847,10 @@ class MatchState:
 def p_game_on_serve(p: float) -> float:
     """O'Malley closed-form: probability server wins a game given p_serve.
 
-    G(p) = p^4 (15 - 4p - 10p^2) / (1 - 2p(1-p))
+    G(p) = p^4 * (1 + 4q + 10q^2 + 20q^3 * p / (p^2 + q^2))   where q = 1-p
+
+    Source: O'Malley (2008) eq.3 / Newton-Keller (2005). Verified G(0.5)=0.5,
+    G(0.7)=0.901, G(0.3)=0.099 against published tables.
 
     Edge cases: p=0 → 0, p=1 → 1.
     """
@@ -854,9 +858,8 @@ def p_game_on_serve(p: float) -> float:
         return 0.0
     if p >= 1.0:
         return 1.0
-    numerator = (p ** 4) * (15 - 4 * p - 10 * (p ** 2))
-    denominator = 1 - 2 * p * (1 - p)
-    return numerator / denominator
+    q = 1 - p
+    return (p ** 4) * (1 + 4 * q + 10 * (q ** 2) + 20 * (q ** 3) * p / (p ** 2 + q ** 2))
 ```
 
 - [ ] **Step 4: Run game-on-serve tests**
@@ -1724,12 +1727,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 6: Tennis Paper Observer (monitor.py wiring)
+## Task 6: Tennis Paper Observer (exit_processor.py wiring)
 
 **Files:**
 - Create: `src/orchestration/tennis_paper_observer.py`
 - Test: `tests/unit/orchestration/test_tennis_paper_observer.py`
-- Modify: `src/orchestration/monitor.py` (add hook)
+- Modify: `src/orchestration/exit_processor.py` (add hook)
 - Modify: `src/orchestration/factory.py` (wire observer)
 
 - [ ] **Step 1: Write failing test**
@@ -1813,13 +1816,13 @@ Expected: FAIL — module does not exist.
 Create `src/orchestration/tennis_paper_observer.py`:
 
 ```python
-"""Tennis paper observer — read-only hook into monitor.py for Phase 0.
+"""Tennis paper observer — read-only hook into exit_processor.py for Phase 0.
 
 Observes existing tennis positions (or potential entries from scanner),
 runs Magnus prediction, and logs would-be decisions. NEVER places trades
 or modifies real position state during Phase 0.
 
-Wired into monitor.py via observe_position() after existing exit
+Wired into exit_processor.py via observe_position() after existing exit
 evaluation. Skips silently for non-tennis markets and when phase is
 disabled.
 """
@@ -1886,9 +1889,9 @@ pytest tests/unit/orchestration/test_tennis_paper_observer.py -v
 
 Expected: 5 tests PASS (the _record_observation is not yet called by tests; placeholder).
 
-- [ ] **Step 5: Wire into monitor.py**
+- [ ] **Step 5: Wire into exit_processor.py**
 
-Open `src/orchestration/monitor.py`. Find the section after exit evaluation. Add a hook call (read the file first to find right location — likely after `evaluate_exit` returns and the position update):
+Open `src/orchestration/exit_processor.py`. Find the section after exit evaluation. Add a hook call (read the file first to find right location — likely after `evaluate_exit` returns and the position update):
 
 ```python
 # Find this section (existing):
@@ -1903,7 +1906,7 @@ if self._tennis_observer is not None:
         pass
 ```
 
-Add `tennis_observer` parameter to `Monitor.__init__`:
+Add `tennis_observer` parameter to `ExitProcessor.__init__`:
 
 ```python
 def __init__(
@@ -1917,7 +1920,7 @@ def __init__(
 
 - [ ] **Step 6: Wire into factory.py**
 
-Open `src/orchestration/factory.py`. Find `Monitor` construction. Add observer:
+Open `src/orchestration/factory.py`. Add tennis observer construction and wire it through `AgentDeps` (the existing DI pattern — no `Monitor` class exists; `ExitProcessor` is constructed inside `Agent.__init__` from deps):
 
 ```python
 from src.orchestration.tennis_paper_logger import TennisPaperLogger
@@ -1936,9 +1939,9 @@ if tennis_cfg.phase != "disabled":
         phase=tennis_cfg.phase,
     )
 
-# Pass to Monitor:
-monitor = Monitor(
-    # ... existing args ...
+# Pass to AgentDeps (which Agent constructor uses to build ExitProcessor):
+deps = AgentDeps(
+    # ... existing fields ...
     tennis_observer=tennis_observer,
 )
 ```
@@ -1954,10 +1957,10 @@ Expected: all existing tests still pass + new tests pass.
 - [ ] **Step 8: Commit Task 6**
 
 ```bash
-git add src/orchestration/tennis_paper_observer.py tests/unit/orchestration/test_tennis_paper_observer.py src/orchestration/monitor.py src/orchestration/factory.py
+git add src/orchestration/tennis_paper_observer.py tests/unit/orchestration/test_tennis_paper_observer.py src/orchestration/exit_processor.py src/orchestration/factory.py
 git commit -m "feat(tennis): paper observer wired into monitor (read-only)
 
-Phase 0 observation hook into Monitor. Skips non-tennis markets and
+Phase 0 observation hook into ExitProcessor. Skips non-tennis markets and
 when phase=disabled. Wrapped in try/except so observer errors never
 break exit pipeline. Factory creates TennisPaperLogger when phase
 active. Magnus predictor wiring stub for Task 7.
@@ -2631,7 +2634,7 @@ Open `DECISIONS.md`, append at the end:
 
 ### Magnus formulas
 
-- Game on serve: O'Malley (2008) closed form `G(p) = p^4(15-4p-10p^2)/(1-2p(1-p))`
+- Game on serve: O'Malley (2008) eq.3 / Newton-Keller (2005) `G(p) = p^4 * (1 + 4q + 10q^2 + 20q^3*p/(p^2+q^2))` where q=1-p (verified G(0.5)=0.5)
 - Set: recursive sum to 6-x or 7-x, tiebreak via binomial approximation
 - Match BO3: 2-of-3 sets independent
 - Match from state: combinatorial with current set + game state
@@ -2731,7 +2734,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 Estimated 12-15 tasks:
 1. Replace `tennis_score_exit.py` STUB with set-bazlı sabit tablo + Magnus base lookup
 2. Sport-specific exit dispatcher in `_tennis_exit_dispatch.py`
-3. Wire into `monitor.py` exit loop (replaces paper observer for tennis)
+3. Wire into `exit_processor.py` exit loop (replaces paper observer for tennis)
 4. Tighten filters in `config.yaml` (drop ATP/WTA 250)
 5. Set `tennis.phase = v1`, position cap $15
 6. Smoke test in dry_run, then mode switch to live

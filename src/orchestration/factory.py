@@ -6,6 +6,7 @@ main.py burayı çağırır. Test izolasyonu için agent.py DI container
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from src.config.settings import AppConfig, Mode
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
@@ -42,6 +43,8 @@ from src.infrastructure.repositories.nhl_totals_repository import load_table as 
 from src.infrastructure.repositories.nhl_wp_repository import load_table as _load_nhl_wp_table_raw
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
+from src.orchestration.tennis_paper_logger import TennisPaperLogger
+from src.orchestration.tennis_paper_observer import TennisPaperObserver
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.enrichment.odds_enricher import enrich_market
 
@@ -260,6 +263,20 @@ def build_agent(state: RuntimeState) -> Agent:
     nhl_puck_line_table = _load_nhl_puck_line_table()
     nhl_totals_table = _load_nhl_totals_table()
 
+    # Tennis paper observer (Phase 0). magnus_predictor wired in Task 7.
+    tennis_observer: TennisPaperObserver | None = None
+    tennis_cfg = getattr(cfg, "tennis", None)
+    if tennis_cfg is not None and tennis_cfg.phase != "disabled":
+        tennis_paper_logger = TennisPaperLogger(
+            log_path=Path("logs/audit/tennis_paper_trade.jsonl")
+        )
+        tennis_observer = TennisPaperObserver(
+            paper_logger=tennis_paper_logger,
+            magnus_predictor=None,
+            phase=tennis_cfg.phase,
+            min_edge_threshold=tennis_cfg.filters.min_edge,
+        )
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -276,6 +293,7 @@ def build_agent(state: RuntimeState) -> Agent:
         nhl_wp_table=nhl_wp_table,
         nhl_puck_line_table=nhl_puck_line_table,
         nhl_totals_table=nhl_totals_table,
+        tennis_observer=tennis_observer,
     )
     agent = Agent(deps)
 

@@ -377,3 +377,62 @@ cricket:
 # Odds API daily credit hard cap (SPEC-015)
 odds_api:
   daily_credit_cap: 800  # SPEC-015: günlük hard cap (soccer 60+ lig budget koruma)
+
+tennis:
+  enabled: true
+  phase: paper_trade  # disabled | paper_trade | v1 | v2 | v3
+  position_size_usdc:
+    paper_trade: 0
+    v1: 15
+    v2: 25
+    v3: 35
+  filters:
+    paper_trade_relaxed: true  # Phase 0 only: include ATP/WTA 250
+    min_ranking: 100
+    max_ranking_gap: 100
+    min_edge: 0.05
+    match_window_hours_min: 0.0
+    match_window_hours_max: 24.0
+  exit:
+    near_resolve_bid: 0.95
+    profit_lock_bid: 0.80
+    risk_penalty_cap: 0.70
+    w_momentum: 0.35
+    w_value: 0.40
+    bayesian_max_shift: 0.15
+    momentum_decay: 0.85
+    momentum_window_games: 7
+  data:
+    sackmann_cache_dir: "data/sackmann_cache/"
+    sackmann_refresh_days: 7
+    player_xref_path: "data/tennis_player_xref.json"
+  alerts:
+    telegram_enabled: false
+  surface_factors:
+    serve_pct_atp:
+      grass: 1.00
+      hard: 1.00
+      clay: 0.92
+    serve_pct_wta:
+      grass: 1.00
+      hard: 1.05
+      clay: 0.95
+  tournaments:
+    grand_slam:
+      australian_open: hard
+      french_open: clay
+      wimbledon: grass
+      us_open: hard
+    masters_1000:
+      indian_wells: hard
+      miami_open: hard
+      monte_carlo_masters: clay
+      madrid_open: clay
+      italian_open: clay
+      canadian_open: hard
+      cincinnati_open: hard
+      shanghai_masters: hard
+      paris_masters: hard
+    atp_500: {}
+    atp_250: {}
+  excluded_tiers: [itf, challenger, futures]

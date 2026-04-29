@@ -912,3 +912,52 @@ Moneyline ONLY. No puck line (spread), no totals, no three-way ML.
 **Trade 2 senaryosu:** hours_since=6.3 > NBA threshold=3.0 → reddedildi.
 
 **Test:** 9 unit test (`tests/unit/strategy/entry/test_match_status.py`) + 3 integration test (gate skip path).
+
+---
+
+## Tennis (Phase 0 Paper Trade) — 2026-04-29
+
+### Active scope
+
+- H2H markets only (Match Total Games deferred to Phase 4)
+- BO3 only (BO5 Grand Slam in Phase 2)
+- Tournament tiers: Grand Slam + Masters 1000 + ATP/WTA 500 + ATP/WTA 250 (250 included only in Phase 0 for sample size)
+- ITF, Challenger, Futures: excluded permanently
+
+### Filter thresholds
+
+| Filter | Phase 0 value | Source |
+|---|---|---|
+| Min ranking | top 100 | Spec Section 9 |
+| Max ranking gap | < 100 | User decision (match-fixing risk filter) |
+| Min model edge | 0.05 | Spec Section 9 |
+| Match window | 0-24h pre-match | Spec Section 9 |
+| Position size | $0 (paper) | Spec Section 9 |
+
+### Surface factors (serve % multiplier)
+
+| Surface | ATP | WTA | Source |
+|---|---|---|---|
+| Grass | 1.00 | 1.00 | Tennisnerd 2026 baseline |
+| Hard | 1.00 | 1.05 | empirical study |
+| Clay | 0.92 | 0.95 | empirical study |
+
+### Magnus formulas
+
+- Game on serve: O'Malley (2008) eq.3 / Newton-Keller (2005) `G(p) = p^4 * (1 + 4q + 10q^2 + 20q^3*p/(p^2+q^2))` where q=1-p (verified G(0.5)=0.5)
+- Set: recursive sum to 6-x or 7-x, tiebreak via binomial approximation
+- Match BO3: 2-of-3 sets independent
+- Match from state: combinatorial with current set + game state
+- BO5: NotImplementedError (Phase 2)
+
+### Data source
+
+- Sackmann GitHub `tennis_atp` + `tennis_wta` repos
+- Cache: `data/sackmann_cache/`, refresh weekly
+- Player xref persisted: `data/tennis_player_xref.json`
+
+### Gate criteria for Phase 1
+
+- ≥ 50 finished matches in paper log
+- Directional accuracy (high-confidence calls, model ≥ 0.55) ≥ 65%
+- No structural bug in resolver (resolver fail rate < 1%)

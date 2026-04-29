@@ -9,6 +9,8 @@ from typing import List
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.config.tennis_settings import TennisConfig
+
 
 class Mode(str, Enum):
     DRY_RUN = "dry_run"
@@ -386,6 +388,7 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011
     odds_api: OddsApiConfig = OddsApiConfig()  # SPEC-015
+    tennis: TennisConfig = Field(default_factory=TennisConfig)
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:
