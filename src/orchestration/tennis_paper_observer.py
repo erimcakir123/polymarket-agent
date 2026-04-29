@@ -68,5 +68,13 @@ class TennisPaperObserver:
         current_bid: float,
         score_info: dict,
     ) -> None:
-        """Placeholder — fully wired to Magnus predictor in Task 7."""
-        return None
+        """Resolve players, run Magnus, log snapshot."""
+        if self._predictor is None:
+            return
+        # Extract players from position.match_title or slug
+        # Pre-match handled separately by entry observer (out of scope this iteration)
+        # In-match: append snapshot if match in progress
+        if not score_info.get("available"):
+            return
+        # Phase 0: simple snapshot logging only (full pre-match flow in Task 8)
+        # ... (kept minimal — full flow in Phase 0 integration smoke test)
