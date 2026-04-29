@@ -961,3 +961,68 @@ Moneyline ONLY. No puck line (spread), no totals, no three-way ML.
 - ≥ 50 finished matches in paper log
 - Directional accuracy (high-confidence calls, model ≥ 0.55) ≥ 65%
 - No structural bug in resolver (resolver fail rate < 1%)
+
+---
+
+## Tennis Phase 1 v1 — Live (dry_run) — 2026-04-28
+
+### Active scope
+
+- **Active in `entry.active_sports`:** `tennis` (ATP) + `tennis_wta` (WTA)
+- **Mode:** `dry_run` end-to-end simulation (entry + exit, no real orders)
+- **Markets:** H2H only (Match Total Games still deferred to Phase 4)
+- **Format:** BO3 only (BO5 Grand Slam = HOLD-safe fallback until Phase 2)
+- **Position cap:** inherits global `risk.max_single_bet_usdc=$75` and `risk.max_bet_pct=5%`
+  cap (no separate tennis cap in Phase 1 — sizing handled by directional entry pipeline)
+
+### Exit thresholds (table-based, BO3)
+
+`src/strategy/exit/_tennis_exit_dispatch.py`:
+
+| Priority | Layer | Trigger | Action |
+|---|---|---|---|
+| 1 | NEAR_RESOLVE | bid ≥ 0.95 | SELL_ALL |
+| 2 | STRUCTURAL_DAMAGE | current_price/entry ≤ 0.30 | SELL_ALL |
+| 3 | MATEMATICAL_DEATH | sets 0-2 (BO3) / 0-3 (BO5) | SELL_ALL |
+| 4 | SET_LOSS_BAGEL | last completed set lost 0-6 (BO3 only) | SELL_75 |
+| 5 | SET_LOSS_DECISIVE | last completed set lost {1,2,3}-6 (BO3 only) | SELL_50 |
+| 6 | PROFIT_LOCK | bid ≥ 0.80 | SELL_50 |
+| 7 | HOLD | default | — |
+
+Direction handling: `BUY_YES` = bet on player A (home); `BUY_NO` = bet on B (away).
+For `BUY_NO`, "home won set" is reframed as "we lost set" — bagel/decisive
+threshold applied symmetrically.
+
+### BO5 deferral
+
+BO5 (Grand Slam ATP men's singles) intentionally falls back to HOLD on
+SET_LOSS_DECISIVE / SET_LOSS_BAGEL. NEAR_RESOLVE / PROFIT_LOCK / STRUCTURAL_DAMAGE /
+MATEMATICAL_DEATH (now triggered at 0-3 sets) still active. Phase 2 adds
+Bayesian model + full BO5 set-state logic.
+
+### Phase 0 paper observer disabled
+
+`config.yaml → tennis.enabled: false` + `tennis.phase: disabled`. Paper observer
+becomes redundant in dry_run because real (simulated) entries land in
+`logs/audit/trade_history.jsonl` with the same event_id / outcome pairing.
+Magnus model + Sackmann predictor are no longer wired into the heavy cycle.
+v2 reactivation: flip `tennis.enabled: true` + `tennis.phase: v2` when Bayesian
+work begins.
+
+### Skipped / deferred to Phase 2-3
+
+- Magnus base p(win) model (entry-side enrichment)
+- Bayesian in-match p_serve update
+- Momentum EWMA
+- Risk-adjusted EV combiner
+- BO5 set-bazlı decisive/bagel handling
+
+### Why these specific thresholds
+
+- **0.95 NEAR_RESOLVE / 0.80 PROFIT_LOCK:** match `config.yaml → tennis.exit.near_resolve_bid` / `profit_lock_bid` — set during Phase 0 spec design.
+- **0.30 STRUCTURAL_DAMAGE:** mirrors NHL `exit_nhl.structural_damage_ratio=0.30` — calibrated empirical threshold for "price collapse beyond comeback".
+- **SELL_75 on bagel vs SELL_50 on decisive:** bagel (0-6) signals decisive serve
+  break collapse; recovery rate ≪ 5%. Decisive (1-6 to 3-6) recovery ~5-8%.
+  Asymmetric sizing reflects the gap.
+- **MATEMATICAL_DEATH SELL_ALL:** 0-2 BO3 / 0-3 BO5 = literally cannot win → no
+  reason to hold for residual bid. Liquidity exit while market still has bid.

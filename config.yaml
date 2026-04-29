@@ -155,6 +155,8 @@ entry:
   active_sports:
     - basketball_nba
     - icehockey_nhl
+    - tennis           # Phase 1 v1: ATP men's H2H (BO3 only)
+    - tennis_wta       # Phase 1 v1: WTA women's H2H (BO3 only)
   min_gap_threshold: 0.05
   gap_high_zone: 0.15
   gap_extreme_zone: 0.25
@@ -379,8 +381,8 @@ odds_api:
   daily_credit_cap: 800  # SPEC-015: günlük hard cap (soccer 60+ lig budget koruma)
 
 tennis:
-  enabled: true
-  phase: paper_trade  # disabled | paper_trade | v1 | v2 | v3
+  enabled: false      # Phase 1 v1: paper observer redundant — dry_run trades log to trade_history.jsonl
+  phase: disabled     # disabled | paper_trade | v1 | v2 | v3 (Phase 1 v1 = active_sports drives trading)
   position_size_usdc:
     paper_trade: 0
     v1: 15
