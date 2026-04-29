@@ -22,8 +22,9 @@ logger = logging.getLogger(__name__)
 class ExitProcessor:
     """Light cycle: tick state + exit evaluation + execution."""
 
-    def __init__(self, deps) -> None:
+    def __init__(self, deps, tennis_observer=None) -> None:
         self.deps = deps
+        self._tennis_observer = tennis_observer
 
     def run_light(self, score_map: dict[str, dict] | None = None) -> None:
         """Her pozisyonu cycle-state tick + exit_monitor'dan geçir."""
@@ -69,6 +70,18 @@ class ExitProcessor:
             if result.exit_signal is not None:
                 self._execute_exit(pos, result.exit_signal, elapsed_pct=result.elapsed_pct)
                 exits_processed += 1
+
+            # Tennis paper observer (Phase 0 read-only hook).
+            # Wrapped in try/except so observer errors never break exit pipeline.
+            if self._tennis_observer is not None:
+                try:
+                    self._tennis_observer.observe_position(
+                        pos,
+                        current_bid=getattr(pos, "current_price", 0.0),
+                        score_info=score_info,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("tennis observer hook failed for %s", pos.slug[:35])
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()

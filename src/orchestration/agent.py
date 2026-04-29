@@ -60,6 +60,7 @@ class AgentDeps:
     nhl_wp_table: dict = field(default_factory=dict)
     nhl_puck_line_table: dict = field(default_factory=dict)
     nhl_totals_table: dict = field(default_factory=dict)
+    tennis_observer: object | None = None
 
 
 class Agent:
@@ -70,7 +71,7 @@ class Agent:
         self._stop_requested = False
         self._ws_started = False
         self._entry = EntryProcessor(deps)
-        self._exit = ExitProcessor(deps)
+        self._exit = ExitProcessor(deps, tennis_observer=deps.tennis_observer)
         if self.deps.price_feed is not None:
             self.deps.price_feed.set_callback(self._on_price_update)
 
