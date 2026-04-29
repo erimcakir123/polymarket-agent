@@ -39,10 +39,12 @@ def test_near_resolve_when_bid_high():
 
 
 def test_predictive_dead_under_when_too_many_goals():
-    """Under 5.5, current 6 → over zaten gerçekleşti, p_under=0 → PREDICTIVE_DEAD."""
+    """Under 5.5, current 6 → over zaten gerçekleşti, empirical p_over=1 → p_under=0 → PREDICTIVE_DEAD.
+    PREDICTIVE_DEAD yalnızca empirical kalibrasyon altında fire eder; mock table provide ediliyor."""
     pos = _pos(total_side="under", bid_price=0.20, total_line=5.5)
     score_info = {"available": True, "period": 3, "clock_seconds": 300, "our_score": 3, "opp_score": 3}
-    sig = check_nhl_totals_exit(pos, score_info, 0.5, NHLTotalsExitConfig(), {})
+    table = {"totals_over": {"3_6_300_5.5": {"p_over": 1.0}}}
+    sig = check_nhl_totals_exit(pos, score_info, 0.5, NHLTotalsExitConfig(), table)
     assert sig is not None
     assert sig.reason == ExitReason.NHL_TOTALS_PREDICTIVE_DEAD
 

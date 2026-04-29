@@ -97,3 +97,119 @@ def test_pre_match_phantom_high_bid_does_not_fire_scale_out():
     score_info = {"available": False}
     result = evaluate(pos, score_info=score_info)
     assert result.exit_signal is None or result.exit_signal.reason != ExitReason.SCALE_OUT
+
+
+# ---------------------------------------------------------------------------
+# 5. Pre-match guard — NHL score-based exits (PREDICTIVE_DEAD phantom repro)
+# ---------------------------------------------------------------------------
+def test_pre_match_does_not_fire_nhl_puck_line_predictive_dead():
+    """28 Apr 19:36 UTC bug repro: Sabres -1.5 spread, ESPN pre-match
+    (period='Scheduled', 0-0) score_info.available=True döndürdü → Skellam
+    fallback p_cover≈0.13 < bid 0.39 + 0.03 → PREDICTIVE_DEAD anında.
+    Pre-match'te NHL score-based dispatch'in tamamı atlanmalı."""
+    pos = _make_pos("nhl", bid=0.39, entry=0.39, current=0.39)
+    pos.sports_market_type = "spreads"
+    pos.match_start_iso = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat()
+    score_info = dict(
+        available=True, period=1, clock_seconds=1200,
+        our_score=0, opp_score=0, is_shootout=False,
+    )
+    result = evaluate(
+        pos, score_info=score_info,
+        nhl_puck_line_cfg=None, nhl_puck_line_table={},
+    )
+    assert result.exit_signal is None
+
+
+def test_pre_match_does_not_fire_nhl_moneyline_predictive_dead():
+    """Pre-match NHL ML için de score-based dispatch atlanmalı (koruma)."""
+    pos = _make_pos("nhl", bid=0.55, entry=0.55, current=0.55)
+    pos.sports_market_type = "moneyline"
+    pos.match_start_iso = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat()
+    score_info = dict(
+        available=True, period=1, clock_seconds=1200,
+        our_score=0, opp_score=0, is_shootout=False,
+    )
+    result = evaluate(pos, score_info=score_info, nhl_exit_cfg=None, nhl_wp_table={})
+    assert result.exit_signal is None
+
+
+def test_pre_match_does_not_fire_nhl_totals_predictive_dead():
+    """Pre-match NHL totals için de score-based dispatch atlanmalı (koruma)."""
+    pos = _make_pos("nhl", bid=0.40, entry=0.40, current=0.40)
+    pos.sports_market_type = "totals"
+    pos.match_start_iso = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat()
+    score_info = dict(
+        available=True, period=1, clock_seconds=1200,
+        our_score=0, opp_score=0, is_shootout=False,
+    )
+    result = evaluate(
+        pos, score_info=score_info,
+        nhl_totals_cfg=None, nhl_totals_table={},
+    )
+    assert result.exit_signal is None
+
+
+# ---------------------------------------------------------------------------
+# 6. ESPN delay phantom: match_start passed but ESPN still pre-match
+#    (period="Scheduled", period_number=None) — production bug 28 Apr 23:30 UTC
+# ---------------------------------------------------------------------------
+def test_espn_scheduled_status_does_not_fire_nhl_puck_line_predictive_dead():
+    """28 Apr 23:30 UTC bug repro: match_start UTC zamanı geçmiş ama ESPN
+    hâlâ pre-match snapshot döndürüyor — period='Scheduled' (string),
+    period_number=None, clock_seconds=0, score=0/0. elapsed_pct≈0 (positive)
+    → match_pre_start guard False. Dispatch period_number int kontrolü ile
+    atlamalı. Aksi halde Skellam(margin=0, seconds=0) → 0.0 → PREDICTIVE_DEAD."""
+    pos = _make_pos("nhl", bid=0.39, entry=0.39, current=0.39)
+    pos.sports_market_type = "spreads"
+    pos.match_start_iso = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    score_info = dict(
+        available=True,
+        period="Scheduled",     # ESPN type.description
+        period_number=None,     # ESPN status.period (int) yok
+        clock_seconds=0,
+        our_score=0, opp_score=0,
+        is_shootout=False,
+    )
+    result = evaluate(
+        pos, score_info=score_info,
+        nhl_puck_line_cfg=None, nhl_puck_line_table={},
+    )
+    assert result.exit_signal is None
+
+
+def test_espn_scheduled_status_does_not_fire_nhl_moneyline_predictive_dead():
+    """ESPN-delay pre-match (string 'Scheduled' period) NHL ML için de
+    dispatch atlamalı."""
+    pos = _make_pos("nhl", bid=0.55, entry=0.55, current=0.55)
+    pos.sports_market_type = "moneyline"
+    pos.match_start_iso = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    score_info = dict(
+        available=True,
+        period="Scheduled", period_number=None,
+        clock_seconds=0,
+        our_score=0, opp_score=0,
+        is_shootout=False,
+    )
+    result = evaluate(pos, score_info=score_info, nhl_exit_cfg=None, nhl_wp_table={})
+    assert result.exit_signal is None
+
+
+def test_espn_scheduled_status_does_not_fire_nhl_totals_predictive_dead():
+    """ESPN-delay pre-match (string 'Scheduled' period) NHL totals için
+    dispatch atlamalı."""
+    pos = _make_pos("nhl", bid=0.40, entry=0.40, current=0.40)
+    pos.sports_market_type = "totals"
+    pos.match_start_iso = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    score_info = dict(
+        available=True,
+        period="Scheduled", period_number=None,
+        clock_seconds=0,
+        our_score=0, opp_score=0,
+        is_shootout=False,
+    )
+    result = evaluate(
+        pos, score_info=score_info,
+        nhl_totals_cfg=None, nhl_totals_table={},
+    )
+    assert result.exit_signal is None

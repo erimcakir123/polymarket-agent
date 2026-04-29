@@ -100,7 +100,16 @@ def decide_nhl_exit(
         p_win = None
         p_win_source = "error"
 
-    if p_win is not None and p_win < (current_bid + cfg.predictive_safety_margin):
+    # PREDICTIVE_DEAD: NBA'nın "Q4 only" pattern'ı paraleli — sadece P3+ aktif.
+    # P1/P2'de skor henüz "geri dönülemez" değil; empirical bile baz değer
+    # üretir → false trigger riski. source=='empirical' şartı: empirical
+    # wp_table yokken fallback wp bid'e yakın çıkıp false trigger üretebilir.
+    if (
+        period >= 3
+        and p_win is not None
+        and p_win_source == "empirical"
+        and p_win < (current_bid + cfg.predictive_safety_margin)
+    ):
         return NHLExitDecision(
             action=ExitAction.SELL_ALL,
             reason=ExitReason.PREDICTIVE_DEAD,

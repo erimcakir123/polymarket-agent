@@ -53,6 +53,22 @@ class NHLClock:
     raw_detail: str   # ESPN status.type.detail (preserved for debugging)
 
 
+def period_clock_to_regulation_seconds(period: int, period_clock_seconds: int) -> int:
+    """Convert ESPN period-bound clock to NHL regulation-total seconds remaining.
+
+    Empirical puck line / totals tables and Skellam λ are calibrated against
+    regulation-total clock (max 3600s = 3×1200s). ESPN displayClock is
+    period-bound (0–1200s within the current period). Dispatch needs the
+    match-bound value to look up empirical buckets and feed Skellam.
+
+    period <= 0 (pre) or period > 3 (OT/SO) → 0 (no regulation time left).
+    """
+    if period <= 0 or period > 3:
+        return 0
+    period_clock_seconds = max(0, period_clock_seconds)
+    return (3 - period) * REGULATION_PERIOD_SECONDS + period_clock_seconds
+
+
 def _parse_display_clock(display_clock: str) -> int:
     """
     Parse ESPN displayClock (e.g. "10:35", "0:00", "20:00") to seconds.

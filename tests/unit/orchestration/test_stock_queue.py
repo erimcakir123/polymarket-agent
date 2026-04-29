@@ -35,6 +35,14 @@ def test_add_non_pushable_reason_rejected() -> None:
     assert sq._count() == 0
 
 
+def test_volume_too_low_is_pushable() -> None:
+    # Volume artabilir maç yaklaştıkça — sonraki cycle'da yeniden değerlendir.
+    sq = StockQueue(StockConfig())
+    assert sq.add(_market("c1"), "VOLUME_TOO_LOW") is True
+    assert sq._count() == 1
+    assert sq.has("c1")
+
+
 def test_add_existing_updates_not_duplicates() -> None:
     sq = StockQueue(StockConfig())
     sq.add(_market("c1"), "exposure_cap_reached")

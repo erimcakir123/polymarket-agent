@@ -86,7 +86,16 @@ def decide_nhl_totals_exit(
     if p_over is not None:
         p_side = p_over if side == "over" else (1.0 - p_over)
 
-    if p_side is not None and p_side < (current_bid + cfg.predictive_safety_margin):
+    # PREDICTIVE_DEAD: NBA'nın "Q4 only" pattern'ı paraleli — sadece P3+ aktif.
+    # P1/P2'de over/under henüz kesinleşmedi; empirical bile baz değer üretir
+    # → false trigger riski. source=='empirical' şartı: Skellam fallback
+    # totals'da da bid'e yakın çıkıp false trigger üretebilir.
+    if (
+        period >= 3
+        and p_side is not None
+        and p_source == "empirical"
+        and p_side < (current_bid + cfg.predictive_safety_margin)
+    ):
         return NHLTotalsExitDecision(
             action=ExitAction.SELL_ALL,
             reason=ExitReason.PREDICTIVE_DEAD,

@@ -38,6 +38,80 @@
 
 ## Aktif Planlar
 
+### PLAN-024: NHL `predictive_dead` Exit'in Pozisyonu Kapatamaması (PROPOSED)
+
+- **Durum**: PROPOSED
+- **Tarih**: 2026-04-29
+- **Öncelik**: P0 — gerçek para kaybına yol açıyor (geç stop_loss, $11+ ekstra kayıp/trade)
+- **Etki**:
+  - `src/strategy/exit/_nhl_puck_line_dispatch.py` (dispatch akışı)
+  - `src/strategy/exit/nhl_puck_line_exit.py` (predictive_dead trigger)
+  - `src/strategy/exit/monitor.py` (executor entegrasyonu)
+  - `src/infrastructure/executor.py` (mode=dry_run vs gerçek kapama)
+
+#### Gözlemlenen Davranış (2026-04-29 audit, bos-buf NHL)
+
+`nhl-bos-buf-2026-04-28-spread-home-1pt5` (Sabres -1.5) pozisyonu için bot.log:
+
+```
+22:32 (UTC 19:32)  EXIT_POSITION ... predictive_dead p_cover=0.000 bid=0.380
+22:36              EXIT_POSITION ... predictive_dead p_cover=0.000 bid=0.380
+22:38, 22:41, 22:44, 22:47   (6+ tekrar — hep dry_run, hep p_cover=0)
+02:30 → 02:46     (UTC 23:30 → 23:46) — daha fazla tekrar
+04:22 (UTC 01:22)  EXIT (gerçek): reason=stop_loss price=0.230, loss=23.53>$12
+```
+
+Predictive sinyali ~6 saat boyunca "kapat" diyor, ama pozisyon kapanmıyor. Sonunda **fiyat 0.23'e indikten sonra** stop_loss tetikliyor.
+
+**Gerçek maç sonucu (ESPN doğrulamalı)**: Sabres OT'de yenildi (BOS 2 — BUF 1 OT) → spread busted. Tutsaydık -$40.45. Predictive 0.38'de kapatabilseydi: -$11.69. Stop_loss 0.23'te kapattı: -$23.53. **Predictive'in çalışmaması $11.84 ekstra kayıp doğurdu.**
+
+#### Hipotezler (henüz doğrulanmadı — investigate first)
+
+1. **Phantom-bid kalıntısı**: PLAN-023 phantom exit'i çözdü ama NHL dispatch akışında position store'dan exit komutu alınmıyor olabilir. Log'da `mode=dry_run shares=88.18` → ama exits.jsonl'a düşmüyor → store update yapılmıyor.
+2. **Dispatch akışı NHL'de farklı**: `_nhl_puck_line_dispatch.py` ile genel `monitor.py` entegrasyonunda eksik return path var olabilir. `EXIT_POSITION` log'u atılıyor ama `exit_processor` fiilen pozisyonu silmiyor.
+3. **`mode=dry_run` semantic confusion**: bot dry_run modunda → executor "log only" yapıyor olabilir ama bu zaten mevcut akışın olağan durumu. Yine de `exits.jsonl`'a satır düşmüyor → bu beklenmedik.
+4. **Multiple-call idempotency**: Aynı pozisyon için her cycle exit çağrılıyor → sonsuz "would exit" log'u, gerçek silme yok.
+
+#### Adımlar (Investigation → Fix → Test)
+
+**1. Investigation (PLAN'ı netleştir)**
+- [ ] `EXIT_POSITION` log'unu basan kod path'ini bul ([src/infrastructure/executor.py](src/infrastructure/executor.py))
+- [ ] Dry-run akışında `exit_processor` → `position_store.remove(...)` çağrısı yapılıyor mu? Tüm exit reason'lar için mi yoksa bazıları için mi?
+- [ ] NHL puck_line dispatch'in döndürdüğü ExitDecision yapısı `monitor.py`'da nasıl handle ediliyor? `near_resolve`/`stop_loss` ile farklı mı?
+- [ ] bos-buf pozisyonunun trade_history'ye yazılış zamanı (23:59 UTC) ile predictive_dead log'larının başlama zamanı (19:32 UTC) arasındaki tutarsızlık: BU pozisyon mu yoksa phantom mı? `share count` farkları (88.18 → 88.13 → 89.15 → 84.36 → 73.55) bunu çözmeli.
+
+**2. Fix (Investigation sonrası karar)**
+- [ ] Eğer dispatch return path eksikse: `_nhl_puck_line_dispatch.py` → `monitor.py` chain'inde executor çağrısının gerçekten store'a yazdığını garanti et
+- [ ] Eğer phantom kalıntısıysa: `bid_price` migration'ın NHL exit path'inde uygulandığını doğrula (PLAN-023 Part A)
+- [ ] Eğer idempotency sorunuysa: aynı pozisyon için aynı reason 2. kez gelirse cooldown ekle (yoksa testle doğrula)
+
+**3. Test**
+- [ ] `tests/unit/strategy/exit/test_monitor_nhl_routing.py` — dispatcher predictive_dead döndürdüğünde position store'dan gerçekten silindiğini test et
+- [ ] Regression test: aynı reason 5 cycle ardarda fire ettiğinde (mevcut bos-buf senaryosu) tek bir exit oluşmalı, sonrası "position not found"
+- [ ] Dry-run vs live: ikisinde de exits.jsonl yazılmalı, sadece executor mode farkı log mesajında olmalı
+
+#### Kabul Kriterleri
+
+- [ ] Bos-buf-benzeri senaryo replay'de tek `EXIT` ile kapanmalı (6+ tekrar değil)
+- [ ] `predictive_dead` tetiklendiğinde 1 cycle içinde positions.json'dan silinmeli
+- [ ] `pytest -q tests/unit/strategy/exit/` geçmeli
+- [ ] DECISIONS.md → "NHL predictive_dead idempotency" notu eklenmeli (rationale + 2026-04-28 bos-buf incident link)
+
+#### Mimari Uyumluluk
+
+- ARCHITECTURE_GUARD §"Sessiz hata yutma yasak" — şu an executor exit'i sessizce skipliyor (log var, action yok). Bu kuralın ihlali.
+- Strategy → Infrastructure çağrı yönü doğru, sadece return contract eksik.
+
+#### TDD Referansı
+- TDD §exit_dispatch (NHL puck_line bölümü)
+- DECISIONS.md → NHL Puck Line section (predictive_dead semantik)
+
+#### Bağlam Notu
+
+Bu plan, kullanıcının 2026-04-29 "spread'ler erken çıkıyor mu?" sorgusu sırasında ortaya çıktı. Asıl bulgu **TERS** — spread'ler erken değil, **GEÇ** çıkıyor (özellikle NHL). Son reload'tan beri 3 spread exit incelemesinde 2'si stop_loss (-24%, -58%); ESPN final'leriyle doğrulandı (PHI 113-BOS 97; BOS 2-BUF 1 OT). Exit'ler net +$54.73 kazandırdı vs hiç çıkmama, ama NHL predictive exit fix edilirse +$11 daha kazandırırdı.
+
+---
+
 ### PLAN-023: Exit Güvenlik Paketi (Phantom Exit + SL Elapsed Gate) (DONE)
 - **Durum**: DONE
 - **Tarih**: 2026-04-21

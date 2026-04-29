@@ -22,13 +22,18 @@ def check_nhl_exit(
     nhl_wp_table: dict,
 ) -> NHLSignal | None:
     """Decide NHL exit signal from score_info. Returns None → HOLD."""
-    period = score_info.get("period") or score_info.get("period_number")
+    # period_number int (ESPN raw status.period) öncelikli; "period" string
+    # description ("Scheduled", "1st Period") fallback ama int değilse None döner.
+    # Pre-match'te period_number=None, period="Scheduled" → exit fire etmez.
+    period = score_info.get("period_number") or score_info.get("period")
+    if not isinstance(period, int) or period <= 0:
+        return None
     clock_seconds = score_info.get("clock_seconds")
     our_score = score_info.get("our_score")
     opp_score = score_info.get("opp_score")
     is_shootout = score_info.get("is_shootout", False)
 
-    if any(v is None for v in (period, clock_seconds, our_score, opp_score)):
+    if any(v is None for v in (clock_seconds, our_score, opp_score)):
         return None
 
     abs_score_diff = abs(our_score - opp_score)

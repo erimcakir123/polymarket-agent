@@ -87,7 +87,36 @@ class TestPredictiveDead:
         # Should not fire PREDICTIVE_DEAD; falls through to HOLD (or STRUCTURAL_DAMAGE if applicable)
         assert d.reason != ExitReason.PREDICTIVE_DEAD
         assert d.p_cover is None
-        assert d.p_cover_source == "error"
+
+    def test_predictive_dead_skipped_when_source_not_empirical(self):
+        """28 Apr 23:39 UTC bug repro: Skellam fallback NHL -1.5 cover'ı bid'e
+        yakın under-estimate ediyor (low-scoring + OT/SO modifier yok). Empirical
+        kalibrasyon yokken PREDICTIVE_DEAD kapalı; NEAR_RESOLVE/SCALE_OUT/
+        STRUCTURAL_DAMAGE + dolar SL koruma sağlar."""
+        d = _decide(
+            current_bid=0.40,
+            p_cover_fn=lambda p, m, s: (0.10, "skellam_fallback"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_1(self):
+        """NBA Q4-only paraleli: P1'de PREDICTIVE_DEAD pasif. Empirical hit ve
+        düşük p_cover olsa da skor 'geri dönülemez' değil — P3'e kadar bekle."""
+        d = _decide(
+            period=1,
+            current_bid=0.40,
+            p_cover_fn=lambda p, m, s: (0.10, "empirical"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_2(self):
+        """NBA Q4-only paraleli: P2'de PREDICTIVE_DEAD pasif."""
+        d = _decide(
+            period=2,
+            current_bid=0.40,
+            p_cover_fn=lambda p, m, s: (0.10, "empirical"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
 
 
 class TestStructuralDamage:

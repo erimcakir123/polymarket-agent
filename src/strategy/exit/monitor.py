@@ -216,7 +216,10 @@ def evaluate(
         )
 
     # 3. Sport-specific score-based exit (tüm pozisyonlar — A-hold gate yok)
-    if _is_hockey_family(pos.sport_tag) and score_info.get("available"):
+    # Pre-match guard: ESPN pre-match'te de score_info.available=True dönebilir
+    # (period='Scheduled', 0-0). Skellam fallback p_cover≈bid → PREDICTIVE_DEAD
+    # phantom fire eder. NHL dispatch (ml/spread/totals) pre-match'te atlanır.
+    if _is_hockey_family(pos.sport_tag) and score_info.get("available") and not match_pre_start:
         nhl_sig = _dispatch_nhl_exit(
             pos, score_info, elapsed_pct,
             nhl_exit_cfg, nhl_wp_table,

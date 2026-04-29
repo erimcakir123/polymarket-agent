@@ -93,12 +93,39 @@ class TestShootout:
 class TestPredictiveDead:
     def test_predictive_dead_fires_when_p_win_low(self):
         d = _decide(
-            win_probability_fn=lambda p, v, s: (0.12, "skellam"),
+            win_probability_fn=lambda p, v, s: (0.12, "empirical"),
             current_bid=0.15,
         )
         assert d.reason == ExitReason.PREDICTIVE_DEAD
         assert d.p_win == pytest.approx(0.12)
-        assert d.p_win_source == "skellam"
+        assert d.p_win_source == "empirical"
+
+    def test_predictive_dead_skipped_when_source_not_empirical(self):
+        """Skellam fallback NHL ML'i bid'e yakın tahmin edebilir → false trigger.
+        Empirical kalibrasyon yokken PREDICTIVE_DEAD kapalı."""
+        d = _decide(
+            win_probability_fn=lambda p, v, s: (0.12, "skellam_fallback"),
+            current_bid=0.15,
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_1(self):
+        """NBA Q4-only paraleli: P1'de PREDICTIVE_DEAD pasif."""
+        d = _decide(
+            period=1,
+            win_probability_fn=lambda p, v, s: (0.12, "empirical"),
+            current_bid=0.15,
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_2(self):
+        """NBA Q4-only paraleli: P2'de PREDICTIVE_DEAD pasif."""
+        d = _decide(
+            period=2,
+            win_probability_fn=lambda p, v, s: (0.12, "empirical"),
+            current_bid=0.15,
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
 
     def test_predictive_dead_does_not_fire_when_p_win_high(self):
         d = _decide(

@@ -56,13 +56,15 @@ def test_scale_out_partial():
 
 
 def test_buy_yes_predictive_dead_when_one_goal_lead_late():
-    """BUY_YES, +1 lead, P3 600s → p_cover Skellam ~0.13, bid 0.50 → 0.13 < 0.53 → PREDICTIVE_DEAD."""
+    """BUY_YES, +1 lead, P3 600s → empirical p_cover 0.13, bid 0.50 → 0.13 < 0.53 → PREDICTIVE_DEAD.
+    PREDICTIVE_DEAD yalnızca empirical kalibrasyon altında fire eder; mock table provide ediliyor."""
     pos = _pos(direction="BUY_YES", bid_price=0.50)
     score_info = {
         "available": True, "period": 3, "clock_seconds": 600,
         "our_score": 2, "opp_score": 1,  # +1 lead favori
     }
-    sig = check_nhl_puck_line_exit(pos, score_info, 0.5, NHLPuckLineExitConfig(), {})
+    table = {"puck_line_cover": {"3_1_600": {"p_favorite_covers": 0.13}}}
+    sig = check_nhl_puck_line_exit(pos, score_info, 0.5, NHLPuckLineExitConfig(), table)
     assert sig is not None
     assert sig.reason == ExitReason.NHL_PUCK_LINE_PREDICTIVE_DEAD
 
@@ -75,4 +77,21 @@ def test_hold_when_two_goal_lead_high_p_cover():
         "our_score": 3, "opp_score": 1,  # +2 lead
     }
     sig = check_nhl_puck_line_exit(pos, score_info, 0.5, NHLPuckLineExitConfig(), {})
+    assert sig is None
+
+
+def test_period_1_predictive_dead_skipped_pre_p3_guard():
+    """NBA Q4-only paraleli: NHL P1/P2'de PREDICTIVE_DEAD pasif. Empirical hit
+    olsa ve p_cover bid'in altında olsa bile P3 başlamadan tetiklenmez —
+    skor henüz 'geri dönülemez' değil. NEAR_RESOLVE/SCALE_OUT/STRUCTURAL_DAMAGE
+    + dolar SL koruma sağlar."""
+    pos = _pos(direction="BUY_YES", bid_price=0.39)
+    score_info = {
+        "available": True, "period_number": 1, "clock_seconds": 1140,
+        "our_score": 0, "opp_score": 0,
+    }
+    # Clock dönüşümü çalışıyor: P1 + 1140s period clock → 3540s regulation.
+    # Empirical key '1_0_3540' var ve p_cover 0.10, ama period<3 → skip.
+    table = {"puck_line_cover": {"1_0_3540": {"p_favorite_covers": 0.10}}}
+    sig = check_nhl_puck_line_exit(pos, score_info, 0.0, NHLPuckLineExitConfig(), table)
     assert sig is None

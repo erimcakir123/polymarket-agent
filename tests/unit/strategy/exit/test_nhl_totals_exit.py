@@ -145,3 +145,30 @@ class TestEdgeCases:
         d = _decide()
         with pytest.raises(Exception):
             d.action = ExitAction.SELL_ALL  # type: ignore[misc]
+
+    def test_predictive_dead_skipped_when_source_not_empirical(self):
+        """Skellam fallback NHL totals'da bid'e yakın çıkıp false trigger
+        üretebilir. Empirical kalibrasyon yokken PREDICTIVE_DEAD kapalı."""
+        d = _decide(
+            current_bid=0.40,
+            p_over_fn=lambda p, c, s, t: (0.10, "skellam_fallback"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_1(self):
+        """NBA Q4-only paraleli: P1'de PREDICTIVE_DEAD pasif."""
+        d = _decide(
+            period=1,
+            current_bid=0.40,
+            p_over_fn=lambda p, c, s, t: (0.10, "empirical"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD
+
+    def test_predictive_dead_skipped_in_period_2(self):
+        """NBA Q4-only paraleli: P2'de PREDICTIVE_DEAD pasif."""
+        d = _decide(
+            period=2,
+            current_bid=0.40,
+            p_over_fn=lambda p, c, s, t: (0.10, "empirical"),
+        )
+        assert d.reason != ExitReason.PREDICTIVE_DEAD

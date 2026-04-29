@@ -81,7 +81,18 @@ def decide_nhl_puck_line_exit(
         p_cover = None
         p_cover_source = "error"
 
-    if p_cover is not None and p_cover < (current_bid + cfg.predictive_safety_margin):
+    # PREDICTIVE_DEAD: NBA'nın "Q4 only" pattern'ı paraleli — sadece P3+ aktif.
+    # P1/P2'de skor henüz "geri dönülemez" değil; empirical bile baz değer
+    # üretir → false trigger riski. Ek olarak source=='empirical' şartı:
+    # Skellam fallback NHL -1.5'i under-estimate ediyor (low-scoring + OT/SO
+    # modifier yok). NEAR_RESOLVE/SCALE_OUT/STRUCTURAL_DAMAGE + dolar SL
+    # erken oyunda da çalışmaya devam eder.
+    if (
+        period >= 3
+        and p_cover is not None
+        and p_cover_source == "empirical"
+        and p_cover < (current_bid + cfg.predictive_safety_margin)
+    ):
         return NHLPuckLineExitDecision(
             action=ExitAction.SELL_ALL,
             reason=ExitReason.PREDICTIVE_DEAD,

@@ -4,10 +4,45 @@ from __future__ import annotations
 import pytest
 from src.domain.sports.nhl_match_clock import (
     parse_nhl_status,
+    period_clock_to_regulation_seconds,
     NHLClock,
     REGULATION_TOTAL_SECONDS,
     REGULATION_PERIOD_SECONDS,
 )
+
+
+class TestPeriodClockToRegulationSeconds:
+    """ESPN displayClock period-bound (0–1200s) → regulation-total (0–3600s)."""
+
+    def test_period_1_full_clock_returns_full_regulation(self):
+        # P1 başlangıcı: 20:00 kalan → 1200 period clock → 2*1200 + 1200 = 3600
+        assert period_clock_to_regulation_seconds(1, 1200) == 3600
+
+    def test_period_1_mid_clock(self):
+        # P1, 19 dk kalan = 1140s period → 2*1200 + 1140 = 3540s regulation
+        assert period_clock_to_regulation_seconds(1, 1140) == 3540
+
+    def test_period_2_start(self):
+        # P2 başlangıcı: 20:00 kalan → 1*1200 + 1200 = 2400s regulation
+        assert period_clock_to_regulation_seconds(2, 1200) == 2400
+
+    def test_period_3_equals_period_clock(self):
+        # P3'te period_clock == regulation_seconds (son periyot, ekstra ekleme yok)
+        assert period_clock_to_regulation_seconds(3, 600) == 600
+        assert period_clock_to_regulation_seconds(3, 0) == 0
+
+    def test_pre_match_returns_zero(self):
+        # period=0 (pre) → 0 (regulation kavramı yok)
+        assert period_clock_to_regulation_seconds(0, 1200) == 0
+
+    def test_overtime_returns_zero(self):
+        # P4 (OT), P5 (SO) → regulation bitti, 0
+        assert period_clock_to_regulation_seconds(4, 300) == 0
+        assert period_clock_to_regulation_seconds(5, 0) == 0
+
+    def test_negative_period_clock_clamped_to_zero(self):
+        # Negatif input → 0'a clamp (defensif)
+        assert period_clock_to_regulation_seconds(2, -10) == 1200
 
 
 def _status(period: int, display_clock: str, state: str, detail: str) -> dict:

@@ -98,6 +98,56 @@ Short canonical form'lar (Trail Blazers, Timberwolves, Cavaliers, Mavericks, Wiz
 
 ---
 
+## Pre-Match Guard NHL Score-Based Exit Kapsama (2026-04-28)
+
+**Bulgu**: Sabres -1.5 spread (event 410180), bot 6 kez aynı pozisyonu açıp anında `nhl_puck_line_predictive_dead` ile kapattı (entry=exit=39¢, pnl=0, ~3 dk arayla). Tüm exit'lerde `period_at_exit="Scheduled"`, `elapsed_pct_at_exit≈-1.58` — yani maç başlamadan ESPN pre-match data döndürmüş, bot da phantom çıkış yapmış.
+
+**Mekanizma**: `decide_nhl_puck_line_exit` PREDICTIVE_DEAD koşulu `p_cover < bid + 0.03`. Pre-match'te:
+- bid ≈ 0.39 (Polymarket spread fiyatı)
+- score_info.available=True (period=1, 0-0, full clock — ESPN'in pre-match snapshot'ı)
+- Skellam fallback p_cover ≈ 0.13 (full-game cover olasılığı düşük)
+- 0.13 < 0.39 + 0.03 = 0.42 → SELL_ALL anında
+
+PREDICTIVE_DEAD'in tasarım amacı *"skor değişti, bid hâlâ aşağı düşmedi → çık"*. Pre-match'te bid efficient market estimate'ine yakın olduğundan kural **doğru ama zamansız** ateşliyor — phantom değil, kalibrasyon kapsamı sorunu.
+
+**Bağlanan guard**: `b990ff0` commit'i pre-match guard'ı sadece `near_resolve` + `scale_out`'a uygulamıştı. NHL score-based dispatch ([monitor.py](src/strategy/exit/monitor.py)) bu kontrolü içermiyordu. Düzeltme: `_is_hockey_family(...) and score_info.get("available") and not match_pre_start` — pre-match'te tüm NHL exit'leri (ml/spread/totals) atlanır.
+
+**Test**: 3 yeni vaka (puck line + ML + totals × pre-match) `test_monitor_nhl_routing.py`. Suite 1269/1269.
+
+**Cleanup**: 6 phantom kaydı `trade_history.jsonl` + `exits.jsonl`'den çıkarıldı (`.bak.phantom-fix-2`). PnL=0 olduğu için equity_history etkilenmedi, circuit_breaker temiz.
+
+**İkinci tur (ESPN-delay phantom)**: `match_pre_start = elapsed_pct < 0` guard'ı yetmiyordu — ESPN bazen `match_start_iso` zamanı GEÇTİĞİ halde hâlâ pre-match snapshot döndürüyor (puck drop gecikmesi / API delay). Bu durumda `elapsed_pct ≈ 0+` (pozitif) → guard atlatamıyor.
+
+Asıl bug: 3 NHL dispatch'inde `period = score_info.get("period") or score_info.get("period_number")`. ESPN pre-match'te `period` field'ı string ("Scheduled") truthy → `period_number=None` (int) yerine string period'a düşüyor. Sonra `seconds_remaining=0` ile Skellam → `0.0` < bid+0.03 → PREDICTIVE_DEAD anında.
+
+**Düzeltme**: `_nhl_exit_dispatch.py`, `_nhl_puck_line_dispatch.py`, `_nhl_totals_dispatch.py` — period extraction `period_number` int öncelikli, `isinstance(period, int) and period > 0` validation. ESPN string description ("Scheduled", "1st Period") int değilse → return None → exit fire etmez. `period_number` field'ı ESPN client `raw_period > 0` ise int set ediyor; pre-match/invalid'da None.
+
+3 yeni regresyon testi (ESPN-delay × ml/spread/totals) prod verisini birebir taklit ediyor. Suite 1269 → 1272 (3 yeni). Toplam 8 phantom kaydı temizlendi.
+
+**Üçüncü tur (Skellam-fallback kalibrasyon)**: Maç gerçekten başlayıp `period_number=1` (int) gelince guard'lar artık koruyor değildi — yine 3 phantom (28 Apr 23:39/23:42/23:46, period="In Progress", elapsed≈0.07). Empirical puck line tablosu (`data/nhl_empirical_puck_line_table.json`, 142KB) value'ları **null** içeriyor (sample size eksik); ML için empirical wp_table dosyası **yok**. Sonuç: tüm dispatch çağrıları `skellam_fallback`'e düşüyor; Skellam NHL -1.5 cover'ını under-estimate ediyor (low-scoring + OT/SO modifier yok) → erken-game'de p_cover bid'in hemen altına düşüyor → PREDICTIVE_DEAD false fire.
+
+**Düzeltme**: 3 NHL exit fonksiyonu (`nhl_puck_line_exit.py`, `nhl_score_exit.py`, `nhl_totals_exit.py`) PREDICTIVE_DEAD bloğuna `source == "empirical"` koşulu eklendi. Empirical kalibrasyon olmayan vakada PREDICTIVE_DEAD kapalı; NEAR_RESOLVE (94¢) + SCALE_OUT (85¢) bid-tabanlı kâr lock'u + STRUCTURAL_DAMAGE (current/entry < 0.30) + dolar SL korumayı sağlar. Empirical tablo dolduğunda kural otomatik geri açılır.
+
+3 yeni regresyon testi (`test_predictive_dead_skipped_when_source_not_empirical` × ml/spread/totals). Mevcut 2 dispatch testi empirical mock table ile güncellendi. Suite 1272 → 1275 (3 yeni). Toplam 11 phantom kaydı temizlendi.
+
+**Dördüncü tur (clock semantik mismatch)**: Empirical tablo aslında **dolu** (4198 maç verisi: puck line %84 non-null, totals %73 non-null). Sorun build script ve dispatch arasındaki saniye semantik uyumsuzluğu — tablo regulation-total bazlı kalibre (P1 başlangıcı = 3600s), ESPN displayClock periyot bazlı (P1'de 0–1200s). Dispatch ESPN değerini doğrudan tabloya gönderiyordu → her çağrı MISS → Skellam fallback → PREDICTIVE_DEAD false fire (üçüncü tur guard'ı önledi ama 4198 maçlık veri israf).
+
+**Düzeltme**: `src/domain/sports/nhl_match_clock.py`'ye public helper eklendi: `period_clock_to_regulation_seconds(period, period_clock_seconds)` — `(3 - period) * 1200 + period_clock`, period<=0 veya >3 için 0. `_nhl_puck_line_dispatch.py` ve `_nhl_totals_dispatch.py` ESPN clock'unu bu helper ile regulation-total bazlı dönüştürüp tabloya / Skellam'a gönderiyor. P3'te dönüşüm transparent (period_clock ≡ regulation), bu yüzden mevcut testler etkilenmedi.
+
+7 yeni helper testi (`TestPeriodClockToRegulationSeconds`) + 1 dispatch P1 empirical-hit testi (`test_period_1_clock_converted_to_regulation_for_table_lookup`). Suite 1275 → 1432 (8 yeni; geri kalan delta domain testlerinin unit'ten ayrı koşmasından).
+
+**Not**: Empirical artık aktif. PREDICTIVE_DEAD bundan sonra empirical kalibrasyon altında çalışacak. P1 0-0 başlangıçta empirical p_cover ≈ 0.10-0.15 — bid 0.39+0.03=0.42 üstündeyse fire eder. Erken-game'de market kalibrasyonunun empirical ortalama'dan farklı olduğu durumda meşru "early exit" üretebilir; bu phantom değildir, kalibrasyon kararıdır. Gerçek market'in 4198 maçlık ortalamadan ayrıştığı durumlarda PREDICTIVE_DEAD'in `predictive_safety_margin` veya minimum elapsed guard'ı yeniden değerlendirilebilir.
+
+**Beşinci tur (P3-only PREDICTIVE_DEAD — NBA Q4-only paraleli)**: Empirical aktifleşince P1 0-0 başlangıçta tarihsel cover oranı düşük olduğu için PREDICTIVE_DEAD meşru ama zamansız tetiklenir. Erken oyunda skor henüz "geri dönülemez" değil; market'in maça özel bilgisi (line value, puck drop dinamiği) tarihsel ortalama'dan ayrışabilir. Bu noktada NBA pattern'i izlendi: NBA score/spread/totals exit'leri **Q4 only** kalibre (q4_late, q4_final, q4_endgame); Q1-Q3'te score-based exit yok. NHL'de paraleli **P3+ only**.
+
+**Düzeltme**: 3 NHL exit fonksiyonunun (`nhl_puck_line_exit.py`, `nhl_score_exit.py`, `nhl_totals_exit.py`) PREDICTIVE_DEAD bloğuna `period >= 3` koşulu eklendi. P1/P2'de PREDICTIVE_DEAD pasif (skor değişebilir, ölü pozisyon yok); P3 ve sonrasında empirical kalibrasyon altında aktif. NEAR_RESOLVE/SCALE_OUT/SHOOTOUT_PROFIT/STRUCTURAL_DAMAGE + dolar SL erken oyunda da çalışır.
+
+7 yeni regresyon testi (P1/P2 skip × 3 dosya) + 1 dispatch testi (P1 empirical hit guard altında skip). Suite 1432 → 1438.
+
+**Sonuç**: NBA'nın yıllarca olgunlaşmış "Q4 only" mantığı NHL'e taşındı. Predictive exit artık iki katmanlı korumayla çalışır: (1) periyot ≥ 3 (geri dönülemez aşama), (2) source == empirical (kalibrasyonlu tahmin). Pre-P3 phantom riski tamamen kapalı.
+
+---
+
 ## ENTRY
 
 ### Confidence Grading

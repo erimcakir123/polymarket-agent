@@ -50,6 +50,8 @@ _PUSHABLE_REASONS: frozenset[str] = frozenset({
     "no_edge",
     "no_bookmaker_data",
     "circuit_breaker",
+    # Volume can rise as match approaches; re-evaluate on next heavy cycle.
+    "VOLUME_TOO_LOW",
 })
 
 
