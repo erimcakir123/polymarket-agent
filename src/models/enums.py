@@ -54,5 +54,5 @@ class ExitReason(str, Enum):
     TENNIS_PROFIT_LOCK = "tennis_profit_lock"
     TENNIS_SET_LOSS_DECISIVE = "tennis_set_loss_decisive"
     TENNIS_SET_LOSS_BAGEL = "tennis_set_loss_bagel"
-    TENNIS_MATEMATICAL_DEATH = "tennis_matematical_death"
+    TENNIS_MATHEMATICAL_DEATH = "tennis_mathematical_death"
     TENNIS_STRUCTURAL_DAMAGE = "tennis_structural_damage"

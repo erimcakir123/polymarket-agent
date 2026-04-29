@@ -983,7 +983,7 @@ Moneyline ONLY. No puck line (spread), no totals, no three-way ML.
 |---|---|---|---|
 | 1 | NEAR_RESOLVE | bid ≥ 0.95 | SELL_ALL |
 | 2 | STRUCTURAL_DAMAGE | current_price/entry ≤ 0.30 | SELL_ALL |
-| 3 | MATEMATICAL_DEATH | sets 0-2 (BO3) / 0-3 (BO5) | SELL_ALL |
+| 3 | MATHEMATICAL_DEATH | sets 0-2 (BO3) / 0-3 (BO5) | SELL_ALL |
 | 4 | SET_LOSS_BAGEL | last completed set lost 0-6 (BO3 only) | SELL_75 |
 | 5 | SET_LOSS_DECISIVE | last completed set lost {1,2,3}-6 (BO3 only) | SELL_50 |
 | 6 | PROFIT_LOCK | bid ≥ 0.80 | SELL_50 |
@@ -997,7 +997,7 @@ threshold applied symmetrically.
 
 BO5 (Grand Slam ATP men's singles) intentionally falls back to HOLD on
 SET_LOSS_DECISIVE / SET_LOSS_BAGEL. NEAR_RESOLVE / PROFIT_LOCK / STRUCTURAL_DAMAGE /
-MATEMATICAL_DEATH (now triggered at 0-3 sets) still active. Phase 2 adds
+MATHEMATICAL_DEATH (now triggered at 0-3 sets) still active. Phase 2 adds
 Bayesian model + full BO5 set-state logic.
 
 ### Phase 0 paper observer disabled
@@ -1024,5 +1024,5 @@ work begins.
 - **SELL_75 on bagel vs SELL_50 on decisive:** bagel (0-6) signals decisive serve
   break collapse; recovery rate ≪ 5%. Decisive (1-6 to 3-6) recovery ~5-8%.
   Asymmetric sizing reflects the gap.
-- **MATEMATICAL_DEATH SELL_ALL:** 0-2 BO3 / 0-3 BO5 = literally cannot win → no
+- **MATHEMATICAL_DEATH SELL_ALL:** 0-2 BO3 / 0-3 BO5 = literally cannot win → no
   reason to hold for residual bid. Liquidity exit while market still has bid.

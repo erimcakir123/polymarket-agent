@@ -13,7 +13,7 @@ Direction handling (BUY_YES = bet on player A/home; BUY_NO = bet on B/away):
 Decision priority (first hit wins):
   1. NEAR_RESOLVE      — current_bid >= near_resolve_threshold
   2. STRUCTURAL_DAMAGE — current_price/entry_price <= structural_damage_ratio
-  3. MATEMATICAL_DEATH — sets_lost == sets_to_win (BO3=2, BO5=3)
+  3. MATHEMATICAL_DEATH — sets_lost == sets_to_win (BO3=2, BO5=3)
   4. SET_LOSS_BAGEL    — last completed set lost 0-6
   5. SET_LOSS_DECISIVE — last completed set lost {1,2,3}-6 (BO3 only Phase 1)
   6. PROFIT_LOCK       — current_bid >= profit_lock_threshold
@@ -40,7 +40,7 @@ class ExitReason(str, Enum):
     PROFIT_LOCK = "PROFIT_LOCK"
     SET_LOSS_DECISIVE = "SET_LOSS_DECISIVE"
     SET_LOSS_BAGEL = "SET_LOSS_BAGEL"
-    MATEMATICAL_DEATH = "MATEMATICAL_DEATH"
+    MATHEMATICAL_DEATH = "MATHEMATICAL_DEATH"
     STRUCTURAL_DAMAGE = "STRUCTURAL_DAMAGE"
     HOLD = "HOLD"
 
@@ -85,7 +85,7 @@ _DOMAIN_REASON_MAP: dict[ExitReason, DomainExitReason] = {
     ExitReason.PROFIT_LOCK: DomainExitReason.TENNIS_PROFIT_LOCK,
     ExitReason.SET_LOSS_DECISIVE: DomainExitReason.TENNIS_SET_LOSS_DECISIVE,
     ExitReason.SET_LOSS_BAGEL: DomainExitReason.TENNIS_SET_LOSS_BAGEL,
-    ExitReason.MATEMATICAL_DEATH: DomainExitReason.TENNIS_MATEMATICAL_DEATH,
+    ExitReason.MATHEMATICAL_DEATH: DomainExitReason.TENNIS_MATHEMATICAL_DEATH,
     ExitReason.STRUCTURAL_DAMAGE: DomainExitReason.TENNIS_STRUCTURAL_DAMAGE,
 }
 
@@ -118,7 +118,7 @@ def decide_tennis_exit(
     perspective: BUY_YES = home is "us", BUY_NO = away is "us".
 
     BO5 safe fallback: SET_LOSS_DECISIVE / SET_LOSS_BAGEL are NOT fired in
-    BO5 (deferred to Phase 2 — Bayesian model needed). MATEMATICAL_DEATH still
+    BO5 (deferred to Phase 2 — Bayesian model needed). MATHEMATICAL_DEATH still
     fires at 0-3 sets and NEAR_RESOLVE / PROFIT_LOCK / STRUCTURAL_DAMAGE work
     normally for both formats.
     """
@@ -149,12 +149,12 @@ def decide_tennis_exit(
         our_last_set = last_completed_set_away
         opp_last_set = last_completed_set_home
 
-    # ── 3. MATEMATICAL_DEATH ──
+    # ── 3. MATHEMATICAL_DEATH ──
     sets_to_win = cfg.bo5_sets_to_win if is_bo5 else cfg.bo3_sets_to_win
     if opp_sets >= sets_to_win and our_sets < sets_to_win:
         return TennisExitDecision(
             action=ExitAction.SELL_ALL,
-            reason=ExitReason.MATEMATICAL_DEATH,
+            reason=ExitReason.MATHEMATICAL_DEATH,
             note=f"sets {our_sets}-{opp_sets} bo{'5' if is_bo5 else '3'}",
         )
 
@@ -204,7 +204,6 @@ def _extract_last_completed_set(
     linescores: list,
     sets_won_home: int,
     sets_won_away: int,
-    current_set: int,
 ) -> tuple[int | None, int | None]:
     """Extract last COMPLETED set scoreline from ESPN linescores.
 
@@ -220,8 +219,7 @@ def _extract_last_completed_set(
     if total_sets_done == 0:
         return None, None
     # Take the most recent completed set; ESPN appends current set last
-    # when current_set > total_sets_done. If current_set == total_sets_done,
-    # all linescores are completed and last entry is the most recent.
+    # while it's in progress, so index by completed-set count.
     idx = total_sets_done - 1
     # Guard index range
     if idx < 0 or idx >= len(linescores):
@@ -262,7 +260,7 @@ def check_tennis_exit(
     linescores = score_info.get("linescores", []) or []
 
     last_h, last_a = _extract_last_completed_set(
-        linescores, sets_won_home, sets_won_away, current_set,
+        linescores, sets_won_home, sets_won_away,
     )
 
     # Format: BO3 default; BO5 indicated externally (Grand Slam ATP men).

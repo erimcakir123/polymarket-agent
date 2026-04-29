@@ -15,7 +15,7 @@ Set-bazlı tablo (BO3):
 - 0-1 sets, decisive (1-6 / 2-6 / 3-6): SELL_50 SET_LOSS_DECISIVE
 - 0-1 sets, bagel (0-6): SELL_75 SET_LOSS_BAGEL
 - 1-1 sets: HOLD
-- 0-2 sets: SELL_ALL MATEMATICAL_DEATH
+- 0-2 sets: SELL_ALL MATHEMATICAL_DEATH
 - bid >= 0.95 anytime: SELL_ALL NEAR_RESOLVE (overrides)
 - bid >= 0.80 (and not yet locked): SELL_50 PROFIT_LOCK
 - price/entry <= 0.30: SELL_ALL STRUCTURAL_DAMAGE
@@ -128,7 +128,7 @@ class TestBuyYesMathDeath:
         d = _decide(sets_won_home=0, sets_won_away=2, current_set=3,
                     is_bo5=False)
         assert d.action == ExitAction.SELL_ALL
-        assert d.reason == ExitReason.MATEMATICAL_DEATH
+        assert d.reason == ExitReason.MATHEMATICAL_DEATH
 
 
 class TestBuyYesNearResolve:
@@ -175,7 +175,7 @@ class TestBuyNoDirection:
         d = _decide(sets_won_home=2, sets_won_away=0, current_set=3,
                     direction="BUY_NO", is_bo5=False)
         assert d.action == ExitAction.SELL_ALL
-        assert d.reason == ExitReason.MATEMATICAL_DEATH
+        assert d.reason == ExitReason.MATHEMATICAL_DEATH
 
 
 # ─────────────────────────── Override layer — bid filters ───────────────────
@@ -235,15 +235,15 @@ class TestBo5SafeFallback:
         # In BO5, 0-2 is recoverable. Phase 1 returns HOLD safely.
         d = _decide(sets_won_home=0, sets_won_away=2, current_set=3,
                     is_bo5=True)
-        # Should NOT be MATEMATICAL_DEATH
-        assert d.reason != ExitReason.MATEMATICAL_DEATH
+        # Should NOT be MATHEMATICAL_DEATH
+        assert d.reason != ExitReason.MATHEMATICAL_DEATH
 
     def test_bo5_zero_three_sets_math_death(self):
         # In BO5, 0-3 IS mathematical death
         d = _decide(sets_won_home=0, sets_won_away=3, current_set=4,
                     is_bo5=True)
         assert d.action == ExitAction.SELL_ALL
-        assert d.reason == ExitReason.MATEMATICAL_DEATH
+        assert d.reason == ExitReason.MATHEMATICAL_DEATH
 
     def test_bo5_set_loss_does_not_fire_phase1(self):
         # Phase 1 v1: BO5 set loss does NOT trigger SELL_50/75 (deferred Phase 2).
