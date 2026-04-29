@@ -33,6 +33,12 @@ class EntryProcessor:
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
+        # Tennis paper observer (Phase 0 read-only) — fires on FULL scan output
+        # BEFORE any active_sports/stock filtering, because tennis is intentionally
+        # excluded from production active_sports (paper-only). Wrapped in try/except
+        # internally so observer errors never break heavy pipeline.
+        self._observe_tennis_pre_match(scan_fresh)
+
         # Gamma scan'den gelen event_live flag'ini açık pozisyonlara yansıt
         # (Odds API maliyeti yok — Gamma ücretsiz).
         self._sync_live_flag(scan_fresh, scan_by_cid)
@@ -113,11 +119,8 @@ class EntryProcessor:
         mode = self.deps.state.config.mode.value
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="analyzing")
 
-        # Tennis paper observer (Phase 0 read-only hook).
-        # Runs BEFORE gate so tennis markets are observed even though
-        # active_sports filter blocks their entry. Wrapped in try/except
-        # so observer errors never break entry pipeline.
-        self._observe_tennis_pre_match(markets)
+        # Note: tennis paper observer hook moved to run_heavy() so it sees the
+        # full scan_fresh output before active_sports filter excludes tennis.
 
         results = self.deps.gate.run(markets)
         by_cid = {m.condition_id: m for m in markets}
@@ -182,9 +185,10 @@ class EntryProcessor:
     def _observe_tennis_pre_match(self, markets: list[MarketData]) -> None:
         """Phase 0 read-only hook: log Magnus prediction for tennis candidates.
 
-        Runs before gate.run() so tennis markets are observed even when
-        active_sports filter excludes them from production entry. All
-        errors are swallowed (observation must never break entry pipeline).
+        Called from run_heavy() with the full scan_fresh output so tennis
+        markets are observed even when active_sports filter excludes them
+        from production entry. All errors are swallowed (observation must
+        never break heavy pipeline).
         """
         observer = getattr(self.deps, "tennis_observer", None)
         if observer is None:
