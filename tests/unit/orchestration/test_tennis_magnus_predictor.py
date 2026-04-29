@@ -32,7 +32,6 @@ def predictor() -> TennisMagnusPredictor:
         registry=registry,
         matches=matches,
         surface_factors=surface_factors,
-        is_wta=False,
     )
 
 
@@ -42,6 +41,7 @@ def test_predict_pre_match_sinner_vs_cobolli_clay(predictor: TennisMagnusPredict
         player_b_query="Flavio Cobolli",
         surface="clay",
         format="BO3",
+        is_wta=False,
     )
     assert result is not None
     # Sinner is heavy favorite
@@ -55,12 +55,15 @@ def test_predict_unknown_player_returns_none(predictor: TennisMagnusPredictor) -
         player_b_query="Flavio Cobolli",
         surface="clay",
         format="BO3",
+        is_wta=False,
     )
     assert result is None
 
 
 def test_predict_with_state_a_won_set1(predictor: TennisMagnusPredictor) -> None:
-    pre = predictor.predict_pre_match("Jannik Sinner", "Flavio Cobolli", "clay", "BO3")
+    pre = predictor.predict_pre_match(
+        "Jannik Sinner", "Flavio Cobolli", "clay", "BO3", is_wta=False,
+    )
     assert pre is not None
     after = predictor.predict_with_state(
         player_a_query="Jannik Sinner",
@@ -72,6 +75,7 @@ def test_predict_with_state_a_won_set1(predictor: TennisMagnusPredictor) -> None
         games_a=0,
         games_b=0,
         server_is_a=True,
+        is_wta=False,
     )
     assert after is not None
     assert after.p_win_a > pre.p_win_a
