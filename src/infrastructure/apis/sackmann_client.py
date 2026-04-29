@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 
 import requests
 
@@ -106,7 +106,6 @@ def aggregate_player_stats(
         prefix = "w_" if is_winner else "l_"
         try:
             svpt = int(m.get(f"{prefix}svpt", "0") or 0)
-            first_in = int(m.get(f"{prefix}1stIn", "0") or 0)
             first_won = int(m.get(f"{prefix}1stWon", "0") or 0)
             second_won = int(m.get(f"{prefix}2ndWon", "0") or 0)
         except ValueError:
@@ -148,7 +147,7 @@ def fetch_csv_to_cache(
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
         tmp_path.write_text(resp.text, encoding="utf-8")
-        tmp_path.rename(cache_path)
+        os.replace(tmp_path, cache_path)
         logger.info("Sackmann fetched: %s -> %s (%d bytes)", url, cache_path, len(resp.text))
         return True
     except Exception as exc:  # noqa: BLE001
