@@ -47,12 +47,10 @@ class TennisMagnusPredictor:
         registry: PlayerRegistry,
         matches: list[dict],
         surface_factors: dict[str, dict[str, float]],
-        is_wta: bool,
     ) -> None:
         self._registry = registry
         self._matches = matches
         self._surface_factors = surface_factors
-        self._is_wta = is_wta
 
     def predict_pre_match(
         self,
@@ -60,8 +58,9 @@ class TennisMagnusPredictor:
         player_b_query: str,
         surface: Literal["clay", "hard", "grass"],
         format: Literal["BO3", "BO5"],
+        is_wta: bool,
     ) -> PredictionResult | None:
-        prep = self._prepare_inputs(player_a_query, player_b_query, surface)
+        prep = self._prepare_inputs(player_a_query, player_b_query, surface, is_wta)
         if prep is None:
             return None
         rec_a, rec_b, p_a_adj, p_b_adj = prep
@@ -88,8 +87,9 @@ class TennisMagnusPredictor:
         games_a: int,
         games_b: int,
         server_is_a: bool,
+        is_wta: bool,
     ) -> PredictionResult | None:
-        prep = self._prepare_inputs(player_a_query, player_b_query, surface)
+        prep = self._prepare_inputs(player_a_query, player_b_query, surface, is_wta)
         if prep is None:
             return None
         rec_a, rec_b, p_a_adj, p_b_adj = prep
@@ -113,6 +113,7 @@ class TennisMagnusPredictor:
         player_a_query: str,
         player_b_query: str,
         surface: str,
+        is_wta: bool,
     ) -> tuple[PlayerRecord, PlayerRecord, float, float] | None:
         rec_a = resolve_player(player_a_query, self._registry)
         rec_b = resolve_player(player_b_query, self._registry)
@@ -126,7 +127,7 @@ class TennisMagnusPredictor:
             logger.info("magnus_predictor: no stats for %s or %s", rec_a.full_name, rec_b.full_name)
             return None
 
-        gender = "wta" if self._is_wta else "atp"
+        gender = "wta" if is_wta else "atp"
         factor = self._surface_factors.get(gender, {}).get(surface, 1.0)
         p_a_adj = max(0.0, min(1.0, stats_a.service_points_won_pct * factor))
         p_b_adj = max(0.0, min(1.0, stats_b.service_points_won_pct * factor))

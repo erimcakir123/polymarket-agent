@@ -110,11 +110,13 @@ class TennisPaperObserver:
             if not team_a or not team_b:
                 return
 
+            is_wta = slug.lower().startswith("wta-")
             result = self._predictor.predict_pre_match(
                 player_a_query=team_a,
                 player_b_query=team_b,
                 surface=tournament_info.surface,
                 format=tournament_info.format,
+                is_wta=is_wta,
             )
             if result is None:
                 return

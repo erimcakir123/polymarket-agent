@@ -6,9 +6,19 @@ main.py burayı çağırır. Test izolasyonu için agent.py DI container
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 
 from src.config.settings import AppConfig, Mode
+from src.domain.matching.tennis_player_resolver import build_registry
+from src.infrastructure.apis.sackmann_client import (
+    SackmannCache,
+    parse_matches_csv,
+    parse_players_csv,
+    refresh_atp_data,
+    refresh_wta_data,
+)
+from src.orchestration.tennis_magnus_predictor import TennisMagnusPredictor
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.gamma_client import GammaClient
@@ -263,16 +273,19 @@ def build_agent(state: RuntimeState) -> Agent:
     nhl_puck_line_table = _load_nhl_puck_line_table()
     nhl_totals_table = _load_nhl_totals_table()
 
-    # Tennis paper observer (Phase 0). magnus_predictor wired in Task 7.
+    # Tennis paper observer (Phase 0). Magnus predictor wired from Sackmann
+    # ATP+WTA caches; if neither registry can be built, predictor stays None
+    # and observer falls back to placeholder mode (logs INFO + skips).
     tennis_observer: TennisPaperObserver | None = None
     tennis_cfg = getattr(cfg, "tennis", None)
     if tennis_cfg is not None and tennis_cfg.phase != "disabled":
         tennis_paper_logger = TennisPaperLogger(
             log_path=Path("logs/audit/tennis_paper_trade.jsonl")
         )
+        predictor = _build_tennis_predictor(tennis_cfg)
         tennis_observer = TennisPaperObserver(
             paper_logger=tennis_paper_logger,
-            magnus_predictor=None,
+            magnus_predictor=predictor,
             phase=tennis_cfg.phase,
             min_edge_threshold=tennis_cfg.filters.min_edge,
         )
@@ -302,6 +315,54 @@ def build_agent(state: RuntimeState) -> Agent:
         command_poller._on_stop = agent.request_stop
 
     return agent
+
+
+def _build_tennis_predictor(tennis_cfg) -> TennisMagnusPredictor | None:
+    """Load Sackmann ATP+WTA caches and construct TennisMagnusPredictor.
+
+    Returns None if neither registry can be built (no network + empty cache);
+    observer falls back to placeholder mode in that case.
+    """
+    cache = SackmannCache(
+        cache_dir=Path(tennis_cfg.data.sackmann_cache_dir),
+        refresh_days=tennis_cfg.data.sackmann_refresh_days,
+    )
+    current_year = datetime.now().year
+    atp_paths = refresh_atp_data(cache, current_year)
+    wta_paths = refresh_wta_data(cache, current_year)
+
+    # Combined player registry (ATP + WTA).
+    all_player_records: list = []
+    for paths in (atp_paths, wta_paths):
+        for filename, path in paths.items():
+            if "players" in filename and path.exists():
+                all_player_records.extend(parse_players_csv(path))
+
+    if not all_player_records:
+        logger.warning(
+            "Tennis: no Sackmann player data available — predictor disabled, "
+            "observer will run in placeholder mode"
+        )
+        return None
+
+    registry = build_registry(all_player_records)
+
+    # Combined matches across genders + recent years.
+    all_matches: list[dict] = []
+    for paths in (atp_paths, wta_paths):
+        for filename, path in paths.items():
+            if "matches" in filename and path.exists():
+                all_matches.extend(parse_matches_csv(path))
+
+    surface_factors = {
+        "atp": tennis_cfg.surface_factors.serve_pct_atp,
+        "wta": tennis_cfg.surface_factors.serve_pct_wta,
+    }
+    return TennisMagnusPredictor(
+        registry=registry,
+        matches=all_matches,
+        surface_factors=surface_factors,
+    )
 
 
 def _build_executor(cfg: AppConfig) -> Executor:
