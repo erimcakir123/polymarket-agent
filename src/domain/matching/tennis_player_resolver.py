@@ -12,7 +12,10 @@ from typing import Iterable
 from rapidfuzz import fuzz
 
 
-_FUZZY_TOKEN_SORT_THRESHOLD = 0.85
+# Matching algorithm eşiği — kalibre edilmiş sabit (literaturden, config'e taşınmaz)
+# rapidfuzz token_sort_ratio min score for player name match. Runtime-tunable degil;
+# pair_matcher.py ile aynı kalibre referans (bkz: pair_matcher.py:22-25).
+_FUZZY_TOKEN_SORT_THRESHOLD: float = 0.85
 
 
 @dataclass(frozen=True)
