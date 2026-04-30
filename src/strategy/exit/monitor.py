@@ -19,7 +19,7 @@ from src.config.settings import BasketballExitConfig, ExitMonitorConfig
 from src.config.sport_rules import get_match_duration_hours, get_sport_rule, _normalize, is_cricket_sport
 from src.models.enums import ExitReason
 from src.models.position import Position
-from src.strategy.exit import market_flip, baseball_score_exit, favored, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
+from src.strategy.exit import market_flip, favored, near_resolve, nfl_score_exit, price_cap, scale_out, soccer_score_exit, tennis_score_exit
 from src.strategy.exit._guard_helpers import never_in_profit_exit_check
 from src.strategy.exit._nba_dispatch import check_nba_exit
 from src.strategy.exit._nhl_exit_dispatch import check_nhl_exit
@@ -254,15 +254,6 @@ def evaluate(
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-
-    if _normalize(pos.sport_tag) in ("mlb", "kbo", "npb", "baseball") and score_info.get("available"):
-        b_result = baseball_score_exit.check(
-            score_info=score_info,
-            current_price=pos.bid_price,
-            sport_tag=pos.sport_tag,
-        )
-        if b_result is not None:
-            return _simple_mr(b_result, pos, elapsed_pct)
 
     if _is_soccer_sport(pos.sport_tag) and score_info.get("available"):
         s_result = soccer_score_exit.check(score_info=score_info, sport_tag=pos.sport_tag)
