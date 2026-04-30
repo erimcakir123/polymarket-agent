@@ -34,7 +34,12 @@ class WeatherSnapshot:
 
 class OpenWeatherClient:
     def __init__(self) -> None:
-        self.api_key = os.environ["OPENWEATHER_API_KEY"]
+        self.api_key: str | None = os.environ.get("OPENWEATHER_API_KEY")
+        if not self.api_key:
+            logger.warning(
+                "OPENWEATHER_API_KEY not set — weather forecasts disabled. "
+                "MLB Totals will use park-only adjustment, no rain SKIP filter."
+            )
 
     def get_forecast(
         self,
@@ -42,6 +47,8 @@ class OpenWeatherClient:
         lon: float,
         hours_ahead: int,
     ) -> WeatherSnapshot | None:
+        if not self.api_key:
+            return None
         params = {"lat": lat, "lon": lon, "appid": self.api_key, "units": "standard"}
         try:
             resp = requests.get(_BASE_URL, params=params, timeout=_REQUEST_TIMEOUT_SEC)

@@ -244,17 +244,15 @@ def build_agent(state: RuntimeState) -> Agent:
             from src.infrastructure.apis.openweather_client import OpenWeatherClient
             from src.orchestration.mlb_edge_enricher import MLBEdgeEnricher
             _mlb_stats_client = MLBStatsClient()
-            _mlb_weather_client = OpenWeatherClient()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("MLB stats client instantiation failed: %s", exc)
+            _mlb_stats_client = None
+        if _mlb_stats_client is not None:
+            _mlb_weather_client = OpenWeatherClient()  # never raises; api_key may be None
             _mlb_edge_enricher = MLBEdgeEnricher(
                 stats_client=_mlb_stats_client,
                 weather_client=_mlb_weather_client,
             )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).error(
-                "MLB enricher instantiation failed (env var OPENWEATHER_API_KEY?): %s",
-                exc,
-            )
-            _mlb_edge_enricher = None
 
     # Gate: cricket_client + edge_enricher hazır olduktan sonra inşa edilir (SPEC-011)
     gate = EntryGate(

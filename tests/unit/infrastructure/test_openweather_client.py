@@ -62,7 +62,10 @@ def test_non_200_returns_none(client):
     assert snap is None
 
 
-def test_missing_api_key_raises():
+def test_missing_api_key_returns_none_forecast():
+    """Missing env var → client instantiates, get_forecast returns None gracefully."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(KeyError):
-            OpenWeatherClient()
+        client = OpenWeatherClient()
+        assert client.api_key is None
+        result = client.get_forecast(40.0, -73.9, 3)
+        assert result is None
