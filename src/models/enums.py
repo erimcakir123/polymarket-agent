@@ -49,6 +49,24 @@ class ExitReason(str, Enum):
     NHL_TOTALS_PREDICTIVE_DEAD = "nhl_totals_predictive_dead"
     NHL_TOTALS_STRUCTURAL_DAMAGE = "nhl_totals_structural_damage"
     NHL_TOTALS_HOLD = "nhl_totals_hold"
+    # MLB Moneyline exits
+    MLB_NEAR_RESOLVE = "mlb_near_resolve"
+    MLB_SCALE_OUT = "mlb_scale_out"
+    MLB_M1_SEVENTH_DEFICIT_5 = "mlb_m1_seventh_deficit_5"
+    MLB_M2_EIGHTH_DEFICIT_3 = "mlb_m2_eighth_deficit_3"
+    MLB_M3_NINTH_DEFICIT_1 = "mlb_m3_ninth_deficit_1"
+    MLB_PREDICTIVE_DEAD = "mlb_predictive_dead"
+    MLB_STRUCTURAL_DAMAGE = "mlb_structural_damage"
+    # MLB Run Line exits
+    MLB_RUN_LINE_NEAR_RESOLVE = "mlb_run_line_near_resolve"
+    MLB_RUN_LINE_SCALE_OUT = "mlb_run_line_scale_out"
+    MLB_RUN_LINE_PREDICTIVE_DEAD = "mlb_run_line_predictive_dead"
+    MLB_RUN_LINE_STRUCTURAL_DAMAGE = "mlb_run_line_structural_damage"
+    # MLB Totals exits
+    MLB_TOTALS_NEAR_RESOLVE = "mlb_totals_near_resolve"
+    MLB_TOTALS_SCALE_OUT = "mlb_totals_scale_out"
+    MLB_TOTALS_PREDICTIVE_DEAD = "mlb_totals_predictive_dead"
+    MLB_TOTALS_STRUCTURAL_DAMAGE = "mlb_totals_structural_damage"
     # Tennis Phase 1 v1 set-bazlı exits
     TENNIS_NEAR_RESOLVE = "tennis_near_resolve"
     TENNIS_PROFIT_LOCK = "tennis_profit_lock"
