@@ -91,7 +91,19 @@ def build_agent(state: RuntimeState) -> Agent:
 
     gamma = GammaClient()
     odds = OddsAPIClient(daily_cap=cfg.odds_api.daily_credit_cap)  # SPEC-015
-    scanner = MarketScanner(cfg.scanner, gamma_client=gamma)
+    # Tennis tier filter — opt-in: scanner drops markets whose Polymarket
+    # slug/question doesn't resolve to an allowed ATP/WTA tier (Challenger/
+    # ITF/futures), saving ~3 Odds API quota per dropped market that would
+    # otherwise reach gate.run() → enrich → EVENT_NO_MATCH.
+    tennis_cfg_for_scanner = getattr(cfg, "tennis", None)
+    tennis_tournaments = tennis_cfg_for_scanner.tournaments if tennis_cfg_for_scanner is not None else {}
+    tennis_excluded_tiers = tennis_cfg_for_scanner.excluded_tiers if tennis_cfg_for_scanner is not None else []
+    scanner = MarketScanner(
+        cfg.scanner,
+        gamma_client=gamma,
+        tennis_tournaments=tennis_tournaments,
+        tennis_excluded_tiers=tennis_excluded_tiers,
+    )
     cycle_manager = CycleManager(cfg.cycle)
     cooldown = CooldownTracker(
         trigger_threshold=cfg.risk.consecutive_loss_cooldown,

@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from src.config.settings import ScannerConfig
 from src.config.sport_configs import get_sport_config
 from src.config.sport_rules import _normalize
+from src.domain.matching.tennis_tournament_resolver import resolve_tournament
 from src.domain.matching.three_way_title import enrich_three_way_titles
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
@@ -30,6 +31,9 @@ _NBA_TAGS = frozenset({"basketball_nba", "nba"})
 _NBA_ALLOWED_SMT = frozenset({"moneyline", "spreads", "totals"})
 _NHL_TAGS = frozenset({"nhl", "ahl"})
 _NHL_ALLOWED_SMT = frozenset({"moneyline", "spreads", "totals"})
+# Tennis tier-filter gate (opt-in via constructor): only normalized
+# sport_tag values listed here are considered for tier resolution.
+_TENNIS_TAGS = frozenset({"tennis", "tennis_wta"})
 
 # SPEC-015: 3-way sum filter constants
 _THREE_WAY_SUM_MIN = 0.95
@@ -111,9 +115,15 @@ class MarketScanner:
         self,
         config: ScannerConfig,
         gamma_client: GammaClient | None = None,
+        tennis_tournaments: dict[str, dict[str, str]] | None = None,
+        tennis_excluded_tiers: list[str] | None = None,
     ) -> None:
         self.config = config
         self._gamma = gamma_client or GammaClient()
+        # Tennis tier filter — opt-in via factory. Empty dict default preserves
+        # existing scanner behavior (Challenger/ITF passes through).
+        self._tennis_tournaments: dict[str, dict[str, str]] = tennis_tournaments or {}
+        self._tennis_excluded_tiers: list[str] = tennis_excluded_tiers or []
 
     # ── Public API ──
 
@@ -204,6 +214,21 @@ class MarketScanner:
         # ve bucket-0 imminent'a düşer; bunu eler)
         if not self._match_start_recent_or_future(m):
             return False
+
+        # Tennis tier gate: Challenger/ITF marketleri scanner'a kadar geliyor
+        # çünkü slug atp-/wta- ile başlıyor; ama Odds API onları desteklemiyor.
+        # Quota harcamamak için burada elenir (resolve_tournament None dönerse
+        # tier whitelist'te değil → drop). Yalnızca scanner'a tennis config
+        # geçildiyse aktif; default boş dict mevcut davranışı korur.
+        if self._tennis_tournaments and _normalize(m.sport_tag) in _TENNIS_TAGS:
+            info = resolve_tournament(
+                slug=m.slug,
+                tournaments=self._tennis_tournaments,
+                excluded_tiers=self._tennis_excluded_tiers,
+                question=m.question,
+            )
+            if info is None:
+                return False
 
         return True
 
