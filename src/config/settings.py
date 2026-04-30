@@ -136,6 +136,30 @@ class ExitNhlTotalsConfig(BaseModel):
     predictive_safety_margin: float = 0.03
 
 
+class ExitMlbConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    near_resolve_threshold: float = 0.95
+    scale_out_threshold: float = 0.85
+    structural_damage_ratio: float = 0.30
+    predictive_safety_margin: float = 0.04
+
+
+class ExitMlbRunLineConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    near_resolve_threshold: float = 0.95
+    scale_out_threshold: float = 0.85
+    structural_damage_ratio: float = 0.30
+    predictive_safety_margin: float = 0.04
+
+
+class ExitMlbTotalsConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    near_resolve_threshold: float = 0.95
+    scale_out_threshold: float = 0.85
+    structural_damage_ratio: float = 0.30
+    predictive_safety_margin: float = 0.04
+
+
 class EntryConfig(BaseModel):
     """Directional entry (SPEC-017) — edge-free entry kararı.
 
@@ -210,6 +234,22 @@ class EntryConfig(BaseModel):
     nhl_totals_max_price: float = 0.80
     nhl_totals_min_target_total: float = 4.5
     nhl_totals_min_volume: float = 3000.0
+    # MLB-specific entry parameters (Sprint 1 dormant)
+    mlb_min_polymarket_price: float = 0.20
+    mlb_max_polymarket_price: float = 0.75
+    mlb_min_market_volume: float = 3000.0
+    mlb_min_liquidity: float = 3000.0
+    mlb_pre_game_window_min_hours: float = 2.0
+    mlb_pre_game_window_max_hours: float = 12.0
+    mlb_min_gap_threshold: float = 0.05
+    mlb_position_cap_pct: float = 0.03
+    mlb_max_position_usdc: float = 75.0
+    mlb_rain_skip_threshold: float = 0.60
+    mlb_rain_partial_threshold: float = 0.30
+    mlb_forbid_runline_minus_15_favorite: bool = True
+    mlb_pythagorean_exponent: float = 1.83
+    mlb_pitcher_weight: float = 0.35
+    mlb_league_avg_era: float = 4.20
 
 
 class StockConfig(BaseModel):
@@ -392,6 +432,9 @@ class AppConfig(BaseModel):
     exit_nhl: ExitNhlConfig = ExitNhlConfig()
     exit_nhl_puck_line: ExitNhlPuckLineConfig = ExitNhlPuckLineConfig()
     exit_nhl_totals: ExitNhlTotalsConfig = ExitNhlTotalsConfig()
+    exit_mlb: ExitMlbConfig = ExitMlbConfig()
+    exit_mlb_run_line: ExitMlbRunLineConfig = ExitMlbRunLineConfig()
+    exit_mlb_totals: ExitMlbTotalsConfig = ExitMlbTotalsConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
     cricket: CricketConfig = CricketConfig()  # SPEC-011

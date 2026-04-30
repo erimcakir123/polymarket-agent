@@ -216,6 +216,22 @@ entry:
   nhl_totals_max_price: 0.80
   nhl_totals_min_target_total: 4.5
   nhl_totals_min_volume: 3000.0
+  # MLB-specific entry parameters (Sprint 1 dormant — Sprint 1.5 will activate)
+  mlb_min_polymarket_price: 0.20
+  mlb_max_polymarket_price: 0.75
+  mlb_min_market_volume: 3000.0
+  mlb_min_liquidity: 3000.0
+  mlb_pre_game_window_min_hours: 2.0
+  mlb_pre_game_window_max_hours: 12.0
+  mlb_min_gap_threshold: 0.05
+  mlb_position_cap_pct: 0.03
+  mlb_max_position_usdc: 75.0
+  mlb_rain_skip_threshold: 0.60
+  mlb_rain_partial_threshold: 0.30
+  mlb_forbid_runline_minus_15_favorite: true
+  mlb_pythagorean_exponent: 1.83
+  mlb_pitcher_weight: 0.35
+  mlb_league_avg_era: 4.20
 
 stock:
   enabled: true
@@ -446,3 +462,21 @@ tennis:
     atp_500: {}
     atp_250: {}
   excluded_tiers: [itf, challenger, futures]
+
+exit_mlb:
+  near_resolve_threshold: 0.95
+  scale_out_threshold: 0.85
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.04
+
+exit_mlb_run_line:
+  near_resolve_threshold: 0.95
+  scale_out_threshold: 0.85
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.04
+
+exit_mlb_totals:
+  near_resolve_threshold: 0.95
+  scale_out_threshold: 0.85
+  structural_damage_ratio: 0.30
+  predictive_safety_margin: 0.04
