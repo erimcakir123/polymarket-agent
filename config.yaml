@@ -157,6 +157,7 @@ entry:
     - icehockey_nhl
     - tennis           # Phase 1 v1: ATP men's H2H (BO3 only)
     - tennis_wta       # Phase 1 v1: WTA women's H2H (BO3 only)
+    - baseball_mlb     # Sprint 1.5 activation — Pythagorean+log5+pitcher model
   min_gap_threshold: 0.05
   gap_high_zone: 0.15
   gap_extreme_zone: 0.25

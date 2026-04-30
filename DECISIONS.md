@@ -1107,3 +1107,40 @@ work begins.
 **Sprint 1.5 (next):** gate.py refactor (god-object 600+ satır, ARCH violation) + MLB sport router. MLB aktivasyonu o sprint'te olur.
 
 **Files:** 21 new + 5 modified. NHL pattern parity (per-market-type exit + dispatch). Old `baseball_score_exit.py` stub silindi.
+
+---
+
+## Sprint 1.5: Gate Refactor + MLB Activation (2026-04-30)
+
+**Karar:** Sprint 1 dormant ship'inden sonra MLB aktif edildi. gate.py refactor edilerek 400-satır ARCH limitine uydu, MLB sport routing inline branch ile eklendi.
+
+**gate.py refactor:**
+- 451 → 358 satır
+- 5 helper extracted to `src/strategy/entry/_gate_helpers.py` (~140 satır)
+- MLB eval logic da `_gate_helpers._evaluate_mlb()` fonksiyonuna taşındı (~75 satır)
+- Helpers: _classify_confidence, _gap_multiplier, _passes_filters, _compute_stake, _check_event_guard, _evaluate_mlb
+
+**MLB routing:**
+- `EntryGate.__init__` constructor'a `mlb_edge_enricher` param eklendi
+- `EntryGate.run()` içinde MLB early-branch: sport_tag in (baseball_mlb, mlb) ise `_evaluate_mlb_market()` çağrılır, normal bookmaker_prob akışı bypass
+- `_evaluate_mlb_market`: parse_mlb_question → enricher.enrich → MLBEntryConfig → apply_mlb_entry_filters → Signal veya skipped_reason
+- BUY: Signal(direction=BUY_YES, anchor_probability=fair_price, confidence="B") — MLB always B (no sharp-book classification yet)
+- SKIP: skipped_reason (MLB_QUESTION_PARSE_FAIL / MLB_ENRICHER_UNAVAILABLE / MLB_ENRICHMENT_ERROR / MLB_ENRICHMENT_NONE / MLB_GATE_REJECT)
+
+**GateConfig MLB fields (12 adet):**
+- mlb_min/max_polymarket_price: 0.20 / 0.75
+- mlb_min_market_volume: 3000 USDC
+- mlb_min_liquidity: 3000 USDC
+- mlb_pre_game_window: 2–12 saat
+- mlb_min_gap_threshold: 0.05
+- mlb_position_cap_pct: 0.03, mlb_max_position_usdc: 75
+- mlb_rain_skip_threshold: 0.60, mlb_rain_partial_threshold: 0.30
+- mlb_forbid_runline_minus_15_favorite: True
+
+**Active sports:** baseball_mlb eklendi
+
+**Sport handler registry pattern:** ertelendi (premature abstraction; 3. sport internal model gerektirinceye kadar inline branch yeterli).
+
+**Test:** +30 (25 helper unit + 5 gate flow smoke)
+
+**Bot durumu:** MLB markets gate'e girdiğinde Pythagorean+log5+pitcher modelimizle değerlendiriliyor. Bookmaker konsensüsü sanity check olarak kullanılmaz (apply_mlb_entry_filters içinde değil; gelecek iş — Sprint 2 sonrası).
