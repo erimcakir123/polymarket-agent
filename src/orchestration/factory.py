@@ -267,6 +267,7 @@ def build_agent(state: RuntimeState) -> Agent:
         manipulation_checker=_manip,
         edge_enricher=_edge_enricher,
         nhl_edge_enricher=_nhl_edge_enricher,
+        mlb_edge_enricher=_mlb_edge_enricher,
     )
 
     # Score enricher: ESPN primary + Odds API fallback (SPEC-005)
