@@ -1067,3 +1067,43 @@ work begins.
   Asymmetric sizing reflects the gap.
 - **MATHEMATICAL_DEATH SELL_ALL:** 0-2 BO3 / 0-3 BO5 = literally cannot win → no
   reason to hold for residual bid. Liquidity exit while market still has bid.
+
+---
+
+## MLB Sport Package — Sprint 1 Ship (2026-04-30)
+
+**Karar:** MLB (Major League Baseball) sport pkg infrastructure tamamlandı, **DORMANT** olarak ship'lendi. `baseball_mlb` `active_sports`'ta YOK — gate skip eder. Sprint 1.5'te gate.py refactor + MLB router eklenince aktive olur.
+
+**Active markets (Sprint 1.5'te):** ML + RL + Totals
+
+**Fair price model:**
+- ML: Pythagorean expectation (exponent 1.83, Steven Miller verified) + log5 (Bill James) + pitcher ERA adjustment (weight 0.35, league avg 4.20)
+- RL: Skellam-distributed margin from team Poisson runs/game
+- Totals: Poisson-sum with park factor (Baseball Savant 5-yr) + weather run bias
+
+**Pre-game window:** 2-12h (pitcher confirmation locks ~12h ahead)
+
+**M1/M2/M3 (SPEC-014 implemented):**
+- M1: inning >= 7 AND deficit >= 5 → SELL_ALL
+- M2: inning >= 8 AND deficit >= 3 → SELL_ALL
+- M3: inning >= 9 AND deficit >= 1 → SELL_ALL
+
+**PREDICTIVE_DEAD margin:** 0.04 (vs NHL 0.03; MLB variance higher due to discrete run scoring).
+
+**Rain handling:** >= 0.60 chance → SKIP. 0.30-0.60 → size × 0.7 (partial).
+
+**Run Line -1.5 favorite:** forbidden (math: P(margin >= 2 for favored side) low yield given Polymarket pricing).
+
+**Bookmaker:** alignment sanity check only, NOT fair price source. Internal model is the truth source.
+
+**Win Expectancy table:** ~120 hand-coded critical cells; out-of-table fallback returns 0.5 (HOLD-safe). Phase 2 candidate: full empirical Retrosheet table.
+
+**External dependencies:**
+- `MLB-StatsAPI` (pip): probable pitcher + ERA + season stats
+- OpenWeather API (free tier): 3h forecast for park-specific weather
+
+**Sprint 1 ship state:** Tüm kod yazıldı, ~150 yeni test geçiyor. Factory MLB enricher'ı **conditional** instantiate ediyor (active_sports'ta `baseball_mlb` varsa). Şu an yok → enricher None → MLB markets gate active_sports filter'ında SKIP.
+
+**Sprint 1.5 (next):** gate.py refactor (god-object 600+ satır, ARCH violation) + MLB sport router. MLB aktivasyonu o sprint'te olur.
+
+**Files:** 21 new + 5 modified. NHL pattern parity (per-market-type exit + dispatch). Old `baseball_score_exit.py` stub silindi.
