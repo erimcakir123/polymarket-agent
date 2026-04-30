@@ -107,6 +107,12 @@ class Position(BaseModel):
         if self.bid_price == 0.0 and self.current_price > 0.0:
             self.bid_price = self.current_price
 
+    def seconds_since_entry(self, now: datetime | None = None) -> float:
+        # PLAN-025 entry-cycle cooldown: pozisyon yeni açıldıysa exit dispatch
+        # bypass. now=None default → UTC şimdi (test'te enjekte edilebilir).
+        if now is None:
+            now = datetime.now(timezone.utc)
+        return (now - self.entry_timestamp).total_seconds()
 
     @computed_field
     @property

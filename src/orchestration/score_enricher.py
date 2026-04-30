@@ -29,6 +29,7 @@ from src.models.position import Position
 from src.orchestration.score_helpers import (
     build_score_info as _build_score_info,
     find_match_via_pair as _find_match_via_pair,
+    is_score_sane as _is_score_sane,
     is_within_match_window as _is_within_match_window,
     resolve_tennis_league as _resolve_tennis_league,
 )
@@ -60,6 +61,7 @@ class ScoreEnricher:
         archive_logger: ArchiveLogger | None = None,
         cricket_client: CricketAPIClient | None = None,
         soccer_discovery=None,
+        nba_live_min_total: int = 20,
     ) -> None:
         self._espn = espn_client
         self._odds = odds_client
@@ -67,6 +69,8 @@ class ScoreEnricher:
         self._poll_critical_sec = poll_critical_sec
         self._critical_threshold = critical_price_threshold
         self._window_hours = match_window_hours
+        # PLAN-025 Part A: NBA live skor sanity guard floor.
+        self._nba_live_min_total = nba_live_min_total
         self._poll_sec: int = poll_normal_sec
         self._last_poll_ts: float = 0.0
         # sport_tag → list (ESPNMatchScore | MatchScore)
@@ -199,17 +203,30 @@ class ScoreEnricher:
             espn_scores = self._cached_espn.get(tag, [])
             if espn_scores:
                 em = _find_match_via_pair(pos, espn_scores, "home_name", "away_name")
-                if em:
+                if em and _is_score_sane(tag, em, self._nba_live_min_total):
                     result[cid] = _build_score_info(pos, em)
                     matched_score_obj = em
+                elif em:
+                    # PLAN-025: NBA live skor sanity reject (defense layer).
+                    logger.warning(
+                        "NBA score sanity reject: slug=%s home=%s away=%s period=%s "
+                        "(min_total=%d) — exit dispatch skip",
+                        pos.slug[:40], em.home_score, em.away_score,
+                        getattr(em, "period", ""), self._nba_live_min_total,
+                    )
 
             if matched_score_obj is None:
                 odds_scores = self._cached_odds.get(tag, [])
                 if odds_scores:
                     ms = _find_match_via_pair(pos, odds_scores, "home_team", "away_team")
-                    if ms:
+                    if ms and _is_score_sane(tag, ms, self._nba_live_min_total):
                         result[cid] = _build_score_info(pos, ms)
                         matched_score_obj = ms
+                    elif ms:
+                        logger.warning(
+                            "NBA score sanity reject (odds): slug=%s home=%s away=%s — exit skip",
+                            pos.slug[:40], ms.home_score, ms.away_score,
+                        )
 
             # Archive: skor degisikligi + match result (SPEC-009)
             if matched_score_obj is not None:

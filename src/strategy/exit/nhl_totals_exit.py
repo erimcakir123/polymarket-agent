@@ -1,9 +1,12 @@
 """NHL totals (over/under) exit logic — priority chain pure function."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Literal
+
+logger = logging.getLogger(__name__)
 
 
 class ExitAction(str, Enum):
@@ -79,6 +82,10 @@ def decide_nhl_totals_exit(
     try:
         p_over, p_source = p_over_fn(period, current_total, seconds_remaining, target_total)
     except Exception:
+        logger.warning(
+            "p_over_fn raised; skipping PREDICTIVE_DEAD (period=%s total=%s sec=%s target=%s)",
+            period, current_total, seconds_remaining, target_total, exc_info=True,
+        )
         p_over = None
         p_source = "error"
 

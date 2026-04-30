@@ -293,6 +293,10 @@ class ExitMonitorConfig(BaseModel):
     hold_dip_min_cycles: int = 3          # consecutive_down_cycles eşiği
     hold_dip_min_drop: float = 0.05       # cumulative_drop eşiği
     hold_ever_profit_price_ratio: float = 0.70   # ever_in_profit durumunda price drop gate
+    # PLAN-025: Entry-cycle cooldown (instant-exit phantom koruma)
+    # Pozisyon açıldıktan sonra bu süre içinde exit dispatch çağrılmaz.
+    # 0 → kapalı; varsayılan 60 sn (1 cycle ~30 sn buffer'lı).
+    entry_cooldown_sec: int = 60
     hold_ever_profit_elapsed_gate: float = 0.60  # ever_in_profit durumunda elapsed gate
     hold_no_profit_price_ratio: float = 0.75     # never_in_profit durumunda price drop gate
     hold_no_profit_elapsed_gate: float = 0.70    # never_in_profit durumunda elapsed gate
@@ -332,6 +336,10 @@ class ScoreConfig(BaseModel):
     # PLAN-012: soccer runtime league discovery
     espn_leagues_cache_ttl_hours: int = 24
     soccer_discovery_max_candidates: int = 12
+    # PLAN-025 Part A: NBA live skor sanity guard.
+    # Live NBA maçında home+away total bu değerin altındaysa skor reject edilir
+    # (score adapter bug'larında defense layer). 0 → guard kapalı.
+    nba_live_min_total: int = 20
 
 
 class DashboardConfig(BaseModel):

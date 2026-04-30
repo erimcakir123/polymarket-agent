@@ -1,7 +1,7 @@
 """Position için birim testler."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -132,3 +132,27 @@ def test_effective_win_prob_boundary_zero_buy_no():
 
 def test_effective_win_prob_boundary_one_buy_yes():
     assert effective_win_prob(anchor=1.0, direction="BUY_YES") == 1.0
+
+
+# ── seconds_since_entry: PLAN-025 entry-cycle cooldown helper ────────────────
+
+
+def test_seconds_since_entry_zero_at_entry_moment():
+    now = datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc)
+    p = _valid(entry_timestamp=now)
+    assert p.seconds_since_entry(now=now) == pytest.approx(0.0)
+
+
+def test_seconds_since_entry_returns_elapsed_seconds():
+    entry = datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc)
+    now = entry + timedelta(seconds=45)
+    p = _valid(entry_timestamp=entry)
+    assert p.seconds_since_entry(now=now) == pytest.approx(45.0)
+
+
+def test_seconds_since_entry_default_now_is_utc():
+    # entry 1 hour in past → at least ~3600s elapsed using default now()
+    entry = datetime.now(timezone.utc) - timedelta(hours=1)
+    p = _valid(entry_timestamp=entry)
+    elapsed = p.seconds_since_entry()
+    assert 3590.0 < elapsed < 3650.0  # tolerance for test execution time

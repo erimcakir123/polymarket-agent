@@ -267,6 +267,7 @@ def build_agent(state: RuntimeState) -> Agent:
             archive_logger=archive_logger,  # SPEC-009
             cricket_client=cricket_client,  # SPEC-011
             soccer_discovery=soccer_discovery,  # PLAN-012
+            nba_live_min_total=cfg.score.nba_live_min_total,  # PLAN-025
         )
 
     nhl_wp_table = _load_nhl_wp_table()

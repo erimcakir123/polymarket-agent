@@ -1,9 +1,12 @@
 """NHL moneyline exit logic — priority-chain pure function."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class ExitAction(str, Enum):
@@ -97,6 +100,10 @@ def decide_nhl_exit(
     try:
         p_win, p_win_source = win_probability_fn(period, abs_score_diff, seconds_remaining)
     except Exception:
+        logger.warning(
+            "win_probability_fn raised; skipping PREDICTIVE_DEAD (period=%s diff=%s sec=%s)",
+            period, abs_score_diff, seconds_remaining, exc_info=True,
+        )
         p_win = None
         p_win_source = "error"
 

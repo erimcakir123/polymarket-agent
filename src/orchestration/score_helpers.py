@@ -19,6 +19,35 @@ from src.orchestration.soccer_score_builder import (
 from src.strategy.enrichment.question_parser import extract_teams
 
 
+def is_score_sane(
+    sport_tag: str,
+    ms: MatchScore | ESPNMatchScore,
+    min_total: int,
+) -> bool:
+    """NBA live score sanity guard (PLAN-025).
+
+    Score adapter bazen NBA live maçlarda mantıksız küçük total'ler döndürüyor
+    (orl-det Q4 elapsed=%94 score=2-2 → instant-exit phantom). Bu helper:
+    - sport_tag != "nba" → her zaman True (kapsam dışı)
+    - is_completed=True → True (final skor, ne olursa olsun)
+    - home/away None → False (eksik veri)
+    - total >= min_total → True; aksi halde False (reject)
+
+    min_total=0 → guard kapalı (development/testing escape hatch).
+    """
+    if min_total <= 0:
+        return True
+    if (sport_tag or "").lower() != "nba":
+        return True
+    if getattr(ms, "is_completed", False):
+        return True
+    h = ms.home_score
+    a = ms.away_score
+    if h is None or a is None:
+        return False
+    return (h + a) >= min_total
+
+
 def is_within_match_window(pos: Position, window_hours: float) -> bool:
     """Pozisyon maç penceresi içinde mi? (match_start ± window saat)."""
     if not pos.match_start_iso:

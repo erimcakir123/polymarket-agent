@@ -146,6 +146,47 @@ Asıl bug: 3 NHL dispatch'inde `period = score_info.get("period") or score_info.
 
 **Sonuç**: NBA'nın yıllarca olgunlaşmış "Q4 only" mantığı NHL'e taşındı. Predictive exit artık iki katmanlı korumayla çalışır: (1) periyot ≥ 3 (geri dönülemez aşama), (2) source == empirical (kalibrasyonlu tahmin). Pre-P3 phantom riski tamamen kapalı.
 
+**Altıncı tur (period boundary key mismatch — 2026-04-30)**: Beşinci turdan sonra P3+ + source==empirical guard'ları aktif olmasına rağmen iki gerçek trade'de PREDICTIVE_DEAD sessiz kaldı: bos-buf NHL spread (28 Apr, end-of-P2 1-1, stop_loss -$23.53 / -%58) ve mon-tb NHL spread (29 Apr, end-of-P2 2-2, stop_loss -$12.34 / -%33). bot.log'da `p_cover=0.000 (skellam_fallback)` görüldü — ama tablo gerçekte dolu (4198 maç, P3 tied 1200s buckets `n_games≈890, p_cover≈0.17`).
+
+**Mekanizma**: Lookup key `f"{period}_{margin}_{time_bucket}"`. Dispatch `period_clock_to_regulation_seconds` ile sec_remaining'i regulation-total'a çeviriyor ama **period parametresini dönüştürmüyor** — caller'ın gönderdiği raw ESPN period (`2`) ile beraber sec=1200 gönderince key `"2_0_1200"` oluyor. Tablo build script'i bu boundary'i P3 namespace'ine yazmış (`"3_0_1200"` exists, `"2_0_1200"` doesn't). MISS → Skellam fallback → `source != "empirical"` guard PREDICTIVE_DEAD'i bloke ediyor → exit fire etmedi → stop_loss tetiklendi.
+
+Aynı bug nhl_totals_probability'de de mevcut (her iki dosyada da düz `period_{margin}_{bucket}` lookup).
+
+**Düzeltme**: `nhl_puck_line_probability.py` ve `nhl_totals_probability.py`'de `_period_from_seconds(time_bucket)` helper'ı eklendi — period parametresi yerine **time_bucket'tan türetilen period** lookup'a gönderiliyor:
+- `time_bucket > 2400` → P1
+- `1200 < time_bucket ≤ 2400` → P2
+- `time_bucket ≤ 1200` → P3
+
+OT (period >= 4) için: empirical tablo regulation kapsıyor, normalize öncesi short-circuit ile direkt Skellam'a düşülüyor — aksi halde sec_remaining=0 → "3_X_0" yanlış hit.
+
+5 yeni regresyon testi (3 puck line + 2 totals): `test_period_boundary_p2_end_normalizes_to_p3`, `test_period_boundary_p1_end_normalizes_to_p2`, `test_period_boundary_caller_period_inconsistent_uses_seconds`, totals'da `test_period_boundary_p2_end_normalizes_to_p3` + `test_period_boundary_ot_skips_empirical`. Suite 298/298 green.
+
+**Karşıt kanıt — sistem sağlığı doğrulandı**: Aynı maçın (mon-tb 29 Apr) ML pozisyonu `nhl_score_exit.py` üzerinden çalıştı. ML lookup `nhl_empirical_wp` modülünde delegasyon yaparak boundary sorununu yaşamadı → `source="empirical"` döndü → PREDICTIVE_DEAD doğru fire etti (entry 0.46 → exit 0.74, **+$23.01**). Bug puck_line + totals'a özgü key formatında.
+
+**Sonuç (altıncı tur sonrası state)**: Predictive exit üç katmanlı: (1) periyot ≥ 3, (2) source == empirical, (3) period boundary lookup-aware (P2 sonu = P3 başı namespace'i). Empirical tablonun 4198 maçlık verisi artık tam tüketiliyor — özellikle `end-of-P2 tied` senaryolarında PREDICTIVE_DEAD ~$11–17/trade kayıp önler.
+
+---
+
+## Instant-Exit Phantom Defense Layers (2026-04-30)
+
+**Bulgu**: NBA orl-det Spread Pistons(-13.5) (event 408550), bot 0.805 saniye içinde aynı pozisyonu açıp `predictive_dead` ile kapattı (entry=exit=33¢, P&L=$0). Audit: `score_at_exit="2-2"`, `period_at_exit="In Progress"`, `elapsed_pct=0.943` — Q4 elapsed %94'te skor "2-2" NBA'de imkansız (gerçek ~100+). bot.log: `PREDICTIVE_DEAD margin=13.5 clock=442s bid=0.330`. Aynı oscillating skor paterni phi-bos ve atl-nyk score_events'lerinde de kanıtlı (2-1, 3-0, 0-1, 1-0...).
+
+**Kök Neden Hipotezi (henüz canlı raw API loguyla kesinleşmedi)**: ESPN client (`src/infrastructure/apis/espn_client.py::_parse_competition`) NBA için `linescores` toplamı + `competitor.score` fallback uygular. Live NBA maçında ya linescores boş dönüyor (fallback bozuk competitor.score'a düşülüyor) ya da match name fuzzy-match yanlış maça denk geliyor (Game 4 vs Game 5 aynı slug). Root cause sonraki canlı NBA cycle'da raw response logging ile çözülecek.
+
+**Acil çözüm — iki defense layer**:
+
+**Layer 1: Entry-cycle cooldown (PLAN-025 Part B)**. `Position.seconds_since_entry(now=None)` helper + `ExitMonitorConfig.entry_cooldown_sec: int = 60` config + `ExitProcessor.run_light` başında gate: `if pos.seconds_since_entry() < cooldown_sec: continue`. Yeni açılan pozisyona 60 sn (≈ 1 cycle + güvenlik buffer) exit dispatch çağrılmaz. Bug score adapter'da olsa bile entry sonrası anında kapatma imkansız hale gelir.
+
+**Layer 2: NBA live skor sanity guard (PLAN-025 Part A)**. `score_helpers.is_score_sane(sport_tag, ms, min_total)` saf helper + `ScoreConfig.nba_live_min_total: int = 20` config + `ScoreEnricher._match_cached` ESPN/Odds dual-path uygulama: `home_score+away_score < 20` ve `is_completed=False` → skor reject + WARNING log + `result[cid]` setlenmez (exit dispatch o cycle skip). Final maç skorları (`is_completed=True`) ve non-NBA spor her zaman geçer. `min_total=0` → guard kapalı (development escape hatch). Floor 20 muhafazakar — Q1'in ilk 5 dk total ≥ 25 normal NBA'de, false positive minimal.
+
+**Test**: 3 yeni `Position.seconds_since_entry` testi + 7 yeni `TestIsScoreSane` testi (NBA reject, non-NBA passthrough, completed pass, missing→False, disabled flag). Suite 1383 → 1390 (10 yeni).
+
+**Cleanup**: 1 phantom kayıt (`nba-orl-det-2026-04-29-spread-home-13pt5` 2026-04-30T01:21:26 entry, P&L=$0) `trade_history.jsonl`'den kaldırıldı (CLAUDE.md TRADE SİLME PROTOKOLÜ uygulandı: realized invariant korundu, equity_history dokunulmadı çünkü P&L=0, exits.jsonl audit kaydı aynen kaldı). Backup: `trade_history.jsonl.bak.phantom-cleanup-orldet`.
+
+**Sonuç**: Bu iki defense layer **kök nedeni çözmüyor** — sadece symptom'u nötralize ediyor. Live mode'a geçmeden önce raw NBA API response logging eklenip root cause kesinleştirilecek. Şu an dry_run'da P&L kaybı yok; live'da CLOB fee + spread kaybı (~$0.50-1.50/instant phantom) iki layer ile imkansız hale geldi.
+
+**Bonus arch_guard fix (aynı oturum)**: 3 NHL exit dosyasında (`nhl_puck_line_exit.py`, `nhl_score_exit.py`, `nhl_totals_exit.py`) `except Exception: p_X = None; p_X_source = "error"` paternine `logger.warning(exc_info=True)` eklendi. CLAUDE.md "Sessiz hata yutma yasak" kuralı: hata davranışı (predictive skip) korunur, exception bilgisi artık görünür.
+
 ---
 
 ## ENTRY

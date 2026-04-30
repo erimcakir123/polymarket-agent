@@ -31,6 +31,7 @@ class ExitProcessor:
         score_map = score_map or {}
         state = self.deps.state
         scale_out_tiers = self._scale_out_tiers()
+        cooldown_sec = self._entry_cooldown_sec()
         exits_processed = 0
         for cid in list(state.portfolio.positions.keys()):
             pos = state.portfolio.positions.get(cid)
@@ -38,6 +39,13 @@ class ExitProcessor:
                 continue
 
             tick_position_state(pos)
+
+            # PLAN-025: Entry-cycle cooldown — yeni açılan pozisyona exit dispatch
+            # çağrılmaz (instant-exit phantom koruması, NBA score adapter bozuk
+            # veri ürettiği vakalara karşı defense-in-depth).
+            if cooldown_sec > 0 and pos.seconds_since_entry() < cooldown_sec:
+                continue
+
             score_info = score_map.get(cid, {})
             # ESPN start time ile match_start_iso düzelt (card vs maç saati farkı)
             espn_start = score_info.get("espn_start", "")
@@ -120,6 +128,13 @@ class ExitProcessor:
         if cfg and hasattr(cfg, "scale_out"):
             return float(getattr(cfg.scale_out, "price_threshold", 0.85))
         return 0.85
+
+    def _entry_cooldown_sec(self) -> int:
+        """PLAN-025: entry-cycle cooldown saniyesi. Config yoksa varsayılan 60."""
+        cfg = getattr(self.deps.state, "config", None)
+        if cfg and hasattr(cfg, "exit_monitor"):
+            return int(getattr(cfg.exit_monitor, "entry_cooldown_sec", 60))
+        return 60
 
     def _nhl_exit_cfg(self):
         """exit_nhl config → NHLExitConfig (frozen). None → varsayılan eşikler."""

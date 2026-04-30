@@ -5,6 +5,7 @@ from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.models.position import Position
 from src.orchestration.score_helpers import (
     build_score_info,
+    is_score_sane,
     resolve_tennis_league,
     slug_country_prefix,
 )
@@ -141,3 +142,64 @@ class TestBuildScoreInfoNHLFlags:
         assert info["available"]
         assert info["is_overtime"] is False
         assert info["is_shootout"] is False
+
+
+# ── PLAN-025: NBA score sanity guard ─────────────────────────────────────────
+
+
+def _espn_nba(h_score: int, a_score: int, completed: bool = False) -> ESPNMatchScore:
+    return ESPNMatchScore(
+        event_id="nba_e1",
+        home_name="Detroit Pistons",
+        away_name="Orlando Magic",
+        home_score=h_score,
+        away_score=a_score,
+        period="In Progress",
+        is_completed=completed,
+        is_live=not completed,
+        last_updated="",
+        linescores=[],
+        raw_status={},
+    )
+
+
+class TestIsScoreSane:
+    """PLAN-025: NBA live skor sanity guard.
+
+    Reproduce: orl-det Q4 elapsed=0.94 score=2-2 → instant phantom.
+    Min total floor (varsayılan 20) altındaki live NBA skorları reject.
+    """
+
+    def test_nba_low_total_live_rejected(self):
+        # 2+2=4 < 20, live → reject
+        assert is_score_sane("nba", _espn_nba(2, 2), min_total=20) is False
+
+    def test_nba_zero_zero_live_rejected(self):
+        assert is_score_sane("nba", _espn_nba(0, 0), min_total=20) is False
+
+    def test_nba_completed_low_total_passes(self):
+        # Final game: skor ne olursa olsun kabul (resolution audit için)
+        assert is_score_sane("nba", _espn_nba(2, 2, completed=True), min_total=20) is True
+
+    def test_nba_normal_live_total_passes(self):
+        # 50+45=95, live → kabul
+        assert is_score_sane("nba", _espn_nba(50, 45), min_total=20) is True
+
+    def test_non_nba_passthrough(self):
+        # NHL/MLB/Soccer: bu guard kapsamı dışında, her zaman True
+        assert is_score_sane("nhl", _espn_nba(0, 0), min_total=20) is True
+        assert is_score_sane("mlb", _espn_nba(0, 0), min_total=20) is True
+        assert is_score_sane("soccer", _espn_nba(0, 0), min_total=20) is True
+
+    def test_missing_scores_rejected(self):
+        ms = ESPNMatchScore(
+            event_id="x", home_name="a", away_name="b",
+            home_score=None, away_score=None,
+            period="In Progress", is_completed=False, is_live=True,
+            last_updated="", linescores=[], raw_status={},
+        )
+        assert is_score_sane("nba", ms, min_total=20) is False
+
+    def test_disabled_when_min_total_zero(self):
+        # min_total=0 → guard kapalı, tüm skorlar geçer
+        assert is_score_sane("nba", _espn_nba(0, 0), min_total=0) is True

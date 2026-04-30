@@ -281,6 +281,10 @@ exit_monitor:
   hold_ever_profit_elapsed_gate: 0.60
   hold_no_profit_price_ratio: 0.75
   hold_no_profit_elapsed_gate: 0.70
+  # PLAN-025: Entry-cycle cooldown (instant-exit phantom koruma)
+  # Pozisyon açıldıktan sonra bu süre içinde exit dispatch çağrılmaz.
+  # 0 → kapalı; 60sn = 1 cycle (~30sn) + güvenlik buffer.
+  entry_cooldown_sec: 60
 
 # PLAN-014: dolar-bazlı stop loss (sport-agnostic, skor bağımsız)
 sl:
@@ -298,6 +302,10 @@ score:
   # PLAN-012: soccer runtime league discovery
   espn_leagues_cache_ttl_hours: 24
   soccer_discovery_max_candidates: 12
+  # PLAN-025 Part A: NBA live skor sanity guard (defense layer).
+  # Live NBA maçında home+away < bu → skor reject (orl-det 2-2 phantom koruması).
+  # 0 → kapalı.
+  nba_live_min_total: 20
 
 favored:
   promote_eff_price: 0.65

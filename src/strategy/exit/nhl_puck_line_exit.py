@@ -1,9 +1,12 @@
 """NHL puck line (-1.5) exit logic — priority-chain pure function."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class ExitAction(str, Enum):
@@ -78,6 +81,13 @@ def decide_nhl_puck_line_exit(
     try:
         p_cover, p_cover_source = p_cover_fn(period, current_margin, seconds_remaining)
     except Exception:
+        # CLAUDE.md "Sessiz hata yutma yasak": exception bilgisini logla,
+        # davranış (predictive skip) korunur — caller p_cover=None ile sonraki
+        # priority'ye düşer.
+        logger.warning(
+            "p_cover_fn raised; skipping PREDICTIVE_DEAD (period=%s margin=%s sec=%s)",
+            period, current_margin, seconds_remaining, exc_info=True,
+        )
         p_cover = None
         p_cover_source = "error"
 
