@@ -4,7 +4,12 @@ Pure functions; no I/O. Imported back into gate.py for use.
 """
 from __future__ import annotations
 
-from src.models.enums import Direction
+import logging
+
+from src.models.enums import Direction, EntryReason
+from src.models.signal import Signal
+
+logger = logging.getLogger(__name__)
 
 
 def _classify_confidence(has_sharp: bool, bm_weight: float) -> str:
@@ -132,3 +137,103 @@ def _check_event_guard(
         if frozenset({pos_type, norm_type}) == ml_spread and pos.direction == direction:
             return "EVENT_GUARD_ML_SPREAD_CORRELATED"
     return None
+
+
+def _evaluate_mlb(
+    cid: str,
+    market: object,
+    mlb_edge_enricher: object | None,
+    gate_cfg: object,
+    bankroll: float,
+) -> tuple[Signal | None, str | None]:
+    """MLB evaluation logic extracted for ARCH line-limit compliance.
+
+    Returns (signal, skip_reason). Exactly one will be non-None.
+    Pure coordination; no I/O beyond delegating to enricher + filter chain.
+    """
+    from datetime import datetime  # stdlib — not I/O
+    from types import SimpleNamespace
+
+    from src.domain.sports.mlb_question_parser import parse_mlb_question
+    from src.strategy.entry._mlb_edge import MLBEntryConfig, apply_mlb_entry_filters
+
+    # 1. Parse question → intent
+    intent = parse_mlb_question(
+        getattr(market, "question", None),
+        outcome=getattr(market, "outcome", None),
+    )
+    if intent is None:
+        return None, "MLB_QUESTION_PARSE_FAIL"
+
+    # 2. Enricher required
+    if mlb_edge_enricher is None:
+        return None, "MLB_ENRICHER_UNAVAILABLE"
+
+    # 3. Enrich
+    try:
+        raw_iso = getattr(market, "match_start_iso", "") or ""
+        game_time = datetime.fromisoformat(raw_iso.replace("Z", "+00:00"))
+        enriched = mlb_edge_enricher.enrich(
+            game_pk=int(getattr(market, "game_pk", 0) or 0),
+            home_abbr=intent.team_a,
+            away_abbr=intent.team_b,
+            game_time=game_time,
+            season=game_time.year,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("MLB enrichment failed for %s: %s", cid, exc)
+        return None, "MLB_ENRICHMENT_ERROR"
+
+    if enriched is None:
+        return None, "MLB_ENRICHMENT_NONE"
+
+    # 4. Build MLBEntryConfig from gate config
+    mlb_cfg = MLBEntryConfig(
+        rain_skip_threshold=gate_cfg.mlb_rain_skip_threshold,
+        rain_partial_threshold=gate_cfg.mlb_rain_partial_threshold,
+        pre_game_window_min_hours=gate_cfg.mlb_pre_game_window_min_hours,
+        pre_game_window_max_hours=gate_cfg.mlb_pre_game_window_max_hours,
+        min_volume_usdc=gate_cfg.mlb_min_market_volume,
+        min_liquidity_usdc=gate_cfg.mlb_min_liquidity,
+        min_polymarket_price=gate_cfg.mlb_min_polymarket_price,
+        max_polymarket_price=gate_cfg.mlb_max_polymarket_price,
+        gap_threshold=gate_cfg.mlb_min_gap_threshold,
+        position_cap_pct=gate_cfg.mlb_position_cap_pct,
+        max_position_usdc=gate_cfg.mlb_max_position_usdc,
+        forbid_runline_minus_15_favorite=gate_cfg.mlb_forbid_runline_minus_15_favorite,
+    )
+
+    # 5. Wrap market with intent for filter chain
+    poly_price = getattr(market, "polymarket_price", None)
+    if poly_price is None:
+        poly_price = getattr(market, "yes_price", 0.0)
+    vol = getattr(market, "volume_24h", 0.0)
+    wrapped = SimpleNamespace(
+        question=getattr(market, "question", ""),
+        outcome=getattr(market, "outcome", ""),
+        polymarket_price=poly_price,
+        volume_24h=vol,
+        liquidity=getattr(market, "liquidity", vol),
+        intent=intent,
+    )
+
+    # 6. Filter chain
+    decision = apply_mlb_entry_filters(wrapped, enriched, mlb_cfg, bankroll)
+    if decision is None:
+        return None, "MLB_GATE_REJECT"
+
+    # 7. Adapt → Signal (anchor_probability = internal fair_price = P(YES))
+    signal = Signal(
+        condition_id=cid,
+        direction=Direction.BUY_YES,
+        anchor_probability=max(0.01, min(0.99, decision.fair_price)),
+        market_price=poly_price,
+        confidence="B",
+        size_usdc=decision.size_usdc,
+        entry_reason=EntryReason.NORMAL,
+        bookmaker_prob=decision.fair_price,
+        sport_tag=getattr(market, "sport_tag", "baseball_mlb"),
+        event_id=getattr(market, "event_id", "") or "",
+        sports_market_type="moneyline",
+    )
+    return signal, None

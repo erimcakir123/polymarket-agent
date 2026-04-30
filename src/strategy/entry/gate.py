@@ -20,6 +20,7 @@ from src.strategy.entry._gate_helpers import (
     _passes_filters,
     _compute_stake,
     _check_event_guard,
+    _evaluate_mlb,
 )
 
 if TYPE_CHECKING:
@@ -83,6 +84,19 @@ class GateConfig:
     nhl_totals_max_price: float = field(default=0.80)
     nhl_totals_min_target_total: float = field(default=4.5)
     nhl_totals_min_volume: float = field(default=3000.0)
+    # MLB-specific entry parameters
+    mlb_min_polymarket_price: float = field(default=0.20)
+    mlb_max_polymarket_price: float = field(default=0.75)
+    mlb_min_market_volume: float = field(default=3000.0)
+    mlb_min_liquidity: float = field(default=3000.0)
+    mlb_pre_game_window_min_hours: float = field(default=2.0)
+    mlb_pre_game_window_max_hours: float = field(default=12.0)
+    mlb_min_gap_threshold: float = field(default=0.05)
+    mlb_position_cap_pct: float = field(default=0.03)
+    mlb_max_position_usdc: float = field(default=75.0)
+    mlb_rain_skip_threshold: float = field(default=0.60)
+    mlb_rain_partial_threshold: float = field(default=0.30)
+    mlb_forbid_runline_minus_15_favorite: bool = field(default=True)
 
 
 @dataclass
@@ -109,6 +123,7 @@ class EntryGate:
         manipulation_checker: Any,
         edge_enricher: Any = None,
         nhl_edge_enricher: Any = None,
+        mlb_edge_enricher: Any = None,
     ) -> None:
         self.config = config
         self._portfolio = portfolio
@@ -119,6 +134,7 @@ class EntryGate:
         self._manipulation_checker = manipulation_checker
         self._edge_enricher = edge_enricher
         self._nhl_edge_enricher = nhl_edge_enricher
+        self._mlb_edge_enricher = mlb_edge_enricher
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         if not markets:
@@ -162,6 +178,12 @@ class EntryGate:
 
             if _normalize(market.sport_tag) not in active:
                 results.append(GateResult(cid, skipped_reason="INACTIVE_SPORT"))
+                continue
+
+            # MLB sport routing — bypass bookmaker_prob path (internal Pythagorean model)
+            sport_low = (market.sport_tag or "").lower()
+            if sport_low in ("baseball_mlb", "mlb"):
+                results.append(self._evaluate_mlb_market(market, bankroll))
                 continue
 
             # Per-market safety: blacklist
@@ -281,6 +303,14 @@ class EntryGate:
             results.append(GateResult(cid, signal=signal))
 
         return results
+
+    def _evaluate_mlb_market(self, market: Any, bankroll: float) -> GateResult:
+        """MLB-specific entry evaluation — delegates to _evaluate_mlb helper."""
+        cid = market.condition_id
+        signal, skip_reason = _evaluate_mlb(cid, market, self._mlb_edge_enricher, self.config, bankroll)
+        if skip_reason:
+            return GateResult(cid, skipped_reason=skip_reason)
+        return GateResult(cid, signal=signal)
 
     def _apply_edge_modifiers(
         self,
