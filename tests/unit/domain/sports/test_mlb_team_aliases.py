@@ -42,3 +42,19 @@ def test_get_team_info_returns_dict():
     assert info["name"] == "Atlanta Braves"
     assert info["mascot"] == "Braves"
     assert "espn_id" in info
+
+
+def test_resolve_alt_abbreviation():
+    """Alt abbreviations (MLB-StatsAPI / Odds API variants) resolve correctly."""
+    assert resolve_mlb_team("CHW") == "CWS"   # White Sox alt
+    assert resolve_mlb_team("KCR") == "KC"    # Royals alt
+    assert resolve_mlb_team("TBR") == "TB"    # Rays alt
+    assert resolve_mlb_team("WSN") == "WSH"   # Nationals alt
+    assert resolve_mlb_team("AZ") == "ARI"    # Diamondbacks alt
+
+
+def test_resolve_athletics_oakland_and_sacramento():
+    """Athletics relocated 2025; both former names + current resolve."""
+    assert resolve_mlb_team("Oakland Athletics") == "OAK"
+    assert resolve_mlb_team("Sacramento Athletics") == "OAK"
+    assert resolve_mlb_team("Athletics") == "OAK"

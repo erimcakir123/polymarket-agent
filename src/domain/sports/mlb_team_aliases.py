@@ -34,7 +34,12 @@ MLB_TEAMS: dict[str, dict] = {
     "MIN": {"name": "Minnesota Twins",       "mascot": "Twins",        "espn_id": "9"},
     "NYM": {"name": "New York Mets",         "mascot": "Mets",         "espn_id": "21"},
     "NYY": {"name": "New York Yankees",      "mascot": "Yankees",      "espn_id": "10"},
-    "OAK": {"name": "Oakland Athletics",     "mascot": "Athletics",    "espn_id": "11"},
+    "OAK": {
+        "name": "Athletics",
+        "mascot": "Athletics",
+        "espn_id": "11",
+        "former_names": ["Oakland Athletics", "Sacramento Athletics"],
+    },
     "PHI": {"name": "Philadelphia Phillies", "mascot": "Phillies",     "espn_id": "22"},
     "PIT": {"name": "Pittsburgh Pirates",    "mascot": "Pirates",      "espn_id": "23"},
     "SD":  {"name": "San Diego Padres",      "mascot": "Padres",       "espn_id": "25", "alt_abbrs": ["SDP"]},
@@ -57,6 +62,8 @@ def _build_lookup_map() -> dict[str, str]:
         lookup[info["mascot"].upper()] = abbr
         for alt in info.get("alt_abbrs", []):
             lookup[alt.upper()] = abbr
+        for former in info.get("former_names", []):
+            lookup[former.upper()] = abbr
     return lookup
 
 
@@ -64,7 +71,14 @@ _LOOKUP: dict[str, str] = _build_lookup_map()
 
 
 def resolve_mlb_team(query: str | None) -> str | None:
-    """Resolve a team name/abbr/mascot to canonical ESPN abbr."""
+    """Resolve a team name/abbr/mascot to canonical ESPN abbr.
+
+    Args:
+        query: e.g. "Braves", "Atlanta Braves", "ATL"
+
+    Returns:
+        Canonical ESPN abbr or None if no match.
+    """
     if not query or not isinstance(query, str):
         return None
     return _LOOKUP.get(query.strip().upper())
