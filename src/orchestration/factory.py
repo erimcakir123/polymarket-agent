@@ -233,6 +233,29 @@ def build_agent(state: RuntimeState) -> Agent:
     _nhl_schedule_client = EspnHockeyScheduleClient()
     _nhl_edge_enricher = NHLEdgeEnricher(schedule_client=_nhl_schedule_client)
 
+    # MLB edge enricher — only instantiated if baseball_mlb is active.
+    # Sprint 1 ships dormant: active_sports does NOT include baseball_mlb,
+    # so this stays None. Sprint 1.5 will activate via gate.py routing.
+    _mlb_edge_enricher = None
+    _normalized_active = {s.lower() for s in cfg.entry.active_sports}
+    if "baseball_mlb" in _normalized_active or "mlb" in _normalized_active:
+        try:
+            from src.infrastructure.apis.mlb_stats_client import MLBStatsClient
+            from src.infrastructure.apis.openweather_client import OpenWeatherClient
+            from src.orchestration.mlb_edge_enricher import MLBEdgeEnricher
+            _mlb_stats_client = MLBStatsClient()
+            _mlb_weather_client = OpenWeatherClient()
+            _mlb_edge_enricher = MLBEdgeEnricher(
+                stats_client=_mlb_stats_client,
+                weather_client=_mlb_weather_client,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).error(
+                "MLB enricher instantiation failed (env var OPENWEATHER_API_KEY?): %s",
+                exc,
+            )
+            _mlb_edge_enricher = None
+
     # Gate: cricket_client + edge_enricher hazır olduktan sonra inşa edilir (SPEC-011)
     gate = EntryGate(
         config=gate_cfg,
