@@ -1144,3 +1144,33 @@ work begins.
 **Test:** +30 (25 helper unit + 5 gate flow smoke)
 
 **Bot durumu:** MLB markets gate'e girdiğinde Pythagorean+log5+pitcher modelimizle değerlendiriliyor. Bookmaker konsensüsü sanity check olarak kullanılmaz (apply_mlb_entry_filters içinde değil; gelecek iş — Sprint 2 sonrası).
+
+---
+
+## Pre-Game Window Widening — NBA + NHL (2026-04-30)
+
+**Karar:** NBA `max_match_start_hours: 6.0 → 24.0`, NHL `nhl_max_match_start_hours: 4 → 24`. Tennis already at 24h (unchanged). MLB at 12h per Sprint 1 design.
+
+**Gerekçe (kod incelemesi):**
+- Fair price source = `bookmaker_prob` (gate.py line 115/168/407)
+- Bookmaker odds reflect injury / lineup news within seconds via Odds API
+- ESPN injury client = bonus modifier only (gate.py line 452-457), NOT base fair price
+- Narrow window had no model-driven justification — assumption that "lineup must be confirmed" was wrong; lineup info is encoded in bookmaker_prob already
+- Scanner stock_queue 30-min re-evaluation handles capital rotation safely (cycle_manager.py + stock_queue.py)
+- Tennis 24h precedent proven safe in production
+
+**Risk math (NHL example):**
+- Late goalie scratch: ~3-5% of games × ~$2-3 per-position adverse-move loss × ~100 NHL pos/month = ~$10-15/mo loss
+- Wider window upside: ~2-3× position frequency × ~$3 expected value/position = ~$300-600/mo gain
+- Ratio: ~20:1 favorable
+
+**Rollback triggers (any one within 7 days post-deploy):**
+- Exposure cap saturated > 80% sustained 24h
+- Daily PnL < -2× rolling 30-day baseline for 3 consecutive days
+- Position count > 2× rolling baseline for 3 consecutive days
+
+**Rollback action:** Revert this commit (single `git revert`); restart bot with `scripts/reboot.py reload`.
+
+**Metrics to watch (first 7 days):** position count, daily PnL, capital lock duration, exposure cap saturation.
+
+**Sprint sequence note:** Sprint 1 (MLB dormant) → Sprint 1.5 (gate refactor + MLB activation) → Sprint 2 (this — NBA/NHL window widening).

@@ -163,7 +163,7 @@ entry:
   gap_extreme_zone: 0.25
   min_polymarket_price: 0.15
   min_market_volume: 5000.0
-  max_match_start_hours: 6.0
+  max_match_start_hours: 24.0
   confidence_a_pct: 0.05
   confidence_b_pct: 0.03
   high_gap_multiplier: 1.2
@@ -190,7 +190,7 @@ entry:
   nhl_max_polymarket_price: 0.75
   nhl_min_market_volume: 3000
   nhl_min_favorite_probability: 0.55
-  nhl_max_match_start_hours: 4
+  nhl_max_match_start_hours: 24
   nhl_commence_time_from_offset_hours: -8
   nhl_min_gap_threshold: 0.05
   nhl_gap_high_zone: 0.15

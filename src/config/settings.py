@@ -179,7 +179,7 @@ class EntryConfig(BaseModel):
     # Filters
     min_polymarket_price: float = 0.15
     min_market_volume: float = 5000.0
-    max_match_start_hours: float = 6.0
+    max_match_start_hours: float = 24.0
     # Sizing
     confidence_a_pct: float = 0.05
     confidence_b_pct: float = 0.03
@@ -207,7 +207,7 @@ class EntryConfig(BaseModel):
     nhl_max_polymarket_price: float = 0.75
     nhl_min_market_volume: float = 3000.0
     nhl_min_favorite_probability: float = 0.55
-    nhl_max_match_start_hours: float = 4.0
+    nhl_max_match_start_hours: float = 24.0
     nhl_commence_time_from_offset_hours: int = -8
     nhl_min_gap_threshold: float = 0.08
     nhl_gap_high_zone: float = 0.15

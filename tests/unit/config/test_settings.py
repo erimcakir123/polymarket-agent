@@ -111,7 +111,7 @@ def test_entry_config_nhl_defaults() -> None:
     assert cfg.nhl_max_polymarket_price == 0.75
     assert cfg.nhl_min_market_volume == 3000.0
     assert cfg.nhl_min_favorite_probability == 0.55
-    assert cfg.nhl_max_match_start_hours == 4.0
+    assert cfg.nhl_max_match_start_hours == 24.0
     assert cfg.nhl_commence_time_from_offset_hours == -8
     assert cfg.nhl_min_gap_threshold == 0.08
     assert cfg.nhl_gap_high_zone == 0.15
