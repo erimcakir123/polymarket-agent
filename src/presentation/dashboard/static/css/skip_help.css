@@ -1,0 +1,130 @@
+/* Skip / Exit reason help popup — dashboard.css değişkenlerini kullanır */
+
+.skip-help-popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.skip-help-popup.hidden { display: none; }
+
+.skip-help-content {
+  background: var(--panel, #1a1d24);
+  border: 1px solid var(--border-soft, #2d3340);
+  border-radius: var(--radius, 8px);
+  padding: 24px;
+  max-width: 600px;
+  width: calc(100vw - 48px);
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  color: var(--text, #e0e3eb);
+}
+
+.skip-help-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--muted, #999);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.skip-help-close:hover { color: var(--text, #fff); }
+
+.skip-help-title {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.skip-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skip-help-item {
+  border-bottom: 1px solid var(--border-soft, #2d3340);
+  padding-bottom: 8px;
+}
+.skip-help-item:last-child { border-bottom: none; }
+
+.skip-help-item .code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--blue, #4fc3f7);
+  margin-bottom: 4px;
+}
+
+.skip-help-item .desc {
+  font-size: 13px;
+  color: var(--muted, #c4c8d0);
+  line-height: 1.5;
+}
+
+/* Kart container — "?" butonu için absolute positioning desteği */
+.feed-item {
+  position: relative;
+}
+
+/* "?" yardım butonu — sağ alt köşe */
+.help-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #4a5060);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--muted-dim, #888);
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0;
+  z-index: 2;
+  line-height: 1;
+  padding: 0;
+}
+.help-btn:hover {
+  background: var(--panel-hover, #2d3340);
+  color: var(--text, #fff);
+}
+
+/* ── Popup scrollbar — Trades feed (.feed-scroll) ile birebir aynı ── */
+.skip-help-content::-webkit-scrollbar { width: 6px; }
+.skip-help-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ── Tıklanan reason vurgusu — trades feed hover rengi, bordersiz, statik ── */
+.skip-help-current {
+  background: var(--panel-hover);
+  border: none;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.skip-help-current:hover {
+  background: var(--panel-hover);
+}
+
+.skip-help-divider {
+  font-size: 11px;
+  color: var(--muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 16px 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft, #2d3340);
+}

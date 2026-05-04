@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 from src.config.settings import AppConfig
 from src.presentation.dashboard import computed, readers
@@ -44,20 +44,22 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/summary")
     def api_summary():
-        # Tek dosya okuma 3 computation'a paylaşılır → 3 ayrı endpoint'in
-        # 5sn'de 3 kez positions.json'ı okuması yerine 1 kez.
+        # Balance/P&L/Peak/Risk → tek kaynak: session/equity_history.jsonl.
+        # positions.json'a BAKILMAZ — reboot sonrası session silinirse sıfır döner.
+        # Slot sayısı açık pozisyon listesinden alınır (positions.json).
+        session_balance = readers.read_balance_from_session(logs_dir)
         blob = readers.read_positions(logs_dir)
-        history = readers.read_equity_history(logs_dir, n=500)
         cb = config.circuit_breaker
         return jsonify({
-            "equity": computed.equity_summary(blob, config.initial_bankroll, history),
+            "equity": computed.equity_summary_from_session(
+                session_balance, config.initial_bankroll,
+            ),
             "slots": computed.slots_summary(blob, config.risk.max_positions),
-            "loss_protection": computed.loss_protection(
-                blob, config.initial_bankroll,
+            "loss_protection": computed.loss_protection_from_session(
+                session_balance, config.initial_bankroll,
                 stop_at_pct=abs(cb.daily_max_loss_pct) * 100.0,
                 safe_drawdown_pct=cb.safe_drawdown_pct,
                 warn_drawdown_pct=cb.warn_drawdown_pct,
-                equity_history=history,
             ),
         })
 
@@ -92,3 +94,16 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_sport_roi():
         trades = readers.read_trades(logs_dir, n=5000)
         return jsonify(computed.sport_roi_treemap(trades))
+
+    @app.route("/api/trades/history")
+    def api_trades_history():
+        offset = request.args.get("week_offset", 0, type=int)
+        raw, label, has_older = readers.read_trades_by_week(logs_dir, offset)
+        events = computed.exit_events(raw)
+        return jsonify({
+            "trades": events,
+            "week_label": label,
+            "week_offset": offset,
+            "has_older": has_older,
+            "total_in_week": len(events),
+        })

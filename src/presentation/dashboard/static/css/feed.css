@@ -229,9 +229,24 @@
 
 /* Active card — yeni öğeler (Task 7) */
 .feed-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.feed-badges-row {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.feed-badge.market-tag {
+  background: var(--panel-hover);
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
 .feed-conf {

@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -66,22 +65,84 @@ def _read_jsonl_tail(path: Path, n: int, bytes_per_line: int) -> list[dict[str, 
 
 def read_positions(logs_dir: Path) -> dict[str, Any]:
     """positions.json → {positions, realized_pnl, high_water_mark}."""
-    return _read_json(logs_dir / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
+    return _read_json(logs_dir.parent / "data" / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """trade_history.jsonl son N kayıt."""
-    return _read_jsonl_tail(logs_dir / "trade_history.jsonl", n, _BYTES_TRADES)
+    """trade_history.jsonl son N kayıt — session/ (reboot'a kadar olan veriler)."""
+    return _read_jsonl_tail(logs_dir / "session" / "trade_history.jsonl", n, _BYTES_TRADES)
+
+
+def read_trades_by_week(
+    logs_dir: Path, week_offset: int = 0,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    """ISO-week-aligned trade pagination.
+
+    week_offset=0 → current week (Mon 00:00 UTC – Sun 23:59 UTC).
+    week_offset=1 → previous week, etc.
+
+    Returns (trades_in_week, week_label, has_older_data).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    current_monday = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    week_start = current_monday - timedelta(weeks=week_offset)
+    week_end = week_start + timedelta(days=7)
+
+    buffer_weeks = week_offset + 2
+    n = 150 * buffer_weeks
+    all_trades = _read_jsonl_tail(logs_dir / "session" / "trade_history.jsonl", n, _BYTES_TRADES)
+
+    week_trades: list[dict[str, Any]] = []
+    has_older = False
+    start_ts = week_start.isoformat()
+    end_ts = week_end.isoformat()
+
+    for t in all_trades:
+        # Trade'in hafta içinde olup olmadığını belirlemek için hem tam-close
+        # exit_timestamp'i hem partial_exits[*].timestamp'lerini kontrol et.
+        # Sadece tam-close bakılırsa, partial-only açık pozisyonlar haftadan
+        # dışarı düşüyor → Trade History modal boş gözüküyor.
+        timestamps = []
+        top_ts = t.get("exit_timestamp") or ""
+        if top_ts:
+            timestamps.append(top_ts)
+        for pe in (t.get("partial_exits") or []):
+            pe_ts = pe.get("timestamp") or ""
+            if pe_ts:
+                timestamps.append(pe_ts)
+        if not timestamps:
+            continue
+        latest = max(timestamps)
+        if latest < start_ts:
+            has_older = True
+        elif latest < end_ts:
+            week_trades.append(t)
+
+    _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    sun = week_start + timedelta(days=6)
+    if week_start.month == sun.month:
+        label = (f"{week_start.day} - {sun.day} "
+                 f"{_MONTHS[week_start.month - 1]} {week_start.year}")
+    else:
+        label = (f"{week_start.day} {_MONTHS[week_start.month - 1]} - "
+                 f"{sun.day} {_MONTHS[sun.month - 1]} {week_start.year}")
+
+    return week_trades, label, has_older
 
 
 def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """equity_history.jsonl son N snapshot."""
-    return _read_jsonl_tail(logs_dir / "equity_history.jsonl", n, _BYTES_EQUITY)
+    """equity_history.jsonl son N snapshot — session/ (reboot'a kadar olan veriler)."""
+    return _read_jsonl_tail(logs_dir / "session" / "equity_history.jsonl", n, _BYTES_EQUITY)
 
 
 def read_skipped(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """skipped_trades.jsonl son N skip."""
-    return _read_jsonl_tail(logs_dir / "skipped_trades.jsonl", n, _BYTES_SKIPPED)
+    return _read_jsonl_tail(logs_dir / "runtime" / "skipped_trades.jsonl", n, _BYTES_SKIPPED)
 
 
 def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
@@ -92,7 +153,7 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
       {slug, sport_tag, question, yes_price, no_price, liquidity, volume_24h,
        match_start_iso, first_seen_iso, last_skip_reason}
     """
-    raw = _read_json(logs_dir / "stock_queue.json", [])
+    raw = _read_json(logs_dir.parent / "data" / "stock_queue.json", [])
     if not isinstance(raw, list):
         return []
     flat: list[dict[str, Any]] = []
@@ -110,6 +171,7 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
             "slug": market.get("slug", ""),
             "sport_tag": market.get("sport_tag", ""),
             "question": market.get("question", ""),
+            "match_title": market.get("match_title", ""),
             "yes_price": market.get("yes_price", 0.0),
             "no_price": market.get("no_price", 0.0),
             "liquidity": market.get("liquidity", 0.0),
@@ -123,18 +185,68 @@ def read_eligible_queue(logs_dir: Path) -> list[dict[str, Any]]:
 
 def read_breaker(logs_dir: Path) -> dict[str, Any]:
     """circuit_breaker_state.json."""
-    return _read_json(logs_dir / "circuit_breaker_state.json", {})
+    return _read_json(logs_dir.parent / "data" / "circuit_breaker_state.json", {})
 
 
 def read_bot_status(logs_dir: Path) -> dict[str, Any]:
     """bot_status.json — {mode, last_cycle, last_cycle_at, reason}."""
-    return _read_json(logs_dir / "bot_status.json", {})
+    return _read_json(logs_dir.parent / "data" / "bot_status.json", {})
+
+
+def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
+    """session/equity_history.jsonl son entry'sinden balance widget metrikleri.
+
+    Dashboard balance, realized P&L, open P&L ve peak balance hesabı için
+    TEK kaynak. positions.json'a bakılmaz — reboot sonrası session silinirse
+    sıfır döner (kasıtlı).
+
+    Returns dict with keys:
+      bankroll, realized_pnl, unrealized_pnl, invested,
+      open_positions, peak_bankroll (session max), has_data.
+    """
+    _EMPTY: dict[str, Any] = {
+        "bankroll": 0.0,
+        "realized_pnl": 0.0,
+        "unrealized_pnl": 0.0,
+        "invested": 0.0,
+        "open_positions": 0,
+        "peak_bankroll": 0.0,
+        "has_data": False,
+    }
+    path = logs_dir / "session" / "equity_history.jsonl"
+    if not path.exists():
+        return _EMPTY
+
+    # Son entry için tail=1; peak için tüm dosyayı okumak pahalı olabilir —
+    # yeterince büyük bir pencere al (son 500 satır yeterli pratik senaryolar için).
+    last_entries = _read_jsonl_tail(path, n=1, bytes_per_line=_BYTES_EQUITY)
+    if not last_entries:
+        return _EMPTY
+
+    last = last_entries[-1]
+
+    # Peak hesabı için daha geniş pencere oku.
+    all_entries = _read_jsonl_tail(path, n=500, bytes_per_line=_BYTES_EQUITY)
+    peak = max(
+        (float(e.get("bankroll", 0.0)) for e in all_entries),
+        default=float(last.get("bankroll", 0.0)),
+    )
+
+    return {
+        "bankroll": float(last.get("bankroll", 0.0)),
+        "realized_pnl": float(last.get("realized_pnl", 0.0)),
+        "unrealized_pnl": float(last.get("unrealized_pnl", 0.0)),
+        "invested": float(last.get("invested", 0.0)),
+        "open_positions": int(last.get("open_positions", 0)),
+        "peak_bankroll": peak,
+        "has_data": True,
+    }
 
 
 def bot_is_alive(logs_dir: Path) -> bool:
     """agent.pid dosyasında bulunan PID hala çalışıyor mu?
 
-    Windows: os.kill(pid, 0) TerminateProcess ile aynı → tehlikeli. tasklist kullanılır.
+    Windows: ctypes.kernel32.OpenProcess ile subprocess açmadan kontrol eder.
     POSIX: os.kill(pid, 0) güvenli existence check.
     """
     pid_file = logs_dir / "agent.pid"
@@ -145,14 +257,15 @@ def bot_is_alive(logs_dir: Path) -> bool:
     except (OSError, ValueError):
         return False
     if sys.platform == "win32":
-        try:
-            result = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
-                capture_output=True, text=True, timeout=5,
-            )
-            return str(pid) in result.stdout
-        except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
             return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
     try:
         os.kill(pid, 0)
         return True

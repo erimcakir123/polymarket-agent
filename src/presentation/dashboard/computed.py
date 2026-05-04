@@ -82,6 +82,82 @@ def equity_summary(
     }
 
 
+def equity_summary_from_session(
+    session_balance: dict[str, Any],
+    initial_bankroll: float,
+) -> dict[str, Any]:
+    """Balance widget için session/equity_history.jsonl son entry'sinden türetme.
+
+    session_balance = readers.read_balance_from_session() çıktısı.
+    has_data=False ise sıfır döner (reboot sonrası session yok).
+
+    Peak balance: session boyunca görülen max bankroll (session'da saklanır).
+    Drawdown: peak vs current total_equity (bankroll + invested + unrealized).
+    """
+    if not session_balance.get("has_data"):
+        # Session yok (reboot sonrası) — tüm widget'lar sıfır.
+        return {
+            "bankroll": 0.0,
+            "total_equity": 0.0,
+            "open_pnl": 0.0,
+            "realized_pnl": 0.0,
+            "locked": 0.0,
+            "peak_balance": 0.0,
+            "drawdown_pct": 0.0,
+            "position_count": session_balance.get("open_positions", 0),
+        }
+
+    bankroll = session_balance["bankroll"]
+    realized = session_balance["realized_pnl"]
+    unrealized = session_balance["unrealized_pnl"]
+    invested = session_balance["invested"]
+    peak = max(session_balance["peak_bankroll"], bankroll, initial_bankroll)
+    total_equity = bankroll + invested + unrealized
+    drawdown_pct = 0.0 if peak <= 0 else max(0.0, (peak - total_equity) / peak * 100.0)
+
+    return {
+        "bankroll": round(bankroll, 2),
+        "total_equity": round(total_equity, 2),
+        "open_pnl": round(unrealized, 2),
+        "realized_pnl": round(realized, 2),
+        "locked": round(invested, 2),
+        "peak_balance": round(peak, 2),
+        "drawdown_pct": round(drawdown_pct, 2),
+        "position_count": session_balance.get("open_positions", 0),
+    }
+
+
+def loss_protection_from_session(
+    session_balance: dict[str, Any],
+    initial_bankroll: float,
+    stop_at_pct: float = _DEFAULT_STOP_AT_PCT,
+    safe_drawdown_pct: float = _DEFAULT_SAFE_PCT,
+    warn_drawdown_pct: float = _DEFAULT_WARN_PCT,
+) -> dict[str, Any]:
+    """RISK gauge — session equity'den türetilir.
+
+    session_balance = readers.read_balance_from_session() çıktısı.
+    has_data=False ise Safe/0 döner (session yok, reboot sonrası).
+    """
+    summary = equity_summary_from_session(session_balance, initial_bankroll)
+    down = summary["drawdown_pct"]
+    if down >= stop_at_pct:
+        status = "Stopped"
+    elif down >= warn_drawdown_pct:
+        status = "Warning"
+    elif down >= safe_drawdown_pct:
+        status = "Caution"
+    else:
+        status = "Safe"
+    risk_pct = 0.0 if stop_at_pct <= 0 else min(100.0, down / stop_at_pct * 100.0)
+    return {
+        "down_pct": round(down, 2),
+        "stop_at_pct": round(stop_at_pct, 2),
+        "risk_pct": round(risk_pct, 2),
+        "status": status,
+    }
+
+
 def slots_summary(positions_blob: dict[str, Any], max_positions: int) -> dict[str, Any]:
     """Anlık slot kullanımı + entry_reason breakdown."""
     positions: dict[str, dict] = positions_blob.get("positions", {})
@@ -132,27 +208,38 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Full exit'ler + partial scale-out'ları tek liste olarak döner.
 
     Her full-close TradeRecord bir event, her partial_exit ayrı bir event.
+    Partial event'lerde `remaining_pct` kümülatif — o event'e kadar satılan
+    toplam oranın tümleyeni. Full event için `remaining_pct = 0.0`.
     Exited tab ve treemap aggregation source.
     """
     events: list[dict[str, Any]] = []
     for t in trades:
+        cumulative_sell_pct = 0.0
         for pe in (t.get("partial_exits") or []):
+            cumulative_sell_pct += float(pe.get("sell_pct") or 0.0)
+            remaining = max(0.0, 1.0 - cumulative_sell_pct)
             events.append({
                 "slug": t.get("slug", ""),
                 "sport_tag": t.get("sport_tag", ""),
                 "direction": t.get("direction", ""),
                 "entry_price": t.get("entry_price"),
+                "entry_timestamp": t.get("entry_timestamp", ""),
                 "question": t.get("question", ""),
+                "anchor_probability": t.get("anchor_probability"),
+                "size_usdc": t.get("size_usdc"),
                 "exit_price": None,
                 "exit_pnl_usdc": pe.get("realized_pnl_usdc", 0.0),
                 "exit_reason": f"scale_out_tier_{pe.get('tier', '?')}",
                 "exit_timestamp": pe.get("timestamp", ""),
                 "partial": True,
                 "sell_pct": pe.get("sell_pct", 0.0),
+                "partial_price": pe.get("price"),
+                "remaining_pct": remaining,
             })
         if t.get("exit_price") is not None:
             ev = dict(t)
             ev["partial"] = False
+            ev["remaining_pct"] = 0.0
             events.append(ev)
     events.sort(key=lambda e: e.get("exit_timestamp", ""), reverse=True)
     return events

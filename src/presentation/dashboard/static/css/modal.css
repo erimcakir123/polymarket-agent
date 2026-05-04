@@ -1,0 +1,293 @@
+/* Trade History Modal — full-screen overlay + weekly trade viewer.
+ * Renk referansları var(--*) ile — hex literal yasak (TDD §5.7.4).
+ */
+
+/* ── Overlay ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.modal-overlay.visible { opacity: 1; }
+
+/* ── Container — fixed height so tab switch doesn't resize ── */
+.modal-container {
+  width: 94vw;
+  max-width: 1400px;
+  height: 88vh;
+  background: var(--panel);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header — title centered via spacer trick ── */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px 0;
+}
+.modal-header h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  flex: 1;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.modal-close:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
+/* ── Week navigation (centered) ── */
+.modal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 24px 6px;
+}
+.modal-nav-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--panel-raised);
+  border: none;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s;
+  opacity: 0.5;
+}
+.modal-nav-btn:hover { background: var(--panel-hover); opacity: 1; }
+.modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
+.modal-nav-btn:disabled:hover { background: var(--panel-raised); opacity: 0.25; }
+.modal-nav-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+.modal-nav-year { opacity: 0.4; }
+
+/* ── Hero metrics (right side of tab bar) ── */
+.modal-hero {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-left: auto;
+}
+.modal-hero-card {
+  text-align: center;
+}
+.modal-hero-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.modal-hero-label {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 1px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── View tabs (Notion-style toggle: Chart | List) ── */
+.modal-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 24px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.modal-view-tab {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.15s;
+  position: relative;
+}
+.modal-view-tab:hover { color: var(--text); }
+.modal-view-tab:focus-visible { outline: none; }
+.modal-view-tab.active {
+  color: var(--text);
+  font-weight: 600;
+}
+/* Blue underline positioned at the bottom of the padding gap (on the divider) */
+.modal-view-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -12px;
+  height: 2px;
+  background: var(--blue);
+  border-radius: 1px;
+}
+.modal-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Chart row: sticky y-axis + scrollable chart ── */
+.modal-chart-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+.modal-chart-yaxis {
+  flex: 0 0 52px;
+  position: relative;
+  background: var(--panel);
+  z-index: 2;
+  pointer-events: none;
+  margin-right: 12px;
+}
+.modal-chart-wrap {
+  flex: 1 1 auto;
+  padding: 0 16px 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.modal-chart-wrap::-webkit-scrollbar { height: 6px; }
+.modal-chart-wrap::-webkit-scrollbar-track { background: transparent; }
+.modal-chart-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
+.modal-chart-inner {
+  width: 100%;
+  height: 100%;
+}
+/* Sport icons in table — tennis img same size as emoji text */
+.modal-table td img {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  object-fit: contain;
+}
+.modal-table td:nth-child(2) {
+  font-size: 14px;
+  width: 24px;
+  text-align: center;
+}
+
+/* ── Trade table ── */
+.modal-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 20px;
+}
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.modal-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.modal-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text);
+}
+.modal-table td.pnl-pos { color: var(--green); }
+.modal-table td.pnl-neg { color: var(--red); }
+.modal-table tr:hover td { background: var(--panel-raised); }
+
+/* ── Reason badge ── */
+.modal-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.modal-reason--green { color: var(--green); background: var(--green-dim); }
+.modal-reason--red   { color: var(--red);   background: var(--red-dim); }
+.modal-reason--orange { color: var(--orange); background: var(--orange-dim); }
+.modal-reason--blue  { color: var(--blue);  background: var(--blue-dim); }
+.modal-reason--muted { color: var(--muted); background: rgba(148,163,184,0.08); }
+
+/* ── Direction badge ── */
+.modal-dir {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.modal-dir--yes { color: var(--blue);   background: var(--blue-dim); }
+.modal-dir--no  { color: var(--orange); background: var(--orange-dim); }
+
+/* ── "All" trigger button ── */
+.modal-trigger {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--blue);
+  background: var(--blue-dim);
+  border: none;
+  border-radius: 100px;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.15s;
+}
+.modal-trigger:hover { background: var(--panel-hover); }
+
+/* ── Empty state ── */
+.modal-empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Scrollbar ── */
+.modal-table-wrap::-webkit-scrollbar { width: 6px; }
+.modal-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}

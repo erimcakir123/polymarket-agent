@@ -14,16 +14,20 @@ from src.presentation.dashboard.routes import register_routes
 @pytest.fixture
 def client(tmp_path: Path):
     """bot_status.json ile birlikte flask test client."""
-    (tmp_path / "agent.pid").write_text("99999", encoding="utf-8")  # alive=false'a düşecek
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    (logs_dir / "agent.pid").write_text("99999", encoding="utf-8")  # alive=false'a düşecek
     app = Flask(__name__)
     config = AppConfig()
-    register_routes(app, config, tmp_path)
+    register_routes(app, config, logs_dir)
     return app.test_client(), tmp_path
 
 
 def test_api_status_returns_new_fields_when_bot_status_present(client):
-    c, logs_dir = client
-    (logs_dir / "bot_status.json").write_text(json.dumps({
+    c, tmp_path = client
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "bot_status.json").write_text(json.dumps({
         "mode": "dry_run",
         "cycle": "heavy",
         "stage": "scanning",

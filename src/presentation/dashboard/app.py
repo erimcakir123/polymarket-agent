@@ -7,7 +7,9 @@ Memory kuralı (Faz 7): Performance + API usage + AI vs bookmaker bölümleri YO
 """
 from __future__ import annotations
 
+import atexit
 import logging
+import os
 from pathlib import Path
 
 from flask import Flask
@@ -47,9 +49,15 @@ def create_app(config: AppConfig | None = None, logs_dir: Path | str = "logs") -
     return app
 
 
+_DASHBOARD_PID_FILE = Path("logs/dashboard.pid")
+
+
 def main() -> None:
     """`python -m src.presentation.dashboard.app` için standalone runner."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    _DASHBOARD_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _DASHBOARD_PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+    atexit.register(lambda: _DASHBOARD_PID_FILE.unlink(missing_ok=True))
     cfg = load_config()
     app = create_app(cfg)
     app.run(host=cfg.dashboard.host, port=cfg.dashboard.port, debug=False)

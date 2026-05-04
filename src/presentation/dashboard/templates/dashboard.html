@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/gauges.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/feed.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/branches.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/skip_help.css') }}" />
 </head>
 <body data-initial-bankroll="{{ initial_bankroll }}" data-max-positions="{{ max_positions }}" data-mode="{{ mode }}">
 
@@ -137,7 +139,7 @@
         </div>
         <div class="chart-panel">
           <div class="panel-header">
-            <span>Per Trade PnL</span>
+            <span>Per Trade PnL <button class="modal-trigger" id="btn-trade-history" title="All trades">All</button></span>
             <div class="chart-tabs" data-chart="pnl">
               <button class="chart-tab" data-period="24h">24h</button>
               <button class="chart-tab" data-period="7d">7d</button>
@@ -177,13 +179,25 @@
     </aside>
   </div>
 
+  <!-- Skip / Exit reason help popup -->
+  <div id="skip-help-popup" class="skip-help-popup hidden" role="dialog" aria-modal="true">
+    <div class="skip-help-content">
+      <button class="skip-help-close" type="button" aria-label="Kapat">&times;</button>
+      <h3 class="skip-help-title">Skip / Exit Sebepleri</h3>
+      <div id="skip-help-list" class="skip-help-list"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="{{ url_for('static', filename='js/fmt.js') }}"></script>
   <script src="{{ url_for('static', filename='js/icons.js') }}"></script>
   <script src="{{ url_for('static', filename='js/trade_filter.js') }}"></script>
   <script src="{{ url_for('static', filename='js/chart_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sounds.js') }}"></script>
   <script src="{{ url_for('static', filename='js/feed.js') }}"></script>
   <script src="{{ url_for('static', filename='js/branches.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/trade_history_modal.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/skip_reason_help.js') }}"></script>
 </body>
 </html>

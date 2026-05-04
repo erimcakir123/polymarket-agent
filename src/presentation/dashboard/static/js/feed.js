@@ -26,8 +26,50 @@
     },
 
     update({ active, exited, skipped, stock }) {
+      this._detectNewEntries(active);
+      this._detectNewExits(exited);
       this.state.data = { active, exited, skipped, stock };
       this.render();
+    },
+
+    _prevExitIds: new Set(),
+    _prevActiveIds: new Set(),
+
+    _detectNewExits(exited) {
+      if (!exited || !exited.length) return;
+      const currentIds = new Set(exited.map((t) => t.condition_id + "|" + (t.exit_timestamp || "")));
+      if (this._prevExitIds.size === 0) {
+        // İlk yükleme — ses çalma
+        this._prevExitIds = currentIds;
+        return;
+      }
+      for (const t of exited) {
+        const key = t.condition_id + "|" + (t.exit_timestamp || "");
+        if (!this._prevExitIds.has(key) && typeof SOUNDS !== "undefined") {
+          const pnl = Number(t.exit_pnl_usdc || 0);
+          SOUNDS.playExit(pnl);
+          break; // Aynı anda birden fazla ses çalmayı önle
+        }
+      }
+      this._prevExitIds = currentIds;
+    },
+
+    _detectNewEntries(active) {
+      if (!active) return;
+      const currentIds = new Set(active.map((p) => p.condition_id + "|" + (p.entry_timestamp || "")));
+      if (this._prevActiveIds.size === 0) {
+        // İlk yükleme — ses çalma
+        this._prevActiveIds = currentIds;
+        return;
+      }
+      // Her yeni giriş için bir kez çağır — SOUNDS kuyruğa alır, seri çalar
+      for (const p of active) {
+        const key = p.condition_id + "|" + (p.entry_timestamp || "");
+        if (!this._prevActiveIds.has(key) && typeof SOUNDS !== "undefined") {
+          SOUNDS.playEntry();
+        }
+      }
+      this._prevActiveIds = currentIds;
     },
 
     render() {
@@ -54,8 +96,8 @@
       return this._stockCard(it);
     },
 
-    _marketTitle(question, slug) {
-      return `<span class="feed-market">${FMT.teamsText(question, slug)}</span>`;
+    _marketTitle(question, slug, matchTitle) {
+      return `<span class="feed-market">${FMT.teamsText(question, slug, matchTitle)}</span>`;
     },
 
     _confPill(conf) {
@@ -64,7 +106,7 @@
       return `<span class="feed-conf ${cls}">${FMT.escapeHtml(c)}</span>`;
     },
 
-    _countdownPill(matchStartIso, _matchLive) {
+    _countdownPill(matchStartIso, matchLive) {
       if (!matchStartIso) return "";
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
@@ -84,6 +126,11 @@
       return `<a class="feed-item" href="${url}" target="_blank" rel="noopener noreferrer">`;
     },
 
+    _marketTypeBadge(question, slug) {
+      const t = FMT.marketType(question, slug);
+      return t ? `<span class="feed-badge market-tag">${t}</span>` : "";
+    },
+
     _activeCard(p) {
       const icon = ICONS.getSportEmoji(p.sport_tag, p.slug);
       const dir = FMT.sideCode(p.direction, p.slug);
@@ -100,10 +147,13 @@
       return `${this._cardOpen(p.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(p.question, p.slug)}</div>
-          <div class="feed-badges">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
+            ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
+          <div class="feed-badges">
+            <div class="feed-badges-row">${this._confPill(p.confidence)}<span class="feed-badge ${dirCls}">${dir}</span></div>
+            ${this._marketTypeBadge(p.question, p.slug)}
+          </div>
         </div>
-        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.entry_reason || "normal")}</div>
+        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.question || p.entry_reason || "normal")}</div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(p.entry_price)}</span>
           <span>Now ${FMT.cents(p.current_price)}</span>
@@ -128,31 +178,73 @@
       const dir = FMT.sideCode(t.direction, t.slug);
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
-      // Partial scale-out event (pozisyon hâlâ açık) — Exit fiyatı yazılmaz,
-      // PARTIAL badge + sell_pct gösterilir.
       const isPartial = !!t.partial;
-      const exitCell = isPartial
-        ? `<span>Partial ${Math.round((t.sell_pct || 0) * 100)}%</span>`
-        : `<span>Exit ${FMT.cents(t.exit_price || 0)}</span>`;
-      const partialBadge = isPartial
-        ? `<span class="feed-badge badge-partial">PARTIAL</span>`
-        : "";
+
+      // Invested notional: partial'da orijinal tutarın payı, full'de tam size.
+      // Aynı denominator hem PnL % hem feed-time'da gösterilen $ için kullanılır.
+      const invested = isPartial
+        ? Number(t.size_usdc || 0) * Number(t.sell_pct || 0)
+        : Number(t.size_usdc || 0);
+      const pnlPct = invested > 0 ? (pnl / invested) * 100 : 0;
+
+      // Odds %: direction-adjusted render. anchor_probability = P(YES).
+      const anchor = t.anchor_probability;
+      const oddsRaw = t.direction === "BUY_NO" ? (1 - anchor) : anchor;
+      const odds = (anchor === null || anchor === undefined)
+        ? null : Math.round(oddsRaw * 1000) / 10;
+
+      // Exit fiyat hücresi:
+      //   Full:          "Entry XX¢ → Exit YY¢"
+      //   Partial+price: "Entry XX¢ → @ YY¢"
+      //   Partial legacy (price yok): "Entry XX¢ → @ —"
+      const exitPriceStr = isPartial
+        ? (t.partial_price !== null && t.partial_price !== undefined
+            ? `@ ${FMT.cents(t.partial_price)}`
+            : "@ —")
+        : `Exit ${FMT.cents(t.exit_price || 0)}`;
+
+      // Humanized reason + tone class (active card'daki entry_reason row'unun yerine).
+      const label = FMT.exitReasonLabel(t.exit_reason);
+      const reasonText = label.emoji
+        ? `${label.emoji} ${FMT.escapeHtml(label.text)}`
+        : FMT.escapeHtml(label.text);
+
+      // PARTIAL badge kaldırıldı — "Take Profit" label + "Remaining X%" satırı
+      // zaten partial olduğunu net ifade ediyor (DRY: gereksiz işaret).
+      //
+      // Active card'daki feed-entry-reason-row'un eşdeğeri:
+      //   Partial exit  → "Remaining X%"
+      //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
+      //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
+      const subRowText = isPartial
+        ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
+        : FMT.escapeHtml(t.question || t.entry_reason || "normal");
+
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(t.question, t.slug)}</div>
-          ${partialBadge}<span class="feed-badge ${dirCls}">${dir}</span>
+            ${this._marketTitle(t.question, t.slug, t.match_title)}</div>
+          <div class="feed-badges">
+            <div class="feed-badges-row"><span class="feed-badge ${dirCls}">${dir}</span></div>
+            ${this._marketTypeBadge(t.question, t.slug)}
+          </div>
         </div>
+        <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">
-          <span>Entry ${FMT.cents(t.entry_price)}</span>
-          ${exitCell}
+          <span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>
+          ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
         </div>
         <div class="feed-impact">
-          <span class="${FMT.pnlClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
-          <span class="feed-exit-reason">${FMT.escapeHtml(t.exit_reason || "")}</span>
+          <div class="feed-impact-bar" style="--fill:${Math.min(100, Math.abs(pnlPct))}%">
+            <div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"></div>
+            <span class="feed-pnl-dollar ${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
+            <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
+          </div>
         </div>
-        <div class="feed-time"><span>${FMT.relTime(t.exit_timestamp)}</span>
-          <span>${t.final_outcome || ""}</span></div>
+        <div class="feed-time">
+          <span>$${invested.toFixed(0)}</span>
+          <span class="feed-exit-reason">${reasonText}</span>
+        </div>
       </a>`;
     },
 
@@ -161,11 +253,14 @@
       return `${this._cardOpen(s.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(s.question, s.slug)}</div>
+            ${this._marketTitle(s.question, s.slug, s.match_title)}</div>
           <span class="feed-badge">SKIP</span>
         </div>
-        <div class="feed-details"><span>${s.skip_reason || "?"}</span>
-          ${s.skip_detail ? "<span>" + s.skip_detail + "</span>" : ""}</div>
+        <div class="feed-details">
+          <span>${s.skip_reason || "?"}</span>
+          ${s.skip_detail ? "<span>" + s.skip_detail + "</span>" : ""}
+          <button class="help-btn" type="button" onclick="event.stopPropagation(); event.preventDefault(); showSkipHelp('${(s.sport_tag || "").replace(/'/g, "")}', 'skip', '${(s.skip_reason || "").replace(/'/g, "").replace(/"/g, "")}')" title="Skip sebepleri açıkla">?</button>
+        </div>
         <div class="feed-time"><span>${FMT.relTime(s.timestamp)}</span></div>
       </a>`;
     },
@@ -175,7 +270,7 @@
       return `${this._cardOpen(q.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
-            ${this._marketTitle(q.question, q.slug)}</div>
+            ${this._marketTitle(q.question, q.slug, q.match_title)}</div>
         </div>
         <div class="feed-details">
           <span>YES ${FMT.cents(q.yes_price)}</span>
