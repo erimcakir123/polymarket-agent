@@ -56,12 +56,25 @@ class Executor:
         side: str,
         price: float,
         size_usdc: float,
+        max_entry_price: float | None = None,
     ) -> dict:
         # Stale-price guard (dry/paper/live hepsinde)
         stale = self._check_stale_price(token_id, side, price)
         if stale["reject"]:
             return stale["result"]
         price = stale["adjusted_price"]
+
+        # Max entry price guard — CLOB fill adjustment gate'i atlatmasin.
+        # Scanner fiyati < cap geciyor, ama drift sonrasi clob_fill > cap olabilir.
+        if max_entry_price is not None and price >= max_entry_price:
+            logger.warning("ENTRY_PRICE_CAP_REJECT: %s side=%s fill=%.3f cap=%.3f",
+                           token_id[:16], side, price, max_entry_price)
+            return {
+                "order_id": f"rej_{uuid.uuid4().hex[:8]}",
+                "status": "error", "reason": "entry_price_cap",
+                "mode": self.mode.value, "token_id": token_id, "side": side,
+                "fill_price": price, "cap": max_entry_price,
+            }
 
         if self.mode in (Mode.DRY_RUN, Mode.PAPER):
             return self._simulate_order(token_id, side, price, size_usdc)
