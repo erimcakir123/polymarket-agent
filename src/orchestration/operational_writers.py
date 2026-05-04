@@ -26,6 +26,8 @@ def log_skip(
     market: MarketData,
     reason: str,
     detail: str = "",
+    anchor_probability: float = 0.0,
+    gap: float | None = None,
 ) -> None:
     """Gate skip kaydı → SkippedTradeLogger."""
     record = SkippedTradeRecord(
@@ -33,10 +35,13 @@ def log_skip(
         slug=market.slug,
         sport_tag=market.sport_tag,
         question=market.question,
+        match_title=market.match_title,
         event_id=market.event_id or "",
         entry_price=market.yes_price,
+        anchor_probability=anchor_probability,
+        gap=gap,
         skip_reason=reason or "unknown",
-        skip_detail=detail,
+        skip_detail=detail or "",
     )
     try:
         skipped_logger.log(record)

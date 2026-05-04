@@ -27,16 +27,26 @@ class EquitySnapshot(BaseModel):
 
 
 class EquityHistoryLogger:
-    """Append-only JSONL writer/reader for equity snapshots."""
+    """Append-only JSONL writer/reader for equity snapshots.
 
-    def __init__(self, file_path: str) -> None:
+    mirror_path verilirse her snapshot audit + session/ aynasına yazılır.
+    """
+
+    def __init__(self, file_path: str, mirror_path: str | None = None) -> None:
         self.path = Path(file_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.mirror: Path | None = None
+        if mirror_path:
+            self.mirror = Path(mirror_path)
+            self.mirror.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, snapshot: EquitySnapshot) -> None:
         line = snapshot.model_dump_json() + "\n"
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(line)
+        if self.mirror is not None:
+            with open(self.mirror, "a", encoding="utf-8") as f:
+                f.write(line)
 
     def read_recent(self, n: int = 100) -> list[dict[str, Any]]:
         return read_jsonl_tail(self.path, n, _BYTES_PER_LINE)

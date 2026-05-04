@@ -25,12 +25,14 @@ class SkippedTradeRecord(BaseModel):
     slug: str
     sport_tag: str
     question: str = ""
+    match_title: str = ""    # SPEC-015 3-way display başlığı (home/away için "X vs Y")
     event_id: str = ""
     direction: str = ""      # BUY_YES / BUY_NO / "" (skip karar öncesi)
     entry_price: float = 0.0
     anchor_probability: float = 0.0
+    gap: float | None = None
     confidence: str = ""
-    skip_reason: str         # slot_full | exposure_cap | event_guard_duplicate | no_edge | low_liquidity | manipulation | cb_active | ...
+    skip_reason: str         # slot_full | exposure_cap | event_guard_duplicate | below_fav_prob | price_out_of_range | low_liquidity | manipulation | cb_active | ...
     skip_detail: str = ""    # Opsiyonel ek not
 
 

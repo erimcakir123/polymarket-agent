@@ -44,6 +44,7 @@ class TradeRecord(BaseModel):
     event_id: str
     token_id: str
     question: str = ""
+    match_title: str = ""  # SPEC-015 3-way display başlığı; 2-way/draw için boş
 
     # ── Branş & lig ──
     sport_tag: str
@@ -84,16 +85,29 @@ class TradeRecord(BaseModel):
 
 
 class TradeHistoryLogger:
-    """Append-only JSONL: her satır = bir TradeRecord."""
+    """Append-only JSONL: her satır = bir TradeRecord.
 
-    def __init__(self, file_path: str) -> None:
+    mirror_path verilirse her write/rewrite işlemi session/ aynasına da uygulanır.
+    """
+
+    def __init__(self, file_path: str, mirror_path: str | None = None) -> None:
         self.path = Path(file_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.mirror: Path | None = None
+        if mirror_path:
+            self.mirror = Path(mirror_path)
+            self.mirror.parent.mkdir(parents=True, exist_ok=True)
 
-    def log(self, record: TradeRecord) -> None:
-        line = record.model_dump_json() + "\n"
+    def _write_line(self, line: str) -> None:
+        """audit + mirror (varsa) dosyasına satır ekler."""
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(line)
+        if self.mirror is not None:
+            with open(self.mirror, "a", encoding="utf-8") as f:
+                f.write(line)
+
+    def log(self, record: TradeRecord) -> None:
+        self._write_line(record.model_dump_json() + "\n")
 
     def read_recent(self, n: int = 50) -> list[dict[str, Any]]:
         return read_jsonl_tail(self.path, n, _BYTES_PER_LINE)
@@ -115,6 +129,7 @@ class TradeHistoryLogger:
         """En son açık (exit_price=None) kaydı bul, mutator(rec) çağır, atomic rewrite et.
 
         Atomic = tmp dosyaya yaz + replace. Crash-safe.
+        Mirror varsa aynı içerikle mirror da rewrite edilir.
         Return: matching record bulundu mu.
         """
         records = self.read_all()
@@ -126,11 +141,18 @@ class TradeHistoryLogger:
                 break
         if not updated:
             return False
+        serialized = [json.dumps(rec) + "\n" for rec in records]
+        # Audit atomic rewrite
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
         with open(tmp, "w", encoding="utf-8") as f:
-            for rec in records:
-                f.write(json.dumps(rec) + "\n")
+            f.writelines(serialized)
         tmp.replace(self.path)
+        # Mirror atomic rewrite (varsa)
+        if self.mirror is not None:
+            mirror_tmp = self.mirror.with_suffix(self.mirror.suffix + ".tmp")
+            with open(mirror_tmp, "w", encoding="utf-8") as f:
+                f.writelines(serialized)
+            mirror_tmp.replace(self.mirror)
         return True
 
     def update_on_exit(self, condition_id: str, exit_data: dict[str, Any]) -> bool:
@@ -140,7 +162,8 @@ class TradeHistoryLogger:
         return self._rewrite_matching(condition_id, lambda rec: rec.update(exit_data))
 
     def log_partial_exit(self, condition_id: str, tier: int, sell_pct: float,
-                         realized_pnl_usdc: float, timestamp: str) -> bool:
+                         realized_pnl_usdc: float, timestamp: str,
+                         price: float) -> bool:
         """En son açık trade kaydının partial_exits listesine bir partial ekle.
         Atomic rewrite. Return: kayıt bulundu mu.
         """
@@ -149,6 +172,7 @@ class TradeHistoryLogger:
             "sell_pct": sell_pct,
             "realized_pnl_usdc": realized_pnl_usdc,
             "timestamp": timestamp,
+            "price": price,
         }
 
         def append_partial(rec: dict[str, Any]) -> None:
