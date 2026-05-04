@@ -75,3 +75,12 @@ def test_is_soccer_key() -> None:
     assert is_soccer_key("basketball_nba") is False
     assert is_soccer_key(None) is False
     assert is_soccer_key("") is False
+
+
+def test_slug_atp_returns_none_for_dynamic_resolution() -> None:
+    # 16-Apr baseline: tennis static mapping yok; dinamik resolver tournament-key türetiyor.
+    assert slug_to_odds_key("atp") is None
+
+
+def test_slug_wta_returns_none_for_dynamic_resolution() -> None:
+    assert slug_to_odds_key("wta") is None

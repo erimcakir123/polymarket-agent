@@ -13,13 +13,71 @@ scanner yalnızca fresh fetch + filter + sort sorumluluğu taşır.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
+from src.config.sport_configs import get_sport_config
+from src.config.sport_rules import _normalize
+from src.domain.matching.tennis_tournament_resolver import resolve_tournament
+from src.domain.matching.three_way_title import enrich_three_way_titles
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
 logger = logging.getLogger(__name__)
+
+# NBA spread + totals support
+_NBA_TAGS = frozenset({"basketball_nba", "nba"})
+_NBA_ALLOWED_SMT = frozenset({"moneyline", "spreads", "totals"})
+_NHL_TAGS = frozenset({"nhl", "ahl"})
+_NHL_ALLOWED_SMT = frozenset({"moneyline", "spreads", "totals"})
+# Tennis tier-filter gate (opt-in via constructor): only normalized
+# sport_tag values listed here are considered for tier resolution.
+_TENNIS_TAGS = frozenset({"tennis", "tennis_wta"})
+
+# SPEC-015: 3-way sum filter constants
+_THREE_WAY_SUM_MIN = 0.95
+_THREE_WAY_SUM_MAX = 1.05
+_THREE_WAY_SPORTS = frozenset({"soccer", "rugby", "afl", "handball"})
+
+
+def _is_excluded_competition(market: MarketData) -> bool:
+    """SPEC-015: sport_config.excluded_competitions listesindeyse True (friendly/preseason)."""
+    cfg = get_sport_config(market.sport_tag)
+    if not cfg:
+        return False
+    excluded = cfg.get("excluded_competitions", [])
+    if not excluded:
+        return False
+    tags_str = " ".join(t.lower() for t in (market.tags or []) if isinstance(t, str))
+    question_str = (market.question or "").lower()
+    text = f"{tags_str} {question_str}"
+    return any(exc.lower() in text for exc in excluded)
+
+
+def _is_three_way_sport(sport_tag: str) -> bool:
+    s = (sport_tag or "").lower()
+    return any(tw in s for tw in _THREE_WAY_SPORTS)
+
+
+def _passes_three_way_sum_filter(markets: list[MarketData], event_id: str) -> bool:
+    """SPEC-015: 3-way sport için event'teki market'lerin yes_price toplamı 0.95-1.05.
+
+    2-way sporlar (event başına tek market) → her zaman geçer.
+    3-way sport + 3 market → toplam check.
+    3-way sport + 2 market → sum check (eksik market henüz listelenmemiş olabilir).
+    3-way sport + 1 market → geçer (outlier, grup eksik, sum anlamsız).
+    """
+    if not markets or not event_id:
+        return True
+    sport = (markets[0].sport_tag or "").lower()
+    if not _is_three_way_sport(sport):
+        return True
+    event_markets = [m for m in markets if m.event_id == event_id]
+    if len(event_markets) < 2:
+        return True  # tek market, sum check anlamsız
+    total = sum(m.yes_price for m in event_markets)
+    return _THREE_WAY_SUM_MIN <= total <= _THREE_WAY_SUM_MAX
 
 
 def _hours_to_start(m: MarketData) -> float:
@@ -57,18 +115,53 @@ class MarketScanner:
         self,
         config: ScannerConfig,
         gamma_client: GammaClient | None = None,
+        tennis_tournaments: dict[str, dict[str, str]] | None = None,
+        tennis_excluded_tiers: list[str] | None = None,
     ) -> None:
         self.config = config
         self._gamma = gamma_client or GammaClient()
+        # Tennis tier filter — opt-in via factory. Empty dict default preserves
+        # existing scanner behavior (Challenger/ITF passes through).
+        self._tennis_tournaments: dict[str, dict[str, str]] = tennis_tournaments or {}
+        self._tennis_excluded_tiers: list[str] = tennis_excluded_tiers or []
 
     # ── Public API ──
 
     def scan(self) -> list[MarketData]:
-        """Tüm flow: Gamma fetch → filter → sort → top N."""
+        """Tüm flow: Gamma fetch → filter → 3-way sum filter → sort → top N."""
         raw = self._gamma.fetch_events()
         filtered = [m for m in raw if self._passes_filters(m)]
+
+        # SPEC-015: excluded_competitions (friendly/preseason) filter
+        before = len(filtered)
+        filtered = [m for m in filtered if not _is_excluded_competition(m)]
+        if before != len(filtered):
+            logger.info("Scanner: %d market dropped by excluded_competitions", before - len(filtered))
+
+        # SPEC-015: 3-way sum filter (soccer/rugby/afl/handball double-chance/handicap eler)
+        event_groups: dict[str, list[MarketData]] = defaultdict(list)
+        for m in filtered:
+            if m.event_id:
+                event_groups[m.event_id].append(m)
+
+        dropped_event_ids: set[str] = set()
+        for eid, ems in event_groups.items():
+            if not _passes_three_way_sum_filter(ems, eid):
+                dropped_event_ids.add(eid)
+
+        if dropped_event_ids:
+            before = len(filtered)
+            filtered = [m for m in filtered if m.event_id not in dropped_event_ids]
+            logger.info(
+                "Scanner: %d market dropped by three_way_sum_filter (%d events)",
+                before - len(filtered), len(dropped_event_ids),
+            )
+
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
+        # SPEC-015: 3-way home/away sub-market'lerinin match_title alanını
+        # draw sub-market'in question'ından türet. 2-way market'ler no-op.
+        top = enrich_three_way_titles(top)
         logger.info("Scanner: %d raw → %d filtered → top %d",
                     len(raw), len(filtered), len(top))
         return top
@@ -87,8 +180,15 @@ class MarketScanner:
             return False
 
         # Sports market type — STRICT: sadece h2h moneyline kabul.
+        # NBA: spreads + totals da destekle; diğer spor: moneyline-only.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
-        if m.sports_market_type != "moneyline":
+        if _normalize(m.sport_tag) in _NBA_TAGS:
+            if m.sports_market_type not in _NBA_ALLOWED_SMT:
+                return False
+        elif _normalize(m.sport_tag) in _NHL_TAGS:
+            if m.sports_market_type not in _NHL_ALLOWED_SMT:
+                return False
+        elif m.sports_market_type != "moneyline":
             return False
 
         # Sport tag whitelist (MVP)
@@ -114,6 +214,21 @@ class MarketScanner:
         # ve bucket-0 imminent'a düşer; bunu eler)
         if not self._match_start_recent_or_future(m):
             return False
+
+        # Tennis tier gate: Challenger/ITF marketleri scanner'a kadar geliyor
+        # çünkü slug atp-/wta- ile başlıyor; ama Odds API onları desteklemiyor.
+        # Quota harcamamak için burada elenir (resolve_tournament None dönerse
+        # tier whitelist'te değil → drop). Yalnızca scanner'a tennis config
+        # geçildiyse aktif; default boş dict mevcut davranışı korur.
+        if self._tennis_tournaments and _normalize(m.sport_tag) in _TENNIS_TAGS:
+            info = resolve_tournament(
+                slug=m.slug,
+                tournaments=self._tennis_tournaments,
+                excluded_tiers=self._tennis_excluded_tiers,
+                question=m.question,
+            )
+            if info is None:
+                return False
 
         return True
 

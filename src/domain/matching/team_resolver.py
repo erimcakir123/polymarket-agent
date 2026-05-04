@@ -68,6 +68,30 @@ _STATIC_ABBREVS: dict[str, str] = {
     "mtl": "montreal canadiens", "nyr": "new york rangers",
     "edm": "edmonton oilers", "cgy": "calgary flames",
     "van": "vancouver canucks", "col": "colorado avalanche",
+    # Cricket — IPL (SPEC-011; unique keys only)
+    "csk": "chennai super kings",
+    "mi": "mumbai indians",
+    "rcb": "royal challengers bengaluru",
+    "kkr": "kolkata knight riders",
+    "srh": "sunrisers hyderabad",
+    "dc_ipl": "delhi capitals",         # 'dc' not used by existing, disambiguate for safety
+    "pk_ipl": "punjab kings",           # 'pk' not used, disambiguate
+    "rr_ipl": "rajasthan royals",       # 'rr' not used, disambiguate
+    "lsg": "lucknow super giants",
+    "gt_ipl": "gujarat titans",
+    # Cricket — International (suffix-disambiguated; 'ind' already = indiana pacers)
+    "ind_cric": "india",
+    "aus_cric": "australia",
+    "eng_cric": "england",
+    "pak_cric": "pakistan",
+    "nz_cric": "new zealand",
+    "sa_cric": "south africa",
+    "wi_cric": "west indies",
+    "ban_cric": "bangladesh",
+    "sl_cric": "sri lanka",
+    "afg_cric": "afghanistan",
+    "zim_cric": "zimbabwe",
+    "ire_cric": "ireland",
 }
 
 
@@ -130,3 +154,104 @@ def canonicalize(name: str) -> str:
     """İsim zaten canonical ise normalize haliyle döner; abbreviation/alias ise çözümler."""
     n = normalize(name)
     return _STATIC_ABBREVS.get(n) or _STATIC_ALIASES.get(n) or n
+
+
+# ── NBA ESPN team ID lookup ──────────────────────────────────────
+_NBA_NAME_TO_ESPN_ID: dict[str, str] = {
+    # Full canonical forms
+    "atlanta hawks": "1",
+    "boston celtics": "2",
+    "new orleans pelicans": "3",
+    "chicago bulls": "4",
+    "cleveland cavaliers": "5",
+    "dallas mavericks": "6",
+    "denver nuggets": "7",
+    "detroit pistons": "8",
+    "golden state warriors": "9",
+    "houston rockets": "10",
+    "indiana pacers": "11",
+    "la clippers": "12",
+    "los angeles lakers": "13",
+    "miami heat": "14",
+    "milwaukee bucks": "15",
+    "minnesota timberwolves": "16",
+    "brooklyn nets": "17",
+    "new york knicks": "18",
+    "orlando magic": "19",
+    "philadelphia 76ers": "20",
+    "phoenix suns": "21",
+    "portland trail blazers": "22",
+    "sacramento kings": "23",
+    "san antonio spurs": "24",
+    "oklahoma city thunder": "25",
+    "utah jazz": "26",
+    "washington wizards": "27",
+    "toronto raptors": "28",
+    "memphis grizzlies": "29",
+    "charlotte hornets": "30",
+    # Short canonical forms (for teams where canonicalize() doesn't expand city)
+    "trail blazers": "22",
+    "timberwolves": "16",
+    "cavaliers": "5",
+    "mavericks": "6",
+    "wizards": "27",
+    "pistons": "8",
+}
+
+
+def resolve_nba_espn_id(team_name: str) -> str:
+    """NBA takım adı → ESPN team ID (string). Bilinmeyen → ""."""
+    canon = canonicalize(team_name)
+    return _NBA_NAME_TO_ESPN_ID.get(canon, "")
+
+
+# ── NHL ESPN team ID lookup ──────────────────────────────────────
+_NHL_ABBR_TO_ESPN_ID: dict[str, str] = {
+    # ESPN-canonical abbreviations (live probe 2026-04-27)
+    "ANA":  "25",      # Anaheim Ducks
+    "BOS":  "1",       # Boston Bruins
+    "BUF":  "2",       # Buffalo Sabres
+    "CAR":  "7",       # Carolina Hurricanes
+    "CBJ":  "29",      # Columbus Blue Jackets
+    "CGY":  "3",       # Calgary Flames
+    "CHI":  "4",       # Chicago Blackhawks
+    "COL":  "17",      # Colorado Avalanche
+    "DAL":  "9",       # Dallas Stars
+    "DET":  "5",       # Detroit Red Wings
+    "EDM":  "6",       # Edmonton Oilers
+    "FLA":  "26",      # Florida Panthers
+    "LA":   "8",       # Los Angeles Kings
+    "MIN":  "30",      # Minnesota Wild
+    "MTL":  "10",      # Montreal Canadiens
+    "NJ":   "11",      # New Jersey Devils
+    "NSH":  "27",      # Nashville Predators
+    "NYI":  "12",      # New York Islanders
+    "NYR":  "13",      # New York Rangers
+    "OTT":  "14",      # Ottawa Senators
+    "PHI":  "15",      # Philadelphia Flyers
+    "PIT":  "16",      # Pittsburgh Penguins
+    "SEA":  "124292",  # Seattle Kraken
+    "SJ":   "18",      # San Jose Sharks
+    "STL":  "19",      # St. Louis Blues
+    "TB":   "20",      # Tampa Bay Lightning
+    "TOR":  "21",      # Toronto Maple Leafs
+    "UTAH": "129764",  # Utah Mammoth (ESPN abbr)
+    "VAN":  "22",      # Vancouver Canucks
+    "VGK":  "37",      # Vegas Golden Knights
+    "WPG":  "28",      # Winnipeg Jets
+    "WSH":  "23",      # Washington Capitals
+    # nhl_team_aliases.py canonical that differs from ESPN
+    "UTA":  "129764",  # Utah Mammoth (our canonical; ESPN uses "UTAH")
+    # alt_abbrs from nhl_team_aliases (external sources, e.g. Odds API)
+    "LAK":  "8",       # → LA
+    "NJD":  "11",      # → NJ
+    "SJS":  "18",      # → SJ
+    "TBL":  "20",      # → TB
+}
+
+
+def resolve_nhl_espn_id(abbr: str) -> str:
+    """NHL ESPN abbreviation → ESPN team ID. Bilinmeyen → ""."""
+    if not abbr or not isinstance(abbr, str):
+        return ""
+    return _NHL_ABBR_TO_ESPN_ID.get(abbr.strip().upper(), "")

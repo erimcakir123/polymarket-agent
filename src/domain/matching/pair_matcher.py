@@ -3,9 +3,14 @@
 L1: Exact canonical / alias (1.0)
 L2: Token overlap (0.85-0.90)
 L3: Fuzzy SequenceMatcher + rapidfuzz token_sort / partial
+
+Date-aware matching: MLB/KBO seri maçlarında aynı takımlar arka arkaya
+günlerde oynar. find_best_event_match expected_start verildiğinde
+commence_time en yakın event'i tercih eder.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from rapidfuzz import fuzz
@@ -13,6 +18,11 @@ from rapidfuzz import fuzz
 from src.domain.matching.team_resolver import canonicalize, normalize
 
 _NOISE: frozenset[str] = frozenset({"team", "the", "of", "de", "fc", "sc", "city", "united"})
+
+# Matching algorithm eşikleri — kalibre edilmiş sabitler (literaturden, config'e taşınmaz)
+_FUZZY_MATCH_THRESHOLD: float = 0.80       # L3a: SequenceMatcher min ratio
+_RF_TOKEN_SORT_THRESHOLD: float = 0.85     # L3b: rapidfuzz token_sort_ratio min score
+_RF_PARTIAL_RATIO_THRESHOLD: float = 0.80  # L3c: rapidfuzz partial_ratio min score
 
 
 def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
@@ -43,20 +53,20 @@ def match_team(query: str, candidate: str) -> tuple[bool, float, str]:
 
     # L3a: Fuzzy SequenceMatcher
     score = SequenceMatcher(None, q, c).ratio()
-    if score >= 0.80:
+    if score >= _FUZZY_MATCH_THRESHOLD:
         return True, score, "fuzzy"
 
     # L3b: rapidfuzz token_sort (uzun isimler)
     if len(q) >= 4 and len(c) >= 4:
         rf_score = fuzz.token_sort_ratio(q, c) / 100.0
-        if rf_score >= 0.85:
+        if rf_score >= _RF_TOKEN_SORT_THRESHOLD:
             return True, rf_score, "fuzzy_token_sort"
 
     # L3c: rapidfuzz partial_ratio + token overlap guard
     if len(q) >= 4 and len(c) >= 4:
         partial = fuzz.partial_ratio(q, c) / 100.0
         overlap = q_tokens & c_tokens
-        if partial >= 0.80 and overlap:
+        if partial >= _RF_PARTIAL_RATIO_THRESHOLD and overlap:
             return True, partial, "fuzzy_partial"
 
     return False, max(score, 0.0), "no_match"
@@ -82,6 +92,16 @@ def match_pair(
     return False, 0.0
 
 
+def _parse_iso(iso: str) -> datetime | None:
+    """ISO 8601 string → datetime (UTC). Parse edilemezse None."""
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
 def find_best_event_match(
     team_a: str,
     team_b: str,
@@ -89,10 +109,15 @@ def find_best_event_match(
     home_key: str = "home_team",
     away_key: str = "away_team",
     min_confidence: float = 0.80,
+    expected_start: str = "",
 ) -> tuple[dict, float] | None:
-    """Bir takım çifti için en iyi event'i bul (Odds API match'ing için)."""
-    best_event: dict | None = None
-    best_conf = 0.0
+    """Bir takım çifti için en iyi event'i bul (Odds API match'ing için).
+
+    expected_start verildiğinde: aynı takım çifti birden fazla event'te
+    eşleşirse (MLB/KBO seri maçları), commence_time beklenen tarihe en
+    yakın olan seçilir. Verilmezse eski davranış (ilk en yüksek conf).
+    """
+    candidates: list[tuple[dict, float]] = []
 
     for event in events:
         home = event.get(home_key, "")
@@ -100,13 +125,31 @@ def find_best_event_match(
         if not home or not away:
             continue
         is_match, conf = match_pair((team_a, team_b), (home, away))
-        if is_match and conf > best_conf:
-            best_conf = conf
-            best_event = event
+        if is_match and conf >= min_confidence:
+            candidates.append((event, conf))
 
-    if best_event and best_conf >= min_confidence:
-        return best_event, best_conf
-    return None
+    if not candidates:
+        return None
+
+    # Tek eşleşme → doğrudan döndür
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Birden fazla eşleşme: expected_start varsa commence_time yakınlığına göre seç
+    expected_dt = _parse_iso(expected_start)
+    if expected_dt:
+        def _time_distance(candidate: tuple[dict, float]) -> float:
+            ct = _parse_iso(candidate[0].get("commence_time", ""))
+            if ct is None:
+                return float("inf")
+            return abs((ct - expected_dt).total_seconds())
+
+        candidates.sort(key=_time_distance)
+        return candidates[0]
+
+    # expected_start yoksa en yüksek confidence'ı döndür
+    candidates.sort(key=lambda c: c[1], reverse=True)
+    return candidates[0]
 
 
 def find_best_single_team_match(

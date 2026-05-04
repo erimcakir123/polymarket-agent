@@ -23,10 +23,13 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "efa": "soccer_fa_cup",
     "efl": "soccer_efl_champ",
     "elc": "soccer_england_efl_cup",
+    "el1": "soccer_england_league1",
+    "el2": "soccer_england_league2",
     # Soccer — Spain
     "lal": "soccer_spain_la_liga",
     "cde": "soccer_spain_copa_del_rey",
     "cdr": "soccer_spain_copa_del_rey",
+    "es2": "soccer_spain_segunda_division",
     # Soccer — Germany
     "bun": "soccer_germany_bundesliga",
     "bl2": "soccer_germany_bundesliga2",
@@ -43,6 +46,7 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "ere": "soccer_netherlands_eredivisie",
     "por": "soccer_portugal_primeira_liga",
     "tur": "soccer_turkey_super_league",
+    "trsk": "soccer_turkey_super_league",
     "sco": "soccer_spl",
     "bel": "soccer_belgium_first_div",
     "den": "soccer_denmark_superliga",
@@ -50,7 +54,9 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "swe": "soccer_sweden_allsvenskan",
     "rus": "soccer_russia_premier_league",
     "gre": "soccer_greece_super_league",
+    "grc": "soccer_greece_super_league",
     "aut": "soccer_austria_bundesliga",
+    "atc": "soccer_austria_bundesliga",
     # Soccer — Americas
     "mls": "soccer_usa_mls",
     "arg": "soccer_argentina_primera_division",
@@ -71,6 +77,7 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "spl": "soccer_saudi_arabia_pro_league",
     "kor": "soccer_korea_kleague1",
     "jpn": "soccer_japan_j_league",
+    "j1100": "soccer_japan_j_league",
     "ind": "soccer_india_super_league",
     "chn": "soccer_china_superleague",
     "tha": "soccer_thailand_thai_league",
@@ -89,11 +96,13 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "cyp": "soccer_cyprus_first_division",
     # Soccer — Cups/International
     "ucl": "soccer_uefa_champs_league",
+    "uwcl": "soccer_uefa_champs_league_women",
     "uel": "soccer_uefa_europa_league",
     "uecl": "soccer_uefa_europa_conference_league",
     "lib": "soccer_conmebol_copa_libertadores",
     "sud": "soccer_conmebol_copa_sudamericana",
     "fif": "soccer_fifa_world_cup",
+    "fifwc": "soccer_fifa_world_cup",
     "euro": "soccer_uefa_european_championship",
     "con": "soccer_conmebol_copa_libertadores",
     "gold": "soccer_concacaf_gold_cup",
@@ -138,7 +147,6 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "kbo": "baseball_kbo",
     "npb": "baseball_npb",
     "milb": "baseball_milb",
-    "ncaab": "basketball_ncaab",
     # Canadian Football
     "cfl": "americanfootball_cfl",
     # Golf
@@ -146,6 +154,8 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "liv": "golf_liv_tour",
     # Rugby League
     "nrl": "rugbyleague_nrl",
+    # Tennis: 16-Apr baseline → static "atp"/"wta" mapping kaldırıldı.
+    # sport_key_resolver.py dinamik turnuva matching yapıyor (tennis_atp_miami_open vs.).
 }
 
 # ── Polymarket Gamma tag slug → Odds API sport_key ──
@@ -197,6 +207,8 @@ _TAG_TO_ODDS: dict[str, str] = {
     "ukrainian-premier-league": "soccer_ukraine_premier_league",
     "croatian-football-league": "soccer_croatia_hnl",
     "primera-divisin-argentina": "soccer_argentina_primera_division",
+    "argentine-primera-division": "soccer_argentina_primera_division",
+    "nwsl": "soccer_usa_nwsl",
     "colombian-primera-a": "soccer_colombia_primera_a",
     "peruvian-liga-1": "soccer_peru_primera_division",
     "uruguayan-primera-division": "soccer_uruguay_primera_division",
@@ -209,6 +221,15 @@ _TAG_TO_ODDS: dict[str, str] = {
     "egyptian-premier-league": "soccer_egypt_premier_league",
     "concacaf-champions-cup": "soccer_concacaf_gold_cup",
     "uefa-nations-league": "soccer_uefa_european_championship",
+    # Rugby (SPEC-015)
+    "rugby": "rugbyunion_premiership",
+    "rugby-union": "rugbyunion_premiership",
+    "rugby-league": "rugbyleague_nrl",
+    "six-nations": "rugbyunion_six_nations",
+    "premiership-rugby": "rugbyunion_premiership",
+    "nrl": "rugbyleague_nrl",
+    # Handball (SPEC-015)
+    "handball": "handball_euro_championship",
     # Non-soccer
     "mlb": "baseball_mlb",
     "milb": "baseball_milb",
@@ -236,6 +257,8 @@ _TAG_TO_ODDS: dict[str, str] = {
     "big-bash-league": "cricket_bbl",
     "caribbean-premier-league": "cricket_cpl",
     "t20-blast": "cricket_t20_blast",
+    "indian-premier-league": "cricket_ipl",         # SPEC-011 Task 3
+    "international-cricket": "cricket_international_t20",  # SPEC-011 Task 3
 }
 
 
