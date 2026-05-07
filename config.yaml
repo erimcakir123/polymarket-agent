@@ -47,10 +47,7 @@ scanner:
     - ncaaf
     - cfl
     - ufl
-    # Tennis (wildcard — turnuva bazlı dinamik)
-    - tennis
-    - "atp*"
-    - "wta*"
+    # Tennis kaldırıldı 2026-05-05 — matching katmanı korundu, geri açmak için tags geri ekle
     # Combat sports (2-outcome, draw yok — mevcut pipeline uyumlu)
     - mma
     - ufc
@@ -67,8 +64,8 @@ edge:
     B: 1.00
 
 risk:
-  max_single_bet_usdc: 75
-  max_bet_pct: 0.05
+  max_single_bet_usdc: 50
+  max_bet_pct: 1.0  # disabled - max_single_bet_usdc tek kural
   max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
   max_exposure_pct: 0.50
   hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)

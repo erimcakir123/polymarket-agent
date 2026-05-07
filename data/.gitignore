@@ -1,2 +1,4 @@
 nhl_shots/
 cache/
+# Runtime state — bot tarafından yazılır, repo'ya girmez
+*.json

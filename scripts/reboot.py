@@ -1,11 +1,12 @@
 """Bot ve dashboard için reload/reboot kontrol scripti.
 
-RELOAD: Graceful kill + state DOKUNMAZ + yeniden başlat.
-REBOOT: Graceful kill + runtime logları temizle + state sıfırla + yeniden başlat.
+RELOAD: Graceful kill + state/audit DOKUNMAZ + yeniden başlat.
+REBOOT: Graceful kill + runtime + session + state + AUDIT temizle + yeniden başlat (gerçek factory reset).
 
 Dizin yapısı:
   logs/runtime/  — reboot'ta temizlenir (bot.log, dashboard.log, skipped_trades.jsonl)
-  logs/audit/    — ASLA dokunulmaz (trade_history, exits, score_events, match_results, equity_history, counterfactual)
+  logs/session/  — reboot'ta temizlenir (audit aynası — dashboard kaynağı)
+  logs/audit/    — REBOOT'ta temizlenir (kullanıcı kararı 2026-05-05); reload korur
   data/          — state dosyaları (positions, circuit_breaker, stock_queue, bot_status, blacklist)
   logs/          — PID dosyaları (agent.pid, dashboard.pid)
 
@@ -36,6 +37,7 @@ _STATE_FILES_DELETE = [
     ROOT / "data" / "positions.json",
     ROOT / "data" / "stock_queue.json",
     ROOT / "data" / "bot_status.json",
+    ROOT / "data" / "blacklist.json",
 ]
 
 # REBOOT'ta temizlenen runtime log dosyaları (içeriği boşaltılır, arşiv yok)
@@ -43,6 +45,15 @@ _RUNTIME_LOG_FILES = [
     ROOT / "logs" / "runtime" / "bot.log",
     ROOT / "logs" / "runtime" / "dashboard.log",
     ROOT / "logs" / "runtime" / "skipped_trades.jsonl",
+]
+
+# REBOOT'ta temizlenen audit dosyaları (kullanıcı kararı 2026-05-05: gerçek factory reset)
+_AUDIT_FILES_CLEAR = [
+    ROOT / "logs" / "audit" / "trade_history.jsonl",
+    ROOT / "logs" / "audit" / "equity_history.jsonl",
+    ROOT / "logs" / "audit" / "exits.jsonl",
+    ROOT / "logs" / "audit" / "score_events.jsonl",
+    ROOT / "logs" / "audit" / "match_results.jsonl",
 ]
 
 _GRACEFUL_WAIT_SECONDS = 2
@@ -194,6 +205,19 @@ def reset_state(state_files: list[Path] | None = None) -> None:
             print(f"  Removed state: {state_file.name}")
 
 
+def clear_audit_logs(audit_files: list[Path] | None = None) -> None:
+    """Audit log dosyalarını sil (gerçek factory reset — kullanıcı kararı 2026-05-05).
+
+    Daha önce audit ASLA dokunulmazdı; kullanıcı reboot'un tam wipe olmasını istiyor.
+    Reload bu fonksiyonu çağırmaz, sadece reboot.
+    """
+    files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
+    for audit_file in files:
+        if audit_file.exists():
+            audit_file.unlink()
+            print(f"  Removed audit: {audit_file.name}")
+
+
 def start_dashboard(root: Path | None = None) -> None:
     """Dashboard'u ayrı process'te başlat."""
     r = root or ROOT
@@ -243,11 +267,12 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
 
 
 def reboot(mode: str = "dry_run") -> None:
-    """REBOOT: Tam temizlik + yeniden başlat."""
+    """REBOOT: Tam temizlik (audit dahil) + yeniden başlat."""
     print("=== REBOOT ===")
     kill_processes()
     clear_runtime_logs()
     clear_session_logs()
+    clear_audit_logs()
     reset_state()
     start_dashboard()
     time.sleep(3)

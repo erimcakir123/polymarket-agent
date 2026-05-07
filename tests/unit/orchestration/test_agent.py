@@ -63,7 +63,7 @@ def _safe_manip() -> ManipulationCheck:
 def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerProbability | None = None) -> AgentDeps:
     """Test için minimal agent deps."""
     cfg = AppConfig()
-    state = bootstrap(cfg, logs_dir=tmp_path)
+    state = bootstrap(cfg, logs_dir=tmp_path, trade_history_path=tmp_path / "trade_history.jsonl")
 
     gamma = MagicMock()
     gamma.fetch_events.return_value = markets

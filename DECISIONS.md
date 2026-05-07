@@ -5,6 +5,36 @@
 
 ---
 
+## Tennis Devre Dışı (2026-05-05)
+
+**Karar**: Tennis tarama + entry pipeline'dan tamamen çıkarıldı. **Matching katmanı korundu** (geri açmak istenirse hazır).
+
+**Kaldırılan (5 dosya, ~20 satır):**
+- `config.yaml` — `allowed_sport_tags`'den `tennis`, `"atp*"`, `"wta*"` (3 satır)
+- `src/config/sport_rules.py` — `"tennis": {...}` SPORT_RULES entry + `tennis_atp/tennis_wta` _ALIASES + `tennis_*` prefix match
+- `src/config/_sport_aliases.py` — `tennis_atp/tennis_wta` aliases
+
+**Test güncellemesi:** `test_sport_rules.py`'dan tennis 3 testi sil + loop'tan çıkar; `test_scanner.py`'dan `test_tennis_wildcard_matches` + tennis_* allowed_tag sil. Test toplamı 960 → 956.
+
+**Korunan (matching infrastructure — dormant):**
+- `src/domain/matching/tennis_player_resolver.py` (Sackmann xref + fuzzy name)
+- `src/domain/matching/tennis_tournament_resolver.py` (ATP/WTA tier + surface)
+- `src/domain/matching/sport_classifier.py` — `atp/wta → tennis` mapping
+- `src/domain/matching/odds_sport_keys.py` + `src/strategy/enrichment/sport_key_resolver.py` — dinamik turnuva resolver
+- `src/infrastructure/apis/gamma_client.py` — tennis sport_tag override (slug normalization)
+- `tests/unit/domain/matching/test_tennis_*.py` (3 dosya)
+
+**Sebep**:
+1. **Kâr/zarar**: Tenis pozisyonları açıldı ama in-match olasılık modeli yok (Tennis Magnus migrate edilmedi). Çıkış kararı "sport-agnostic" genel kurallarla — set/oyun seviyesinde kalibre değil. 2026-05-04 reboot sonrası 11 tenis pozisyon açıldı, hepsinin exit kararı geç oldu.
+2. **Token tasarrufu**: Allowed tags'den çıkınca scanner tennis market'leri filter aşamasında eler → odds_enricher tetiklenmez → Odds API tennis çağrısı = 0. ESPN tennis polling = 0.
+3. **Risk azaltma**: 16 Nisan baseline NBA/MLB/NHL moneyline + temel exit kurallarıyla kanıtlanmış. Tenis sport-specific davranışları olmadan riskli.
+
+**Geri açma koşulu**: 16 Nisan baseline'a tennis_magnus.py + _tennis_exit_dispatch.py + sackmann_client.py migrate edilmesi + paper-test win rate ≥ %55 doğrulaması.
+
+**Geri açma adımları (config-only)**: 5 dosyada toplam ~20 satır geri ekle (yorum satırlarına bakarak), reboot. Matching infrastructure zaten hazır.
+
+---
+
 ## Altyapı Migration (2026-05-04 baseline rollback + selective infra)
 
 **Karar**: `pre-rollback-2026-05-04` snapshot'tan **sadece altyapı paketlerini** kabul ederek `baseline-2026-04-16` (commit `11d0954`) üzerine kuruldu. Entry kuralları, exit kuralları, in-match olasılık modelleri ve sport-specific dispatcher'lar 16 Nisan halinde kaldı.

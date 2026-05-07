@@ -162,12 +162,13 @@ def test_clear_session_logs_audit_untouched(tmp_path: Path) -> None:
     assert (audit_dir / "trade_history.jsonl").read_text(encoding="utf-8") == '{"audit":true}\n'
 
 
-def test_reboot_clears_session_not_audit(tmp_path: Path) -> None:
-    """Reboot: clear_session_logs çağrılır, audit/ dokunulmaz."""
+def test_reboot_clears_session_and_audit(tmp_path: Path) -> None:
+    """Reboot: clear_session_logs + clear_audit_logs ikisi de çağrılır (factory reset)."""
     with (
         patch("scripts.reboot.kill_processes"),
         patch("scripts.reboot.clear_runtime_logs"),
         patch("scripts.reboot.clear_session_logs") as mock_session,
+        patch("scripts.reboot.clear_audit_logs") as mock_audit,
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.start_dashboard"),
         patch("scripts.reboot.start_bot"),
@@ -176,20 +177,23 @@ def test_reboot_clears_session_not_audit(tmp_path: Path) -> None:
         reboot("dry_run")
 
     mock_session.assert_called_once()
+    mock_audit.assert_called_once()
 
 
-def test_reload_does_not_clear_session(tmp_path: Path) -> None:
-    """Reload: clear_session_logs çağrılmaz — session korunur."""
+def test_reload_does_not_clear_session_or_audit(tmp_path: Path) -> None:
+    """Reload: ne session ne audit dokunulur."""
     with (
         patch("scripts.reboot.kill_processes"),
         patch("scripts.reboot.start_dashboard"),
         patch("scripts.reboot.start_bot"),
         patch("scripts.reboot.clear_session_logs") as mock_session,
+        patch("scripts.reboot.clear_audit_logs") as mock_audit,
         patch("scripts.reboot.time.sleep"),
     ):
         reload_bot("dry_run")
 
     mock_session.assert_not_called()
+    mock_audit.assert_not_called()
 
 
 # ─── reset_state ──────────────────────────────────────────────────────────────

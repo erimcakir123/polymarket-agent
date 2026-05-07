@@ -20,6 +20,7 @@ from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
+from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
@@ -52,10 +53,12 @@ def build_agent(state: RuntimeState) -> Agent:
     # Executor: LIVE ise CLOB client gerekli — main.py LIVE confirm'dan sonra wire'lar
     executor = _build_executor(cfg)
 
-    trade_logger = TradeHistoryLogger("logs/trade_history.jsonl")
-    equity_logger = EquityHistoryLogger("logs/equity_history.jsonl")
-    skipped_logger = SkippedTradeLogger("logs/skipped_trades.jsonl")
-    stock_snapshot = StockSnapshot("logs/stock_queue.json")
+    # 3-tier log paths: audit (kalıcı) + session (reboot mirror) + runtime (reboot temizler).
+    # State (positions/breaker/blacklist) startup.py'de data/'da; operasyonel state burada data/'da.
+    trade_logger = build_trade_logger()
+    equity_logger = build_equity_logger()
+    skipped_logger = SkippedTradeLogger("logs/runtime/skipped_trades.jsonl")
+    stock_snapshot = StockSnapshot("data/stock_queue.json")
     stock = StockQueue(
         config=StockConfig(
             enabled=cfg.stock.enabled,
@@ -67,7 +70,7 @@ def build_agent(state: RuntimeState) -> Agent:
         snapshot=stock_snapshot,
     )
     stock.load()  # restart sonrası restore
-    bot_status_store = JsonStore("logs/bot_status.json")
+    bot_status_store = JsonStore("data/bot_status.json")
     bot_status_writer = BotStatusWriter(bot_status_store, cycle_manager)
 
     # Gate: enricher + manipulation_check closure'ları

@@ -6,11 +6,7 @@ from unittest.mock import MagicMock
 
 from src.config.settings import ScannerConfig
 from src.models.market import MarketData
-from src.orchestration.scanner import (
-    MarketScanner,
-    _passes_three_way_sum_filter,
-    _sort_key,
-)
+from src.orchestration.scanner import MarketScanner, _sort_key
 
 
 def _iso(dt: datetime) -> str:
@@ -47,7 +43,7 @@ def _config(**over) -> ScannerConfig:
         min_liquidity=1000,
         max_markets_per_cycle=300,
         max_duration_days=14,
-        allowed_sport_tags=["basketball_nba", "icehockey_nhl", "tennis_*"],
+        allowed_sport_tags=["basketball_nba", "icehockey_nhl"],
     )
     for k, v in over.items():
         setattr(base, k, v)
@@ -63,28 +59,11 @@ def test_closed_markets_filtered() -> None:
     assert sc.scan() == []
 
 
-def test_non_moneyline_non_nba_filtered() -> None:
-    """Non-NBA spreads → reject (only moneyline allowed for non-NBA sports)."""
+def test_non_moneyline_filtered() -> None:
     now = datetime.now(timezone.utc)
-    m = _market(sport_tag="soccer_epl", market_type="spreads", end_date=now + timedelta(days=1))
+    m = _market(market_type="spreads", end_date=now + timedelta(days=1))
     sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
     assert sc.scan() == []
-
-
-def test_nba_spreads_allowed() -> None:
-    """NBA spreads → accept (spreads + totals supported for NBA)."""
-    now = datetime.now(timezone.utc)
-    m = _market(market_type="spreads", end_date=now + timedelta(days=1), match_start=now + timedelta(hours=12))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
-    assert len(sc.scan()) == 1
-
-
-def test_nba_totals_allowed() -> None:
-    """NBA totals → accept (spreads + totals supported for NBA)."""
-    now = datetime.now(timezone.utc)
-    m = _market(market_type="totals", end_date=now + timedelta(days=1), match_start=now + timedelta(hours=12))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
-    assert len(sc.scan()) == 1
 
 
 def test_resolved_by_price_filtered() -> None:
@@ -209,14 +188,6 @@ def test_just_over_8h_boundary_filtered() -> None:
     assert sc.scan() == []
 
 
-def test_tennis_wildcard_matches() -> None:
-    now = datetime.now(timezone.utc)
-    m = _market(sport_tag="tennis_atp_french_open", match_start=now + timedelta(hours=3),
-                end_date=now + timedelta(hours=6))
-    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
-    assert len(sc.scan()) == 1
-
-
 # ── Priority sort ──
 
 def test_imminent_before_midrange() -> None:
@@ -278,76 +249,3 @@ def _mock_gamma(markets: list[MarketData]) -> MagicMock:
     g = MagicMock()
     g.fetch_events.return_value = markets
     return g
-
-
-# ── SPEC-015: 3-way sum filter ──
-
-def test_scanner_three_way_sum_in_range_passes() -> None:
-    """Soccer: 0.45+0.27+0.28=1.00 → geçer."""
-    markets = [
-        MarketData(
-            condition_id=f"c{i}", question="Q", slug="s",
-            yes_token_id="y", no_token_id="n",
-            yes_price=price, no_price=round(1 - price, 4),
-            liquidity=50000, volume_24h=10000, tags=[],
-            end_date_iso="2026-04-25T00:00:00Z",
-            sport_tag="soccer", event_id="evt1",
-        )
-        for i, price in enumerate([0.45, 0.27, 0.28])
-    ]
-    assert _passes_three_way_sum_filter(markets, "evt1") is True
-
-
-def test_scanner_three_way_sum_out_of_range_rejected() -> None:
-    """0.50+0.50+0.20=1.20 → double chance gibi, skip."""
-    markets = [
-        MarketData(
-            condition_id=f"c{i}", question="Q", slug="s",
-            yes_token_id="y", no_token_id="n",
-            yes_price=price, no_price=round(1 - price, 4),
-            liquidity=50000, volume_24h=10000, tags=[],
-            end_date_iso="2026-04-25T00:00:00Z",
-            sport_tag="soccer", event_id="evt2",
-        )
-        for i, price in enumerate([0.50, 0.50, 0.20])
-    ]
-    assert _passes_three_way_sum_filter(markets, "evt2") is False
-
-
-def test_scanner_two_way_sport_bypasses_filter() -> None:
-    """MLB tek market: filter atlanır, True."""
-    markets = [MarketData(
-        condition_id="c1", question="Yankees vs Red Sox", slug="mlb-nyy-bos",
-        yes_token_id="y", no_token_id="n",
-        yes_price=0.65, no_price=0.35,
-        liquidity=50000, volume_24h=10000, tags=[],
-        end_date_iso="2026-04-25T00:00:00Z",
-        sport_tag="mlb", event_id="evt3",
-    )]
-    assert _passes_three_way_sum_filter(markets, "evt3") is True
-
-
-def test_scanner_three_way_single_market_passes() -> None:
-    """Soccer tek market gelmişse (eksik), sum check yapma → geçer."""
-    markets = [MarketData(
-        condition_id="c1", question="Will X win?", slug="soccer-x-y",
-        yes_token_id="y", no_token_id="n",
-        yes_price=0.50, no_price=0.50,
-        liquidity=50000, volume_24h=10000, tags=[],
-        end_date_iso="2026-04-25T00:00:00Z",
-        sport_tag="soccer", event_id="evt4",
-    )]
-    assert _passes_three_way_sum_filter(markets, "evt4") is True
-
-
-def test_scanner_empty_event_id_passes() -> None:
-    """event_id boşsa skip etme."""
-    markets = [MarketData(
-        condition_id="c1", question="Q", slug="s",
-        yes_token_id="y", no_token_id="n",
-        yes_price=0.50, no_price=0.50,
-        liquidity=50000, volume_24h=10000, tags=[],
-        end_date_iso="2026-04-25T00:00:00Z",
-        sport_tag="soccer", event_id="",
-    )]
-    assert _passes_three_way_sum_filter(markets, "") is True

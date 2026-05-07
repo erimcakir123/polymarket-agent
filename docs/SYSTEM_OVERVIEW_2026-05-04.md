@@ -24,9 +24,10 @@ Tarayıcı şu spor etiketlerine bakıyor (`config.yaml` → `allowed_sport_tags
 - **Beyzbol**: MLB, MiLB, NPB, KBO
 - **Buz hokeyi**: NHL, AHL, Liiga, Mestis, SHL, Allsvenskan
 - **Amerikan futbolu**: NCAA-F, CFL, UFL
-- **Tenis**: ATP / WTA (turnuva bazlı dinamik)
 - **Golf**: PGA, LPGA, LIV
 - **Dövüş**: MMA, UFC, boks
+
+> **Not (2026-05-05)**: Tenis (ATP/WTA) tarama tag'lerinden kaldırıldı. Matching/slug eşleştirme katmanı korundu — tekrar açmak istenirse `config.yaml → allowed_sport_tags`'a 3 satır geri eklemek yeterli.
 
 Ama **kararı veren mantık (16 Nisan kuralları)** sadece moneyline/3-way pazarları kabul ediyor — spread, totals (over/under), puck line gibi karmaşık pazarlar **şu anda dışarıda**. Sadece "X kazanır mı?" tipi basit bahisler.
 
@@ -88,7 +89,8 @@ Bu güncellemede dokunulmayan ve **şu an aktif olmayan** şeyler:
 - **In-match olasılık modelleri**: NHL empirical win probability, MLB Pythagorean expectancy + log5 + pitcher adjustment, Tennis Magnus modeli, NBA safe lead — hiçbiri çalışmıyor. 16 Nisan kararı: bunlar fazla karmaşık olduğu için canlı maç sırasında olasılık güncelleme yapılmıyor.
 - **Sport-specific exit dispatcher'lar**: MLB run line / totals exit, NHL puck line / totals exit, Tennis score exit, Cricket exit — yok. Çıkış mantığı **sport-agnostic** (genel kurallar tüm sporlara uygulanıyor).
 - **Yeni API client'ları**: `mlb_stats_client`, `openweather_client`, `sackmann_client`, `espn_*` — entegre edilmedi.
-- **MLB ve Tennis sporları aktif değil** — pazar tarama tag'lerinde olsalar da, in-match modelleri olmadığı için entry gate aslında onlara izin vermiyor.
+- **Tenis tarama dışı (2026-05-05)** — `allowed_sport_tags`'den çıkarıldı, in-match modeli olmadan riskli olduğu için. Matching katmanı duruyor, geri açmak için config-only.
+- **MLB sporu aktif değil** — pazar tarama tag'lerinde olsa da, in-match modelleri olmadığı için entry gate aslında ona izin vermiyor.
 
 ---
 

@@ -33,13 +33,7 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit_deficit": 5,
         "inning_exit_after": 6,
     },
-    "tennis": {
-        "stop_loss_pct": 0.35,
-        "match_duration_hours": 2.5,
-        "match_duration_hours_bo3": 1.75,
-        "match_duration_hours_bo5": 3.5,
-        "set_exit": True,
-    },
+    # Tennis kaldırıldı 2026-05-05 — geri açmak için entry geri ekle
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
@@ -82,9 +76,7 @@ _ALIASES: dict[str, str] = {
     "baseball_kbo": "mlb",
     "baseball_ncaa": "mlb",
     "baseball": "mlb",
-    # Tennis
-    "tennis_atp": "tennis",
-    "tennis_wta": "tennis",
+    # Tennis kaldırıldı 2026-05-05
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",
@@ -97,9 +89,6 @@ def _normalize(sport_tag: str) -> str:
         return tag
     if tag in _ALIASES:
         return _ALIASES[tag]
-    # tennis_* prefix match (dinamik turnuvalar)
-    if tag.startswith("tennis_"):
-        return "tennis"
     return ""
 
 

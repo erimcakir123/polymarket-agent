@@ -34,9 +34,7 @@ _ALIASES: dict[str, str] = {
     "baseball_kbo": "kbo",
     "baseball_ncaa": "mlb",
     "baseball": "mlb",
-    # Tennis
-    "tennis_atp": "tennis",
-    "tennis_wta": "tennis_wta",
+    # Tennis kaldırıldı 2026-05-05 — matching katmanı domain/matching/tennis_*_resolver.py altında korunuyor
     # Combat sports
     "mma_ufc": "mma",
     "ufc": "mma",
