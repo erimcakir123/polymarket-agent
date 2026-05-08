@@ -1,7 +1,10 @@
 """Polymarket MarketData → The Odds API sport_key çözümleyici.
 
-Öncelik: static mapping (slug/tag) → tennis dinamik → event discovery fallback.
+Öncelik: static mapping (slug/tag) → event discovery fallback.
 odds_client DI ile — HTTP çağrıları dışarıdan verilir.
+
+Tennis dinamik routing 2026-05-05 itibariyle DORMANT (SPEC-A5) — kod korundu,
+re-enable için resolve_sport_key'deki erken-return'u kaldır.
 """
 from __future__ import annotations
 
@@ -16,6 +19,9 @@ _GENERIC_TENNIS_WORDS: frozenset[str] = frozenset({
     "open", "grand", "prix", "cup", "championship", "masters", "series",
 })
 
+# DORMANT (SPEC-A5, 2026-05-05): tennis disabled — alias table preserved for future re-enable.
+# To reactivate: remove early-return at resolve_sport_key (lines ~54-57).
+#
 # SPEC-003: Polymarket sponsor-named tournaments → Odds API city-based keys.
 # Odds API guide (2026-04-04): tennis keys are strictly city/location-based
 # (e.g., tennis_atp_munich, tennis_wta_stuttgart_open). Polymarket question
@@ -64,6 +70,8 @@ def resolve_sport_key(
     return None
 
 
+# DORMANT (SPEC-A5, 2026-05-05): tennis disabled — function preserved for future re-enable.
+# To reactivate: remove early-return at resolve_sport_key (lines ~54-57).
 def _match_tennis_key(gender: str, q_lower: str, slug_lower: str, odds_client) -> str | None:
     """Aktif tennis key'leri arasından en iyi turnuva eşleşmesini bul."""
     sports = odds_client.get_sports(include_inactive=False) or []

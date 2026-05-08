@@ -52,4 +52,20 @@
 
 ---
 
-## TODO-002: [sonraki eklenecekler]
+## TODO-002: Tennis Re-Enable Test Restoration
+
+- **Durum**: PARKED
+- **Tarih**: 2026-05-05
+- **Sebep**: SPEC-A5 (tennis kapatma) sırasında `_TENNIS_SPONSOR_ALIASES` için 4 test silindi:
+  BMW Open / Porsche / Barcelona / sponsor→city eşleştirmeleri.
+  Tennis tekrar açılırsa bu testler restore edilmeden SPEC-A5 erken-return'u kaldırılmamalı —
+  yoksa sponsor-aliasing regresyonu sessizce kayar.
+- **Önkoşul**: Tennis re-enable kararı verildiğinde:
+  1. `git show 5b56500^ -- tests/unit/strategy/enrichment/` ile silinen testleri çıkar
+     (parent commit `5b56500`'in bir öncesi).
+  2. Testleri restore et, yeşile çek.
+  3. Sonra `src/strategy/enrichment/sport_key_resolver.py` içindeki erken-return'u kaldır.
+
+---
+
+## TODO-003: [sonraki eklenecekler]
