@@ -19,6 +19,7 @@ from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogg
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
+from src.orchestration._agent_resilience import CycleResilience
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
@@ -59,6 +60,7 @@ class Agent:
         self._ws_started = False
         self._entry = EntryProcessor(deps)
         self._exit = ExitProcessor(deps)
+        self._resilience = CycleResilience(max_consecutive=2)
         if self.deps.price_feed is not None:
             self.deps.price_feed.set_callback(self._on_price_update)
 
@@ -81,8 +83,16 @@ class Agent:
                     self._entry.run_heavy()
                 if tick.run_light:
                     self._exit.run_light()
+                self._resilience.record_success()
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
+                self._resilience.record_error(e)
+                if self._resilience.should_stop():
+                    logger.critical(
+                        "STOPPING: %d ardışık programatik hata (%s) — bot durduruldu",
+                        self._resilience._count, type(e).__name__,
+                    )
+                    self._stop_requested = True
 
             persist(self.deps.state)
             self.deps.bot_status_writer.write_from_tick(
