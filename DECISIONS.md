@@ -5,6 +5,65 @@
 
 ---
 
+## Sessiz Bug Audit + Fix Stratejisi (2026-05-08)
+
+**Karar**: 3 günlük dry_run sonrası bot'ta **sessiz state corruption** keşfedildi. Bot 40 işlem yapmış, $195 realized PnL biriktirmiş ama trade_history.jsonl'e **tek satır yazmamış**. Reload sonrası reconcile snapshot'ı log ground truth'a göre zerodu, $195 buharlaştı.
+
+**Kök sebep**: `exit_processor.log_partial_exit(...)` migration sırasında `price` parametresinin zorunlu olduğu yeni signature'a göre güncellenmemiş. Her scale-out'ta TypeError fırladı, `agent.run()` cycle try/except yutuyordu.
+
+**Hemen uygulanan fix'ler**:
+- `exit_processor.py:108` — `price=pos.current_price` eklendi
+- `startup.py:_reconcile_realized_pnl` — trade_history boş + snapshot dolu → "logging gap suspected, trusting snapshot" davranışı (otomatik zerolama YOK)
+
+**Audit sonuçları (10 sorun, severity sıralı)** — Detayları `SPEC.md` SPEC-A/SPEC-B/SPEC-C:
+
+| # | Sorun | Severity | Fix Konumu |
+|---|---|---|---|
+| 1 | agent.py cycle silent except | CRITICAL | SPEC-A1 |
+| 2 | apply_partial_exit silent no-op | CRITICAL | SPEC-A2 |
+| 3 | score_info hiç geçilmiyor → guard'lar pasif | HIGH | SPEC-B (ESPN) |
+| 4 | match_start ParseError → tüm guard'lar bypass | HIGH | SPEC-B (ESPN fallback) |
+| 5 | scanner ParseError → kabul + magic 8.0 | HIGH | SPEC-B + config |
+| 6 | 3-way bookmaker silent skip | MED | SPEC-C (futbol açılınca) |
+| 7 | tennis sport_classifier ölü kod | MED | SPEC-A5 (eksik kalan) |
+| 8 | trade_logger.read_all corrupt skip | MED | SPEC-A3 |
+| 9 | factory private attribute mutation | LOW | SPEC-A4 |
+| 10 | tennis resolver erken return yok | LOW | SPEC-A5 |
+
+**Yapılış sırası**:
+1. **SPEC-A** (5 fix, ~1 gün): Sessiz hata yutma kalıbı kalıcı kapatılır → bundan sonra yeni bug'lar HEMEN ortaya çıkar
+2. **SPEC-B** (ESPN client wire, ~3-5 gün): Skor-aware exit guard'lar aktifleşir, ParseError fallback'i ESPN'den gelir
+3. **SPEC-C** (futbol açılana kadar park): 3-way bookmaker sanity
+
+**Sebep bu sıra**: A1 (silent except) en kritik çünkü VARLIĞI tüm diğer bug'ları gizliyor. A1 olmadan B veya C içinde yeni bug'lar yine sessiz yutulur.
+
+**Yasak (SPEC-A süresince)**:
+- Entry/exit kuralları (gate.py, monitor.py): DOKUNMA
+- ESPN client: SPEC-B kapsamı, SPEC-A'da değil
+- 16 Nisan baseline davranışı: değişmiyor, sadece hata kalıbı
+
+**SPEC-A tamamlandı (2026-05-08):**
+- A1 — cycle programatik-hata 2-strike stop ✅ (commit 51cd558 + quality fix 25b239f)
+  - Yeni: `src/orchestration/_agent_resilience.py` (CycleResilience + is_programmatic_error)
+  - `agent.py` cycle except daraltıldı; programatik hata 2 ardışık → otomatik stop
+  - Threshold `config.yaml → agent.cycle_max_consecutive_errors`'a taşındı (magic number yok)
+- A2 — apply_partial_exit fail-loud + caller rollback ✅ (commit 9ed5121)
+  - `manager.py:apply_partial_exit` — pozisyon yoksa ValueError
+  - `exit_processor._execute_partial_exit` — try/except + state mutation rollback
+- A3 — trade_logger corrupt-row counter + reconcile abort ✅ (commit 96886e9)
+  - `trade_logger.read_all` — JSONDecodeError sayar; threshold (3) → flag
+  - `startup._reconcile_realized_pnl` — GUARD-2 corrupt threshold abort
+- A4 — TelegramCommandPoller public set_on_stop API ✅ (commit de7e8f2)
+  - Private mutation kaldırıldı; public method ile callback wiring
+- A5 — Tennis resolver erken return ✅ (commit 5b56500 + dormant markers 05d579a)
+  - `sport_key_resolver` — atp/wta prefix veya tennis-related kw → erken None
+  - `_match_tennis_key` + sponsor alias table DORMANT olarak korundu
+  - 4 test silindi (eski tennis routing testleri); TODO-002 eklendi (re-enable safety net)
+
+Test toplamı: 956 → 968 (+12 net yeni test). Bot artık sessiz hata yutmayacak — programatik bug 2 ardışıkta otomatik stop.
+
+---
+
 ## Tennis Devre Dışı (2026-05-05)
 
 **Karar**: Tennis tarama + entry pipeline'dan tamamen çıkarıldı. **Matching katmanı korundu** (geri açmak istenirse hazır).
