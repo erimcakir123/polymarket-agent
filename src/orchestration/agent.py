@@ -49,6 +49,7 @@ class AgentDeps:
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
     command_poller: TelegramCommandPoller | None = None
+    score_enricher: object = None  # SPEC-B: ScoreEnricher | None — light cycle score injector
 
 
 class Agent:

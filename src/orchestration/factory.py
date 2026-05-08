@@ -10,6 +10,7 @@ import logging
 from src.config.settings import AppConfig, Mode
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
 from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.apis.espn_client import ESPNClient
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.infrastructure.apis.odds_client import OddsAPIClient
 from src.infrastructure.executor import Executor
@@ -25,6 +26,7 @@ from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.scanner import MarketScanner
+from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
@@ -39,6 +41,12 @@ def build_agent(state: RuntimeState) -> Agent:
 
     gamma = GammaClient()
     odds = OddsAPIClient()
+    espn = ESPNClient()
+    score_enricher = ScoreEnricher(
+        espn_client=espn,
+        odds_client=odds,
+        config=cfg.score,
+    )
     scanner = MarketScanner(cfg.scanner, gamma_client=gamma)
     cycle_manager = CycleManager(cfg.cycle)
     cooldown = CooldownTracker(
@@ -129,6 +137,7 @@ def build_agent(state: RuntimeState) -> Agent:
         stock=stock, bot_status_writer=bot_status_writer,
         price_feed=price_feed,
         command_poller=command_poller,
+        score_enricher=score_enricher,
     )
     agent = Agent(deps)
 
