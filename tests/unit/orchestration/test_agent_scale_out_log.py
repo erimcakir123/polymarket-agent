@@ -3,10 +3,14 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.config.settings import AppConfig
+from src.domain.portfolio.manager import PortfolioManager
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.orchestration.agent import Agent, AgentDeps
+from src.orchestration.exit_processor import ExitProcessor
 from src.strategy.exit.monitor import ExitSignal
 
 
@@ -86,3 +90,32 @@ def test_execute_partial_exit_does_not_call_remove_position():
 
     assert not deps.state.portfolio.remove_position.called
     assert deps.state.portfolio.apply_partial_exit.called
+
+
+def test_partial_exit_rollback_on_race():
+    """Pozisyon ara silinmişse mutation rollback edilir (SPEC-A2)."""
+    deps, pos = _make_deps_with_position()
+    # Replace portfolio with REAL empty PortfolioManager — apply_partial_exit raises ValueError
+    deps.state.portfolio = PortfolioManager(initial_bankroll=1000.0)
+    # NOT: pos portfolio'da yok ama exit_processor pos referansını kullanır
+
+    ep = ExitProcessor(deps)
+    signal = ExitSignal(
+        reason=ExitReason.SCALE_OUT,
+        partial=True,
+        sell_pct=0.4,
+        tier=1,
+    )
+
+    shares_before = pos.shares
+    size_before = pos.size_usdc
+    realized_before = pos.scale_out_realized_usdc
+
+    ep._execute_partial_exit(pos, signal)
+
+    # Mutation rollback edildi (pozisyon eski haline döndü)
+    assert pos.shares == pytest.approx(shares_before)
+    assert pos.size_usdc == pytest.approx(size_before)
+    assert pos.scale_out_realized_usdc == pytest.approx(realized_before)
+    # trade_logger çağrılmadı (rollback'ten sonra return)
+    assert not deps.trade_logger.log_partial_exit.called

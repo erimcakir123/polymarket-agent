@@ -1,6 +1,8 @@
 """portfolio/manager.py için birim testler."""
 from __future__ import annotations
 
+import pytest
+
 from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.lifecycle import tick_position_state
 from src.domain.portfolio.manager import PortfolioManager
@@ -108,11 +110,27 @@ def test_apply_partial_exit_preserves_identity() -> None:
     assert m.bankroll + invested == 1000.0 + m.realized_pnl
 
 
-def test_apply_partial_exit_missing_condition_noop() -> None:
-    m = PortfolioManager(initial_bankroll=1000.0)
-    m.apply_partial_exit("nonexistent", basis_returned_usdc=5.0, realized_usdc=1.0)
-    assert m.bankroll == 1000.0
-    assert m.realized_pnl == 0.0
+def test_apply_partial_exit_missing_position_raises() -> None:
+    """Pozisyon yoksa silent no-op DEĞIL, ValueError fırlatmalı (SPEC-A2)."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    with pytest.raises(ValueError, match="condition_id not in positions"):
+        pm.apply_partial_exit("missing_cid", basis_returned_usdc=10.0, realized_usdc=2.0)
+
+
+def test_apply_partial_exit_existing_position_succeeds() -> None:
+    """Pozisyon varsa normal işler — bankroll + realized güncellenir."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pos = Position(
+        condition_id="c1", token_id="t", direction="BUY_YES",
+        entry_price=0.5, size_usdc=50.0, shares=100.0,
+        current_price=0.5, anchor_probability=0.55,
+        event_id="e1", slug="s",
+    )
+    pm.add_position(pos)
+    bankroll_before = pm.bankroll
+    pm.apply_partial_exit("c1", basis_returned_usdc=20.0, realized_usdc=5.0)
+    assert pm.bankroll == bankroll_before + 25.0
+    assert pm.realized_pnl == 5.0
 
 
 def test_snapshot_roundtrip() -> None:

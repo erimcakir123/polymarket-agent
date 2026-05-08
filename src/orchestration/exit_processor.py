@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from src.domain.portfolio.lifecycle import tick_position_state
 from src.models.position import Position
+from src.orchestration import operational_writers
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
 
@@ -41,6 +42,8 @@ class ExitProcessor:
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()
+            # Dashboard realized_pnl anlık güncellensin — bir sonraki heavy cycle bekleme.
+            operational_writers.log_equity_snapshot(state.portfolio, self.deps.equity_logger)
 
     def _apply_fav_transition(self, pos: Position, transition: FavoredTransition) -> None:
         if transition.promote and not pos.favored:
@@ -94,17 +97,33 @@ class ExitProcessor:
         pos.size_usdc *= (1 - signal.sell_pct)
         pos.scale_out_tier = signal.tier or pos.scale_out_tier
         pos.scale_out_realized_usdc += realized
-        self.deps.state.portfolio.apply_partial_exit(
-            pos.condition_id,
-            basis_returned_usdc=basis_returned,
-            realized_usdc=realized,
-        )
+        # State mutation'ı (shares, size) BURADAN önce yapıldı.
+        # apply_partial_exit ValueError fırlatırsa pozisyon arada silinmiş demek
+        # → mutation'ı rollback edip uyarı log'la (full exit zaten state'i temizledi).
+        try:
+            self.deps.state.portfolio.apply_partial_exit(
+                pos.condition_id,
+                basis_returned_usdc=basis_returned,
+                realized_usdc=realized,
+            )
+        except ValueError as e:
+            # Rollback pozisyon mutation'ı (scale_out_tier monotonik forward-only, skip).
+            pos.shares += shares_to_sell
+            if signal.sell_pct < 1.0:
+                pos.size_usdc /= (1 - signal.sell_pct)
+            pos.scale_out_realized_usdc -= realized
+            logger.warning(
+                "Partial exit aborted (race): %s — %s; mutation rolled back",
+                pos.slug[:35], e,
+            )
+            return
         self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=signal.tier or pos.scale_out_tier,
             sell_pct=signal.sell_pct,
             realized_pnl_usdc=realized,
             timestamp=datetime.now(timezone.utc).isoformat(),
+            price=pos.current_price,
         )
         logger.info(
             "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",

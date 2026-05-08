@@ -83,9 +83,12 @@ class PortfolioManager:
         (`old_size × sell_pct`) ve buraya verir. Bankroll hem basis geri alımı hem
         realized PnL ile kredilenir → `remove_position` pattern'iyle simetrik.
         Böylece identity `bankroll + invested = initial + realized_pnl` korunur.
+
+        Raises ValueError: condition_id positions'da yoksa (race condition guard,
+        SPEC-A2). Caller bu durumu yakalayıp scale-out state mutation'ını rollback'lemeli.
         """
         if condition_id not in self.positions:
-            return
+            raise ValueError(f"apply_partial_exit: condition_id not in positions: {condition_id}")
         self.bankroll += basis_returned_usdc + realized_usdc
         self.realized_pnl += realized_usdc
 
