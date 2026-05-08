@@ -1,10 +1,11 @@
 """odds_enricher.py için birim testler — mock odds_client ile."""
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 from src.models.market import MarketData
-from src.strategy.enrichment.odds_enricher import enrich_market
+from src.strategy.enrichment.odds_enricher import _weighted_average, enrich_market
 
 
 def _market(**over) -> MarketData:
@@ -209,3 +210,75 @@ def test_enrich_market_ok_returns_probability_and_no_fail_reason() -> None:
     assert result.probability is not None
     assert result.fail_reason is None
     assert 0.0 < result.probability.probability < 1.0
+
+
+# --- SPEC-C: 3-Way Bookmaker Sanity (defensive — soccer pre-emptive) ---
+
+
+def test_soccer_bookmaker_no_draw_logged_and_skipped(caplog) -> None:
+    """3-way (soccer) — bookmaker draw odds yoksa skip + INFO log."""
+    caplog.set_level(logging.INFO)
+    bookmakers = [
+        {
+            "key": "test_bm",
+            "markets": [{
+                "key": "h2h",
+                "outcomes": [
+                    {"name": "Team A", "price": 2.0},
+                    {"name": "Team B", "price": 2.0},
+                    # No draw outcome
+                ],
+            }],
+        },
+    ]
+    result = _weighted_average(
+        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=True,
+    )
+    assert result is None  # all skipped → no probability
+    assert any("Bookmaker drop" in rec.message for rec in caplog.records)
+
+
+def test_soccer_vig_outlier_skipped(caplog) -> None:
+    """3-way vig outlier (sum > 1.30) → skip + INFO log."""
+    caplog.set_level(logging.INFO)
+    # Tüm odds 1.5 → her implied 0.667 → total = 2.0 (outlier)
+    bookmakers = [
+        {
+            "key": "shady_bm",
+            "markets": [{
+                "key": "h2h",
+                "outcomes": [
+                    {"name": "Team A", "price": 1.5},
+                    {"name": "Team B", "price": 1.5},
+                    {"name": "Draw", "price": 1.5},
+                ],
+            }],
+        },
+    ]
+    result = _weighted_average(
+        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=True,
+    )
+    assert result is None
+    assert any("Bookmaker drop" in rec.message for rec in caplog.records)
+
+
+def test_h2h_2way_normal_passes() -> None:
+    """2-way (NHL/MLB) bookmaker normal odds → kabul (regression)."""
+    # 1.95/1.95 → total ~1.026 (normal vig)
+    bookmakers = [
+        {
+            "key": "good_bm",
+            "markets": [{
+                "key": "h2h",
+                "outcomes": [
+                    {"name": "Team A", "price": 1.95},
+                    {"name": "Team B", "price": 1.95},
+                ],
+            }],
+        },
+    ]
+    result = _weighted_average(
+        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=False,
+    )
+    assert result is not None
+    assert 0.4 < result.probability < 0.6  # normalized ~0.5

@@ -48,6 +48,12 @@ def _parse_bookmaker_markets(
 
     Vig normalize (olasılıkları 1.0'a topla). Soccer için 3-way outcome gerekli;
     yoksa bu bookmaker atlanır (draw mass home/away'e absorbe olur → bias).
+
+    Vig sanity:
+    - 3-way (soccer) tipik vig %5-10 → pre-normalize total beklenen [1.05, 1.10].
+      [0.85, 1.30] dışında ise outlier (yanlış outcome, stale data, bug).
+    - 2-way tipik vig %2-8 → pre-normalize total beklenen [1.02, 1.08].
+      [0.85, 1.20] dışında ise outlier.
     """
     for market in markets:
         if market.get("key") != "h2h":
@@ -68,13 +74,20 @@ def _parse_bookmaker_markets(
 
         if is_soccer:
             if not (draw_odds and draw_odds > 1):
-                continue
+                # Soccer 3-way zorunlu; draw outcome eksik → bookmaker atla.
+                return None
             hr, ar, dr = 1.0 / home_odds, 1.0 / away_odds, 1.0 / draw_odds
             total = hr + ar + dr
+            # 3-way vig sanity: typical 1.05-1.10, outlier reddet.
+            if not (0.85 <= total <= 1.30):
+                return None
             return hr / total, ar / total, dr / total
 
         hr, ar = 1.0 / home_odds, 1.0 / away_odds
         total = hr + ar
+        # 2-way vig sanity: typical 1.02-1.08, outlier reddet.
+        if not (0.85 <= total <= 1.20):
+            return None
         return hr / total, ar / total, None
 
     return None
@@ -139,10 +152,15 @@ def _weighted_average(
     home_is_a: bool,
     is_soccer: bool,
 ) -> BookmakerProbability | None:
-    """Bookmaker başına ağırlık uygula, toplam probability (team_a perspektifinden)."""
+    """Bookmaker başına ağırlık uygula, toplam probability (team_a perspektifinden).
+
+    Drop counter: parse None döndüren bookmaker'ları say (no_draw veya vig outlier).
+    En az 1 drop varsa INFO log — futbol açılınca silent skip görünür olsun.
+    """
     weighted_a = 0.0
     total_weight = 0.0
     bm_count = 0
+    skipped_count = 0
     has_sharp_flag = False
 
     for bookmaker in bookmakers:
@@ -153,6 +171,7 @@ def _weighted_average(
             bookmaker.get("markets", []), home_team, away_team, is_soccer,
         )
         if parsed is None:
+            skipped_count += 1
             continue
         home_prob, away_prob, _ = parsed
         weight = get_bookmaker_weight(bm_key)
@@ -162,6 +181,14 @@ def _weighted_average(
         bm_count += 1
         if is_sharp(bm_key):
             has_sharp_flag = True
+
+    if skipped_count > 0:
+        logger.info(
+            "Bookmaker drop: %d/%d skipped (no_draw or vig outlier) — sport=%s",
+            skipped_count,
+            len(bookmakers),
+            "soccer" if is_soccer else "h2h",
+        )
 
     if total_weight <= 0 or bm_count == 0:
         return None
