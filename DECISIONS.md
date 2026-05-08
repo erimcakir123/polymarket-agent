@@ -62,6 +62,43 @@
 
 Test toplamı: 956 → 968 (+12 net yeni test). Bot artık sessiz hata yutmayacak — programatik bug 2 ardışıkta otomatik stop.
 
+## SPEC-B Tamamlandı (2026-05-08): ESPN Score Client Wire
+
+**Karar**: Audit'teki 3 sorun çözüldü:
+- (3) score_info gate'lere geçiyor — ScoreEnricher light cycle'da pozisyonlar için ESPN skor çeker, exit_processor monitor.evaluate'a geçirir
+- (4) match_start ParseError → guard bypass FIX'i — compute_elapsed_pct artık score_info varsa sport+period bazlı estimate döner
+- (5) scanner magic 8.0 → config — ScannerConfig.max_post_start_hours; ParseError artık skip + warning (eskiden kabul ediyordu)
+
+**Yeni dosyalar (taze yazıldı, pre-rollback REFERANS):**
+- `src/infrastructure/apis/espn_client.py` (~200 sat) — ESPN public scoreboard fetcher (NBA/MLB/NHL)
+- `src/orchestration/score_enricher.py` (~135 sat) — sport-dispatch + polling throttle + Odds fallback
+- 3 yeni test dosyası (test_espn_client, test_score_enricher, test_monitor_elapsed_fallback, test_exit_processor_score)
+
+**Değiştirilen dosyalar:**
+- `src/strategy/exit/monitor.py` — compute_elapsed_pct(pos, score_info=None) signature + _estimate_elapsed_from_score helper
+- `src/orchestration/exit_processor.py:run_light` — score_map parametre + monitor.evaluate'a score_info geçirir
+- `src/orchestration/agent.py:run` — light cycle'da score_enricher.get_scores_if_due (try/except + log fallback)
+- `src/orchestration/factory.py` — ESPNClient + ScoreEnricher build/wire
+- `src/orchestration/agent.py:AgentDeps` — score_enricher field eklendi
+- `src/config/settings.py` — ScoreConfig + ScannerConfig.max_post_start_hours
+- `src/config/sport_rules.py` — NHL/MLB/NBA score_source/espn_sport/espn_league
+- `src/orchestration/scanner.py` — magic 8.0 → config + ParseError skip
+- `config.yaml` — score: section + scanner.max_post_start_hours
+
+**Yapılmadı (kasıt):**
+- Tennis ESPN parsing — kapalı (SPEC-A5)
+- Soccer ESPN — futbol kapalı (SPEC-C parked)
+- Polymarket↔ESPN team_resolver gelişmiş eşleşme — basit "question contains home/away" heuristic kullanıldı; gelişmiş eşleştirme TODO
+- Odds API skor fallback — opt-in, varsayılan skip (Odds API skor opsiyonel + tennis/golf yok)
+
+**Test toplamı:** 968 → 1002 (+34 yeni test).
+
+**ESPN polling konfigürasyonu (config.yaml score:):**
+- enabled: true (kill switch)
+- poll_normal_sec: 60 (fiyat > 0.35)
+- poll_critical_sec: 30 (fiyat ≤ 0.35)
+- critical_price_threshold: 0.35
+
 ---
 
 ## Tennis Devre Dışı (2026-05-05)
