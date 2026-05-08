@@ -203,10 +203,15 @@ Her PLAN adımında:
 ## İletişim
 
 - Türkçe iletişim (kullanıcı Türk)
-- Teknik terimleri açıkla (kullanıcı teknik değil)
-- Kritik kararlar için onay iste
+- **Kullanıcı GELİŞTİRİCİ DEĞİL** — kod, framework, library, function isimleri konuşurken kullanma
+- **Cevaplar her zaman teknik olmayan dilde**: kod yazarken zorunlu olan teknik terimleri ARKA PLANDA tut, kullanıcıya gösterirken günlük dile çevir
+- Teknik kavramı zorunluysa: önce 1 cümle sade açıklama, sonra terim parantez içinde
+  - YANLIŞ: "trade_logger.log_partial_exit() signature mismatch sebebiyle TypeError fırlatıyor"
+  - DOĞRU: "Bot kâr alırken işlemleri deftere yazma adımında hata atıyor (defter formatı uyumsuz)"
+- File path / line number gösterirken bile yanına 1 satır "ne yapıyor bu dosya" notu düş
+- Kritik kararlar için onay iste — onay sade dille sunulsun
 - "Bunu da eklersek iyi olur" yerine sadece istenen şeyi yap
-- Mimari ihlal fark edersen HEMEN uyar
+- Mimari ihlal fark edersen HEMEN uyar (kullanıcıya değil — log/PLAN'a)
 
 ---
 
