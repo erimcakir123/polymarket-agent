@@ -44,20 +44,82 @@ class MonitorResult:
     elapsed_pct: float
 
 
-def compute_elapsed_pct(pos: Position) -> float:
-    """match_start_iso → match_duration → elapsed %. -1.0 → hesaplanamadı."""
-    if not pos.match_start_iso:
+def compute_elapsed_pct(pos: Position, score_info: dict | None = None) -> float:
+    """match_start_iso → match_duration → elapsed %.
+
+    Eğer match_start parse edilemezse veya yoksa, score_info varsa sport+period'dan
+    estimate edilir (SPEC-B Task 6 / audit#4 — ParseError guard bypass fix).
+
+    -1.0 → hesaplanamadı (her ikisi de yok).
+    """
+    if pos.match_start_iso:
+        try:
+            start = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
+            duration_hours = get_match_duration_hours(pos.sport_tag)
+            if duration_hours > 0:
+                elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
+                duration_min = duration_hours * 60.0
+                if duration_min > 0:
+                    pct = elapsed_min / duration_min
+                    if pct >= 0:
+                        return min(pct, 1.0)
+        except (ValueError, TypeError):
+            pass
+
+    # Fallback: score_info varsa period/inning'den estimate
+    if score_info and score_info.get("available"):
+        return _estimate_elapsed_from_score(pos.sport_tag, score_info)
+
+    return -1.0
+
+
+def _estimate_elapsed_from_score(sport_tag: str, score_info: dict) -> float:
+    """Sport bazlı period/inning'den elapsed estimate — SPEC-B Task 6 fallback."""
+    sport = (sport_tag or "").lower()
+    period_str = (score_info.get("period") or "").lower()
+
+    # Hockey: 3 periyot
+    if (
+        "nhl" in sport or "ahl" in sport or "liiga" in sport or "shl" in sport
+        or "mestis" in sport or "allsvenskan" in sport
+    ):
+        if "ot" in period_str or "final" in period_str:
+            return 1.0
+        if "3" in period_str:
+            return 0.8
+        if "2" in period_str:
+            return 0.55
+        if "1" in period_str:
+            return 0.25
         return -1.0
-    try:
-        start = datetime.fromisoformat(pos.match_start_iso.replace("Z", "+00:00"))
-    except (ValueError, TypeError):
+
+    # Baseball: 9 inning
+    if "mlb" in sport or "baseball" in sport or "kbo" in sport or "npb" in sport or "milb" in sport:
+        if "final" in period_str:
+            return 1.0
+        for n in range(9, 0, -1):
+            if str(n) in period_str:
+                return min(n / 9.0, 1.0)
         return -1.0
-    duration_hours = get_match_duration_hours(pos.sport_tag)
-    if duration_hours <= 0:
+
+    # Basketball: 4 quarter (NBA/WNBA/NCAAB)
+    if (
+        "nba" in sport or "wnba" in sport or "ncaab" in sport or "cbb" in sport
+        or "wncaab" in sport or "euroleague" in sport or "nbl" in sport
+    ):
+        if "final" in period_str:
+            return 1.0
+        if "4" in period_str:
+            return 0.85
+        if "3" in period_str:
+            return 0.6
+        if "2" in period_str:
+            return 0.4
+        if "1" in period_str:
+            return 0.15
         return -1.0
-    elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
-    duration_min = duration_hours * 60.0
-    return elapsed_min / duration_min
+
+    return -1.0
 
 
 def _never_in_profit_exit(
@@ -131,7 +193,7 @@ def evaluate(
     FAV transition ayrı (exit değil, pos.favored state update).
     """
     score_info = score_info or {}
-    elapsed_pct = compute_elapsed_pct(pos)
+    elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
     # 1. Near-resolve — en yüksek öncelik
     if near_resolve.check(pos, near_resolve_threshold_cents, near_resolve_guard_min):
