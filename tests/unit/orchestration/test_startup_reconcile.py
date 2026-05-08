@@ -10,6 +10,9 @@ from src.orchestration.startup import _reconcile_realized_pnl
 def _make_logger_with_records(records: list[dict]) -> MagicMock:
     logger = MagicMock()
     logger.read_all.return_value = records
+    # SPEC-A3: corrupt-row tracking attributes — varsayılan temiz log davranışı.
+    logger.corrupt_lines = 0
+    logger.corrupt_threshold_exceeded = False
     return logger
 
 
@@ -69,3 +72,26 @@ def test_reconcile_empty_log_leaves_zero():
     _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
     assert pm.realized_pnl == 0.0
     assert pm.bankroll == 1000.0
+
+
+def test_reconcile_aborts_on_corrupt_threshold(caplog):
+    """SPEC-A3 GUARD-2: trade_history corrupt threshold geçtiyse reconcile snapshot'a güvenir."""
+    import logging as _logging
+    caplog.set_level(_logging.WARNING)
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pm.realized_pnl = -50.0
+    pm.bankroll = 950.0
+    # Bozuk log → records mevcut ama threshold aşıldı flag'i set
+    trade_logger = _make_logger_with_records([{"exit_price": 0.4, "exit_pnl_usdc": -123.0}])
+    trade_logger.corrupt_lines = 4
+    trade_logger.corrupt_threshold_exceeded = True
+
+    _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
+
+    # Snapshot dokunulmadı — log'a güvenilmedi
+    assert pm.realized_pnl == -50.0
+    assert pm.bankroll == 950.0
+    assert any(
+        "corrupt_lines" in rec.message and "trusting snapshot" in rec.message
+        for rec in caplog.records
+    )

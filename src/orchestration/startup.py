@@ -150,8 +150,33 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
     uyumsuzsa düzelt + bankroll'u yeniden türet (crash recovery sonrası).
 
     True realized = sum(full_exit.exit_pnl_usdc) + sum(partial_exits.realized_pnl_usdc).
+
+    GUARD-1 (SPEC-A): trade_history boş + snapshot.realized > 0 → "logging gap" senaryosu.
+    Otomatik zerolama YAPMA (silent state corruption riski). Snapshot'a güven, WARN.
+
+    GUARD-2 (SPEC-A3): trade_history corrupt threshold geçtiyse reconcile abort,
+    snapshot'a güven (bozuk dosyadan eksik realized hesaplamak yerine).
     """
     records = trade_logger.read_all()
+
+    # GUARD-2 (SPEC-A3): corrupt threshold exceeded → abort, trust snapshot
+    if trade_logger.corrupt_threshold_exceeded:
+        logger.warning(
+            "Reconcile aborted: trade_history corrupt_lines=%d exceeded threshold; "
+            "trusting snapshot.realized=$%.2f.",
+            trade_logger.corrupt_lines, portfolio.realized_pnl,
+        )
+        return
+
+    if not records:
+        if abs(portfolio.realized_pnl) > 0.01:
+            logger.warning(
+                "Reconcile skipped: trade_history empty but snapshot.realized=$%.2f — "
+                "logging gap suspected; trusting snapshot. Investigate trade_logger silent failures.",
+                portfolio.realized_pnl,
+            )
+        return
+
     true_realized = 0.0
     for rec in records:
         for pe in rec.get("partial_exits") or []:

@@ -11,12 +11,15 @@ Testlerde ve karar analizinde referans olarak kullanılır.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict
 
 from src.infrastructure.persistence.jsonl_tail import read_jsonl_tail
+
+logger = logging.getLogger(__name__)
 
 _BYTES_PER_LINE = 1000  # Zengin kayıt (match_timeline dahil) → büyük tahmin
 
@@ -90,6 +93,8 @@ class TradeHistoryLogger:
     mirror_path verilirse her write/rewrite işlemi session/ aynasına da uygulanır.
     """
 
+    _CORRUPT_THRESHOLD = 3  # 3+ bozuk satır → reconcile'a abort sinyal (SPEC-A3)
+
     def __init__(self, file_path: str, mirror_path: str | None = None) -> None:
         self.path = Path(file_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +102,9 @@ class TradeHistoryLogger:
         if mirror_path:
             self.mirror = Path(mirror_path)
             self.mirror.parent.mkdir(parents=True, exist_ok=True)
+        # Corrupt-row tracking — read_all'da güncellenir, reconcile bunu okur (SPEC-A3).
+        self.corrupt_lines = 0
+        self.corrupt_threshold_exceeded = False
 
     def _write_line(self, line: str) -> None:
         """audit + mirror (varsa) dosyasına satır ekler."""
@@ -113,6 +121,9 @@ class TradeHistoryLogger:
         return read_jsonl_tail(self.path, n, _BYTES_PER_LINE)
 
     def read_all(self) -> list[dict[str, Any]]:
+        """Tüm jsonl satırlarını oku. Bozuk satırları sayar; threshold geçerse flag set."""
+        self.corrupt_lines = 0
+        self.corrupt_threshold_exceeded = False
         if not self.path.exists():
             return []
         out: list[dict[str, Any]] = []
@@ -122,7 +133,15 @@ class TradeHistoryLogger:
             try:
                 out.append(json.loads(l))
             except json.JSONDecodeError:
-                continue
+                self.corrupt_lines += 1
+                if self.corrupt_lines == 1:
+                    logger.warning("trade_history.jsonl corrupt line detected (count=1)")
+        if self.corrupt_lines >= self._CORRUPT_THRESHOLD:
+            self.corrupt_threshold_exceeded = True
+            logger.error(
+                "trade_history.jsonl: %d corrupt lines (>=%d) — reconcile will abort",
+                self.corrupt_lines, self._CORRUPT_THRESHOLD,
+            )
         return out
 
     def _rewrite_matching(self, condition_id: str, mutator: Callable[[dict[str, Any]], None]) -> bool:

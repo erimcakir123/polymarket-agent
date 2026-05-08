@@ -292,3 +292,36 @@ def test_log_partial_exit_persists_price_field(tmp_path):
                             price=0.7345)
     records = logger.read_all()
     assert records[0]["partial_exits"][0]["price"] == 0.7345
+
+
+def test_read_all_no_corrupt_no_flag(tmp_path: Path) -> None:
+    """Bozuk satır yoksa corrupt_lines = 0."""
+    p = tmp_path / "trade.jsonl"
+    p.write_text('{"a":1}\n{"b":2}\n', encoding="utf-8")
+    log = TradeHistoryLogger(str(p))
+    records = log.read_all()
+    assert len(records) == 2
+    assert log.corrupt_lines == 0
+    assert log.corrupt_threshold_exceeded is False
+
+
+def test_read_all_few_corrupt_warns_no_flag(tmp_path: Path) -> None:
+    """1-2 bozuk satır → continue + corrupt_lines artar (threshold altı)."""
+    p = tmp_path / "trade.jsonl"
+    p.write_text('{"a":1}\nNOT JSON\n{"b":2}\n', encoding="utf-8")
+    log = TradeHistoryLogger(str(p))
+    records = log.read_all()
+    assert len(records) == 2
+    assert log.corrupt_lines == 1
+    assert log.corrupt_threshold_exceeded is False
+
+
+def test_read_all_threshold_corrupt_raises_alarm(tmp_path: Path) -> None:
+    """3+ bozuk → corrupt_threshold_exceeded True."""
+    p = tmp_path / "trade.jsonl"
+    p.write_text('NOPE\n{not valid\n!!!\n{"valid":true}\n', encoding="utf-8")
+    log = TradeHistoryLogger(str(p))
+    records = log.read_all()
+    assert len(records) == 1
+    assert log.corrupt_lines == 3
+    assert log.corrupt_threshold_exceeded is True
