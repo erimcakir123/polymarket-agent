@@ -132,18 +132,23 @@ class MarketScanner:
         return False
 
     def _match_start_recent_or_future(self, m: MarketData) -> bool:
-        """Maç en fazla 8 saat önce başlamış olabilir (live maçlar dahil).
+        """Maç en fazla `config.max_post_start_hours` önce başlamış olabilir (live maçlar dahil).
         Boş match_start → True (unknown_time bucket'ı zaten halleder).
         Çok eski match_start (sezon başı futures gibi) → False, atla.
+        Bozuk match_start_iso (ParseError) → False (skip + log warning, SPEC-B audit#5).
         """
         if not m.match_start_iso:
             return True
         try:
             start = datetime.fromisoformat(m.match_start_iso.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            return True
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "scanner: invalid match_start_iso=%r (slug=%s): %s — skip",
+                m.match_start_iso, m.slug, e,
+            )
+            return False
         hours_since_start = (datetime.now(timezone.utc) - start).total_seconds() / 3600.0
-        return hours_since_start <= 8.0
+        return hours_since_start <= self.config.max_post_start_hours
 
     def _within_duration(self, m: MarketData) -> bool:
         """end_date_iso ≤ max_duration_days günler içinde mi?"""

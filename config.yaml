@@ -14,6 +14,8 @@ scanner:
   max_duration_days: 14
   # Maç bu kadar saatten uzaksa Odds API h2h verisi yok → scanner'da ele
   max_hours_to_start: 24.0
+  # Maç başladıktan sonra max kabul (canlı entry penceresi) (SPEC-B)
+  max_post_start_hours: 8.0
   # yes_price >= bu veya <= (1 - bu) → market sonucu belli, skip (Polymarket flag lag)
   resolved_price_threshold: 0.98
   allowed_categories: ["sports"]

@@ -188,6 +188,27 @@ def test_just_over_8h_boundary_filtered() -> None:
     assert sc.scan() == []
 
 
+def test_match_start_parse_error_filtered() -> None:
+    """match_start_iso bozuk → market eler (eskiden kabul ediyordu — bug fix SPEC-B audit#5)."""
+    now = datetime.now(timezone.utc)
+    m = _market(end_date=now + timedelta(days=1))
+    m.match_start_iso = "not-an-iso"
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []  # parse fail → skip
+
+
+def test_max_post_start_hours_config_driven() -> None:
+    """max_post_start_hours config'den okunmalı; 0.5 saat = 1 saat önce başlamış maç dışlanır."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        match_start=now - timedelta(hours=1),
+        end_date=now + timedelta(hours=2),
+    )
+    cfg = _config(max_post_start_hours=0.5)
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
 # ── Priority sort ──
 
 def test_imminent_before_midrange() -> None:
