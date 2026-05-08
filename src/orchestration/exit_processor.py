@@ -23,9 +23,15 @@ class ExitProcessor:
     def __init__(self, deps) -> None:
         self.deps = deps
 
-    def run_light(self) -> None:
-        """Her pozisyonu cycle-state tick + exit_monitor'dan geçir."""
+    def run_light(self, score_map: dict[str, dict] | None = None) -> None:
+        """Her pozisyonu cycle-state tick + exit_monitor'dan geçir.
+
+        Args:
+            score_map: condition_id → score_info dict (SPEC-B). None → empty
+                (mevcut davranış: monitor.evaluate score_info={} alır).
+        """
         state = self.deps.state
+        scores = score_map or {}
         exits_processed = 0
         for cid in list(state.portfolio.positions.keys()):
             pos = state.portfolio.positions.get(cid)
@@ -33,7 +39,8 @@ class ExitProcessor:
                 continue
 
             tick_position_state(pos)
-            result: MonitorResult = exit_monitor.evaluate(pos)
+            score_info = scores.get(cid, {})
+            result: MonitorResult = exit_monitor.evaluate(pos, score_info=score_info)
             self._apply_fav_transition(pos, result.fav_transition)
 
             if result.exit_signal is not None:

@@ -85,7 +85,18 @@ class Agent:
                 if tick.run_heavy:
                     self._entry.run_heavy()
                 if tick.run_light:
-                    self._exit.run_light()
+                    score_map: dict[str, dict] = {}
+                    if self.deps.score_enricher is not None:
+                        try:
+                            score_map = self.deps.score_enricher.get_scores_if_due(
+                                self.deps.state.portfolio.positions,
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                "Score enrichment failed: %s — using empty score_map", e,
+                            )
+                            score_map = {}
+                    self._exit.run_light(score_map=score_map)
                 self._resilience.record_success()
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
