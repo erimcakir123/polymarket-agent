@@ -81,6 +81,19 @@ def test_config_scale_out_tiers_defaults() -> None:
     assert tiers[1].sell_pct == 0.50
 
 
+def test_config_score_defaults() -> None:
+    cfg = AppConfig()
+    assert cfg.score.enabled is True
+    assert cfg.score.poll_normal_sec == 60
+    assert cfg.score.poll_critical_sec == 30
+    assert cfg.score.critical_price_threshold == 0.35
+
+
+def test_config_score_disabled_overrides() -> None:
+    cfg = AppConfig(score={"enabled": False, "poll_normal_sec": 60, "poll_critical_sec": 30, "critical_price_threshold": 0.35})
+    assert cfg.score.enabled is False
+
+
 def test_repo_config_yaml_parses() -> None:
     """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli."""
     cfg = load_config()  # default Path("config.yaml")

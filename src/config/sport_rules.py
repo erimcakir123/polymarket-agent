@@ -13,6 +13,9 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours": 2.5,
         "halftime_exit": True,
         "halftime_exit_deficit": 15,
+        "score_source": "espn",
+        "espn_sport": "basketball",
+        "espn_league": "nba",
     },
     "nfl": {
         "stop_loss_pct": 0.30,
@@ -25,6 +28,9 @@ SPORT_RULES: dict[str, dict] = {
         "match_duration_hours": 2.5,
         "period_exit": True,
         "period_exit_deficit": 3,
+        "score_source": "espn",
+        "espn_sport": "hockey",
+        "espn_league": "nhl",
     },
     "mlb": {
         "stop_loss_pct": 0.30,
@@ -32,6 +38,9 @@ SPORT_RULES: dict[str, dict] = {
         "inning_exit": True,
         "inning_exit_deficit": 5,
         "inning_exit_after": 6,
+        "score_source": "espn",
+        "espn_sport": "baseball",
+        "espn_league": "mlb",
     },
     # Tennis kaldırıldı 2026-05-05 — geri açmak için entry geri ekle
     "golf": {

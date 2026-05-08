@@ -64,3 +64,21 @@ def test_get_sport_rule_inning_exit_deficit_mlb() -> None:
 
 def test_get_sport_rule_missing_key_returns_default_arg() -> None:
     assert get_sport_rule("nba", "nonexistent_key", default=42) == 42
+
+
+def test_sport_rule_score_source_nhl() -> None:
+    assert get_sport_rule("nhl", "score_source") == "espn"
+    assert get_sport_rule("nhl", "espn_sport") == "hockey"
+    assert get_sport_rule("nhl", "espn_league") == "nhl"
+
+
+def test_sport_rule_score_source_mlb() -> None:
+    assert get_sport_rule("mlb", "score_source") == "espn"
+    assert get_sport_rule("mlb", "espn_sport") == "baseball"
+    assert get_sport_rule("mlb", "espn_league") == "mlb"
+
+
+def test_sport_rule_score_source_nba() -> None:
+    assert get_sport_rule("nba", "score_source") == "espn"
+    assert get_sport_rule("nba", "espn_sport") == "basketball"
+    assert get_sport_rule("nba", "espn_league") == "nba"

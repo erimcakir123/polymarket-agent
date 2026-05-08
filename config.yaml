@@ -155,3 +155,9 @@ telegram:
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)
+
+score:
+  enabled: true
+  poll_normal_sec: 60          # Light cycle skor poll interval (saniye)
+  poll_critical_sec: 30        # Risk fiyatı altında daha sık (SPEC-B)
+  critical_price_threshold: 0.35  # Bu fiyatın altındaki pozisyonlar critical
