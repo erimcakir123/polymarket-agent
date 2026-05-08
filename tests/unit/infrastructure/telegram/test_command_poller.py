@@ -71,3 +71,27 @@ class TestHandleUpdate:
         poller._handle(_make_update(1, "/STOP", "123"))
 
         on_stop.assert_called_once()
+
+
+def test_set_on_stop_replaces_callback() -> None:
+    """set_on_stop sonrası /stop yeni callback'i tetikler."""
+    initial_cb = MagicMock()
+    new_cb = MagicMock()
+    poller = TelegramCommandPoller(
+        bot_token="tok", chat_id="123", on_stop=initial_cb,
+    )
+    poller.set_on_stop(new_cb)
+    poller._handle({"update_id": 1, "message": {"text": "/stop", "chat": {"id": 123}}})
+    initial_cb.assert_not_called()
+    new_cb.assert_called_once()
+
+
+def test_default_on_stop_is_replaceable_lambda() -> None:
+    """Constructor'da no-op lambda → set_on_stop ile değiştirilebilir."""
+    poller = TelegramCommandPoller(
+        bot_token="tok", chat_id="123", on_stop=lambda: None,
+    )
+    real_cb = MagicMock()
+    poller.set_on_stop(real_cb)
+    poller._handle({"update_id": 1, "message": {"text": "/stop", "chat": {"id": 123}}})
+    real_cb.assert_called_once()

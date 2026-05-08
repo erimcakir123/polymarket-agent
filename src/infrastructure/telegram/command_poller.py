@@ -40,6 +40,14 @@ class TelegramCommandPoller:
         self._running = False
         self._thread: threading.Thread | None = None
 
+    def set_on_stop(self, callback: Callable[[], None]) -> None:
+        """Telegram /stop komutu için callback'i değiştir.
+
+        Factory wiring: agent yaratıldıktan sonra agent.request_stop bağlanır.
+        Constructor'a no-op lambda verilir, gerçek callback set_on_stop ile gelir.
+        """
+        self._on_stop = callback
+
     def start(self) -> None:
         if self._running:
             return

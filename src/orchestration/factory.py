@@ -134,7 +134,7 @@ def build_agent(state: RuntimeState) -> Agent:
 
     # Callback'i agent oluştuktan sonra bağla
     if command_poller is not None:
-        command_poller._on_stop = agent.request_stop
+        command_poller.set_on_stop(agent.request_stop)
 
     return agent
 
