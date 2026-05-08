@@ -51,6 +51,17 @@ def test_different_error_types_each_get_own_count() -> None:
     assert r.should_stop() is True
 
 
+def test_consecutive_count_property_exposes_internal_count() -> None:
+    r = CycleResilience(max_consecutive=2)
+    assert r.consecutive_count == 0
+    r.record_error(TypeError("x"))
+    assert r.consecutive_count == 1
+    r.record_error(TypeError("y"))
+    assert r.consecutive_count == 2
+    r.record_success()
+    assert r.consecutive_count == 0
+
+
 from unittest.mock import MagicMock
 
 
@@ -63,6 +74,7 @@ def _build_minimal_deps() -> MagicMock:
     deps.cycle_manager.sleep_seconds.return_value = 0.0
     deps.state.portfolio.count.return_value = 0
     deps.state.config.mode.value = "paper"
+    deps.state.config.agent.cycle_max_consecutive_errors = 2
     deps.price_feed = None
     deps.command_poller = None
     return deps

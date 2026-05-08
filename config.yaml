@@ -152,3 +152,6 @@ telegram:
   enabled: false
   bot_token: ""
   chat_id: ""
+
+agent:
+  cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)

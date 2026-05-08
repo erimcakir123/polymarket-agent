@@ -166,6 +166,13 @@ class TelegramConfig(BaseModel):
     chat_id: str = ""
 
 
+class AgentConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    # Programatik hata (TypeError, AttributeError vb.) 2 ardışık aynı tip sonrası
+    # bot otomatik durur — sessiz çalışmayı engeller (SPEC-A1).
+    cycle_max_consecutive_errors: int = 2
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     mode: Mode = Mode.DRY_RUN
@@ -186,6 +193,7 @@ class AppConfig(BaseModel):
     favored: FavoredConfig = FavoredConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
+    agent: AgentConfig = AgentConfig()
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:

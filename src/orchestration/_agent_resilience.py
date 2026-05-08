@@ -45,3 +45,7 @@ class CycleResilience:
 
     def should_stop(self) -> bool:
         return self._count >= self._max
+
+    @property
+    def consecutive_count(self) -> int:
+        return self._count

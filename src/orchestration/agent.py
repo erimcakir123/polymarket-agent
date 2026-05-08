@@ -60,7 +60,9 @@ class Agent:
         self._ws_started = False
         self._entry = EntryProcessor(deps)
         self._exit = ExitProcessor(deps)
-        self._resilience = CycleResilience(max_consecutive=2)
+        self._resilience = CycleResilience(
+            max_consecutive=deps.state.config.agent.cycle_max_consecutive_errors
+        )
         if self.deps.price_feed is not None:
             self.deps.price_feed.set_callback(self._on_price_update)
 
@@ -90,7 +92,7 @@ class Agent:
                 if self._resilience.should_stop():
                     logger.critical(
                         "STOPPING: %d ardışık programatik hata (%s) — bot durduruldu",
-                        self._resilience._count, type(e).__name__,
+                        self._resilience.consecutive_count, type(e).__name__,
                     )
                     self._stop_requested = True
 

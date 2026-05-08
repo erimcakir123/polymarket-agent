@@ -66,6 +66,11 @@ def test_config_circuit_breaker_defaults() -> None:
     assert cfg.circuit_breaker.entry_block_threshold == -0.03
 
 
+def test_config_agent_defaults() -> None:
+    cfg = AppConfig()
+    assert cfg.agent.cycle_max_consecutive_errors == 2
+
+
 def test_config_scale_out_tiers_defaults() -> None:
     cfg = AppConfig()
     tiers = cfg.scale_out.tiers
