@@ -99,6 +99,21 @@ Test toplamı: 956 → 968 (+12 net yeni test). Bot artık sessiz hata yutmayaca
 - poll_critical_sec: 30 (fiyat ≤ 0.35)
 - critical_price_threshold: 0.35
 
+## SPEC-C Tamamlandı (2026-05-08): 3-Way Bookmaker Sanity (Defensive)
+
+**Karar**: Audit MED-1 — futbol açılınca aktif olacak silent bug'lar pre-emptive olarak kapatıldı (commit ee051d7):
+
+- Soccer 3-way bookmaker draw odds yoksa silent skip → şimdi skip + INFO log (kaç drop)
+- 3-way ve 2-way vig sanity check eklendi: pre-normalize total < 0.85 veya > 1.30 (3-way) / > 1.20 (2-way) → bookmaker reddedilir (outlier data koruması)
+
+**Mevcut etki**: Yok — soccer kapalı (allowed_sport_tags'de yok), bu kod path'i runtime'da dormant.
+
+**Futbol açılınca etki**: Soccer market'leri için bookmaker sayımı doğru loglanır + suspicious vig'li bookmaker'lar atlanır. Sum ranges:
+- 3-way (soccer) tipik vig %5-10 → pre-normalize total [1.05, 1.10] beklenir; [0.85, 1.30] dışı outlier
+- 2-way tipik vig %2-8 → pre-normalize total [1.02, 1.08] beklenir; [0.85, 1.20] dışı outlier
+
+**Test toplamı:** 1002 → 1005 (+3 yeni test).
+
 ---
 
 ## Tennis Devre Dışı (2026-05-05)
