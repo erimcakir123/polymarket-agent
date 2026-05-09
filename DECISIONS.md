@@ -99,6 +99,51 @@ Test toplamı: 956 → 968 (+12 net yeni test). Bot artık sessiz hata yutmayaca
 - poll_critical_sec: 30 (fiyat ≤ 0.35)
 - critical_price_threshold: 0.35
 
+## Tarihsel Kayıt: 2026-05-08/09 Trade Geçmişi (audit kayıp, bot.log'dan çıkarıldı)
+
+**Bağlam**: Reset/reboot zincirinde audit/trade_history.jsonl silindi. Geçmiş 9 full exit + 7 scale-out kayıtları kaybolduğu için dashboard EXITED panel'inde görünmedi. Bot.log'dan grep ile çıkarılıp buraya geri-yüklendi (sadece referans — dashboard'a etki etmez). Toplam +$58.31, dashboard'daki realized ile uyumlu.
+
+### Full Exits (9 adet — 7W / 2L)
+
+| Saat | Maç | Sebep | PnL |
+|---|---|---|---|
+| 02:11 | AHL Man-Gra | near_resolve | +$10.42 |
+| 02:44 | WNBA Conn-NYL | near_resolve | +$6.55 |
+| 03:15 | NHL Mon-Buf | stop_loss | **-$7.87** |
+| 04:13 | MLB Col-Phi | market_flip | **-$43.08** |
+| 04:27 | MLB LAA-Tor | near_resolve | +$8.11 |
+| 06:26 | WNBA GSV-Sea | near_resolve | +$9.72 |
+| 07:18 | NBA SAS-Min | near_resolve | +$14.53 |
+| 12:22 | KBO Sam-NC | near_resolve | +$9.69 |
+| 13:31 | KBO Kia-Lot | near_resolve | +$10.83 |
+
+Toplam full exit net: **+$18.90**
+
+### Scale-Outs (7 adet — hepsi pozitif)
+
+| Maç | Tier | PnL |
+|---|---|---|
+| AHL Man-Gra | 1 | +$5.83 |
+| MLB LAA-Tor | 1 | +$6.56 |
+| MLB LAA-Tor | 2 | +$7.62 |
+| NBA SAS-Min | 1 | +$5.00 |
+| WNBA GSV-Sea | 1 | +$5.07 |
+| KBO Sam-NC | 1 | +$4.52 |
+| KBO Kia-Lot | 1 | +$4.81 |
+
+Toplam scale-out: **+$39.41**
+
+### Grand Total: +$58.31
+
+### Notlar (gözleme değer)
+
+- **Win rate %78** (7/9 full) — küçük örneklem ama iyi
+- **MLB Col-Phi -$43.08 (market_flip)** — tek başına en büyük loss. market_flip exit kuralının agresifliği ileride incelenebilir
+- **Tüm scale-out'lar pozitif** — tier 1 (+%25 PnL) ve tier 2 (+%50) trigger'ları doğru zamanlamış
+- Trade kaynak: `scripts/diag_list_history.py` (bot.log'dan grep ederek üretir)
+
+---
+
 ## SPEC-C Tamamlandı (2026-05-08): 3-Way Bookmaker Sanity (Defensive)
 
 **Karar**: Audit MED-1 — futbol açılınca aktif olacak silent bug'lar pre-emptive olarak kapatıldı (commit ee051d7):
