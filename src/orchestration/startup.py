@@ -259,6 +259,21 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
             )
         return
 
+    # GUARD-3 (SPEC-D): records var ama hicbir exit verisi yok (hepsi phantom-restored
+    # entry, scale-out/full-exit henüz yazılmamış) → snapshot'a güven, otomatik zerolama yapma.
+    has_exit_data = any(
+        rec.get("exit_price") is not None or (rec.get("partial_exits") and len(rec["partial_exits"]) > 0)
+        for rec in records
+    )
+    if not has_exit_data:
+        if abs(portfolio.realized_pnl) > 0.01:
+            logger.warning(
+                "Reconcile skipped: %d records but no exit data (phantom-restored only) — "
+                "trusting snapshot.realized=$%.2f.",
+                len(records), portfolio.realized_pnl,
+            )
+        return
+
     true_realized = 0.0
     for rec in records:
         for pe in rec.get("partial_exits") or []:

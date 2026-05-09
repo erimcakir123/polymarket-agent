@@ -142,3 +142,20 @@ def test_reconcile_aborts_on_corrupt_threshold(caplog):
         "corrupt_lines" in rec.message and "trusting snapshot" in rec.message
         for rec in caplog.records
     )
+
+
+def test_reconcile_skipped_when_records_have_no_exit_data_phantom():
+    """GUARD-3 (SPEC-D): records var ama exit verisi yok (hepsi phantom-restored) → snapshot'a güven."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pm.realized_pnl = 42.68  # snapshot dolu
+    pm.bankroll = 1042.68
+    # 3 phantom entry — exit_price=None, partial_exits boş veya yok
+    trade_logger = _make_logger_with_records([
+        {"condition_id": "c1", "slug": "s1", "exit_price": None, "partial_exits": []},
+        {"condition_id": "c2", "slug": "s2", "exit_price": None},  # partial_exits key yok
+        {"condition_id": "c3", "slug": "s3", "exit_price": None, "partial_exits": None},
+    ])
+    _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
+    # Snapshot korunur (zerolama yok)
+    assert pm.realized_pnl == 42.68
+    assert pm.bankroll == 1042.68
