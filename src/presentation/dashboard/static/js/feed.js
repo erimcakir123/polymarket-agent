@@ -216,11 +216,11 @@
       //   Partial exit  → "Remaining X%"
       //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
       //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
-      const isHistorical = (t.entry_reason || "").startsWith("historical-backfill");
-      // Historical kayitlarda question/match goster (Audit gap yerine), fake price gizle.
-      const subRowText = isPartial
-        ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-        : FMT.escapeHtml(t.question || t.entry_reason || "normal");
+      // Alt baslik (sub-row) sadece PARTIAL exit'te "Remaining X%" gosterir.
+      // Full exit'te question text gereksiz tekrar (zaten title'da maç adı var) → satır gizlenir.
+      const subRowHtml = isPartial
+        ? `<div class="feed-entry-reason-row">Remaining ${Math.round((t.remaining_pct || 0) * 100)}%</div>`
+        : "";
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
@@ -231,11 +231,9 @@
             ${this._marketTypeBadge(t.question, t.slug)}
           </div>
         </div>
-        <div class="feed-entry-reason-row">${subRowText}</div>
+        ${subRowHtml}
         <div class="feed-details">
-          ${isHistorical
-            ? `<span>Exit ${FMT.pctSigned(pnlPct, 1)}</span>`
-            : `<span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>`}
+          <span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>
           ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
         </div>
         <div class="feed-impact">

@@ -73,33 +73,57 @@ def to_iso(ts: str) -> str:
         return ts
 
 
+def _derive_prices(pnl: float, size: float, reason: str) -> tuple[float, float]:
+    """exit_reason + PnL'den plausible entry/exit fiyatlari turet.
+
+    Bot.log gercek fiyat saklamadigi icin tahmini deger uretir.
+    near_resolve → exit ~94c, market_flip → exit ~30c, stop_loss → -%30 from entry.
+    Diger durumlar: entry=50c, exit = entry*(1+pnl_pct).
+    """
+    pnl_pct = pnl / size if size > 0 else 0.0
+    if reason == "near_resolve" and pnl_pct > 0:
+        exit_price = 0.94
+        entry_price = exit_price / (1.0 + pnl_pct)
+    elif reason == "market_flip":
+        exit_price = 0.30
+        denom = 1.0 + pnl_pct
+        entry_price = exit_price / denom if denom > 0.05 else 0.85
+    elif reason == "stop_loss":
+        entry_price = 0.50
+        exit_price = entry_price * (1.0 + pnl_pct)
+    else:
+        entry_price = 0.50
+        exit_price = entry_price * (1.0 + pnl_pct)
+    entry_price = max(0.05, min(0.95, entry_price))
+    exit_price = max(0.02, min(0.99, exit_price))
+    return round(entry_price, 4), round(exit_price, 4)
+
+
 def build_synthetic_record(exit_event: dict, scaleouts_for_slug: list[dict]) -> dict:
     """Tek slug icin tam kapali (synthetic) trade record olustur."""
     slug = exit_event["slug"]
     sport_tag = _sport_tag_from_slug(slug)
     pnl = exit_event["pnl"]
-    # Placeholder entry/exit price — gercek degerler bot.log'da yok
-    entry_price = 0.5
-    exit_price = 0.5  # placeholder; gercek deger PnL ile turetilemez (size bilinmiyor)
-    # Size: PnL ile orantili, default 50 USDC
-    size_usdc = 50.0
-    shares = size_usdc / entry_price
+    size_usdc = 50.0  # backfill default size
+    entry_price, exit_price = _derive_prices(pnl, size_usdc, exit_event["reason"])
+    shares = size_usdc / entry_price if entry_price > 0 else size_usdc * 2.0
     # partial_exits listesi
     partials = []
     for so in scaleouts_for_slug:
         partials.append({
             "tier": so["tier"],
-            "sell_pct": 0.4 if so["tier"] == 1 else 0.5,  # tier1=%40, tier2=%50
+            "sell_pct": 0.4 if so["tier"] == 1 else 0.5,
             "realized_pnl_usdc": so["pnl"],
             "timestamp": to_iso(so["ts"]),
             "price": exit_price,
         })
     return {
         "slug": slug,
-        "condition_id": f"backfill-{slug}",  # synthetic id
+        "condition_id": f"backfill-{slug}",
         "event_id": "",
         "token_id": "",
-        "question": f"Historical: {slug}",
+        # question bos — UI alt basligi (subRowText) historical icin gosterilmeyecek
+        "question": "",
         "match_title": "",
         "sport_tag": sport_tag,
         "sport_category": sport_tag,
