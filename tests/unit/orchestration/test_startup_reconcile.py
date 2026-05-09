@@ -159,3 +159,22 @@ def test_reconcile_skipped_when_records_have_no_exit_data_phantom():
     # Snapshot korunur (zerolama yok)
     assert pm.realized_pnl == 42.68
     assert pm.bankroll == 1042.68
+
+
+def test_reconcile_skipped_when_phantom_plus_real_exit_log_less_than_snapshot():
+    """GUARD-4 (SPEC-E): phantom-restored + real exit kayıtları var, log < snapshot → snapshot win."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pm.realized_pnl = 58.31  # snapshot ($42.67 historical + $15.64 real)
+    pm.bankroll = 1058.31
+    trade_logger = _make_logger_with_records([
+        # 19 phantom-restored entry
+        *[{"condition_id": f"p{i}", "exit_price": None, "entry_reason": "phantom-restored:consensus"} for i in range(19)],
+        # 1 real exit
+        {"condition_id": "real1", "exit_price": 0.97, "exit_pnl_usdc": 10.83, "entry_reason": "consensus"},
+        # 1 real partial scale-out
+        {"condition_id": "real1", "exit_price": None, "partial_exits": [{"realized_pnl_usdc": 4.81}], "entry_reason": "consensus"},
+    ])
+    _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
+    # Snapshot korunur ($58.31) — log sum sadece $15.64 ama phantom flag GUARD-4 tetikler
+    assert pm.realized_pnl == 58.31
+    assert pm.bankroll == 1058.31

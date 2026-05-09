@@ -274,6 +274,14 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
             )
         return
 
+    # GUARD-4 (SPEC-E / audit C4): Records var, exit data var, AMA phantom-restored
+    # entry'ler de var ve true_realized < snapshot → eski exit'ler kayıp.
+    # Snapshot'a güven (zerolama yapma) — phantom kayıtlar geçmişi temsil etmiyor.
+    has_phantom = any(
+        str(rec.get("entry_reason") or "").startswith("phantom-restored")
+        for rec in records
+    )
+
     true_realized = 0.0
     for rec in records:
         for pe in rec.get("partial_exits") or []:
@@ -283,6 +291,17 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
 
     delta = true_realized - portfolio.realized_pnl
     if abs(delta) < 0.01:  # floating noise — eşit kabul
+        return
+
+    # GUARD-4: phantom-restored entry'ler varsa AND log < snapshot → snapshot win
+    if has_phantom and delta < 0:
+        logger.warning(
+            "Reconcile skipped (GUARD-4 SPEC-E): %d phantom-restored entries detected; "
+            "audit log realized=$%.2f < snapshot=$%.2f (delta=$%+.2f). "
+            "Phantom entries don't carry historical PnL — trusting snapshot.",
+            sum(1 for rec in records if str(rec.get("entry_reason") or "").startswith("phantom-restored")),
+            true_realized, portfolio.realized_pnl, delta,
+        )
         return
 
     logger.warning(

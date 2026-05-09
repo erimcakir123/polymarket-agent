@@ -216,9 +216,12 @@
       //   Partial exit  → "Remaining X%"
       //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
       //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
-      const subRowText = isPartial
-        ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-        : FMT.escapeHtml(t.question || t.entry_reason || "normal");
+      const isHistorical = (t.entry_reason || "").startsWith("historical-backfill");
+      const subRowText = isHistorical
+        ? "Audit gap (bot.log'dan kurtarildi)"
+        : (isPartial
+            ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
+            : FMT.escapeHtml(t.question || t.entry_reason || "normal"));
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
@@ -231,7 +234,9 @@
         </div>
         <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">
-          <span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>
+          ${isHistorical
+            ? `<span title="Historical record (audit gap recovery)">📜 Historical</span>`
+            : `<span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>`}
           ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
         </div>
         <div class="feed-impact">

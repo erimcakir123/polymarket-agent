@@ -79,13 +79,18 @@ class ExitProcessor:
             self.deps.price_feed.unsubscribe([pos.token_id])
 
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
-        self.deps.trade_logger.update_on_exit(pos.condition_id, {
+        logged = self.deps.trade_logger.update_on_exit(pos.condition_id, {
             "exit_price": pos.current_price,
             "exit_reason": signal.reason.value,
             "exit_pnl_usdc": round(realized, 2),
             "exit_pnl_pct": round(pnl_pct, 4),
             "exit_timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        if not logged:
+            logger.warning(
+                "EXIT %s: trade_history defter yazimi basarisiz (orphan?) — bakiye in-memory dogru ama audit eksik",
+                pos.slug[:35],
+            )
 
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
