@@ -114,6 +114,21 @@ Test toplamı: 956 → 968 (+12 net yeni test). Bot artık sessiz hata yutmayaca
 
 **Test toplamı:** 1002 → 1005 (+3 yeni test).
 
+## SPEC-D Tamamlandı (2026-05-09): Silent log_partial_exit + Orphan Recovery
+
+**Karar**: SPEC-A2'de gözden kaçan silent failure düzeltildi.
+
+**Bug**: `trade_logger.log_partial_exit` matching entry bulamayınca `False` döndürüyordu sessizce. Reset/reboot sonrası audit silinmiş, pozisyonlar `data/positions.json`'dan restore edilmişti → scale-out olunca `log_partial_exit` `False` döndü, dashboard W/L counter (0W) ile in-memory `realized_pnl` (+$42.68) tutarsız oldu. Bot.log'da 6 SCALE-OUT vardı ama `trade_history.jsonl`'de 0 partial_exit.
+
+**3 katmanlı fix:**
+1. **trade_logger._rewrite_matching**: matching record bulamayınca WARNING log (sessiz değil). Hem `update_on_exit` hem `log_partial_exit` bu helper'ı kullanır → ikisi de WARN üretir.
+2. **exit_processor._execute_partial_exit**: `log_partial_exit` dönüş değeri capture edilir; `False` ise SCALE-OUT log'undan önce ek warning ("trade_history defter kayit yapilamadi (orphan?)").
+3. **startup.bootstrap**: Orphan pozisyon tespiti — `data/positions.json`'da olup audit'te entry'si olmayan pozisyonlar için `entry_reason="phantom-restored:{original}"` prefix'iyle audit entry yazılır → gelecek scale-out'lar matching bulur. Reconcile'dan ÖNCE çalışır. TradeRecord schema'ya dokunulmadı (sadece string prefix).
+
+**Test toplamı:** 1005 → 1008 (+3 yeni test: 2 trade_logger warn, 1 startup orphan recovery).
+
+**Kullanıcı etkisi**: Mevcut +$42.68 dashboard'da görünmeye devam eder. Yarın reload edilirse phantom-restored entry'ler audit'e yazılacak; scale-out'lar artık doğru kaydedilecek. Geçmiş scale-out'lar (bot.log'da var) audit'e geriye dönük yazılmaz — yeni scale-out'lardan itibaren defter düzgün.
+
 ---
 
 ## Tennis Devre Dışı (2026-05-05)

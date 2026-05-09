@@ -124,7 +124,7 @@ class ExitProcessor:
                 pos.slug[:35], e,
             )
             return
-        self.deps.trade_logger.log_partial_exit(
+        logged = self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=signal.tier or pos.scale_out_tier,
             sell_pct=signal.sell_pct,
@@ -132,6 +132,14 @@ class ExitProcessor:
             timestamp=datetime.now(timezone.utc).isoformat(),
             price=pos.current_price,
         )
+        if not logged:
+            # SPEC-D: log_partial_exit False → audit'te matching entry yok (orphan).
+            # Bakiye in-memory dogru ama defter eksik — gorunur uyari at.
+            logger.warning(
+                "SCALE-OUT %s: trade_history defter kayit yapilamadi "
+                "(orphan?) - bakiye in-memory dogru ama audit eksik",
+                pos.slug[:35],
+            )
         logger.info(
             "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
             pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,

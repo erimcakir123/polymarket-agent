@@ -159,6 +159,12 @@ class TradeHistoryLogger:
                 updated = True
                 break
         if not updated:
+            # SPEC-D: matching open record yok → orphan position riski. Sessiz değil, WARN.
+            logger.warning(
+                "trade_history: no matching open record for condition_id=%s "
+                "(orphan position?) — write skipped",
+                condition_id[:24],
+            )
             return False
         serialized = [json.dumps(rec) + "\n" for rec in records]
         # Audit atomic rewrite

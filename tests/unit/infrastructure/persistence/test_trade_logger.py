@@ -325,3 +325,30 @@ def test_read_all_threshold_corrupt_raises_alarm(tmp_path: Path) -> None:
     assert len(records) == 1
     assert log.corrupt_lines == 3
     assert log.corrupt_threshold_exceeded is True
+
+
+def test_update_on_exit_no_match_warns(tmp_path: Path, caplog) -> None:
+    """SPEC-D: update_on_exit matching entry yoksa WARNING + False döner."""
+    import logging
+    caplog.set_level(logging.WARNING)
+    p = tmp_path / "trade.jsonl"
+    p.write_text("", encoding="utf-8")
+    log = TradeHistoryLogger(str(p))
+    result = log.update_on_exit("orphan_cid_12345", {"exit_price": 0.5})
+    assert result is False
+    assert any("no matching open record" in rec.message for rec in caplog.records)
+
+
+def test_log_partial_exit_no_match_warns(tmp_path: Path, caplog) -> None:
+    """SPEC-D: log_partial_exit matching entry yoksa WARNING + False döner."""
+    import logging
+    caplog.set_level(logging.WARNING)
+    p = tmp_path / "trade.jsonl"
+    p.write_text("", encoding="utf-8")
+    log = TradeHistoryLogger(str(p))
+    result = log.log_partial_exit(
+        condition_id="orphan_cid", tier=1, sell_pct=0.4,
+        realized_pnl_usdc=5.0, timestamp="2026-05-09T00:00:00Z", price=0.55,
+    )
+    assert result is False
+    assert any("no matching open record" in rec.message for rec in caplog.records)

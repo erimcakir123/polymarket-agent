@@ -23,7 +23,7 @@ from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
 from src.infrastructure.persistence.json_store import JsonStore
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, TradeRecord
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,12 @@ def bootstrap(
 
     # Reconcile realized PnL — audit trade_history.jsonl ground truth (crash recovery)
     trade_logger = TradeHistoryLogger(str(trade_history_path))
+
+    # SPEC-D: orphan pozisyon tespiti — data/positions.json'da olup audit'te
+    # entry'si olmayan pozisyonlar icin "phantom-restored" entry yaz; gelecek
+    # scale-out'lar matching bulsun. Reconcile'dan ONCE.
+    _detect_and_restore_orphans(portfolio, trade_logger)
+
     _reconcile_realized_pnl(portfolio, trade_logger, config.initial_bankroll)
 
     logger.info(
@@ -142,6 +148,82 @@ def _restore_blacklist(store: JsonStore) -> Blacklist:
         except Exception as e:
             logger.warning("Blacklist restore failed (%s), starting fresh", e)
     return Blacklist()
+
+
+def _detect_and_restore_orphans(
+    portfolio: PortfolioManager,
+    trade_logger: TradeHistoryLogger,
+) -> int:
+    """data/positions.json'da olup audit'te entry'si olmayan pozisyonlar icin
+    "phantom-restored" entry yaz. Gelecek scale-out'larin _rewrite_matching
+    çağrıları doğru kayda denk gelir.
+
+    Reset/reboot sonrası audit silinmiş ama positions.json hayatta kalmışsa
+    bu fonksiyon defteri yeniden açar. Geçmiş scale-out'lar geriye dönük
+    yazılmaz — sadece ilerideki kayıtlar tutulur.
+
+    Return: kaç orphan tespit edildi.
+    """
+    if not portfolio.positions:
+        return 0
+
+    records = trade_logger.read_all()
+    audit_open_cids = {
+        rec.get("condition_id") for rec in records
+        if rec.get("exit_price") is None and rec.get("condition_id")
+    }
+
+    orphans = [
+        (cid, pos) for cid, pos in portfolio.positions.items()
+        if cid not in audit_open_cids
+    ]
+
+    if not orphans:
+        return 0
+
+    logger.warning(
+        "Orphan positions detected: %d positions in data/positions.json have no "
+        "audit entry. Writing phantom-restored entries so future scale-outs match.",
+        len(orphans),
+    )
+
+    for cid, pos in orphans:
+        try:
+            original_reason = pos.entry_reason or "unknown"
+            record = TradeRecord(
+                slug=pos.slug or "",
+                condition_id=cid,
+                event_id=pos.event_id or "",
+                token_id=pos.token_id or "",
+                question=pos.question or "",
+                sport_tag=pos.sport_tag or "",
+                sport_category="",
+                league="",
+                direction=pos.direction,
+                entry_price=pos.entry_price,
+                size_usdc=pos.size_usdc,
+                shares=pos.shares,
+                confidence=pos.confidence or "",
+                bookmaker_prob=pos.bookmaker_prob or 0.0,
+                anchor_probability=pos.anchor_probability,
+                num_bookmakers=0.0,
+                has_sharp=False,
+                # SPEC-D: prefix ile phantom işareti — schema değişikliği yok.
+                entry_reason=f"phantom-restored:{original_reason}",
+                entry_timestamp=pos.match_start_iso or "",
+            )
+            trade_logger.log(record)
+            logger.info(
+                "Phantom-restored audit entry for orphan position: %s",
+                pos.slug[:35],
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to write phantom-restored entry for %s: %s",
+                cid[:24], e,
+            )
+
+    return len(orphans)
 
 
 def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHistoryLogger,
