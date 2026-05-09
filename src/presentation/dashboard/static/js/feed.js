@@ -217,11 +217,10 @@
       //   Full exit     → entry_reason (ör. "directional") — active card ile simetri
       //   Fallback "normal" — active card ile aynı (boş string render'ı önler).
       const isHistorical = (t.entry_reason || "").startsWith("historical-backfill");
-      const subRowText = isHistorical
-        ? "Audit gap (bot.log'dan kurtarildi)"
-        : (isPartial
-            ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
-            : FMT.escapeHtml(t.question || t.entry_reason || "normal"));
+      // Historical kayitlarda question/match goster (Audit gap yerine), fake price gizle.
+      const subRowText = isPartial
+        ? `Remaining ${Math.round((t.remaining_pct || 0) * 100)}%`
+        : FMT.escapeHtml(t.question || t.entry_reason || "normal");
 
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
@@ -235,7 +234,7 @@
         <div class="feed-entry-reason-row">${subRowText}</div>
         <div class="feed-details">
           ${isHistorical
-            ? `<span title="Historical record (audit gap recovery)">📜 Historical</span>`
+            ? `<span>Exit ${FMT.pctSigned(pnlPct, 1)}</span>`
             : `<span>Entry ${FMT.cents(t.entry_price)} → ${exitPriceStr}</span>`}
           ${odds === null ? "" : `<span>Odds ${odds.toFixed(1)}%</span>`}
         </div>
