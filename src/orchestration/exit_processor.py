@@ -40,7 +40,11 @@ class ExitProcessor:
 
             tick_position_state(pos)
             score_info = scores.get(cid, {})
-            result: MonitorResult = exit_monitor.evaluate(pos, score_info=score_info)
+            result: MonitorResult = exit_monitor.evaluate(
+                pos,
+                score_info=score_info,
+                min_scale_out_realized_usdc=self.deps.state.config.risk.min_scale_out_realized_usdc,
+            )
             self._apply_fav_transition(pos, result.fav_transition)
 
             if result.exit_signal is not None:

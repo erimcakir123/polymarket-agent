@@ -60,6 +60,7 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
+    min_scale_out_realized_usdc: float = 7.0  # Tier 1/2 realized < bu degerse skip (kucuk karli scale-out engelle)
 
 
 class EarlyEntryConfig(BaseModel):
