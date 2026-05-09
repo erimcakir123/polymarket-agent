@@ -174,7 +174,7 @@ def test_reboot_clears_session_and_audit(tmp_path: Path) -> None:
         patch("scripts.reboot.start_bot"),
         patch("scripts.reboot.time.sleep"),
     ):
-        reboot("dry_run")
+        reboot("dry_run", skip_confirm=True)
 
     mock_session.assert_called_once()
     mock_audit.assert_called_once()
@@ -288,8 +288,8 @@ def test_no_stacking(tmp_path: Path) -> None:
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.time.sleep"),
     ):
-        reboot("dry_run")  # 1. çağrı: PID 7777 + 7778 oluşur
-        reboot("dry_run")  # 2. çağrı: 7777 + 7778 kill edilmeli
+        reboot("dry_run", skip_confirm=True)  # 1. çağrı: PID 7777 + 7778 oluşur
+        reboot("dry_run", skip_confirm=True)  # 2. çağrı: 7777 + 7778 kill edilmeli
 
     assert 7777 in killed_pids, f"Agent PID 7777 kill edilmedi. Killed: {killed_pids}"
     assert 7778 in killed_pids, f"Dashboard PID 7778 kill edilmedi. Killed: {killed_pids}"

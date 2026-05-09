@@ -266,9 +266,27 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
         print(f"  Cleared session log: {f.name}")
 
 
-def reboot(mode: str = "dry_run") -> None:
-    """REBOOT: Tam temizlik (audit dahil) + yeniden başlat."""
+def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
+    """REBOOT: Tam temizlik (audit dahil) + yeniden başlat.
+
+    AUDIT SİLİNECEK — geçmiş trade kayıtları kaybolur. Onay istenir
+    (skip_confirm=True ile bypass — script automation için).
+    """
     print("=== REBOOT ===")
+    if not skip_confirm:
+        print("\n⚠️  UYARI: Bu işlem AUDIT loglarını da SİLER.")
+        print("   - logs/audit/trade_history.jsonl (geçmiş tüm trade'ler)")
+        print("   - logs/audit/equity_history.jsonl (equity grafiği)")
+        print("   - logs/audit/exits.jsonl, score_events.jsonl, match_results.jsonl")
+        print("   Geri alınamaz. Sadece in-memory realized_pnl korunur.\n")
+        try:
+            answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("İptal edildi.")
+            return
+        if answer != "REBOOT":
+            print("İptal — audit korundu. (`reload` istiyor olabilirsin?)")
+            return
     kill_processes()
     clear_runtime_logs()
     clear_session_logs()
@@ -284,9 +302,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bot reload/reboot kontrolü")
     parser.add_argument("action", choices=["reload", "reboot"])
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live"])
+    parser.add_argument("--yes", action="store_true",
+                        help="Reboot onayını bypass et (audit silme uyarısını atla)")
     args = parser.parse_args()
 
     if args.action == "reboot":
-        reboot(args.mode)
+        reboot(args.mode, skip_confirm=args.yes)
     else:
         reload_bot(args.mode)
