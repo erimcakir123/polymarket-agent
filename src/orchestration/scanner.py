@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
+from src.config.sport_rules import BASKETBALL_TAGS
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
@@ -93,8 +94,7 @@ class MarketScanner:
         # spreads/totals sadece basketbol sport_tag için (NHL/MLB/diğer ayrı spec)
         if m.sports_market_type in ("spreads", "totals"):
             sport_tag_lc = (m.sport_tag or "").lower()
-            basketball_tags = {"nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl"}
-            if sport_tag_lc not in basketball_tags:
+            if sport_tag_lc not in BASKETBALL_TAGS:
                 return False
 
         # Sport tag whitelist (MVP)

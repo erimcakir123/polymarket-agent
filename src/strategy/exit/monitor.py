@@ -17,15 +17,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.config.settings import BasketballExitConfig
-from src.config.sport_rules import get_match_duration_hours
+from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, favored, graduated_sl, near_resolve, scale_out, stop_loss
 from src.strategy.exit._nba_dispatch import check_nba_exit
-
-BASKETBALL_TAGS: frozenset[str] = frozenset({
-    "nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl",
-})
 
 
 @dataclass

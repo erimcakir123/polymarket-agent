@@ -55,6 +55,13 @@ DEFAULT_RULES: dict[str, Any] = {
     "match_duration_hours": 2.0,
 }
 
+# Basketball sport tags (NBA + WNBA + college + international leagues).
+# Tek doğruluk kaynağı — hem scanner filter (spreads/totals gate) hem de
+# exit dispatch (NBA exit guard) buradan import eder.
+BASKETBALL_TAGS: frozenset[str] = frozenset({
+    "nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl",
+})
+
 # Odds API key → internal sport key aliases (TDD §7.1 MVP)
 _ALIASES: dict[str, str] = {
     # Basketball
