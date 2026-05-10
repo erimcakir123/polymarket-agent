@@ -105,3 +105,18 @@ def test_totals_spurs_timberwolves() -> None:
     a, b = extract_teams("Spurs vs. Timberwolves: O/U 218.5")
     assert a == "Spurs"
     assert b == "Timberwolves"
+
+
+def test_spread_market_single_team_format() -> None:
+    """SPEC-K post-fix: Polymarket spread question 'Spread: TEAM (-X.X)' formatı.
+    Tek takım döner; enricher single_team_match ile bookmaker event'i bulur."""
+    a, b = extract_teams("Spread: Knicks (-1.5)")
+    assert a == "Knicks"
+    assert b is None
+
+
+def test_spread_market_without_prefix() -> None:
+    """'TEAM (-X.X)' (Spread: prefix yok) → tek takım."""
+    a, b = extract_teams("Spurs (-5.5)")
+    assert a == "Spurs"
+    assert b is None

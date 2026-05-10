@@ -96,4 +96,15 @@ def extract_teams(question: str) -> tuple[str | None, str | None]:
         if len(team) >= 3:
             return team, None
 
+    # 6. 'Spread: TEAM (±X.X)' format (Polymarket spread market) → tek takım
+    # Örn: 'Spread: Knicks (-1.5)' → 'Knicks'. Enricher single-team match yapar.
+    m = re.search(
+        r'^(?:Spread:\s*)?([A-Za-z0-9.\' ]+?)\s*\([+-]?\d',
+        q,
+    )
+    if m:
+        team = m.group(1).strip()
+        if len(team) >= 3:
+            return team, None
+
     return None, None
