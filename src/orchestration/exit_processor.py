@@ -83,21 +83,66 @@ class ExitProcessor:
             self.deps.price_feed.unsubscribe([pos.token_id])
 
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
+        now_iso = datetime.now(timezone.utc).isoformat()
         logged = self.deps.trade_logger.update_on_exit(pos.condition_id, {
             "exit_price": pos.current_price,
             "exit_reason": signal.reason.value,
             "exit_pnl_usdc": round(realized, 2),
             "exit_pnl_pct": round(pnl_pct, 4),
-            "exit_timestamp": datetime.now(timezone.utc).isoformat(),
+            "exit_timestamp": now_iso,
         })
         if not logged:
-            logger.warning(
-                "EXIT %s: trade_history defter yazimi basarisiz (orphan?) — bakiye in-memory dogru ama audit eksik",
-                pos.slug[:35],
-            )
+            # SPEC-G: matching open record yok (orphan / phantom recovery atlandı).
+            # Audit gap olusturmamak icin synth-from-exit complete record yaz —
+            # entry_price + exit_price ayni satirda, exit_reason "synth-from-exit".
+            self._write_synth_exit_record(pos, signal, realized, pnl_pct, now_iso)
 
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], signal.reason.value, realized, signal.detail)
+
+    def _write_synth_exit_record(self, pos: Position, signal: ExitSignal,
+                                  realized: float, pnl_pct: float, now_iso: str) -> None:
+        """SPEC-G: orphan/phantom-yok exit'lerde audit gap'i kapatmak icin
+        complete synth record yaz. Entry + exit aynı satirda, gercek pos verileriyle."""
+        from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
+        category, league = _split_sport_tag(pos.sport_tag or "")
+        try:
+            record = TradeRecord(
+                slug=pos.slug or "",
+                condition_id=pos.condition_id,
+                event_id=pos.event_id or "",
+                token_id=pos.token_id or "",
+                question=pos.question or "",
+                sport_tag=pos.sport_tag or "",
+                sport_category=category,
+                league=league,
+                direction=pos.direction,
+                entry_price=pos.entry_price,
+                size_usdc=pos.size_usdc,
+                shares=pos.shares,
+                confidence=pos.confidence or "",
+                bookmaker_prob=pos.bookmaker_prob or 0.0,
+                anchor_probability=pos.anchor_probability,
+                num_bookmakers=0,
+                has_sharp=False,
+                entry_reason=f"synth-from-exit:{pos.entry_reason or 'unknown'}",
+                entry_timestamp=pos.match_start_iso or now_iso,
+                exit_price=pos.current_price,
+                exit_reason=signal.reason.value,
+                exit_pnl_usdc=round(realized, 2),
+                exit_pnl_pct=round(pnl_pct, 4),
+                exit_timestamp=now_iso,
+            )
+            self.deps.trade_logger.log(record)
+            logger.info(
+                "EXIT %s: synth-from-exit kaydi yazildi (orphan recovery, audit gap kapatildi)",
+                pos.slug[:35],
+            )
+        except Exception as e:
+            logger.warning(
+                "EXIT %s: synth-from-exit yazimi da basarisiz: %s — bakiye in-memory korunur",
+                pos.slug[:35], e,
+            )
 
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
         """Scale-out partial exit.
