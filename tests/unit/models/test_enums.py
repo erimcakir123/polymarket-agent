@@ -35,6 +35,8 @@ def test_exit_reason_values() -> None:
     assert ExitReason.ULTRA_LOW_GUARD.value == "ultra_low_guard"
     assert ExitReason.CIRCUIT_BREAKER.value == "circuit_breaker"
     assert ExitReason.MANUAL.value == "manual"
+    assert ExitReason.PREDICTIVE_DEAD.value == "predictive_dead"
+    assert ExitReason.SCORE_EXIT.value == "score_exit"
 
 
 def test_enum_str_mixin_json_serializable() -> None:
@@ -49,3 +51,10 @@ def test_enum_str_mixin_json_serializable() -> None:
     assert '"A"' in encoded
     assert "normal" in encoded
     assert "near_resolve" in encoded
+
+
+def test_exit_reason_predictive_dead_score_exit_json_serializable() -> None:
+    encoded_pd = json.dumps({"r": ExitReason.PREDICTIVE_DEAD})
+    encoded_se = json.dumps({"r": ExitReason.SCORE_EXIT})
+    assert "predictive_dead" in encoded_pd
+    assert "score_exit" in encoded_se

@@ -33,3 +33,5 @@ class ExitReason(str, Enum):
     ULTRA_LOW_GUARD = "ultra_low_guard"
     CIRCUIT_BREAKER = "circuit_breaker"
     MANUAL = "manual"
+    PREDICTIVE_DEAD = "predictive_dead"
+    SCORE_EXIT = "score_exit"
