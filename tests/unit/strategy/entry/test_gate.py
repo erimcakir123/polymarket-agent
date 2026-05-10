@@ -81,18 +81,21 @@ def test_happy_path_produces_signal() -> None:
     assert r.signal.size_usdc > 0
 
 
-def test_event_guard_blocks_second_position() -> None:
+def test_event_guard_blocks_third_position_per_event() -> None:
+    """SPEC-J/K: max_positions_per_event=2. İlk 2 kabul, 3. blok."""
     p = PortfolioManager(initial_bankroll=1000.0)
-    p.add_position(Position(
-        condition_id="prev_c", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
-        anchor_probability=0.55, event_id="e1",
-    ))
+    for cid in ("prev_c1", "prev_c2"):
+        p.add_position(Position(
+            condition_id=cid, token_id=f"t_{cid}", direction="BUY_YES",
+            entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
+            anchor_probability=0.55, event_id="e1",
+        ))
     gate = _make_gate(portfolio=p)
-    # Aynı event_id=e1 ikinci giriş → bloklanır
-    results = gate.run([_market(cid="c2", event="e1")])
+    # Aynı event_id=e1 ÜÇÜNCÜ giriş → bloklanır (cap=2)
+    results = gate.run([_market(cid="c3", event="e1")])
     assert results[0].signal is None
     assert "event_already_held" in results[0].skipped_reason
+    assert "2/2" in results[0].skip_detail
 
 
 def test_blacklist_blocks() -> None:
@@ -267,19 +270,22 @@ def test_evaluate_one_no_bookmaker_data_sets_skip_detail_fail_reason() -> None:
 
 
 def test_evaluate_one_event_already_held_sets_skip_detail_event_id() -> None:
-    """event_already_held → skip_detail='event_id=<event_id>'."""
+    """event_already_held → skip_detail event_id + count/cap içerir (SPEC-J/K).
+    Cap=2 olduğu için 2 pozisyon eklenir, 3.'sü reddedilir."""
     from src.models.position import Position
 
     p = PortfolioManager(initial_bankroll=1000.0)
-    p.add_position(Position(
-        condition_id="prev_c", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
-        anchor_probability=0.55, event_id="378836",
-    ))
+    for cid in ("prev_c1", "prev_c2"):
+        p.add_position(Position(
+            condition_id=cid, token_id=f"t_{cid}", direction="BUY_YES",
+            entry_price=0.4, size_usdc=40, shares=100, current_price=0.4,
+            anchor_probability=0.55, event_id="378836",
+        ))
     gate = _make_gate(portfolio=p)
-    result = gate._evaluate_one(_market(cid="c2", event="378836"))
+    result = gate._evaluate_one(_market(cid="c3", event="378836"))
     assert result.skipped_reason == "event_already_held"
-    assert result.skip_detail == "event_id=378836"
+    assert "event_id=378836" in result.skip_detail
+    assert "count=2/2" in result.skip_detail
 
 
 def test_evaluate_one_blacklisted_condition_id_sets_skip_detail_match_condition_id() -> None:
@@ -381,6 +387,7 @@ def test_evaluate_one_size_below_min_final_sets_skip_detail_size_min() -> None:
     p = MagicMock(spec=PortfolioManager)
     p.count.return_value = 0
     p.has_event.return_value = False
+    p.count_event.return_value = 0  # SPEC-J/K: gate.py event_count >= max kontrol eder
     p.bankroll = 100.0
     p.total_invested.return_value = 0.0
     p.positions = []

@@ -116,12 +116,21 @@ Bu kural ihlal edilirse tüm edge hesapları bozulur.
 ### Kural 8: Event-Level Guard
 
 ```
-Aynı event_id'ye sahip iki pozisyon ASLA açılamaz.
+Aynı event_id'ye sahip max N pozisyon açılabilir.
+N = config.risk.max_positions_per_event (default 2 — SPEC-J/K).
 Bu kural entry_gate seviyesinde kontrol edilir.
 
-Örnek: "Man City vs Brighton" maçı event_id=12345
-- BUY_YES "City wins" açıldıysa
-- BUY_NO "Brighton wins" AÇILAMAZ (aynı event)
+Mantık: bir maçın bağımsız market'leri (moneyline + spread + totals) ayrı bahisler
+sayılır ve birden fazla pozisyon açılabilir. Karşıt aynı-tip pozisyonu (örn 2 moneyline:
+'City wins' + 'Brighton wins') uygulamada görülmez çünkü Polymarket bir maçın moneyline'ı
+için tek market açar; karşı taraf BUY_NO ile aynı condition_id'ye girer.
+
+Örnek: "Spurs vs Timberwolves" maçı event_id=446693
+- nba-sas-min-2026-05-10 (moneyline) ve
+- nba-sas-min-2026-05-10-total-218pt5 (totals) AÇILABILIR (aynı event, farklı market_type)
+- 3. bir pozisyon AÇILAMAZ (cap=2)
+
+Cap'i değiştirmek için config.yaml > risk > max_positions_per_event.
 ```
 
 ---

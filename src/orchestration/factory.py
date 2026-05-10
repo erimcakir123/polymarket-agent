@@ -96,6 +96,7 @@ def build_agent(state: RuntimeState) -> Agent:
     gate_cfg = GateConfig(
         min_edge=cfg.edge.min_edge,
         max_positions=cfg.risk.max_positions,
+        max_positions_per_event=cfg.risk.max_positions_per_event,
         max_exposure_pct=cfg.risk.max_exposure_pct,
         max_single_bet_usdc=cfg.risk.max_single_bet_usdc,
         max_bet_pct=cfg.risk.max_bet_pct,

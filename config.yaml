@@ -66,6 +66,7 @@ risk:
   max_single_bet_usdc: 50
   max_bet_pct: 1.0  # disabled - max_single_bet_usdc tek kural
   max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
+  max_positions_per_event: 2  # ARCH Kural 8 (gevşedi): aynı event'te max 2 bağımsız market (moneyline + spread/totals)
   max_exposure_pct: 0.50
   hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)
   min_entry_size_pct: 0.015     # min pozisyon = bankroll × %1.5 (tx-cost floor)

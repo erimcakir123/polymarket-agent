@@ -45,16 +45,21 @@ class PortfolioManager:
             return False
         return any(p.event_id == event_id for p in self.positions.values())
 
+    def count_event(self, event_id: str) -> int:
+        """Aynı event_id'ye sahip pozisyon sayısı (SPEC-J/K: max N kontrolü için)."""
+        if not event_id:
+            return 0
+        return sum(1 for p in self.positions.values() if p.event_id == event_id)
+
     # ── Mutations ──
 
     def add_position(self, pos: Position) -> bool:
-        """Pozisyon ekle. Event/condition duplicate'te False döner (ARCH Kural 8).
+        """Pozisyon ekle. Condition duplicate'te False döner.
 
-        Defensive duplicate guard — gate.py'de event_already_held normal akışta
-        zaten reddediyor; buraya gelirse caller'ın loglaması beklenir.
+        SPEC-J/K: ARCH Kural 8 gevşedi — aynı event_id'ye max N pozisyon
+        (config.risk.max_positions_per_event) gate.py'de kontrol edilir.
+        Burada sadece condition_id (aynı market) duplicate'i defensive olarak engellenir.
         """
-        if pos.event_id and self.has_event(pos.event_id):
-            return False
         if pos.condition_id in self.positions:
             return False
         self.positions[pos.condition_id] = pos

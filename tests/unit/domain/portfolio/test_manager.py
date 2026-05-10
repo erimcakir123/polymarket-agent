@@ -45,11 +45,26 @@ def test_add_duplicate_condition_blocked() -> None:
     assert m.count() == 1
 
 
-def test_event_level_guard_blocks_second_position(caplog) -> None:
+def test_event_level_guard_count_event_increments(caplog) -> None:
+    """SPEC-J/K: ARCH Kural 8 gevşedi — add_position event duplicate'i artık bloklamaz.
+    Max N kontrolü gate.py'da (config.risk.max_positions_per_event); add_position
+    sadece condition_id duplicate'i engeller. count_event metodu sayım sağlar."""
     m = PortfolioManager(initial_bankroll=1000.0)
     m.add_position(_pos(cid="c1", event_id="evt_42"))
-    # Farklı condition_id ama aynı event_id → BLOCKED (ARCH Kural 8)
-    assert m.add_position(_pos(cid="c2", event_id="evt_42")) is False
+    # Farklı condition_id ama aynı event_id → ARTIK KABUL (gate.py max kontrol eder)
+    assert m.add_position(_pos(cid="c2", event_id="evt_42")) is True
+    assert m.count() == 2
+    # count_event sayım sağlar
+    assert m.count_event("evt_42") == 2
+    assert m.count_event("evt_other") == 0
+
+
+def test_add_position_condition_duplicate_still_blocked() -> None:
+    """Aynı condition_id (aynı market) hala defensive olarak bloklanır."""
+    m = PortfolioManager(initial_bankroll=1000.0)
+    m.add_position(_pos(cid="c1", event_id="evt_42"))
+    # Aynı condition_id ikinci kez → BLOCKED
+    assert m.add_position(_pos(cid="c1", event_id="evt_99")) is False
     assert m.count() == 1
 
 

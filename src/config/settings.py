@@ -53,6 +53,7 @@ class RiskConfig(BaseModel):
     max_single_bet_usdc: float = 75
     max_bet_pct: float = 0.05
     max_positions: int = 20
+    max_positions_per_event: int = 2  # SPEC-J/K: aynı event'te moneyline+spread+totals bağımsız bahisler (Kural 8 gevşedi)
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015

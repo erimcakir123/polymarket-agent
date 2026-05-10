@@ -41,6 +41,7 @@ class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
     min_edge: float = 0.06
     max_positions: int = 50
+    max_positions_per_event: int = 2  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
     max_exposure_pct: float = 0.50
     hard_cap_overflow_pct: float = 0.02
     min_entry_size_pct: float = 0.015
@@ -118,9 +119,14 @@ class EntryGate:
     def _evaluate_one(self, market: MarketData) -> GateResult:
         cid = market.condition_id
 
-        # 1. Event-level guard (ARCH Kural 8)
-        if market.event_id and self.portfolio.has_event(market.event_id):
-            return GateResult(cid, None, "event_already_held", skip_detail=f"event_id={market.event_id}")
+        # 1. Event-level guard (ARCH Kural 8 — SPEC-J/K gevşedi: max N / event)
+        if market.event_id:
+            event_count = self.portfolio.count_event(market.event_id)
+            if event_count >= self.config.max_positions_per_event:
+                return GateResult(
+                    cid, None, "event_already_held",
+                    skip_detail=f"event_id={market.event_id} count={event_count}/{self.config.max_positions_per_event}",
+                )
 
         # 2. Blacklist — split checks to know which matched
         if self.blacklist.is_blacklisted(condition_id=cid):
