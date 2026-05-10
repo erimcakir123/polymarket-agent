@@ -5,6 +5,37 @@
 
 ---
 
+## SPEC-J: Basketbol Spread + Totals + Combat Sports Kapatma (2026-05-10)
+
+**Karar**: Basketbol spread + totals piyasaları aktive edildi (önce sadece moneyline çalışıyordu). Aynı turda combat sports (UFC + MMA + boxing) kapatıldı (canlı skor yok → reaksiyon imkansız).
+
+**Veri arka planı**:
+- **NBA spread** (canlı bot.log): 10W/7L/3N, %58.8 winrate, **+$114.18 net**. predictive_dead 3 trade'de +$54.70 (en kârlı tek kural).
+- **NBA totals**: SADECE 2 trade canlı veri (her ikisi near_resolve, +$44.23, %100 winrate). İstatistiki yetersiz; kullanıcı bilerek yetersiz veriyle risk aldı.
+- **NBA moneyline**: 4W/2L, sadece +$0.39 net — başarısız.
+- **UFC**: 7 trade net **-$51**, hep zarar (KO/karar bazlı, fiyat çakılır + reaksiyon yok).
+
+**Migrate edilen mantık** (pre-rollback `pre-rollback-2026-05-04` git tag'inden, 0 satır kopya):
+- **Bill James %99 safe lead** formülü: `margin >= 0.861 × √seconds` → spread ölü
+- **Poisson totals dead**: `points_diff > 1.218 × √seconds` → totals ölü (1.218 = 0.861 × √2 toplam variance)
+- **EV-bazlı predictive_dead**: `comeback < hold_threshold AND (bid + safety_margin) > comeback` → şimdi sat
+- **Empirical NBA key numbers**: 6dk-7pt, 3dk-4pt, 1dk-3pt eşikleri
+
+**Pipeline katmanları**:
+- Spread (5 katman): OT_DEAD → STRUCTURAL_DAMAGE → SPREAD_MATH_DEAD → PREDICTIVE_DEAD → EMPIRICAL_DEAD
+- Totals (4 katman): STRUCTURAL_DAMAGE → TOTALS_MATH_DEAD → PREDICTIVE_DEAD → EMPIRICAL_DEAD (OT YAGNI olarak hariç)
+
+**Yeni dosyalar (5)**: `src/domain/math/safe_lead.py`, `src/strategy/exit/{nba_spread_exit,nba_totals_exit,_nba_dispatch,_nba_score_mapper}.py`
+**Değişen dosyalar (8)**: enums (PREDICTIVE_DEAD/SCORE_EXIT + SportsMarketType + TotalSide), position model (4 yeni alan), settings (BasketballExitConfig), monitor (priority 2.5 dispatch), scanner (spreads/totals filter), exit_processor (config wiring), config.yaml (combat sil), sport_rules (BASKETBALL_TAGS DRY)
+
+**Test delta**: 1018 → 1115 (+97 yeni test, 0 regresyon)
+
+**14 commit**: 4 grup × (init + quality fix). Subagent-driven development + 2-stage review (spec uyum + kod kalitesi). Her grup için ARCH_GUARD self-check + TDD.
+
+**Kapsam dışı (gelecek SPEC)**: NHL/MLB spread/totals (farklı sport math), WNBA-spesifik multiplier kalibrasyonu, NBA totals OT pipeline, scale-out tier spread/totals kalibrasyonu.
+
+---
+
 ## Sessiz Bug Audit + Fix Stratejisi (2026-05-08)
 
 **Karar**: 3 günlük dry_run sonrası bot'ta **sessiz state corruption** keşfedildi. Bot 40 işlem yapmış, $195 realized PnL biriktirmiş ama trade_history.jsonl'e **tek satır yazmamış**. Reload sonrası reconcile snapshot'ı log ground truth'a göre zerodu, $195 buharlaştı.
