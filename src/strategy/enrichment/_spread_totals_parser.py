@@ -7,9 +7,7 @@ Pure function — I/O yok, logging yok. Çağıran katman (odds_enricher) toplar
 """
 from __future__ import annotations
 
-# Vig sanity (2-way): tipik 1.02-1.08; outlier window aynı moneyline ile (TDD §6.1).
-_VIG_TOTAL_MIN = 0.85
-_VIG_TOTAL_MAX = 1.20
+from src.domain.analysis.vig_bounds import VIG_2WAY_MAX, VIG_2WAY_MIN
 
 
 def parse_bookmaker_spread(
@@ -17,7 +15,7 @@ def parse_bookmaker_spread(
     home_team: str,
     away_team: str,
     target_line: float,
-    line_tolerance: float = 0.5,
+    line_tolerance: float,
 ) -> tuple[float, float, float] | None:
     """Bookmaker'ın 'spreads' market'ından (bookmaker_abs_line, home_prob, away_prob).
 
@@ -29,7 +27,7 @@ def parse_bookmaker_spread(
     line_tolerance: ±tolerance içinde line varsa kabul; bookmaker line dönülür.
 
     Vig normalize: home_implied + away_implied → toplam ≈ 1.05-1.10.
-    [_VIG_TOTAL_MIN, _VIG_TOTAL_MAX] dışında ise outlier → None.
+    [VIG_2WAY_MIN, VIG_2WAY_MAX] dışında ise outlier → None.
     """
     home_outcome = away_outcome = None
     for outcome in spread_market.get("outcomes", []):
@@ -55,7 +53,7 @@ def parse_bookmaker_spread(
     home_implied = 1.0 / home_price
     away_implied = 1.0 / away_price
     total = home_implied + away_implied
-    if not (_VIG_TOTAL_MIN <= total <= _VIG_TOTAL_MAX):
+    if not (VIG_2WAY_MIN <= total <= VIG_2WAY_MAX):
         return None
 
     return bookmaker_abs_line, home_implied / total, away_implied / total
@@ -64,7 +62,7 @@ def parse_bookmaker_spread(
 def parse_bookmaker_totals(
     totals_market: dict,
     target_line: float,
-    line_tolerance: float = 0.5,
+    line_tolerance: float,
 ) -> tuple[float, float, float] | None:
     """Bookmaker'ın 'totals' market'ından (bookmaker_line, over_prob, under_prob).
 
@@ -98,7 +96,7 @@ def parse_bookmaker_totals(
     over_implied = 1.0 / over_price
     under_implied = 1.0 / under_price
     total = over_implied + under_implied
-    if not (_VIG_TOTAL_MIN <= total <= _VIG_TOTAL_MAX):
+    if not (VIG_2WAY_MIN <= total <= VIG_2WAY_MAX):
         return None
 
     return bookmaker_line, over_implied / total, under_implied / total

@@ -87,7 +87,7 @@ def main() -> None:
     blacklist = Blacklist()  # boş
 
     def _enricher(market):
-        return enrich_market(market, odds)
+        return enrich_market(market, odds, line_tolerance=cfg.odds_api.spread_totals_line_tolerance)
 
     def _manip(question: str, liquidity: float):
         return manipulation_check(
