@@ -12,6 +12,7 @@ Strategy katmanı: I/O yok, log yok, saf karar.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from src.domain.math.safe_lead import is_spread_dead, predictive_exit_decision_spread
 from src.models.enums import Direction, ExitReason
@@ -29,8 +30,8 @@ class NbaSpreadCheckResult:
 def check(
     score_info: dict,
     spread_line: float,
-    direction: str,            # Direction.BUY_YES.value | BUY_NO.value
-    spread_side: str,          # "home" | "away"
+    direction: str,                    # Direction.BUY_YES.value | BUY_NO.value
+    spread_side: Literal["home", "away"],
     bid_price: float,
     entry_price: float,
     bill_james_multiplier: float = 0.861,

@@ -72,7 +72,7 @@ def test_spreads_routes_to_spread_exit_and_returns_score_exit() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(period=4, clock=30, home=100, away=108),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is not None
@@ -90,7 +90,7 @@ def test_totals_routes_to_totals_exit_and_returns_score_exit() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(period=4, clock=30, home=100, away=100),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is not None
@@ -106,7 +106,7 @@ def test_moneyline_returns_none() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(period=4, clock=30, home=100, away=108),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None
@@ -121,7 +121,7 @@ def test_spreads_with_none_spread_line_returns_none() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None
@@ -137,7 +137,7 @@ def test_totals_with_none_total_line_returns_none() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None
@@ -153,7 +153,7 @@ def test_totals_with_none_total_side_returns_none() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None
@@ -169,7 +169,7 @@ def test_spread_slug_without_home_or_away_marker_returns_none() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None
@@ -185,7 +185,7 @@ def test_basketball_exit_cfg_none_uses_defaults() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(period=4, clock=30, home=100, away=108),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=None,
     )
     assert result is not None
@@ -205,7 +205,7 @@ def test_spread_away_slug_routes_correctly() -> None:
     result = check_nba_exit(
         pos=pos,
         score_info=_score_info(period=4, clock=30, home=100, away=110),
-        elapsed_pct=0.95,
+        _elapsed_pct=0.95,
         basketball_exit_cfg=BasketballExitConfig(),
     )
     assert result is None

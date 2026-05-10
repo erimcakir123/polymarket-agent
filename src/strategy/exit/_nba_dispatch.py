@@ -10,6 +10,7 @@ Strategy katmanı: I/O yok, log yok, monitor.py orchestration buna bağlanır.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from src.config.settings import BasketballExitConfig
 from src.models.enums import ExitReason, SportsMarketType
@@ -18,7 +19,7 @@ from src.strategy.exit import nba_spread_exit, nba_totals_exit
 
 
 @dataclass
-class NBADispatchResult:
+class NbaDispatchResult:
     reason: ExitReason
     detail: str
     partial: bool
@@ -28,12 +29,11 @@ class NBADispatchResult:
 def check_nba_exit(
     pos: Position,
     score_info: dict,
-    elapsed_pct: float,    # MVP: spread/totals direkt period+clock kullanır; signature consistency.
+    # _elapsed_pct: kept for signature symmetry with future moneyline integration
+    _elapsed_pct: float,
     basketball_exit_cfg: BasketballExitConfig | None,
-) -> NBADispatchResult | None:
+) -> NbaDispatchResult | None:
     """NBA market-type dispatch. None → HOLD."""
-    del elapsed_pct  # MVP: spread/totals period+clock kullanır; signature için tutuldu.
-
     cfg = basketball_exit_cfg or BasketballExitConfig()
     predictive_kwargs = dict(
         predictive_enabled=cfg.predictive_exit.enabled,
@@ -66,7 +66,7 @@ def check_nba_exit(
         )
         if sp_result is None:
             return None
-        return NBADispatchResult(
+        return NbaDispatchResult(
             reason=sp_result.reason,
             detail=sp_result.detail,
             partial=sp_result.partial,
@@ -86,7 +86,7 @@ def check_nba_exit(
             entry_price=pos.entry_price,
             totals_multiplier=cfg.totals_multiplier,
             structural_damage_ratio=cfg.structural_damage_ratio,
-            ot_over_scale_pct=cfg.totals_empirical.ot_over_scale_pct,
+            _ot_over_scale_pct=cfg.totals_empirical.ot_over_scale_pct,
             q4_late_seconds=cfg.totals_empirical.q4_late_seconds,
             q4_late_gap=cfg.totals_empirical.q4_late_gap,
             q4_final_seconds=cfg.totals_empirical.q4_final_seconds,
@@ -97,7 +97,7 @@ def check_nba_exit(
         )
         if tot_result is None:
             return None
-        return NBADispatchResult(
+        return NbaDispatchResult(
             reason=tot_result.reason,
             detail=tot_result.detail,
             partial=tot_result.partial,
@@ -108,7 +108,7 @@ def check_nba_exit(
     return None
 
 
-def _spread_side_from_slug(slug: str) -> str | None:
+def _spread_side_from_slug(slug: str) -> Literal["home", "away"] | None:
     """Slug suffix'ten spread tarafını çıkar.
 
     Polymarket slug konvansiyonu: '...-spread-home-...' veya '...-spread-away-...'.

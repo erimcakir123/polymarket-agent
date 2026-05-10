@@ -32,7 +32,8 @@ def check(
     entry_price: float,
     totals_multiplier: float = 1.218,
     structural_damage_ratio: float = 0.30,
-    ot_over_scale_pct: float = 0.5,   # MVP'de kullanılmıyor; OT-aware adjustment için config flag
+    # _ot_over_scale_pct: pre-rollback OT-aware adjustment, currently unused per SPEC-J YAGNI
+    _ot_over_scale_pct: float = 0.5,
     q4_late_seconds: int = 360,
     q4_late_gap: float = 7,
     q4_final_seconds: int = 180,
@@ -48,11 +49,10 @@ def check(
     Near-resolve / scale-out monitor.py'da önce çalışır — burada yok.
     side="invalid" → safe_lead.is_total_dead ValueError fırlatır (propagate).
 
-    `ot_over_scale_pct` MVP'de kullanılmıyor; ileride OT'de over windfall partial-sell
+    `_ot_over_scale_pct` MVP'de kullanılmıyor; ileride OT'de over windfall partial-sell
     kalibrasyonu için ayrı SPEC açılırsa kullanılacak (config interface stable).
+    Underscore prefix → "intentionally unused, kept for signature compat".
     """
-    del ot_over_scale_pct  # MVP: parametre kabul ediliyor ama kullanılmıyor (yukarıdaki not).
-
     if not score_info.get("available"):
         return None
 
