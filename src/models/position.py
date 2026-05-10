@@ -74,6 +74,12 @@ class Position(BaseModel):
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
 
+    # Basketbol spread/totals (SPEC-J)
+    sports_market_type: str = "moneyline"  # moneyline | spreads | totals
+    spread_line: float | None = None       # NBA spread line, e.g. -7.5 (cover by 7.5+)
+    total_line: float | None = None        # NBA totals target, e.g. 215.5
+    total_side: str | None = None          # "over" | "under" — only for totals
+
     @computed_field
     @property
     def current_value(self) -> float:
