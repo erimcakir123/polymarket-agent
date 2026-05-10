@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Mode(str, Enum):
@@ -185,6 +185,54 @@ class ScoreConfig(BaseModel):
     critical_price_threshold: float = 0.35
 
 
+# ── Basketbol exit config (SPEC-J — TDD §6/§7 kalibrasyonları) ────────────────
+
+
+class OvertimeExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    seconds: int = 60
+    deficit: int = 8
+
+
+class SpreadEmpiricalConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    q4_late_seconds: int = 360
+    q4_late_margin: int = 7
+    q4_final_seconds: int = 180
+    q4_final_margin: int = 4
+    q4_endgame_seconds: int = 60
+    q4_endgame_margin: int = 3
+
+
+class TotalsEmpiricalConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    ot_over_scale_pct: float = 0.5
+    q4_late_seconds: int = 360
+    q4_late_gap: float = 7
+    q4_final_seconds: int = 180
+    q4_final_gap: float = 4
+    q4_endgame_seconds: int = 60
+    q4_endgame_gap: float = 3
+
+
+class PredictiveExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    safety_margin: float = 0.03
+    hold_threshold: float = 0.20
+
+
+class BasketballExitConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    bill_james_multiplier: float = 0.861
+    structural_damage_ratio: float = 0.30
+    totals_multiplier: float = 1.218
+    overtime: OvertimeExitConfig = Field(default_factory=OvertimeExitConfig)
+    spread_empirical: SpreadEmpiricalConfig = Field(default_factory=SpreadEmpiricalConfig)
+    totals_empirical: TotalsEmpiricalConfig = Field(default_factory=TotalsEmpiricalConfig)
+    predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     mode: Mode = Mode.DRY_RUN
@@ -207,6 +255,7 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     agent: AgentConfig = AgentConfig()
     score: ScoreConfig = ScoreConfig()
+    exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:
