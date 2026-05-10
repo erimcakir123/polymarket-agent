@@ -1,6 +1,10 @@
 """Position modeli — SPEC-J basketbol alanları (sports_market_type, spread_line, total_line, total_side)."""
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
+from src.models.enums import SportsMarketType, TotalSide
 from src.models.position import Position
 
 
@@ -21,7 +25,7 @@ def _valid(**overrides) -> dict:
 
 def test_position_default_market_type_is_moneyline() -> None:
     p = Position(**_valid())
-    assert p.sports_market_type == "moneyline"
+    assert p.sports_market_type == SportsMarketType.MONEYLINE
     assert p.spread_line is None
     assert p.total_line is None
     assert p.total_side is None
@@ -43,11 +47,24 @@ def test_position_loads_old_json_without_basketball_fields() -> None:
         sport_tag="nba",
     )
     p = Position.model_validate(old_dict)
-    assert p.sports_market_type == "moneyline"
+    assert p.sports_market_type == SportsMarketType.MONEYLINE
     assert p.spread_line is None
     assert p.total_line is None
     assert p.total_side is None
     assert p.confidence == "A"
+
+
+def test_position_sports_market_type_string_coerced_to_enum() -> None:
+    # Eski JSON/dict'te bare string "moneyline" varsa pydantic enum'a coerce etmeli.
+    p = Position.model_validate({**_valid(), "sports_market_type": "moneyline"})
+    assert p.sports_market_type == SportsMarketType.MONEYLINE
+    assert isinstance(p.sports_market_type, SportsMarketType)
+
+
+def test_position_sports_market_type_invalid_string_rejected() -> None:
+    # Enum gerçek doğrulama yapıyor: tanımsız değer reject edilmeli.
+    with pytest.raises(ValidationError):
+        Position(**_valid(sports_market_type="random_value"))
 
 
 def test_position_spread_fields_persist_through_dump_load() -> None:
@@ -59,7 +76,7 @@ def test_position_spread_fields_persist_through_dump_load() -> None:
     )
     raw = p.model_dump_json()
     restored = Position.model_validate_json(raw)
-    assert restored.sports_market_type == "spreads"
+    assert restored.sports_market_type == SportsMarketType.SPREADS
     assert restored.spread_line == -7.5
     assert restored.total_line is None
     assert restored.total_side is None
@@ -75,9 +92,9 @@ def test_position_total_fields_persist_through_dump_load() -> None:
     )
     raw = p.model_dump_json()
     restored = Position.model_validate_json(raw)
-    assert restored.sports_market_type == "totals"
+    assert restored.sports_market_type == SportsMarketType.TOTALS
     assert restored.total_line == 215.5
-    assert restored.total_side == "over"
+    assert restored.total_side == TotalSide.OVER
     assert restored.spread_line is None
 
 
@@ -85,5 +102,5 @@ def test_position_explicit_extras_ignored() -> None:
     # extra="ignore" davranışı korunmalı: stray alan sessizce yutulur.
     payload = _valid(legacy_field=5, another_extra="x")
     p = Position(**payload)
-    assert p.sports_market_type == "moneyline"
+    assert p.sports_market_type == SportsMarketType.MONEYLINE
     assert not hasattr(p, "legacy_field")

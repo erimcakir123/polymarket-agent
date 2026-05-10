@@ -3,7 +3,14 @@ from __future__ import annotations
 
 import json
 
-from src.models.enums import Confidence, Direction, EntryReason, ExitReason
+from src.models.enums import (
+    Confidence,
+    Direction,
+    EntryReason,
+    ExitReason,
+    SportsMarketType,
+    TotalSide,
+)
 
 
 def test_direction_values() -> None:
@@ -58,3 +65,21 @@ def test_exit_reason_predictive_dead_score_exit_json_serializable() -> None:
     encoded_se = json.dumps({"r": ExitReason.SCORE_EXIT})
     assert "predictive_dead" in encoded_pd
     assert "score_exit" in encoded_se
+
+
+def test_sports_market_type_values() -> None:
+    assert SportsMarketType.MONEYLINE.value == "moneyline"
+    assert SportsMarketType.SPREADS.value == "spreads"
+    assert SportsMarketType.TOTALS.value == "totals"
+
+
+def test_total_side_values() -> None:
+    assert TotalSide.OVER.value == "over"
+    assert TotalSide.UNDER.value == "under"
+
+
+def test_sports_market_type_and_total_side_json_serializable() -> None:
+    encoded_smt = json.dumps({"t": SportsMarketType.SPREADS})
+    encoded_ts = json.dumps({"s": TotalSide.OVER})
+    assert "spreads" in encoded_smt
+    assert "over" in encoded_ts

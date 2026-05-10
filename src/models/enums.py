@@ -35,3 +35,14 @@ class ExitReason(str, Enum):
     MANUAL = "manual"
     PREDICTIVE_DEAD = "predictive_dead"
     SCORE_EXIT = "score_exit"
+
+
+class SportsMarketType(str, Enum):
+    MONEYLINE = "moneyline"
+    SPREADS = "spreads"
+    TOTALS = "totals"
+
+
+class TotalSide(str, Enum):
+    OVER = "over"
+    UNDER = "under"

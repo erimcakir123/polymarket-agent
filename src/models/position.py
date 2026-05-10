@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from src.models.enums import SportsMarketType, TotalSide
+
 
 def effective_price(yes_price: float, direction: str) -> float:
     """BUY_YES → yes_price; BUY_NO → (1 - yes_price)."""
@@ -75,10 +77,10 @@ class Position(BaseModel):
     bookmaker_prob: float = 0.0
 
     # Basketbol spread/totals (SPEC-J)
-    sports_market_type: str = "moneyline"  # moneyline | spreads | totals
+    sports_market_type: SportsMarketType = SportsMarketType.MONEYLINE
     spread_line: float | None = None       # NBA spread line, e.g. -7.5 (cover by 7.5+)
     total_line: float | None = None        # NBA totals target, e.g. 215.5
-    total_side: str | None = None          # "over" | "under" — only for totals
+    total_side: TotalSide | None = None    # only for totals markets
 
     @computed_field
     @property

@@ -8,12 +8,16 @@ Saf fonksiyon — I/O yok, dış bağımlılık yok.
 """
 from __future__ import annotations
 
+from typing import Literal
+
+from src.models.enums import Direction
+
 
 def map_our_opp_scores(
     home_score: int,
     away_score: int,
-    direction: str,
-    spread_side: str,
+    direction: str,                              # Direction enum veya raw "BUY_YES"/"BUY_NO" string
+    spread_side: Literal["home", "away"],
 ) -> tuple[int, int]:
     """ESPN home/away skorlarını pozisyon perspektifine çevir.
 
@@ -22,13 +26,20 @@ def map_our_opp_scores(
     BUY_YES on away spread → "biz" = away → (away, home)
     BUY_NO  on away spread → "biz" = home → (home, away)
     """
-    if direction not in {"BUY_YES", "BUY_NO"}:
-        raise ValueError(f"direction must be BUY_YES or BUY_NO, got {direction!r}")
+    valid_directions = {Direction.BUY_YES.value, Direction.BUY_NO.value}
+    if direction not in valid_directions:
+        raise ValueError(
+            f"direction must be one of {sorted(valid_directions)}, got {direction!r}"
+        )
     if spread_side not in {"home", "away"}:
-        raise ValueError(f"spread_side must be 'home' or 'away', got {spread_side!r}")
+        raise ValueError(
+            f"spread_side must be 'home' or 'away', got {spread_side!r}"
+        )
 
-    we_are_home = (direction == "BUY_YES" and spread_side == "home") or (
-        direction == "BUY_NO" and spread_side == "away"
+    we_are_home = (
+        direction == Direction.BUY_YES.value and spread_side == "home"
+    ) or (
+        direction == Direction.BUY_NO.value and spread_side == "away"
     )
     if we_are_home:
         return (home_score, away_score)

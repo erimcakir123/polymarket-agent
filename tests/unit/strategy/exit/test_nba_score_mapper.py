@@ -39,14 +39,14 @@ def test_map_buy_no_away_returns_home_as_our() -> None:
 
 
 def test_map_invalid_direction_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="direction must be"):
         map_our_opp_scores(
-            home_score=100, away_score=95, direction="HOLD", spread_side="home"
+            home_score=100, away_score=95, direction="BUY_BOTH", spread_side="home"
         )
 
 
 def test_map_invalid_spread_side_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="spread_side must be"):
         map_our_opp_scores(
             home_score=100, away_score=95, direction="BUY_YES", spread_side="middle"
         )
