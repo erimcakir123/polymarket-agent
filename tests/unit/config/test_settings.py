@@ -105,9 +105,8 @@ def test_repo_config_yaml_parses() -> None:
     assert "nhl" in cfg.scanner.allowed_sport_tags
     assert "lpga*" in cfg.scanner.allowed_sport_tags
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
-    # Not: MMA/Boxing 2-outcome (draw yok) → MVP'ye dahil.
     for banned in ("soccer_epl", "soccer_laliga", "cricket"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
-    # MMA + Boxing 2-outcome, eklenmiş olmalı
-    assert "mma" in cfg.scanner.allowed_sport_tags
-    assert "boxing" in cfg.scanner.allowed_sport_tags
+    # Combat sports kaldırıldı 2026-05-10 (SPEC-J) — canlı skor yok, KO/karar bazlı reaksiyon imkansız
+    for combat in ("mma", "ufc", "boxing"):
+        assert combat not in cfg.scanner.allowed_sport_tags, f"{combat} SPEC-J ile kaldırıldı"

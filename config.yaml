@@ -50,10 +50,7 @@ scanner:
     - cfl
     - ufl
     # Tennis kaldırıldı 2026-05-05 — matching katmanı korundu, geri açmak için tags geri ekle
-    # Combat sports (2-outcome, draw yok — mevcut pipeline uyumlu)
-    - mma
-    - ufc
-    - boxing
+    # Combat sports kaldırıldı 2026-05-10 (SPEC-J) — canlı skor yok, KO/karar bazlı reaksiyon imkansız
     # Golf (H2H)
     - "lpga*"
     - "liv*"
