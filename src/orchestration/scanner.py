@@ -86,10 +86,16 @@ class MarketScanner:
         if m.yes_price >= th or m.yes_price <= (1.0 - th):
             return False
 
-        # Sports market type — STRICT: sadece h2h moneyline kabul.
+        # Sports market type — SPEC-J: basketbol için spreads + totals da geçer.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
-        if m.sports_market_type != "moneyline":
+        if m.sports_market_type not in ("moneyline", "spreads", "totals"):
             return False
+        # spreads/totals sadece basketbol sport_tag için (NHL/MLB/diğer ayrı spec)
+        if m.sports_market_type in ("spreads", "totals"):
+            sport_tag_lc = (m.sport_tag or "").lower()
+            basketball_tags = {"nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl"}
+            if sport_tag_lc not in basketball_tags:
+                return False
 
         # Sport tag whitelist (MVP)
         if self.config.allowed_sport_tags:

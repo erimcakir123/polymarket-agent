@@ -60,9 +60,81 @@ def test_closed_markets_filtered() -> None:
 
 
 def test_non_moneyline_filtered() -> None:
+    """NHL spreads → reddedilir (SPEC-J: spreads/totals sadece basketbol için)."""
     now = datetime.now(timezone.utc)
-    m = _market(market_type="spreads", end_date=now + timedelta(days=1))
+    m = _market(
+        sport_tag="icehockey_nhl", market_type="spreads",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(days=1),
+    )
     sc = MarketScanner(_config(), gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+# ── SPEC-J: basketbol spreads/totals geçişi ──
+
+def test_scanner_passes_nba_spreads() -> None:
+    """NBA + spreads → kabul (SPEC-J)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nba", market_type="spreads",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "wnba", "icehockey_nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
+def test_scanner_passes_wnba_totals() -> None:
+    """WNBA + totals → kabul (SPEC-J)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="wnba", market_type="totals",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "wnba"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
+def test_scanner_rejects_nhl_spreads() -> None:
+    """NHL + spreads → red (sadece basketbol)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nhl", market_type="spreads",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_scanner_rejects_soccer_totals() -> None:
+    """Soccer + totals → red (sadece basketbol)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="soccer_epl", market_type="totals",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "soccer_epl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_scanner_rejects_unknown_market_type() -> None:
+    """NBA + props (bilinmeyen tip) → red."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nba", market_type="props",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
     assert sc.scan() == []
 
 
