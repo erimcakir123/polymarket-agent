@@ -5,6 +5,35 @@
 
 ---
 
+## SPEC-K: Bookmaker Spread/Totals Köprüsü (2026-05-10)
+
+**Karar**: SPEC-J basketbol spread/totals exit pipeline'ını ekledi ama entry tarafı için bookmaker prob köprüsü yoktu — bot Odds API'dan SADECE `markets=h2h` (moneyline) çekiyordu. SPEC-K bu köprüyü kurar: Odds API'dan spread + totals da çek, parser yaz, entry pipeline'a wire et.
+
+**Kanıt**: SPEC-J reload sonrası 18:57 cycle'da scanner 15 NBA spread/totals market'i geçirdi (liquidity $19k-$806k, accepting=True) ama HİÇ entry açılmadı çünkü bookmaker prob hesaplanamıyordu.
+
+**Implementasyon**:
+- **Odds API**: `markets=h2h,spreads,totals` — tek çağrı, 3 market tipi birden
+- **Spread parser**: bookmaker `spreads` market'inden `(line, home_prob, away_prob)` — vig normalize, ±0.5 line tolerance
+- **Totals parser**: bookmaker `totals` market'inden `(line, over_prob, under_prob)` — aynı vig + tolerance
+- **Vig bounds**: yeni domain modülü `src/domain/analysis/vig_bounds.py` (VIG_2WAY_MIN/MAX=0.85/1.20, VIG_3WAY_MAX=1.30) — DRY (h2h + spread + totals tek kaynak)
+- **EnrichResult genişler**: spread_line, total_line, total_side alanları eklendi
+- **Entry processor**: Position constructor'a 4 yeni alan (sports_market_type, spread_line, total_line, total_side) wire edildi
+- **Config**: `odds_api.spread_totals_line_tolerance: 0.5` (single source of truth, parser default kaldırıldı)
+- **Dosya split**: odds_enricher.py 413 → 236 satır (ARCH_GUARD <400), spread/totals branch'leri `_spread_totals_enricher.py`'a taşındı
+
+**Yeni dosyalar (3)**: `src/domain/analysis/vig_bounds.py`, `src/strategy/enrichment/_spread_totals_parser.py`, `src/strategy/enrichment/_spread_totals_enricher.py`
+**Değişen dosyalar (6)**: enrich_outcome (4 yeni alan + 2 fail reason), odds_enricher (split + branch), settings (OddsApiConfig), config.yaml (odds_api section), factory (line_tolerance wiring), entry_processor (Position fields)
+
+**Test delta**: 1115 → 1146 (+31 yeni test, 0 regresyon)
+**5 commit**: 4 init + 1 quality fix (split + vig consts + tolerance source-of-truth).
+
+**Açık konular (gelecek SPEC)**:
+- `parse_total_line` regex Polymarket totals question pattern variant'larıyla uyumsuz olabilir → SPEC-L?
+- Sport-specific tolerance (NCAAF spread line variance daha geniş) → SPEC-M?
+- Sport-specific edge threshold kalibrasyonu (NBA spread için 0.04 vs moneyline 0.06) → gerçek veri sonrası
+
+---
+
 ## SPEC-J: Basketbol Spread + Totals + Combat Sports Kapatma (2026-05-10)
 
 **Karar**: Basketbol spread + totals piyasaları aktive edildi (önce sadece moneyline çalışıyordu). Aynı turda combat sports (UFC + MMA + boxing) kapatıldı (canlı skor yok → reaksiyon imkansız).
