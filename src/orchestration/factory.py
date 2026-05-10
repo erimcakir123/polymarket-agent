@@ -82,8 +82,10 @@ def build_agent(state: RuntimeState) -> Agent:
     bot_status_writer = BotStatusWriter(bot_status_store, cycle_manager)
 
     # Gate: enricher + manipulation_check closure'ları
+    line_tol = cfg.odds_api.spread_totals_line_tolerance
+
     def _enricher(market):
-        return enrich_market(market, odds)
+        return enrich_market(market, odds, line_tolerance=line_tol)
 
     def _manip(question: str, liquidity: float) -> ManipulationCheck:
         return manipulation_check(

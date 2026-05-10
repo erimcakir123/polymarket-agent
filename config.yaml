@@ -161,3 +161,8 @@ score:
   poll_normal_sec: 60          # Light cycle skor poll interval (saniye)
   poll_critical_sec: 30        # Risk fiyatı altında daha sık (SPEC-B)
   critical_price_threshold: 0.35  # Bu fiyatın altındaki pozisyonlar critical
+
+odds_api:
+  # SPEC-K: bookmaker spread/totals line ile Polymarket line tolerance (puan).
+  # Bookmaker line target ± bu kadar içinde değilse o bookmaker skip.
+  spread_totals_line_tolerance: 0.5
