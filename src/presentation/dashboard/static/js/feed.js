@@ -153,7 +153,6 @@
             ${this._marketTypeBadge(p.question, p.slug)}
           </div>
         </div>
-        <div class="feed-entry-reason-row">${FMT.escapeHtml(p.question || p.entry_reason || "normal")}</div>
         <div class="feed-details">
           <span>Entry ${FMT.cents(p.entry_price)}</span>
           <span>Now ${FMT.cents(p.current_price)}</span>
