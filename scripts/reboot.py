@@ -267,30 +267,30 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
 
 
 def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
-    """REBOOT: Tam temizlik (audit dahil) + yeniden başlat.
+    """REBOOT: state + session + runtime sıfırlanır. AUDIT KORUNUR (kalıcı arşiv).
 
-    AUDIT SİLİNECEK — geçmiş trade kayıtları kaybolur. Onay istenir
-    (skip_confirm=True ile bypass — script automation için).
+    Audit tamamen silinmek istenirse manuel olarak `clear_audit_logs()` çağrılmalı
+    veya dosyalar elle silinmeli (--include-audit flag yok, kazara silmeyi önler).
     """
     print("=== REBOOT ===")
     if not skip_confirm:
-        print("\n⚠️  UYARI: Bu işlem AUDIT loglarını da SİLER.")
-        print("   - logs/audit/trade_history.jsonl (geçmiş tüm trade'ler)")
-        print("   - logs/audit/equity_history.jsonl (equity grafiği)")
-        print("   - logs/audit/exits.jsonl, score_events.jsonl, match_results.jsonl")
-        print("   Geri alınamaz. Sadece in-memory realized_pnl korunur.\n")
+        print("\n⚠️  UYARI: Bu işlem state + session + runtime log'ları SİLER.")
+        print("   - data/positions.json, data/circuit_breaker_state.json (state)")
+        print("   - logs/session/* (dashboard kaynağı)")
+        print("   - logs/runtime/* (bot.log)")
+        print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv).\n")
         try:
             answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("İptal edildi.")
             return
         if answer != "REBOOT":
-            print("İptal — audit korundu. (`reload` istiyor olabilirsin?)")
+            print("İptal — state korundu. (`reload` istiyor olabilirsin?)")
             return
     kill_processes()
     clear_runtime_logs()
     clear_session_logs()
-    clear_audit_logs()
+    # NOT: clear_audit_logs() çağrılmıyor — audit kalıcı arşiv (SPEC-H 2026-05-10).
     reset_state()
     start_dashboard()
     time.sleep(3)

@@ -162,8 +162,8 @@ def test_clear_session_logs_audit_untouched(tmp_path: Path) -> None:
     assert (audit_dir / "trade_history.jsonl").read_text(encoding="utf-8") == '{"audit":true}\n'
 
 
-def test_reboot_clears_session_and_audit(tmp_path: Path) -> None:
-    """Reboot: clear_session_logs + clear_audit_logs ikisi de çağrılır (factory reset)."""
+def test_reboot_clears_session_but_keeps_audit(tmp_path: Path) -> None:
+    """SPEC-H 2026-05-10: Reboot session siler, AUDIT KORUR (kalıcı arşiv)."""
     with (
         patch("scripts.reboot.kill_processes"),
         patch("scripts.reboot.clear_runtime_logs"),
@@ -177,7 +177,7 @@ def test_reboot_clears_session_and_audit(tmp_path: Path) -> None:
         reboot("dry_run", skip_confirm=True)
 
     mock_session.assert_called_once()
-    mock_audit.assert_called_once()
+    mock_audit.assert_not_called()  # Audit korunur
 
 
 def test_reload_does_not_clear_session_or_audit(tmp_path: Path) -> None:
