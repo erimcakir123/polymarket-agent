@@ -16,10 +16,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from src.config.settings import BasketballExitConfig
 from src.config.sport_rules import get_match_duration_hours
-from src.models.enums import ExitReason
+from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
 from src.strategy.exit import a_conf_hold, favored, graduated_sl, near_resolve, scale_out, stop_loss
+from src.strategy.exit._nba_dispatch import check_nba_exit
+
+BASKETBALL_TAGS: frozenset[str] = frozenset({
+    "nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl",
+})
 
 
 @dataclass
@@ -188,6 +194,7 @@ def evaluate(
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
     min_scale_out_realized_usdc: float = 0.0,
+    basketball_exit_cfg: BasketballExitConfig | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
@@ -220,6 +227,30 @@ def evaluate(
             fav_transition=_fav_transition(pos),
             elapsed_pct=elapsed_pct,
         )
+
+    # 2.5 Basketball spread/totals dispatch (SPEC-J)
+    sport_tag_lc = (pos.sport_tag or "").lower()
+    if (
+        sport_tag_lc in BASKETBALL_TAGS
+        and pos.sports_market_type in (SportsMarketType.SPREADS, SportsMarketType.TOTALS)
+    ):
+        nba_result = check_nba_exit(
+            pos=pos,
+            score_info=score_info,
+            _elapsed_pct=elapsed_pct,
+            basketball_exit_cfg=basketball_exit_cfg,
+        )
+        if nba_result is not None:
+            return MonitorResult(
+                exit_signal=ExitSignal(
+                    reason=nba_result.reason,
+                    partial=nba_result.partial,
+                    sell_pct=nba_result.sell_pct,
+                    detail=nba_result.detail,
+                ),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     # 3. A-conf hold dalı — flat SL + graduated SL'den MUAF (TDD §6.9)
     # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
