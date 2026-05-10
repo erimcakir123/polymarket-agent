@@ -90,3 +90,18 @@ def test_will_x_to_beat_y() -> None:
     a, b = extract_teams("Will Lakers to beat Celtics?")
     assert a == "Lakers"
     assert b == "Celtics"
+
+
+def test_totals_market_suffix_stripped_from_team_b() -> None:
+    """SPEC-K post-fix: 'TEAM A vs TEAM B: O/U X' totals format'ında
+    team_b'den ':' suffix'i temizlenmeli; aksi halde bookmaker event match fail."""
+    a, b = extract_teams("Knicks vs. 76ers: O/U 213.5")
+    assert a == "Knicks"
+    assert b == "76ers"
+
+
+def test_totals_spurs_timberwolves() -> None:
+    """Aynı pattern, farklı takım."""
+    a, b = extract_teams("Spurs vs. Timberwolves: O/U 218.5")
+    assert a == "Spurs"
+    assert b == "Timberwolves"

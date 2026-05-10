@@ -54,6 +54,11 @@ def extract_teams(question: str) -> tuple[str | None, str | None]:
                     a = a[:a.index(ch)].strip()
                 if ch in b:
                     b = b[:b.index(ch)].strip()
+            # Totals/spread suffix'i temizle: "76ers: O/U 213.5" → "76ers"
+            # (team_a için yukarıda rsplit ile turnuva prefix korunur; burada team_b için
+            #  market suffix'i atılır.)
+            if ":" in b:
+                b = b.split(":", 1)[0].strip()
             if a.lower().startswith("will "):
                 a = a[5:].strip()
             # Bitişteki '?'
