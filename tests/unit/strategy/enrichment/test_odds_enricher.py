@@ -282,3 +282,184 @@ def test_h2h_2way_normal_passes() -> None:
     )
     assert result is not None
     assert 0.4 < result.probability < 0.6  # normalized ~0.5
+
+
+# --- SPEC-K: spread/totals enricher branches ---
+
+
+def _spread_bookie(key: str, home: str, away: str,
+                    home_point: float, away_point: float,
+                    home_price: float = 1.91, away_price: float = 1.91) -> dict:
+    return {
+        "key": key,
+        "markets": [{
+            "key": "spreads",
+            "outcomes": [
+                {"name": home, "price": home_price, "point": home_point},
+                {"name": away, "price": away_price, "point": away_point},
+            ],
+        }],
+    }
+
+
+def _totals_bookie(key: str, line: float,
+                    over_price: float = 1.91, under_price: float = 1.91) -> dict:
+    return {
+        "key": key,
+        "markets": [{
+            "key": "totals",
+            "outcomes": [
+                {"name": "Over", "price": over_price, "point": line},
+                {"name": "Under", "price": under_price, "point": line},
+            ],
+        }],
+    }
+
+
+def test_moneyline_path_unchanged_after_speck() -> None:
+    """Regression: moneyline market spread_line/total_line/total_side hepsi None."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [_bookie("fanduel", 1.80, 2.20, "Lakers", "Celtics")],
+    )
+    client = _client_returning([event])
+    market = _market(question="Will Lakers beat Celtics?")
+    market_dict = market.model_dump()
+    market_dict["sports_market_type"] = "moneyline"
+    from src.models.market import MarketData
+    market = MarketData(**market_dict)
+
+    result = enrich_market(market, client)
+    assert result.probability is not None
+    assert result.fail_reason is None
+    assert result.spread_line is None
+    assert result.total_line is None
+    assert result.total_side is None
+
+
+def test_spread_market_returns_spread_line_and_probability() -> None:
+    """Spread market: enrich_market spread_line dolu + probability döner."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [
+            _spread_bookie("fanduel", "Lakers", "Celtics", -7.5, 7.5),
+            _spread_bookie("draftkings", "Lakers", "Celtics", -7.5, 7.5),
+            _spread_bookie("bet365", "Lakers", "Celtics", -7.5, 7.5),
+        ],
+    )
+    client = _client_returning([event])
+    market = _market(
+        question="Will Lakers cover -7.5 vs Celtics?",
+        slug="nba-lal-bos-spread-home-7pt5",
+    )
+    from src.models.market import MarketData
+    md = market.model_dump()
+    md["sports_market_type"] = "spreads"
+    market = MarketData(**md)
+
+    result = enrich_market(market, client)
+    assert result.probability is not None, f"fail_reason={result.fail_reason}"
+    assert result.spread_line == 7.5
+    assert result.total_line is None
+    assert result.total_side is None
+    assert result.fail_reason is None
+
+
+def test_totals_market_returns_total_line_and_side() -> None:
+    """Totals market: total_line + total_side=OVER + probability döner."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [
+            _totals_bookie("fanduel", 215.5),
+            _totals_bookie("draftkings", 215.5),
+            _totals_bookie("bet365", 215.5),
+        ],
+    )
+    client = _client_returning([event])
+    # Totals question'unda "vs" yerine "Will Lakers beat Celtics?" + O/U eki yapay
+    # — gerçek Polymarket totals question patterns: "Games Total: O/U X" veya
+    # event başlığı bookmaker_event match için extract_teams ile tutmuyor olabilir.
+    # parse_total_line sadece "O/U X" arar. Test için question'da O/U + ayrı maç tag.
+    market = _market(
+        question="Lakers vs Celtics o/u 215.5",
+        slug="nba-lal-bos-total-over-215pt5",
+    )
+    from src.models.market import MarketData
+    from src.models.enums import TotalSide
+    md = market.model_dump()
+    md["sports_market_type"] = "totals"
+    market = MarketData(**md)
+
+    result = enrich_market(market, client)
+    assert result.probability is not None, f"fail_reason={result.fail_reason}"
+    assert result.total_line == 215.5
+    assert result.total_side == TotalSide.OVER
+    assert result.spread_line is None
+    assert result.fail_reason is None
+
+
+def test_spread_market_no_bookmaker_match_returns_no_spread_fail() -> None:
+    """Spread market — bookmaker hiç spreads market'i vermedi → BOOKMAKER_NO_SPREAD."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [_bookie("fanduel", 1.80, 2.20, "Lakers", "Celtics")],  # only h2h
+    )
+    client = _client_returning([event])
+    market = _market(
+        question="Will Lakers cover -7.5 vs Celtics?",
+        slug="nba-lal-bos-spread-home-7pt5",
+    )
+    from src.models.market import MarketData
+    md = market.model_dump()
+    md["sports_market_type"] = "spreads"
+    market = MarketData(**md)
+
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.BOOKMAKER_NO_SPREAD
+
+
+def test_totals_market_no_bookmaker_match_returns_no_totals_fail() -> None:
+    """Totals market — bookmaker hiç totals vermedi → BOOKMAKER_NO_TOTALS."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [_bookie("fanduel", 1.80, 2.20, "Lakers", "Celtics")],
+    )
+    client = _client_returning([event])
+    market = _market(
+        question="Lakers vs Celtics o/u 215.5",
+        slug="nba-lal-bos-total-over-215pt5",
+    )
+    from src.models.market import MarketData
+    md = market.model_dump()
+    md["sports_market_type"] = "totals"
+    market = MarketData(**md)
+
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.BOOKMAKER_NO_TOTALS
+
+
+def test_spread_market_unparsable_question_returns_no_spread_fail() -> None:
+    """Spread market ama question'da line yok → BOOKMAKER_NO_SPREAD."""
+    event = _event_with_bookmakers(
+        "Lakers", "Celtics",
+        [_spread_bookie("fanduel", "Lakers", "Celtics", -7.5, 7.5)],
+    )
+    client = _client_returning([event])
+    market = _market(question="Will Lakers beat Celtics?", slug="nba-lal-bos-foo")
+    from src.models.market import MarketData
+    md = market.model_dump()
+    md["sports_market_type"] = "spreads"
+    market = MarketData(**md)
+
+    result = enrich_market(market, client)
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.BOOKMAKER_NO_SPREAD
+
+
+def test_query_params_includes_spreads_and_totals_markets() -> None:
+    """Odds API çağrısı 'h2h,spreads,totals' istemeli."""
+    from src.strategy.enrichment.odds_enricher import _odds_query_params
+    params = _odds_query_params()
+    assert params["markets"] == "h2h,spreads,totals"
