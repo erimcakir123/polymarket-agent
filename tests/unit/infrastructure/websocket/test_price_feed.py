@@ -133,3 +133,50 @@ def test_callback_exception_does_not_crash() -> None:
     evt = {"event_type": "best_bid_ask", "asset_id": "x", "best_ask": "0.5", "best_bid": "0.49"}
     # Dispatch should not raise
     feed._dispatch_event(evt)
+
+
+# ── SPEC-I: Reliability fixes ──
+
+def test_heartbeat_interval_is_10s_per_polymarket_protocol() -> None:
+    """SPEC-I #1: Polymarket WS protokolü 10s ping ister (30s'de server silent close)."""
+    from src.infrastructure.websocket.price_feed import HEARTBEAT_INTERVAL_SEC
+    assert HEARTBEAT_INTERVAL_SEC == 10.0
+
+
+def test_stale_timeout_is_60s_for_data_silence_watchdog() -> None:
+    """SPEC-I #2: 60s data sessizliği → bağlantı dondu sayılır."""
+    from src.infrastructure.websocket.price_feed import STALE_TIMEOUT_SEC
+    assert STALE_TIMEOUT_SEC == 60.0
+
+
+def test_fetch_book_snapshot_updates_cache_for_token() -> None:
+    """SPEC-I #3: REST /book snapshot fetch → cache update doğru."""
+    from unittest.mock import MagicMock, patch
+    feed = PriceFeed()
+    feed._subscriptions = {"token_x"}
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "asks": [{"price": "0.55", "size": "100"}, {"price": "0.50", "size": "100"}],  # DESC, best=last (0.50)
+        "bids": [{"price": "0.45", "size": "100"}, {"price": "0.48", "size": "100"}],  # ASC, best=last (0.48)
+    }
+    with patch("src.infrastructure.websocket.price_feed.requests.get",
+               return_value=fake_response) as mock_get:
+        feed._fetch_rest_snapshots(["token_x"])
+    assert mock_get.called
+    snap = feed.get_price("token_x")
+    assert snap is not None
+    assert snap.yes_price == 0.50  # best ask (lowest)
+    assert snap.bid_price == 0.48  # best bid (highest)
+
+
+def test_fetch_book_snapshot_handles_http_error_gracefully() -> None:
+    """SPEC-I #3 edge case: REST 404 / timeout → cache dokunulmaz, hata fırlatmaz."""
+    from unittest.mock import MagicMock, patch
+    feed = PriceFeed()
+    fake_response = MagicMock()
+    fake_response.status_code = 404
+    with patch("src.infrastructure.websocket.price_feed.requests.get",
+               return_value=fake_response):
+        feed._fetch_rest_snapshots(["token_x"])  # Should not raise
+    assert feed.get_price("token_x") is None

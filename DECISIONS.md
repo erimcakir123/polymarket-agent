@@ -144,6 +144,28 @@ Toplam scale-out: **+$39.41**
 
 ---
 
+## SPEC-I Tamamlandı (2026-05-10): PriceFeed WebSocket Reliability
+
+**Karar**: Polymarket CLOB WebSocket bağlantısının 3 zayıf noktası tespit edildi (web research) ve tamir edildi. Mid-game flip kayıplarının %50-70'ini önlemesi bekleniyor.
+
+**3 Fix:**
+1. **HEARTBEAT_INTERVAL_SEC**: 30s → **10s** (Polymarket protokolü 10s ping ister; 30s'de server silent close yapıyordu)
+2. **STALE_TIMEOUT_SEC**: 120s → **60s** + watchdog aktif (Polymarket WS bilinen donma sorunu — GitHub Issue #26 — şimdi 60s data sessizliği force reconnect tetikler)
+3. **Reconnect REST snapshot**: yeni `_fetch_rest_snapshots()` — subscribe öncesi `clob.polymarket.com/book?token_id=...` çağırır, disconnect sırasında kaçan fiyatları cache'e koyar, eski cache ile karar verme önler
+
+**Dosyalar:**
+- `src/infrastructure/websocket/price_feed.py` — sabitler güncellendi, `_stale_watchdog` async task eklendi, `_fetch_rest_snapshots` helper eklendi, `requests` import eklendi
+- `tests/unit/infrastructure/websocket/test_price_feed.py` — 4 yeni test (ping interval, stale timeout, REST snapshot success, REST 404 graceful)
+
+**Test toplamı:** 1014 → 1018 (+4 yeni test).
+
+**Sebep — Web research bulguları (kaynak: arxiv 2605.00864, Polymarket docs, GitHub Issues #26 #292)**:
+- Polymarket WS resmi dokümanı 10s ping interval bekliyor; biz 30s gönderiyorduk → server silent close
+- "PriceFeed connection error: no close frame received" warning'leri bot.log'da çok sık görünüyordu — root cause budur
+- Reconnect sonrası eski cache → bot 5-10s eski fiyatla karar verirken market_flip kuralı geç tetikleniyordu
+
+---
+
 ## SPEC-C Tamamlandı (2026-05-08): 3-Way Bookmaker Sanity (Defensive)
 
 **Karar**: Audit MED-1 — futbol açılınca aktif olacak silent bug'lar pre-emptive olarak kapatıldı (commit ee051d7):

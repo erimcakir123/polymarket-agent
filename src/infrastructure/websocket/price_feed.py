@@ -26,16 +26,22 @@ import time
 from dataclasses import dataclass
 from typing import Callable
 
+import requests
 import websockets
 
 logger = logging.getLogger(__name__)
 
 CLOB_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+CLOB_REST_BOOK_URL = "https://clob.polymarket.com/book"
 
 RECONNECT_DELAY_BASE_SEC = 2.0
 RECONNECT_DELAY_MAX_SEC = 60.0
-HEARTBEAT_INTERVAL_SEC = 30.0
-STALE_TIMEOUT_SEC = 120.0
+# SPEC-I: Polymarket WS protokolu 10s ping ister (30s'de server silent close yapar).
+HEARTBEAT_INTERVAL_SEC = 10.0
+# SPEC-I: 60s data sessizligi → baglanti dondu sayilir, watchdog reconnect tetikler.
+STALE_TIMEOUT_SEC = 60.0
+WATCHDOG_CHECK_INTERVAL_SEC = 30.0
+REST_BOOK_TIMEOUT_SEC = 5.0
 
 
 @dataclass
@@ -155,17 +161,77 @@ class PriceFeed:
                 delay = min(delay * 2, RECONNECT_DELAY_MAX_SEC)
 
     async def _connect_and_listen(self) -> None:
-        async with websockets.connect(CLOB_WS_URL, ping_interval=HEARTBEAT_INTERVAL_SEC) as ws:
+        async with websockets.connect(
+            CLOB_WS_URL,
+            ping_interval=HEARTBEAT_INTERVAL_SEC,
+            ping_timeout=HEARTBEAT_INTERVAL_SEC,
+        ) as ws:
             self._ws = ws
             self._connected = True
             self._last_message_ts = time.time()
             with self._sub_lock:
-                if self._subscriptions:
-                    await self._send_subscribe(list(self._subscriptions))
-            async for msg in ws:
-                self._last_message_ts = time.time()
-                self.stats["messages_received"] += 1
-                self._handle_message(msg)
+                tokens = list(self._subscriptions)
+            if tokens:
+                # SPEC-I #3: Reconnect sonrasi REST snapshot fetch — disconnect
+                # suresince kacan fiyatlari yakala, eski cache ile karar verme.
+                self._fetch_rest_snapshots(tokens)
+                await self._send_subscribe(tokens)
+            # SPEC-I #2: Stale watchdog — 60s data sessizliginde force reconnect
+            watchdog_task = asyncio.create_task(self._stale_watchdog(ws))
+            try:
+                async for msg in ws:
+                    self._last_message_ts = time.time()
+                    self.stats["messages_received"] += 1
+                    self._handle_message(msg)
+            finally:
+                watchdog_task.cancel()
+
+    async def _stale_watchdog(self, ws) -> None:
+        """SPEC-I #2: STALE_TIMEOUT_SEC kadar mesaj gelmezse baglantiyi kapat.
+
+        WS handle acik gozukse de Polymarket bazen sessizce data akisini durdurur
+        (GitHub Issue #26 bilinen sorun). Bu watchdog donmayi yakalar, _connect_loop
+        reconnect'i tetikler.
+        """
+        try:
+            while True:
+                await asyncio.sleep(WATCHDOG_CHECK_INTERVAL_SEC)
+                idle = time.time() - self._last_message_ts
+                if idle > STALE_TIMEOUT_SEC:
+                    logger.warning(
+                        "PriceFeed stale (%.0fs no data) — force reconnect", idle,
+                    )
+                    await ws.close()
+                    return
+        except asyncio.CancelledError:
+            return
+
+    def _fetch_rest_snapshots(self, tokens: list[str]) -> None:
+        """SPEC-I #3: REST /book?token_id=... ile guncel snapshot cek + cache update.
+
+        Disconnect surecinde kacan fiyatlari yakalar. Hata olursa o token icin
+        cache dokunulmaz (sonraki WS event'i bekler).
+        """
+        for tid in tokens:
+            try:
+                resp = requests.get(
+                    CLOB_REST_BOOK_URL,
+                    params={"token_id": tid},
+                    timeout=REST_BOOK_TIMEOUT_SEC,
+                )
+                if resp.status_code != 200:
+                    logger.warning("REST /book %s returned %d", tid[:16], resp.status_code)
+                    continue
+                data = resp.json()
+                asks = data.get("asks", []) or []
+                bids = data.get("bids", []) or []
+                ask = _best_ask_from_snapshot(asks)
+                bid = _best_bid_from_snapshot(bids)
+                if ask > 0:
+                    self._update_price(tid, ask, bid)
+            except (requests.RequestException, ValueError) as e:
+                logger.warning("REST /book %s fetch failed: %s", tid[:16], e)
+                continue
 
     async def _send_subscribe(self, tokens: list[str]) -> None:
         if not self._ws:
