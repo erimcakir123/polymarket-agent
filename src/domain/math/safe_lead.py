@@ -12,7 +12,7 @@ Domain katmanı saf math: I/O / log / global state YOK.
 """
 from __future__ import annotations
 
-from math import erf, sqrt
+from math import ceil, erf, sqrt
 
 
 # ── Variance sabitleri (NBA empirik kalibrasyon) ─────────────────────────────
@@ -66,7 +66,8 @@ def is_total_dead(
     if seconds_remaining <= 0:
         if side == "over":
             return points_needed > 0
-        return points_needed < 0
+        # under loses on push (total exactly hits line) — align with predictive_exit_decision_totals.
+        return points_needed <= 0
 
     threshold = multiplier * sqrt(seconds_remaining)
 
@@ -101,10 +102,14 @@ def estimate_comeback_rate_spread(
     margin_to_cover: float,
     seconds_remaining: int,
 ) -> float:
-    """Spread comeback rate — margin_to_cover yuvarlanır, ml formülü kullanılır."""
+    """Spread comeback rate — margin_to_cover yuvarlanır, ml formülü kullanılır.
+
+    Half-point spreads (e.g. -2.5) round UP to integer deficit for conservative
+    comeback estimate — half-points cannot push, so .5 IS the cover threshold.
+    """
     if margin_to_cover <= 0:
         return 1.0
-    return estimate_comeback_rate_ml(int(round(margin_to_cover)), seconds_remaining)
+    return estimate_comeback_rate_ml(int(ceil(margin_to_cover)), seconds_remaining)
 
 
 def estimate_comeback_rate_totals(

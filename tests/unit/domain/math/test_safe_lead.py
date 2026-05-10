@@ -92,9 +92,13 @@ def test_estimate_comeback_rate_spread_zero_margin_full_rate() -> None:
 
 
 def test_estimate_comeback_rate_spread_rounds_margin() -> None:
-    """1.4 → int(round) = 1; same as ml deficit=1."""
-    spread_rate = estimate_comeback_rate_spread(1.4, 100)
-    ml_rate = estimate_comeback_rate_ml(1, 100)
+    """Half-point spreads round UP (ceil) for conservative comeback estimate.
+
+    margin=1.5 → ceil = 2; same as ml deficit=2 (NOT deficit=1).
+    Half-points cannot push, so .5 IS the cover threshold.
+    """
+    spread_rate = estimate_comeback_rate_spread(1.5, 100)
+    ml_rate = estimate_comeback_rate_ml(2, 100)
     assert spread_rate == ml_rate
 
 
@@ -152,6 +156,23 @@ def test_predictive_exit_decision_spread_low_comeback_high_bid_exits() -> None:
         predictive_exit_decision_spread(15.0, 100, current_bid=0.20)
         is True
     )
+
+
+def test_predictive_exit_decision_spread_hold_when_bid_low() -> None:
+    """When comeback is low (< hold_threshold) BUT (bid + safety) ≤ comeback,
+    HOLD is correct — selling now would lock in less than the math says HOLD is worth.
+
+    margin=8, seconds=300 → comeback ≈ 0.108 (below 0.20 hold_threshold).
+    bid=0.05 + safety=0.03 = 0.08 ≤ 0.108 → strict `>` check fails → HOLD (False).
+    """
+    result = predictive_exit_decision_spread(
+        margin_to_cover=8.0,
+        seconds=300,
+        current_bid=0.05,
+        safety_margin=0.03,
+        hold_threshold=0.20,
+    )
+    assert result is False  # HOLD because (bid+safety) ≤ comeback
 
 
 # ── predictive_exit_decision_totals ──────────────────────────────────────────
