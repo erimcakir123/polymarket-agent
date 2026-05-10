@@ -73,3 +73,29 @@ def test_run_light_no_score_map_passes_empty_dict(monkeypatch) -> None:
     ep = ExitProcessor(deps)
     ep.run_light(score_map=None)
     assert captured["score_info"] in (None, {})
+
+
+def test_run_light_passes_basketball_exit_cfg_to_monitor(monkeypatch) -> None:
+    """SPEC-J: AppConfig.exit_basketball monitor.evaluate'a iletilir."""
+    from src.config.settings import BasketballExitConfig
+    deps, pos = _make_deps_with_pos()
+    custom_cfg = BasketballExitConfig(bill_james_multiplier=0.95)
+    deps.state.config.exit_basketball = custom_cfg
+
+    captured = {}
+
+    def fake_eval(p, score_info=None, basketball_exit_cfg=None, **_kw):
+        captured["basketball_exit_cfg"] = basketball_exit_cfg
+        from src.strategy.exit.monitor import FavoredTransition, MonitorResult
+        return MonitorResult(
+            exit_signal=None,
+            fav_transition=FavoredTransition(),
+            elapsed_pct=0.5,
+        )
+
+    import src.strategy.exit.monitor as monitor_mod
+    monkeypatch.setattr(monitor_mod, "evaluate", fake_eval)
+
+    ep = ExitProcessor(deps)
+    ep.run_light(score_map=None)
+    assert captured["basketball_exit_cfg"] is custom_cfg
