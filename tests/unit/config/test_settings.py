@@ -100,13 +100,17 @@ def test_repo_config_yaml_parses() -> None:
     assert cfg.mode is not None
     assert cfg.initial_bankroll > 0
     assert cfg.edge.min_edge == 0.06
-    # Gamma tag formatı (Odds API key değil)
-    assert "nba" in cfg.scanner.allowed_sport_tags
-    assert "nhl" in cfg.scanner.allowed_sport_tags
-    assert "lpga*" in cfg.scanner.allowed_sport_tags
+    # 2026-05-11: Basketball-only — tek olay swing düşük (sayı = %1-3 fiyat etkisi).
+    # Diğer sportlar (NHL/MLB/Tennis/Soccer/Football/Golf/Combat) tek olayda fiyatı
+    # %20-100 uçuruyor → bot stop-loss tutamıyor; kapatıldı.
+    for must_have in ("nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl"):
+        assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} basketball-only listede olmalı"
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
     for banned in ("soccer_epl", "soccer_laliga", "cricket"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
+    # 2026-05-11 brutal daraltma: bu sportlar yapısal yüksek-swing → kapatıldı
+    for high_swing in ("nhl", "mlb", "kbo", "baseball", "ncaaf", "cfl", "ufl", "lpga*", "liv*", "pga*"):
+        assert high_swing not in cfg.scanner.allowed_sport_tags, f"{high_swing} yüksek-swing — kapatıldı 2026-05-11"
     # Combat sports kaldırıldı 2026-05-10 (SPEC-J) — canlı skor yok, KO/karar bazlı reaksiyon imkansız
     for combat in ("mma", "ufc", "boxing"):
         assert combat not in cfg.scanner.allowed_sport_tags, f"{combat} SPEC-J ile kaldırıldı"

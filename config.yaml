@@ -22,12 +22,10 @@ scanner:
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.
   allowed_sport_tags:
-    # Baseball
-    - mlb
-    - milb
-    - npb
-    - kbo
-    - baseball
+    # 2026-05-11: Sadece basketbol — tek olay swing düşük (sayı = %1-3 fiyat etkisi).
+    # Diğer sportlar (NHL/MLB/Tennis/Soccer/NCAAF/Golf) kaldırıldı çünkü
+    # tek olay (gol/run/TD/KO) fiyatı %20-100 uçuruyor → bot stop-loss tutamıyor.
+    # Audit kanıt: baseball avg %73 kayıp, NHL %46, NBA %35.
     # Basketball
     - nba
     - wnba
@@ -37,24 +35,13 @@ scanner:
     - euroleague
     - nbl
     # "basketball" generic dropped: CBA/KBL/VTB no Odds API coverage (SPEC-003)
-    # Ice Hockey
-    - nhl
-    - ahl
-    - liiga
-    - mestis
-    - shl
-    - allsvenskan
-    # "hockey" generic dropped: KHL no Odds API coverage (SPEC-003)
-    # American Football (NFL regular season OT-tie %0.2 — TODO-001, MVP'de NFL dışarıda)
-    - ncaaf
-    - cfl
-    - ufl
-    # Tennis kaldırıldı 2026-05-05 — matching katmanı korundu, geri açmak için tags geri ekle
-    # Combat sports kaldırıldı 2026-05-10 (SPEC-J) — canlı skor yok, KO/karar bazlı reaksiyon imkansız
-    # Golf (H2H)
-    - "lpga*"
-    - "liv*"
-    - "pga*"
+    # — Aşağıdakiler arşiv (kalıbı ileri açmak istersek):
+    # Baseball: mlb, milb, npb, kbo, baseball (kapatıldı 2026-05-11)
+    # Ice Hockey: nhl, ahl, liiga, mestis, shl, allsvenskan (kapatıldı 2026-05-11)
+    # American Football: ncaaf, cfl, ufl (kapatıldı 2026-05-11)
+    # Golf: lpga*, liv*, pga* (kapatıldı 2026-05-11)
+    # Tennis kaldırıldı 2026-05-05 — matching katmanı korundu
+    # Combat sports kaldırıldı 2026-05-10 (SPEC-J)
 
 edge:
   min_edge: 0.06
