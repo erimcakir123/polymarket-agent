@@ -227,6 +227,31 @@ def clear_audit_logs(audit_files: list[Path] | None = None) -> None:
             print(f"  Removed audit: {audit_file.name}")
 
 
+def archive_audit_logs(
+    audit_files: list[Path] | None = None,
+    timestamp: str | None = None,
+) -> None:
+    """Reboot'ta audit dosyalarını rename ile arşivle — silmez, taşır.
+
+    2026-05-11 fix: SPEC-E _reconcile_realized_pnl audit'i ground truth okuyor.
+    Reboot audit'i korusa da bot startup'ta audit'ten realized_pnl'i geri inşa
+    ediyordu → "clean start" semantiği ihlal. Bu fonksiyon mevcut audit'i
+    `<name>.archive.YYYYMMDD_HHMMSS.jsonl` olarak rename eder; yeni session boş
+    audit ile başlar, eski archive forensic erişim için kalır.
+    """
+    from datetime import datetime, timezone
+
+    files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
+    stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    for audit_file in files:
+        if audit_file.exists() and audit_file.stat().st_size > 0:
+            archived = audit_file.with_name(
+                f"{audit_file.stem}.archive.{stamp}{audit_file.suffix}",
+            )
+            audit_file.rename(archived)
+            print(f"  Archived: {audit_file.name} -> {archived.name}")
+
+
 def start_dashboard(root: Path | None = None) -> None:
     """Dashboard'u ayrı process'te başlat."""
     r = root or ROOT
@@ -300,6 +325,11 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
     clear_runtime_logs()
     clear_session_logs()
     # NOT: clear_audit_logs() çağrılmıyor — audit kalıcı arşiv (SPEC-H 2026-05-10).
+    # AMA mevcut audit dosyaları rename ile archive'lenir (2026-05-11 fix):
+    # SPEC-E reconcile_realized_pnl audit'i ground truth okuyordu, reboot sonrası
+    # realized_pnl audit'ten geri inşa ediliyordu → "clean start" ihlal.
+    # Archive ile audit veri kaybolmaz ama yeni session boş audit ile başlar.
+    archive_audit_logs()
     reset_state()
     start_dashboard()
     time.sleep(3)

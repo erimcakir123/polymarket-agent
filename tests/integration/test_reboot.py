@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.reboot import (
+    archive_audit_logs,
     clear_runtime_logs,
     clear_session_logs,
     kill_processes,
@@ -315,3 +316,59 @@ def test_no_stacking(tmp_path: Path) -> None:
 
     assert 7777 in killed_pids, f"Agent PID 7777 kill edilmedi. Killed: {killed_pids}"
     assert 7778 in killed_pids, f"Dashboard PID 7778 kill edilmedi. Killed: {killed_pids}"
+
+
+# ─── archive_audit_logs (2026-05-11 fix) ─────────────────────────────────────
+
+def test_archive_audit_logs_renames_nonempty_file(tmp_path: Path) -> None:
+    """Reboot fix: audit dosyasi silinmez, rename ile arşivlenir.
+    Yeni session bos audit ile baslar (reconcile_realized_pnl 0'dan baslar)."""
+    audit_file = tmp_path / "trade_history.jsonl"
+    audit_file.write_text('{"pnl": -86.80}\n', encoding="utf-8")
+
+    archive_audit_logs(audit_files=[audit_file], timestamp="20260511_124500")
+
+    # Orijinal dosya artik YOK
+    assert not audit_file.exists()
+    # Archive olarak rename edildi
+    archived = tmp_path / "trade_history.archive.20260511_124500.jsonl"
+    assert archived.exists()
+    assert archived.read_text(encoding="utf-8") == '{"pnl": -86.80}\n'
+
+
+def test_archive_audit_logs_skips_empty_file(tmp_path: Path) -> None:
+    """Bos audit dosyasi rename edilmez (no-op)."""
+    audit_file = tmp_path / "trade_history.jsonl"
+    audit_file.touch()
+
+    archive_audit_logs(audit_files=[audit_file], timestamp="20260511_124500")
+
+    # Bos dosya yerinde kaldi
+    assert audit_file.exists()
+    assert audit_file.stat().st_size == 0
+    archived = tmp_path / "trade_history.archive.20260511_124500.jsonl"
+    assert not archived.exists()
+
+
+def test_archive_audit_logs_skips_missing_file(tmp_path: Path) -> None:
+    """Olmayan audit dosyasi sessizce atlanir."""
+    audit_file = tmp_path / "missing.jsonl"
+    archive_audit_logs(audit_files=[audit_file], timestamp="20260511_124500")
+    assert not audit_file.exists()
+
+
+def test_reboot_calls_archive_audit_logs() -> None:
+    """Reboot komutu archive_audit_logs cagiriyor (clean start fix)."""
+    with (
+        patch("scripts.reboot.kill_processes"),
+        patch("scripts.reboot.clear_runtime_logs"),
+        patch("scripts.reboot.clear_session_logs"),
+        patch("scripts.reboot.archive_audit_logs") as mock_archive,
+        patch("scripts.reboot.reset_state"),
+        patch("scripts.reboot.start_bot"),
+        patch("scripts.reboot.start_dashboard"),
+        patch("scripts.reboot.time.sleep"),
+    ):
+        reboot("dry_run", skip_confirm=True)
+
+    mock_archive.assert_called_once()
