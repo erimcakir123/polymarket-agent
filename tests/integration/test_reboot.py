@@ -101,6 +101,28 @@ def test_clear_runtime_logs_empty_file_untouched(tmp_path: Path) -> None:
     assert log_file.stat().st_size == 0
 
 
+def test_clear_runtime_logs_removes_rotated_files(tmp_path: Path) -> None:
+    """2026-05-11 BUG FIX: rotate'lenmiş bot.log.1, .2, .3 dosyaları da silinmeli.
+    Aksi halde 'clean start' sözleşmesi ihlal olur (RotatingFileHandler 10MB×5 = 50MB)."""
+    log_file = tmp_path / "bot.log"
+    log_file.write_bytes(b"current\n")
+    rotated_1 = tmp_path / "bot.log.1"
+    rotated_1.write_bytes(b"old1\n" * 1000)
+    rotated_2 = tmp_path / "bot.log.2"
+    rotated_2.write_bytes(b"old2\n" * 1000)
+    rotated_3 = tmp_path / "bot.log.3"
+    rotated_3.write_bytes(b"old3\n" * 1000)
+
+    clear_runtime_logs(log_files=[log_file])
+
+    # Ana dosya truncate edilir, rotate'lenmiş suffix'ler silinir
+    assert log_file.exists()
+    assert log_file.stat().st_size == 0
+    assert not rotated_1.exists()
+    assert not rotated_2.exists()
+    assert not rotated_3.exists()
+
+
 # ─── audit/ dosyaları dokunulmaz ─────────────────────────────────────────────
 
 def test_audit_files_untouched_on_reboot(tmp_path: Path) -> None:

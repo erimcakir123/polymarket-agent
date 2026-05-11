@@ -185,7 +185,11 @@ def kill_processes(
 
 
 def clear_runtime_logs(log_files: list[Path] | None = None) -> None:
-    """Runtime log dosyalarını boşalt (audit/ asla dokunulmaz)."""
+    """Runtime log dosyalarını boşalt (audit/ asla dokunulmaz).
+
+    Bot.log için rotate'lenmiş suffix'leri (bot.log.1, .2, ...) de temizler —
+    aksi halde "clean start" semantiği ihlal olur ve 30MB+ eski log birikir.
+    """
     files = log_files if log_files is not None else _RUNTIME_LOG_FILES
     for log_file in files:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +198,11 @@ def clear_runtime_logs(log_files: list[Path] | None = None) -> None:
             print(f"  Cleared: {log_file.name}")
         else:
             log_file.touch()
+        # Rotate'lenmiş suffix'leri sil (bot.log.1, bot.log.2, ...)
+        # RotatingFileHandler bunlari oluşturur; reboot temizliği bunlari da kapsamalı.
+        for rotated in log_file.parent.glob(f"{log_file.name}.*"):
+            rotated.unlink(missing_ok=True)
+            print(f"  Removed rotated: {rotated.name}")
 
 
 def reset_state(state_files: list[Path] | None = None) -> None:
