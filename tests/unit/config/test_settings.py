@@ -100,16 +100,20 @@ def test_repo_config_yaml_parses() -> None:
     assert cfg.mode is not None
     assert cfg.initial_bankroll > 0
     assert cfg.edge.min_edge == 0.06
-    # 2026-05-11: Basketball-only — tek olay swing düşük (sayı = %1-3 fiyat etkisi).
-    # Diğer sportlar (NHL/MLB/Tennis/Soccer/Football/Golf/Combat) tek olayda fiyatı
-    # %20-100 uçuruyor → bot stop-loss tutamıyor; kapatıldı.
-    for must_have in ("nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl"):
-        assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} basketball-only listede olmalı"
+    # 2026-05-11: Basketball-only + NHL (SPEC-L: NHL eski projede %87 winrate kanıtlı).
+    # Diğer high-swing sportlar (MLB/Tennis/Soccer/Football/Golf/Combat) tek olayda
+    # fiyatı %20-100 uçuruyor → bot stop-loss tutamıyor; kapatıldı.
+    # NHL exception: moneyline yapısal olarak son anda kâr lock'ar (12/15 trade
+    # near_resolve_profit eski projede); scanner BASKETBALL_TAGS-only spread/totals
+    # filter NHL'i otomatik moneyline-only yapar.
+    for must_have in ("nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl", "nhl"):
+        assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
     for banned in ("soccer_epl", "soccer_laliga", "cricket"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
     # 2026-05-11 brutal daraltma: bu sportlar yapısal yüksek-swing → kapatıldı
-    for high_swing in ("nhl", "mlb", "kbo", "baseball", "ncaaf", "cfl", "ufl", "lpga*", "liv*", "pga*"):
+    # (NHL bu listeden 2026-05-11 SPEC-L ile çıkarıldı — moneyline-only istisna)
+    for high_swing in ("mlb", "kbo", "baseball", "ncaaf", "cfl", "ufl", "lpga*", "liv*", "pga*"):
         assert high_swing not in cfg.scanner.allowed_sport_tags, f"{high_swing} yüksek-swing — kapatıldı 2026-05-11"
     # Combat sports kaldırıldı 2026-05-10 (SPEC-J) — canlı skor yok, KO/karar bazlı reaksiyon imkansız
     for combat in ("mma", "ufc", "boxing"):

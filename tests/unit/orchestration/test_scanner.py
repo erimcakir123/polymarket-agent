@@ -100,10 +100,37 @@ def test_scanner_passes_wnba_totals() -> None:
 
 
 def test_scanner_rejects_nhl_spreads() -> None:
-    """NHL + spreads → red (sadece basketbol)."""
+    """NHL + spreads → red (sadece basketbol). SPEC-L DRIFT KORUMASI:
+    NHL moneyline-only kalmali; spread/puck_line tutamayiz (1 gol cover flippler)."""
     now = datetime.now(timezone.utc)
     m = _market(
         sport_tag="nhl", market_type="spreads",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_scanner_passes_nhl_moneyline() -> None:
+    """SPEC-L: NHL moneyline kabul edilir (eski projede %87 winrate yapisal)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nhl", market_type="moneyline",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
+def test_scanner_rejects_nhl_totals() -> None:
+    """SPEC-L DRIFT KORUMASI: NHL totals da reddedilir (sadece moneyline)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nhl", market_type="totals",
         match_start=now + timedelta(hours=2),
         end_date=now + timedelta(hours=5),
     )

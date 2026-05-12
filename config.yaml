@@ -35,9 +35,15 @@ scanner:
     - euroleague
     - nbl
     # "basketball" generic dropped: CBA/KBL/VTB no Odds API coverage (SPEC-003)
+    # Ice Hockey — SADECE NHL (2026-05-11 SPEC-L brutal scope):
+    # Eski projede 4 günde 13W/2L (%87 winrate) +$126 kanıtlandı. 12/15 trade
+    # near_resolve_profit (94¢ kâr lock) — yapısal sebep: hokey lider biten maç.
+    # Moneyline-only otomatik (scanner BASKETBALL_TAGS dışı spread/totals reddeder).
+    # AHL/SHL/Liiga vs EKLENMESİN — kanıt yok, açma kararı veri ile alınmalı.
+    - nhl
     # — Aşağıdakiler arşiv (kalıbı ileri açmak istersek):
     # Baseball: mlb, milb, npb, kbo, baseball (kapatıldı 2026-05-11)
-    # Ice Hockey: nhl, ahl, liiga, mestis, shl, allsvenskan (kapatıldı 2026-05-11)
+    # Hockey aile (NHL hariç): ahl, liiga, mestis, shl, allsvenskan (kapatıldı 2026-05-11)
     # American Football: ncaaf, cfl, ufl (kapatıldı 2026-05-11)
     # Golf: lpga*, liv*, pga* (kapatıldı 2026-05-11)
     # Tennis kaldırıldı 2026-05-05 — matching katmanı korundu
