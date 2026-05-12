@@ -44,12 +44,21 @@ class CycleManager:
         self._utc_now = utc_now_fn
         self._last_heavy_ts: float = 0.0
         self._exit_triggered_pending: bool = False
+        # SPEC-M: Adaptive cycle — en yakin macin saatleri (None=bilinmiyor, default davranis)
+        self._nearest_match_hours: float | None = None
 
     # ── Public API ──
 
     def signal_exit_happened(self) -> None:
         """Light cycle'da bir exit işlendi — sonraki tick heavy tetikle."""
         self._exit_triggered_pending = True
+
+    def update_nearest_match_hours(self, hours: float | None) -> None:
+        """SPEC-M: Agent.py heavy cycle sonrası en yakın maç saatini günceller.
+        None = bilgi yok (cold start, scan boş) → default heavy/night davranışı.
+        Geçmiş (negatif) saatler caller tarafından filtrelenip None geçilmeli.
+        """
+        self._nearest_match_hours = hours
 
     def tick(self, has_positions: bool) -> CycleTick:
         """Her ana döngü yinelemesinde çağrılır. Ne yapılması gerektiğini döndürür."""
@@ -83,7 +92,24 @@ class CycleManager:
     # ── Timing helpers ──
 
     def _current_heavy_interval_sec(self) -> int:
-        """Gece (UTC 08-13) mı? 60 dk; gündüz 30 dk."""
+        """Aktif heavy cycle interval'i saniye olarak (SPEC-M adaptive).
+
+        Sıralı kontrol:
+        1. Imminent: nearest_match < imminent_threshold (1h) → imminent_interval (10dk)
+        2. Near: nearest_match < near_threshold (3h) → near_interval (15dk)
+        3. Maç bilgisi yok ya da uzak:
+           - Gece (UTC 08-13) ise night_interval (60dk)
+           - Aksi heavy_interval (30dk)
+
+        Adaptive maç varken gece kuralını override eder (maç önemli).
+        """
+        nearest = self._nearest_match_hours
+        if nearest is not None and nearest > 0:
+            if nearest < self.config.imminent_threshold_hours:
+                return self.config.imminent_interval_min * 60
+            if nearest < self.config.near_threshold_hours:
+                return self.config.near_interval_min * 60
+        # Fallback: gece / gündüz
         hour = self._utc_now().hour
         if hour in self.config.night_hours:
             return self.config.night_interval_min * 60

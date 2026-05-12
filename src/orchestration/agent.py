@@ -84,6 +84,10 @@ class Agent:
             try:
                 if tick.run_heavy:
                     self._entry.run_heavy()
+                    # SPEC-M: Heavy sonrasi en yakin maca kadar saatleri hesapla,
+                    # cycle_manager bir sonraki interval'i bu bilgiyle secsin.
+                    nearest = self._compute_nearest_match_hours()
+                    self.deps.cycle_manager.update_nearest_match_hours(nearest)
                 if tick.run_light:
                     score_map: dict[str, dict] = {}
                     if self.deps.score_enricher is not None:
@@ -117,6 +121,44 @@ class Agent:
             if max_ticks is not None and ticks >= max_ticks:
                 break
             time.sleep(self.deps.cycle_manager.sleep_seconds())
+
+    def _compute_nearest_match_hours(self) -> float | None:
+        """SPEC-M: Acik pozisyon + stock'taki market'lerden en yakin maca saatleri.
+
+        Kaynaklar: portfolio.positions + stock.entries (her ikisinde match_start_iso var).
+        Sadece gelecek (positive hours) macleri sayar. Hiç maç yoksa None.
+
+        Caller (cycle_manager) None gorunce default heavy/night davranisi uygular.
+        """
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        candidates: list[str] = []
+        # Acik pozisyonlar
+        for pos in self.deps.state.portfolio.positions.values():
+            iso = (pos.match_start_iso or "").strip()
+            if iso:
+                candidates.append(iso)
+        # Stock'taki market'ler
+        try:
+            for entry in self.deps.stock.all_entries():
+                iso = (entry.market.match_start_iso or "").strip()
+                if iso:
+                    candidates.append(iso)
+        except (AttributeError, TypeError):
+            pass  # stock erisilebilir degilse atla (cold start, test mock)
+
+        min_hours: float | None = None
+        for iso in candidates:
+            try:
+                dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                continue
+            hours = (dt - now).total_seconds() / 3600.0
+            if hours <= 0:
+                continue  # gecmis veya bashlamis mac
+            if min_hours is None or hours < min_hours:
+                min_hours = hours
+        return min_hours
 
     def _start_ws_if_needed(self) -> None:
         if self._ws_started or self.deps.price_feed is None:

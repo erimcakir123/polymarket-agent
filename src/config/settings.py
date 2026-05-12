@@ -22,6 +22,14 @@ class CycleConfig(BaseModel):
     light_interval_sec: int = 5
     night_interval_min: int = 60
     night_hours: List[int] = [8, 9, 10, 11, 12, 13]
+    # SPEC-M: Adaptive cycle — maca yaklasildikca cycle siklasir.
+    # Sebep: edge'ler maca yakin (lineup, goalie, sharp money) cikar.
+    # nearest_match_hours bilgisi agent.py'dan tick() ile gelir; verilmezse mevcut
+    # heavy/night davranisi (geriye uyumlu).
+    near_interval_min: int = 15           # 1-3h: lineup baslangic
+    imminent_interval_min: int = 10       # <1h: goalie + sharp + son haber
+    near_threshold_hours: float = 3.0
+    imminent_threshold_hours: float = 1.0
 
 
 class ScannerConfig(BaseModel):
