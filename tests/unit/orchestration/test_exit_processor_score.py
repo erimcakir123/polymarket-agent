@@ -79,7 +79,7 @@ def test_run_light_passes_basketball_exit_cfg_to_monitor(monkeypatch) -> None:
     """SPEC-J: AppConfig.exit_basketball monitor.evaluate'a iletilir."""
     from src.config.settings import BasketballExitConfig
     deps, pos = _make_deps_with_pos()
-    custom_cfg = BasketballExitConfig(bill_james_multiplier=0.95)
+    custom_cfg = BasketballExitConfig(totals_multiplier=1.5)
     deps.state.config.exit_basketball = custom_cfg
 
     captured = {}

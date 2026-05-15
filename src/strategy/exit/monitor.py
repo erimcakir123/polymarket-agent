@@ -219,11 +219,11 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
-    # 2.5 Basketball spread/totals dispatch (SPEC-J)
+    # 2.5 Basketball totals dispatch (SPEC-J — SPREADS 2026-05-15 rollback ile kaldırıldı)
     sport_tag_lc = (pos.sport_tag or "").lower()
     if (
         sport_tag_lc in BASKETBALL_TAGS
-        and pos.sports_market_type in (SportsMarketType.SPREADS, SportsMarketType.TOTALS)
+        and pos.sports_market_type == SportsMarketType.TOTALS
     ):
         nba_result = check_nba_exit(
             pos=pos,

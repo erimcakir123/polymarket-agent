@@ -204,16 +204,6 @@ class OvertimeExitConfig(BaseModel):
     deficit: int = 8
 
 
-class SpreadEmpiricalConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    q4_late_seconds: int = 360
-    q4_late_margin: int = 7
-    q4_final_seconds: int = 180
-    q4_final_margin: int = 4
-    q4_endgame_seconds: int = 60
-    q4_endgame_margin: int = 3
-
-
 class TotalsEmpiricalConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ot_over_scale_pct: float = 0.5
@@ -234,11 +224,9 @@ class PredictiveExitConfig(BaseModel):
 
 class BasketballExitConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    bill_james_multiplier: float = 0.861
     structural_damage_ratio: float = 0.30
     totals_multiplier: float = 1.218
     overtime: OvertimeExitConfig = Field(default_factory=OvertimeExitConfig)
-    spread_empirical: SpreadEmpiricalConfig = Field(default_factory=SpreadEmpiricalConfig)
     totals_empirical: TotalsEmpiricalConfig = Field(default_factory=TotalsEmpiricalConfig)
     predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
 
