@@ -12,7 +12,7 @@ Domain katmanı saf math: I/O / log / global state YOK.
 """
 from __future__ import annotations
 
-from math import ceil, erf, sqrt
+from math import erf, sqrt
 
 
 # ── Variance sabitleri (NBA empirik kalibrasyon) ─────────────────────────────
@@ -22,27 +22,6 @@ TOTALS_STD_PER_SQRT_SEC: float = 0.5270
 
 
 # ── Bill James matematiksel ölü kontrolü ─────────────────────────────────────
-
-
-def is_spread_dead(
-    margin_to_cover: float,
-    seconds_remaining: int,
-    multiplier: float = 0.861,
-) -> bool:
-    """Spread cover için Bill James %99 confidence ölü kontrolü.
-
-    margin_to_cover: spread'i kapatmak için gereken puan (pozitif = geride).
-    seconds_remaining: maçta kalan saniye.
-    multiplier: NBA için 0.861 (~%99 güven).
-
-    margin ≤ 0 → zaten cover'dayız, dead değil.
-    seconds ≤ 0 → süre bitti, pozitif margin direkt ölü.
-    """
-    if margin_to_cover <= 0:
-        return False
-    if seconds_remaining <= 0:
-        return margin_to_cover > 0
-    return margin_to_cover >= multiplier * sqrt(seconds_remaining)
 
 
 def is_total_dead(
@@ -98,20 +77,6 @@ def estimate_comeback_rate_ml(deficit: int, seconds_remaining: int) -> float:
     return max(0.0, min(1.0, rate))
 
 
-def estimate_comeback_rate_spread(
-    margin_to_cover: float,
-    seconds_remaining: int,
-) -> float:
-    """Spread comeback rate — margin_to_cover yuvarlanır, ml formülü kullanılır.
-
-    Half-point spreads (e.g. -2.5) round UP to integer deficit for conservative
-    comeback estimate — half-points cannot push, so .5 IS the cover threshold.
-    """
-    if margin_to_cover <= 0:
-        return 1.0
-    return estimate_comeback_rate_ml(int(ceil(margin_to_cover)), seconds_remaining)
-
-
 def estimate_comeback_rate_totals(
     points_diff: float,
     seconds_remaining: int,
@@ -143,31 +108,6 @@ def estimate_comeback_rate_totals(
 
 
 # ── EV bazlı predictive exit kararları ──────────────────────────────────────
-
-
-def predictive_exit_decision_spread(
-    margin_to_cover: float,
-    seconds: int,
-    current_bid: float,
-    safety_margin: float = 0.03,
-    hold_threshold: float = 0.20,
-) -> bool:
-    """Spread için EV bazlı predictive exit (True = EXIT, False = HOLD).
-
-    1. seconds ≤ 0 → margin > 0 ise EXIT.
-    2. margin ≤ 0 → HOLD (zaten cover'dayız).
-    3. comeback ≥ hold_threshold → HOLD (hala umut var).
-    4. (current_bid + safety_margin) > comeback → EXIT (şu an satmak daha iyi).
-    """
-    if seconds <= 0:
-        return margin_to_cover > 0
-    if margin_to_cover <= 0:
-        return False
-
-    comeback = estimate_comeback_rate_spread(margin_to_cover, seconds)
-    if comeback >= hold_threshold:
-        return False
-    return (current_bid + safety_margin) > comeback
 
 
 def predictive_exit_decision_totals(
