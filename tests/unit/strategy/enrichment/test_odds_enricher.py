@@ -141,16 +141,6 @@ def test_enrich_no_team_match_returns_none() -> None:
     assert r.probability is None
 
 
-def test_enrich_soccer_requires_draw_outcome() -> None:
-    # Soccer market, bookmaker'ın draw outcome'ı yok → skip bookmaker
-    # Bu testi basitçe bırakıyoruz — soccer için 3-way gerekiyor, 2-way atlanır
-    client = _client_returning([])
-    m = _market(slug="epl-ars-che-2026-04-13", question="Arsenal vs Chelsea")
-    # Events yok → None
-    r = enrich_market(m, client)
-    assert r.probability is None
-
-
 # --- SPEC-001: EnrichResult + fail_reason taxonomy tests ---
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason
@@ -212,36 +202,13 @@ def test_enrich_market_ok_returns_probability_and_no_fail_reason() -> None:
     assert 0.0 < result.probability.probability < 1.0
 
 
-# --- SPEC-C: 3-Way Bookmaker Sanity (defensive — soccer pre-emptive) ---
+# --- SPEC-C: 2-Way Bookmaker Sanity ---
 
 
-def test_soccer_bookmaker_no_draw_logged_and_skipped(caplog) -> None:
-    """3-way (soccer) — bookmaker draw odds yoksa skip + INFO log."""
+def test_h2h_2way_vig_outlier_skipped(caplog) -> None:
+    """2-way vig outlier (sum > 1.20) → skip + INFO log."""
     caplog.set_level(logging.INFO)
-    bookmakers = [
-        {
-            "key": "test_bm",
-            "markets": [{
-                "key": "h2h",
-                "outcomes": [
-                    {"name": "Team A", "price": 2.0},
-                    {"name": "Team B", "price": 2.0},
-                    # No draw outcome
-                ],
-            }],
-        },
-    ]
-    result = _weighted_average(
-        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=True,
-    )
-    assert result is None  # all skipped → no probability
-    assert any("Bookmaker drop" in rec.message for rec in caplog.records)
-
-
-def test_soccer_vig_outlier_skipped(caplog) -> None:
-    """3-way vig outlier (sum > 1.30) → skip + INFO log."""
-    caplog.set_level(logging.INFO)
-    # Tüm odds 1.5 → her implied 0.667 → total = 2.0 (outlier)
+    # Odds 1.5/1.5 → her implied 0.667 → total = 1.333 (outlier, > 1.20)
     bookmakers = [
         {
             "key": "shady_bm",
@@ -250,13 +217,12 @@ def test_soccer_vig_outlier_skipped(caplog) -> None:
                 "outcomes": [
                     {"name": "Team A", "price": 1.5},
                     {"name": "Team B", "price": 1.5},
-                    {"name": "Draw", "price": 1.5},
                 ],
             }],
         },
     ]
     result = _weighted_average(
-        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=True,
+        bookmakers, "Team A", "Team B", home_is_a=True,
     )
     assert result is None
     assert any("Bookmaker drop" in rec.message for rec in caplog.records)
@@ -278,7 +244,7 @@ def test_h2h_2way_normal_passes() -> None:
         },
     ]
     result = _weighted_average(
-        bookmakers, "Team A", "Team B", home_is_a=True, is_soccer=False,
+        bookmakers, "Team A", "Team B", home_is_a=True,
     )
     assert result is not None
     assert 0.4 < result.probability < 0.6  # normalized ~0.5

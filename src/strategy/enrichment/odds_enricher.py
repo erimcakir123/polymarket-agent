@@ -13,7 +13,6 @@ from datetime import datetime, timedelta, timezone
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability, calculate_bookmaker_probability
 from src.domain.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
-from src.domain.matching.odds_sport_keys import is_soccer_key
 from src.domain.matching.pair_matcher import (
     find_best_event_match,
     find_best_single_team_match,
@@ -26,13 +25,9 @@ from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
 logger = logging.getLogger(__name__)
 
 # Vig sanity bounds (inline — pre-SPEC-K state).
-# Pre-normalize 1/odds toplamı:
-# - 2-way: tipik 1.02-1.08 → [0.85, 1.20] dışı outlier.
-# - 3-way (soccer): tipik 1.05-1.10 → [0.85, 1.30] dışı outlier.
+# Pre-normalize 1/odds toplamı (2-way h2h): tipik 1.02-1.08 → [0.85, 1.20] dışı outlier.
 _VIG_2WAY_MIN = 0.85
 _VIG_2WAY_MAX = 1.20
-_VIG_3WAY_MIN = 0.85
-_VIG_3WAY_MAX = 1.30
 
 
 def _odds_query_params() -> dict:
@@ -51,23 +46,18 @@ def _parse_bookmaker_markets(
     markets: list,
     home_team: str,
     away_team: str,
-    is_soccer: bool,
-) -> tuple[float, float, float | None] | None:
-    """Bir bookmaker'ın h2h market'ından (home_prob, away_prob, draw_prob) çıkar.
+) -> tuple[float, float] | None:
+    """Bir bookmaker'ın h2h market'ından (home_prob, away_prob) çıkar.
 
-    Vig normalize (olasılıkları 1.0'a topla). Soccer için 3-way outcome gerekli;
-    yoksa bu bookmaker atlanır (draw mass home/away'e absorbe olur → bias).
+    Vig normalize (olasılıkları 1.0'a topla).
 
-    Vig sanity:
-    - 3-way (soccer) tipik vig %5-10 → pre-normalize total beklenen [1.05, 1.10].
-      [0.85, 1.30] dışında ise outlier (yanlış outcome, stale data, bug).
-    - 2-way tipik vig %2-8 → pre-normalize total beklenen [1.02, 1.08].
-      [0.85, 1.20] dışında ise outlier.
+    Vig sanity: 2-way tipik vig %2-8 → pre-normalize total beklenen [1.02, 1.08].
+    [0.85, 1.20] dışında ise outlier (yanlış outcome, stale data, bug).
     """
     for market in markets:
         if market.get("key") != "h2h":
             continue
-        home_odds = away_odds = draw_odds = None
+        home_odds = away_odds = None
         for outcome in market.get("outcomes", []):
             name = outcome.get("name", "")
             price = outcome.get("price", 0) or 0
@@ -75,29 +65,16 @@ def _parse_bookmaker_markets(
                 home_odds = price
             elif name == away_team:
                 away_odds = price
-            elif name.lower() == "draw":
-                draw_odds = price
 
         if not (home_odds and away_odds and home_odds > 1 and away_odds > 1):
             continue
-
-        if is_soccer:
-            if not (draw_odds and draw_odds > 1):
-                # Soccer 3-way zorunlu; draw outcome eksik → bookmaker atla.
-                return None
-            hr, ar, dr = 1.0 / home_odds, 1.0 / away_odds, 1.0 / draw_odds
-            total = hr + ar + dr
-            # 3-way vig sanity: typical 1.05-1.10, outlier reddet.
-            if not (_VIG_3WAY_MIN <= total <= _VIG_3WAY_MAX):
-                return None
-            return hr / total, ar / total, dr / total
 
         hr, ar = 1.0 / home_odds, 1.0 / away_odds
         total = hr + ar
         # 2-way vig sanity: typical 1.02-1.08, outlier reddet.
         if not (_VIG_2WAY_MIN <= total <= _VIG_2WAY_MAX):
             return None
-        return hr / total, ar / total, None
+        return hr / total, ar / total
 
     return None
 
@@ -142,12 +119,11 @@ def enrich_market(market: MarketData, odds_client) -> EnrichResult:
 
     home_team = best_event.get("home_team", "")
     away_team = best_event.get("away_team", "")
-    is_soccer = is_soccer_key(sport_key)
 
     # 5. Weighted bookmaker average
     prob = _weighted_average(
         best_event.get("bookmakers", []),
-        home_team, away_team, home_is_a, is_soccer,
+        home_team, away_team, home_is_a,
     )
     if prob is None:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
@@ -159,12 +135,11 @@ def _weighted_average(
     home_team: str,
     away_team: str,
     home_is_a: bool,
-    is_soccer: bool,
 ) -> BookmakerProbability | None:
     """Bookmaker başına ağırlık uygula, toplam probability (team_a perspektifinden).
 
-    Drop counter: parse None döndüren bookmaker'ları say (no_draw veya vig outlier).
-    En az 1 drop varsa INFO log — futbol açılınca silent skip görünür olsun.
+    Drop counter: parse None döndüren bookmaker'ları say (vig outlier).
+    En az 1 drop varsa INFO log — silent skip görünür olsun.
     """
     weighted_a = 0.0
     total_weight = 0.0
@@ -177,12 +152,12 @@ def _weighted_average(
         if bm_key == "polymarket":
             continue  # Circular data engelle
         parsed = _parse_bookmaker_markets(
-            bookmaker.get("markets", []), home_team, away_team, is_soccer,
+            bookmaker.get("markets", []), home_team, away_team,
         )
         if parsed is None:
             skipped_count += 1
             continue
-        home_prob, away_prob, _ = parsed
+        home_prob, away_prob = parsed
         weight = get_bookmaker_weight(bm_key)
         prob_a = home_prob if home_is_a else away_prob
         weighted_a += prob_a * weight
@@ -193,10 +168,9 @@ def _weighted_average(
 
     if skipped_count > 0:
         logger.info(
-            "Bookmaker drop: %d/%d skipped (no_draw or vig outlier) — sport=%s",
+            "Bookmaker drop: %d/%d skipped (vig outlier)",
             skipped_count,
             len(bookmakers),
-            "soccer" if is_soccer else "h2h",
         )
 
     if total_weight <= 0 or bm_count == 0:
