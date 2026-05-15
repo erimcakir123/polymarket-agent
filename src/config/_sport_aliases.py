@@ -42,10 +42,6 @@ _ALIASES: dict[str, str] = {
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",
-    # Cricket Polymarket/OddsAPI aliases (SPEC-011)
-    "indian-premier-league": "cricket_ipl",
-    "international-cricket": "cricket_international_t20",
-    "cricket_test": "cricket",  # defensive — test cricket not directly supported
     # Soccer aliases (SPEC-015) — common Polymarket tags → soccer
     "epl": "soccer",
     "premier-league": "soccer",
@@ -105,9 +101,4 @@ _ALIASES: dict[str, str] = {
     "six-nations": "rugby_union",
     "premiership-rugby": "rugby_union",
     "nrl": "rugby_union",
-    # Cricket Odds API keys (SPEC-011 Task 3)
-    "cricket_bbl": "cricket_big_bash",
-    "cricket_cpl": "cricket_caribbean_premier_league",
-    "cricket_sa20": "cricket",           # SA20 not in MVP scope; fallback to generic T20 cricket
-    "cricket_test_match": "cricket",     # Test matches out of scope; degrade gracefully
 }

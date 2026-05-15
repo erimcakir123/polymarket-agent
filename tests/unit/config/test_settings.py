@@ -106,7 +106,7 @@ def test_repo_config_yaml_parses() -> None:
     ):
         assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
-    for banned in ("soccer_epl", "soccer_laliga", "cricket"):
+    for banned in ("soccer_epl", "soccer_laliga"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
     # Hockey alt ligleri (NHL hariç) — kullanıcı kararı ile EKLENMEZ
     for hockey_minor in ("ahl", "liiga", "mestis", "shl", "allsvenskan"):

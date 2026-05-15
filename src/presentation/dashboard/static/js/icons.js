@@ -18,7 +18,6 @@
       if (s.includes("nfl") || s.includes("americanfootball")) return "🏈";
       if (s.includes("ufc") || s.includes("mma")) return "🥊";
       if (s.includes("chess") || sl.startsWith("chess")) return "♟️";
-      if (s.includes("cricket") || s.includes("ipl") || s.includes("psl")) return "🏏";
       if (s.includes("csgo") || s.includes("cs2") || s.includes("lol") || s.includes("dota") || s.includes("valorant")) return "🎮";
       if (s.includes("golf") || s.includes("pga") || s.includes("lpga")) return "⛳";
       if (s.includes("rugby") || s.includes("nrl")) return "🏉";

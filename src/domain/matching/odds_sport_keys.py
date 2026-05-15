@@ -124,20 +124,6 @@ _SLUG_TO_ODDS: dict[str, str] = {
     "box": "boxing_boxing",
     "boxing": "boxing_boxing",
     "mma": "mma_mixed_martial_arts",
-    # Cricket
-    "ipl": "cricket_ipl",
-    "cric": "cricket_test_match",
-    "cricipl": "cricket_ipl",
-    "cricpsl": "cricket_psl",
-    "psp": "cricket_psl",
-    "cricbbl": "cricket_bbl",
-    "criccpl": "cricket_cpl",
-    "crict20blast": "cricket_t20_blast",
-    "cricsa20": "cricket_sa20",
-    "crint": "cricket_international_t20",
-    "t20": "cricket_international_t20",
-    "test": "cricket_test_match",
-    "odi": "cricket_odi",
     # AFL
     "afl": "aussierules_afl",
     # Rugby
@@ -246,19 +232,11 @@ _TAG_TO_ODDS: dict[str, str] = {
     "liiga": "icehockey_liiga",
     "shl": "icehockey_sweden_hockey_league",
     "afl": "aussierules_afl",
-    "ipl": "cricket_ipl",
     "euroleague": "basketball_euroleague",
     # Combat
     "mma": "mma_mixed_martial_arts",
     "ufc": "mma_mixed_martial_arts",
     "boxing": "boxing_boxing",
-    # Cricket — tournament tags
-    "psl": "cricket_psl",
-    "big-bash-league": "cricket_bbl",
-    "caribbean-premier-league": "cricket_cpl",
-    "t20-blast": "cricket_t20_blast",
-    "indian-premier-league": "cricket_ipl",         # SPEC-011 Task 3
-    "international-cricket": "cricket_international_t20",  # SPEC-011 Task 3
 }
 
 

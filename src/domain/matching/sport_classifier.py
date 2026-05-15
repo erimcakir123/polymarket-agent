@@ -57,23 +57,6 @@ _SLUG_TO_CATEGORY: dict[str, str] = {
     "atp": "tennis", "wta": "tennis", "wttmen": "tennis",
     # Golf
     "pga": "golf", "lpga": "golf",
-    # Cricket
-    "ipl": "cricket", "odi": "cricket", "t20": "cricket", "test": "cricket",
-    "csa": "cricket", "lpl": "cricket", "psp": "cricket", "she": "cricket",
-    "sasa": "cricket", "craus": "cricket", "crban": "cricket",
-    "creng": "cricket", "crind": "cricket", "crint": "cricket",
-    "crnew": "cricket", "crpak": "cricket", "crsou": "cricket",
-    "cruae": "cricket", "cru19wc": "cricket", "crwncl": "cricket",
-    "crwpl20": "cricket", "crwt20wcgq": "cricket", "crafgwi20": "cricket",
-    "crbtnmlyhkg20": "cricket",
-    "cricbbl": "cricket", "cricbpl": "cricket", "criccpl": "cricket",
-    "criccsat20w": "cricket", "crichkt20w": "cricket", "cricilt20": "cricket",
-    "cricipl": "cricket", "criclcl": "cricket", "cricmlc": "cricket",
-    "cricnt20c": "cricket", "cricpakt20cup": "cricket", "cricps": "cricket",
-    "cricpsl": "cricket", "cricsa20": "cricket", "cricsm": "cricket",
-    "cricss": "cricket", "crict20blast": "cricket", "crict20lpl": "cricket",
-    "crict20plw": "cricket", "cricthunderbolt": "cricket",
-    "cricwncl": "cricket",
     # Rugby
     "ruchamp": "rugby", "rueuchamp": "rugby", "ruprem": "rugby",
     "rusixnat": "rugby", "rusrp": "rugby", "rutopft": "rugby",
@@ -114,7 +97,6 @@ _QUESTION_KEYWORDS: dict[str, str] = {
     "rainbow six": "esports", "r6 siege": "esports",
     "honor of kings": "esports", "king of glory": "esports",
     "wild rift": "esports", "ea fc": "esports",
-    "cricket": "cricket", "ipl": "cricket", "t20": "cricket",
     "rugby": "rugby",
     "lacrosse": "lacrosse", "pll": "lacrosse",
 }

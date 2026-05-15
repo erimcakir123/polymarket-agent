@@ -14,7 +14,7 @@ import re
 
 _PREFIXES: tuple[str, ...] = (
     "ATP:", "WTA:", "MLB:", "NBA:", "NHL:", "NFL:", "MMA:", "UFC:", "Boxing:",
-    "Cricket:", "Rugby:", "Formula 1:", "F1:", "Golf:", "PGA:", "LPGA:",
+    "Rugby:", "Formula 1:", "F1:", "Golf:", "PGA:", "LPGA:",
     "KBO:", "NPB:", "CFL:", "AFL:", "NRL:",
     "Serie A:", "La Liga:", "EPL:", "Bundesliga:", "Ligue 1:",
     "Premier League:", "Champions League:", "Europa League:",
