@@ -232,8 +232,12 @@ def test_exit_events_partial_carries_anchor_probability_and_price() -> None:
     assert abs(ev["remaining_pct"] - 0.6) < 1e-9
 
 
-def test_exit_events_partial_remaining_pct_is_cumulative() -> None:
-    """İki partial — remaining ikinci event'te 1 − (0.40 + 0.30) = 0.30."""
+def test_exit_events_partial_remaining_pct_compounds() -> None:
+    """İki partial — sell_pct kalanın yüzdesi, remaining çarpımla hesaplanır.
+
+    T1: sell 40% → remaining 0.60
+    T2: sell 50% of remaining → remaining 0.60 × 0.50 = 0.30
+    """
     trades = [{
         "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
         "direction": "BUY_YES", "entry_price": 0.5,
@@ -242,7 +246,7 @@ def test_exit_events_partial_remaining_pct_is_cumulative() -> None:
         "partial_exits": [
             {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
              "timestamp": "2026-04-15T01:00:00Z", "price": 0.62},
-            {"tier": 2, "sell_pct": 0.3, "realized_pnl_usdc": 4.0,
+            {"tier": 2, "sell_pct": 0.5, "realized_pnl_usdc": 9.0,
              "timestamp": "2026-04-15T02:00:00Z", "price": 0.74},
         ],
         "exit_price": None,
@@ -288,3 +292,30 @@ def test_exit_events_full_exit_has_remaining_pct_zero() -> None:
     assert events[0]["partial"] is False
     assert events[0]["remaining_pct"] == 0.0
     assert events[0]["anchor_probability"] == 0.58
+
+
+# ── win_loss ──
+
+def test_win_loss_counts_partial_exits_as_separate_events() -> None:
+    trades = [{
+        "slug": "x", "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 7.5},
+        ],
+        "exit_price": None,
+    }]
+    assert computed.win_loss(trades) == {"wins": 1, "losses": 0}
+
+
+def test_win_loss_partial_plus_full_close_counts_both() -> None:
+    trades = [{
+        "slug": "x", "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0},
+        ],
+        "exit_price": 0.4, "exit_pnl_usdc": -3.0,
+    }]
+    assert computed.win_loss(trades) == {"wins": 1, "losses": 1}
+
+
+def test_win_loss_open_position_with_no_exits_counted_as_nothing() -> None:
+    trades = [{"slug": "x", "partial_exits": [], "exit_price": None}]
+    assert computed.win_loss(trades) == {"wins": 0, "losses": 0}

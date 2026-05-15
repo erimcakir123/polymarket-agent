@@ -69,8 +69,52 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """trade_history.jsonl son N kayıt — session/ (reboot'a kadar olan veriler)."""
-    return _read_jsonl_tail(logs_dir / "session" / "trade_history.jsonl", n, _BYTES_TRADES)
+    """Trade history — session + audit/trade_history.jsonl (current) birleşik, dedupe.
+
+    Kaynaklar:
+      - logs/session/trade_history.jsonl   (reboot mirror, reboot'ta temizlenir)
+      - logs/audit/trade_history.jsonl     (kalıcı, reboot dokunmaz, ground truth)
+
+    Arşiv dosyaları (`logs/audit/trade_history.archive.*.jsonl`) OKUNMAZ — onlar
+    pre-wipe era kayıtları, mevcut realized_pnl onları içermez (bkz. startup
+    reconcile GUARD-4). UI filter etmesin; dashboard kaynağı tutarlı kalsın.
+
+    Dedupe by (condition_id, entry_timestamp): aynı kayıt iki dosyada varsa
+    daha zengin exit data taşıyan kazanır. Aynı condition_id altında farklı
+    entry_timestamp'li kayıtlar AYRI tutulur — bot SL sonrası re-entry yapabilir
+    (sl_reentry_count), her giriş ayrı trade kaydıdır.
+    """
+    paths = [
+        logs_dir / "session" / "trade_history.jsonl",
+        logs_dir / "audit" / "trade_history.jsonl",
+    ]
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    no_key: list[dict[str, Any]] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        for r in _read_jsonl_tail(path, n, _BYTES_TRADES):
+            cid = r.get("condition_id") or ""
+            ts = r.get("entry_timestamp") or ""
+            if not cid or not ts:
+                no_key.append(r)
+                continue
+            key = (cid, ts)
+            existing = by_key.get(key)
+            if existing is None:
+                by_key[key] = r
+                continue
+            new_score = (
+                len(r.get("partial_exits") or []),
+                int(r.get("exit_price") is not None),
+            )
+            ex_score = (
+                len(existing.get("partial_exits") or []),
+                int(existing.get("exit_price") is not None),
+            )
+            if new_score > ex_score:
+                by_key[key] = r
+    return list(by_key.values()) + no_key
 
 
 def read_trades_by_week(
@@ -198,7 +242,7 @@ def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
 
     Dashboard balance, realized P&L, open P&L ve peak balance hesabı için
     TEK kaynak. positions.json'a bakılmaz — reboot sonrası session silinirse
-    sıfır döner (kasıtlı).
+    sıfır döner (kasıtlı, audit leak koruması — test_summary_reboot_scenario).
 
     Returns dict with keys:
       bankroll, realized_pnl, unrealized_pnl, invested,

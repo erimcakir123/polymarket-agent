@@ -214,10 +214,12 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     events: list[dict[str, Any]] = []
     for t in trades:
-        cumulative_sell_pct = 0.0
+        # sell_pct her tier'da o anki KALANIN yüzdesi (orijinalin değil), yani
+        # remaining birikimli olarak çarpılır: remaining *= (1 - sell_pct).
+        # Naive toplama yanlış sonuç verir (ör. T1=40%, T2=50% → naive %10, gerçek %30).
+        remaining = 1.0
         for pe in (t.get("partial_exits") or []):
-            cumulative_sell_pct += float(pe.get("sell_pct") or 0.0)
-            remaining = max(0.0, 1.0 - cumulative_sell_pct)
+            remaining = max(0.0, remaining * (1.0 - float(pe.get("sell_pct") or 0.0)))
             events.append({
                 "slug": t.get("slug", ""),
                 "sport_tag": t.get("sport_tag", ""),
@@ -342,15 +344,20 @@ def sport_roi_treemap(trades: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def win_loss(trades: list[dict[str, Any]]) -> dict[str, int]:
-    """Kapanmış trade'lerden kazanma/kaybetme sayısı (PnL > 0 = win)."""
+    """Tüm exit event'lerinden W/L — partial scale-out'lar dahil her event ayrı sayılır."""
     wins = 0
     losses = 0
     for t in trades:
-        if t.get("exit_price") is None:
-            continue
-        pnl = float(t.get("exit_pnl_usdc") or 0.0)
-        if pnl > 0:
-            wins += 1
-        elif pnl < 0:
-            losses += 1
+        for pe in (t.get("partial_exits") or []):
+            pnl = float(pe.get("realized_pnl_usdc") or 0.0)
+            if pnl > 0:
+                wins += 1
+            elif pnl < 0:
+                losses += 1
+        if t.get("exit_price") is not None:
+            pnl = float(t.get("exit_pnl_usdc") or 0.0)
+            if pnl > 0:
+                wins += 1
+            elif pnl < 0:
+                losses += 1
     return {"wins": wins, "losses": losses}

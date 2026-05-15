@@ -95,6 +95,120 @@ def test_read_trades_tail(tmp_path: Path) -> None:
     assert out[0]["slug"] == "m-20"
 
 
+def test_read_trades_archive_files_not_read(tmp_path: Path) -> None:
+    """Arşiv dosyaları (trade_history.archive.*.jsonl) dashboard kaynağı DEĞİL.
+
+    Pre-wipe era kayıtları audit arşivinde durur ama mevcut realized_pnl onları
+    içermez (startup reconcile GUARD-4). Dashboard arşivleri okumamalı, aksi
+    halde realized_pnl ile UI arasında tutarsızlık doğar.
+    """
+    logs_dir, _ = _mk_logs(tmp_path)
+    _write_jsonl(
+        logs_dir / "audit" / "trade_history.archive.20260511_115858.jsonl",
+        [{
+            "slug": "pre-wipe-trade", "condition_id": "cid-old",
+            "exit_price": 0.01, "exit_pnl_usdc": -40.93,
+            "exit_timestamp": "2026-05-11T03:00:00Z",
+            "entry_timestamp": "2026-05-10T20:00:00Z", "partial_exits": [],
+        }],
+    )
+
+    out = readers.read_trades(logs_dir, n=100)
+    assert out == []
+
+
+def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
+    tmp_path: Path,
+) -> None:
+    """Aynı (cid, entry_timestamp) iki kaynakta → tek satır; daha zengin kazanır.
+
+    Tipik senaryo: session ve audit mirror'ı genellikle aynı satırı içerir.
+    Crash sonrası birinde update gecikmişse, daha zengin exit data taşıyan
+    kazanır (partial_exit sayısı + full-close).
+    """
+    logs_dir, _ = _mk_logs(tmp_path)
+    cid = "0xabc123"
+    ts = "2026-05-12T20:00:00Z"
+    # session: sadece entry kaydı (henüz exit yok)
+    _write_jsonl(logs_dir / "session" / "trade_history.jsonl", [{
+        "slug": "match-a", "condition_id": cid, "entry_timestamp": ts,
+        "exit_price": None, "partial_exits": [],
+    }])
+    # audit: aynı entry'nin partial_exit'li hali (daha zengin)
+    _write_jsonl(logs_dir / "audit" / "trade_history.jsonl", [{
+        "slug": "match-a", "condition_id": cid, "entry_timestamp": ts,
+        "exit_price": None,
+        "partial_exits": [{
+            "tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
+            "timestamp": "2026-05-12T20:30:00Z", "price": 0.70,
+        }],
+    }])
+
+    out = readers.read_trades(logs_dir, n=100)
+    assert len(out) == 1
+    assert len(out[0]["partial_exits"]) == 1
+
+
+def test_read_trades_same_condition_different_entry_kept_separately(
+    tmp_path: Path,
+) -> None:
+    """SL sonrası re-entry: aynı cid, farklı entry_timestamp → her iki trade dahil.
+
+    Bot stop_loss sonrası aynı market'e yeniden girebilir (sl_reentry_count).
+    Her giriş ayrı trade kaydıdır; dedupe by cid alone yanlış olur ve ilk
+    SL'yi düşürür.
+    """
+    logs_dir, _ = _mk_logs(tmp_path)
+    cid = "0xabc123"
+    _write_jsonl(logs_dir / "session" / "trade_history.jsonl", [
+        {  # 1. entry: SL ile kapandı
+            "slug": "match-a", "condition_id": cid,
+            "entry_timestamp": "2026-05-12T20:00:00Z",
+            "entry_price": 0.40,
+            "exit_price": 0.21, "exit_pnl_usdc": -16.62,
+            "exit_reason": "stop_loss",
+            "exit_timestamp": "2026-05-12T20:30:00Z",
+            "partial_exits": [],
+        },
+        {  # 2. entry: aynı market, yeni giriş
+            "slug": "match-a", "condition_id": cid,
+            "entry_timestamp": "2026-05-12T21:00:00Z",
+            "entry_price": 0.23,
+            "exit_price": 0.01, "exit_pnl_usdc": -11.68,
+            "exit_reason": "graduated_sl",
+            "exit_timestamp": "2026-05-12T22:30:00Z",
+            "partial_exits": [],
+        },
+    ])
+
+    out = readers.read_trades(logs_dir, n=100)
+    assert len(out) == 2
+    pnls = sorted(t["exit_pnl_usdc"] for t in out)
+    assert pnls == [-16.62, -11.68]
+
+
+def test_read_trades_includes_partial_exits_from_session(tmp_path: Path) -> None:
+    """Session'daki kısmi exit kayıtları realized_pnl ile tutarlı olarak dahil."""
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    (data_dir / "positions.json").write_text(
+        json.dumps({"positions": {}, "realized_pnl": 7.66, "high_water_mark": 1000.0}),
+        encoding="utf-8",
+    )
+    _write_jsonl(logs_dir / "session" / "trade_history.jsonl", [{
+        "slug": "sabres", "condition_id": "cid-sabres",
+        "exit_price": None, "exit_pnl_usdc": 0.0,
+        "entry_timestamp": "2026-05-12T23:00:00Z",
+        "partial_exits": [{
+            "tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 7.66,
+            "timestamp": "2026-05-12T23:30:00Z", "price": 0.60,
+        }],
+    }])
+
+    out = readers.read_trades(logs_dir, n=100)
+    assert len(out) == 1
+    assert out[0]["slug"] == "sabres"
+
+
 def test_read_equity_history_tail(tmp_path: Path) -> None:
     logs_dir, _ = _mk_logs(tmp_path)
     rows = [{"bankroll": 1000 + i} for i in range(5)]
