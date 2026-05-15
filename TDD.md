@@ -456,20 +456,23 @@ Yüksek güvenli pozisyonları resolution'a kadar tutmak — erken maçlarda gen
 | < 0.85 (erken/orta) | **Flat SL (§6.7)**, Graduated SL (§6.8), Never-in-profit (§6.10), Hold revocation (§6.14), Edge-decay TP | Scale-out (§6.6), Near-resolve profit (§6.11) |
 | ≥ 0.85 (geç) | Flat SL, Graduated SL | **market_flip**: `pos.current_price < 0.50` → `exit("market_flip")`; near-resolve; scale-out |
 
-> **Kritik invariant:** A-conf hold pozisyonları **flat SL'den de muaftır**.
-> `strategy/exit/monitor.py::evaluate` sırası: near-resolve → scale-out → A-conf
-> hold dalı (market_flip only) → else branch (flat SL + graduated + vs). Flat SL
-> a-conf check'inden ÖNCE konursa A-conf koruması bozulur (regression:
-> Rangers-Lightning 2026-04-15, `test_a_conf_hold_skips_flat_sl`).
+> **⚠ İYİ-DÖNEM ROLLBACK NOTU (2026-05-15 Faz 1):** A-conf hold dalı tamamen
+> kaldırıldı. Sebep: post-peak veri analizi `market_flip` kuralının
+> −$310 / 0W-14L katil olduğunu gösterdi. `evaluate()` zinciri artık
+> koşulsuz multi-SL: near-resolve → scale-out → NBA totals → **flat SL →
+> graduated SL** (tüm pozisyonlara, 19 Apr peak pattern). Eski A-conf hold
+> davranışı + market_flip tek-SL deseni artık yok.
 
-**Veri dayanağı** (25 A-conf resolved trade analizi):
+**Veri dayanağı (eski A-conf hold döneminden — tarihsel kayıt)**:
 | Senaryo | Sonuç |
 |---|---|
-| Market_flip kuralıyla (mevcut) | -$15.86 |
+| Market_flip kuralıyla (eski) | -$15.86 |
 | Hold'a bekleseydik | -$126.64 |
-| **Market flip farkı** | **+$110.78 tasarruf** |
+| **Tarihsel +$110.78 tasarruf** | |
 
-Kural korunacak; elapsed gate early-match false positive'leri eler.
+Bot 2.0 post-peak (Apr 25 +) yeni sporlarda −$310 kaybettiği için kural
+kaldırıldı. Faz 2 OBSERVATION fazında multi-SL universal davranışı
+sınanır.
 
 ### 6.10 Never-in-Profit Guard
 
@@ -545,8 +548,8 @@ Holding sırasında dinamik favori statüsü. `effective_price(current_price, di
 Non-favored, non-A-conf-hold pozisyonlar için hold iptali — ciddi fiyat düşüşü + skor dezavantajı altında.
 
 **Hold candidate:**
-- `not a_conf_hold`
-- AND (`favored` OR (`anchor_probability ≥ 0.65` AND `confidence ∈ {A, B}`))
+- `favored` OR (`anchor_probability ≥ 0.65` AND `confidence ∈ {A, B}`)
+- (Önceki `not a_conf_hold` koşulu 2026-05-15 Faz 1 rollback'te kaldırıldı — A-conf hold dalı yok.)
 
 **Dip temporary mi?**
 - `consecutive_down < 3` OR `cumulative_drop < 0.05` → TEMPORARY (revoke etme)
