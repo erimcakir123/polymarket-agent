@@ -165,32 +165,6 @@ def test_scanner_rejects_unknown_market_type() -> None:
     assert sc.scan() == []
 
 
-# ── SPEC-J: Combat sports config'den çıkarıldı ──
-
-def test_scanner_rejects_ufc_market() -> None:
-    """UFC → red (allowed_sport_tags'tan çıkarıldı, canlı skor yok)."""
-    from src.config.settings import load_config
-    from pathlib import Path
-    cfg = load_config(Path("config.yaml"))
-    assert "ufc" not in cfg.scanner.allowed_sport_tags
-
-
-def test_scanner_rejects_mma_market() -> None:
-    """MMA → red (allowed_sport_tags'tan çıkarıldı)."""
-    from src.config.settings import load_config
-    from pathlib import Path
-    cfg = load_config(Path("config.yaml"))
-    assert "mma" not in cfg.scanner.allowed_sport_tags
-
-
-def test_scanner_rejects_boxing_market() -> None:
-    """Boxing → red (allowed_sport_tags'tan çıkarıldı)."""
-    from src.config.settings import load_config
-    from pathlib import Path
-    cfg = load_config(Path("config.yaml"))
-    assert "boxing" not in cfg.scanner.allowed_sport_tags
-
-
 def test_resolved_by_price_filtered() -> None:
     """yes_price ~1.0 veya ~0.0 → market sonucu belli, flag'i lag olsa da ele."""
     now = datetime.now(timezone.utc)

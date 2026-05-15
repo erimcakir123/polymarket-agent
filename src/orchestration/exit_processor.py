@@ -43,7 +43,6 @@ class ExitProcessor:
             result: MonitorResult = exit_monitor.evaluate(
                 pos,
                 score_info=score_info,
-                min_scale_out_realized_usdc=self.deps.state.config.risk.min_scale_out_realized_usdc,
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
             )
             self._apply_fav_transition(pos, result.fav_transition)

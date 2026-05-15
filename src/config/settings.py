@@ -53,13 +53,14 @@ class ScannerConfig(BaseModel):
 class EdgeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_edge: float = 0.06
-    confidence_multipliers: dict = {"A": 1.25, "B": 1.00}
+    confidence_multipliers: dict = {"A": 1.00, "B": 1.00}  # 19 Apr peak (A: 1.25 → 1.00)
 
 
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     max_single_bet_usdc: float = 75
-    max_bet_pct: float = 0.05
+    max_bet_pct: float = 0.05  # 19 Apr peak (disabled 1.0 → 0.05)
+    confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}  # 19 Apr peak sizing
     max_positions: int = 20
     max_positions_per_event: int = 2  # SPEC-J/K: aynı event'te moneyline+spread+totals bağımsız bahisler (Kural 8 gevşedi)
     max_exposure_pct: float = 0.50
@@ -69,7 +70,6 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
-    min_scale_out_realized_usdc: float = 7.0  # Tier 1/2 realized < bu degerse skip (kucuk karli scale-out engelle)
 
 
 class EarlyEntryConfig(BaseModel):
