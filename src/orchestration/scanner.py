@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
-from src.config.sport_rules import BASKETBALL_TAGS, is_moneyline_only
+from src.config.sport_rules import BASKETBALL_TAGS, is_moneyline_only, is_spread_blocked
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
@@ -100,6 +100,10 @@ class MarketScanner:
         # Flag açıksa spreads/totals bu sport için reddedilir — basketbol kontrolüyle
         # örtüşür ama niyet farklı: flag, sport-spesifik kararı sport_rules'a bağlar.
         if is_moneyline_only(m.sport_tag) and m.sports_market_type != "moneyline":
+            return False
+        # Spread-blocked flag (NBA: Faz 1 Task 3 ile nba_spread_exit silindi + 0 trade
+        # kanıtı; Faz 2'de veri ile yeniden açma kararı verilir).
+        if is_spread_blocked(m.sport_tag) and m.sports_market_type == "spreads":
             return False
 
         # Sport tag whitelist (MVP)

@@ -73,8 +73,8 @@ def test_non_moneyline_filtered() -> None:
 
 # ── SPEC-J: basketbol spreads/totals geçişi ──
 
-def test_scanner_passes_nba_spreads() -> None:
-    """NBA + spreads → kabul (SPEC-J)."""
+def test_scanner_rejects_nba_spreads_after_rollback() -> None:
+    """NBA + spreads → REDDEDİLİR (Faz 1 Task 3 nba_spread_exit silindi + 0 trade kanıtı, sport_rules spread_blocked=True)."""
     now = datetime.now(timezone.utc)
     m = _market(
         sport_tag="nba", market_type="spreads",
@@ -83,7 +83,20 @@ def test_scanner_passes_nba_spreads() -> None:
     )
     cfg = _config(allowed_sport_tags=["nba", "wnba", "icehockey_nhl"])
     sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
-    assert len(sc.scan()) == 1
+    assert len(sc.scan()) == 0
+
+
+def test_scanner_rejects_wnba_spreads_after_rollback() -> None:
+    """WNBA + spreads → REDDEDİLİR (BASKETBALL_TAGS normalize → nba rule → spread_blocked)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="wnba", market_type="spreads",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba", "wnba", "icehockey_nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 0
 
 
 def test_scanner_passes_wnba_totals() -> None:

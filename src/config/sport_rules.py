@@ -16,6 +16,10 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "basketball",
         "espn_league": "nba",
+        # NBA totals KORUNUR (+$21 kanıt, T-Wolves 225.5). Spread için exit
+        # mantığı yok (Faz 1 rollback Task 3 silindi) + veri yok (0 trade) →
+        # scanner'da blokla. Faz 2'de kanıtla açma kararı verilir.
+        "spread_blocked": True,
     },
     "nfl": {
         "stop_loss_pct": 0.30,
@@ -108,6 +112,10 @@ def _normalize(sport_tag: str) -> str:
         return tag
     if tag in _ALIASES:
         return _ALIASES[tag]
+    # Polymarket basketball alt etiketleri (wnba/ncaab/cbb/wncaab/euroleague/nbl)
+    # NBA kuralının altında çalışır — spread_blocked vs flag'leri için tek-yer.
+    if tag in BASKETBALL_TAGS:
+        return "nba"
     return ""
 
 
@@ -128,3 +136,8 @@ def get_match_duration_hours(sport_tag: str) -> float:
 def is_moneyline_only(sport_tag: str) -> bool:
     """Sport için yalnızca moneyline market'leri kabul edilir mi? (TDD §7.2 NHL ML-only)."""
     return bool(get_sport_rule(sport_tag, "moneyline_only", False))
+
+
+def is_spread_blocked(sport_tag: str) -> bool:
+    """Sport için spread market'leri reddedilir mi? NBA: spread exit silindi (Task 3) + 0 trade kanıtı."""
+    return bool(get_sport_rule(sport_tag, "spread_blocked", False))

@@ -6,7 +6,39 @@ from src.config.sport_rules import (
     get_sport_rule,
     get_stop_loss,
     is_moneyline_only,
+    is_spread_blocked,
 )
+
+
+def test_is_spread_blocked_nba_returns_true():
+    assert is_spread_blocked("nba") is True
+
+
+def test_is_spread_blocked_wnba_returns_true_via_basketball_tags():
+    # Polymarket sport_tag "wnba" → BASKETBALL_TAGS via _normalize → "nba" rule → spread_blocked True
+    assert is_spread_blocked("wnba") is True
+
+
+def test_is_spread_blocked_basketball_wnba_alias_returns_true():
+    # Odds API key "basketball_wnba" → alias → "nba" rule → spread_blocked True
+    assert is_spread_blocked("basketball_wnba") is True
+
+
+def test_is_spread_blocked_ncaab_via_basketball_tags():
+    assert is_spread_blocked("ncaab") is True
+
+
+def test_is_spread_blocked_nhl_returns_false():
+    # NHL moneyline_only flag var, spread_blocked yok
+    assert is_spread_blocked("nhl") is False
+
+
+def test_is_spread_blocked_mlb_returns_false():
+    assert is_spread_blocked("mlb") is False
+
+
+def test_is_spread_blocked_unknown_returns_false():
+    assert is_spread_blocked("unknown_sport") is False
 
 
 def test_get_stop_loss_nba_returns_035() -> None:
