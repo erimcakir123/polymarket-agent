@@ -47,7 +47,6 @@ class TradeRecord(BaseModel):
     event_id: str
     token_id: str
     question: str = ""
-    match_title: str = ""  # SPEC-015 3-way display başlığı; 2-way/draw için boş
 
     # ── Branş & lig ──
     sport_tag: str

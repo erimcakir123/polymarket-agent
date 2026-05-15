@@ -35,7 +35,6 @@ def log_skip(
         slug=market.slug,
         sport_tag=market.sport_tag,
         question=market.question,
-        match_title=market.match_title,
         event_id=market.event_id or "",
         entry_price=market.yes_price,
         anchor_probability=anchor_probability,

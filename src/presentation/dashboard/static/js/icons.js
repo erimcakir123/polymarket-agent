@@ -20,14 +20,7 @@
       if (s.includes("chess") || sl.startsWith("chess")) return "♟️";
       if (s.includes("csgo") || s.includes("cs2") || s.includes("lol") || s.includes("dota") || s.includes("valorant")) return "🎮";
       if (s.includes("golf") || s.includes("pga") || s.includes("lpga")) return "⛳";
-      if (s.includes("rugby") || s.includes("nrl")) return "🏉";
-      if (s.includes("soccer") || s.includes("football") || this._isSoccer(sl)) return "⚽";
       return "🎯";
-    },
-    _isSoccer(sl) {
-      const prefixes = ["uel-", "ucl-", "epl-", "uefa", "tur-", "esp-", "ita-", "ger-", "fra-",
-        "bra-", "arg-", "mex-", "por-", "ned-", "mls-", "jpn-", "fifa", "eng-"];
-      return prefixes.some((p) => sl.startsWith(p));
     },
   };
 
