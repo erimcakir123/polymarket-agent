@@ -101,12 +101,30 @@ class EntryProcessor:
             key=_priority_key,
         )
 
+        max_per_event = self.deps.gate.config.max_positions_per_event
+
         for r in approved_sorted:
             market = by_cid.get(r.condition_id)
             if market is None:
                 continue
 
             pm = self.deps.state.portfolio
+
+            # Per-iteration event_count enforcement (batch race fix):
+            # Gate evaluates event_count BEFORE any add_position runs, so N markets
+            # of the same event can all pass. Here we re-check after each open,
+            # ensuring max_positions_per_event is honored within a single batch.
+            if market.event_id:
+                event_count = pm.count_event(market.event_id)
+                if event_count >= max_per_event:
+                    detail = f"event_id={market.event_id} count={event_count}/{max_per_event}"
+                    operational_writers.log_skip(
+                        self.deps.skipped_logger, market,
+                        "event_count_per_event_cap", detail=detail,
+                    )
+                    self.deps.stock.add(market, "event_count_per_event_cap")
+                    continue
+
             total_portfolio = pm.bankroll + pm.total_invested()
             available = available_under_cap(
                 pm.positions, total_portfolio, max_exposure_pct, overflow_pct,

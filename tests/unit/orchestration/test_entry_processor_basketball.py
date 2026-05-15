@@ -55,6 +55,7 @@ def _make_deps(captured_positions: list):
     portfolio.realized_pnl = 0.0
     portfolio.positions = {}
     portfolio.count.return_value = 0
+    portfolio.count_event.return_value = 0
     portfolio.total_invested.return_value = 0.0
 
     def _capture_add(pos):
@@ -64,6 +65,7 @@ def _make_deps(captured_positions: list):
 
     gate_config = SimpleNamespace(
         max_positions=50,
+        max_positions_per_event=2,
         max_exposure_pct=0.5,
         hard_cap_overflow_pct=0.02,
         min_entry_size_pct=0.015,

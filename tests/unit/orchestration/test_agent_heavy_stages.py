@@ -13,6 +13,7 @@ def _make_deps() -> AgentDeps:
     state.config = AppConfig()
     state.portfolio.positions = {}
     state.portfolio.count.return_value = 0
+    state.portfolio.count_event.return_value = 0
     state.portfolio.bankroll = 1000.0
     state.portfolio.total_invested.return_value = 0.0
     return AgentDeps(
@@ -55,6 +56,7 @@ def test_run_heavy_writes_scanning_then_analyzing_then_idle_when_no_signals():
     deps.gate.config.hard_cap_overflow_pct = 0.02
     deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
+    deps.gate.config.max_positions_per_event = 2
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False
 
@@ -118,6 +120,7 @@ def test_run_heavy_writes_executing_when_signal_exists():
     deps.gate.config.hard_cap_overflow_pct = 0.02
     deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
+    deps.gate.config.max_positions_per_event = 2
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False
     deps.state.portfolio.positions = {}
@@ -140,6 +143,7 @@ def test_run_heavy_idle_is_last():
     deps.gate.config.hard_cap_overflow_pct = 0.02
     deps.gate.config.min_entry_size_pct = 0.015
     deps.gate.config.max_positions = 50
+    deps.gate.config.max_positions_per_event = 2
     deps.stock.top_n_by_match_start.return_value = []
     deps.stock.has.return_value = False
 

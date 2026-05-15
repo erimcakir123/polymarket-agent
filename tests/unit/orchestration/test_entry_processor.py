@@ -4,6 +4,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from src.domain.portfolio.manager import PortfolioManager
 from src.models.market import MarketData
 from src.models.signal import Signal
 from src.orchestration.entry_processor import EntryProcessor
@@ -54,6 +55,7 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
     if gate_config is None:
         gate_config = SimpleNamespace(
             max_positions=50,
+            max_positions_per_event=2,
             max_exposure_pct=0.5,
             hard_cap_overflow_pct=0.02,
             min_entry_size_pct=0.015,
@@ -66,6 +68,7 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
     portfolio.realized_pnl = 0.0
     portfolio.positions = portfolio_positions
     portfolio.count.return_value = len(portfolio_positions)
+    portfolio.count_event.return_value = 0
     portfolio.total_invested.return_value = sum(
         p.size_usdc for p in portfolio_positions.values() if hasattr(p, "size_usdc")
     )
@@ -132,6 +135,7 @@ def test_process_markets_exposure_cap_logs_detail_with_available_min():
 
     gate_config = SimpleNamespace(
         max_positions=50,
+        max_positions_per_event=2,
         max_exposure_pct=0.01,  # tight cap: 1% of 1000 = $10
         hard_cap_overflow_pct=0.0,
         min_entry_size_pct=0.015,  # min size = 1000 * 0.015 = $15
@@ -166,4 +170,99 @@ def test_process_markets_exposure_cap_logs_detail_with_available_min():
         f"Expected exposure_cap_reached skip with structured detail "
         f"(available=X.XX, min=X.XX). "
         f"Got: {[(c[0][0].skip_reason, c[0][0].skip_detail) for c in calls]}"
+    )
+
+
+def test_entry_processor_enforces_max_positions_per_event_in_batch():
+    """Batch entry race condition (Pistons-Cavaliers bug):
+
+    Gate evaluates `count_event` BEFORE any add_position fires, so 3 markets
+    of the same event can all pass the gate in a single cycle. Without the
+    per-iteration check inside the for-loop, all 3 would open — violating
+    max_positions_per_event=2.
+
+    Setup: 3 markets, same event_id="465162", all approved by gate.
+    Expected: only 2 positions open; the 3rd skipped with
+              reason='event_count_per_event_cap' and re-added to stock.
+    """
+    event_id = "465162"
+    # 3 same-event markets, distinct condition_ids
+    markets = [
+        _make_market(slug=f"nba-det-cle-m{i}", cid=f"0x{i}") for i in range(1, 4)
+    ]
+    for m in markets:
+        m.event_id = event_id  # all same event
+
+    # Gate approves all 3 (the bug: no per-iteration enforcement after this)
+    gate_results = [
+        GateResult(condition_id=f"0x{i}", signal=_make_signal(cid=f"0x{i}"),
+                   skipped_reason="", skip_detail="")
+        for i in range(1, 4)
+    ]
+
+    # Real PortfolioManager so count_event reflects live state mid-batch
+    portfolio = PortfolioManager(initial_bankroll=1000.0)
+
+    gate_config = SimpleNamespace(
+        max_positions=50,
+        max_positions_per_event=2,
+        max_exposure_pct=0.5,
+        hard_cap_overflow_pct=0.02,
+        min_entry_size_pct=0.015,
+    )
+
+    deps = SimpleNamespace(
+        state=SimpleNamespace(
+            config=SimpleNamespace(mode=SimpleNamespace(value="dry_run")),
+            portfolio=portfolio,
+        ),
+        scanner=MagicMock(),
+        stock=MagicMock(),
+        gate=MagicMock(),
+        skipped_logger=MagicMock(),
+        bot_status_writer=MagicMock(),
+        equity_logger=MagicMock(),
+        executor=MagicMock(),
+        trade_logger=MagicMock(),
+        price_feed=None,
+    )
+    deps.gate.config = gate_config
+    deps.gate.run.return_value = gate_results
+    # executor fill — simulated, returns the price/size we'd realistically get
+    deps.executor.place_order.return_value = {
+        "status": "simulated", "price": 0.55,
+    }
+
+    processor = EntryProcessor(deps)
+    processor.process_markets(markets)
+
+    # Core assertion: exactly 2 positions open for this event, NOT 3
+    assert portfolio.count_event(event_id) == 2, (
+        f"Expected 2 positions for event_id={event_id} (cap=2), "
+        f"got {portfolio.count_event(event_id)}. "
+        f"Batch race condition NOT prevented."
+    )
+
+    # The 3rd market must be skipped with the dedicated reason
+    skip_calls = deps.skipped_logger.log.call_args_list
+    cap_skip_found = False
+    for call in skip_calls:
+        record = call[0][0]
+        if record.skip_reason == "event_count_per_event_cap":
+            cap_skip_found = True
+            assert event_id in record.skip_detail
+            assert "2/2" in record.skip_detail
+    assert cap_skip_found, (
+        "Expected a 'event_count_per_event_cap' skip log for the 3rd market. "
+        f"Got: {[c[0][0].skip_reason for c in skip_calls]}"
+    )
+
+    # The 3rd market should also be re-queued in stock with the cap reason
+    stock_add_calls = deps.stock.add.call_args_list
+    cap_stock_found = any(
+        len(c[0]) >= 2 and c[0][1] == "event_count_per_event_cap"
+        for c in stock_add_calls
+    )
+    assert cap_stock_found, (
+        "Expected stock.add(market, 'event_count_per_event_cap') for skipped 3rd market."
     )
