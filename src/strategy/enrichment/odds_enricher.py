@@ -3,9 +3,6 @@
 Akış: market → question_parser → sport_key_resolver → odds_client.get_odds →
 find_best_event_match → weighted bookmaker probability → BookmakerProbability.
 
-SPEC-K: spreads/totals market'leri için ek branch — moneyline davranışı korunur.
-Spread/totals branch implementasyonu sibling _spread_totals_enricher modülünde.
-
 Sadece pure data birleştirme + API çağrısı (strategy katmanı). Iş mantığı YOK.
 """
 from __future__ import annotations
@@ -15,12 +12,6 @@ from datetime import datetime, timedelta, timezone
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability, calculate_bookmaker_probability
-from src.domain.analysis.vig_bounds import (
-    VIG_2WAY_MAX,
-    VIG_2WAY_MIN,
-    VIG_3WAY_MAX,
-    VIG_3WAY_MIN,
-)
 from src.domain.matching.bookmaker_weights import get_bookmaker_weight, is_sharp
 from src.domain.matching.odds_sport_keys import is_soccer_key
 from src.domain.matching.pair_matcher import (
@@ -28,27 +19,28 @@ from src.domain.matching.pair_matcher import (
     find_best_single_team_match,
     match_team,
 )
-from src.models.enums import SportsMarketType
 from src.models.market import MarketData
-from src.strategy.enrichment._spread_totals_enricher import (
-    _enrich_spread,
-    _enrich_totals,
-)
 from src.strategy.enrichment.question_parser import extract_teams
 from src.strategy.enrichment.sport_key_resolver import resolve_sport_key
 
 logger = logging.getLogger(__name__)
 
+# Vig sanity bounds (inline — pre-SPEC-K state).
+# Pre-normalize 1/odds toplamı:
+# - 2-way: tipik 1.02-1.08 → [0.85, 1.20] dışı outlier.
+# - 3-way (soccer): tipik 1.05-1.10 → [0.85, 1.30] dışı outlier.
+_VIG_2WAY_MIN = 0.85
+_VIG_2WAY_MAX = 1.20
+_VIG_3WAY_MIN = 0.85
+_VIG_3WAY_MAX = 1.30
+
 
 def _odds_query_params() -> dict:
-    """24h içinde başlayan event'ler için h2h+spreads+totals market parametreleri.
-
-    SPEC-K: spreads ve totals tek API çağrısında geliyor (Odds API destekler).
-    """
+    """24h içinde başlayan event'ler için h2h market parametreleri."""
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     return {
         "regions": "us,uk,eu",
-        "markets": "h2h,spreads,totals",
+        "markets": "h2h",
         "oddsFormat": "decimal",
         "commenceTimeFrom": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "commenceTimeTo": (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -68,9 +60,9 @@ def _parse_bookmaker_markets(
 
     Vig sanity:
     - 3-way (soccer) tipik vig %5-10 → pre-normalize total beklenen [1.05, 1.10].
-      [VIG_3WAY_MIN, VIG_3WAY_MAX] dışında ise outlier (yanlış outcome, stale data, bug).
+      [0.85, 1.30] dışında ise outlier (yanlış outcome, stale data, bug).
     - 2-way tipik vig %2-8 → pre-normalize total beklenen [1.02, 1.08].
-      [VIG_2WAY_MIN, VIG_2WAY_MAX] dışında ise outlier.
+      [0.85, 1.20] dışında ise outlier.
     """
     for market in markets:
         if market.get("key") != "h2h":
@@ -96,29 +88,22 @@ def _parse_bookmaker_markets(
             hr, ar, dr = 1.0 / home_odds, 1.0 / away_odds, 1.0 / draw_odds
             total = hr + ar + dr
             # 3-way vig sanity: typical 1.05-1.10, outlier reddet.
-            if not (VIG_3WAY_MIN <= total <= VIG_3WAY_MAX):
+            if not (_VIG_3WAY_MIN <= total <= _VIG_3WAY_MAX):
                 return None
             return hr / total, ar / total, dr / total
 
         hr, ar = 1.0 / home_odds, 1.0 / away_odds
         total = hr + ar
         # 2-way vig sanity: typical 1.02-1.08, outlier reddet.
-        if not (VIG_2WAY_MIN <= total <= VIG_2WAY_MAX):
+        if not (_VIG_2WAY_MIN <= total <= _VIG_2WAY_MAX):
             return None
         return hr / total, ar / total, None
 
     return None
 
 
-def enrich_market(
-    market: MarketData,
-    odds_client,
-    line_tolerance: float,
-) -> EnrichResult:
+def enrich_market(market: MarketData, odds_client) -> EnrichResult:
     """MarketData + Odds API → EnrichResult (probability veya fail_reason).
-
-    SPEC-K: market.sports_market_type'a göre 3 branch — moneyline / spreads / totals.
-    line_tolerance spread/totals line eşleşmesi için (config'den geçirilir, zorunlu).
 
     Her başarısız yol için EnrichFailReason döner. Caller fail_reason'a göre skip_detail yazar.
     """
@@ -158,22 +143,11 @@ def enrich_market(
     home_team = best_event.get("home_team", "")
     away_team = best_event.get("away_team", "")
     is_soccer = is_soccer_key(sport_key)
-    bookmakers = best_event.get("bookmakers", [])
 
-    # 5. Branch by market type — SPEC-K
-    market_type = market.sports_market_type or SportsMarketType.MONEYLINE.value
-
-    if market_type == SportsMarketType.SPREADS.value:
-        return _enrich_spread(
-            bookmakers, home_team, away_team, home_is_a,
-            market.question, market.slug, line_tolerance,
-        )
-    if market_type == SportsMarketType.TOTALS.value:
-        return _enrich_totals(bookmakers, market.question, line_tolerance)
-
-    # Moneyline (default + boş string + "moneyline")
+    # 5. Weighted bookmaker average
     prob = _weighted_average(
-        bookmakers, home_team, away_team, home_is_a, is_soccer,
+        best_event.get("bookmakers", []),
+        home_team, away_team, home_is_a, is_soccer,
     )
     if prob is None:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)

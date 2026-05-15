@@ -76,9 +76,9 @@ class Position(BaseModel):
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
 
-    # Basketbol spread/totals (SPEC-J)
+    # Basketbol totals (SPEC-J — NBA totals exit dispatch için).
+    # sports_market_type ayrıca market filtering için kullanılır (scanner/exit).
     sports_market_type: SportsMarketType = SportsMarketType.MONEYLINE
-    spread_line: float | None = None       # NBA spread line, e.g. -7.5 (cover by 7.5+)
     total_line: float | None = None        # NBA totals target, e.g. 215.5
     total_side: TotalSide | None = None    # only for totals markets
 

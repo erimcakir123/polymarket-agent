@@ -1,4 +1,8 @@
-"""SPEC-K: entry_processor basketball spread/totals Position field wiring."""
+"""entry_processor totals/moneyline Position field wiring.
+
+SPEC-K spread/totals enrichment 2026-05-15 rollback (Faz 4/10) ile silindi.
+NBA totals exit (SPEC-J) için total_line/total_side hala question'dan parse edilir.
+"""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -84,28 +88,6 @@ def _make_deps(captured_positions: list):
     return deps
 
 
-def test_spread_market_position_has_spread_line() -> None:
-    """Spread market'ten Position oluşunca spread_line dolu olmalı."""
-    market = _make_market(
-        sports_market_type="spreads",
-        question="Will Lakers cover -7.5 vs Celtics?",
-        slug="nba-lal-bos-spread-home-7pt5",
-    )
-    signal = _make_signal()
-    captured: list = []
-    deps = _make_deps(captured)
-    deps.gate.run.return_value = [GateResult("0xabc", signal, "", "")]
-
-    EntryProcessor(deps).process_markets([market])
-
-    assert len(captured) == 1
-    pos = captured[0]
-    assert pos.spread_line == 7.5
-    assert pos.total_line is None
-    assert pos.total_side is None
-    assert pos.sports_market_type.value == "spreads"
-
-
 def test_totals_market_position_has_total_line_and_side() -> None:
     """Totals market'ten Position oluşunca total_line + total_side OVER olmalı."""
     market = _make_market(
@@ -124,12 +106,11 @@ def test_totals_market_position_has_total_line_and_side() -> None:
     pos = captured[0]
     assert pos.total_line == 215.5
     assert pos.total_side == TotalSide.OVER
-    assert pos.spread_line is None
     assert pos.sports_market_type.value == "totals"
 
 
-def test_moneyline_market_position_has_no_spread_or_totals_fields() -> None:
-    """Moneyline Position'da spread/totals alanları None kalmalı (regression)."""
+def test_moneyline_market_position_has_no_totals_fields() -> None:
+    """Moneyline Position'da totals alanları None kalmalı (regression)."""
     market = _make_market(
         sports_market_type="moneyline",
         question="Will Lakers beat Celtics?",
@@ -144,7 +125,6 @@ def test_moneyline_market_position_has_no_spread_or_totals_fields() -> None:
 
     assert len(captured) == 1
     pos = captured[0]
-    assert pos.spread_line is None
     assert pos.total_line is None
     assert pos.total_side is None
     assert pos.sports_market_type.value == "moneyline"

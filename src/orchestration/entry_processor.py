@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from src.domain.matching.market_line_parser import parse_spread_line, parse_total_line
+from src.domain.matching.market_line_parser import parse_total_line
 from src.domain.portfolio.exposure import available_under_cap
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
 from src.models.enums import SportsMarketType, TotalSide
@@ -145,9 +145,9 @@ class EntryProcessor:
         fill_price = order.get("price", price)
         shares = signal.size_usdc / fill_price if fill_price > 0 else 0.0
 
-        # SPEC-K: spread/totals metadata Position'a aktarılır.
-        # market.sports_market_type'a göre line/side parser çalışır; moneyline'da hepsi None kalır.
-        sports_market_type, spread_line, total_line, total_side = _resolve_market_meta(market)
+        # NBA totals exit (SPEC-J) için total_line/total_side market.question'dan
+        # parse edilip Position'a yazılır. Moneyline/spreads market'lerinde hepsi None kalır.
+        sports_market_type, total_line, total_side = _resolve_market_meta(market)
 
         pos = Position(
             condition_id=market.condition_id,
@@ -168,7 +168,6 @@ class EntryProcessor:
             slug=market.slug,
             bookmaker_prob=signal.bookmaker_prob,
             sports_market_type=sports_market_type,
-            spread_line=spread_line,
             total_line=total_line,
             total_side=total_side,
         )
@@ -210,22 +209,19 @@ class EntryProcessor:
 
 def _resolve_market_meta(
     market: MarketData,
-) -> tuple[SportsMarketType, float | None, float | None, TotalSide | None]:
-    """SPEC-K: market.sports_market_type'a göre Position ek alanlarını çıkar.
+) -> tuple[SportsMarketType, float | None, TotalSide | None]:
+    """market.sports_market_type'a göre Position ek alanlarını çıkar.
 
-    Spreads: question'dan spread_line; total_line/total_side None.
-    Totals: question'dan (total_line, side); spread_line None. Polymarket YES = OVER.
-    Moneyline veya tanımsız: tüm ek alanlar None, type=MONEYLINE.
+    Totals: question'dan (total_line, side); Polymarket YES = OVER.
+    Spreads/Moneyline veya tanımsız: total alanları None.
     """
     market_type_raw = market.sports_market_type or SportsMarketType.MONEYLINE.value
-    if market_type_raw == SportsMarketType.SPREADS.value:
-        spread_line = parse_spread_line(market.question)
-        # Side parser slug'tan; line None ise spread_line None bırakılır.
-        return SportsMarketType.SPREADS, spread_line, None, None
     if market_type_raw == SportsMarketType.TOTALS.value:
         parsed = parse_total_line(market.question)
         if parsed is None:
-            return SportsMarketType.TOTALS, None, None, None
+            return SportsMarketType.TOTALS, None, None
         line, side = parsed
-        return SportsMarketType.TOTALS, None, line, TotalSide(side)
-    return SportsMarketType.MONEYLINE, None, None, None
+        return SportsMarketType.TOTALS, line, TotalSide(side)
+    if market_type_raw == SportsMarketType.SPREADS.value:
+        return SportsMarketType.SPREADS, None, None
+    return SportsMarketType.MONEYLINE, None, None

@@ -187,14 +187,6 @@ class ScoreConfig(BaseModel):
     critical_price_threshold: float = 0.35
 
 
-class OddsApiConfig(BaseModel):
-    """Odds API enrichment ayarları (SPEC-K)."""
-    model_config = ConfigDict(extra="ignore")
-    # Bookmaker spread/totals line ile Polymarket line arasındaki tolerance.
-    # Bookmaker line target ± bu kadar içinde değilse o bookmaker skip.
-    spread_totals_line_tolerance: float = 0.5
-
-
 # ── Basketbol exit config (SPEC-J — TDD §6/§7 kalibrasyonları) ────────────────
 
 
@@ -252,7 +244,6 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     agent: AgentConfig = AgentConfig()
     score: ScoreConfig = ScoreConfig()
-    odds_api: OddsApiConfig = OddsApiConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
 
 
