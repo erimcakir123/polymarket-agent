@@ -3,10 +3,8 @@
 Öncelik zinciri (ilk tetiklenen kazanır):
   1. Near-resolve profit (eff ≥ 94¢)        — en yüksek öncelik, kâr lock
   2. Scale-out tier (25%→40%, 50%→50%)      — kısmi exit
-  3. Flat stop-loss (7-katman)               — temel SL, her zaman aktif
-  4. A-conf hold gate:
-     - Eğer A-conf hold → sadece market_flip (elapsed≥85%)
-     - Değilse → graduated SL + never-in-profit + hold-revocation + ultra-low
+  3. Flat stop-loss (7-katman)               — temel SL, TÜM pozisyonlar
+  4. Graduated SL + never-in-profit + hold-revocation + ultra-low — TÜM pozisyonlar (elapsed>=0)
   5. FAV promote/demote — sadece state güncellemesi, exit değil
 
 Pure: pos + elapsed_pct + score_info dışarıdan verilir.
@@ -20,7 +18,7 @@ from src.config.settings import BasketballExitConfig
 from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
-from src.strategy.exit import a_conf_hold, favored, graduated_sl, near_resolve, scale_out, stop_loss
+from src.strategy.exit import favored, graduated_sl, near_resolve, scale_out, stop_loss
 from src.strategy.exit._nba_dispatch import check_nba_exit
 
 
@@ -245,55 +243,43 @@ def evaluate(
                 elapsed_pct=elapsed_pct,
             )
 
-    # 3. A-conf hold dalı — flat SL + graduated SL'den MUAF (TDD §6.9)
-    # Sadece near-resolve (yukarıda) + scale-out (yukarıda) + market-flip aktif.
-    a_hold = a_conf_hold.is_a_conf_hold(pos) or pos.favored
-    if a_hold:
-        if elapsed_pct >= 0 and a_conf_hold.market_flip_exit(pos, elapsed_pct):
+    # 3. Flat stop-loss (tüm pozisyonlar için aktif — 19 Apr peak pattern)
+    if stop_loss.check(pos):
+        return MonitorResult(
+            exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
+            fav_transition=_fav_transition(pos),
+            elapsed_pct=elapsed_pct,
+        )
+    # 4. Graduated SL + never-in-profit + hold-revocation + ultra-low (elapsed >= 0)
+    if elapsed_pct >= 0:
+        if _ultra_low_guard_exit(pos, elapsed_pct):
             return MonitorResult(
-                exit_signal=ExitSignal(reason=ExitReason.MARKET_FLIP, detail="eff < 0.50 at elapsed >= 0.85"),
+                exit_signal=ExitSignal(reason=ExitReason.ULTRA_LOW_GUARD, detail="ultra-low dead"),
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-    else:
-        # 4. Non-A-hold flat stop-loss
-        if stop_loss.check(pos):
+        exit_grad, max_loss = graduated_sl.check(pos, elapsed_pct, pos.entry_price, score_info)
+        if exit_grad:
             return MonitorResult(
-                exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
+                exit_signal=ExitSignal(
+                    reason=ExitReason.GRADUATED_SL,
+                    detail=f"pnl < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})",
+                ),
                 fav_transition=_fav_transition(pos),
                 elapsed_pct=elapsed_pct,
             )
-        # 5. Non-A-hold: graduated SL + never-in-profit + hold-revocation + ultra-low
-        if elapsed_pct >= 0:
-            if _ultra_low_guard_exit(pos, elapsed_pct):
-                return MonitorResult(
-                    exit_signal=ExitSignal(reason=ExitReason.ULTRA_LOW_GUARD, detail="ultra-low dead"),
-                    fav_transition=_fav_transition(pos),
-                    elapsed_pct=elapsed_pct,
-                )
-            # entry_price zaten token-native (owned side).
-            exit_grad, max_loss = graduated_sl.check(pos, elapsed_pct, pos.entry_price, score_info)
-            if exit_grad:
-                return MonitorResult(
-                    exit_signal=ExitSignal(
-                        reason=ExitReason.GRADUATED_SL,
-                        detail=f"pnl < -{max_loss:.1%} (elapsed {elapsed_pct:.0%})",
-                    ),
-                    fav_transition=_fav_transition(pos),
-                    elapsed_pct=elapsed_pct,
-                )
-            if _never_in_profit_exit(pos, elapsed_pct, score_info):
-                return MonitorResult(
-                    exit_signal=ExitSignal(reason=ExitReason.NEVER_IN_PROFIT, detail="never profited + late + dropped"),
-                    fav_transition=_fav_transition(pos),
-                    elapsed_pct=elapsed_pct,
-                )
-            if _hold_revocation_exit(pos, elapsed_pct, score_info):
-                return MonitorResult(
-                    exit_signal=ExitSignal(reason=ExitReason.HOLD_REVOKED, detail="hold revoked + exit"),
-                    fav_transition=_fav_transition(pos),
-                    elapsed_pct=elapsed_pct,
-                )
+        if _never_in_profit_exit(pos, elapsed_pct, score_info):
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=ExitReason.NEVER_IN_PROFIT, detail="never profited + late + dropped"),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
+        if _hold_revocation_exit(pos, elapsed_pct, score_info):
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=ExitReason.HOLD_REVOKED, detail="hold revoked + exit"),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     # 5. Exit yok — sadece favored transition dön
     return MonitorResult(exit_signal=None, fav_transition=_fav_transition(pos), elapsed_pct=elapsed_pct)

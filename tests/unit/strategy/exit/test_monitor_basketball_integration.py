@@ -1,7 +1,7 @@
 """Monitor → NBA dispatch entegrasyonu (SPEC-J Group 4A).
 
 monitor.evaluate basketbol pos için spread/totals dispatch çağırmalı.
-Öncelik: near_resolve > scale_out > basketball dispatch > a_conf_hold/SL stack.
+Öncelik: near_resolve > scale_out > basketball dispatch > flat SL > graduated SL stack.
 """
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def test_monitor_non_basketball_skips_dispatch() -> None:
 # ── Dispatch HOLD fallthrough ──
 
 def test_monitor_basketball_no_exit_falls_through() -> None:
-    """Q1-Q3 spread → dispatch None döner → normal SL/a_conf_hold flow çalışır."""
+    """Q1-Q3 spread → dispatch None döner → normal SL/graduated flow çalışır."""
     p = _pos(current_price=0.48, entry_price=0.50)  # küçük zarar, sakin
     r = evaluate(
         p,

@@ -137,11 +137,6 @@ near_resolve:
   threshold_cents: 94
   pre_match_guard_minutes: 10   # WS spike guard — ilk 10dk'da 94¢ sinyali gerçek değil, spike
 
-a_conf_hold:
-  min_entry_price: 0.60
-  market_flip_threshold: 0.50
-  market_flip_elapsed_gate: 0.85
-
 favored:
   promote_eff_price: 0.65
   demote_eff_price: 0.65

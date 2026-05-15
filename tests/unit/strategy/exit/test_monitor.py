@@ -77,65 +77,37 @@ def test_flat_stop_loss_triggers() -> None:
     assert r.exit_signal.reason == ExitReason.STOP_LOSS
 
 
-# ── A-conf hold branch ──
+# ── Universal flat SL + graduated SL (Faz 2 rollback: A-conf hold dalı kaldırıldı) ──
 
-def test_a_conf_hold_skips_flat_sl() -> None:
-    """Regression: A-conf hold flat SL'den muaf olmalı (TDD §6.9).
-    Bug: monitor.py layer 3'teki flat SL A-conf check'inden önce fire ediyordu.
-    Rangers-Lightning pozisyonu (2026-04-15) bu bug'la erken exit etmişti.
+def test_a_conf_high_entry_now_triggers_flat_sl() -> None:
+    """Faz 2 rollback regression: A-conf yüksek-entry artık flat SL'den muaf değil.
+
+    Veri: eski hold dalı kaldırıldı (14 trade 0W/14L katil pattern). Tüm
+    pozisyonlar graduated_sl + flat SL altına alındı (19 Apr peak pattern).
     """
-    # A-conf, entry 0.65 (hold qualifier), NHL SL %30. pnl = -31% > -30% → flat SL threshold aşıldı.
-    # Elapsed %30 (erken maç) — market_flip henüz tetiklenmez (%85 gate).
+    # A-conf, entry 0.65, NHL SL %30. pnl = -30.8% < -30% → flat SL fire.
     start = datetime.now(timezone.utc) - timedelta(minutes=45)
     p = _pos(
         confidence="A", entry_price=0.65, current_price=0.45,
         size_usdc=40, shares=61.5, match_start_iso=_iso(start),
         sport_tag="nhl",
     )
-    # pnl = (61.5*0.45 - 40)/40 = -30.8% — flat SL eşiği (%30) altında ama A-conf korumalı.
+    # pnl = (61.5*0.45 - 40)/40 = -30.8% — flat SL eşiği (%30) aşıldı, artık fire eder.
     r = evaluate(p)
-    # A-conf hold: flat SL atla, market_flip elapsed gate sebebiyle fire etmez → None
-    assert r.exit_signal is None, f"A-conf flat SL'den muaf olmalı (exit={r.exit_signal})"
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.STOP_LOSS
 
 
-def test_a_conf_hold_skips_graduated_sl() -> None:
-    # A-conf, entry 0.65 (hold), elapsed 0.50, current 0.35
-    # pnl = -46% — normalde graduated SL tetikler, ama A-hold atlar
+def test_a_conf_high_entry_no_exit_when_pnl_above_thresholds() -> None:
+    # A-conf, entry 0.65, current 0.55, NBA. pnl = -14.75% — hem flat SL (-35%) hem graduated
+    # (early-mid 0.40 × 0.85 = -34%) eşiğinin üzerinde. Hiçbir exit fire etmez.
     start = datetime.now(timezone.utc) - timedelta(minutes=45)
     p = _pos(
         confidence="A", entry_price=0.65, current_price=0.55,
         size_usdc=40, shares=62, match_start_iso=_iso(start),
     )
-    # pnl = (62*0.55 - 40)/40 = -14.75% — SL threshold olan NBA 0.35 altında kaldığı için bile tetiklenmez
-    r = evaluate(p)
-    # Ne scale-out (pnl<%25) ne near-resolve (eff<0.94) ne SL (pnl>-%35) → None
-    assert r.exit_signal is None
-
-
-def test_a_conf_market_flip_at_late_match() -> None:
-    # A-conf hold, elapsed 0.90, current 0.40 → flip!
-    # Ama önce SL'ye takılır mı? entry 0.65 → nba sl 0.35; pnl = (62*0.40-40)/40 = -38% < -35% → SL takılır
-    # Yani önce SL'yi atlatmam lazım: entry 0.65 current 0.48, pnl=(62*0.48-40)/40 = -25.6% > -35%
-    # Test eff < 0.50 → 0.48 < 0.50 → market flip
-    start = datetime.now(timezone.utc) - timedelta(hours=2)
-    p = _pos(
-        confidence="A", entry_price=0.65, current_price=0.48,
-        size_usdc=40, shares=62, match_start_iso=_iso(start),
-        sport_tag="nba",  # duration 2.5h → 2h/2.5h = 0.80 elapsed
-    )
-    # elapsed 0.80 < 0.85 gate → flip tetiklenmez
     r = evaluate(p)
     assert r.exit_signal is None
-
-    # Şimdi elapsed 0.90+ olacak — 2.5h × 0.90 = 2.25h elapsed
-    start = datetime.now(timezone.utc) - timedelta(hours=2, minutes=20)
-    p2 = _pos(
-        confidence="A", entry_price=0.65, current_price=0.48,
-        size_usdc=40, shares=62, match_start_iso=_iso(start), sport_tag="nba",
-    )
-    r2 = evaluate(p2)
-    assert r2.exit_signal is not None
-    assert r2.exit_signal.reason == ExitReason.MARKET_FLIP
 
 
 # ── Graduated SL (non-A-hold) ──
@@ -196,7 +168,7 @@ def test_never_in_profit_triggers_late() -> None:
     # Bu olmuyor bizim config'de (graduated 0.20 base < 0.25 drop). Test'i skip:
     # Sadece never_in_profit yardımcı fonksiyonunu test edeceğiz.
     # Bu testin amaci degisti — monitor'daki baska bir path'i test edelim:
-    # A-conf hold true + erken maç + graduated skipped → hiçbir exit yok
+    # match_start_iso yok → elapsed=-1; flat SL pnl -7% > -35% pass; graduated skipped (elapsed<0) → None
     p = _pos(
         confidence="A", entry_price=0.65, current_price=0.60,
         size_usdc=40, shares=62,

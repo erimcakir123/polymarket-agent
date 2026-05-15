@@ -151,13 +151,6 @@ class NearResolveConfig(BaseModel):
     pre_match_guard_minutes: int = 5
 
 
-class AConfHoldConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    min_entry_price: float = 0.60
-    market_flip_threshold: float = 0.50
-    market_flip_elapsed_gate: float = 0.85
-
-
 class FavoredConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     promote_eff_price: float = 0.65
@@ -266,7 +259,6 @@ class AppConfig(BaseModel):
     manipulation: ManipulationConfig = ManipulationConfig()
     liquidity: LiquidityConfig = LiquidityConfig()
     near_resolve: NearResolveConfig = NearResolveConfig()
-    a_conf_hold: AConfHoldConfig = AConfHoldConfig()
     favored: FavoredConfig = FavoredConfig()
     dashboard: DashboardConfig = DashboardConfig()
     telegram: TelegramConfig = TelegramConfig()
