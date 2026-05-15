@@ -189,7 +189,6 @@ def evaluate(
     score_info: dict | None = None,
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
-    min_scale_out_realized_usdc: float = 0.0,
     basketball_exit_cfg: BasketballExitConfig | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
@@ -211,8 +210,6 @@ def evaluate(
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         unrealized_pnl_pct=pos.unrealized_pnl_pct,
-        unrealized_pnl_usdc=pos.unrealized_pnl_usdc,
-        min_realized_usdc=min_scale_out_realized_usdc,
     )
     if so is not None:
         return MonitorResult(
