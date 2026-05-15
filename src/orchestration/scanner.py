@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
-from src.config.sport_rules import BASKETBALL_TAGS
+from src.config.sport_rules import BASKETBALL_TAGS, is_moneyline_only
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
@@ -96,6 +96,11 @@ class MarketScanner:
             sport_tag_lc = (m.sport_tag or "").lower()
             if sport_tag_lc not in BASKETBALL_TAGS:
                 return False
+        # Moneyline-only flag (sport_rules.py tek-yer kaynak; SPEC-L NHL ML-only kanıtı).
+        # Flag açıksa spreads/totals bu sport için reddedilir — basketbol kontrolüyle
+        # örtüşür ama niyet farklı: flag, sport-spesifik kararı sport_rules'a bağlar.
+        if is_moneyline_only(m.sport_tag) and m.sports_market_type != "moneyline":
+            return False
 
         # Sport tag whitelist (MVP)
         if self.config.allowed_sport_tags:

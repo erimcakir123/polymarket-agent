@@ -31,6 +31,9 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "hockey",
         "espn_league": "nhl",
+        # Eski projede 4 günde 13W/2L +$126 ML-only kanıtı (SPEC-L 2026-05-11).
+        # NHL spread/totals trade'leri için kanıt yok → moneyline-only.
+        "moneyline_only": True,
     },
     "mlb": {
         "stop_loss_pct": 0.30,
@@ -120,3 +123,8 @@ def get_stop_loss(sport_tag: str) -> float:
 
 def get_match_duration_hours(sport_tag: str) -> float:
     return float(get_sport_rule(sport_tag, "match_duration_hours", 2.0))
+
+
+def is_moneyline_only(sport_tag: str) -> bool:
+    """Sport için yalnızca moneyline market'leri kabul edilir mi? (TDD §7.2 NHL ML-only)."""
+    return bool(get_sport_rule(sport_tag, "moneyline_only", False))

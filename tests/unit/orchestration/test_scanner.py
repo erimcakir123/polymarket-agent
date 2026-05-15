@@ -139,6 +139,46 @@ def test_scanner_rejects_nhl_totals() -> None:
     assert sc.scan() == []
 
 
+def test_scanner_moneyline_only_flag_rejects_nhl_totals() -> None:
+    """sport_rules.is_moneyline_only(nhl)=True flag, NHL totals'ı reddetmeli
+    (basketbol-whitelist kuralından bağımsız tek-yer kaynak doğrulaması)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="icehockey_nhl", market_type="totals",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["icehockey_nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert sc.scan() == []
+
+
+def test_scanner_moneyline_only_flag_passes_nhl_moneyline() -> None:
+    """is_moneyline_only flag, moneyline'ı engellemiyor."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="icehockey_nhl", market_type="moneyline",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["icehockey_nhl"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
+def test_scanner_moneyline_only_flag_does_not_affect_nba() -> None:
+    """is_moneyline_only(nba)=False → NBA totals dokunulmaz (SPEC-J)."""
+    now = datetime.now(timezone.utc)
+    m = _market(
+        sport_tag="nba", market_type="totals",
+        match_start=now + timedelta(hours=2),
+        end_date=now + timedelta(hours=5),
+    )
+    cfg = _config(allowed_sport_tags=["nba"])
+    sc = MarketScanner(cfg, gamma_client=_mock_gamma([m]))
+    assert len(sc.scan()) == 1
+
+
 def test_scanner_rejects_soccer_totals() -> None:
     """Soccer + totals → red (sadece basketbol)."""
     now = datetime.now(timezone.utc)

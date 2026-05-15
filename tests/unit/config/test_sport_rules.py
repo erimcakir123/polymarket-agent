@@ -5,6 +5,7 @@ from src.config.sport_rules import (
     DEFAULT_RULES,
     get_sport_rule,
     get_stop_loss,
+    is_moneyline_only,
 )
 
 
@@ -82,3 +83,30 @@ def test_sport_rule_score_source_nba() -> None:
     assert get_sport_rule("nba", "score_source") == "espn"
     assert get_sport_rule("nba", "espn_sport") == "basketball"
     assert get_sport_rule("nba", "espn_league") == "nba"
+
+
+# ── is_moneyline_only (NHL ML-only kanıt, SPEC-L 2026-05-11) ──
+
+def test_is_moneyline_only_nhl_returns_true() -> None:
+    """NHL: eski projede 4 günde 13W/2L +$126 ML-only kanıtı → flag True."""
+    assert is_moneyline_only("nhl") is True
+
+
+def test_is_moneyline_only_nba_returns_false() -> None:
+    """NBA spreads/totals serbest (SPEC-J) → flag False."""
+    assert is_moneyline_only("nba") is False
+
+
+def test_is_moneyline_only_mlb_returns_false() -> None:
+    """MLB için kısıt yok → flag False."""
+    assert is_moneyline_only("mlb") is False
+
+
+def test_is_moneyline_only_unknown_returns_false() -> None:
+    """Bilinmeyen sport_tag default False döner."""
+    assert is_moneyline_only("unknown_sport") is False
+
+
+def test_is_moneyline_only_alias_icehockey_nhl_returns_true() -> None:
+    """Odds API key alias 'icehockey_nhl' de NHL'e normalize olur."""
+    assert is_moneyline_only("icehockey_nhl") is True
