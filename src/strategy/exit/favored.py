@@ -1,7 +1,9 @@
 """FAV (favored) promote/demote (TDD §6.13) — pure state transition.
 
-Holding sırasında dinamik durum değişikliği. favored=True olan pozisyonlar
-A-conf hold mantığına tabi olur (graduated SL'den muaf, market_flip elapsed gate'li).
+Holding sırasında dinamik durum değişikliği. Pre-Faz 2'de favored pozisyonlar
+A-conf hold mantığına tabi tutuluyordu; Faz 2 rollback ile bu kaldırıldı
+(graduated_sl + flat SL tüm pozisyonlara uygulanır). favored bayrağı artık
+yalnızca hold-revocation kararını besler.
 
 v1 verisi: 5 favored trade = +$42.90, %100 WR. Kural korunacak.
 """
