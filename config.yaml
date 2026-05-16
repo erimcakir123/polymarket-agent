@@ -114,6 +114,10 @@ scale_out:
       sell_pct: 0.50
 
 circuit_breaker:
+  # TEST MODU: CB devre dısı (2026-05-13). Multi-SL (graduated + flat + market_flip)
+  # zaten maç-içi koruma sağlıyor; CB ardısık 4 kayıpta tüm liglerden 60dk blok
+  # uyguluyordu — bağımsız maçlar arası gereksiz blok. Gözlem sonu yeniden açılır.
+  enabled: false
   daily_max_loss_pct: -0.08
   hourly_max_loss_pct: -0.05
   consecutive_loss_limit: 4

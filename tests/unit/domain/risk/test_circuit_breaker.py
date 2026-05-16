@@ -136,7 +136,38 @@ def test_state_to_dict_from_dict_roundtrip() -> None:
 
 def test_config_defaults_match_tdd() -> None:
     cfg = CircuitBreakerConfig()
+    assert cfg.enabled is True
     assert cfg.daily_max_loss_pct == -0.08
     assert cfg.hourly_max_loss_pct == -0.05
     assert cfg.consecutive_loss_limit == 4
     assert cfg.entry_block_threshold == -0.03
+
+
+def test_disabled_breaker_never_halts_even_with_daily_loss() -> None:
+    cfg = CircuitBreakerConfig(enabled=False)
+    cb = _cb(cfg=cfg)
+    cb.record_exit(pnl_usd=-200, portfolio_value=1000)  # -%20 daily — normalde halt
+    halt, reason = cb.should_halt_entries()
+    assert halt is False
+    assert reason == ""
+
+
+def test_disabled_breaker_ignores_consecutive_losses() -> None:
+    cfg = CircuitBreakerConfig(enabled=False)
+    cb = _cb(cfg=cfg)
+    for _ in range(10):
+        cb.record_exit(pnl_usd=-1, portfolio_value=1000)
+    halt, _ = cb.should_halt_entries()
+    assert halt is False
+
+
+def test_disabled_breaker_ignores_active_cooldown() -> None:
+    start = datetime(2026, 4, 13, 12, 0, tzinfo=timezone.utc)
+    cfg = CircuitBreakerConfig(enabled=False)
+    state = CircuitBreakerState(
+        last_daily_reset=start, last_hourly_reset=start,
+        breaker_active_until=start + timedelta(minutes=30),
+    )
+    cb = CircuitBreaker(config=cfg, state=state, now_fn=_fixed_now(start))
+    halt, _ = cb.should_halt_entries()
+    assert halt is False

@@ -121,6 +121,7 @@ class ScaleOutConfig(BaseModel):
 
 class CircuitBreakerConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    enabled: bool = True  # Faz 2 gözlem için False'a alınabilir; multi-SL zaten maç-içi koruma
     daily_max_loss_pct: float = -0.08
     hourly_max_loss_pct: float = -0.05
     consecutive_loss_limit: int = 4

@@ -23,6 +23,7 @@ def _default_now() -> datetime:
 @dataclass
 class CircuitBreakerConfig:
     """Eşikler (config.yaml'dan gelir, defaults TDD §6.15)."""
+    enabled: bool = True  # Faz 2 gözlem için False'a alınabilir; multi-SL zaten maç-içi koruma
     daily_max_loss_pct: float = -0.08
     hourly_max_loss_pct: float = -0.05
     consecutive_loss_limit: int = 4
@@ -98,6 +99,8 @@ class CircuitBreaker:
 
     def should_halt_entries(self) -> tuple[bool, str]:
         """Sadece entry halt — exit'leri ASLA durdurmaz."""
+        if not self.config.enabled:
+            return False, ""
         self.reset_if_needed()
         now = self._now()
         cfg = self.config
