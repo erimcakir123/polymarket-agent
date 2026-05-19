@@ -864,6 +864,57 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 
 ---
 
+## SPEC-N: Tennis Prediction Lab v1.0 (2026-05-19)
+
+**Karar**: Polymarket tenis alt market'lerinde (First Set Winner + Set Handicap −1.5 + Total Sets U 2.5) bookmaker'ın olmadığı market inefficiency'yi exploit eden ayrı sandbox sistem inşa edildi. Glicko-2 + Klaassen-Magnus tahmin motoru.
+
+**Kanıt**: Polymarket scan tennis market analizi (2026-05-19): 66 unique ATP singles match, alt market liquidity $4.6M, alt market 24h volume sadece $61K — derin orderbook ama düşük aktivite = sharp bookmaker yok = inefficient pricing.
+
+**Implementasyon**:
+- **Sandbox**: git worktree `../tennis-lab`, `feature/tennis-lab` branch
+- **Bankroll**: $500 paper, dashboard port 5051
+- **Data**: Sackmann ATP CSV (1968-Şubat 2026, 13,092 maç indi 2022-2026 için) + TML backup
+- **Rating**: Glicko-2, surface ayrı (clay/grass/hard), serve/return ayrı — 817 oyuncu için rating üretildi
+- **Math**: Klaassen-Magnus point-by-point (Newton-Keller game formula düzeltildi — plan'daki polynomial yanlıştı, iid recursion + deuce kısayoluyla değiştirildi)
+- **Markets**: 3 — First Set Winner, Set Handicap −1.5, Total Sets U 2.5
+- **Confidence**: A-tier ($25) + B-tier ($20), C YOK; min_h2h_years yalnızca A-tier'de zorunlu
+- **Edge**: ≥%5
+- **Event guard**: Max 2 trade/event (best |edge| 2 tanesi seçilir)
+- **Self-diagnostic**: Per-trade feature snapshot + `/diagnose` CLI (group-by surface/tier/feature)
+
+**Yeni modüller**:
+- `src/domain/prediction/glicko2.py` — pure Glicko-2 math (Glickman paper exact örneği test edildi)
+- `src/domain/prediction/klaassen_magnus.py` — pure tennis probability formulas (g(0.5)=0.5 doğrulandı)
+- `src/domain/prediction/feature_extractor.py` — H2H + form + counts
+- `src/domain/prediction/tennis_predictor.py` — 3 market dispatcher
+- `src/infrastructure/data/sackmann_csv_client.py` + `tml_csv_client.py` + `tennis_ratings_store.py`
+- `src/strategy/entry/tennis_entry.py` — max 2 per event
+- `src/orchestration/tennis_diagnostic_logger.py` — per-trade JSONL
+- `src/orchestration/tennis_factory.py` — sandbox composition root
+- `scripts/build_tennis_ratings.py` + `download_sackmann.py` + `diagnose.py` + `tennis_main.py` + `tennis_dashboard.py`
+
+**Değişen modüller (sandbox-only, ana bot unaffected)**:
+- `src/config/settings.py` (+TennisConfig + TennisConfidenceTier)
+- `src/orchestration/scanner.py` (allowed_sports_market_types opsiyonel, fallback to legacy)
+- `config.yaml` → `config_tennis.yaml` override
+
+**Test delta**: 1114 → 1181 (+67 yeni tennis unit + integration test)
+
+**Top 5 ATP rating**: Sinner 2160 | Alcaraz 2028 | Djokovic 1947 | Zverev 1874 | Fils 1809 (sanity check geçti)
+
+**Live'a geçiş**: Paper trade 4 hafta → accuracy ≥%53 → live küçük pozisyon ($5-10).
+
+**Kill switch**: `git worktree remove ../tennis-lab --force` (3 komut, ana bot etkilenmez).
+
+**Riskler ve mitigasyon**:
+- Sackmann veri 3 ay eski (clay sezonu eksik) → self-diagnostic surface tag ile gözle
+- Model accuracy <%50 → /diagnose ile sebep bul, model güncelle, paper tekrar
+- Sandbox kod main bot'u etkiler → git worktree izolasyon
+
+**Açık V2 noktalar**: WTA support, doubles, live in-game prediction, daily ATP scrape, paid live API.
+
+---
+
 ## SPEC-M: PriceFeed Sanity Layer (2026-05-19)
 
 **Karar**: WS price feed'e 4 yapısal koruma — spike rejection, REST 404 cache invalidate, asks/bids sort-agnostic, near-resolve spread sanity.
