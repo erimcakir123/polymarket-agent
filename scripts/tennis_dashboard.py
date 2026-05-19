@@ -16,19 +16,19 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT))
 
 from src.config.settings import load_config
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    cfg = load_config(Path("config_tennis.yaml"))
+    cfg = load_config(_ROOT / "config_tennis.yaml")
 
-    # Reuse main bot's dashboard app — create_app(config, logs_dir)
     from src.presentation.dashboard.app import create_app
 
-    app = create_app(config=cfg, logs_dir="logs")
+    app = create_app(config=cfg, logs_dir=_ROOT / "logs")
     print(f"Tennis dashboard starting on http://{cfg.dashboard.host}:{cfg.dashboard.port}")
     print(f"  Bankroll: ${cfg.initial_bankroll}")
     print(f"  Open in browser: http://localhost:{cfg.dashboard.port}")
