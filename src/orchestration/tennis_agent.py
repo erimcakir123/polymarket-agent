@@ -9,10 +9,14 @@ Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §11.4
 """
 from __future__ import annotations
 
+import atexit
+import json
 import logging
+import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 from src.config.settings import AppConfig
@@ -197,31 +201,76 @@ def run_one_cycle(
     return logged
 
 
+def _write_pid(pid_file: Path) -> None:
+    """Tennis agent process PID dosyası — dashboard bot_is_alive kontrolü için."""
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(os.getpid()), encoding="utf-8")
+    atexit.register(lambda: pid_file.unlink(missing_ok=True))
+
+
+def _write_status(
+    status_file: Path,
+    *,
+    stage: str,
+    next_heavy_at: datetime,
+    mode: str,
+) -> None:
+    """Dashboard cycle göstergesi için snapshot yaz."""
+    try:
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "mode": mode,
+            "cycle": "heavy",
+            "stage": stage,
+            "stage_at": datetime.now(timezone.utc).isoformat(),
+            "next_heavy_at": next_heavy_at.isoformat(),
+            "light_alive": True,
+        }
+        status_file.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("bot_status write failed: %s", exc)
+
+
 def run_forever(
     deps: TennisDeps,
     interval_sec: int = 1800,
+    *,
+    logs_dir: Path = Path("logs"),
+    data_dir: Path = Path("data"),
 ) -> None:
     """Run agent loop indefinitely with fixed interval between cycles.
 
     Ratings and Sackmann matches are reloaded each cycle to pick up
     freshly-built ratings without restart.
 
+    Dashboard heartbeat: agent.pid (logs_dir) + bot_status.json (data_dir).
+
     Args:
         deps: Wired tennis dependencies.
         interval_sec: Seconds to sleep between cycle starts (default 1800 = 30min).
+        logs_dir: Path for agent.pid file.
+        data_dir: Path for bot_status.json file.
     """
     logger.info(
         "Tennis agent starting: interval=%ds mode=%s",
         interval_sec,
         deps.config.mode.value,
     )
+    pid_file = logs_dir / "agent.pid"
+    status_file = data_dir / "bot_status.json"
+    mode = deps.config.mode.value
+    _write_pid(pid_file)
+
     while True:
         cycle_start = time.monotonic()
+        next_heavy_at = datetime.now(timezone.utc) + timedelta(seconds=interval_sec)
+        _write_status(status_file, stage="scanning", next_heavy_at=next_heavy_at, mode=mode)
         try:
             n = run_one_cycle(deps)
             logger.info("Cycle logged %d candidates", n)
         except Exception as exc:  # noqa: BLE001 — orchestration catches + logs all
             logger.error("Tennis cycle error: %s", exc, exc_info=True)
+        _write_status(status_file, stage="idle", next_heavy_at=next_heavy_at, mode=mode)
 
         elapsed = time.monotonic() - cycle_start
         sleep_sec = max(0, interval_sec - elapsed)

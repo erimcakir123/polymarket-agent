@@ -20,7 +20,8 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT))
 
 from src.orchestration.tennis_agent import run_forever, run_one_cycle
 from src.orchestration.tennis_factory import build_tennis_deps
@@ -65,15 +66,20 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    config_path = Path("config_tennis.yaml")
+    config_path = _ROOT / "config_tennis.yaml"
     if not config_path.exists():
-        print(f"ERROR: {config_path} not found. Run from tennis-lab worktree root.")
+        print(f"ERROR: {config_path} not found.")
         sys.exit(1)
 
     deps = build_tennis_deps(config_path=config_path)
 
     if args.run:
-        run_forever(deps, interval_sec=args.interval)
+        run_forever(
+            deps,
+            interval_sec=args.interval,
+            logs_dir=_ROOT / "logs",
+            data_dir=_ROOT / "data",
+        )
     elif args.once:
         n = run_one_cycle(deps)
         print(f"Logged {n} candidates")
