@@ -24,7 +24,7 @@ def csv_dir(tmp_path):
     return csv_dir
 
 
-def test_load_year(csv_dir):
+def test_load_year_valid_csv_returns_parsed_match(csv_dir):
     client = SackmannCsvClient(cache_dir=csv_dir)
     matches = client.load_year(2025)
     assert len(matches) == 1
@@ -49,7 +49,7 @@ def test_load_year_missing_returns_empty(tmp_path):
     assert matches == []
 
 
-def test_load_years_combines(csv_dir):
+def test_load_years_two_years_returns_combined_list(csv_dir):
     # Aynı CSV'yi 2024 olarak da kopyala
     (csv_dir / "atp_matches_2024.csv").write_text(SAMPLE_CSV)
     client = SackmannCsvClient(cache_dir=csv_dir)
@@ -57,7 +57,7 @@ def test_load_years_combines(csv_dir):
     assert len(matches) == 2
 
 
-def test_match_has_freshness_check(csv_dir):
+def test_load_year_tourney_date_parsed_as_datetime(csv_dir):
     client = SackmannCsvClient(cache_dir=csv_dir)
     matches = client.load_year(2025)
     m = matches[0]
@@ -65,3 +65,13 @@ def test_match_has_freshness_check(csv_dir):
     assert m.match_date.year == 2025
     assert m.match_date.month == 1
     assert m.match_date.day == 5
+
+
+def test_load_year_malformed_date_skips_row_returns_empty(tmp_path):
+    """Bad tourney_date → ValueError caught → row skipped, list empty."""
+    bad_csv = SAMPLE_CSV.replace("20250105", "BADDATE")
+    csv_dir = tmp_path
+    (csv_dir / "atp_matches_2030.csv").write_text(bad_csv)
+    client = SackmannCsvClient(cache_dir=csv_dir)
+    matches = client.load_year(2030)
+    assert matches == []

@@ -98,7 +98,7 @@ class SackmannCsvClient:
         all_matches.sort(key=lambda m: m.match_date)
         return all_matches
 
-    def _parse_row(self, row: dict) -> Optional[SackmannMatch]:
+    def _parse_row(self, row: dict[str, str]) -> Optional[SackmannMatch]:
         try:
             return SackmannMatch(
                 tourney_id=row.get("tourney_id", ""),
@@ -106,7 +106,7 @@ class SackmannCsvClient:
                 surface=row.get("surface", ""),
                 draw_size=int(row.get("draw_size") or 0),
                 tourney_level=row.get("tourney_level", ""),
-                match_date=datetime.strptime(row["tourney_date"], "%Y%m%d"),
+                match_date=datetime.strptime(row.get("tourney_date", ""), "%Y%m%d"),
                 match_num=int(row.get("match_num") or 0),
                 winner_id=row.get("winner_id", ""),
                 winner_name=row.get("winner_name", ""),
@@ -146,7 +146,7 @@ class SackmannCsvClient:
             return None
 
     @staticmethod
-    def _to_int(v) -> Optional[int]:
+    def _to_int(v: str | None) -> int | None:
         if v is None or v == "":
             return None
         try:
