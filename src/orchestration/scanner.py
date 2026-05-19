@@ -89,7 +89,21 @@ class MarketScanner:
 
         # Sports market type — SPEC-J: basketbol için spreads + totals da geçer.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
-        if m.sports_market_type not in ("moneyline", "spreads", "totals"):
+        #
+        # Sandbox extension (Spec §11.3 / Task 12): if allowed_sports_market_types is
+        # set on config, enforce strict allow-list; otherwise fall back to legacy
+        # (moneyline/spreads/totals) so the main bot behaviour is unchanged.
+        allowed_types = getattr(self.config, "allowed_sports_market_types", None)
+        if allowed_types is not None:
+            if m.sports_market_type not in allowed_types:
+                return False
+        else:
+            # Legacy main bot behaviour
+            if m.sports_market_type not in ("moneyline", "spreads", "totals"):
+                return False
+
+        # Tennis doubles skip (sandbox — singles analysis only)
+        if "doubles" in (m.slug or "").lower():
             return False
         # spreads/totals sadece basketbol sport_tag için (NHL/MLB/diğer ayrı spec)
         if m.sports_market_type in ("spreads", "totals"):

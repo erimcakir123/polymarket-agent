@@ -48,6 +48,11 @@ class ScannerConfig(BaseModel):
     resolved_price_threshold: float = 0.98
     allowed_categories: List[str] = ["sports"]
     allowed_sport_tags: List[str] = []
+    # Sandbox extension (Task 12 / Spec §11.3): opt-in strict allow-list for
+    # sports_market_type. When set, ONLY listed types pass. When absent (None),
+    # scanner falls back to legacy moneyline/spreads/totals behaviour so the
+    # main bot is completely unaffected.
+    allowed_sports_market_types: List[str] | None = None
 
 
 class EdgeConfig(BaseModel):
