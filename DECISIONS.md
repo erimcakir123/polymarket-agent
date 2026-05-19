@@ -631,6 +631,44 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 
 ---
 
+## SPEC-M: PriceFeed Sanity Layer (2026-05-19)
+
+**Karar**: WS price feed'e 4 yapısal koruma — spike rejection, REST 404 cache invalidate, asks/bids sort-agnostic, near-resolve spread sanity.
+
+**Kanıt**: KBO bug 2026-05-19. Bilgisayar 6.5 saat uyudu → WS reconnect → REST `/book` 404 → eski cache fiyat ($0.61) kaldı → sonraki WS mesajında sahte $0.97 spike geldi → bot near_resolve tetikleyip "+$10.62 realized" kaydetti. Gerçek market max $0.68'di, $0.97 hiç işlem olmamış sahte fiyattı. Dry_run modu olduğu için para kaybı yok; live modunda exposure tracking bozulurdu.
+
+**Root cause**: `_update_price` sanity check'siz; `_fetch_rest_snapshots` 404'te cache'i invalidate etmiyordu (eski stale fiyat kalıyor); `_best_ask_from_snapshot` sort yönüne kör güveniyordu (`asks[-1]`); near_resolve sadece ask kontrol ediyordu (bid spread'i ignore).
+
+**Implementasyon**:
+- **Fix 1** (`_update_price`): tek tick'te |Δ| > `max_spike_pct` (default 0.50) → WARNING log + reject. `stats["spikes_rejected"]` sayacı.
+- **Fix 2** (`_fetch_rest_snapshots`): `status_code == 404` → `self._prices.pop(tid, None)` + WARNING log. Bot fiyat bulamayınca exit kararı vermez (mevcut `get_price()=None` handle var).
+- **Fix 3** (`_best_ask/bid_from_snapshot`): `min(prices)` / `max(prices)` — sort yönünden bağımsız. Eski `[-1]` indexing ASC sort durumunda HIGHEST ask döndürüyordu.
+- **Fix 4** (`near_resolve.check`): `ask - bid > max_spread` (default 0.10) → sahte likidite, reddet. KBO bug bid=0.60 ask=0.97 → 37¢ spread fake'lendi.
+
+**Config**:
+- `config.yaml > price_feed.max_spike_pct: 0.50`
+- `config.yaml > price_feed.max_spread_for_near_resolve: 0.10`
+- `PriceFeedConfig` Pydantic model `settings.py`'a eklendi
+- `PriceFeed(max_spike_pct=cfg.price_feed.max_spike_pct)` factory'de wire edildi
+- `monitor.evaluate(near_resolve_max_spread=...)` → `exit_processor.run_light` config'den geçer
+
+**Yeni dosyalar**: 0 (mevcut dosyalara guard eklendi)
+**Değişen dosyalar (6)**: `price_feed.py`, `near_resolve.py`, `monitor.py`, `exit_processor.py`, `factory.py`, `settings.py` + `config.yaml`
+
+**Test delta**: 1106 → 1114 (+8 yeni SPEC-M test):
+- `test_update_price_rejects_spike_above_50pct`
+- `test_update_price_accepts_normal_change_below_50pct`
+- `test_fetch_rest_snapshots_404_invalidates_existing_cache`
+- `test_best_ask_works_regardless_of_sort_order`
+- `test_best_bid_works_regardless_of_sort_order`
+- `test_near_resolve_rejects_when_spread_above_threshold`
+- `test_near_resolve_accepts_when_spread_within_threshold`
+- `test_near_resolve_spread_check_skipped_when_bid_zero`
+
+**Mimari uyumluluk**: ARCH_GUARD Kural 6 (config'den, magic number yok), Kural 12 (Infrastructure WARNING log), Kural 11 (test zorunlu), Kural 7 (P(YES) ilgisiz).
+
+---
+
 ## SPEC-K: Bookmaker Spread/Totals Köprüsü (2026-05-10)
 
 **Karar**: SPEC-J basketbol spread/totals exit pipeline'ını ekledi ama entry tarafı için bookmaker prob köprüsü yoktu — bot Odds API'dan SADECE `markets=h2h` (moneyline) çekiyordu. SPEC-K bu köprüyü kurar: Odds API'dan spread + totals da çek, parser yaz, entry pipeline'a wire et.

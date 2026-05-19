@@ -187,17 +187,22 @@ def evaluate(
     score_info: dict | None = None,
     near_resolve_threshold_cents: int = 94,
     near_resolve_guard_min: int = 10,
+    near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
     FAV transition ayrı (exit değil, pos.favored state update).
+    SPEC-M: near_resolve_max_spread sahte ask spike koruması (KBO bug 2026-05-19).
     """
     score_info = score_info or {}
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
     # 1. Near-resolve — en yüksek öncelik
-    if near_resolve.check(pos, near_resolve_threshold_cents, near_resolve_guard_min):
+    if near_resolve.check(
+        pos, near_resolve_threshold_cents, near_resolve_guard_min,
+        max_spread=near_resolve_max_spread,
+    ):
         return MonitorResult(
             exit_signal=ExitSignal(reason=ExitReason.NEAR_RESOLVE, detail="eff >= threshold"),
             fav_transition=_fav_transition(pos),

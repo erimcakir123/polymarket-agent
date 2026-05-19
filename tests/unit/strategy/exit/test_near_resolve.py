@@ -75,3 +75,49 @@ def test_buy_no_losing_side_no_exit() -> None:
 def test_bad_iso_format_trusts_threshold() -> None:
     p = _pos(yes=0.95, match_start_iso="not-a-date")
     assert check(p) is True
+
+
+# ── SPEC-M (2026-05-19) — spread sanity guard ──
+
+
+def test_near_resolve_rejects_when_spread_above_threshold() -> None:
+    """SPEC-M: ask=0.97 ama bid=0.60 (37¢ spread) → sahte likidite, reddet.
+
+    KBO bug 2026-05-19: WS sahte ask spike geldi, gerçek bid çok düşüktü →
+    bot near_resolve tetikleyip $0.97'de "çıktı" ama market gerçekten $0.60'taydı.
+    """
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = Position(
+        condition_id="c", token_id="t", direction="BUY_YES",
+        entry_price=0.40, size_usdc=40, shares=100,
+        current_price=0.97, bid_price=0.60,  # ask-bid = 0.37 > 0.10 default
+        anchor_probability=0.55,
+        match_start_iso=_iso(start),
+    )
+    assert check(p) is False
+
+
+def test_near_resolve_accepts_when_spread_within_threshold() -> None:
+    """SPEC-M: tight spread (ask 0.95, bid 0.92 = 3¢) → normal, kabul."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = Position(
+        condition_id="c", token_id="t", direction="BUY_YES",
+        entry_price=0.40, size_usdc=40, shares=100,
+        current_price=0.95, bid_price=0.92,  # 3¢ spread — normal
+        anchor_probability=0.55,
+        match_start_iso=_iso(start),
+    )
+    assert check(p) is True
+
+
+def test_near_resolve_spread_check_skipped_when_bid_zero() -> None:
+    """SPEC-M: bid=0 (eksik veri) → spread check bypass, threshold yeterli."""
+    start = datetime.now(timezone.utc) - timedelta(minutes=30)
+    p = Position(
+        condition_id="c", token_id="t", direction="BUY_YES",
+        entry_price=0.40, size_usdc=40, shares=100,
+        current_price=0.95, bid_price=0.0,  # bid yok
+        anchor_probability=0.55,
+        match_start_iso=_iso(start),
+    )
+    assert check(p) is True

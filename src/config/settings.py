@@ -188,6 +188,19 @@ class ScoreConfig(BaseModel):
     critical_price_threshold: float = 0.35
 
 
+class PriceFeedConfig(BaseModel):
+    """SPEC-M (2026-05-19) — WS price feed sanity layer.
+
+    Bilgisayar uyku → REST 404 → cache stale → bot sahte fiyat ($0.97) ile
+    near_resolve tetikledi. Bu config dört yapısal koruma sağlar:
+    - max_spike_pct: tek tick'te %50+ atlama → reject
+    - max_spread_for_near_resolve: ask-bid > 10¢ → near_resolve reddeder (sahte likidite)
+    """
+    model_config = ConfigDict(extra="ignore")
+    max_spike_pct: float = 0.50
+    max_spread_for_near_resolve: float = 0.10
+
+
 # ── Basketbol exit config (SPEC-J — DECISIONS §6/§7 kalibrasyonları) ────────────────
 
 
@@ -245,6 +258,7 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     agent: AgentConfig = AgentConfig()
     score: ScoreConfig = ScoreConfig()
+    price_feed: PriceFeedConfig = PriceFeedConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
 
 

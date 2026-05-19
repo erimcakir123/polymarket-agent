@@ -164,3 +164,10 @@ score:
   poll_normal_sec: 60          # Light cycle skor poll interval (saniye)
   poll_critical_sec: 30        # Risk fiyatı altında daha sık (SPEC-B)
   critical_price_threshold: 0.35  # Bu fiyatın altındaki pozisyonlar critical
+
+price_feed:
+  # SPEC-M (2026-05-19): WS price feed sanity layer (KBO bug fix)
+  # Spike rejection: önceki fiyattan >%50 atlama → suspicious, reddet
+  max_spike_pct: 0.50
+  # Near-resolve spread sanity: ask-bid > 10¢ → likidite yok, sahte tetikleme
+  max_spread_for_near_resolve: 0.10

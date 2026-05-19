@@ -180,3 +180,63 @@ def test_fetch_book_snapshot_handles_http_error_gracefully() -> None:
                return_value=fake_response):
         feed._fetch_rest_snapshots(["token_x"])  # Should not raise
     assert feed.get_price("token_x") is None
+
+
+# ── SPEC-M (2026-05-19) — PriceFeed sanity layer ──
+
+
+def test_update_price_rejects_spike_above_50pct() -> None:
+    """SPEC-M: önceki fiyattan +50%'den fazla atlama → reject + stat artar."""
+    feed = PriceFeed(max_spike_pct=0.50)
+    # İlk fiyat: cache'e oturur (önceki yok)
+    feed._update_price("tok", 0.50, 0.49)
+    snap1 = feed.get_price("tok")
+    assert snap1 is not None and snap1.yes_price == 0.50
+    # Spike: 0.50 → 0.97 (+94%) — reject
+    feed._update_price("tok", 0.97, 0.50)
+    snap2 = feed.get_price("tok")
+    assert snap2 is not None and snap2.yes_price == 0.50  # değişmedi
+    assert feed.stats["spikes_rejected"] == 1
+
+
+def test_update_price_accepts_normal_change_below_50pct() -> None:
+    """SPEC-M: normal değişimler kabul edilmeli (yanlış pozitif yok)."""
+    feed = PriceFeed(max_spike_pct=0.50)
+    feed._update_price("tok", 0.60, 0.59)
+    feed._update_price("tok", 0.75, 0.74)  # +25% — kabul
+    snap = feed.get_price("tok")
+    assert snap is not None and snap.yes_price == 0.75
+    assert feed.stats["spikes_rejected"] == 0
+
+
+def test_fetch_rest_snapshots_404_invalidates_existing_cache() -> None:
+    """SPEC-M: 404 dönerse cache'deki eski fiyat SİLİNMELİ."""
+    from unittest.mock import MagicMock, patch
+    feed = PriceFeed()
+    # Önce cache'e fiyat koy
+    feed._update_price("tok_x", 0.61, 0.60)
+    assert feed.get_price("tok_x") is not None
+    # REST 404 simüle et
+    fake_response = MagicMock()
+    fake_response.status_code = 404
+    with patch("src.infrastructure.websocket.price_feed.requests.get",
+               return_value=fake_response):
+        feed._fetch_rest_snapshots(["tok_x"])
+    # Cache temizlenmeli
+    assert feed.get_price("tok_x") is None
+
+
+def test_best_ask_works_regardless_of_sort_order() -> None:
+    """SPEC-M: min() defensive — sort DESC veya ASC olsa da en düşük ask döner."""
+    desc = [{"price": "0.97"}, {"price": "0.85"}, {"price": "0.60"}]
+    asc = [{"price": "0.60"}, {"price": "0.85"}, {"price": "0.97"}]
+    assert _best_ask_from_snapshot(desc) == 0.60
+    assert _best_ask_from_snapshot(asc) == 0.60
+
+
+def test_best_bid_works_regardless_of_sort_order() -> None:
+    """SPEC-M: max() defensive — sort DESC veya ASC olsa da en yüksek bid döner."""
+    desc = [{"price": "0.60"}, {"price": "0.45"}, {"price": "0.20"}]
+    asc = [{"price": "0.20"}, {"price": "0.45"}, {"price": "0.60"}]
+    assert _best_bid_from_snapshot(desc) == 0.60
+    assert _best_bid_from_snapshot(asc) == 0.60

@@ -43,6 +43,7 @@ class ExitProcessor:
             result: MonitorResult = exit_monitor.evaluate(
                 pos,
                 score_info=score_info,
+                near_resolve_max_spread=self.deps.state.config.price_feed.max_spread_for_near_resolve,
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
             )
             self._apply_fav_transition(pos, result.fav_transition)

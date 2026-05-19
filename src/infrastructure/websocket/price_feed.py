@@ -57,30 +57,50 @@ PriceCallback = Callable[[str, float, float, float], None]
 
 
 def _best_ask_from_snapshot(asks: list) -> float:
-    """Polymarket asks DESC-sorted; best ask = last (lowest)."""
+    """Best ask = LOWEST price (sort-agnostic).
+
+    SPEC-M (2026-05-19): Eski kod `asks[-1]` ile DESC sort varsayıyordu —
+    ASC dönerse HIGHEST ask döndürüyordu (sahte en kötü fiyat). min() defensive.
+    """
     if not asks:
         return 0.0
-    try:
-        return float(asks[-1].get("price", 0)) or 0.0
-    except (TypeError, ValueError, KeyError):
-        return 0.0
+    prices = []
+    for a in asks:
+        try:
+            p = float(a.get("price", 0))
+            if p > 0:
+                prices.append(p)
+        except (TypeError, ValueError, KeyError):
+            continue
+    return min(prices) if prices else 0.0
 
 
 def _best_bid_from_snapshot(bids: list) -> float:
-    """Polymarket bids ASC-sorted; best bid = last (highest)."""
+    """Best bid = HIGHEST price (sort-agnostic). SPEC-M defensive."""
     if not bids:
         return 0.0
-    try:
-        return float(bids[-1].get("price", 0)) or 0.0
-    except (TypeError, ValueError, KeyError):
-        return 0.0
+    prices = []
+    for b in bids:
+        try:
+            p = float(b.get("price", 0))
+            if p > 0:
+                prices.append(p)
+        except (TypeError, ValueError, KeyError):
+            continue
+    return max(prices) if prices else 0.0
 
 
 class PriceFeed:
     """CLOB WS price feed. Background thread + async loop. Reconnect dahil."""
 
-    def __init__(self, on_price_update: PriceCallback | None = None) -> None:
+    def __init__(
+        self,
+        on_price_update: PriceCallback | None = None,
+        max_spike_pct: float = 0.50,
+    ) -> None:
         self._callback = on_price_update
+        # SPEC-M: tek tick'te bu yüzdeden fazla fiyat atlama → reject (KBO bug 2026-05-19)
+        self._max_spike_pct = max_spike_pct
         self._subscriptions: set[str] = set()
         self._sub_lock = threading.Lock()
         self._prices: dict[str, PriceSnapshot] = {}
@@ -91,7 +111,7 @@ class PriceFeed:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._last_message_ts = 0.0
-        self.stats = {"messages_received": 0, "reconnects": 0, "errors": 0}
+        self.stats = {"messages_received": 0, "reconnects": 0, "errors": 0, "spikes_rejected": 0}
 
     # ── Public API ──
 
@@ -219,6 +239,15 @@ class PriceFeed:
                     params={"token_id": tid},
                     timeout=REST_BOOK_TIMEOUT_SEC,
                 )
+                if resp.status_code == 404:
+                    # SPEC-M (2026-05-19): Market resolved/delisted → cache invalidate.
+                    # Eski davranış: cache'e dokunmuyordu → eski fiyat kalıp sonraki
+                    # WS spike'ında bot karar veriyordu (KBO bug). Şimdi sil → bot
+                    # fiyat bulamayınca exit kararı vermez (zaten get_price()=None handle var).
+                    with self._price_lock:
+                        self._prices.pop(tid, None)
+                    logger.warning("REST /book %s: 404 — cache invalidated", tid[:16])
+                    continue
                 if resp.status_code != 200:
                     logger.warning("REST /book %s returned %d", tid[:16], resp.status_code)
                     continue
@@ -282,6 +311,22 @@ class PriceFeed:
     def _update_price(self, token_id: str, yes_price: float, bid_price: float) -> None:
         if not token_id or yes_price <= 0:
             return
+        # SPEC-M (2026-05-19): spike rejection.
+        # Önceki fiyattan |Δ| > max_spike_pct atlama → suspicious, reject + log.
+        # KBO bug: bot uyku → cache stale → WS sahte spike $0.97 (entry $0.61)
+        # tetikledi. Bu guard $0.61 → $0.97 (+59%) gibi atlamayı engeller.
+        with self._price_lock:
+            prev = self._prices.get(token_id)
+        if prev is not None and prev.yes_price > 0:
+            pct_change = abs(yes_price - prev.yes_price) / prev.yes_price
+            if pct_change > self._max_spike_pct:
+                self.stats["spikes_rejected"] += 1
+                logger.warning(
+                    "price_feed: spike reject %s: %.3f -> %.3f (%.0f%% change > %.0f%% limit)",
+                    token_id[:16], prev.yes_price, yes_price,
+                    pct_change * 100, self._max_spike_pct * 100,
+                )
+                return
         snap = PriceSnapshot(
             token_id=token_id, yes_price=yes_price,
             bid_price=bid_price, timestamp=time.time(),
