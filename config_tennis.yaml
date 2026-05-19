@@ -26,6 +26,8 @@ scanner:
     - tennis_set_totals
 
 edge:
+  # Sandbox edge threshold deliberately relaxed (vs main bot 0.06) for exploratory data —
+  # tennis alt markets are inefficient (no bookmaker), expected raw edge smaller but more frequent.
   min_edge: 0.05
   confidence_multipliers: {A: 1.00, B: 1.00}
 
@@ -34,6 +36,8 @@ risk:
   max_bet_pct: 0.05
   confidence_bet_pct: {A: 0.05, B: 0.04}
   max_positions: 20
+  # At most 2 of the 3 tennis alt markets (first_set_winner / set_handicap / set_totals) per match.
+  # Tennis entry strategy picks the 2 highest |edge| candidates per event (see Task 13 / DECISIONS §6.18).
   max_positions_per_event: 2
   max_exposure_pct: 0.60
   hard_cap_overflow_pct: 0.02
@@ -42,6 +46,8 @@ risk:
   stop_loss_pct: 0.30
 
 circuit_breaker:
+  # Paper trading context — no real capital at risk, CB disabled intentionally.
+  # Re-enable to true if this config is ever adapted for live mode.
   enabled: false
   daily_max_loss_pct: -0.10
   hourly_max_loss_pct: -0.07
