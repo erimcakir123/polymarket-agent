@@ -1,0 +1,90 @@
+# Tennis Lab Sandbox Config — overrides config.yaml for tennis-only paper trading
+# Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md
+
+mode: paper
+initial_bankroll: 500
+
+cycle:
+  heavy_interval_min: 30
+  light_interval_sec: 5
+  night_interval_min: 60
+
+scanner:
+  min_liquidity: 1000
+  max_markets_per_cycle: 100
+  max_duration_days: 7
+  max_hours_to_start: 24.0
+  max_post_start_hours: 1.0
+  resolved_price_threshold: 0.98
+  allowed_categories: [sports]
+  allowed_sport_tags:
+    - tennis
+    - atp
+  allowed_sports_market_types:
+    - tennis_first_set_winner
+    - tennis_set_handicap
+    - tennis_set_totals
+
+edge:
+  min_edge: 0.05
+  confidence_multipliers: {A: 1.00, B: 1.00}
+
+risk:
+  max_single_bet_usdc: 50
+  max_bet_pct: 0.05
+  confidence_bet_pct: {A: 0.05, B: 0.04}
+  max_positions: 20
+  max_positions_per_event: 2
+  max_exposure_pct: 0.60
+  hard_cap_overflow_pct: 0.02
+  min_entry_size_pct: 0.02
+  max_entry_price: 0.88
+  stop_loss_pct: 0.30
+
+circuit_breaker:
+  enabled: false
+  daily_max_loss_pct: -0.10
+  hourly_max_loss_pct: -0.07
+  consecutive_loss_limit: 5
+
+dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 5051
+
+telegram:
+  enabled: false
+  bot_token: ""
+  chat_id: ""
+
+agent:
+  cycle_max_consecutive_errors: 2
+
+score:
+  enabled: false
+
+price_feed:
+  max_spike_pct: 0.50
+  max_spread_for_near_resolve: 0.10
+
+tennis:
+  data_dir: "data/sackmann_cache"
+  tml_dir: "data/tml_cache"
+  ratings_cache: "data/tennis_ratings.json"
+  diagnostic_log_dir: "logs/tennis_diagnostics"
+  sackmann_years: [2022, 2023, 2024, 2025, 2026]
+  glicko_initial_rating: 1500
+  glicko_initial_rd: 350
+  glicko_initial_volatility: 0.06
+  glicko_tau: 0.5
+  confidence_tier_a:
+    min_matches_12mo: 40
+    min_surface_matches: 15
+    min_h2h_years: 5
+    max_form_age_days: 60
+    max_glicko_rd: 100
+  confidence_tier_b:
+    min_matches_12mo: 20
+    min_surface_matches: 8
+    max_form_age_days: 90
+    max_glicko_rd: 150
