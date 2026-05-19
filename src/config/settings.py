@@ -201,6 +201,44 @@ class PriceFeedConfig(BaseModel):
     max_spread_for_near_resolve: float = 0.10
 
 
+class TennisConfidenceTier(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    min_matches_12mo: int = 40
+    min_surface_matches: int = 15
+    min_h2h_years: int = 5
+    max_form_age_days: int = 60
+    max_glicko_rd: float = 100.0
+
+
+class TennisConfig(BaseModel):
+    """Tennis prediction lab config (sandbox-only).
+
+    Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md
+    """
+    model_config = ConfigDict(extra="ignore")
+    data_dir: str = "data/sackmann_cache"
+    tml_dir: str = "data/tml_cache"
+    ratings_cache: str = "data/tennis_ratings.json"
+    diagnostic_log_dir: str = "logs/tennis_diagnostics"
+    sackmann_years: list[int] = [2022, 2023, 2024, 2025, 2026]
+    glicko_initial_rating: float = 1500.0
+    glicko_initial_rd: float = 350.0
+    glicko_initial_volatility: float = 0.06
+    glicko_tau: float = 0.5
+    confidence_tier_a: TennisConfidenceTier = Field(
+        default_factory=lambda: TennisConfidenceTier(
+            min_matches_12mo=40, min_surface_matches=15, min_h2h_years=5,
+            max_form_age_days=60, max_glicko_rd=100.0,
+        ),
+    )
+    confidence_tier_b: TennisConfidenceTier = Field(
+        default_factory=lambda: TennisConfidenceTier(
+            min_matches_12mo=20, min_surface_matches=8, min_h2h_years=5,
+            max_form_age_days=90, max_glicko_rd=150.0,
+        ),
+    )
+
+
 # ── Basketbol exit config (SPEC-J — DECISIONS §6/§7 kalibrasyonları) ────────────────
 
 
@@ -259,6 +297,7 @@ class AppConfig(BaseModel):
     agent: AgentConfig = AgentConfig()
     score: ScoreConfig = ScoreConfig()
     price_feed: PriceFeedConfig = PriceFeedConfig()
+    tennis: TennisConfig = Field(default_factory=TennisConfig)
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
 
 
