@@ -36,3 +36,15 @@ def test_app_config_includes_tennis():
     cfg = AppConfig()
     assert cfg.tennis is not None
     assert isinstance(cfg.tennis, TennisConfig)
+
+
+def test_confidence_tier_b_has_no_h2h_requirement():
+    """Spec §6: Tier B does NOT enforce H2H requirement."""
+    cfg = TennisConfig()
+    assert cfg.confidence_tier_b.min_h2h_years is None
+
+
+def test_confidence_tier_a_enforces_h2h():
+    """Spec §6: Tier A requires H2H (default 5 years)."""
+    cfg = TennisConfig()
+    assert cfg.confidence_tier_a.min_h2h_years == 5

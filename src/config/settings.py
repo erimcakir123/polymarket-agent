@@ -205,7 +205,7 @@ class TennisConfidenceTier(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_matches_12mo: int = 40
     min_surface_matches: int = 15
-    min_h2h_years: int = 5
+    min_h2h_years: int | None = None  # Optional — only Tier A enforces H2H (DECISIONS §6)
     max_form_age_days: int = 60
     max_glicko_rd: float = 100.0
 
@@ -233,7 +233,7 @@ class TennisConfig(BaseModel):
     )
     confidence_tier_b: TennisConfidenceTier = Field(
         default_factory=lambda: TennisConfidenceTier(
-            min_matches_12mo=20, min_surface_matches=8, min_h2h_years=5,
+            min_matches_12mo=20, min_surface_matches=8,
             max_form_age_days=90, max_glicko_rd=150.0,
         ),
     )
