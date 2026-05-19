@@ -24,7 +24,7 @@ Kullanıcı self-check görmezse "self-check nerede?" diyebilir — o zaman dur,
 
 Polymarket tahmin piyasalarında otonom trading botu.
 Spor maçlarında bookmaker konsensüsü üzerinden edge tespiti + çok katmanlı risk yönetimi.
-**Veri kaynağı**: Odds API bookmaker probability (bkz. DECISIONS §6.1). MVP spor kapsamı DECISIONS §7.1'de tanımlı; ertelenmiş branşlar için TODO.md'ye bakın. Bu dosyalarda ve PRD/ARCHITECTURE_GUARD'da tanımlı olmayan teknolojiyi kullanma.
+**Veri kaynağı**: Odds API bookmaker probability (bkz. DECISIONS §6.1). MVP spor kapsamı DECISIONS §7.1'de tanımlı; ertelenmiş branşlar için TODO.md'ye bakın. Bu dosyalarda ve DECISIONS/ARCHITECTURE_GUARD'da tanımlı olmayan teknolojiyi kullanma.
 
 **Proje Sahibi**: Teknik olmayan ortak. Mimari kararları anlayabilir ama kodu satır satır takip edemez.
 Açıklamalar net, jargonsuz olmalı. Kritik kararlar onay beklemeli.
@@ -39,8 +39,7 @@ Her bilgi türü TEK yerde yaşar. Tekrar yasak.
 |---|---|
 | Fonksiyon imzası, import, dosya yolu, class yapısı | **Kod** (`src/`) |
 | Yapısal invariantlar (5-katman, I/O yasağı, max satır) | **ARCHITECTURE_GUARD.md** |
-| Ürün vizyonu + demir kurallar (bankroll, event-guard) | **PRD.md** |
-| Formül, eşik, kalibrasyon + "neden" + tarihsel SPEC kararları | **DECISIONS.md** (§A CURRENT STATE: §0/§5.7/§6/§7/§13 + §B kronolojik SPEC log) |
+| Ürün vizyonu, demir kurallar, formül, kalibrasyon, sport rules, "neden" + tarihsel SPEC kararları | **DECISIONS.md** (§A CURRENT STATE: Vizyon/Demir Kurallar/Operasyonel/Fonksiyonel/Algoritmalar/Sport Rules/Sözlük + §B kronolojik SPEC log) |
 | Config değerleri | **config.yaml** |
 | Testler | **tests/** |
 | Ertelenmiş işler | **TODO.md** |
@@ -55,7 +54,7 @@ Aynı bilgi iki yerde görünüyorsa: DRIFT riski. Birini sil, doğru kaynaktan 
 
 ### Her kod görevinden ÖNCE (zorunlu)
 1. **ARCHITECTURE_GUARD.md** — İhlal edilemez mimari kurallar
-2. **PRD.md** — Ürün gereksinimleri ve demir kurallar
+2. **DECISIONS.md §A Demir Kurallar** — Ürün gereksinimleri ve demir kurallar
 
 ### Göreve göre (DECISIONS.md)
 DECISIONS.md'nin başındaki **İçindekiler** tablosuna bak.
@@ -163,7 +162,7 @@ Tipik lokasyonlar:
 - `src/` (default değerler, kullanım)
 - `tests/` (eşik assertion'ları)
 - `DECISIONS.md` (formül/neden notu)
-- `PRD.md` (demir kural değişikliğiyse)
+- `DECISIONS.md` §A (demir kural değişikliğiyse)
 
 `docs/superpowers/plans/*` tarihsel kayıttır — dokunma.
 
