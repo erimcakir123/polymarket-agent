@@ -1,4 +1,4 @@
-"""Graduated stop-loss — elapsed-aware (TDD §6.8).
+"""Graduated stop-loss — elapsed-aware (DECISIONS §6.8).
 
 max_loss = base_tier × price_mult × score_adj (momentum_tighten ek ayar).
 Pure; score_info dict dışarıdan verilir.

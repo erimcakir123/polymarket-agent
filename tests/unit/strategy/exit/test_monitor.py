@@ -156,7 +156,7 @@ def test_never_in_profit_triggers_late() -> None:
     # 0.27/0.40=0.675 < 0.75 → never-in-profit koşul sağlanır. Ama score_ahead=True → skip
     # Skorsuz: score_info={} → ahead değil; grad -32.5%<-20% → graduated wins, önce tetiklenir
     # Sonuç: never_in_profit geniş graduated SL band'ında ya da skor bilgisi olan durumlarda tetiklenir.
-    # Skorsuz & basit testte graduated önce yakalar. Bu davranış zaten TDD §6.10'da doğru.
+    # Skorsuz & basit testte graduated önce yakalar. Bu davranış zaten DECISIONS §6.10'da doğru.
     # Testi farklı kur: entry 0.40 current 0.28 + elapsed 0.75 + ever_in_profit=False
     # graduated: base 0.20 × price_mult 1.0 × no score = 0.20; pnl -30% < -20% → grad exit
     # Hangisi önce? monitor priority: grad önce gelir — never_in_profit sonra

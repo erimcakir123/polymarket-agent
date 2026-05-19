@@ -1,6 +1,6 @@
 """Bill James %99 safe-lead + EV-bazlı predictive exit math (basketbol).
 
-Kaynaklar (TDD §6 / §7):
+Kaynaklar (DECISIONS §6 / §7):
 - Bill James: deficit ≥ 0.861 × √seconds → matematiksel olarak kapatılamaz
   (NBA için kalibre, %99 güven aralığı).
 - Totals variance ≈ √2 × spread variance → multiplier 1.218 (= 0.861 × √2).

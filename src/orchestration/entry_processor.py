@@ -1,4 +1,4 @@
-"""Entry processor — heavy cycle entry flow (TDD §4).
+"""Entry processor — heavy cycle entry flow (DECISIONS §4).
 
 Scanner → gate → cap-clip → execute → persist.
 Agent bu class'ı composition ile kullanır.

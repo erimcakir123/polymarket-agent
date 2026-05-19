@@ -1,5 +1,5 @@
 /* Trade History Modal — full-screen overlay + weekly trade viewer.
- * Renk referansları var(--*) ile — hex literal yasak (TDD §5.7.4).
+ * Renk referansları var(--*) ile — hex literal yasak (DECISIONS §5.7.4).
  */
 
 /* ── Overlay ── */

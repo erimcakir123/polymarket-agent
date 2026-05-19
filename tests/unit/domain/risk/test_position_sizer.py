@@ -1,4 +1,4 @@
-"""position_sizer.py için birim testler (TDD §6.5)."""
+"""position_sizer.py için birim testler (DECISIONS §6.5)."""
 from __future__ import annotations
 
 from src.domain.risk.position_sizer import (

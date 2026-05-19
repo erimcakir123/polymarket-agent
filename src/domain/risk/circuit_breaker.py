@@ -1,4 +1,4 @@
-"""Portfolio circuit breaker — pure state machine (TDD §6.15).
+"""Portfolio circuit breaker — pure state machine (DECISIONS §6.15).
 
 Kurallar:
   - Günlük kayıp ≥ %8 → 120 dk cooldown
@@ -22,7 +22,7 @@ def _default_now() -> datetime:
 
 @dataclass
 class CircuitBreakerConfig:
-    """Eşikler (config.yaml'dan gelir, defaults TDD §6.15)."""
+    """Eşikler (config.yaml'dan gelir, defaults DECISIONS §6.15)."""
     enabled: bool = True  # Faz 2 gözlem için False'a alınabilir; multi-SL zaten maç-içi koruma
     daily_max_loss_pct: float = -0.08
     hourly_max_loss_pct: float = -0.05

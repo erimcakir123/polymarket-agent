@@ -1,4 +1,4 @@
-# config.yaml — Polymarket Agent 2.0 v2 defaults (TDD §9)
+# config.yaml — Polymarket Agent 2.0 v2 defaults (DECISIONS §9)
 mode: dry_run  # dry_run | paper | live
 initial_bankroll: 1000.0
 

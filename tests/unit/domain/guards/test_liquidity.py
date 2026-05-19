@@ -1,4 +1,4 @@
-"""liquidity.py için birim testler (TDD §6.17)."""
+"""liquidity.py için birim testler (DECISIONS §6.17)."""
 from __future__ import annotations
 
 from src.domain.guards.liquidity import check_entry, check_exit

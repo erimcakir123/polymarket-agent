@@ -1,4 +1,4 @@
-"""probability.py için birim testler (TDD §6.1)."""
+"""probability.py için birim testler (DECISIONS §6.1)."""
 from __future__ import annotations
 
 from src.domain.analysis.probability import BookmakerProbability, calculate_bookmaker_probability

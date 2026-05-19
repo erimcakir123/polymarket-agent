@@ -1,4 +1,4 @@
-"""Polymarket CLOB order placement istemcisi (live mode — TDD §8).
+"""Polymarket CLOB order placement istemcisi (live mode — DECISIONS §8).
 
 py-clob-client sarmalayıcı. Hybrid strategy: likit book → FOK market,
 illikit → GTC limit (LIMIT_OFFSET_CENTS üstünde).

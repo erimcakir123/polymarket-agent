@@ -154,7 +154,7 @@
     },
 
     setEquity(trades, initialBankroll) {
-      // TDD §5.7.7: initial + cumulative realized PnL; period + resolution per spec §3.
+      // DECISIONS §5.7.7: initial + cumulative realized PnL; period + resolution per spec §3.
       const period = CHART_STATE.equityPeriod;
       const resolution = global.FILTER.RESOLUTION_BY_PERIOD[period] || "event";
       const windowTrades = global.FILTER.filterByPeriod(trades, period);

@@ -1,4 +1,4 @@
-"""edge.py için birim testler (TDD §6.3)."""
+"""edge.py için birim testler (DECISIONS §6.3)."""
 from __future__ import annotations
 
 from src.domain.analysis.edge import DEFAULT_CONFIDENCE_MULTIPLIERS, calculate_edge

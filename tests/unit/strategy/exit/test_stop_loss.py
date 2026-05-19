@@ -1,4 +1,4 @@
-"""stop_loss.py için birim testler (TDD §6.7)."""
+"""stop_loss.py için birim testler (DECISIONS §6.7)."""
 from __future__ import annotations
 
 from src.models.position import Position

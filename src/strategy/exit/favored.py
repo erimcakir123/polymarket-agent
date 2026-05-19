@@ -1,4 +1,4 @@
-"""FAV (favored) promote/demote (TDD §6.13) — pure state transition.
+"""FAV (favored) promote/demote (DECISIONS §6.13) — pure state transition.
 
 Holding sırasında dinamik durum değişikliği. Pre-Faz 2'de favored pozisyonlar
 A-conf hold mantığına tabi tutuluyordu; Faz 2 rollback ile bu kaldırıldı

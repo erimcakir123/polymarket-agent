@@ -1,4 +1,4 @@
-"""Operasyonel disk yazıcıları — snapshot/log fonksiyonları (TDD §4 thin orchestration).
+"""Operasyonel disk yazıcıları — snapshot/log fonksiyonları (DECISIONS §4 thin orchestration).
 
 Agent.py'nin 400 satır limiti altında kalması için ayrıştırıldı. Tek sorumluluk:
 gate skip / eligible queue / equity snapshot disk yazımları.

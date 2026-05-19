@@ -1,4 +1,4 @@
-"""favored.py için birim testler (TDD §6.13)."""
+"""favored.py için birim testler (DECISIONS §6.13)."""
 from __future__ import annotations
 
 from src.models.position import Position

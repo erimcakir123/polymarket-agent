@@ -1,4 +1,4 @@
-"""Polymarket CLOB Market Channel WebSocket istemcisi (TDD §8).
+"""Polymarket CLOB Market Channel WebSocket istemcisi (DECISIONS §8).
 
 Anlık fiyat beslemesi — pozisyonlar için stop-loss / scale-out / near-resolve
 reaksiyon. Background thread'de asyncio event loop çalışır; callback main thread'e

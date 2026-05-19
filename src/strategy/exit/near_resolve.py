@@ -1,4 +1,4 @@
-"""Near-resolve profit exit (TDD §6.11) — eff ≥ 94¢ → çık (pure).
+"""Near-resolve profit exit (DECISIONS §6.11) — eff ≥ 94¢ → çık (pure).
 
 Polymarket'te near-resolve en büyük kâr kaynağı (v1 verisi: 27 trade = +$140.31, 93% WR).
 

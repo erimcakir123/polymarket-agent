@@ -1,4 +1,4 @@
-"""Consensus entry — bookmaker ve market aynı favoriye işaret ediyor (TDD §6.4).
+"""Consensus entry — bookmaker ve market aynı favoriye işaret ediyor (DECISIONS §6.4).
 
 Mantık:
   is_consensus = (book_prob >= 0.50) == (market.yes_price >= 0.50)

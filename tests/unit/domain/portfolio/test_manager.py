@@ -114,7 +114,7 @@ def test_apply_partial_exit_credits_basis_and_realized() -> None:
 
 
 def test_apply_partial_exit_preserves_identity() -> None:
-    """Identity: bankroll + invested == initial + realized_pnl (TDD §5.7.7)."""
+    """Identity: bankroll + invested == initial + realized_pnl (DECISIONS §5.7.7)."""
     m = PortfolioManager(initial_bankroll=1000.0)
     m.add_position(_pos(size=40))
     # Caller (orchestration) önce basis'i kapar, sonra pos.size_usdc'yi küçültür.

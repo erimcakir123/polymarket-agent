@@ -1,4 +1,4 @@
-"""Bot başlangıç akışı — state restore (TDD §11 Faz 5).
+"""Bot başlangıç akışı — state restore (DECISIONS §11 Faz 5).
 
 Akış:
   1. Process lock al

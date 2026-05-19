@@ -1,4 +1,4 @@
-"""Bankroll formülü — pure (TDD §6.5).
+"""Bankroll formülü — pure (DECISIONS §6.5).
 
 Tek formül, tek yer. PortfolioManager.recalculate_bankroll ve
 presentation/cli bu fonksiyonu kullanır (DRY).

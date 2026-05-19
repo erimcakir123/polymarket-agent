@@ -1,4 +1,4 @@
-"""Stock queue — persistent eligible pool + JIT enrichment order (TDD §11 Stock).
+"""Stock queue — persistent eligible pool + JIT enrichment order (DECISIONS §11 Stock).
 
 Scanner+gate'te sinyal ürettiği ya da no_edge yediği halde exposure_cap,
 max_positions veya no_bookmaker_data nedeniyle reddedilen marketler burada

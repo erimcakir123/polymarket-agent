@@ -1,4 +1,4 @@
-"""Ana agent döngüsü — katmanları bağlayan orchestrator (TDD §4).
+"""Ana agent döngüsü — katmanları bağlayan orchestrator (DECISIONS §4).
 
 Heavy cycle: EntryProcessor'a delegate edilir.
 Light cycle: ExitProcessor'a delegate edilir.

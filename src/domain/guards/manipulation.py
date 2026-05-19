@@ -1,6 +1,6 @@
 """Manipulation tespiti — self-resolving + düşük likidite.
 
-TDD §6.16. Pure: dışarıdan question/description/liquidity alır.
+DECISIONS §6.16. Pure: dışarıdan question/description/liquidity alır.
 """
 from __future__ import annotations
 

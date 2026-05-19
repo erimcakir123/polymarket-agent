@@ -1,4 +1,4 @@
-"""Position modeli (TDD §5.2). ARCH Kural 7: anchor_probability HER ZAMAN P(YES)."""
+"""Position modeli (DECISIONS §5.2). ARCH Kural 7: anchor_probability HER ZAMAN P(YES)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

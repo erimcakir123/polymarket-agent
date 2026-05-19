@@ -1,4 +1,4 @@
-"""Edge hesabı (TDD §6.3) — anchor P(YES) vs market price.
+"""Edge hesabı (DECISIONS §6.3) — anchor P(YES) vs market price.
 
 v2 confidence multipliers: A=1.25 (daha ihtiyatlı), B=1.00 (baz). C girmez.
 """

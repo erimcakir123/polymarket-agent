@@ -1,4 +1,4 @@
-"""3-tier scale-out (TDD §6.6) — pure.
+"""3-tier scale-out (DECISIONS §6.6) — pure.
 
 Tier 1 (Risk-Free):   PnL ≥ +25% → %40 sat
 Tier 2 (Profit-Lock): PnL ≥ +50% → kalan %50 sat

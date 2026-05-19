@@ -3,7 +3,7 @@
 > Ürün gereksinimleri ve demir kurallar.
 > Version: 2.0 | Tarih: 2026-04-13 | Durum: APPROVED
 >
-> **SSOT ilkesi**: Bu dosya "ne" ve "neden" sorularına cevap verir. Teknik "nasıl" için TDD.md'ye referans verilir.
+> **SSOT ilkesi**: Bu dosya "ne" ve "neden" sorularına cevap verir. Teknik "nasıl" için DECISIONS.md'ye referans verilir.
 
 ---
 
@@ -23,7 +23,7 @@ Bu kuralların hiçbiri ihlal edilemez. Her biri ya mimari bütünlüğü ya da 
 Olasılık her zaman P(YES) olarak saklanır. BUY_YES de BUY_NO da olsa, `anchor_probability = P(YES)` değişmez. Yön ayarlaması karar mantığında yapılır, saklama yapılmaz. (bkz. ARCHITECTURE_GUARD Kural 7)
 
 ### 2.2 Event-Level Guard
-Aynı `event_id`'ye sahip iki pozisyon ASLA açılamaz. "Man City vs Brighton" maçında BUY_YES "City wins" varsa, BUY_NO "Brighton wins" açılamaz — aynı event. Bu kural `entry/gate.py` seviyesinde kontrol edilir. (bkz. ARCHITECTURE_GUARD Kural 8, TDD §6.4)
+Aynı `event_id`'ye sahip iki pozisyon ASLA açılamaz. "Man City vs Brighton" maçında BUY_YES "City wins" varsa, BUY_NO "Brighton wins" açılamaz — aynı event. Bu kural `entry/gate.py` seviyesinde kontrol edilir. (bkz. ARCHITECTURE_GUARD Kural 8, DECISIONS §6.4)
 
 ### 2.3 Confidence-Based Sizing
 Pozisyon boyutu confidence seviyesine göre belirlenir:
@@ -31,10 +31,10 @@ Pozisyon boyutu confidence seviyesine göre belirlenir:
 - **B**: bankroll × %4
 - **C**: giriş yapılmaz (blok)
 
-Ek çarpanlar `max_single_bet_usdc` ve `max_bet_pct` cap'lerine tabidir. (bkz. TDD §6.5)
+Ek çarpanlar `max_single_bet_usdc` ve `max_bet_pct` cap'lerine tabidir. (bkz. DECISIONS §6.5)
 
 ### 2.4 Bookmaker-Derived Probability
-P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair gibi sharp book'lar `bookmaker_weights` ile ağırlıklandırılır. (bkz. TDD §6.1)
+P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair gibi sharp book'lar `bookmaker_weights` ile ağırlıklandırılır. (bkz. DECISIONS §6.1)
 
 ### 2.5 3-Katmanlı Cycle
 Bot üç cycle seviyesinde çalışır:
@@ -51,7 +51,7 @@ Aşağıdaki eşiklerden birinde bot yeni giriş yapmaz:
 - 4 ardışık kayıp → 60 dk cooldown
 - Soft blok: günlük kayıp ≥ %3 → yeni giriş askıda
 
-Circuit breaker her entry öncesi kontrol edilir ve devre dışı bırakılamaz. (bkz. TDD §6.15)
+Circuit breaker her entry öncesi kontrol edilir ve devre dışı bırakılamaz. (bkz. DECISIONS §6.15)
 
 ### 2.7 Scale-Out Profit-Taking
 Kâr alma tek mekanizma ile: 3-tier scale-out.
@@ -59,7 +59,7 @@ Kâr alma tek mekanizma ile: 3-tier scale-out.
 - **Tier 2**: PnL ≥ %50 → kalan pozisyonun %50'sini sat
 - **Tier 3**: Resolution'a kadar hold
 
-(bkz. TDD §6.6)
+(bkz. DECISIONS §6.6)
 
 ---
 
@@ -90,20 +90,20 @@ Her 5 saniyede bir:
 
 **Exposure cap enforcement:** hem gate-time (entry öncesi) hem execution-time
 (order öncesi) kontrol edilir, payda **toplam portföy değeri** (nakit + açık
-pozisyonlar) — nakit değil. Detay: TDD §6.15.
+pozisyonlar) — nakit değil. Detay: DECISIONS §6.15.
 
 **Scanner filter scope (h2h only):** sadece moneyline markets, `match_start`
 ≤ 24h (Odds API penceresi), `yes_price < 0.98` (fiyat-based resolved detection,
 Polymarket flag lag atlatması). PGA Top-N props + futures (>24h) + bitmiş
-marketler scanner seviyesinde elenir. Detay: TDD §5.7.5.
+marketler scanner seviyesinde elenir. Detay: DECISIONS §5.7.5.
 
 ### 3.4 Exit Akışı (Heavy Cycle)
 Heavy cycle sırasında açık pozisyonlar için:
-1. **Graduated SL**: elapsed-aware dinamik SL (TDD §6.8).
-2. **Near-Resolve**: eff_price ≥ 94¢ + 5 dk pre-match guard → çık (TDD §6.11).
-3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → **flat SL ve graduated SL atlanır**; sadece scale-out, near-resolve ve market_flip (elapsed ≥ %85'te `current_price < 0.50`) aktif (TDD §6.9).
-4. **Favored**: eff_price ≥ 65¢ + confidence ∈ {A, B} → promoted; altı demoted (TDD §6.13).
-5. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → daha agresif SL (TDD §6.10).
+1. **Graduated SL**: elapsed-aware dinamik SL (DECISIONS §6.8).
+2. **Near-Resolve**: eff_price ≥ 94¢ + 5 dk pre-match guard → çık (DECISIONS §6.11).
+3. **A-Conf Hold**: confidence=A + entry ≥ 60¢ → **flat SL ve graduated SL atlanır**; sadece scale-out, near-resolve ve market_flip (elapsed ≥ %85'te `current_price < 0.50`) aktif (DECISIONS §6.9).
+4. **Favored**: eff_price ≥ 65¢ + confidence ∈ {A, B} → promoted; altı demoted (DECISIONS §6.13).
+5. **Never-in-Profit Guard**: peak_pnl hiç pozitif olmamış + elapsed > %70 → daha agresif SL (DECISIONS §6.10).
 
 ### 3.5 Circuit Breaker Tetiklendiğinde
 1. `circuit_breaker.py` bankroll durumunu her entry öncesi kontrol eder.
@@ -121,13 +121,13 @@ Heavy cycle sırasında açık pozisyonlar için:
 Bot Polymarket Gamma API'dan canlı market'leri keşfeder. `allowed_sport_tags` filtresi uygular. Max `max_markets_per_cycle=300` limitiyle sınırlı. (bkz. `config.yaml` scanner bölümü, `src/orchestration/scanner.py`)
 
 ### F2. Enrich
-Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. TDD §6.1)
+Her adaya Odds API'dan bookmaker verisi çekilir. `domain/matching/` modülleri Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. DECISIONS §6.1)
 
 ### F3. Entry Decision
-`strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. TDD §6.4)
+`strategy/entry/gate.py` giriş kararını orchestrate eder. 3 entry stratejisi: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal (bookmaker P(YES) vs market). Her strateji edge + confidence + guards'tan geçer. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. DECISIONS §6.4)
 
 ### F4. Position Sizing
-Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri uygulanır. (bkz. TDD §6.5)
+Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri uygulanır. (bkz. DECISIONS §6.5)
 
 ### F5. Execute
 `executor.py` 3 modda çalışır: `dry_run` (log-only), `paper` (mock fills), `live` (gerçek CLOB emri). Her emir trade log'a JSONL formatında yazılır. (bkz. `src/infrastructure/executor.py`)
@@ -136,7 +136,7 @@ Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap
 3 katmanlı izleme: WS tick (anlık), Light cycle (5 sn), Heavy cycle (30 dk). Pozisyon durumu JSON store'da tutulur, dashboard anlık okur.
 
 ### F7. Exit
-Çıkış kararı birden fazla mekanizmanın değerlendirmesiyle verilir: flat SL, graduated SL, scale-out, never-in-profit, market_flip, near-resolve, hold_revoked, ultra_low_guard, circuit_breaker, manual. İlk tetiklenen sinyal uygulanır. Tam liste ve öncelik sırası TDD §6.6–§6.14'te; ExitReason enum `src/models/` altında.
+Çıkış kararı birden fazla mekanizmanın değerlendirmesiyle verilir: flat SL, graduated SL, scale-out, never-in-profit, market_flip, near-resolve, hold_revoked, ultra_low_guard, circuit_breaker, manual. İlk tetiklenen sinyal uygulanır. Tam liste ve öncelik sırası DECISIONS §6.6–§6.14'te; ExitReason enum `src/models/` altında.
 
 ### F8. Report
 3 sunum kanalı: Flask dashboard (localhost:5050), Telegram bildirim (entry/exit/CB), JSONL trade log (audit).
@@ -147,7 +147,7 @@ Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap
   - **Loss Protection** — RISK gauge + Down% + Stop at% (CB günlük eşik) + Status (Safe/Caution/Warning/Stopped)
   - **Positions** — slot gauge (current/max) + entry_reason tag'leri (NOR/CON/EAR)
   - **Branches** — sport/league ROI treemap: alan ∝ invested USDC, renk ∝ ROI (yeşil+/kırmızı−/sıfıra yakın mavi), hover tooltip
-- **Grafikler** (2): Total Equity zaman serisi (realized-only: `initial + Σ exit_pnl_usdc`, stepped; period tabs 24h/7d/30d/1y + adaptif bucketing), Per-Trade PnL waterfall (aynı period tabs). Detay: TDD §5.7.7
+- **Grafikler** (2): Total Equity zaman serisi (realized-only: `initial + Σ exit_pnl_usdc`, stepped; period tabs 24h/7d/30d/1y + adaptif bucketing), Per-Trade PnL waterfall (aynı period tabs). Detay: DECISIONS §5.7.7
 - **Trades feed** (sağ panel, 4 sekme): Active | Exited | Skipped | Stock — her kart tıklanabilir (Polymarket event sayfasını yeni sekmede açar), branş ikonlarıyla
 - **Cycle bar** (topbar): Hard cycle (mavi) + Light cycle (teal) durumu; bot offline/idle gri
 
@@ -182,7 +182,7 @@ Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 - Flask dashboard: pozisyonlar, PnL, circuit breaker durumu, < 3 sn gecikme, 5 sn polling
 - Bot durumu her tick `logs/bot_status.json`'a yazılır (mode, last_cycle, last_cycle_at, reason) → dashboard cycle bar
 - Trade history append + exit update (`TradeHistoryLogger.update_on_exit` atomic rewrite); dashboard Exited/Stats/Branches/Waterfall bu dosyadan beslenir
-- Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır (audit + Peak Balance hesabı); Total Equity chart ise `/api/trades` cumsum'dan beslenir (PLAN-008/009, bkz. TDD §5.7.7). Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
+- Equity history her heavy cycle sonunda `equity_history.jsonl`'e snapshot yazılır (audit + Peak Balance hesabı); Total Equity chart ise `/api/trades` cumsum'dan beslenir (PLAN-008/009, bkz. DECISIONS §5.7.7). Peak Balance tüm zamanların total_equity zirvesidir (cash-only HWM değil)
 - Skipped adaylar `skipped_trades.jsonl`'e (orchestration'dan) yazılır; dashboard Skipped sekmesinde gösterir
 - Stock queue her heavy cycle sonunda `stock_queue.json`'a dump edilir; dashboard Stock sekmesinde gösterir (persistent pool: restart sonrası restore edilir)
 - Telegram: entry/exit/CB olayları
@@ -236,17 +236,17 @@ Teknik detaylar: `src/presentation/dashboard/` kod tabanı.
 - Min likidite: $10K toplam book
 - Self-resolving market tespiti (kişi/kurum + self-resolving fiil paterni)
 
-(bkz. TDD §6.16)
+(bkz. DECISIONS §6.16)
 
 ### 7.2 Liquidity Check
 `domain/guards/liquidity.py` entry + exit seviyelerinde:
 - **Entry**: min $100 depth; pozisyon > %20 book payı ise boyut yarıya iner
 - **Exit**: min %80 fill ratio; altıysa emir bölünür
 
-(bkz. TDD §6.17)
+(bkz. DECISIONS §6.17)
 
 ### 7.3 Circuit Breaker
-Bölüm 2.6'daki eşiklerin aktif enforcement'ı. `domain/risk/circuit_breaker.py` her entry öncesi bankroll durumunu kontrol eder. (bkz. TDD §6.15)
+Bölüm 2.6'daki eşiklerin aktif enforcement'ı. `domain/risk/circuit_breaker.py` her entry öncesi bankroll durumunu kontrol eder. (bkz. DECISIONS §6.15)
 
 ### 7.4 Event-Level Guard
 `strategy/entry/gate.py` her entry kararında event_id kontrolü yapar. Açık pozisyon listesinde aynı event_id varsa entry reddedilir. (bkz. Demir Kural 2.2, ARCHITECTURE_GUARD Kural 8)
@@ -272,7 +272,7 @@ Bölüm 2.6'daki eşiklerin aktif enforcement'ı. `domain/risk/circuit_breaker.p
 
 ## 9. Referanslar
 
-- [TDD.md](TDD.md) — Teknik tasarım, algoritmalar, veri modelleri, cycle detayları
+- [DECISIONS.md](DECISIONS.md) — Teknik tasarım, algoritmalar, veri modelleri, cycle detayları
 - [ARCHITECTURE_GUARD.md](ARCHITECTURE_GUARD.md) — Mimari kurallar (12 demir kural + anti-pattern'ler)
 - [TODO.md](TODO.md) — Ertelenmiş işler ve branşlar
 - [CLAUDE.md](CLAUDE.md) — Geliştirme asistanı kuralları (TODO yönetimi, mimari koruma)

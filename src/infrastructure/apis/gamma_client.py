@@ -1,4 +1,4 @@
-"""Polymarket Gamma API client — event/market discovery (TDD §8)."""
+"""Polymarket Gamma API client — event/market discovery (DECISIONS §8)."""
 from __future__ import annotations
 
 import json
@@ -24,7 +24,7 @@ GAMMA_BASE = "https://gamma-api.polymarket.com"
 # spesifik lig adıdır. Generic "baseball"/"tennis"/"mma" whitelist'te olan
 # sporlarda generic kullanılabilir.
 #
-# Kapsam TDD §7.1 MVP sporlarıyla uyumlu (NFL dahil — tag="nfl" whitelist'te
+# Kapsam DECISIONS §7.1 MVP sporlarıyla uyumlu (NFL dahil — tag="nfl" whitelist'te
 # olmadığı için scanner zaten ele alıyor, override defansif tutarlılık için).
 _SLUG_PREFIX_SPORT: dict[str, str] = {
     # Tennis
@@ -162,7 +162,7 @@ class GammaClient:
                 prices = json.loads(prices)
             if not tokens or not prices or len(tokens) < 2 or len(prices) < 2:
                 return None
-            # Slug-prefix ile event tag tutarsızlığını düzelt (TDD §7.3)
+            # Slug-prefix ile event tag tutarsızlığını düzelt (DECISIONS §7.3)
             slug_val = str(raw.get("slug", ""))
             sport_tag_val = str(raw.get("_sport_tag", "") or "")
             slug_prefix = slug_val.lower().split("-")[0] if slug_val else ""

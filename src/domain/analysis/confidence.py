@@ -1,4 +1,4 @@
-"""Bookmaker-derived confidence tiers A / B / C (TDD §6.2).
+"""Bookmaker-derived confidence tiers A / B / C (DECISIONS §6.2).
 
 A = sharp book present (Pinnacle / Betfair Exchange)
 B = bookmaker weight >= 5, standard book

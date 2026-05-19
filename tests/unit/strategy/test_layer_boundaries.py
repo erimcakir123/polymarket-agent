@@ -4,7 +4,7 @@ Strategy işi: domain kurallarını birleştirip karar üretmek. Dosya I/O, API,
 WS, dashboard logger → hepsi infrastructure işi. Strategy orchestration'dan
 veri alır, veri döner; infra'yı doğrudan çağırmaz.
 
-TDD §12 Başarı Kriterleri: "gate.py skipped_trade_logger çağırmıyor" — bu
+DECISIONS §12 Başarı Kriterleri: "gate.py skipped_trade_logger çağırmıyor" — bu
 testle statik olarak korunur.
 """
 from __future__ import annotations

@@ -127,7 +127,7 @@ def _never_in_profit_exit(
     elapsed_pct: float,
     score_info: dict,
 ) -> bool:
-    """Never-in-profit guard (TDD §6.10). pos hiç kâra geçmedi + maç ≥ %70 + fiyat çok düştü."""
+    """Never-in-profit guard (DECISIONS §6.10). pos hiç kâra geçmedi + maç ≥ %70 + fiyat çok düştü."""
     if pos.ever_in_profit or pos.peak_pnl_pct > 0.01:
         return False
     if elapsed_pct < 0.70:
@@ -145,7 +145,7 @@ def _never_in_profit_exit(
 
 
 def _ultra_low_guard_exit(pos: Position, elapsed_pct: float) -> bool:
-    """Ultra-low guard (TDD §6.12). eff_entry<9¢ + elapsed≥%75 + eff_current<5¢."""
+    """Ultra-low guard (DECISIONS §6.12). eff_entry<9¢ + elapsed≥%75 + eff_current<5¢."""
     eff_entry = pos.entry_price
     eff_current = pos.current_price
     return eff_entry < 0.09 and elapsed_pct >= 0.75 and eff_current < 0.05
@@ -156,7 +156,7 @@ def _hold_revocation_exit(
     elapsed_pct: float,
     score_info: dict,
 ) -> bool:
-    """Hold-to-resolve pozisyon için revocation + exit (TDD §6.14).
+    """Hold-to-resolve pozisyon için revocation + exit (DECISIONS §6.14).
 
     Sadece hold-candidate pozisyonlar için (favored veya anchor_prob ≥ 0.65 + A/B).
     """

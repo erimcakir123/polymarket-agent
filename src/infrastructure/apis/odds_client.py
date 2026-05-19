@@ -1,4 +1,4 @@
-"""The Odds API istemcisi — ham HTTP + cache + quota tracking (TDD §8).
+"""The Odds API istemcisi — ham HTTP + cache + quota tracking (DECISIONS §8).
 
 Sadece ham veri döner; parsing ve matching strategy/enrichment katmanında yapılır.
 20K kredi/ay bütçe; adaptive refresh (70%/90% kullanımda yavaşla).

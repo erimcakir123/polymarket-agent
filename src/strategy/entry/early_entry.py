@@ -1,4 +1,4 @@
-"""Early entry — maç başlamadan ≥6 saat önce yüksek edge fırsatı (TDD §9 `early`).
+"""Early entry — maç başlamadan ≥6 saat önce yüksek edge fırsatı (DECISIONS §9 `early`).
 
 Bookmaker line'ları Polymarket'ten önce hareket eder; bot bu pencereyi yakalar.
 Sıkı eşikler: yüksek min_edge (%10), min anchor (≥0.55), B+ confidence,

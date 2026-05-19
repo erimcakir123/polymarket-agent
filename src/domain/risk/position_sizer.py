@@ -1,4 +1,4 @@
-"""Confidence-based position sizing (TDD §6.5) — pure, no I/O.
+"""Confidence-based position sizing (DECISIONS §6.5) — pure, no I/O.
 
 A=%5, B=%4, C=blok (girmez). Lossy reentry × 0.8.
 Tek trade max $75, max bankroll %5, Polymarket min $5.

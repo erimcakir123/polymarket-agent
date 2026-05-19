@@ -1,4 +1,4 @@
-"""manipulation.py için birim testler (TDD §6.16)."""
+"""manipulation.py için birim testler (DECISIONS §6.16)."""
 from __future__ import annotations
 
 from src.domain.guards.manipulation import (

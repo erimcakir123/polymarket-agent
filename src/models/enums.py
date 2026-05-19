@@ -1,4 +1,4 @@
-"""Domain enumerations (TDD §5.4). Tüm enum'lar str mixin — JSON serializable."""
+"""Domain enumerations (DECISIONS §5.4). Tüm enum'lar str mixin — JSON serializable."""
 from __future__ import annotations
 
 from enum import Enum

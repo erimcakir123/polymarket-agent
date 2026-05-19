@@ -1,4 +1,4 @@
-"""Position cycle-bazlı state güncellemeleri — pure (TDD §6.8 momentum + §6.10 ever_in_profit).
+"""Position cycle-bazlı state güncellemeleri — pure (DECISIONS §6.8 momentum + §6.10 ever_in_profit).
 
 Her light cycle'da Position üzerinde:
   - peak_pnl_pct + peak_price (§6.6 scale-out, §6.10 never-in-profit)

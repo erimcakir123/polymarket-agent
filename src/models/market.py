@@ -1,4 +1,4 @@
-"""MarketData — Polymarket Gamma'dan gelen pazar verisi (TDD §5.1)."""
+"""MarketData — Polymarket Gamma'dan gelen pazar verisi (DECISIONS §5.1)."""
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

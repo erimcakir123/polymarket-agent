@@ -1,4 +1,4 @@
-"""Sport-specific trading rules (TDD §7.2). MVP 2-way sports only.
+"""Sport-specific trading rules (DECISIONS §7.2). MVP 2-way sports only.
 
 Draw-possible sporlar TODO-001 kapsamında, bu dosyada YOK.
 """
@@ -69,7 +69,7 @@ BASKETBALL_TAGS: frozenset[str] = frozenset({
     "nba", "wnba", "ncaab", "cbb", "wncaab", "euroleague", "nbl",
 })
 
-# Odds API key → internal sport key aliases (TDD §7.1 MVP)
+# Odds API key → internal sport key aliases (DECISIONS §7.1 MVP)
 _ALIASES: dict[str, str] = {
     # Basketball
     "basketball_nba": "nba",
@@ -134,7 +134,7 @@ def get_match_duration_hours(sport_tag: str) -> float:
 
 
 def is_moneyline_only(sport_tag: str) -> bool:
-    """Sport için yalnızca moneyline market'leri kabul edilir mi? (TDD §7.2 NHL ML-only)."""
+    """Sport için yalnızca moneyline market'leri kabul edilir mi? (DECISIONS §7.2 NHL ML-only)."""
     return bool(get_sport_rule(sport_tag, "moneyline_only", False))
 
 

@@ -1,4 +1,4 @@
-"""scale_out.py için birim testler (TDD §6.6)."""
+"""scale_out.py için birim testler (DECISIONS §6.6)."""
 from __future__ import annotations
 
 from src.strategy.exit.scale_out import ScaleOutDecision, check_scale_out

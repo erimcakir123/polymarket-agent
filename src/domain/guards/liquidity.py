@@ -1,4 +1,4 @@
-"""Likidite kontrolleri (TDD §6.17) — pure, orderbook dict dışarıdan verilir.
+"""Likidite kontrolleri (DECISIONS §6.17) — pure, orderbook dict dışarıdan verilir.
 
 ARCH Kural 1 uyumu: domain HTTP çağırmaz; orchestration CLOB'dan kitap çekip
 bu domain fonksiyonlarına parametre olarak geçer.

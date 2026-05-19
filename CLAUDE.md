@@ -24,7 +24,7 @@ Kullanıcı self-check görmezse "self-check nerede?" diyebilir — o zaman dur,
 
 Polymarket tahmin piyasalarında otonom trading botu.
 Spor maçlarında bookmaker konsensüsü üzerinden edge tespiti + çok katmanlı risk yönetimi.
-**Veri kaynağı**: Odds API bookmaker probability (bkz. TDD §6.1). MVP spor kapsamı TDD §7.1'de tanımlı; ertelenmiş branşlar için TODO.md'ye bakın. Bu dosyalarda ve PRD/ARCHITECTURE_GUARD'da tanımlı olmayan teknolojiyi kullanma.
+**Veri kaynağı**: Odds API bookmaker probability (bkz. DECISIONS §6.1). MVP spor kapsamı DECISIONS §7.1'de tanımlı; ertelenmiş branşlar için TODO.md'ye bakın. Bu dosyalarda ve PRD/ARCHITECTURE_GUARD'da tanımlı olmayan teknolojiyi kullanma.
 
 **Proje Sahibi**: Teknik olmayan ortak. Mimari kararları anlayabilir ama kodu satır satır takip edemez.
 Açıklamalar net, jargonsuz olmalı. Kritik kararlar onay beklemeli.
@@ -40,7 +40,7 @@ Her bilgi türü TEK yerde yaşar. Tekrar yasak.
 | Fonksiyon imzası, import, dosya yolu, class yapısı | **Kod** (`src/`) |
 | Yapısal invariantlar (5-katman, I/O yasağı, max satır) | **ARCHITECTURE_GUARD.md** |
 | Ürün vizyonu + demir kurallar (bankroll, event-guard) | **PRD.md** |
-| Formül, eşik, kalibrasyon sayıları, "neden" notları | **TDD.md** (§0 + §6 + §7 + §13) |
+| Formül, eşik, kalibrasyon + "neden" + tarihsel SPEC kararları | **DECISIONS.md** (§A CURRENT STATE: §0/§5.7/§6/§7/§13 + §B kronolojik SPEC log) |
 | Config değerleri | **config.yaml** |
 | Testler | **tests/** |
 | Ertelenmiş işler | **TODO.md** |
@@ -57,11 +57,11 @@ Aynı bilgi iki yerde görünüyorsa: DRIFT riski. Birini sil, doğru kaynaktan 
 1. **ARCHITECTURE_GUARD.md** — İhlal edilemez mimari kurallar
 2. **PRD.md** — Ürün gereksinimleri ve demir kurallar
 
-### Göreve göre (TDD.md)
-TDD.md'nin başındaki **İçindekiler** tablosuna bak.
+### Göreve göre (DECISIONS.md)
+DECISIONS.md'nin başındaki **İçindekiler** tablosuna bak.
 - §0 her zaman okunur (temel ilkeler). §6 (formüller/kalibrasyonlar) ve §7 (sport rules) göreve göre okunur.
-- Diğer bölümleri görev katmanına göre oku — gizli bağımlılıklar için TDD.md başındaki "Güvenlik Ağı" kurallarına uy.
-- Şüphe varsa TDD'nin tamamını oku. Token tasarrufu doğruluğun üstüne çıkamaz.
+- Diğer bölümleri görev katmanına göre oku — gizli bağımlılıklar için DECISIONS.md başındaki "Güvenlik Ağı" kurallarına uy.
+- Şüphe varsa DECISIONS §A CURRENT STATE'in tamamını oku. Tarihsel "neden" için §B kronolojik log. Token tasarrufu doğruluğun üstüne çıkamaz.
 
 ### İhtiyaç doğduğunda oku
 - **PLAN.md** — yeni plan yazılması/güncellenmesi/okunması gerekiyorsa (kullanıcı söylemese de)
@@ -129,7 +129,7 @@ Eski projeden dosya okurken:
 1. PLAN.md'ye yaz (PROPOSED)
 2. Onay bekle
 3. Uygula
-4. TDD.md'yi güncelle
+4. DECISIONS.md'yi güncelle
 5. PLAN.md'den sil
 
 ### Spec Yazdırırken
@@ -162,7 +162,7 @@ Tipik lokasyonlar:
 - `config.yaml`
 - `src/` (default değerler, kullanım)
 - `tests/` (eşik assertion'ları)
-- `TDD.md` (formül/neden notu)
+- `DECISIONS.md` (formül/neden notu)
 - `PRD.md` (demir kural değişikliğiyse)
 
 `docs/superpowers/plans/*` tarihsel kayıttır — dokunma.
@@ -191,7 +191,7 @@ Her PLAN adımında:
 2. İki ayrım yap:
    - **Migrate edilecek** (değerler + kanıtlanmış formüller): sayısal sabitler, lookup tabloları (slug→sport_tag, bookmaker_weights), edge-case mantığı (9-katman SL, elapsed-gated market_flip)
    - **Sıfırdan yazılacak** (mimari farklı): orchestration, entry_gate, model'ler, infrastructure katmanı
-3. Değerleri/mantığı çıkar, **yeni dosyayı TAZE yaz** (TDD + ARCH_GUARD + SPEC'e göre).
+3. Değerleri/mantığı çıkar, **yeni dosyayı TAZE yaz** (DECISIONS + ARCH_GUARD + SPEC'e göre).
 4. Test yaz, eski davranışı yeni kodda doğrula.
 
 **Kural**: 0 satır copy-paste. Knowledge migration ≠ code migration.

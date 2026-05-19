@@ -1,4 +1,4 @@
-"""Pydantic config loader (TDD §9)."""
+"""Pydantic config loader (DECISIONS §9)."""
 from __future__ import annotations
 
 import os
@@ -188,7 +188,7 @@ class ScoreConfig(BaseModel):
     critical_price_threshold: float = 0.35
 
 
-# ── Basketbol exit config (SPEC-J — TDD §6/§7 kalibrasyonları) ────────────────
+# ── Basketbol exit config (SPEC-J — DECISIONS §6/§7 kalibrasyonları) ────────────────
 
 
 class OvertimeExitConfig(BaseModel):

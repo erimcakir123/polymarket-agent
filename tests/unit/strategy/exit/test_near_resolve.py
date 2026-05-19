@@ -1,4 +1,4 @@
-"""near_resolve.py için birim testler (TDD §6.11)."""
+"""near_resolve.py için birim testler (DECISIONS §6.11)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

@@ -1,4 +1,4 @@
-"""confidence.py için birim testler (TDD §6.2)."""
+"""confidence.py için birim testler (DECISIONS §6.2)."""
 from __future__ import annotations
 
 from src.domain.analysis.confidence import derive_confidence

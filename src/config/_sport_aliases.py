@@ -4,7 +4,7 @@ _normalize() tarafından kullanılır. Zincir yasak — her değer SPORT_RULES'd
 """
 from __future__ import annotations
 
-# Odds API key → internal sport key aliases (TDD §7.1 MVP)
+# Odds API key → internal sport key aliases (DECISIONS §7.1 MVP)
 _ALIASES: dict[str, str] = {
     # Basketball
     "basketball_nba": "nba",

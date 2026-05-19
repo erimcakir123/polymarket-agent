@@ -1,4 +1,4 @@
-"""circuit_breaker.py için birim testler (TDD §6.15)."""
+"""circuit_breaker.py için birim testler (DECISIONS §6.15)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

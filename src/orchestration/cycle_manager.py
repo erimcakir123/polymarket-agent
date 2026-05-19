@@ -1,4 +1,4 @@
-"""Cycle manager — heavy/light interleave + exit-triggered heavy (TDD §4).
+"""Cycle manager — heavy/light interleave + exit-triggered heavy (DECISIONS §4).
 
 Davranış:
   - Heavy cycle: varsayılan 30 dk, gece (UTC 08-13) 60 dk.

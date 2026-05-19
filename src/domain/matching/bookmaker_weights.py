@@ -1,4 +1,4 @@
-"""Bookmaker quality weights — tek kaynak (TDD §6.1).
+"""Bookmaker quality weights — tek kaynak (DECISIONS §6.1).
 
 Tier 1 (Sharp, 3.0×): Pinnacle, Betfair Exchange, Matchbook — profesyonel kesim.
 Tier 2 (Reputable, 1.5×): Bet365, William Hill, Unibet, Betclic, Marathon.
@@ -49,7 +49,7 @@ def get_bookmaker_weight(name: str) -> float:
 
 
 # Exchange bookmaker'lar — vig yok, 1/price ≈ gerçek olasılık.
-# Vig normalize uygulanmamalı (TDD §6.1).
+# Vig normalize uygulanmamalı (DECISIONS §6.1).
 _EXCHANGE: frozenset[str] = frozenset({
     "betfair_ex_eu",
     "betfair_ex_uk",

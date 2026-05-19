@@ -3,6 +3,632 @@
 > Kod ne yaptığını anlatır. Bu dosya neden öyle yapıldığını anlatır.
 > Her threshold değişikliğinde bu dosya da güncellenir (CLAUDE.md drift tablosu).
 
+> **Yapı (2026-05-19 itibarıyla):**
+> - **§A — CURRENT STATE**: Botun ŞU AN nasıl çalıştığı (kod-doğrultusunda snapshot). DECISIONS.md'den 2026-05-19'da merge edildi (PLAN-MIGRATION-001).
+> - **§B — KRONOLOJIK LOG**: SPEC-K/J/I/... tarihli kararlar — "neden buraya geldik" arşivi.
+> - Drift varsa: kod aslolan, CURRENT STATE güncellenir.
+
+---
+
+# §A — CURRENT STATE (Bot Davranışları, Code Snapshot)
+
+> Bu bölüm botun ŞU AN nasıl çalıştığını anlatır.
+> Numara şeması DECISIONS §0/§5.7/§6.X/§7/§13'ü korur — eski kod yorumlarındaki
+> "DECISIONS §6.X" referansları geçerlidir.
+
+## İçindekiler — Hangi Bölümü Ne Zaman Oku
+
+> **Her zaman oku:** §0 (Temel İlkeler).
+> **Göreve göre oku:** Aşağıdaki tabloya bak.
+> **Şüphe varsa:** İlgili §6 ve §7 bölümlerinin tamamını oku.
+
+Bu CURRENT STATE formüller, kalibrasyon sayıları, iş kuralları, "neden" notları içerir. Implementation detayları (dosya yolu, imza, dizin yapısı) için doğrudan kodu oku (`src/`).
+
+| §     | Başlık                          | Ne zaman gerekli?                       |
+|-------|---------------------------------|------------------------------------------|
+| 0     | Temel İlkeler                   | **HER ZAMAN**                            |
+| 5.7   | Dashboard Display Rules         | Dashboard / presentation işi             |
+| 6.1   | Bookmaker Probability           | Olasılık / edge işi                      |
+| 6.2   | Confidence Grading              | Confidence işi                           |
+| 6.3   | Edge Calculation                | Edge işi                                 |
+| 6.4   | Consensus Entry (Case A/B)      | Entry gate                               |
+| 6.5   | Position Sizing                 | Sizing                                   |
+| 6.6   | Scale-Out (3-tier)              | Exit / scale                             |
+| 6.7   | Flat Stop-Loss (6-Katman)       | Exit / SL                                |
+| 6.8   | Graduated Stop-Loss             | Exit / SL                                |
+| 6.9   | ~~A-conf Hold-to-Resolve~~      | **KALDIRILDI** (Faz 1 rollback 2026-05-15) |
+| 6.10  | Never-in-Profit Guard           | Exit                                     |
+| 6.11  | Near-Resolve Profit Exit        | Exit                                     |
+| 6.12  | Ultra-Low Guard                 | Exit                                     |
+| 6.13  | FAV Promotion                   | Pozisyon yönetimi                        |
+| 6.14  | Hold Revocation                 | Pozisyon yönetimi                        |
+| 6.15  | Circuit Breaker                 | Risk yönetimi                            |
+| 6.16  | Manipulation Guard              | Entry / risk                             |
+| 6.17  | Liquidity Check                 | Entry                                    |
+| 6.18  | Event-Level Guard               | Entry (concentration)                    |
+| 7     | Sport Rules                     | Spor-spesifik / sport tag işi            |
+| 13    | Açık Noktalar                   | Referans                                 |
+
+### Stock Queue (F1.5)
+
+Scanner ve gate arasında persistent eligible pool. Amaç: Odds API kredi israfını
+önlemek + fırsat kaybını engellemek.
+
+**Davranış:**
+- Gate `exposure_cap_reached` / `max_positions_reached` / `no_edge` / `no_bookmaker_data` ile reddettiği marketleri stock'a push eder.
+- Her heavy cycle'da Gamma scan → stock refresh (MarketData güncellenir, delist edilenler düşer) → TTL eviction.
+- **JIT batch:** `empty_slots × jit_batch_multiplier` (default 3) kadar stock item match_start ASC alınır, enrich + gate pipeline'a girer. Kalan slot varsa fresh-only (stock'ta olmayan) batch ekler.
+- **TTL evict:** first_seen + 24h | match_start − 30dk | event açık pozisyonda | no_edge ≥ 3.
+- **Persistent:** `logs/stock_queue.json` — restart'ta restore.
+
+**Rasyonel:** 300 market enrich yerine `3 × boş_slot` kadar enrich. Örnek: 4 boş slot = en yakın 12 market (stock öncelikli). Odds kredisi ~70% tasarruf + gece enrich edilmiş marketler gündüz slot açıldığında hâlâ kullanılabilir.
+
+---
+
+### Güvenlik Ağı
+
+- **§6.x cluster:** Bir alt-bölüme bakacaksan, ilgili §6 komşularını gözden geçir (sizing ↔ confidence ↔ edge).
+- **Kod okuma:** Dosya yolu, imza, import gibi sorular → doğrudan `src/` Grep + Read.
+- **Mimari soru:** → ARCHITECTURE_GUARD.md.
+- **Demir kural sorusu:** → PRD.md §2.
+
+---
+
+## 0. Temel İlkeler (Değişmez Prensipler)
+
+1. **Veri kaynağı = bookmaker**. Odds API 20+ bahis sitesinden konsensüs üretir.
+2. **3 katmanlı cycle**: WebSocket (anlık) + Light (5 sn) + Heavy (30 dk).
+3. **Pozisyon boyutu confidence'a göre**: A=%5, B=%4, C=blok.
+4. **Profit taking = scale-out** (3-tier).
+5. **MVP kapsamı = 2-way sporlar**. Ertelenmiş branşlar için bkz. `TODO.md`.
+6. **P(YES) her zaman anchor** — direction-adjusted saklanmaz.
+7. **Event-level guard**: aynı event_id'ye max N pozisyon (default 2 — §6.18).
+
+---
+
+## 5. Dashboard & Observability
+
+### 5.7 Dashboard Display Rules
+
+Dashboard presentation katmanı — kurallar domain kurallarından ayrı.
+`presentation/dashboard/computed.py` + `static/js/*` sınırında enforce edilir.
+
+#### 5.7.1 Treemap Branş Gruplaması
+
+Gruplama anahtarı = **sport category** (baseball, hockey, basketball, ...).
+Lig kodları (mlb, nhl, vb.) branşa map edilir:
+
+```python
+_LEAGUE_TO_SPORT = {
+    "mlb": "baseball",
+    "nhl": "hockey", "ahl": "hockey", "khl": "hockey",
+    "nba": "basketball", "wnba": "basketball",
+    "nfl": "football", "cfl": "football",
+    "epl": "soccer", "ucl": "soccer", "mls": "soccer", "seriea": "soccer",
+    "wta": "tennis", "atp": "tennis",
+    "pga": "golf", "lpga": "golf", "rbc": "golf",
+}
+```
+
+Öncelik: `sport_category` field → `sport_tag` split (`baseball_mlb`→baseball) →
+lig map (eski kayıt: `mlb`→baseball) → sport_tag as-is → `unknown`.
+
+Lokasyon: `presentation/dashboard/computed.py::_sport_category`.
+
+**Partial scale-out dahil:** Treemap hem full-close hem partial scale-out event'leri ayrı trade olarak sayar. Her partial: invested = `sell_pct × original_size_usdc`, pnl = `realized_pnl_usdc`. Win/Loss: pnl sign'a göre. Aynı trade'in full + partial'ı birlikte 2 event olarak görünür.
+
+Lokasyon: `computed.py::sport_roi_treemap` — `partial_exits` listesini iterate eder.
+
+#### 5.7.2 Direction-Adjusted Odds Display
+
+**Saklama invariantı** (ARCH Kural 7): `anchor_probability = P(YES)`;
+`entry_price`/`current_price` = token-native (BUY_YES→YES, BUY_NO→NO).
+
+**Display kuralları:**
+- Active card `Odds X%`: `direction == "BUY_NO" ? 1 − anchor : anchor`.
+- `Entry/Now` fiyatları zaten token-native → ek çevrim YOK.
+- YES/NO badge metni = slug team-code:
+  - BUY_YES → slug pattern'deki ilk takım (yes-side).
+  - BUY_NO → ikinci takım (no-side).
+  - Slug eşleşmezse fallback `"YES"` / `"NO"`.
+
+Lokasyon: `static/js/feed.js::_activeCard` + `static/js/dashboard.js::FMT.sideCode`.
+
+#### 5.7.3 Feed Sort
+
+Her tab (Active/Exited/Skipped/Stock): `match_start_iso` ASC (en yakın maç yukarıda). Boş değerler sona.
+
+Lokasyon: `static/js/feed.js::FEED.render`.
+
+#### 5.7.4 CSS Palette — Tek Kaynak
+
+Renkli hex literal **sadece** `static/css/dashboard.css:root` içinde tanımlı. Başka CSS/JS dosyasında renkli hex YASAK — hep `var(--*)`.
+
+Değişken ailesi: Ana (`--green`, `--red`, `--blue`, `--orange`), türev (`-dim`, `-dark`, `-hover`, `-strong`), nötr (`--bg`, `--panel*`, `--text`, `--muted*`, `--border-soft`).
+
+JS chart renkleri runtime'da okur: `getComputedStyle(document.documentElement).getPropertyValue("--green")`.
+
+#### 5.7.5 Scanner Filter Suite
+
+Bot sadece izinli market tipleri + yakın pencere + live-olmayan markets alır. Filter sırası (`_passes_filters`):
+
+1. **Flag kontrolü:** `closed` / `resolved` / `not accepting_orders` → ele
+2. **Fiyat-based resolved detection:** `yes_price >= resolved_price_threshold` (default 0.98) veya `<= (1 − threshold)` → ele. Polymarket'in `closed/resolved` flag'leri lag'li; fiyat ~1.0/~0.0 ise sonuç kesin belli.
+3. **Market type:** `sports_market_type ∈ {moneyline, spreads, totals}` zorunlu. Boş string (PGA Top-N props) reddedilir.
+4. **Basketball-only totals/spreads:** `sports_market_type ∈ {spreads, totals}` ise sport_tag ∈ BASKETBALL_TAGS olmalı (NBA/WNBA/NCAAB/Euroleague/NBL).
+5. **NHL moneyline-only flag** (`sport_rules.is_moneyline_only`): NHL pozisyonu sadece moneyline olabilir.
+6. **NBA/WNBA spread-blocked flag** (`sport_rules.is_spread_blocked`): basketbol spread reddedilir (Faz 1 rollback + 0 trade kanıtı).
+7. **Sport whitelist:** `config.scanner.allowed_sport_tags` (wildcard support)
+8. **Min liquidity:** `min_liquidity` (default $1000)
+9. **Max duration:** `end_date ≤ max_duration_days` (default 14 gün)
+10. **Odds API penceresi:** `match_start ≤ max_hours_to_start` (default 24h)
+11. **Stale match_start:** `max_post_start_hours` (default 8h) sonra başlamış maçlar reddedilir
+
+Lokasyon: `orchestration/scanner.py::MarketScanner._passes_filters`. Config: `config.yaml > scanner:`.
+
+#### 5.7.6 Enrichment Layer — Tennis Matching (DORMANT)
+
+> **DORMANT 2026-05-05:** Tennis `sport_rules.py`'den kaldırıldı, config'de allow listede ama uygulamada aktif değil. Aşağıdaki matching modülleri (`domain/matching/tennis_*_resolver.py`) korunur — tenis Faz 2'de geri açılırsa direkt kullanıma hazır.
+
+Eski (DORMANT) davranış — tennis markets'de iki yaygın bug için fix:
+
+1. **Tournament prefix strip** (`question_parser.py::extract_teams`): "Porsche Tennis Grand Prix: Eva Lys vs Elina Svitolina" formatı → vs-split sonrası `team_a` kirli kalıyordu. Fix: ":" varsa son ":"'den sonrasını al.
+2. **Slug priority sport_key resolve**: Slug `wta-*` olsa bile question'da "wta" geçmediği için ATP branch'ine düşüyordu. Fix: slug prefix otoritesi question text'ten ÖNCE kontrol edilir.
+
+#### 5.7.7 Total Equity Chart — Realized-Only Stepped + Period Tabs
+
+Chart formülü: `initial_bankroll + Σ exit_pnl_usdc` (trade history üzerinden kümülatif). **Unrealized hariç**.
+
+**Veri kaynağı:** `/api/trades` (`computed.exit_events`) — full-close exit'ler + partial scale-out event'leri.
+
+**Period tabs + adaptif bucketing (2026-04-16 fix, PLAN-009):**
+
+| Tab | Granularity | Her nokta ne? | Tipik max |
+|-----|------------|----------------|-----------|
+| 24h | Event | Her exit = 1 basamak | ~50 |
+| 7d  | Hourly | Saat sonu kümülatif | ~168 |
+| 30d | Daily | Gün sonu kümülatif | 30 |
+| 1y  | Weekly (ISO) | Hafta sonu kümülatif | 52 |
+
+Default tab: `30d`. Rendering: `stepped: "before"`, `tension: 0` — basamaklı plateau.
+
+**Neden trade-cumsum + bucketing:** Eski implementasyon `equity_history.jsonl` snapshot'larını çiziyordu; partial exit basis-leak'i (PLAN-008) nedeniyle identity kırılıyordu. Trade cumsum identity-correct.
+
+**Sticky y-axis** (2026-04-16): Canvas içindeki y-axis label'ları gizli. Yerine canvas DIŞINDA sabit `.chart-y-axis` DOM element'i; Chart.js plugin `externalYAxis` her `afterUpdate`'te scale tick'lerini DOM'a yansıtır.
+
+**Hitbox doğruluğu:** Canvas'ın genişliği parent `.chart-canvas-wrap`'in `style.width` ile set edilir.
+
+Lokasyon: `static/js/trade_filter.js`, `dashboard.js::CHARTS.setEquity`, `chart_tabs.js`.
+
+---
+
+## 6. Kritik Algoritmalar
+
+### 6.1 Bookmaker Probability
+
+Bookmaker konsensüsünden olasılık türetir.
+
+**Girdi:** `bookmaker_prob` (no-vig 0–1), `num_bookmakers` (ağırlıklı), `has_sharp` (Pinnacle veya Betfair Exchange).
+
+**Kurallar:**
+- **Geçersiz girdi** → `probability = 0.5` fallback. Koşul: `bookmaker_prob` None VEYA ≤ 0, VEYA `num_bookmakers < 1`
+- **Geçerli girdi** → `probability = clamp(bookmaker_prob, 0.05, 0.95)`
+- Round: 4 decimal
+
+**Dönüş:** `BookmakerProbability` (probability, confidence, bookmaker_prob ham, num_bookmakers, has_sharp). Confidence türetmesi için → §6.2.
+
+### 6.2 Confidence Grading
+
+Bookmaker ağırlığı + sharp var mı → A/B/C.
+
+| Confidence | Koşul |
+|---|---|
+| **A** | `has_sharp = True` (Pinnacle veya Betfair Exchange var) ve `bm_weight ≥ 5` |
+| **B** | `bm_weight ≥ 5`, sharp yok |
+| **C** | `bm_weight` None VEYA < 5 — entry bloklanır |
+
+Confidence, sizing multiplier'ına (→ §6.3) ve entry kararına direkt etki eder.
+
+### 6.3 Edge Calculation + Confidence Multiplier
+
+Anchor probability (P(YES)) ile market YES fiyatı arasındaki fark; spread + slippage düşülür.
+
+**Formül:**
+- `raw = anchor_prob − market_yes_price`
+- `effective = |raw| − (spread + slippage)`
+- `threshold = min_edge × confidence_multiplier`
+
+**Confidence multipliers (Faz 1 rollback 2026-05-15 — 19 Apr peak değerleri):**
+
+| Confidence | Multiplier | Not |
+|---|---|---|
+| A | **1.00** | 19 Apr peak (önceden 1.25 idi — A-conf cezası rollback'te kaldırıldı) |
+| B | 1.00 | Baz |
+| C | — | Entry bloklanır |
+
+**Default `min_edge`:** `0.06` (config.yaml `edge.min_edge`)
+
+**Yön kararı:**
+
+| Koşul | Sonuç |
+|---|---|
+| `raw > 0` AND `effective > threshold` | `BUY_YES`, edge = effective |
+| `raw < 0` AND `effective > threshold` | `BUY_NO`, edge = effective |
+| Aksi | `HOLD`, edge = 0 |
+
+### 6.4 Consensus Entry (Special Case)
+
+Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır (standart edge yerine).
+
+**Consensus tespiti:**
+- `book_favors_yes = book_prob ≥ 0.50`
+- `market_favors_yes = market.yes_price ≥ 0.50`
+- `is_consensus = (book_favors_yes == market_favors_yes)`
+
+**Consensus varsa (Case A):**
+| Book tarafı | Direction | Entry price |
+|---|---|---|
+| book_favors_yes = True | `BUY_YES` | `market.yes_price` |
+| book_favors_yes = False | `BUY_NO` | `1 − market.yes_price` |
+
+- Edge = `0.99 − entry_price` (Polymarket payout cap)
+- **Entry price aralığı:** `[0.60, 0.88)` — alt sınır consensus.min_price, üst sınır gate.max_entry_price (§6.5 R/R)
+
+**Consensus yoksa (Case B):** standart edge hesabı (§6.3) kullanılır.
+
+### 6.5 Position Sizing
+
+Confidence + market koşullarına göre trade boyutu.
+
+**Base sizing (`confidence_bet_pct` config dict — `risk.confidence_bet_pct`):**
+| Confidence | Yüzde | Uygulama |
+|---|---|---|
+| A | 5% | bankroll × 0.05 (19 Apr peak) |
+| B | 4% | bankroll × 0.04 |
+| C | — | 0 (entry bloklanır) |
+
+> Eski `CONF_BET_PCT` constant kaldırıldı (commit 0e91ed4). Tek doğruluk kaynağı: `config.yaml > risk > confidence_bet_pct`. Caller `position_sizer.compute_size()`'a parametre olarak geçer.
+
+**Çarpanlar:**
+| Koşul | Çarpan |
+|---|---|
+| Lossy reentry — `is_reentry = True` | × 0.80 |
+
+**Entry price cap:** `effective_entry ≥ 0.88` → gate reddeder (`entry_price_cap`). Gerekçe: 88¢+ girişlerde max payout `0.99 − entry ≤ 0.11` → R/R çürük.
+
+**Formül:**
+```
+size = bankroll × bet_pct × multiplier(s)
+size = min(size, max_bet_usdc, bankroll × max_bet_pct, bankroll)
+size = max(0, round(size, 2))
+```
+
+**Kaplar:**
+- `max_bet_usdc` = **$50** (config.yaml `risk.max_single_bet_usdc`; settings.py default $75)
+- `max_bet_pct` = 5% bankroll (`risk.max_bet_pct`)
+- Polymarket minimum: $5 — altında reddet
+
+### 6.6 Scale-Out (3-tier)
+
+Kâr biriktikçe pozisyonun parçasını satmak.
+
+| Tier | Tetikleyici (unrealized PnL) | Satış oranı | Amaç |
+|---|---|---|---|
+| 1 | ≥ +25% | 40% | Risk-free |
+| 2 | ≥ +50% | 50% | Profit lock |
+| 3 | Resolution / trailing | — | PnL-tetikli değil; §6.11-6.14 |
+
+**Geçiş:** `tier 0 → 1 → 2` sırayla. Tier atlanmaz; ileri gider veya aynı kalır.
+
+### 6.7 Flat Stop-Loss Helper (6-Katman Öncelik)
+
+Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen döner. `None` dönerse flat SL uygulanmaz.
+
+| # | Katman | Koşul | Sonuç |
+|---|---|---|---|
+| 1 | Stale price skip | `current_price ≤ 0.001` AND `current_price ≠ entry_price` | `None` (WS tick beklenir) |
+| 2 | Totals/spread skip | question veya slug "o/u", "total", "spread" içerir | `None` (resolution'a kadar tut) |
+| 3 | Ultra-low entry | `effective_entry < 0.09` | `0.50` (geniş tolerans) |
+| 4 | Low-entry graduated | `0.09 ≤ effective_entry < 0.20` | Linear: `sl = 0.60 − t × 0.20`, `t = (eff − 0.09) / (0.20 − 0.09)` — 60% → 40% |
+| 5 | Sport-specific (default) | Yukarıdakiler eşleşmedi | `get_stop_loss(sport_tag)` (§7) |
+| 6 | Lossy reentry modifier | `sl_reentry_count ≥ 1` | Yukarıdaki `sl × 0.75` |
+
+**Default parametreler:** `base_sl_pct = 0.30`.
+
+> Eski "B confidence → 0.30" katmanı (Faz 1 rollback öncesi) kaldırıldı; B-conf de sport-specific SL kullanır.
+
+### 6.8 Graduated Stop-Loss (Elapsed-Aware)
+
+Zaman/fiyat/score'a duyarlı max allowed loss.
+
+> **Not:** PnL% hesaplamaları `pos.entry_price` ve `pos.current_price` ile direkt yapılır — her iki alan da token-native. `effective_price()` uygulanmaz.
+
+**Formül:**
+```
+max_loss = base × price_mult × score_adj
+max_loss = clamp(max_loss, 0.05, 0.70)
+```
+
+**Base tiers (elapsed % — ilk eşleşen, en yüksek eşikten aşağı):**
+| Elapsed | Base max loss | Faz |
+|---|---|---|
+| ≥ 0.85 | 0.15 | Final |
+| ≥ 0.65 | 0.20 | Late |
+| ≥ 0.40 | 0.30 | Mid |
+| ≥ 0.00 | 0.40 | Early |
+| < 0.00 (pre-match) | 0.40 | Early davran |
+
+**Entry price multiplier:**
+| Entry price | Multiplier |
+|---|---|
+| < 0.20 | 1.50 |
+| 0.20 – 0.35 | 1.25 |
+| 0.35 – 0.50 (inclusive) | 1.00 |
+| 0.50 – 0.70 | 0.85 |
+| ≥ 0.70 | 0.70 |
+
+**Score adjustment:**
+| Skor durumu | `score_adj` |
+|---|---|
+| `available = True` AND `map_diff > 0` (önde) | 1.25 (genişlet) |
+| `available = True` AND `map_diff < 0` (geride) | 0.75 (daralt) |
+| Aksi (skor yok veya beraberlik) | 1.00 |
+
+**Momentum tighten** (yukarıdaki sonuç üzerine ek çarpan):
+| Koşul | Çarpan |
+|---|---|
+| `consecutive_down ≥ 5` AND `cumulative_drop ≥ 0.10` | `max_loss × 0.60` |
+| `consecutive_down ≥ 3` AND `cumulative_drop ≥ 0.05` | `max_loss × 0.75` |
+
+### 6.9 ~~A-conf Hold-to-Resolve~~ — KALDIRILDI
+
+> **Faz 1 Rollback 2026-05-15:** A-conf hold dalı + market_flip kuralı TAMAMEN kaldırıldı. Sebep: post-peak veri analizi `market_flip`'in **−$310 / 0W-14L katil** olduğunu gösterdi. `evaluate()` zinciri artık koşulsuz multi-SL: near-resolve → scale-out → NBA totals → flat SL → graduated SL (tüm pozisyonlara, 19 Apr peak pattern).
+>
+> Tarihsel kayıt için bkz. §B kronolojik log + commit `4c44ae0`.
+
+### 6.10 Never-in-Profit Guard
+
+Hiç kâra geçmemiş geç-faz pozisyonlar için erken çıkış.
+
+**Tetikleyici (hepsi birlikte):**
+- `not ever_in_profit`
+- AND `peak_pnl_pct ≤ 0.01`
+- AND `elapsed_pct ≥ 0.70`
+
+**Tetiklendiğinde aksiyon:**
+| Durum | Aksiyon |
+|---|---|
+| Skor önde (`map_diff > 0`, available) | **Stay** (winning despite no profit) |
+| `effective_current ≥ effective_entry × 0.90` | **Stay** (entry'ye yakın) |
+| `effective_current < effective_entry × 0.75` | **Exit** (`never_in_profit`) |
+| Aradaki (`0.75 ≤ ratio < 0.90`) | Graduated SL (§6.8) devralır |
+
+### 6.11 Near-Resolve Profit Exit
+
+94¢ eşiğinde kâr alma — WebSocket path'te çalışır.
+
+**Tetikleyici:** `pos.current_price ≥ 0.94` (token-native, owned side)
+
+> **Not:** `current_price` alanı zaten owned token fiyatıdır (BUY_YES → YES token, BUY_NO → NO token). `effective_price()` UYGULANMAZ — çift flip olur.
+
+**Sanity guard'ları (WS spike koruması):**
+| Koşul | Aksiyon |
+|---|---|
+| Pre-match (maç başlamadı) | Reject |
+| `mins_since_start < 10.0` | Reject (açılış spike'ı; `DEFAULT_PRE_MATCH_GUARD_MIN = 10`) |
+| Aksi | **Exit** (`near_resolve_profit`) |
+
+**Veri dayanağı:** 27 near-resolve exit = **+$140.31 (%93 WR)** — sistemin en büyük kâr kaynağı.
+
+### 6.12 Ultra-Low Guard
+
+Ultra-düşük giriş pozisyonlarında geç fazda çıkış.
+
+**Tüm koşullar birlikte:**
+- `effective_entry < 0.09`
+- AND `elapsed_pct ≥ 0.75`
+- AND `effective_current < 0.05`
+
+→ **Exit** (`ultra_low_guard`)
+
+### 6.13 FAV Promotion
+
+Holding sırasında dinamik favori statüsü. `effective_price(current_price, direction)` üzerinden değerlendirilir.
+
+**PROMOTE — tüm koşullar:**
+- `not favored`
+- AND `effective_price ≥ 0.65`
+- AND `confidence ∈ {A, B}`
+
+→ `favored = True`
+
+**DEMOTE:**
+- `favored = True`
+- AND `effective_price < 0.65`
+
+→ `favored = False`
+
+**Davranış:** `favored = True` pozisyonlar Hold Revocation (§6.14) için "hold candidate" sayılır. Faz 1 rollback sonrası FAV statüsü exit davranışını DEĞİŞTİRMEZ — tüm pozisyonlar koşulsuz multi-SL (near-resolve → scale-out → flat SL → graduated SL) uygular.
+
+**Veri dayanağı (tarihsel):** 5 favored trade = +$42.90, %100 WR.
+
+### 6.14 Hold Revocation
+
+Hold candidate pozisyonlar için hold iptali — ciddi fiyat düşüşü + skor dezavantajı altında.
+
+**Hold candidate:**
+- `favored` OR (`anchor_probability ≥ 0.65` AND `confidence ∈ {A, B}`)
+
+**Dip temporary mi?**
+- `consecutive_down < 3` OR `cumulative_drop < 0.05` → TEMPORARY (revoke etme)
+- Aksi → KALICI
+
+**Revoke koşulları (hold candidate için):**
+| Durum | Koşul | Aksiyon |
+|---|---|---|
+| `ever_in_profit = True` | `current < entry × 0.70` AND `elapsed > 0.60` AND NOT score_ahead AND NOT dip_temporary | Revoke hold (normal kurallara dön) |
+| `ever_in_profit = False` | `current < entry × 0.75` AND `elapsed > 0.70` AND NOT score_ahead AND NOT dip_temporary | Revoke + **Exit** (`hold_revoked`) |
+
+### 6.15 Circuit Breaker
+
+Bankroll koruma — **yalnızca entry halt** eder, exit'i asla durdurmaz.
+
+**enabled flag (2026-05-19):** `circuit_breaker.enabled: bool = True` (default). `False` ise tüm halt kontrolleri bypass edilir — test/gözlem modu için. Multi-SL (flat + graduated) maç-içi korumayı sağlar.
+
+**Eşikler:**
+| Parametre | Değer | Etki |
+|---|---|---|
+| Günlük max loss (hard halt) | -8% | Halt + 120 dk cooldown |
+| Saatlik max loss (hard halt) | -5% | Halt + 60 dk cooldown |
+| Ardışık kayıp limiti | 4 trade | Halt + 60 dk cooldown |
+| Günlük entry soft block | -3% | Soft block |
+
+**`should_halt_entries` kontrol sırası:**
+1. **Enabled check:** `self.config.enabled = False` → erken return (no halt). (2026-05-19 SPEC)
+2. Cooldown aktif mi? → halt (kalan dk gösterilir)
+3. Günlük loss ≤ -8% → halt 120 dk
+4. Saatlik loss ≤ -5% → halt 60 dk
+5. Ardışık kayıp ≥ 4 → halt 60 dk
+6. Günlük loss ≤ -3% → soft block
+7. Aksi → devam
+
+**Kritik:** Exit kararları breaker'dan asla etkilenmez.
+
+**Exposure Cap (entry blok):**
+
+Formül:
+```
+exposure = (toplam_yatırılan + aday_size) / toplam_portföy_değeri
+toplam_portföy_değeri = portfolio.bankroll (nakit) + portfolio.total_invested()
+```
+
+`max_exposure_pct` (config `risk.max_exposure_pct`, default 0.50) **soft cap**'tir. Gate/agent, cap aşımında entry'yi tamamen reddetmek yerine **size kırparak** girer:
+
+- `soft_cap = portfolio × max_exposure_pct` (default %50)
+- `hard_cap = portfolio × (max_exposure_pct + hard_cap_overflow_pct)` (default %52)
+- `available = max(0, hard_cap − total_invested)`
+- `min_size = bankroll × min_entry_size_pct` (default %1.5)
+
+**Akış:**
+1. `available ≤ 0` → skip (`exposure_cap_reached`)
+2. `available < min_size` → skip (tx-cost floor)
+3. diğer → `entry_size = min(kelly, available)` ile gir
+
+**Kritik invariant:** payda TOPLAM portföy değeri — nakit değil. Pure function: `domain/portfolio/exposure.py::available_under_cap`.
+
+### 6.16 Manipulation Guard
+
+Self-resolving marketler + düşük likidite tespiti.
+
+**Self-resolving subjects** (16 kişi):
+`trump, biden, elon, musk, putin, zelensky, xi jinping, desantis, vance, newsom, harris, netanyahu, modi, zuckerberg, bezos, altman`
+
+**Self-resolving verbs** (regex):
+`say, tweet, post, announce, sign, veto, pardon, fire, hire, appoint, endorse, resign, visit, meet with, call, respond, comment, declare`
+
+**Risk skoru:**
+| Kontrol | Koşul | Score |
+|---|---|---|
+| Self-resolving | Subject AND verb metinde birlikte | +3 |
+| Low liquidity | `liquidity < 10_000` | +1 (+2 eğer `liquidity ≤ 0`) |
+
+**Risk seviyesi → davranış:**
+| Toplam score | Level | Davranış |
+|---|---|---|
+| ≥ 3 | high | **SKIP** |
+| = 2 | medium | Size × 0.5 |
+| < 2 | low | OK (tam size) |
+
+**Default `min_liquidity_usd`:** `10000`.
+
+### 6.17 Liquidity Check
+
+Entry ve exit sırasında orderbook derinliği kontrolü.
+
+**Entry check:** `total_ask_depth = sum(ask.price × ask.size)`.
+
+| Koşul | Aksiyon |
+|---|---|
+| `total_ask_depth < $100` | **Reject** (reason: "Depth < $100") |
+| `size_usdc / total_ask_depth > 0.20` | Halve size (slippage koruması) |
+| Aksi | Accept, orijinal size |
+
+**Default `min_depth`:** `100.0`.
+
+**Exit check:** `floor_price = best_bid × 0.95`; `fill_ratio = available / shares_to_sell`.
+
+| `fill_ratio` | Strategy |
+|---|---|
+| ≥ 1.0 | `market` |
+| `min_fill_ratio` ≤ ratio < 1.0 | `limit` (floor_price'ta) |
+| < `min_fill_ratio` | `split` |
+
+**Default `min_fill_ratio`:** `0.80`.
+
+### 6.18 Event-Level Guard (max_positions_per_event)
+
+Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions_per_event`).
+
+**Mantık:** Bir maçın bağımsız market'leri (moneyline + spread + totals) ayrı bahisler sayılır ve birden fazla pozisyon açılabilir. Karşıt aynı-tip pozisyonu (örn 2 moneyline) uygulamada görülmez çünkü Polymarket bir maç moneyline'ı için tek market açar.
+
+**Örnek:** "Spurs vs Timberwolves" event_id=446693 → moneyline + total açılabilir, 3. pozisyon AÇILAMAZ.
+
+**Race-condition fix (commit 2e9116e — Pistons-Cavaliers bug):** Batch entry sırasında per-iteration `count_event` check yapılır. Tek cycle'da 11+ pozisyon açılması önlendi.
+
+**Lokasyon:** `src/orchestration/entry_processor.py::_add_position` + `src/strategy/entry/gate.py`. Bkz. ARCHITECTURE_GUARD.md Kural 8.
+
+---
+
+## 7. Sport Rules (MVP için)
+
+### 7.1 Kapsam
+
+**MVP'de aktif sporlar** (2-way — draw içermeyen):
+- **Baseball**: MLB, MiLB, NPB, KBO, NCAA
+- **Basketball**: NBA, WNBA, NCAAB, WNCAAB, CBB, Euroleague, NBL
+- **Ice Hockey**: NHL (ML-only — flag, §7.2)
+- **American Football**: NCAAF, CFL, UFL
+- **Combat**: MMA, UFC, Boxing
+- **Golf**: LPGA, LIV, PGA H2H
+
+**MVP dışı / kaldırılmış:**
+- **Tennis**: 2026-05-05'te `sport_rules.py`'den kaldırıldı. Config'de allow listede ama uygulamada aktif değil (DORMANT — bkz. §5.7.6). Geri açma kararı Faz 2'ye.
+- **NHL secondary leagues** (AHL/Liiga/SHL/Mestis/Allsvenskan): Config + `sport_rules.py`'den kaldırıldı — sadece NHL.
+- **Soccer** (tüm ligler): 3-way market yapısı, MVP 2-way pipeline ile uyumsuz (SPEC-015 rollback'le silindi).
+- **Cricket**: Test match draw olasılığı (SPEC-011 rollback'le silindi).
+- **Golf outright / Top-N**: Yapısal h2h değil.
+
+### 7.2 Sport-Specific Kurallar (özet)
+
+| Sport | stop_loss_pct | match_duration_hours | Özel exit / flag |
+|---|---|---|---|
+| **NBA** | 0.35 | 2.5 | halftime_exit @ -15 pts; **spread_blocked: True** (Faz 1 rollback, 0 trade kanıtı) |
+| **WNBA + diğer basketbol** (NCAAB/Euroleague/NBL) | 0.35 | 2.5 | NBA kuralları (BASKETBALL_TAGS normalize) |
+| **American Football** (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
+| **NHL** | 0.30 | 2.5 | period_exit @ -3 goals after P2; **moneyline_only: True** (SPEC-L, 4 günde 13W/2L ML kanıt) |
+| **MLB** (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
+| **Golf** (LPGA/LIV/PGA H2H) | 0.30 | 4.0 | playoff-aware |
+| **DEFAULT** | 0.30 | 2.0 | - |
+
+**Flag mantığı:** `sport_rules.is_spread_blocked()` ve `sport_rules.is_moneyline_only()` scanner filter + entry gate'te kontrol edilir. Tek doğruluk kaynağı: `src/config/sport_rules.py::SPORT_RULES` dict.
+
+**Not**: Detaylı sport_rules tabloları `src/config/sport_rules.py`'de tutulur. Ertelenmiş branşların kuralları için bkz. `TODO.md` TODO-001.
+
+---
+
+## 13. Açık Noktalar (ilerisi için)
+
+1. **Golf outright futures**: Sadece H2H (`golf_lpga_tour`, `golf_liv_tour`, `golf_pga_*` H2H) MVP'de. `golf_masters_tournament_winner` vb. outright'lar scope dışı.
+2. ~~**Tennis dinamik matching**~~: ✅ DONE — `tennis_tournament_resolver.py` + `tennis_player_resolver.py` migrate edildi. Tenis 2026-05-05'te DORMANT'a alındı (yeni trade yok), Faz 2'de geri açma kararı.
+3. **Baseball preseason**: `baseball_mlb_preseason` aktif ama preseason maçlarında motivasyon düşük — potansiyel bir `allow_preseason: false` flag eklenebilir.
+4. **Draw-possible sporlar**: Tümü TODO-001'de. MVP'de scanner bu sport_tag'leri filter'lar.
+
+---
+
+# §B — KRONOLOJIK LOG (SPEC Kararları)
+
+> Aşağıdaki bölümler kronolojik (en yeni üstte). Her SPEC: ne yapıldı + neden + kanıt + commit referansı.
+
 ---
 
 ## SPEC-K: Bookmaker Spread/Totals Köprüsü (2026-05-10)

@@ -1,4 +1,4 @@
-"""Entry orchestrator — 3 entry stratejisini koordine eder (TDD §11 Faz 3 + 6).
+"""Entry orchestrator — 3 entry stratejisini koordine eder (DECISIONS §11 Faz 3 + 6).
 
 Strateji öncelik sırası (ilk Signal kazanır):
   1. Consensus  — book + market aynı favori (≥65¢) → 99¢ payout edge

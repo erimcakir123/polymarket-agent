@@ -1,4 +1,4 @@
-"""Exit processor — light cycle exit flow (TDD §4).
+"""Exit processor — light cycle exit flow (DECISIONS §4).
 
 Pozisyon state tick + exit monitor → full/partial exit execute.
 Agent bu class'ı composition ile kullanır.
@@ -149,7 +149,7 @@ class ExitProcessor:
 
         Basis payı (`old_size × sell_pct`) pozisyon küçültülmeden ÖNCE yakalanır
         ve bankroll'a geri kredilenir — identity `bankroll + invested = initial +
-        realized_pnl` korunur (TDD §5.7.7).
+        realized_pnl` korunur (DECISIONS §5.7.7).
         """
         shares_to_sell = pos.shares * signal.sell_pct
         realized = pos.unrealized_pnl_usdc * signal.sell_pct

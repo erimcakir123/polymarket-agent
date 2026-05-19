@@ -1,4 +1,4 @@
-"""Entry karar sinyali (TDD §5.3)."""
+"""Entry karar sinyali (DECISIONS §5.3)."""
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, field_validator

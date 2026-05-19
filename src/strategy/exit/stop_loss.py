@@ -1,4 +1,4 @@
-"""Flat stop-loss helper — 6-katman öncelik (TDD §6.7).
+"""Flat stop-loss helper — 6-katman öncelik (DECISIONS §6.7).
 
 Tek kaynak: hem WebSocket path (exit_monitor._ws_check_exits) hem light cycle
 (monitor.py) buradan çağırır.

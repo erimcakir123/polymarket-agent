@@ -1,4 +1,4 @@
-"""graduated_sl.py için birim testler (TDD §6.8)."""
+"""graduated_sl.py için birim testler (DECISIONS §6.8)."""
 from __future__ import annotations
 
 from src.models.position import Position

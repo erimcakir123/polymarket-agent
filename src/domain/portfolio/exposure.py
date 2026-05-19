@@ -1,4 +1,4 @@
-"""Exposure guard — pure function (TDD §6.15 cap).
+"""Exposure guard — pure function (DECISIONS §6.15 cap).
 
 Exposure cap ölçüsü = (toplam_yatırılan + aday) / TOPLAM_PORTFÖY_DEĞERİ.
 TOPLAM_PORTFÖY_DEĞERİ = nakit (portfolio.bankroll) + toplam_yatırılan.

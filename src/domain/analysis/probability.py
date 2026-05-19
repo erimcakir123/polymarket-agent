@@ -1,4 +1,4 @@
-"""Bookmaker probability engine (TDD §6.1) — pure, no I/O."""
+"""Bookmaker probability engine (DECISIONS §6.1) — pure, no I/O."""
 from __future__ import annotations
 
 from dataclasses import dataclass
