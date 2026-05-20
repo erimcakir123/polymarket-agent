@@ -16,12 +16,24 @@ Skipped market types (no model for these):
 Surface keyword → surface (fallback "hard"):
   Tournament name keywords extracted from slug and question text.
 
+WTA filter (2026-05-20): predictor uses ATP-only Sackmann data. Any `wta-*`
+slug is rejected at parse time to avoid (a) silent skips from missing ratings
+or (b) coincidental ATP name collisions yielding garbage predictions.
+
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §5.3
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Literal, Optional
+
+logger = logging.getLogger(__name__)
+
+# WTA prefix filter: predictor model uses ATP-only Sackmann historical data.
+# Any market whose slug indicates WTA is unparseable → return None.
+_WTA_SLUG_PREFIX = "wta-"
+_wta_skipped_count = 0
 
 # Mapping from Polymarket sports_market_type → internal market_type.
 # Only the 3 types the predictor handles are included; others → None (skip).
@@ -166,8 +178,21 @@ def parse_tennis_question(
 
     Returns:
         dict with keys: p1_name, p2_name, market_type, surface
-        or None if market_type is not supported / player names unparseable.
+        or None if market_type is not supported / player names unparseable
+        / slug is WTA (predictor is ATP-only).
     """
+    # WTA filter (2026-05-20): Sackmann historical data is ATP-only. WTA slugs
+    # would either fail player lookup or hit coincidental ATP collisions.
+    if slug and slug.lower().startswith(_WTA_SLUG_PREFIX):
+        global _wta_skipped_count
+        _wta_skipped_count += 1
+        if _wta_skipped_count % 10 == 1:
+            logger.info(
+                "tennis_parser: WTA slug skipped (count=%d) — ATP-only predictor; example=%s",
+                _wta_skipped_count, slug[:60],
+            )
+        return None
+
     market_type = map_market_type(sports_market_type)
     if market_type is None:
         return None

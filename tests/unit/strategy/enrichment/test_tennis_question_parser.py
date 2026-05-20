@@ -149,22 +149,24 @@ def test_parse_tennis_question_first_set_winner() -> None:
 
 
 def test_parse_tennis_question_set_handicap() -> None:
+    # NOTE: ATP slug (WTA filter rejects wta-* — predictor is ATP-only).
     result = parse_tennis_question(
-        question="Set Handicap: Samsonova (-1.5) vs Siegemund (+1.5)",
+        question="Set Handicap: Tsitsipas (-1.5) vs Tien (+1.5)",
         sports_market_type="tennis_set_handicap",
-        slug="wta-samsonova-siegemund-2026",
+        slug="atp-tsitsipas-tien-2026",
     )
     assert result is not None
     assert result["market_type"] == "set_handicap_minus_1_5"
-    assert result["p1_name"] == "Samsonova"
-    assert result["p2_name"] == "Siegemund"
+    assert result["p1_name"] == "Tsitsipas"
+    assert result["p2_name"] == "Tien"
 
 
 def test_parse_tennis_question_set_totals() -> None:
+    # NOTE: ATP slug (WTA filter rejects wta-* — predictor is ATP-only).
     result = parse_tennis_question(
-        question="Siegemund vs. Samsonova: Total Sets O/U 2.5",
+        question="Tsitsipas vs. Tien: Total Sets O/U 2.5",
         sports_market_type="tennis_set_totals",
-        slug="wta-siegemund-samsonova-2026",
+        slug="atp-tsitsipas-tien-2026",
     )
     assert result is not None
     assert result["market_type"] == "total_sets_under_2_5"
