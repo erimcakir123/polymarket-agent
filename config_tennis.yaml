@@ -12,14 +12,22 @@ cycle:
 scanner:
   min_liquidity: 1000
   max_markets_per_cycle: 100
-  max_duration_days: 7
-  max_hours_to_start: 24.0
+  # Polymarket tennis end_date'i match_start + ~7 gün (turnuva sonu cushion).
+  # 7 gün cutoff bugünün maçlarını saatlerce kıl payıyla eler — 10 güne çıkarıyoruz.
+  max_duration_days: 10
+  # 3 güne çıkarıldı: bugünün maçları + 2 gün discovery (Stage 0 PLAN-TENNIS-001).
+  max_hours_to_start: 72.0
   max_post_start_hours: 1.0
   resolved_price_threshold: 0.98
   allowed_categories: [sports]
+  # Gamma client slug-prefix override ile atp-/wta- → "tennis" normalize ediyor;
+  # "atp" tag'i ölü kayıt, "tennis" yeterli.
   allowed_sport_tags:
     - tennis
-    - atp
+  # Polymarket'in gerçek sports_market_type değerleri (debug script gözlemi):
+  # tennis_first_set_winner, tennis_set_handicap, tennis_set_totals (predictor
+  # bu 3 alt market'i destekliyor; tennis_match_totals/tennis_first_set_totals/
+  # tennis_completed_match/moneyline geniş kapsamda ama predictor henüz desteklemiyor).
   allowed_sports_market_types:
     - tennis_first_set_winner
     - tennis_set_handicap
