@@ -221,8 +221,21 @@
       if (/^Total\b/i.test(q)) return "TOTAL";
       if (/^Moneyline\b/i.test(q)) return "ML";
       if (/end\s+in\s+a\s+draw\??$/i.test(q)) return "DRAW";
-      if (/^Will\s+.+\s+win\??$/i.test(q)) return "WIN";
       const s = String(slug || "");
+      // Tennis slug suffix'leri (en spesifik önce):
+      //   *-first-set-totals-*  → "1.SET O/U"
+      //   *-first-set-winner    → "1.SET KAZ"
+      //   *-set-totals-*        → "SET O/U"
+      //   *-set-handicap-*      → "SET HCP"
+      //   *-match-totals-*      → "MAÇ O/U"
+      //   *-completed-match-*   → "BİTERSE"
+      if (/-first-set-totals/i.test(s)) return "1.SET O/U";
+      if (/-first-set-winner/i.test(s)) return "1.SET KAZ";
+      if (/-set-totals/i.test(s)) return "SET O/U";
+      if (/-set-handicap/i.test(s)) return "SET HCP";
+      if (/-match-totals/i.test(s)) return "MAÇ O/U";
+      if (/-completed-match/i.test(s)) return "BİTERSE";
+      if (/^Will\s+.+\s+win\??$/i.test(q)) return "WIN";
       const suffix = s.match(/^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+-\d{4}-\d{2}-\d{2}-([a-z]+)/i);
       if (!suffix) return "ML";
       const tag = suffix[1].toLowerCase();
