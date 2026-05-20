@@ -24,6 +24,18 @@ sys.path.insert(0, str(_ROOT))
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 
+# Hours-to-start histogram buckets: (upper_bound_hours, label).
+# First bucket whose upper bound a value is <= wins; values exceeding the
+# largest finite bound (and unknown/inf) fall into the final bucket.
+# Labels are load-bearing — downstream log consumers depend on exact strings.
+_HOUR_BUCKETS: tuple[tuple[float, str], ...] = (
+    (6, "<6h"),
+    (24, "6-24h"),
+    (72, "24-72h"),
+    (168, "72-168h"),
+    (float("inf"), ">168h_or_unknown"),
+)
+
 
 def _hours_to_start(m: MarketData) -> float:
     raw = m.match_start_iso or m.end_date_iso
@@ -72,7 +84,7 @@ def main() -> None:
     print("=" * 80)
     print("Summary: unique sports_market_type values among tennis markets")
     print("=" * 80)
-    type_counts: Counter = Counter()
+    type_counts: Counter[str] = Counter()
     for m in tennis:
         type_counts[m.sports_market_type or "<empty>"] += 1
     for smt, n in type_counts.most_common():
@@ -82,7 +94,7 @@ def main() -> None:
     print("=" * 80)
     print("Summary: unique sport_tag values among tennis-shaped markets")
     print("=" * 80)
-    tag_counts: Counter = Counter()
+    tag_counts: Counter[str] = Counter()
     for m in tennis:
         tag_counts[m.sport_tag or "<empty>"] += 1
     for tag, n in tag_counts.most_common():
@@ -93,21 +105,13 @@ def main() -> None:
     print("=" * 80)
     print("Summary: hours_to_start buckets (tennis markets)")
     print("=" * 80)
-    buckets = {"<6h": 0, "6-24h": 0, "24-72h": 0, "72-168h": 0, ">168h_or_unknown": 0}
+    buckets: dict[str, int] = {label: 0 for _, label in _HOUR_BUCKETS}
     for m in tennis:
         h = _hours_to_start(m)
-        if h == float("inf"):
-            buckets[">168h_or_unknown"] += 1
-        elif h < 6:
-            buckets["<6h"] += 1
-        elif h < 24:
-            buckets["6-24h"] += 1
-        elif h < 72:
-            buckets["24-72h"] += 1
-        elif h < 168:
-            buckets["72-168h"] += 1
-        else:
-            buckets[">168h_or_unknown"] += 1
+        for upper, label in _HOUR_BUCKETS:
+            if h <= upper:
+                buckets[label] += 1
+                break
     for b, n in buckets.items():
         print(f"  {b:25s} {n}")
 
