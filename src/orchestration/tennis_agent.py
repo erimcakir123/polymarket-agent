@@ -219,7 +219,11 @@ def run_one_cycle(
         )
         if did_log:
             logged += 1
-        if tier in ("A", "B"):
+        # Tennis paper trade kararı (2026-05-21 backtest sonrası):
+        # Set totals/handicap markets bimodal — SL stratejisi çalışmıyor (-$60 net zarar simülasyonu).
+        # Tek koruma: yüksek kalite tahminlere odaklan → SADECE A tier (B skip).
+        # B tier classify_tier'da hâlâ üretiliyor (diagnostic için), ama entry yapılmıyor.
+        if tier == "A":
             size_usdc = confidence_position_size(
                 confidence=tier,
                 bankroll=deps.state.portfolio.bankroll,
