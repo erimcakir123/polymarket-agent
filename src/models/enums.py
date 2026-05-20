@@ -20,6 +20,7 @@ class EntryReason(str, Enum):
     NORMAL = "normal"
     EARLY = "early"
     CONSENSUS = "consensus"
+    TENNIS = "tennis"
 
 
 class ExitReason(str, Enum):

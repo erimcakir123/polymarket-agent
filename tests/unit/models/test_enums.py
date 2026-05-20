@@ -31,6 +31,14 @@ def test_entry_reason_values() -> None:
     assert EntryReason.CONSENSUS.value == "consensus"
 
 
+def test_tennis_entry_reason_value() -> None:
+    assert EntryReason.TENNIS.value == "tennis"
+
+
+def test_tennis_entry_reason_member() -> None:
+    assert EntryReason.TENNIS in EntryReason
+
+
 def test_exit_reason_values() -> None:
     assert ExitReason.STOP_LOSS.value == "stop_loss"
     assert ExitReason.SCALE_OUT.value == "scale_out"
