@@ -19,13 +19,29 @@
     "1y": "week",
   };
 
+  function _latestExitTs(t) {
+    // Trade'in en yeni exit timestamp'i — partial veya full close.
+    // Partial-only kayıtların `exit_timestamp`'i boş; partial_exits[].timestamp'i var.
+    const tops = t && t.exit_timestamp ? [t.exit_timestamp] : [];
+    const partials = ((t && t.partial_exits) || [])
+      .map((pe) => pe && pe.timestamp).filter(Boolean);
+    const all = tops.concat(partials);
+    if (!all.length) return NaN;
+    let latest = -Infinity;
+    for (const s of all) {
+      const ts = Date.parse(s);
+      if (Number.isFinite(ts) && ts > latest) latest = ts;
+    }
+    return Number.isFinite(latest) ? latest : NaN;
+  }
+
   function filterByPeriod(trades, period) {
     if (!trades) return [];
     const hours = HOURS_BY_PERIOD[period];
     if (!hours) return trades;
     const cutoff = Date.now() - hours * 3600 * 1000;
     return trades.filter((t) => {
-      const ts = t && t.exit_timestamp ? Date.parse(t.exit_timestamp) : NaN;
+      const ts = _latestExitTs(t);
       return Number.isFinite(ts) && ts >= cutoff;
     });
   }
@@ -54,27 +70,49 @@
     return isoTs;
   }
 
+  // Tüm exit event'leri tek liste — partial scale-out + full close ayrı ayrı
+  // chronological sıralı. Dashboard cumulative chart için: partial PnL atlama
+  // bug'ı (chart $500-$620 takılı kalıyordu, gerçek equity $1100+) düzeltildi.
+  function _allExitEvents(trades) {
+    const events = [];
+    for (const t of (trades || [])) {
+      for (const pe of (t.partial_exits || [])) {
+        if (!pe || !pe.timestamp) continue;
+        events.push({
+          timestamp: pe.timestamp,
+          pnl: Number(pe.realized_pnl_usdc || 0),
+        });
+      }
+      if (t.exit_price != null && t.exit_timestamp) {
+        events.push({
+          timestamp: t.exit_timestamp,
+          pnl: Number(t.exit_pnl_usdc || 0),
+        });
+      }
+    }
+    events.sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+    return events;
+  }
+
   // Chronological cumsum, collapsed to bucket resolution.
-  // Input: trades DESC-sorted by exit_timestamp (api/trades format).
+  // Input: trade records (api/trades format) — partial_exits + exit_price birlikte handle edilir.
   // Output: [{timestamp, value}] chronological (oldest → newest).
   function cumulativeByResolution(trades, initial, resolution) {
-    const chron = [...(trades || [])].reverse();
+    const events = _allExitEvents(trades);
     const byKey = new Map();
     let running = Number(initial) || 0;
-    for (const t of chron) {
-      running += Number(t.exit_pnl_usdc || 0);
-      const key = _bucketKey(t.exit_timestamp, resolution);
+    for (const ev of events) {
+      running += ev.pnl;
+      const key = _bucketKey(ev.timestamp, resolution);
       if (!key) continue;
-      byKey.set(key, { timestamp: t.exit_timestamp, value: running });
+      byKey.set(key, { timestamp: ev.timestamp, value: running });
     }
     return Array.from(byKey.values());
   }
 
   function periodSum(trades) {
-    return (trades || []).reduce(
-      (acc, t) => acc + Number(t.exit_pnl_usdc || 0),
-      0
-    );
+    // Tüm exit event'leri (full + partial) toplamı — partial PnL'i atlamayan toplam.
+    return _allExitEvents(trades).reduce((acc, ev) => acc + ev.pnl, 0);
   }
 
   const _MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -98,29 +136,29 @@
     return "";
   }
 
-  // PnL bar chart bucketing — resolution'a göre trade'leri gruplar, her bucket net PnL.
-  // Input: trades DESC-sorted. Output: [{timestamp, pnl, count}] chronological.
+  // PnL bar chart bucketing — partial + full exit event'lerini gruplar, her bucket net PnL.
+  // Input: trade records. Output: [{timestamp, pnl, count}] chronological.
   function pnlByResolution(trades, resolution) {
-    const chron = [...(trades || [])].reverse();
+    const events = _allExitEvents(trades);
     if (resolution === "event") {
-      return chron.map((t) => ({
-        timestamp: t.exit_timestamp,
-        pnl: Number(t.exit_pnl_usdc || 0),
+      return events.map((ev) => ({
+        timestamp: ev.timestamp,
+        pnl: ev.pnl,
         count: 1,
       }));
     }
     const byKey = new Map();
-    for (const t of chron) {
-      const key = _bucketKey(t.exit_timestamp, resolution);
+    for (const ev of events) {
+      const key = _bucketKey(ev.timestamp, resolution);
       if (!key) continue;
       const existing = byKey.get(key);
       if (existing) {
-        existing.pnl += Number(t.exit_pnl_usdc || 0);
+        existing.pnl += ev.pnl;
         existing.count += 1;
       } else {
         byKey.set(key, {
-          timestamp: t.exit_timestamp,
-          pnl: Number(t.exit_pnl_usdc || 0),
+          timestamp: ev.timestamp,
+          pnl: ev.pnl,
           count: 1,
         });
       }
