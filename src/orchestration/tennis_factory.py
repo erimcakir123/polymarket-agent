@@ -134,10 +134,12 @@ def build_tennis_deps(
     )
 
     # Runtime state (portfolio + circuit_breaker + blacklist + persistent stores)
+    # trade_history reconcile audit/ ground truth'a bağlanır — dashboard read_trades
+    # session/+audit/ birlikte okur; root logs/trade_history.jsonl deprecated.
     state = bootstrap(
         cfg,
         logs_dir=data_path,
-        trade_history_path=logs_path / "trade_history.jsonl",
+        trade_history_path=logs_path / "audit" / "trade_history.jsonl",
     )
 
     # Entry + exit infrastructure (shared deps container — built once, used both)
@@ -187,12 +189,21 @@ def _build_entry_exit_processors(
     """
     executor = Executor(mode=cfg.mode)
 
-    trade_logger = TradeHistoryLogger(str(logs_dir / "trade_history.jsonl"))
+    # Trade + equity loggers dual-write: primary=audit/ (kalıcı, reboot dokunmaz),
+    # mirror=session/ (dashboard kaynağı, reboot temizler) — main bot
+    # _factory_loggers ile aynı pattern. Dashboard read_trades + read_balance_from_session
+    # session/ üzerinden okur, audit/ ground truth olarak korunur.
+    trade_logger = TradeHistoryLogger(
+        str(logs_dir / "audit" / "trade_history.jsonl"),
+        mirror_path=str(logs_dir / "session" / "trade_history.jsonl"),
+    )
     equity_logger = EquityHistoryLogger(
         str(logs_dir / "audit" / "equity_history.jsonl"),
         mirror_path=str(logs_dir / "session" / "equity_history.jsonl"),
     )
-    skipped_logger = SkippedTradeLogger(str(logs_dir / "skipped_trades.jsonl"))
+    # Skipped trades dashboard runtime/ üzerinden okuyor (readers.read_skipped);
+    # tek dosya yeterli — audit/session ayrımı skip kayıtlarına uygulanmıyor.
+    skipped_logger = SkippedTradeLogger(str(logs_dir / "runtime" / "skipped_trades.jsonl"))
 
     cooldown = CooldownTracker(
         trigger_threshold=cfg.risk.consecutive_loss_cooldown,
