@@ -45,6 +45,9 @@ from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_eve
 from src.strategy.entry.tennis_signal_adapter import tennis_candidate_to_signal
 
 logger = logging.getLogger(__name__)
+# Light cycle log throttle: her 10. tick'te INFO (10dk aralık, 144/gün, 1440 değil).
+_LIGHT_TICK_LOG_EVERY = 10
+_light_tick_state = {"count": 0}
 
 
 def _load_sackmann_matches(deps: TennisDeps) -> list[SackmannMatch]:
@@ -281,6 +284,10 @@ def run_light_cycle(
             çağrılan testler/script'ler için None → şu an (gösterge placeholder).
     """
     deps.exit_processor.run_light(score_map=None)
+    _light_tick_state["count"] += 1
+    if _light_tick_state["count"] % _LIGHT_TICK_LOG_EVERY == 0:
+        logger.info("Light cycle tick #%d: %d open positions checked",
+                    _light_tick_state["count"], len(deps.state.portfolio.positions))
     # Heavy cycle ile aynı persist davranışı — pos state (current_price, peak,
     # consecutive_down_cycles) tick'lendiği için her light sonunda diske yaz.
     persist(deps.state)

@@ -96,6 +96,24 @@ def test_run_light_cycle_updates_bot_status_to_light(tmp_path: Path) -> None:
     assert payload["mode"] == deps.config.mode.value
 
 
+def test_light_cycle_logs_periodically(tmp_path: Path, caplog) -> None:
+    """FIX 4: her 10. tick'te 'Light cycle tick #N' INFO log atılır.
+
+    10 çağrı → tam 1 log message; counter modulo'su 10. tick'te tetikler.
+    State module-level olduğu için testler arasında sıfırlanır.
+    """
+    import logging
+    from src.orchestration import tennis_agent
+    tennis_agent._light_tick_state["count"] = 0  # test izolasyonu
+    deps = _make_deps(tmp_path)
+    with caplog.at_level(logging.INFO, logger="src.orchestration.tennis_agent"):
+        for _ in range(10):
+            run_light_cycle(deps, data_dir=tmp_path)
+    tick_logs = [r for r in caplog.records if "Light cycle tick" in r.message]
+    assert len(tick_logs) == 1, f"expected 1 throttled tick log after 10 calls, got {len(tick_logs)}"
+    assert "tick #10" in tick_logs[0].message
+
+
 # ── run_forever scheduling test ───────────────────────────────────────────────
 
 
