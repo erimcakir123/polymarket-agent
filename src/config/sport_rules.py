@@ -49,7 +49,20 @@ SPORT_RULES: dict[str, dict] = {
         "espn_sport": "baseball",
         "espn_league": "mlb",
     },
-    # Tennis kaldırıldı 2026-05-05 — geri açmak için entry geri ekle
+    "tennis": {
+        # 2026-05-20: Tennis paper bot canlandı (Faz tennis-lab). graduated_sl
+        # elapsed_pct ve near_resolve tetik eşiği için sport-spesifik değerler.
+        # match_duration_hours = ATP/WTA BO3 ortalama; near_resolve_threshold_cents
+        # = price ≥ 94¢ → "near resolution" guard tetiklenir.
+        "stop_loss_pct": 0.30,
+        "match_duration_hours": 1.75,
+        "near_resolve_threshold_cents": 94,
+        "near_resolve_guard_min": 5,
+        "near_resolve_max_spread": 0.10,
+        "score_source": "espn",
+        "espn_sport": "tennis",
+        "espn_league": "atp",
+    },
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
@@ -99,7 +112,12 @@ _ALIASES: dict[str, str] = {
     "baseball_kbo": "mlb",
     "baseball_ncaa": "mlb",
     "baseball": "mlb",
-    # Tennis kaldırıldı 2026-05-05
+    # Tennis (ATP/WTA + Finals — Polymarket slug etiketleri ve Odds API key alias'ları)
+    "tennis_atp": "tennis",
+    "tennis_wta": "tennis",
+    "tennis_atp_finals": "tennis",
+    "tennis_wta_finals": "tennis",
+    "tennis": "tennis",
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",
