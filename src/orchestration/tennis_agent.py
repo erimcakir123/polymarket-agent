@@ -39,6 +39,7 @@ from src.orchestration.startup import persist
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.orchestration.tennis_factory import TennisDeps
 from src.orchestration.tennis_price_callback import install_price_feed
+from src.orchestration.tennis_rest_refresh import refresh_open_positions
 from src.strategy.enrichment.tennis_market_enricher import classify_tier, enrich
 from src.strategy.enrichment.tennis_question_parser import parse_tennis_question
 from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_event
@@ -283,6 +284,12 @@ def run_light_cycle(
             run_forever bunu monotonic clock'tan hesaplayıp geçer; doğrudan
             çağrılan testler/script'ler için None → şu an (gösterge placeholder).
     """
+    # 2026-05-20: WS güvensiz (10¢'e kadar drift + boş book'ta RESOLVED kaçar)
+    # → exit_processor ÖNCESİ REST top-up (helper kendi loglar).
+    n_open = len(deps.state.portfolio.positions)
+    refreshed, resolved = refresh_open_positions(deps.state.portfolio)
+    logger.info("Light cycle: refreshed %d/%d prices via REST (%d resolved)",
+                refreshed, n_open, resolved)
     deps.exit_processor.run_light(score_map=None)
     _light_tick_state["count"] += 1
     if _light_tick_state["count"] % _LIGHT_TICK_LOG_EVERY == 0:
