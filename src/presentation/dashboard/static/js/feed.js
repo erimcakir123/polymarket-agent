@@ -221,12 +221,18 @@
         ? `<div class="feed-entry-reason-row">Remaining ${Math.round((t.remaining_pct || 0) * 100)}%</div>`
         : "";
 
+      // Replay badge: simulated:true → bot kararı değil, retroactive replay sonucu
+      // (apply_retroactive_replay.py tarafından yazılmış). Kullanıcı için saydamlık.
+      const replayBadge = (t.simulated === true || t.simulated_correction === true)
+        ? `<span class="feed-badge badge-replay" title="Retroactive replay simulation">REPLAY</span>`
+        : "";
+
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(t.question, t.slug, t.match_title)}</div>
           <div class="feed-badges">
-            <div class="feed-badges-row"><span class="feed-badge ${dirCls}">${dir}</span></div>
+            <div class="feed-badges-row">${replayBadge}<span class="feed-badge ${dirCls}">${dir}</span></div>
             ${this._marketTypeBadge(t.question, t.slug)}
           </div>
         </div>

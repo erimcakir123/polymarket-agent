@@ -150,6 +150,7 @@
 .badge-yes { background: var(--blue-dim);   color: var(--blue); }
 .badge-no  { background: var(--orange-dim); color: var(--orange); }
 .badge-partial { background: var(--green-dim); color: var(--green); margin-right: 4px; }
+.badge-replay  { background: var(--amber-dim, #4a3a1f); color: var(--amber, #f4b740); margin-right: 4px; }
 
 .feed-details {
   display: flex;
