@@ -119,6 +119,17 @@ def run_one_cycle(
 ) -> int:
     """Single scan + enrich + log cycle. Returns count of candidates logged.
 
+    Heavy cycle adım sırası (test_tennis_full_cycle.py ile sabitlendi):
+      1. ratings + sackmann_matches yükle
+      2. MarketScanner.scan() → tennis market'ları
+      3. enrich(market) → EdgeCandidate listesi
+      4. select_best_2_per_event → event başına en iyi 2
+      5. min_edge filtresi (|edge| ≥ cfg.edge.min_edge)
+      6. Her qualified için diagnostic log + (tier A/B ise) sized Signal üret
+      7. entry_processor.process_signals(markets, signals) [skip if 0 signal]
+      8. persist(state) [skip if 0 signal]
+      9. operational_writers.log_equity_snapshot(...)  [heartbeat — her zaman]
+
     Args:
         deps: All wired tennis dependencies.
         sackmann_matches: Optional pre-loaded match history (avoids reload per cycle).
@@ -254,6 +265,12 @@ def run_light_cycle(
     + match_duration_hours) üzerinden çalışır; in-match score injection yok.
     NEAR_RESOLVE / FLAT SL / GRADUATED SL / NEVER_IN_PROFIT / ULTRA_LOW /
     HOLD_REVOKED / SCALE_OUT bu cycle'da değerlendirilir.
+
+    Light cycle adım sırası (test_tennis_full_cycle.py ile sabitlendi):
+      1. exit_processor.run_light(score_map=None)
+      2. persist(state)  [heartbeat — tick alanlarını yaz]
+      3. operational_writers.log_equity_snapshot(...)  [chart 60sn tick'i]
+      4. bot_status.json yaz (stage="light")
 
     Args:
         deps: Wired tennis dependencies.
