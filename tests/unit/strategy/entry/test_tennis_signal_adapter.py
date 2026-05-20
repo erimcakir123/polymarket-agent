@@ -73,16 +73,17 @@ def test_adapter_zeroes_bookmaker_fields() -> None:
     assert sig.has_sharp is False
 
 
-def test_adapter_uses_market_sport_tag_when_present() -> None:
-    market = _market(sport_tag="tennis_atp")
-    sig = tennis_candidate_to_signal(_candidate(), market, tier="A")
-    assert sig.sport_tag == "tennis_atp"
+def test_adapter_sets_sport_tag_to_tennis_atp() -> None:
+    """FIX 3 (2026-05-20): sport_tag hardcoded 'tennis_atp' (WTA filter upstream).
 
-
-def test_adapter_falls_back_to_tennis_sport_tag_when_market_missing() -> None:
-    market = _market(sport_tag="")
-    sig = tennis_candidate_to_signal(_candidate(), market, tier="A")
-    assert sig.sport_tag == "tennis"
+    Dashboard Sport ROI treemap '<category>_<league>' formatına göre grup yapıyor;
+    boş veya 'tennis' tag dashboard'da görünmez/karışır. WTA parser'da reject
+    edildiği için tüm tenis sinyalleri ATP — hardcode güvenli."""
+    # market.sport_tag farklı değerlerde gelse de adapter hep tennis_atp döner
+    for market_tag in ["tennis", "tennis_atp", "", "wta_atp", None]:
+        market = _market(sport_tag=market_tag or "")
+        sig = tennis_candidate_to_signal(_candidate(), market, tier="A")
+        assert sig.sport_tag == "tennis_atp", f"market_tag={market_tag!r} produced {sig.sport_tag!r}"
 
 
 @pytest.mark.parametrize("tier", ["A", "B"])

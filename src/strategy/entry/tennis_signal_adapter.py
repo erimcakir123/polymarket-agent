@@ -16,7 +16,12 @@ from src.models.market import MarketData
 from src.models.signal import Signal
 from src.strategy.entry.tennis_entry import EdgeCandidate
 
-_DEFAULT_TENNIS_SPORT_TAG = "tennis"
+# sport_tag (2026-05-20): dashboard Sport ROI treemap `<category>_<league>` formatına
+# göre grup yapıyor (trade_logger._split_sport_tag). gamma_client wta-/atp- slug'ları
+# her ikisini de "tennis"e normalize ediyor, ama biz WTA'yı parser'da filtrelediğimiz
+# için (FIX 1) tüm tenis sinyalleri zaten ATP. Bu yüzden hardcoded "tennis_atp"
+# güvenli + dashboard tarafından doğru grup olarak görünür.
+_TENNIS_ATP_SPORT_TAG = "tennis_atp"
 
 
 def tennis_candidate_to_signal(
@@ -33,11 +38,12 @@ def tennis_candidate_to_signal(
 
     Returns:
         Signal with anchor_probability = candidate.model_p (already P(YES)),
-        direction derived from sign(edge), and all bookmaker fields zeroed
-        (tennis does not use bookmaker consensus).
+        direction derived from sign(edge), all bookmaker fields zeroed (tennis
+        has no bookmaker consensus), and sport_tag hardcoded "tennis_atp"
+        (FIX 3 — WTA filter upstream guarantees ATP-only).
     """
     direction = Direction.BUY_YES if candidate.edge > 0 else Direction.BUY_NO
-    sport_tag = market.sport_tag or _DEFAULT_TENNIS_SPORT_TAG
+    sport_tag = _TENNIS_ATP_SPORT_TAG
 
     return Signal(
         condition_id=market.condition_id,
