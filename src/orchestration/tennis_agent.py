@@ -23,15 +23,19 @@ from src.config.settings import AppConfig
 from src.domain.matching.tennis_player_matcher import build_match_index, match_player
 from src.domain.prediction.feature_extractor import extract_features
 from src.domain.prediction.tennis_predictor import MarketPrediction
+from src.domain.risk.position_sizer import confidence_position_size
 from src.infrastructure.data.sackmann_csv_client import SackmannMatch
 from src.infrastructure.data.tennis_ratings_store import PlayerRating
 from src.models.market import MarketData
+from src.models.signal import Signal
 from src.orchestration.scanner import MarketScanner
+from src.orchestration.startup import persist
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.orchestration.tennis_factory import TennisDeps
 from src.strategy.enrichment.tennis_market_enricher import classify_tier, enrich
 from src.strategy.enrichment.tennis_question_parser import parse_tennis_question
 from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_event
+from src.strategy.entry.tennis_signal_adapter import tennis_candidate_to_signal
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +57,16 @@ def _log_candidate(
     now: datetime,
     by_full: dict,
     by_last: dict,
-) -> bool:
+) -> tuple[bool, str]:
     """Resolve features + tier for one candidate and write diagnostic log record.
 
-    Returns True if logged, False if skipped (tier=skip or player not found).
+    Returns (did_log, tier) — tier is "A" / "B" / "skip" / "" (player not found).
+    Caller uses tier to decide whether to size + submit an entry signal.
     """
     p1_rating = match_player(parsed["p1_name"], ratings, by_full=by_full, by_last=by_last)
     p2_rating = match_player(parsed["p2_name"], ratings, by_full=by_full, by_last=by_last)
     if p1_rating is None or p2_rating is None:
-        return False
+        return False, ""
 
     features = extract_features(
         matches=sackmann_matches,
@@ -72,7 +77,7 @@ def _log_candidate(
     )
     tier = classify_tier(features, cfg)
     if tier == "skip":
-        return False
+        return False, tier
 
     direction = "BUY_YES" if candidate.edge >= 0 else "BUY_NO"
     prediction = MarketPrediction(
@@ -97,7 +102,7 @@ def _log_candidate(
         confidence_tier=tier,
         edge=candidate.edge,
     )
-    return True
+    return True, tier
 
 
 def run_one_cycle(
@@ -163,9 +168,12 @@ def run_one_cycle(
         if id(c) in selected_set and abs(c.edge) >= cfg.edge.min_edge
     ]
 
-    # Log each qualifying candidate
+    # Log each qualifying candidate + build sized signals for entry
     now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC for Sackmann comparisons
     logged = 0
+    signals_for_entry: list[Signal] = []
+    markets_for_entry: list[MarketData] = []
+
     for candidate, market in qualified_pairs:
         parsed = parse_tennis_question(
             question=market.question,
@@ -175,7 +183,7 @@ def run_one_cycle(
         if parsed is None:
             continue
 
-        did_log = _log_candidate(
+        did_log, tier = _log_candidate(
             candidate=candidate,
             market=market,
             parsed=parsed,
@@ -189,14 +197,35 @@ def run_one_cycle(
         )
         if did_log:
             logged += 1
+        if tier in ("A", "B"):
+            size_usdc = confidence_position_size(
+                confidence=tier,
+                bankroll=deps.state.portfolio.bankroll,
+                confidence_bet_pct=cfg.risk.confidence_bet_pct,
+                max_bet_usdc=cfg.risk.max_single_bet_usdc,
+                max_bet_pct=cfg.risk.max_bet_pct,
+            )
+            if size_usdc > 0:
+                signal = tennis_candidate_to_signal(candidate, market, tier)
+                signal = signal.model_copy(update={"size_usdc": size_usdc})
+                signals_for_entry.append(signal)
+                markets_for_entry.append(market)
+
+    # Execute paper entries via EntryProcessor (sport-agnostic portfolio guards),
+    # then persist portfolio snapshot so positions.json reflects the new state.
+    if signals_for_entry:
+        deps.entry_processor.process_signals(markets_for_entry, signals_for_entry)
+        persist(deps.state)
 
     logger.info(
-        "Tennis cycle done: %d markets scanned, %d enriched, %d selected, %d qualified (edge≥%.0f%%)",
+        "Tennis cycle done: %d markets scanned, %d enriched, %d selected, "
+        "%d qualified (edge≥%.0f%%), %d signals submitted",
         len(markets),
         len(candidates),
         len(selected_edges),
         logged,
         cfg.edge.min_edge * 100,
+        len(signals_for_entry),
     )
     return logged
 

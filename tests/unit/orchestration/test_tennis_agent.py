@@ -54,16 +54,26 @@ def _make_market(
 
 
 def _make_deps(tmp_path: Path, cfg: AppConfig | None = None) -> TennisDeps:
+    from unittest.mock import MagicMock  # noqa: PLC0415
+
     from src.infrastructure.data.sackmann_csv_client import SackmannCsvClient  # noqa: PLC0415
     from src.infrastructure.data.tennis_ratings_store import TennisRatingsStore  # noqa: PLC0415
     from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger  # noqa: PLC0415
 
     config = cfg or AppConfig()
+    # Existing diagnostic-only tests don't exercise the entry pipeline; pass
+    # mock state + entry_processor so TennisDeps shape is satisfied. New
+    # entry-wiring tests build a real EntryProcessor (see test_tennis_agent_entry_wiring.py).
+    state = MagicMock()
+    state.portfolio.bankroll = config.initial_bankroll
+    entry_processor = MagicMock()
     return TennisDeps(
         config=config,
         ratings_store=TennisRatingsStore(path=tmp_path / "ratings.json"),
         sackmann_client=SackmannCsvClient(cache_dir=tmp_path),
         diagnostic_logger=TennisDiagnosticLogger(log_dir=tmp_path / "logs"),
+        state=state,
+        entry_processor=entry_processor,
     )
 
 

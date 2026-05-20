@@ -2,6 +2,14 @@
 
 Scanner → gate → cap-clip → execute → persist.
 Agent bu class'ı composition ile kullanır.
+
+İki public giriş noktası:
+- `run_heavy()` / `process_markets()`: bookmaker konsensüsü tabanlı ana akış
+  (EntryGate üzerinden geçer).
+- `process_signals()`: sport-specific zaten-üretilmiş Signal'ler için
+  (örn. tennis predictor) sport-agnostic portfolio guard'larını uygular ve
+  geçenleri execute eder. Bookmaker enricher ve gate strategy evaluator
+  ÇALIŞMAZ — yalnızca portfolio-level guard'lar.
 """
 from __future__ import annotations
 
@@ -14,6 +22,7 @@ from src.infrastructure.persistence.trade_logger import TradeRecord, _split_spor
 from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
 from src.models.position import Position
+from src.models.signal import Signal
 from src.orchestration import operational_writers
 
 logger = logging.getLogger(__name__)
@@ -147,6 +156,24 @@ class EntryProcessor:
                 executing_written = True
             self._execute_entry(market, clipped_signal)
             self.deps.stock.remove(market.condition_id)
+
+    def process_signals(
+        self,
+        markets: list[MarketData],
+        signals: list[Signal],
+    ) -> None:
+        """Sport-agnostic portfolio guard akışı — bookmaker enricher ÇALIŞMAZ.
+
+        Tennis (ve gelecekte diğer sport-specific predictor'lar) için. Caller
+        Signal'i kendi sizing'ı ile üretir (size_usdc dolu gelir); burada
+        yalnızca portfolio-level guard'lar uygulanır, geçenler execute edilir.
+
+        Detaylar + guard listesi: `_entry_processor_signals.process_signals`.
+        """
+        from src.orchestration._entry_processor_signals import (
+            process_signals as _impl,
+        )
+        _impl(self.deps, markets, signals, self._execute_entry)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
         """Sim/live order → position open → trade record."""

@@ -105,4 +105,26 @@
 
 ---
 
+## TODO-TENNIS-DRY: EntryGate / EntryProcessor.process_signals guard duplicate
+
+- **Durum**: DEFERRED — gate.py refactor'üyle birlikte yapılır
+- **Tarih**: 2026-05-20
+- **Sebep**: Stage 4 PLAN-TENNIS-001'de `EntryProcessor.process_signals`
+  eklendi (tennis paper entry için sport-agnostic guard akışı). 8 portfolio
+  guard predikatı (circuit_breaker / cooldown / max_positions / event_cap /
+  blacklist / manipulation / entry_price_cap / exposure_cap)
+  `src/orchestration/_entry_processor_signals.py` içinde yeniden yazıldı —
+  `src/strategy/entry/gate.py::_evaluate_one` ile birebir aynı. EntryGate
+  bu predikatları bookmaker enricher ve strateji evaluator arasına
+  serpiştirdiği için temiz extraction gate.py refactor'ü olmadan mümkün
+  olmadı; minimum invaziv yol inline duplicate + bu TODO seçildi.
+- **Çözüm önerisi**: `src/strategy/entry/portfolio_guards.py` (veya
+  domain layerda paralel) altında 8 guard'ı saf fonksiyon olarak topla;
+  hem `EntryGate._evaluate_one` hem `_entry_processor_signals.process_signals`
+  bunları çağırsın. Bu sırada GateConfig de `PortfolioGuardConfig`'e ayrılabilir.
+- **Önkoşul**: Tennis paper entry akışı 1-2 haftalık veri toplandıktan
+  sonra (regresyon güveni) gate refactor'üne girilir.
+
+---
+
 ## TODO-003: [sonraki eklenecekler]
