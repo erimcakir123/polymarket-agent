@@ -864,6 +864,53 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 
 ---
 
+## SPEC-O: Tennis Lab Full Paper Trading Wire-Up (2026-05-20)
+
+**Karar:** Tennis sandbox artık ana botun entry/exit/state machinery'sini paper modda kullanır; edge kaynağı = Glicko-2 + Klaassen-Magnus iid model (bookmaker konsensüsü değil). 10 aşamalı PLAN-TENNIS-001 ile bağlandı.
+
+**Neden:** SPEC-N diagnostic-only tennis loop yetersizdi — kullanıcı dashboard widget'larını besleyen tam paper trading istedi ("öbür dashboard'dakilerin aynısı aynı mantık sadece tennis için"). Diagnostic JSONL kaydı korunur, üstüne gerçek pozisyon yaşam döngüsü eklenir.
+
+**Mimari karar (Stage 4 BLOCKED → resolved):**
+EntryGate (`src/strategy/entry/gate.py`) bookmaker konsensüsüne hardwired — odds_enricher tüm tennis signal'larını `no_bookmaker_data` ile reddediyor. **Çözüm: Option (a)** — tennis_agent process_signals'ı çağırmadan ÖNCE sizing'i confidence_position_size ile yapar; EntryProcessor.process_signals tennis için sadece portfolio-level guard'ları (circuit_breaker, cooldown, max_positions, event_cap, blacklist, manipulation, entry_price_cap, exposure_cap) koşar.
+
+**Yeni public API:** `EntryProcessor.process_signals(markets, signals) -> None` — bookmaker bypass eden tennis paper trading giriş noktası.
+
+**Yeni dosyalar (tennis-lab branch feature/tennis-lab):**
+- `src/strategy/entry/tennis_signal_adapter.py` — EdgeCandidate → Signal dönüşümü
+- `src/orchestration/_entry_processor_signals.py` — 8 portfolio guard impl (DRY-DEBT: TODO-TENNIS-DRY ile gate.py ile birleştirilecek)
+- `scripts/debug_tennis_markets.py` — Polymarket tennis market_type/sport_tag denetimi
+- `scripts/verify_tennis_isolation.py` — tennis-lab path isolation guard
+- `scripts/inject_fake_tennis_position.py` — dashboard visual testi için sahte position
+- `scripts/close_fake_tennis_position.py` — sahte position kapatma
+- `scripts/dashboard_audit.py` — 11 dashboard endpoint sanity check
+
+**Modified (tennis-lab branch only):**
+- `src/orchestration/tennis_agent.py` — heavy + light cycle, sizing+process_signals+persist+equity_snapshot
+- `src/orchestration/tennis_factory.py` — state/executor/gate/EntryProcessor/ExitProcessor/equity_logger(dual-write)/trade_logger(dual-write)/skipped_logger composition
+- `src/orchestration/entry_processor.py` — process_signals public API
+- `src/models/enums.py` — EntryReason.TENNIS değeri eklendi
+- `config_tennis.yaml` — bankroll $500, A→$50 (10%), B→$40 (8%), max_duration_days 10
+- `scripts/tennis_main.py` + `scripts/tennis_dashboard.py` — absolute path anchoring
+
+**Mitigation (ana bot risk yok):**
+- Tüm src değişiklikleri feature/tennis-lab branch'inde (worktree); master'a SADECE bu SPEC-O entry merge edilir.
+- entry_processor.py'a EKLENEN process_signals public API run_heavy davranışını DEĞİŞTİRMEDİ (test_run_heavy_behavior_unchanged_after_refactor doğruladı).
+- EntryReason enum genişlemesi backward-compat (yeni değer).
+- tennis-lab state izolasyonu: ayrı `tennis-lab/data/positions.json`, `tennis-lab/logs/audit/*`, vs. — main bot dosyalarına sıfır yazma (verify_tennis_isolation.py garantörü).
+
+**Toplam değişim:**
+- 13 commit (Stages 0-9.5) on feature/tennis-lab
+- 1303 test geçiyor (15 stage ekledi, 0 regression)
+- Dashboard: 11/11 endpoint PASS
+
+**Sonraki adımlar (ertelenmiş):**
+1. **TODO-TENNIS-DRY** — 8 guard predicate gate.py ↔ _entry_processor_signals.py duplication; portfolio_guards.py'a extract et.
+2. **sport_rules tennis lookup** — tennis sport_tag duration map'te yok; graduated SL skipped, sadece flat SL + near_resolve fire. Sport-specific exit rules sonraki yinelemede.
+3. **4 hafta paper trade gözlemi** — sonra accuracy ≥ %53 ise canlıya geç ($5-10 pozisyon).
+4. **Legacy orphan file cleanup** — `tennis-lab/logs/trade_history.jsonl` + `logs/skipped_trades.jsonl` (root) artık kullanılmıyor; Stage 10'da silindi.
+
+---
+
 ## SPEC-N: Tennis Prediction Lab v1.0 (2026-05-19)
 
 **Karar**: Polymarket tenis alt market'lerinde (First Set Winner + Set Handicap −1.5 + Total Sets U 2.5) bookmaker'ın olmadığı market inefficiency'yi exploit eden ayrı sandbox sistem inşa edildi. Glicko-2 + Klaassen-Magnus tahmin motoru.
