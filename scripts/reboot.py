@@ -1,12 +1,14 @@
 """Bot ve dashboard için reload/reboot kontrol scripti.
 
 RELOAD: Graceful kill + state/audit DOKUNMAZ + yeniden başlat.
-REBOOT: Graceful kill + runtime + session + state + AUDIT temizle + yeniden başlat (gerçek factory reset).
+REBOOT: Graceful kill + runtime + session + state temizle + yeniden başlat.
+        AUDIT KORUNUR (SPEC-H 2026-05-10 — kalıcı arşiv, append-only).
+WIPE:   Reboot + audit dosyalarını arşivle (yalnız --wipe veya WIPE_AUDIT=1 ile).
 
 Dizin yapısı:
   logs/runtime/  — reboot'ta temizlenir (bot.log, dashboard.log, skipped_trades.jsonl)
   logs/session/  — reboot'ta temizlenir (audit aynası — dashboard kaynağı)
-  logs/audit/    — REBOOT'ta temizlenir (kullanıcı kararı 2026-05-05); reload korur
+  logs/audit/    — reboot DOKUNMAZ (SPEC-H); sadece --wipe / WIPE_AUDIT=1 arşivler
   data/          — state dosyaları (positions, circuit_breaker, stock_queue, bot_status, blacklist)
   logs/          — PID dosyaları (agent.pid, dashboard.pid)
 
@@ -14,7 +16,8 @@ Tekillik garantisi: agent.pid + dashboard.pid kontrolü — stacklenme yok.
 
 Kullanım:
   python scripts/reboot.py reload
-  python scripts/reboot.py reboot
+  python scripts/reboot.py reboot                # audit korunur (default)
+  python scripts/reboot.py reboot --wipe         # audit arşivlenir (clean slate)
   python scripts/reboot.py reboot --mode live
 """
 from __future__ import annotations
@@ -231,13 +234,15 @@ def archive_audit_logs(
     audit_files: list[Path] | None = None,
     timestamp: str | None = None,
 ) -> None:
-    """Reboot'ta audit dosyalarını rename ile arşivle — silmez, taşır.
+    """Audit dosyalarını rename ile arşivle — silmez, taşır.
 
-    2026-05-11 fix: SPEC-E _reconcile_realized_pnl audit'i ground truth okuyor.
-    Reboot audit'i korusa da bot startup'ta audit'ten realized_pnl'i geri inşa
-    ediyordu → "clean start" semantiği ihlal. Bu fonksiyon mevcut audit'i
-    `<name>.archive.YYYYMMDD_HHMMSS.jsonl` olarak rename eder; yeni session boş
-    audit ile başlar, eski archive forensic erişim için kalır.
+    ⚠️ SPEC-H 2026-05-10: audit append-only, kalıcı arşiv. Bu fonksiyon SADECE
+    explicit wipe komutuyla (`reboot --wipe` veya WIPE_AUDIT=1) çağrılmalıdır.
+    Default reboot/reload audit'i ASLA çağırmaz — `archive_audit_on_demand`
+    gate'i bu kuralı uygular.
+
+    Mevcut audit'i `<name>.archive.YYYYMMDD_HHMMSS.jsonl` olarak rename eder;
+    yeni session boş audit ile başlar, eski archive forensic erişim için kalır.
     """
     from datetime import datetime, timezone
 
@@ -250,6 +255,28 @@ def archive_audit_logs(
             )
             audit_file.rename(archived)
             print(f"  Archived: {audit_file.name} -> {archived.name}")
+
+
+def archive_audit_on_demand(
+    wipe_audit: bool = False,
+    audit_files: list[Path] | None = None,
+    timestamp: str | None = None,
+) -> bool:
+    """SPEC-H gate: audit arşivi SADECE explicit isteği takiben çalışır.
+
+    Args:
+        wipe_audit: True ise (caller --wipe flag verdi VEYA WIPE_AUDIT=1 env)
+                    audit dosyaları arşivlenir. False = no-op (audit korunur).
+        audit_files: Test injection. Default = _AUDIT_FILES_CLEAR.
+        timestamp: Test injection. Default = now() UTC.
+
+    Returns:
+        True archive yapıldıysa, False atlandıysa.
+    """
+    if not wipe_audit and os.environ.get("WIPE_AUDIT") != "1":
+        return False
+    archive_audit_logs(audit_files=audit_files, timestamp=timestamp)
+    return True
 
 
 def start_dashboard(root: Path | None = None) -> None:
@@ -300,11 +327,17 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
         print(f"  Cleared session log: {f.name}")
 
 
-def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
+def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool = False) -> None:
     """REBOOT: state + session + runtime sıfırlanır. AUDIT KORUNUR (kalıcı arşiv).
 
-    Audit tamamen silinmek istenirse manuel olarak `clear_audit_logs()` çağrılmalı
-    veya dosyalar elle silinmeli (--include-audit flag yok, kazara silmeyi önler).
+    SPEC-H 2026-05-10: Audit append-only kalıcı arşiv — default reboot ASLA
+    arşivlemez. Sadece `wipe_audit=True` (--wipe flag veya WIPE_AUDIT=1 env)
+    audit dosyalarını rename eder.
+
+    Args:
+        mode: Bot run mode (dry_run / live).
+        skip_confirm: True = onay sormadan reboot.
+        wipe_audit: True = audit dosyaları arşivlenir (--wipe protokolü).
     """
     print("=== REBOOT ===")
     if not skip_confirm:
@@ -312,7 +345,11 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
         print("   - data/positions.json, data/circuit_breaker_state.json (state)")
         print("   - logs/session/* (dashboard kaynağı)")
         print("   - logs/runtime/* (bot.log)")
-        print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv).\n")
+        if wipe_audit:
+            print("   ⚠️  --wipe AKTİF: logs/audit/* ARŞİVLENİR (rename .archive.<TS>).")
+        else:
+            print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv, append-only).")
+        print()
         try:
             answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -324,12 +361,14 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
     kill_processes()
     clear_runtime_logs()
     clear_session_logs()
-    # NOT: clear_audit_logs() çağrılmıyor — audit kalıcı arşiv (SPEC-H 2026-05-10).
-    # AMA mevcut audit dosyaları rename ile archive'lenir (2026-05-11 fix):
-    # SPEC-E reconcile_realized_pnl audit'i ground truth okuyordu, reboot sonrası
-    # realized_pnl audit'ten geri inşa ediliyordu → "clean start" ihlal.
-    # Archive ile audit veri kaybolmaz ama yeni session boş audit ile başlar.
-    archive_audit_logs()
+    # SPEC-H gate: audit SADECE explicit wipe ile arşivlenir (--wipe / WIPE_AUDIT=1).
+    # Default reboot audit'i KORUR — reconcile_realized_pnl phantom-restored entry
+    # ve GUARD-3/GUARD-4 ile audit'ten yanlış realized çekmeyi zaten önlüyor.
+    archived = archive_audit_on_demand(wipe_audit=wipe_audit)
+    if archived:
+        print("  Audit dosyalari arsivlendi (--wipe).")
+    else:
+        print("  Audit korundu (SPEC-H append-only).")
     reset_state()
     start_dashboard()
     time.sleep(3)
@@ -342,10 +381,12 @@ if __name__ == "__main__":
     parser.add_argument("action", choices=["reload", "reboot"])
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live"])
     parser.add_argument("--yes", action="store_true",
-                        help="Reboot onayını bypass et (audit silme uyarısını atla)")
+                        help="Reboot onayını bypass et")
+    parser.add_argument("--wipe", action="store_true",
+                        help="Audit dosyalarını da arşivle (SPEC-H protokol istisnası — clean slate)")
     args = parser.parse_args()
 
     if args.action == "reboot":
-        reboot(args.mode, skip_confirm=args.yes)
+        reboot(args.mode, skip_confirm=args.yes, wipe_audit=args.wipe)
     else:
         reload_bot(args.mode)

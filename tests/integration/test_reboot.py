@@ -192,6 +192,7 @@ def test_reboot_clears_session_but_keeps_audit(tmp_path: Path) -> None:
         patch("scripts.reboot.clear_runtime_logs"),
         patch("scripts.reboot.clear_session_logs") as mock_session,
         patch("scripts.reboot.clear_audit_logs") as mock_audit,
+        patch("scripts.reboot.archive_audit_logs") as mock_archive,
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.start_dashboard"),
         patch("scripts.reboot.start_bot"),
@@ -200,7 +201,8 @@ def test_reboot_clears_session_but_keeps_audit(tmp_path: Path) -> None:
         reboot("dry_run", skip_confirm=True)
 
     mock_session.assert_called_once()
-    mock_audit.assert_not_called()  # Audit korunur
+    mock_audit.assert_not_called()       # Silme yok
+    mock_archive.assert_not_called()     # SPEC-H: arşivleme de yok (default)
 
 
 def test_reload_does_not_clear_session_or_audit(tmp_path: Path) -> None:
@@ -357,8 +359,12 @@ def test_archive_audit_logs_skips_missing_file(tmp_path: Path) -> None:
     assert not audit_file.exists()
 
 
-def test_reboot_calls_archive_audit_logs() -> None:
-    """Reboot komutu archive_audit_logs cagiriyor (clean start fix)."""
+def test_reboot_default_does_not_archive_audit() -> None:
+    """SPEC-H 2026-05-10 + 2026-05-20 fix: default reboot AUDIT'i KORUR.
+
+    archive_audit_logs cagrilamaz (rename = veri kaybi).
+    Sadece --wipe veya WIPE_AUDIT=1 ile arsivlenir.
+    """
     with (
         patch("scripts.reboot.kill_processes"),
         patch("scripts.reboot.clear_runtime_logs"),
@@ -370,5 +376,22 @@ def test_reboot_calls_archive_audit_logs() -> None:
         patch("scripts.reboot.time.sleep"),
     ):
         reboot("dry_run", skip_confirm=True)
+
+    mock_archive.assert_not_called()
+
+
+def test_reboot_with_wipe_flag_archives_audit() -> None:
+    """--wipe flag (wipe_audit=True) audit arsivlemesini tetikler."""
+    with (
+        patch("scripts.reboot.kill_processes"),
+        patch("scripts.reboot.clear_runtime_logs"),
+        patch("scripts.reboot.clear_session_logs"),
+        patch("scripts.reboot.archive_audit_logs") as mock_archive,
+        patch("scripts.reboot.reset_state"),
+        patch("scripts.reboot.start_bot"),
+        patch("scripts.reboot.start_dashboard"),
+        patch("scripts.reboot.time.sleep"),
+    ):
+        reboot("dry_run", skip_confirm=True, wipe_audit=True)
 
     mock_archive.assert_called_once()
