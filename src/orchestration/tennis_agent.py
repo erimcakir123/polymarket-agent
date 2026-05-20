@@ -1,9 +1,14 @@
-"""Tennis agent loop — periodic scan + enrich + log pipeline.
+"""Tennis agent loop — periodic heavy (scan/enrich/entry) + light (exit) cycles.
 
-Paper-mode MVP: NO real execution, NO positions.json state.
-Demonstrates the full pipeline end-to-end with real Polymarket data.
-Qualifying candidates (edge ≥ min_edge, tier A or B) are logged via
-TennisDiagnosticLogger for post-hoc paper-trade analysis.
+Paper mode: entries via EntryProcessor.process_signals, exits via
+ExitProcessor.run_light. All positions written to data/positions.json after
+heavy or light cycles. Qualifying candidates (edge ≥ min_edge, tier A or B)
+are also logged via TennisDiagnosticLogger for post-hoc paper-trade analysis.
+
+Heavy cycle (default 30 min): scan Polymarket → enrich → size → entry.
+Light cycle (default 60 sec): tick open positions → exit evaluation (SL/TP/
+graduated/near-resolve). Tennis run_light passes score_map=None — exits rely on
+price + time (match_start_iso + match_duration_hours), not in-match score.
 
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §11.4
 """
@@ -230,6 +235,40 @@ def run_one_cycle(
     return logged
 
 
+def run_light_cycle(
+    deps: TennisDeps,
+    *,
+    data_dir: Path = Path("data"),
+    next_heavy_at: Optional[datetime] = None,
+) -> None:
+    """Light cycle — açık pozisyonları exit guard'larından geçir + persist.
+
+    Tennis için `score_map=None` — exit guard'ları price + time (match_start_iso
+    + match_duration_hours) üzerinden çalışır; in-match score injection yok.
+    NEAR_RESOLVE / FLAT SL / GRADUATED SL / NEVER_IN_PROFIT / ULTRA_LOW /
+    HOLD_REVOKED / SCALE_OUT bu cycle'da değerlendirilir.
+
+    Args:
+        deps: Wired tennis dependencies.
+        data_dir: bot_status.json yazım dizini.
+        next_heavy_at: Dashboard göstergesi için bir sonraki heavy cycle zamanı.
+            run_forever bunu monotonic clock'tan hesaplayıp geçer; doğrudan
+            çağrılan testler/script'ler için None → şu an (gösterge placeholder).
+    """
+    deps.exit_processor.run_light(score_map=None)
+    # Heavy cycle ile aynı persist davranışı — pos state (current_price, peak,
+    # consecutive_down_cycles) tick'lendiği için her light sonunda diske yaz.
+    persist(deps.state)
+    status_file = data_dir / "bot_status.json"
+    mode = deps.config.mode.value
+    _write_status(
+        status_file,
+        stage="light",
+        next_heavy_at=next_heavy_at or datetime.now(timezone.utc),
+        mode=mode,
+    )
+
+
 def _write_pid(pid_file: Path) -> None:
     """Tennis agent process PID dosyası — dashboard bot_is_alive kontrolü için."""
     pid_file.parent.mkdir(parents=True, exist_ok=True)
@@ -249,7 +288,7 @@ def _write_status(
         status_file.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "mode": mode,
-            "cycle": "heavy",
+            "cycle": "heavy" if stage in ("scanning", "idle") else "light",
             "stage": stage,
             "stage_at": datetime.now(timezone.utc).isoformat(),
             "next_heavy_at": next_heavy_at.isoformat(),
@@ -266,43 +305,63 @@ def run_forever(
     *,
     logs_dir: Path = Path("logs"),
     data_dir: Path = Path("data"),
+    light_interval_sec: int = 60,
 ) -> None:
-    """Run agent loop indefinitely with fixed interval between cycles.
+    """Run agent loop indefinitely with independent heavy/light cycles.
 
-    Ratings and Sackmann matches are reloaded each cycle to pick up
-    freshly-built ratings without restart.
+    Heavy cycle (default every 1800s = 30min): scan/enrich/entry via
+    run_one_cycle. Light cycle (default every 60s): exit guards via
+    run_light_cycle. Loop ticks once per second; each cycle fires when its
+    interval has elapsed.
+
+    Ratings and Sackmann matches are reloaded inside run_one_cycle each heavy
+    cycle to pick up freshly-built ratings without restart.
 
     Dashboard heartbeat: agent.pid (logs_dir) + bot_status.json (data_dir).
 
     Args:
         deps: Wired tennis dependencies.
-        interval_sec: Seconds to sleep between cycle starts (default 1800 = 30min).
+        interval_sec: Heavy cycle interval (default 1800 = 30min).
         logs_dir: Path for agent.pid file.
         data_dir: Path for bot_status.json file.
+        light_interval_sec: Light cycle interval (default 60s).
     """
     logger.info(
-        "Tennis agent starting: interval=%ds mode=%s",
-        interval_sec,
-        deps.config.mode.value,
+        "Tennis agent starting: heavy=%ds light=%ds mode=%s",
+        interval_sec, light_interval_sec, deps.config.mode.value,
     )
     pid_file = logs_dir / "agent.pid"
     status_file = data_dir / "bot_status.json"
     mode = deps.config.mode.value
     _write_pid(pid_file)
 
-    while True:
-        cycle_start = time.monotonic()
-        next_heavy_at = datetime.now(timezone.utc) + timedelta(seconds=interval_sec)
-        _write_status(status_file, stage="scanning", next_heavy_at=next_heavy_at, mode=mode)
-        try:
-            n = run_one_cycle(deps)
-            logger.info("Cycle logged %d candidates", n)
-        except Exception as exc:  # noqa: BLE001 — orchestration catches + logs all
-            logger.error("Tennis cycle error: %s", exc, exc_info=True)
-        _write_status(status_file, stage="idle", next_heavy_at=next_heavy_at, mode=mode)
+    # Heavy + light tetik zamanları monotonic clock üzerinden bağımsız izlenir.
+    # İlk iterasyonda her ikisi de tetiklenecek şekilde "uzun zaman önce" başlatılır.
+    last_heavy_at = time.monotonic() - interval_sec
+    last_light_at = time.monotonic() - light_interval_sec
 
-        elapsed = time.monotonic() - cycle_start
-        sleep_sec = max(0, interval_sec - elapsed)
-        if sleep_sec > 0:
-            logger.info("Next cycle in %.0fs", sleep_sec)
-            time.sleep(sleep_sec)
+    while True:
+        now_mono = time.monotonic()
+
+        if now_mono - last_heavy_at >= interval_sec:
+            next_heavy_at = datetime.now(timezone.utc) + timedelta(seconds=interval_sec)
+            _write_status(status_file, stage="scanning", next_heavy_at=next_heavy_at, mode=mode)
+            try:
+                n = run_one_cycle(deps)
+                logger.info("Heavy cycle logged %d candidates", n)
+            except Exception as exc:  # noqa: BLE001 — orchestration catches + logs all
+                logger.error("Tennis heavy cycle error: %s", exc, exc_info=True)
+            _write_status(status_file, stage="idle", next_heavy_at=next_heavy_at, mode=mode)
+            last_heavy_at = time.monotonic()
+
+        if time.monotonic() - last_light_at >= light_interval_sec:
+            # next_heavy_at = bir sonraki heavy tetikleme noktası (monotonic clock)
+            seconds_until_heavy = max(0.0, interval_sec - (time.monotonic() - last_heavy_at))
+            light_next_heavy_at = datetime.now(timezone.utc) + timedelta(seconds=seconds_until_heavy)
+            try:
+                run_light_cycle(deps, data_dir=data_dir, next_heavy_at=light_next_heavy_at)
+            except Exception as exc:  # noqa: BLE001 — orchestration catches + logs all
+                logger.error("Tennis light cycle error: %s", exc, exc_info=True)
+            last_light_at = time.monotonic()
+
+        time.sleep(1)

@@ -67,6 +67,7 @@ def _make_deps(tmp_path: Path, cfg: AppConfig | None = None) -> TennisDeps:
     state = MagicMock()
     state.portfolio.bankroll = config.initial_bankroll
     entry_processor = MagicMock()
+    exit_processor = MagicMock()
     return TennisDeps(
         config=config,
         ratings_store=TennisRatingsStore(path=tmp_path / "ratings.json"),
@@ -74,6 +75,7 @@ def _make_deps(tmp_path: Path, cfg: AppConfig | None = None) -> TennisDeps:
         diagnostic_logger=TennisDiagnosticLogger(log_dir=tmp_path / "logs"),
         state=state,
         entry_processor=entry_processor,
+        exit_processor=exit_processor,
     )
 
 

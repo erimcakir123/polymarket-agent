@@ -1,13 +1,15 @@
 """Tennis lab sandbox composition root.
 
 Builds tennis-specific dependencies (config, ratings, predictor) + paper-mode
-entry infrastructure (state, executor, loggers, entry_processor) wired with
-the main bot's modules.
+entry/exit infrastructure (state, executor, loggers, entry_processor,
+exit_processor) wired with the main bot's modules.
 
 Stage 4 PLAN-TENNIS-001: tennis_agent artık `entry_processor.process_signals`
-çağırarak gerçek pozisyon açıyor (paper mode). EntryGate yalnızca
-config/breaker/cooldown/blacklist/manip taşıyıcısı; `gate.run()` ÇAĞRILMIYOR
-(bookmaker enricher tennis için anlamsız).
+çağırarak gerçek pozisyon açıyor (paper mode).
+Stage 5 PLAN-TENNIS-001: light cycle `exit_processor.run_light` ile tennis
+pozisyonları SL/TP/graduated/near-resolve guard'larından geçiyor.
+EntryGate yalnızca config/breaker/cooldown/blacklist/manip taşıyıcısı;
+`gate.run()` ÇAĞRILMIYOR (bookmaker enricher tennis için anlamsız).
 
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §11.2 (shared modules)
 """
@@ -30,6 +32,7 @@ from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
+from src.orchestration.exit_processor import ExitProcessor
 from src.orchestration.startup import RuntimeState, bootstrap
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.strategy.entry.gate import EntryGate, GateConfig
@@ -44,6 +47,9 @@ class TennisDeps:
     `entry_processor` paper-mode pozisyon açar (sport-agnostic guard'lar +
     in-memory portfolio + trade_history.jsonl). `state.portfolio` heavy
     cycle sonunda `persist(state)` ile positions.json'a yazılır.
+    `exit_processor` light cycle'da tüm açık pozisyonları SL/TP/graduated/
+    near-resolve guard'larından geçirir; tetiklenen exit'ler executor.exit_position
+    (paper sim) + trade_logger.update_on_exit ile defterleniyor.
     """
 
     config: AppConfig
@@ -52,6 +58,7 @@ class TennisDeps:
     diagnostic_logger: TennisDiagnosticLogger
     state: RuntimeState
     entry_processor: EntryProcessor
+    exit_processor: ExitProcessor
 
 
 def build_tennis_deps(
@@ -92,8 +99,10 @@ def build_tennis_deps(
         trade_history_path=logs_path / "trade_history.jsonl",
     )
 
-    # Entry infrastructure
-    entry_processor = _build_entry_processor(cfg, state, data_path, logs_path)
+    # Entry + exit infrastructure (shared deps container — built once, used both)
+    entry_processor, exit_processor = _build_entry_exit_processors(
+        cfg, state, data_path, logs_path,
+    )
 
     logger.info(
         "Tennis deps built: mode=%s bankroll=$%.2f dashboard=:%d",
@@ -108,20 +117,25 @@ def build_tennis_deps(
         diagnostic_logger=diagnostic_logger,
         state=state,
         entry_processor=entry_processor,
+        exit_processor=exit_processor,
     )
 
 
-def _build_entry_processor(
+def _build_entry_exit_processors(
     cfg: AppConfig,
     state: RuntimeState,
     data_dir: Path,
     logs_dir: Path,
-) -> EntryProcessor:
-    """Paper-mode entry pipeline'ı kur — EntryProcessor + dependencies.
+) -> tuple[EntryProcessor, ExitProcessor]:
+    """Paper-mode entry + exit pipeline'larını ortak deps üzerinde kur.
 
-    Tennis akışı yalnızca `entry_processor.process_signals` çağırır;
-    `run_heavy`/`process_markets` için gereken scanner/stock/odds_client/
-    score_enricher/price_feed verilmez (Stage 4 scope).
+    EntryProcessor + ExitProcessor aynı `_TennisAgentDeps` instance'ını
+    paylaşır — state/executor/trade_logger/equity_logger/cooldown/cycle_manager
+    tek yerde build edilir, iki processor da aynı portfolyoyu görür.
+
+    Tennis akışı `entry_processor.process_signals` + `exit_processor.run_light`
+    çağırır; `run_heavy`/`process_markets` için gereken scanner/stock/odds_client/
+    score_enricher/price_feed verilmez (Stage 5 scope).
     """
     executor = Executor(mode=cfg.mode)
 
@@ -168,10 +182,11 @@ def _build_entry_processor(
         manipulation_checker=_manip,
     )
 
-    # EntryProcessor.deps minimum subset — tennis paper akışı:
+    # EntryProcessor + ExitProcessor ortak deps subset — tennis paper akışı:
     # state, gate, executor, trade_logger, skipped_logger, equity_logger,
-    # bot_status_writer, price_feed=None. (scanner/stock/odds_client/
-    # score_enricher/cooldown/command_poller None — run_heavy çağrılmadığı için.)
+    # bot_status_writer, cycle_manager, cooldown, price_feed=None.
+    # (scanner/stock/odds_client/score_enricher/command_poller None — run_heavy
+    # çağrılmıyor; ExitProcessor score_map=None ile çalıştırılıyor.)
     from dataclasses import dataclass as _dc
 
     @_dc
@@ -184,6 +199,7 @@ def _build_entry_processor(
         bot_status_writer: BotStatusWriter
         gate: EntryGate
         cooldown: CooldownTracker
+        cycle_manager: CycleManager
         price_feed: None = None
 
     deps = _TennisAgentDeps(
@@ -195,5 +211,6 @@ def _build_entry_processor(
         bot_status_writer=bot_status_writer,
         gate=gate,
         cooldown=cooldown,
+        cycle_manager=cycle_manager,
     )
-    return EntryProcessor(deps)
+    return EntryProcessor(deps), ExitProcessor(deps)
