@@ -2,3 +2,7 @@ nhl_shots/
 cache/
 # Runtime state — bot tarafından yazılır, repo'ya girmez
 *.json
+# Replay / merge backup dizinleri — runtime forensic, repo dışı
+_pre_replay_*/
+_pre_merge_*/
+_pre_reboot_*/
