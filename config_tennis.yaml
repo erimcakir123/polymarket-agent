@@ -2,7 +2,7 @@
 # Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md
 
 mode: paper
-initial_bankroll: 500
+initial_bankroll: 1000
 
 cycle:
   heavy_interval_min: 30
@@ -40,9 +40,8 @@ edge:
   confidence_multipliers: {A: 1.00, B: 1.00}
 
 risk:
-  # Stage 3 PLAN-TENNIS-001 — user-approved sizing (bankroll $500):
-  # A tier → $50 (10% of $500), B tier → $40 (8% of $500), max cap $50.
-  max_single_bet_usdc: 50
+  # Bankroll $1000 — A tier $100 (10%), B tier $80 (8%), max cap $100.
+  max_single_bet_usdc: 100
   max_bet_pct: 0.10
   confidence_bet_pct: {A: 0.10, B: 0.08}
   max_positions: 20
