@@ -80,7 +80,7 @@ Bot'un yeni davranışını 7 gün gözle, Faz 2 spec'i için veri topla.
 
 ### PLAN-TENNIS-001: Tennis Lab Full Paper Trading Wire-Up
 
-- **Durum**: APPROVED
+- **Durum**: DONE
 - **Tarih**: 2026-05-20
 - **Öncelik**: P0
 - **Branch**: feature/tennis-lab (worktree — main repo'ya sıfır risk)
@@ -424,6 +424,10 @@ LIGHT (60sn):
 - Sıfır main bot dosyası tehlikede (master'a SADECE Stage 10'da DECISIONS.md güncellenir).
 
 **Yürütme:** Subagent-driven development. Her stage için fresh implementer subagent + spec compliance reviewer + code quality reviewer.
+
+---
+
+**Tamamlandı 2026-05-20. SPEC-O olarak master'a yansıtıldı.**
 
 
 
