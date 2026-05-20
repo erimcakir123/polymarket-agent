@@ -36,6 +36,7 @@ class ExitReason(str, Enum):
     MANUAL = "manual"
     PREDICTIVE_DEAD = "predictive_dead"
     SCORE_EXIT = "score_exit"
+    RESOLVED = "resolved"  # Market resolved (price ≤0.03 lost / ≥0.97 won)
 
 
 class SportsMarketType(str, Enum):

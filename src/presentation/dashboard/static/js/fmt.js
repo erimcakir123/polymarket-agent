@@ -257,6 +257,7 @@
       // İleride tier sayısı artarsa bu dal tekrar genişletilir.
       if (/^scale_out_tier_\d+$/.test(r)) return { text: "Take Profit", emoji: "🎯", tone: "pos" };
       if (r === "scale_out") return { text: "Take Profit", emoji: "🎯", tone: "pos" };
+      if (r === "resolved") return { text: "Maç Bitti", emoji: "🏁", tone: "neutral" };
       if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
       if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
       if (r === "score_exit") return { text: "Score against", emoji: "⚠️", tone: "neg" };

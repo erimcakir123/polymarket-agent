@@ -129,13 +129,16 @@ def test_graduated_sl_triggers_late_match() -> None:
 # ── Ultra-low guard ──
 
 def test_ultra_low_guard_triggers() -> None:
-    # entry 0.05 (ultra low), elapsed 0.80, current 0.03
+    # entry 0.05 (ultra low), elapsed 0.80, current 0.04
+    # NOT: current 0.04 kullanıldı (önceden 0.03'tü) — RESOLVED rule ≤0.03'i
+    # yakalıyor (2026-05-20). Ultra-low guard izolasyonu için 0.04 sınırın hemen
+    # üstünde, ama yine ultra-low guard koşullarını sağlıyor (<0.05 + elapsed≥0.75).
     start = datetime.now(timezone.utc) - timedelta(hours=2)  # ~0.80 elapsed for nba
     p = _pos(
-        confidence="B", entry_price=0.05, current_price=0.03,
+        confidence="B", entry_price=0.05, current_price=0.04,
         size_usdc=40, shares=800, match_start_iso=_iso(start),
     )
-    # Flat SL: ultra-low entry → 50% SL; pnl = (800*0.03-40)/40 = -40% > -50% → flat atlar
+    # Flat SL: ultra-low entry → 50% SL; pnl = (800*0.04-40)/40 = -20% > -50% → flat atlar
     r = evaluate(p)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.ULTRA_LOW_GUARD

@@ -1,7 +1,8 @@
 """Exit orchestrator — tüm exit guard'larını koordine eder.
 
 Öncelik zinciri (ilk tetiklenen kazanır):
-  1. Near-resolve profit (eff ≥ 94¢)        — en yüksek öncelik, kâr lock
+  0. Resolved (price ≤3¢ veya ≥97¢)         — maç bitmiş, doğal kapanış
+  1. Near-resolve profit (eff ≥ 94¢)        — kâr lock, henüz settled değil
   2. Scale-out tier (25%→40%, 50%→50%)      — kısmi exit
   3. Flat stop-loss (7-katman)               — temel SL, TÜM pozisyonlar
   4. Graduated SL + never-in-profit + hold-revocation + ultra-low — TÜM pozisyonlar (elapsed>=0)
@@ -18,7 +19,7 @@ from src.config.settings import BasketballExitConfig
 from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
-from src.strategy.exit import favored, graduated_sl, near_resolve, scale_out, stop_loss
+from src.strategy.exit import favored, graduated_sl, near_resolve, resolved, scale_out, stop_loss
 from src.strategy.exit._nba_dispatch import check_nba_exit
 
 
@@ -197,6 +198,20 @@ def evaluate(
     """
     score_info = score_info or {}
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
+
+    # 0. Resolved — fiyat settled aralıkta (≤3¢ veya ≥97¢) → maç bitmiş,
+    # diğer SL/graduated_sl yanılgılarını önle. Highest priority short-circuit.
+    resolved_sig = resolved.check(pos)
+    if resolved_sig is not None:
+        return MonitorResult(
+            exit_signal=ExitSignal(
+                reason=ExitReason.RESOLVED,
+                sell_pct=resolved_sig.sell_pct,
+                detail=resolved_sig.detail,
+            ),
+            fav_transition=_fav_transition(pos),
+            elapsed_pct=elapsed_pct,
+        )
 
     # 1. Near-resolve — en yüksek öncelik
     if near_resolve.check(
