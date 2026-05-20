@@ -3,8 +3,11 @@
 Endpoint: https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard
 API key gerektirmez. Public access.
 
-Desteklenen sporlar: hokey (NHL), beyzbol (MLB), basketbol (NBA).
-Tennis ve soccer scope dışı (SPEC-A5 + SPEC-C ileri faz).
+Desteklenen sporlar: hokey (NHL), beyzbol (MLB), basketbol (NBA), tenis (ATP/WTA).
+Tenis: 2026-05-20 (tennis-lab) — top-level "tournament" event içinde
+`groupings[].competitions[]` ile match-level dolaşılır; competitors `athlete`
+objesi (team değil), score = sets won, period_number = current set,
+home/away_score = games in current set (linescores son entry).
 """
 from __future__ import annotations
 
@@ -80,6 +83,16 @@ def _parse_score(raw: Any) -> int | None:
         return None
 
 
+def _count_tennis_sets_won(linescores: Any) -> int | None:
+    """Tenis: athlete'in linescores listesinde `winner=True` set sayısı.
+
+    None döner sadece liste yoksa/geçersizse — boş liste 0 set sayılır (pre-match).
+    """
+    if not isinstance(linescores, list):
+        return None
+    return sum(1 for ls in linescores if isinstance(ls, dict) and ls.get("winner") is True)
+
+
 class ESPNClient:
     def __init__(
         self,
@@ -122,13 +135,84 @@ class ESPNClient:
         out: list[ESPNMatchScore] = []
         for ev in events:
             try:
-                score = self._parse_event(ev, sport)
-                if score is not None:
-                    out.append(score)
+                if sport == "tennis":
+                    # Tournament wrapper → her grouping'in match'lerini ayrı match olarak çıkar.
+                    out.extend(self._parse_tennis_event(ev))
+                else:
+                    score = self._parse_event(ev, sport)
+                    if score is not None:
+                        out.append(score)
             except (KeyError, TypeError, ValueError) as e:
                 logger.warning("ESPN event parse failed (%s): %s", ev.get("id", "?"), e)
                 continue
         return out
+
+    def _parse_tennis_event(self, ev: dict) -> list[ESPNMatchScore]:
+        """Tenis tournament event → match-level ESPNMatchScore listesi.
+
+        ESPN tenis response'u takım sporlarından farklı: top-level `events[i]` bir
+        TURNUVA (örn. "Bitpanda Hamburg Open"), her turnuva `groupings[]` (mens-/womens-
+        singles vb.) altında `competitions[]` ile gerçek maçları taşır. Her competition
+        iki athlete'lı bir maçtır; `linescores[]` set başına oyun sayısını, `status.period`
+        cari set numarasını verir. Match-level event_id = competition.id.
+        """
+        out: list[ESPNMatchScore] = []
+        tournament_date = str(ev.get("date") or "")
+        for grouping in (ev.get("groupings") or []):
+            for comp in (grouping.get("competitions") or []):
+                score = self._parse_tennis_competition(comp, tournament_date)
+                if score is not None:
+                    out.append(score)
+        return out
+
+    def _parse_tennis_competition(
+        self, comp: dict, fallback_date: str,
+    ) -> ESPNMatchScore | None:
+        """Tek bir tenis maçını ESPNMatchScore'a çevir."""
+        event_id = str(comp.get("id", ""))
+        if not event_id:
+            return None
+        competitors = comp.get("competitors") or []
+        home, away = self._split_home_away(competitors)
+        if home is None or away is None:
+            return None
+
+        status = comp.get("status") or {}
+        type_info = status.get("type") or {}
+        is_completed = bool(type_info.get("completed", False))
+        state = (type_info.get("state") or "").lower()
+        is_live = state == "in"
+        period_num_raw = status.get("period")
+        period_num = period_num_raw if isinstance(period_num_raw, int) and period_num_raw > 0 else None
+        # Period string: "Set N" canlıda; "Final" tamamlanmışta. _estimate_elapsed_from_score
+        # tennis branch'i bu string'i okuyarak elapsed_pct çıkartır.
+        if is_completed:
+            period_str = "Final"
+        elif period_num is not None:
+            period_str = f"Set {period_num}"
+        else:
+            period_str = str(type_info.get("name") or "")
+
+        home_sets = _count_tennis_sets_won(home.get("linescores"))
+        away_sets = _count_tennis_sets_won(away.get("linescores"))
+        home_athlete = home.get("athlete") or {}
+        away_athlete = away.get("athlete") or {}
+
+        return ESPNMatchScore(
+            event_id=event_id,
+            home_name=str(home_athlete.get("displayName", "")),
+            away_name=str(away_athlete.get("displayName", "")),
+            home_team_id=str(home_athlete.get("id", "")),
+            away_team_id=str(away_athlete.get("id", "")),
+            home_score=home_sets,
+            away_score=away_sets,
+            period=period_str,
+            is_completed=is_completed,
+            is_live=is_live,
+            last_updated=datetime.now(timezone.utc).isoformat(),
+            commence_time=str(comp.get("date") or fallback_date),
+            period_number=period_num,
+        )
 
     def _parse_event(self, ev: dict, sport: str) -> ESPNMatchScore | None:
         event_id = str(ev.get("id", ""))

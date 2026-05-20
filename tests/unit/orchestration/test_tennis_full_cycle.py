@@ -13,7 +13,7 @@ HEAVY (run_one_cycle):
   6. operational_writers.log_equity_snapshot(...)        [heartbeat, her zaman]
 
 LIGHT (run_light_cycle):
-  1. ExitProcessor.run_light(score_map=None)
+  1. ExitProcessor.run_light(score_map=<ESPN map veya {}>)
   2. persist(state)
   3. operational_writers.log_equity_snapshot(...)
   4. bot_status.json yazılır (stage="light")
@@ -267,10 +267,10 @@ def test_light_cycle_call_order(tmp_path: Path) -> None:
     status_mock = MagicMock()
 
     recorder = _attach_recorder(
-        deps.exit_processor,   # step_0 → .run_light(score_map=None)
+        deps.exit_processor,   # step_0 → .run_light(score_map={} veya ESPN map)
         persist_mock,          # step_1 → persist(state)
         snapshot_mock,         # step_2 → log_equity_snapshot(...)
-        status_mock,           # step_3 → _write_status(...)
+        status_mock,           # step_3 → write_status(...)
     )
 
     with patch("src.orchestration.tennis_agent.persist", persist_mock), \
@@ -278,7 +278,7 @@ def test_light_cycle_call_order(tmp_path: Path) -> None:
              "src.orchestration.tennis_agent.operational_writers.log_equity_snapshot",
              snapshot_mock,
          ), \
-         patch("src.orchestration.tennis_agent._write_status", status_mock):
+         patch("src.orchestration.tennis_agent.write_status", status_mock):
         run_light_cycle(deps, data_dir=tmp_path)
 
     names = _names_in_order(recorder)
@@ -318,7 +318,10 @@ def test_light_cycle_persist_called_when_no_exits(tmp_path: Path) -> None:
          ) as snapshot_mock:
         run_light_cycle(deps, data_dir=tmp_path)
 
-    deps.exit_processor.run_light.assert_called_once_with(score_map=None)
+    # _make_deps TennisDeps'i score_enricher=None (default) bırakır →
+    # _fetch_tennis_score_map None gördüğünde {} döner. ESPN wire'lı deps için
+    # ayrı integration test (test_tennis_espn_wiring.py).
+    deps.exit_processor.run_light.assert_called_once_with(score_map={})
     persist_mock.assert_called_once_with(deps.state)
     snapshot_mock.assert_called_once()
 

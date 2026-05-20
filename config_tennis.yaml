@@ -76,7 +76,10 @@ agent:
   cycle_max_consecutive_errors: 2
 
 score:
-  enabled: false
+  enabled: true
+  poll_normal_sec: 60
+  poll_critical_sec: 30
+  critical_price_threshold: 0.35
 
 price_feed:
   max_spike_pct: 0.50

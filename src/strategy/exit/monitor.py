@@ -120,6 +120,22 @@ def _estimate_elapsed_from_score(sport_tag: str, score_info: dict) -> float:
             return 0.15
         return -1.0
 
+    # Tennis BO3: period string "Set 1/2/3" veya "Final" (ESPN tenis parse — espn_client
+    # _parse_tennis_competition). match_start_iso doğru parse edildiğinde primary
+    # path (compute_elapsed_pct) zaten doğru elapsed verir; bu fallback iso eksik/
+    # parse error olunca devreye girer. Değerler tennis-lab DECISIONS §7.1 tennis
+    # match_duration_hours=1.75 üzerinden empirik set yüzdeleri.
+    if "tennis" in sport or "atp" in sport or "wta" in sport:
+        if "final" in period_str:
+            return 1.0
+        if "3" in period_str:
+            return 0.85
+        if "2" in period_str:
+            return 0.6
+        if "1" in period_str:
+            return 0.3
+        return -1.0
+
     return -1.0
 
 

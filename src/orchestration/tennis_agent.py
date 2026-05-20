@@ -7,17 +7,16 @@ are also logged via TennisDiagnosticLogger for post-hoc paper-trade analysis.
 
 Heavy cycle (default 30 min): scan Polymarket → enrich → size → entry.
 Light cycle (default 60 sec): tick open positions → exit evaluation (SL/TP/
-graduated/near-resolve). Tennis run_light passes score_map=None — exits rely on
-price + time (match_start_iso + match_duration_hours), not in-match score.
+graduated/near-resolve). Tennis run_light artık ESPN ScoreEnricher üzerinden
+score_map besler (2026-05-20 wire) — set/games verisi map_diff/never_in_profit
+guard'larında kullanılır; ESPN down ise score_map={} fallback (compute_elapsed_pct
+match_start_iso primary path'i devreye girer).
 
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §11.4
 """
 from __future__ import annotations
 
-import atexit
-import json
 import logging
-import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -40,6 +39,7 @@ from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.orchestration.tennis_factory import TennisDeps
 from src.orchestration.tennis_price_callback import install_price_feed
 from src.orchestration.tennis_pnl_integrity import run_light_telemetry
+from src.orchestration.tennis_status_writer import write_pid, write_status
 from src.strategy.enrichment.tennis_market_enricher import classify_tier, enrich
 from src.strategy.enrichment.tennis_question_parser import parse_tennis_question
 from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_event
@@ -258,6 +258,23 @@ def run_one_cycle(
     return logged
 
 
+def _fetch_tennis_score_map(deps: TennisDeps) -> dict[str, dict]:
+    """ESPN ScoreEnricher'dan açık pozisyonlar için score_map çek.
+
+    score_enricher = None (legacy/test) veya ESPN exception → {} dön (boş map
+    ExitProcessor.run_light'a verildiğinde monitor.evaluate score_info={} alır,
+    compute_elapsed_pct match_start_iso primary path'i kullanır).
+    """
+    enricher = getattr(deps, "score_enricher", None)
+    if enricher is None:
+        return {}
+    try:
+        return enricher.get_scores_if_due(deps.state.portfolio.positions)
+    except Exception as exc:  # noqa: BLE001 — orchestration catches infra errors
+        logger.warning("Tennis ESPN score enrichment failed: %s — empty score_map", exc)
+        return {}
+
+
 def run_light_cycle(
     deps: TennisDeps,
     *,
@@ -266,13 +283,13 @@ def run_light_cycle(
 ) -> None:
     """Light cycle — açık pozisyonları exit guard'larından geçir + persist.
 
-    Tennis için `score_map=None` — exit guard'ları price + time (match_start_iso
-    + match_duration_hours) üzerinden çalışır; in-match score injection yok.
-    NEAR_RESOLVE / FLAT SL / GRADUATED SL / NEVER_IN_PROFIT / ULTRA_LOW /
-    HOLD_REVOKED / SCALE_OUT bu cycle'da değerlendirilir.
+    Tennis için score_map ESPN ATP/WTA scoreboard üzerinden ScoreEnricher
+    tarafından doldurulur (2026-05-20 wire); set/games verisi map_diff +
+    never_in_profit + hold_revocation guard'larına input olur. ESPN down ise
+    score_map={} fallback (compute_elapsed_pct match_start_iso primary path).
 
     Light cycle adım sırası (test_tennis_full_cycle.py ile sabitlendi):
-      1. exit_processor.run_light(score_map=None)
+      1. exit_processor.run_light(score_map=<ESPN map veya {}>)
       2. persist(state)  [heartbeat — tick alanlarını yaz]
       3. operational_writers.log_equity_snapshot(...)  [chart 60sn tick'i]
       4. bot_status.json yaz (stage="light")
@@ -286,9 +303,9 @@ def run_light_cycle(
     """
     # 2026-05-20: WS güvensiz (10¢'e kadar drift + boş book'ta RESOLVED kaçar)
     # → exit_processor ÖNCESİ REST top-up + realized PnL drift visibility check.
-    # Helper kendi loglar (REST stats + ERROR on drift > $0.10).
     run_light_telemetry(deps.state.portfolio, deps.trade_logger)
-    deps.exit_processor.run_light(score_map=None)
+    score_map = _fetch_tennis_score_map(deps)
+    deps.exit_processor.run_light(score_map=score_map)
     _light_tick_state["count"] += 1
     if _light_tick_state["count"] % _LIGHT_TICK_LOG_EVERY == 0:
         logger.info("Light cycle tick #%d: %d open positions checked",
@@ -296,49 +313,15 @@ def run_light_cycle(
     # Heavy cycle ile aynı persist davranışı — pos state (current_price, peak,
     # consecutive_down_cycles) tick'lendiği için her light sonunda diske yaz.
     persist(deps.state)
-    # Light cycle equity snapshot — dashboard polls every few seconds, chart
-    # ilerlemesi light (60s) interval'inde olmalı; heavy (1800s) bekletmemeli.
-    # ExitProcessor.run_light yalnızca EXIT olunca snapshot atıyor (exit_processor.py:55),
-    # tennis için unrealized_pnl tick'i her light sonunda görünür olmalı.
+    # ExitProcessor.run_light yalnızca EXIT olunca snapshot atıyor; tennis için
+    # unrealized_pnl tick'i her light sonunda görünür olmalı.
     operational_writers.log_equity_snapshot(deps.state.portfolio, deps.equity_logger)
-    status_file = data_dir / "bot_status.json"
-    mode = deps.config.mode.value
-    _write_status(
-        status_file,
+    write_status(
+        data_dir / "bot_status.json",
         stage="light",
         next_heavy_at=next_heavy_at or datetime.now(timezone.utc),
-        mode=mode,
+        mode=deps.config.mode.value,
     )
-
-
-def _write_pid(pid_file: Path) -> None:
-    """Tennis agent process PID dosyası — dashboard bot_is_alive kontrolü için."""
-    pid_file.parent.mkdir(parents=True, exist_ok=True)
-    pid_file.write_text(str(os.getpid()), encoding="utf-8")
-    atexit.register(lambda: pid_file.unlink(missing_ok=True))
-
-
-def _write_status(
-    status_file: Path,
-    *,
-    stage: str,
-    next_heavy_at: datetime,
-    mode: str,
-) -> None:
-    """Dashboard cycle göstergesi için snapshot yaz."""
-    try:
-        status_file.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "mode": mode,
-            "cycle": "heavy" if stage in ("scanning", "idle") else "light",
-            "stage": stage,
-            "stage_at": datetime.now(timezone.utc).isoformat(),
-            "next_heavy_at": next_heavy_at.isoformat(),
-            "light_alive": True,
-        }
-        status_file.write_text(json.dumps(payload), encoding="utf-8")
-    except OSError as exc:
-        logger.warning("bot_status write failed: %s", exc)
 
 
 def run_forever(
@@ -375,7 +358,7 @@ def run_forever(
     pid_file = logs_dir / "agent.pid"
     status_file = data_dir / "bot_status.json"
     mode = deps.config.mode.value
-    _write_pid(pid_file)
+    write_pid(pid_file)
     install_price_feed(deps.price_feed, deps.state.portfolio)
 
     # Heavy + light tetik zamanları monotonic clock üzerinden bağımsız izlenir.
@@ -388,13 +371,13 @@ def run_forever(
 
         if now_mono - last_heavy_at >= interval_sec:
             next_heavy_at = datetime.now(timezone.utc) + timedelta(seconds=interval_sec)
-            _write_status(status_file, stage="scanning", next_heavy_at=next_heavy_at, mode=mode)
+            write_status(status_file, stage="scanning", next_heavy_at=next_heavy_at, mode=mode)
             try:
                 n = run_one_cycle(deps)
                 logger.info("Heavy cycle logged %d candidates", n)
             except Exception as exc:  # noqa: BLE001 — orchestration catches + logs all
                 logger.error("Tennis heavy cycle error: %s", exc, exc_info=True)
-            _write_status(status_file, stage="idle", next_heavy_at=next_heavy_at, mode=mode)
+            write_status(status_file, stage="idle", next_heavy_at=next_heavy_at, mode=mode)
             last_heavy_at = time.monotonic()
 
         if time.monotonic() - last_light_at >= light_interval_sec:

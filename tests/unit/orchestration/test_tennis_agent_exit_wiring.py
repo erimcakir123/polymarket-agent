@@ -1,7 +1,8 @@
 """tennis_agent.run_light_cycle + run_forever exit wiring (Stage 5 PLAN-TENNIS-001).
 
 Verifies that:
-  - run_light_cycle delegates to deps.exit_processor.run_light(score_map=None)
+  - run_light_cycle delegates to deps.exit_processor.run_light(score_map=<map>)
+    — score_enricher=None → {} fallback; ESPN wire integration test ayrıdır.
   - run_light_cycle persists state after exit evaluation
   - run_light_cycle writes bot_status.json with stage="light"
   - run_forever schedules heavy + light cycles on independent intervals
@@ -69,10 +70,15 @@ def _make_deps(tmp_path: Path) -> TennisDeps:
 
 
 def test_run_light_cycle_calls_exit_processor(tmp_path: Path) -> None:
-    """run_light_cycle → exit_processor.run_light(score_map=None) called once."""
+    """run_light_cycle → exit_processor.run_light(score_map={}) when no enricher.
+
+    _make_deps TennisDeps'i score_enricher=None default ile bırakır →
+    _fetch_tennis_score_map None gördüğünde {} döner (boş map, ESPN down
+    fallback gibi davranır; ExitProcessor monitor.evaluate score_info={} alır).
+    """
     deps = _make_deps(tmp_path)
     run_light_cycle(deps, data_dir=tmp_path)
-    deps.exit_processor.run_light.assert_called_once_with(score_map=None)
+    deps.exit_processor.run_light.assert_called_once_with(score_map={})
 
 
 def test_run_light_cycle_calls_persist(tmp_path: Path) -> None:
@@ -141,7 +147,7 @@ def test_heavy_and_light_intervals_independent(tmp_path: Path) -> None:
     with patch("src.orchestration.tennis_agent.time.monotonic", side_effect=fake_monotonic), \
          patch("src.orchestration.tennis_agent.time.sleep", side_effect=fake_sleep), \
          patch("src.orchestration.tennis_agent.run_one_cycle", return_value=0) as mock_heavy, \
-         patch("src.orchestration.tennis_agent._write_pid"):
+         patch("src.orchestration.tennis_agent.write_pid"):
         try:
             run_forever(
                 deps,

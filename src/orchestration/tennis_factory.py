@@ -22,6 +22,7 @@ from pathlib import Path
 from src.config.settings import AppConfig, load_config
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
 from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.apis.espn_client import ESPNClient
 from src.infrastructure.data.sackmann_csv_client import SackmannCsvClient
 from src.infrastructure.data.tennis_ratings_store import TennisRatingsStore
 from src.infrastructure.executor import Executor
@@ -34,6 +35,7 @@ from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
 from src.orchestration.exit_processor import ExitProcessor
+from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState, bootstrap
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.strategy.entry.gate import EntryGate, GateConfig
@@ -101,6 +103,10 @@ class TennisDeps:
     # Stale current_price bug fix: ExitProcessor.run_light artık tick-by-tick
     # güncel fiyat görüyor (SL/TP/graduated/near_resolve doğru tetiklenir).
     price_feed: PriceFeed | None = None
+    # 2026-05-20 (tennis-lab): ESPN ScoreEnricher — light cycle'da
+    # set/games verisi map_diff + never_in_profit + hold_revocation
+    # guard'larına input. None = test/legacy; production her zaman wired.
+    score_enricher: ScoreEnricher | None = None
 
 
 def build_tennis_deps(
@@ -156,16 +162,23 @@ def build_tennis_deps(
     # `run_forever` başlangıçta callback bağlar + start_background() çağırır.
     price_feed = PriceFeed(max_spike_pct=cfg.price_feed.max_spike_pct)
 
+    # ESPN ScoreEnricher — light cycle'da deps.score_enricher.get_scores_if_due
+    # ile çağrılır. odds_client tennis'te kullanılmıyor (ScoreEnricher fallback
+    # path'i opt-in ve şu an skip) — None geçilir, signature uyumu için.
+    espn = ESPNClient()
+    score_enricher = ScoreEnricher(espn_client=espn, odds_client=None, config=cfg.score)
+
     # Entry + exit infrastructure (shared deps container — built once, used both)
     entry_processor, exit_processor, equity_logger, trade_logger = _build_entry_exit_processors(
         cfg, state, data_path, logs_path, price_feed,
     )
 
     logger.info(
-        "Tennis deps built: mode=%s bankroll=$%.2f dashboard=:%d",
+        "Tennis deps built: mode=%s bankroll=$%.2f dashboard=:%d score_enricher=%s",
         cfg.mode.value,
         cfg.initial_bankroll,
         cfg.dashboard.port,
+        "enabled" if cfg.score.enabled else "disabled",
     )
     return TennisDeps(
         config=cfg,
@@ -178,6 +191,7 @@ def build_tennis_deps(
         equity_logger=equity_logger,
         trade_logger=trade_logger,
         price_feed=price_feed,
+        score_enricher=score_enricher,
     )
 
 
@@ -195,8 +209,10 @@ def _build_entry_exit_processors(
     tek yerde build edilir, iki processor da aynı portfolyoyu görür.
 
     Tennis akışı `entry_processor.process_signals` + `exit_processor.run_light`
-    çağırır; `run_heavy`/`process_markets` için gereken scanner/stock/odds_client/
-    score_enricher/price_feed verilmez (Stage 5 scope).
+    çağırır; `run_heavy`/`process_markets` için gereken scanner/stock/odds_client
+    verilmez (tennis bookmaker enricher kullanmaz). score_enricher TennisDeps
+    üzerinden tennis_agent run_light_cycle'a verilir, processor deps subset'inde
+    şart değil.
 
     Equity logger dual-write yapar: primary = audit/ (kalıcı, reboot dokunmaz),
     mirror = session/ (dashboard kaynağı, reboot temizler) — main bot'la
@@ -264,8 +280,9 @@ def _build_entry_exit_processors(
     # EntryProcessor + ExitProcessor ortak deps subset — tennis paper akışı:
     # state, gate, executor, trade_logger, skipped_logger, equity_logger,
     # bot_status_writer, cycle_manager, cooldown, price_feed (gerçek WS instance).
-    # (scanner/stock/odds_client/score_enricher/command_poller None — run_heavy
-    # çağrılmıyor; ExitProcessor score_map=None ile çalıştırılıyor.)
+    # scanner/stock/odds_client/command_poller None (heavy yok / bookmaker yok).
+    # score_enricher TennisDeps üzerinden tennis_agent.run_light_cycle'a verilir,
+    # ExitProcessor `score_map` parametresi run_light(score_map=...) ile akar.
     from dataclasses import dataclass as _dc
 
     @_dc
