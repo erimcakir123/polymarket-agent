@@ -44,15 +44,17 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/summary")
     def api_summary():
-        # Balance/P&L/Peak/Risk → tek kaynak: session/equity_history.jsonl.
-        # positions.json'a BAKILMAZ — reboot sonrası session silinirse sıfır döner.
+        # Balance/P&L/Peak/Risk → session/equity_history.jsonl + audit trades.
+        # realized_pnl widget'ı exit_events tab ile aynı kaynaktan (audit
+        # trade_history) hesaplanır — portfolio.realized_pnl drift'ine bağışık.
         # Slot sayısı açık pozisyon listesinden alınır (positions.json).
         session_balance = readers.read_balance_from_session(logs_dir)
+        trades = readers.read_trades(logs_dir, n=1000)
         blob = readers.read_positions(logs_dir)
         cb = config.circuit_breaker
         return jsonify({
             "equity": computed.equity_summary_from_session(
-                session_balance, config.initial_bankroll,
+                session_balance, config.initial_bankroll, trades=trades,
             ),
             "slots": computed.slots_summary(blob, config.risk.max_positions),
             "loss_protection": computed.loss_protection_from_session(

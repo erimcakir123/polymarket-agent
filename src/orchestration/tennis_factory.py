@@ -92,6 +92,10 @@ class TennisDeps:
     entry_processor: EntryProcessor
     exit_processor: ExitProcessor
     equity_logger: EquityHistoryLogger
+    # Light cycle PnL drift detector (tennis_pnl_integrity) audit ground truth'a
+    # gider — entry_processor + exit_processor zaten içeride aynı instance'ı
+    # kullanır (`_build_entry_exit_processors`); burada da görünür yapıyoruz.
+    trade_logger: TradeHistoryLogger | None = None
     # 2026-05-20 (tennis-lab): WS price feed — None = test/legacy code path,
     # production tennis_factory `build_tennis_deps` her zaman gerçek instance verir.
     # Stale current_price bug fix: ExitProcessor.run_light artık tick-by-tick
@@ -153,7 +157,7 @@ def build_tennis_deps(
     price_feed = PriceFeed(max_spike_pct=cfg.price_feed.max_spike_pct)
 
     # Entry + exit infrastructure (shared deps container — built once, used both)
-    entry_processor, exit_processor, equity_logger = _build_entry_exit_processors(
+    entry_processor, exit_processor, equity_logger, trade_logger = _build_entry_exit_processors(
         cfg, state, data_path, logs_path, price_feed,
     )
 
@@ -172,6 +176,7 @@ def build_tennis_deps(
         entry_processor=entry_processor,
         exit_processor=exit_processor,
         equity_logger=equity_logger,
+        trade_logger=trade_logger,
         price_feed=price_feed,
     )
 
@@ -182,7 +187,7 @@ def _build_entry_exit_processors(
     data_dir: Path,
     logs_dir: Path,
     price_feed: PriceFeed,
-) -> tuple[EntryProcessor, ExitProcessor, EquityHistoryLogger]:
+) -> tuple[EntryProcessor, ExitProcessor, EquityHistoryLogger, TradeHistoryLogger]:
     """Paper-mode entry + exit pipeline'larını ortak deps üzerinde kur.
 
     EntryProcessor + ExitProcessor aynı `_TennisAgentDeps` instance'ını
@@ -288,4 +293,4 @@ def _build_entry_exit_processors(
         cycle_manager=cycle_manager,
         price_feed=price_feed,
     )
-    return EntryProcessor(deps), ExitProcessor(deps), equity_logger
+    return EntryProcessor(deps), ExitProcessor(deps), equity_logger, trade_logger

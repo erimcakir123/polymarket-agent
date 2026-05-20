@@ -39,6 +39,14 @@ def _write_equity(logs_dir: Path, entries: list[dict]) -> None:
             f.write(json.dumps(e) + "\n")
 
 
+def _write_trades(logs_dir: Path, trades: list[dict]) -> None:
+    """Session trade_history.jsonl — realized_pnl widget audit'ten okur."""
+    path = logs_dir / "session" / "trade_history.jsonl"
+    with open(path, "w", encoding="utf-8") as f:
+        for t in trades:
+            f.write(json.dumps(t) + "\n")
+
+
 def _write_positions(tmp_path: Path, realized: float = 107.37) -> None:
     data_dir = tmp_path / "data"
     data_dir.mkdir(exist_ok=True)
@@ -239,14 +247,21 @@ def test_summary_reboot_scenario_no_session_shows_zero(tmp_path: Path) -> None:
 
 
 def test_summary_reboot_scenario_session_data_takes_priority(tmp_path: Path) -> None:
-    """Session varsa session değeri kullanılmalı — positions.json görmezden gelinmeli."""
+    """Session varsa session bankroll'u kullanılmalı; realized_pnl audit
+    (session/trade_history.jsonl) toplamından okunur — positions.json görmezden
+    gelinmeli (drift-immune SPOT)."""
     logs_dir, data_dir = _mk_logs(tmp_path)
-    # positions.json'da farklı bir değer
+    # positions.json'da farklı bir değer (drift simulation)
     _write_positions(tmp_path, realized=107.37)
-    # session'da gerçek değer
+    # session'da bankroll değeri
     _write_equity(logs_dir, [
         {"bankroll": 1032.0, "realized_pnl": 32.0, "unrealized_pnl": 0.0,
          "invested": 0.0, "open_positions": 0},
+    ])
+    # audit trade — realized widget'ı bu kaynaktan okur
+    _write_trades(logs_dir, [
+        {"condition_id": "0xT1", "entry_timestamp": "ts1",
+         "exit_price": 0.6, "exit_pnl_usdc": 32.0, "partial_exits": []},
     ])
 
     client = _client(tmp_path)
