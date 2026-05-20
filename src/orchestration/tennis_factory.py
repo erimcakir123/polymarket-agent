@@ -29,6 +29,7 @@ from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
@@ -91,6 +92,11 @@ class TennisDeps:
     entry_processor: EntryProcessor
     exit_processor: ExitProcessor
     equity_logger: EquityHistoryLogger
+    # 2026-05-20 (tennis-lab): WS price feed — None = test/legacy code path,
+    # production tennis_factory `build_tennis_deps` her zaman gerçek instance verir.
+    # Stale current_price bug fix: ExitProcessor.run_light artık tick-by-tick
+    # güncel fiyat görüyor (SL/TP/graduated/near_resolve doğru tetiklenir).
+    price_feed: PriceFeed | None = None
 
 
 def build_tennis_deps(
@@ -142,9 +148,13 @@ def build_tennis_deps(
         trade_history_path=logs_path / "audit" / "trade_history.jsonl",
     )
 
+    # WS price feed — entry/exit processors subscribe/unsubscribe yapar; tennis_agent
+    # `run_forever` başlangıçta callback bağlar + start_background() çağırır.
+    price_feed = PriceFeed(max_spike_pct=cfg.price_feed.max_spike_pct)
+
     # Entry + exit infrastructure (shared deps container — built once, used both)
     entry_processor, exit_processor, equity_logger = _build_entry_exit_processors(
-        cfg, state, data_path, logs_path,
+        cfg, state, data_path, logs_path, price_feed,
     )
 
     logger.info(
@@ -162,6 +172,7 @@ def build_tennis_deps(
         entry_processor=entry_processor,
         exit_processor=exit_processor,
         equity_logger=equity_logger,
+        price_feed=price_feed,
     )
 
 
@@ -170,6 +181,7 @@ def _build_entry_exit_processors(
     state: RuntimeState,
     data_dir: Path,
     logs_dir: Path,
+    price_feed: PriceFeed,
 ) -> tuple[EntryProcessor, ExitProcessor, EquityHistoryLogger]:
     """Paper-mode entry + exit pipeline'larını ortak deps üzerinde kur.
 
@@ -246,7 +258,7 @@ def _build_entry_exit_processors(
 
     # EntryProcessor + ExitProcessor ortak deps subset — tennis paper akışı:
     # state, gate, executor, trade_logger, skipped_logger, equity_logger,
-    # bot_status_writer, cycle_manager, cooldown, price_feed=None.
+    # bot_status_writer, cycle_manager, cooldown, price_feed (gerçek WS instance).
     # (scanner/stock/odds_client/score_enricher/command_poller None — run_heavy
     # çağrılmıyor; ExitProcessor score_map=None ile çalıştırılıyor.)
     from dataclasses import dataclass as _dc
@@ -262,7 +274,7 @@ def _build_entry_exit_processors(
         gate: EntryGate
         cooldown: CooldownTracker
         cycle_manager: CycleManager
-        price_feed: None = None
+        price_feed: PriceFeed | None = None
 
     deps = _TennisAgentDeps(
         state=state,
@@ -274,5 +286,6 @@ def _build_entry_exit_processors(
         gate=gate,
         cooldown=cooldown,
         cycle_manager=cycle_manager,
+        price_feed=price_feed,
     )
     return EntryProcessor(deps), ExitProcessor(deps), equity_logger

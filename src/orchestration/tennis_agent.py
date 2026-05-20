@@ -38,6 +38,7 @@ from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import persist
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
 from src.orchestration.tennis_factory import TennisDeps
+from src.orchestration.tennis_price_callback import install_price_feed
 from src.strategy.enrichment.tennis_market_enricher import classify_tier, enrich
 from src.strategy.enrichment.tennis_question_parser import parse_tennis_question
 from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_event
@@ -363,6 +364,7 @@ def run_forever(
     status_file = data_dir / "bot_status.json"
     mode = deps.config.mode.value
     _write_pid(pid_file)
+    install_price_feed(deps.price_feed, deps.state.portfolio)
 
     # Heavy + light tetik zamanları monotonic clock üzerinden bağımsız izlenir.
     # İlk iterasyonda her ikisi de tetiklenecek şekilde "uzun zaman önce" başlatılır.
