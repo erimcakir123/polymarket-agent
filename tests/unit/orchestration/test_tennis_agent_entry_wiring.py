@@ -118,6 +118,7 @@ def _make_deps(tmp_path: Path, cfg: AppConfig | None = None) -> TennisDeps:
         state=state,
         entry_processor=entry_processor,
         exit_processor=exit_processor,
+        equity_logger=MagicMock(),
     )
 
 

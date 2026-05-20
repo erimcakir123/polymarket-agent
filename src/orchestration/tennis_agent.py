@@ -33,6 +33,7 @@ from src.infrastructure.data.sackmann_csv_client import SackmannMatch
 from src.infrastructure.data.tennis_ratings_store import PlayerRating
 from src.models.market import MarketData
 from src.models.signal import Signal
+from src.orchestration import operational_writers
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import persist
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
@@ -222,6 +223,12 @@ def run_one_cycle(
         deps.entry_processor.process_signals(markets_for_entry, signals_for_entry)
         persist(deps.state)
 
+    # Heavy cycle equity snapshot — heartbeat for dashboard Total Equity chart.
+    # Main bot pattern: EntryProcessor.run_heavy fires log_equity_snapshot at
+    # cycle end regardless of entry count (entry_processor.py:55, 77). Tennis
+    # uses process_signals which doesn't auto-snapshot, so caller writes here.
+    operational_writers.log_equity_snapshot(deps.state.portfolio, deps.equity_logger)
+
     logger.info(
         "Tennis cycle done: %d markets scanned, %d enriched, %d selected, "
         "%d qualified (edge≥%.0f%%), %d signals submitted",
@@ -259,6 +266,11 @@ def run_light_cycle(
     # Heavy cycle ile aynı persist davranışı — pos state (current_price, peak,
     # consecutive_down_cycles) tick'lendiği için her light sonunda diske yaz.
     persist(deps.state)
+    # Light cycle equity snapshot — dashboard polls every few seconds, chart
+    # ilerlemesi light (60s) interval'inde olmalı; heavy (1800s) bekletmemeli.
+    # ExitProcessor.run_light yalnızca EXIT olunca snapshot atıyor (exit_processor.py:55),
+    # tennis için unrealized_pnl tick'i her light sonunda görünür olmalı.
+    operational_writers.log_equity_snapshot(deps.state.portfolio, deps.equity_logger)
     status_file = data_dir / "bot_status.json"
     mode = deps.config.mode.value
     _write_status(

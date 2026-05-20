@@ -59,6 +59,7 @@ class TennisDeps:
     state: RuntimeState
     entry_processor: EntryProcessor
     exit_processor: ExitProcessor
+    equity_logger: EquityHistoryLogger
 
 
 def build_tennis_deps(
@@ -100,7 +101,7 @@ def build_tennis_deps(
     )
 
     # Entry + exit infrastructure (shared deps container — built once, used both)
-    entry_processor, exit_processor = _build_entry_exit_processors(
+    entry_processor, exit_processor, equity_logger = _build_entry_exit_processors(
         cfg, state, data_path, logs_path,
     )
 
@@ -118,6 +119,7 @@ def build_tennis_deps(
         state=state,
         entry_processor=entry_processor,
         exit_processor=exit_processor,
+        equity_logger=equity_logger,
     )
 
 
@@ -126,7 +128,7 @@ def _build_entry_exit_processors(
     state: RuntimeState,
     data_dir: Path,
     logs_dir: Path,
-) -> tuple[EntryProcessor, ExitProcessor]:
+) -> tuple[EntryProcessor, ExitProcessor, EquityHistoryLogger]:
     """Paper-mode entry + exit pipeline'larını ortak deps üzerinde kur.
 
     EntryProcessor + ExitProcessor aynı `_TennisAgentDeps` instance'ını
@@ -136,11 +138,20 @@ def _build_entry_exit_processors(
     Tennis akışı `entry_processor.process_signals` + `exit_processor.run_light`
     çağırır; `run_heavy`/`process_markets` için gereken scanner/stock/odds_client/
     score_enricher/price_feed verilmez (Stage 5 scope).
+
+    Equity logger dual-write yapar: primary = audit/ (kalıcı, reboot dokunmaz),
+    mirror = session/ (dashboard kaynağı, reboot temizler) — main bot'la
+    aynı pattern (_factory_loggers.build_equity_logger). tennis_agent
+    run_one_cycle + run_light_cycle her cycle sonunda log_equity_snapshot
+    çağırarak dashboard Total Equity grafiğine snapshot besler.
     """
     executor = Executor(mode=cfg.mode)
 
     trade_logger = TradeHistoryLogger(str(logs_dir / "trade_history.jsonl"))
-    equity_logger = EquityHistoryLogger(str(logs_dir / "equity_history.jsonl"))
+    equity_logger = EquityHistoryLogger(
+        str(logs_dir / "audit" / "equity_history.jsonl"),
+        mirror_path=str(logs_dir / "session" / "equity_history.jsonl"),
+    )
     skipped_logger = SkippedTradeLogger(str(logs_dir / "skipped_trades.jsonl"))
 
     cooldown = CooldownTracker(
@@ -213,4 +224,4 @@ def _build_entry_exit_processors(
         cooldown=cooldown,
         cycle_manager=cycle_manager,
     )
-    return EntryProcessor(deps), ExitProcessor(deps)
+    return EntryProcessor(deps), ExitProcessor(deps), equity_logger
