@@ -71,14 +71,23 @@ def main() -> None:
         print(f"ERROR: {config_path} not found.")
         sys.exit(1)
 
-    deps = build_tennis_deps(config_path=config_path)
+    # Tüm path argümanları sandbox kökü `_ROOT`'a bağlı absolute olarak
+    # geçirilir — CWD ≠ tennis-lab olsa (örn. python "../tennis-lab/scripts/...")
+    # bile main bot dizinine yazma sızıntısı yapmaz.
+    logs_root = _ROOT / "logs"
+    data_root = _ROOT / "data"
+    deps = build_tennis_deps(
+        config_path=config_path,
+        data_dir=data_root,
+        logs_dir=logs_root,
+    )
 
     if args.run:
         run_forever(
             deps,
             interval_sec=args.interval,
-            logs_dir=_ROOT / "logs",
-            data_dir=_ROOT / "data",
+            logs_dir=logs_root,
+            data_dir=data_root,
         )
     elif args.once:
         n = run_one_cycle(deps)

@@ -40,6 +40,37 @@ from src.strategy.entry.gate import EntryGate, GateConfig
 logger = logging.getLogger(__name__)
 
 
+def _anchor_tennis_path(
+    cfg_value: str,
+    data_root: Path,
+    logs_root: Path,
+) -> Path:
+    """config_tennis.yaml'daki "data/..." / "logs/..." relative değerini
+    sandbox kök dizinine bağla.
+
+    Mantık:
+      - "data/X" → data_root / "X"
+      - "logs/X" → logs_root / "X"
+      - Absolute path verilmişse aynen geçir (test/migration için kaçış)
+      - Diğer durumlarda data_root altına koy (güvenli varsayılan)
+
+    Bu fonksiyon olmazsa CWD ≠ tennis-lab iken Path("data/sackmann_cache")
+    CWD altına klasör açıyor — main bot dizinine sızıntı riski.
+    """
+    p = Path(cfg_value)
+    if p.is_absolute():
+        return p
+    parts = p.parts
+    if not parts:
+        return data_root
+    head, tail = parts[0], parts[1:]
+    if head == "data":
+        return data_root.joinpath(*tail) if tail else data_root
+    if head == "logs":
+        return logs_root.joinpath(*tail) if tail else logs_root
+    return data_root / p
+
+
 @dataclass
 class TennisDeps:
     """Tennis sandbox dependencies — composition root output.
@@ -74,6 +105,8 @@ def build_tennis_deps(
         config_path: Path to YAML config (e.g. config_tennis.yaml).
         data_dir: State dosyaları için kök dizin (positions.json,
             stock_queue.json, bot_status.json). Test'te tmp_path verilir.
+            Tennis-lab entry point'leri (tennis_main, tennis_dashboard)
+            absolute path geçer; main bot dizinine sızıntıyı engeller.
         logs_dir: Skipped/trade/equity JSONL'leri için kök dizin.
 
     Returns:
@@ -86,11 +119,18 @@ def build_tennis_deps(
     data_path.mkdir(parents=True, exist_ok=True)
     logs_path.mkdir(parents=True, exist_ok=True)
 
-    # Tennis-specific deps
-    sackmann_client = SackmannCsvClient(cache_dir=Path(cfg.tennis.data_dir))
-    ratings_store = TennisRatingsStore(path=Path(cfg.tennis.ratings_cache))
+    # Tennis-specific cfg.tennis.* paths config'te "data/..." / "logs/..." relative
+    # string olarak duruyor (insanın okuyup düzenlemesi için). Burada data_path/
+    # logs_path'e ANCHORLA — CWD ≠ tennis-lab olsa bile main bot dizinine yazma
+    # olmaz. Anchor için relative-to-cwd kontrolüyle prefix soyuyoruz.
+    sackmann_client = SackmannCsvClient(
+        cache_dir=_anchor_tennis_path(cfg.tennis.data_dir, data_path, logs_path),
+    )
+    ratings_store = TennisRatingsStore(
+        path=_anchor_tennis_path(cfg.tennis.ratings_cache, data_path, logs_path),
+    )
     diagnostic_logger = TennisDiagnosticLogger(
-        log_dir=Path(cfg.tennis.diagnostic_log_dir),
+        log_dir=_anchor_tennis_path(cfg.tennis.diagnostic_log_dir, data_path, logs_path),
     )
 
     # Runtime state (portfolio + circuit_breaker + blacklist + persistent stores)
