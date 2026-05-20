@@ -40,9 +40,11 @@ edge:
   confidence_multipliers: {A: 1.00, B: 1.00}
 
 risk:
+  # Stage 3 PLAN-TENNIS-001 — user-approved sizing (bankroll $500):
+  # A tier → $50 (10% of $500), B tier → $40 (8% of $500), max cap $50.
   max_single_bet_usdc: 50
-  max_bet_pct: 0.05
-  confidence_bet_pct: {A: 0.05, B: 0.04}
+  max_bet_pct: 0.10
+  confidence_bet_pct: {A: 0.10, B: 0.08}
   max_positions: 20
   # At most 2 of the 3 tennis alt markets (first_set_winner / set_handicap / set_totals) per match.
   # Tennis entry strategy picks the 2 highest |edge| candidates per event (see Task 13 / DECISIONS §6.18).
