@@ -30,6 +30,7 @@ from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
+from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 from src.strategy.enrichment.odds_enricher import enrich_market
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,14 @@ def build_agent(state: RuntimeState) -> Agent:
             bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
         )
 
+    # SPEC-R Plan 1 placeholder — gerçek engine Plan 4'te eklenir.
+    mlb_engine: MlbSubmarketEngineProtocol | None = None
+    if cfg.mlb_submarket.enabled:
+        logger.warning(
+            "config.mlb_submarket.enabled=True but engine impl is in Plan 4 — "
+            "injecting None (SPEC-R Plan 1 placeholder)."
+        )
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -140,6 +149,7 @@ def build_agent(state: RuntimeState) -> Agent:
         price_feed=price_feed,
         command_poller=command_poller,
         score_enricher=score_enricher,
+        mlb_submarket_engine=mlb_engine,
     )
     agent = Agent(deps)
 

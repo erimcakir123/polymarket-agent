@@ -28,6 +28,7 @@ from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
 from src.strategy.entry.gate import EntryGate
+from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class AgentDeps:
     price_feed: PriceFeed | None = None
     command_poller: TelegramCommandPoller | None = None
     score_enricher: object = None  # SPEC-B: ScoreEnricher | None — light cycle score injector
+    mlb_submarket_engine: MlbSubmarketEngineProtocol | None = None  # SPEC-R: Plan 4'te gerçek engine
 
 
 class Agent:
