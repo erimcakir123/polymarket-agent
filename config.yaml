@@ -172,7 +172,7 @@ price_feed:
   max_spread_for_near_resolve: 0.10
 
 mlb_submarket:
-  enabled: false              # SPEC-R: model-anchor MLB totals/run-line. Manuel aç.
+  enabled: true               # SPEC-R: model-anchor MLB totals/run-line (aktif 2026-05-21)
   min_edge: 0.05              # Model edge eşiği (Tennis Lab paritesi)
   statsapi_timeout_sec: 10.0
   rate_cache_path: data/mlb_rate_cache.jsonl
