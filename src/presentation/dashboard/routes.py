@@ -49,10 +49,13 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
         # Slot sayısı açık pozisyon listesinden alınır (positions.json).
         session_balance = readers.read_balance_from_session(logs_dir)
         blob = readers.read_positions(logs_dir)
+        # realized_pnl widget'ı exited tab ile aynı kaynaktan (trade_history.jsonl)
+        # hesaplanır — reboot-scoped tutarlılık.
+        trades = readers.read_trades(logs_dir, n=1000)
         cb = config.circuit_breaker
         return jsonify({
             "equity": computed.equity_summary_from_session(
-                session_balance, config.initial_bankroll,
+                session_balance, config.initial_bankroll, trades=trades,
             ),
             "slots": computed.slots_summary(blob, config.risk.max_positions),
             "loss_protection": computed.loss_protection_from_session(

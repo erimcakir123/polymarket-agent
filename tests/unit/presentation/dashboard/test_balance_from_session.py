@@ -184,6 +184,75 @@ def test_equity_summary_from_session_drawdown_correct(tmp_path: Path) -> None:
     assert round(out["drawdown_pct"], 2) == round((1100 - 990) / 1100 * 100, 2)
 
 
+# ── computed.realized_pnl_from_trades + trades override ──────────────────────
+
+def test_realized_pnl_from_trades_empty_returns_zero() -> None:
+    assert computed.realized_pnl_from_trades([]) == 0.0
+    assert computed.realized_pnl_from_trades(None) == 0.0  # type: ignore[arg-type]
+
+
+def test_realized_pnl_from_trades_sums_full_and_partial_exits() -> None:
+    trades = [
+        # Full close trade
+        {"exit_price": 0.50, "exit_pnl_usdc": -10.0, "partial_exits": []},
+        # Trade with both partial exits and full close
+        {
+            "exit_price": 0.80, "exit_pnl_usdc": 5.0,
+            "partial_exits": [
+                {"realized_pnl_usdc": 3.0},
+                {"realized_pnl_usdc": 2.5},
+            ],
+        },
+        # Partial-only (no full close yet)
+        {
+            "exit_price": None,
+            "partial_exits": [{"realized_pnl_usdc": 1.5}],
+        },
+    ]
+    # -10 + (5 + 3 + 2.5) + 1.5 = 2.0
+    assert computed.realized_pnl_from_trades(trades) == 2.0
+
+
+def test_equity_summary_from_session_trades_override_realized() -> None:
+    """trades verilirse session_balance.realized_pnl yerine sum-of-trades kullanılır.
+
+    Reboot-scoped tutarlılık: exited tab ile widget aynı kaynaktan okur.
+    """
+    sb = {
+        "has_data": True,
+        "bankroll": 968.16,
+        "realized_pnl": -4.88,  # lifetime carry-over (kirli)
+        "unrealized_pnl": 0.0,
+        "invested": 0.0,
+        "open_positions": 0,
+        "peak_bankroll": 1000.0,
+    }
+    trades = [
+        {"exit_price": 0.50, "exit_pnl_usdc": -10.0, "partial_exits": []},
+        {"exit_price": 0.30, "exit_pnl_usdc": -6.18, "partial_exits": []},
+        {"exit_price": 0.59, "exit_pnl_usdc": -5.07, "partial_exits": []},
+        {"exit_price": 0.50, "exit_pnl_usdc": -10.59, "partial_exits": []},
+    ]
+    out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=trades)
+    # 4 exit toplamı = -31.84 — session_balance.realized_pnl (-4.88) override edilir
+    assert out["realized_pnl"] == -31.84
+
+
+def test_equity_summary_from_session_no_trades_falls_back_to_session() -> None:
+    """trades=None → session_balance.realized_pnl kullanılır (geriye uyumlu)."""
+    sb = {
+        "has_data": True,
+        "bankroll": 1050.0,
+        "realized_pnl": 50.0,
+        "unrealized_pnl": 0.0,
+        "invested": 0.0,
+        "open_positions": 0,
+        "peak_bankroll": 1100.0,
+    }
+    out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0)
+    assert out["realized_pnl"] == 50.0
+
+
 # ── computed.loss_protection_from_session ────────────────────────────────────
 
 def test_loss_protection_from_session_safe_when_no_drawdown(tmp_path: Path) -> None:
@@ -239,20 +308,30 @@ def test_summary_reboot_scenario_no_session_shows_zero(tmp_path: Path) -> None:
 
 
 def test_summary_reboot_scenario_session_data_takes_priority(tmp_path: Path) -> None:
-    """Session varsa session değeri kullanılmalı — positions.json görmezden gelinmeli."""
+    """Session varsa session değeri kullanılmalı — positions.json görmezden gelinmeli.
+
+    realized_pnl widget'ı trade_history.jsonl'den hesaplanır (reboot-scoped).
+    positions.json'daki kalıcı sayaç (lifetime) kullanılmaz.
+    """
     logs_dir, data_dir = _mk_logs(tmp_path)
-    # positions.json'da farklı bir değer
+    # positions.json'da kirli lifetime değer
     _write_positions(tmp_path, realized=107.37)
-    # session'da gerçek değer
+    # session'da bankroll snapshot
     _write_equity(logs_dir, [
         {"bankroll": 1032.0, "realized_pnl": 32.0, "unrealized_pnl": 0.0,
          "invested": 0.0, "open_positions": 0},
     ])
+    # trade_history'de son reboot'tan beri biriken exit'ler (= 32.0)
+    with open(logs_dir / "audit" / "trade_history.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "condition_id": "c1", "entry_timestamp": "2026-05-20T00:00:00Z",
+            "exit_price": 0.80, "exit_pnl_usdc": 32.0, "partial_exits": [],
+        }) + "\n")
 
     client = _client(tmp_path)
     data = client.get("/api/summary").get_json()
 
     assert data["equity"]["bankroll"] == 1032.0
     assert data["equity"]["realized_pnl"] == 32.0
-    # positions.json'daki 107.37 değil!
+    # positions.json'daki 107.37 değil — lifetime kirliliği UI'ya sızmıyor!
     assert data["equity"]["realized_pnl"] != 107.37

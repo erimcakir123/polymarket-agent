@@ -91,11 +91,20 @@ def _write_session_equity(tmp_path: Path, entries: list[dict]) -> None:
 
 
 def test_summary_reflects_session_equity(tmp_path: Path) -> None:
-    """Balance widget session equity'den okumalı."""
+    """Balance widget session equity'den okumalı; realized_pnl ise trade_history'den."""
     _write_session_equity(tmp_path, [
         {"bankroll": 1042.0, "realized_pnl": 42.0, "unrealized_pnl": 8.0,
          "invested": 40.0, "open_positions": 1},
     ])
+    # realized_pnl widget'ı trade_history.jsonl'den hesaplanır (reboot-scoped)
+    import json as _json
+    audit_dir = tmp_path / "logs" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    with open(audit_dir / "trade_history.jsonl", "w", encoding="utf-8") as f:
+        f.write(_json.dumps({
+            "condition_id": "c1", "entry_timestamp": "2026-05-20T00:00:00Z",
+            "exit_price": 0.50, "exit_pnl_usdc": 42.0, "partial_exits": [],
+        }) + "\n")
     data = _client(tmp_path).get("/api/summary").get_json()
     assert data["equity"]["bankroll"] == 1042.0
     assert data["equity"]["realized_pnl"] == 42.0

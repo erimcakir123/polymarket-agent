@@ -82,14 +82,35 @@ def equity_summary(
     }
 
 
+def realized_pnl_from_trades(trades: list[dict[str, Any]]) -> float:
+    """Trade history'den realized PnL toplamı = full-exit + partial-exit toplamı.
+
+    Reboot semantiği: trade_history.jsonl reboot'ta arşivlenir, dashboard
+    arşivleri okumaz. Bu fonksiyon son reboot'tan beri biriken net realized'i
+    döndürür — exited tab ile aynı kaynaktan (tutarlı widget).
+    """
+    total = 0.0
+    for rec in trades or []:
+        for pe in rec.get("partial_exits") or []:
+            total += float(pe.get("realized_pnl_usdc", 0.0) or 0.0)
+        if rec.get("exit_price") is not None:
+            total += float(rec.get("exit_pnl_usdc", 0.0) or 0.0)
+    return total
+
+
 def equity_summary_from_session(
     session_balance: dict[str, Any],
     initial_bankroll: float,
+    trades: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Balance widget için session/equity_history.jsonl son entry'sinden türetme.
 
     session_balance = readers.read_balance_from_session() çıktısı.
     has_data=False ise sıfır döner (reboot sonrası session yok).
+
+    trades verilirse `realized_pnl` widget'ı trade_history.jsonl toplamından
+    hesaplanır (reboot-scoped, exited tab ile tutarlı). Verilmezse session
+    balance'ın realized_pnl alanı kullanılır (geriye uyumlu).
 
     Peak balance: session boyunca görülen max bankroll (session'da saklanır).
     Drawdown: peak vs current total_equity (bankroll + invested + unrealized).
@@ -108,7 +129,10 @@ def equity_summary_from_session(
         }
 
     bankroll = session_balance["bankroll"]
-    realized = session_balance["realized_pnl"]
+    if trades is not None:
+        realized = realized_pnl_from_trades(trades)
+    else:
+        realized = session_balance["realized_pnl"]
     unrealized = session_balance["unrealized_pnl"]
     invested = session_balance["invested"]
     peak = max(session_balance["peak_bankroll"], bankroll, initial_bankroll)
