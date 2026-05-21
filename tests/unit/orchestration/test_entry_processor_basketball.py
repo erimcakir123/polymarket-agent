@@ -67,8 +67,6 @@ def _make_deps(captured_positions: list):
         max_positions=50,
         max_positions_per_event=2,
         max_exposure_pct=0.5,
-        hard_cap_overflow_pct=0.02,
-        min_entry_size_pct=0.015,
     )
     deps = SimpleNamespace(
         state=SimpleNamespace(

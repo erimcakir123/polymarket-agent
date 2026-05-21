@@ -1,30 +1,32 @@
-"""Exposure guard — pure function (DECISIONS §6.15 cap).
+"""Exposure guard — pure function (DECISIONS §6.15, SPEC-P 2026-05-21).
 
-Exposure cap ölçüsü = (toplam_yatırılan + aday) / TOPLAM_PORTFÖY_DEĞERİ.
-TOPLAM_PORTFÖY_DEĞERİ = nakit (portfolio.bankroll) + toplam_yatırılan.
+Exposure cap ölçüsü = toplam_yatırılan / TOPLAM_PORTFÖY_DEĞERİ.
+TOPLAM_PORTFÖY_DEĞERİ = nakit (portfolio.bankroll) + toplam_yatırılan
+                     = initial + realized_pnl (kullanıcı tanımı: locked + non-lost).
 
-Yalnız `bankroll` (nakit) paydada kullanılırsa pozisyon açıldıkça payda küçülür
-ve gerçek exposure'a göre yüksek gösterir → cap erken tetiklenir. Caller bu
-yüzden `total_portfolio_value` geçmelidir.
+Yumuşak cap kuralı (SPEC-P):
+- Exposure < cap → yeni trade tam sabit-tier boyutunda alınır (sonuç cap'i geçse de OK).
+- Exposure ≥ cap → yeni trade reddedilir.
+- Size clipping uygulanmaz.
 """
 from __future__ import annotations
 
 
-def exceeds_exposure_limit(
+def at_or_over_cap(
     positions: dict,
-    candidate_size: float,
     total_portfolio_value: float,
-    max_exposure_pct: float,
+    soft_cap_pct: float,
 ) -> bool:
-    """True: candidate_size eklendiğinde exposure cap aşılır.
+    """True ise yeni trade alınmaz. Exposure ≥ soft_cap.
 
     positions: Position objects dict (her biri .size_usdc'ye sahip).
     total_portfolio_value: nakit + açık pozisyonların toplam size'ı.
+    soft_cap_pct: max_exposure_pct (default %50).
     """
     if total_portfolio_value <= 0:
         return True
     total_invested = sum(getattr(p, "size_usdc", 0.0) for p in positions.values())
-    return (total_invested + candidate_size) / total_portfolio_value > max_exposure_pct
+    return total_invested >= total_portfolio_value * soft_cap_pct
 
 
 def fill_ratio(positions: dict, total_portfolio_value: float) -> float:
@@ -33,23 +35,3 @@ def fill_ratio(positions: dict, total_portfolio_value: float) -> float:
         return 0.0
     total_invested = sum(getattr(p, "size_usdc", 0.0) for p in positions.values())
     return total_invested / total_portfolio_value
-
-
-def available_under_cap(
-    positions: dict,
-    total_portfolio_value: float,
-    soft_cap_pct: float,
-    overflow_pct: float,
-) -> float:
-    """Hard cap altında yeni pozisyon için kalan tutar (USDC).
-
-    hard_cap = total_portfolio_value × (soft_cap_pct + overflow_pct)
-    available = max(0, hard_cap - mevcut_invested)
-
-    Dönüş 0 ise: skip. >0 ise: min(kelly_size, available) kırpılarak girilir.
-    """
-    if total_portfolio_value <= 0:
-        return 0.0
-    hard_cap = total_portfolio_value * (soft_cap_pct + overflow_pct)
-    total_invested = sum(getattr(p, "size_usdc", 0.0) for p in positions.values())
-    return max(0.0, hard_cap - total_invested)

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
-from src.domain.portfolio.exposure import available_under_cap
+from src.domain.portfolio.exposure import at_or_over_cap
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
@@ -42,12 +42,8 @@ class GateConfig:
     min_edge: float = 0.06
     max_positions: int = 50
     max_positions_per_event: int = 2  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
-    max_exposure_pct: float = 0.50
-    hard_cap_overflow_pct: float = 0.02
-    min_entry_size_pct: float = 0.015
-    max_single_bet_usdc: float = 75.0
-    max_bet_pct: float = 0.05
-    confidence_bet_pct: dict[str, float] = field(default_factory=lambda: {"A": 0.05, "B": 0.04})
+    max_exposure_pct: float = 0.50  # SPEC-P: yumuşak cap, clipping yok
+    fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
     max_entry_price: float = 0.88
     # Consensus
     consensus_enabled: bool = True
@@ -171,13 +167,10 @@ class EntryGate:
             detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
 
-        # 7. Position sizing
+        # 7. Position sizing (SPEC-P: sabit-tier, bankroll bağımsız).
         raw_size = confidence_position_size(
             confidence=signal.confidence,
-            bankroll=self.portfolio.bankroll,
-            confidence_bet_pct=self.config.confidence_bet_pct,
-            max_bet_usdc=self.config.max_single_bet_usdc,
-            max_bet_pct=self.config.max_bet_pct,
+            fixed_bet_usdc=self.config.fixed_bet_usdc,
         )
 
         # Manipulation medium risk → halve
@@ -186,23 +179,17 @@ class EntryGate:
             detail = f"size={adjusted_size:.2f}, min={POLYMARKET_MIN_ORDER_USDC:.2f}"
             return GateResult(cid, None, "size_below_min", skip_detail=detail, manipulation=manip)
 
-        # 7. Exposure cap — soft + hard buffer + size clipping.
+        # 8. Exposure cap — yumuşak: exposure < cap iken tam trade alınır, ≥ cap → blok.
         total_portfolio = self.portfolio.bankroll + self.portfolio.total_invested()
-        available = available_under_cap(
-            self.portfolio.positions, total_portfolio,
-            self.config.max_exposure_pct, self.config.hard_cap_overflow_pct,
-        )
-        min_size = self.portfolio.bankroll * self.config.min_entry_size_pct
-        if available < min_size:
-            detail = f"available={available:.2f}, min={min_size:.2f}"
+        if at_or_over_cap(
+            self.portfolio.positions, total_portfolio, self.config.max_exposure_pct,
+        ):
+            invested = self.portfolio.total_invested()
+            cap = total_portfolio * self.config.max_exposure_pct
+            detail = f"invested={invested:.2f}, cap={cap:.2f}"
             return GateResult(cid, None, "exposure_cap_reached", skip_detail=detail, manipulation=manip)
 
-        final_size = min(adjusted_size, available)
-        if final_size < POLYMARKET_MIN_ORDER_USDC:
-            detail = f"size={final_size:.2f}, min={POLYMARKET_MIN_ORDER_USDC:.2f}"
-            return GateResult(cid, None, "size_below_min", skip_detail=detail, manipulation=manip)
-
-        approved = signal.model_copy(update={"size_usdc": round(final_size, 2)})
+        approved = signal.model_copy(update={"size_usdc": round(adjusted_size, 2)})
         return GateResult(cid, approved, "", manipulation=manip)
 
     def _evaluate_strategies(self, market: MarketData, bm_prob: BookmakerProbability) -> Signal | None:

@@ -119,8 +119,8 @@ def test_manipulation_medium_halves_size() -> None:
     gate = _make_gate(portfolio=p, manip=lambda question, liquidity: _medium_manip())
     results = gate.run([_market()])
     assert results[0].signal is not None
-    # B sizing: 1000 * 0.04 = 40; medium × 0.5 = 20
-    assert results[0].signal.size_usdc == 20.0
+    # SPEC-P: B sabit $30; medium × 0.5 = $15
+    assert results[0].signal.size_usdc == 15.0
 
 
 def test_no_bookmaker_data_skips() -> None:
@@ -173,17 +173,22 @@ def test_max_positions_halts() -> None:
             anchor_probability=0.55, event_id=f"e{i}",
         ))
     gate = _make_gate(portfolio=p)
-    gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50,
-                             max_single_bet_usdc=75.0, max_bet_pct=0.05)
+    gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50)
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is None
     assert results[0].skipped_reason == "max_positions_reached"
 
 
-def test_size_below_min_skips() -> None:
-    # Bankroll $100 → B sizing $4 < $5 min
-    p = PortfolioManager(initial_bankroll=100.0)
+def test_size_below_min_skips_when_manipulation_halves_C_tier_floor() -> None:
+    # SPEC-P: sabit-tier ($30 B, $50 A) zaten Polymarket min $5 üstünde.
+    # Sadece fixed_bet_usdc dict'i $5 altı tutarsa skip oluşur (edge case).
+    p = PortfolioManager(initial_bankroll=1000.0)
     gate = _make_gate(portfolio=p)
+    # Override: B tier $4 → < $5 polymarket min → skip
+    gate.config = GateConfig(
+        max_exposure_pct=0.50,
+        fixed_bet_usdc={"A": 50.0, "B": 4.0},
+    )
     results = gate.run([_market()])
     assert results[0].signal is None
     assert "size_below_min" in results[0].skipped_reason
@@ -205,29 +210,30 @@ def test_entry_price_cap_allows_under_threshold() -> None:
     assert results[0].signal is not None
 
 
-def test_gate_clips_signal_size_when_partial_space_in_hard_cap() -> None:
-    # initial=$2000, invested=$1010 → bankroll_kalan=$990, total=$2000.
-    # hard=$2000×0.52=$1040, available=$1040-$1010=$30.
-    # A sizing = $990×0.05 = $49.5; min(49.5, 30) = $30 (clip).
+def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
+    """SPEC-P: yumuşak cap — exposure < cap iken tam sabit-tier trade alınır.
+
+    initial=$2000, invested=$990 → exposure 49.5% < 50% cap.
+    A trade tam $50 girer (sonuç 52% > %50, ama yumuşak cap).
+    """
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
         condition_id="prev", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=1010.0, shares=2525.0, current_price=0.4,
+        entry_price=0.4, size_usdc=990.0, shares=2475.0, current_price=0.4,
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.60, conf="A")))
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is not None
-    assert abs(results[0].signal.size_usdc - 30.0) < 0.5
+    assert results[0].signal.size_usdc == 50.0
 
 
-def test_gate_skips_when_available_below_min_entry_size() -> None:
-    # initial=$2000, invested=$1035 → bankroll_kalan=$965, total=$2000.
-    # hard=$1040, available=$5. min_entry = $965×0.015 ≈ $14.48. $5 < $14.48 → skip.
+def test_gate_skips_when_exposure_at_cap() -> None:
+    """SPEC-P: exposure ≥ cap → blok (hangi yüzdeyle geçtiği fark etmez)."""
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
         condition_id="prev", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=1035.0, shares=2587.5, current_price=0.4,
+        entry_price=0.4, size_usdc=1000.0, shares=2500.0, current_price=0.4,
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
@@ -236,13 +242,12 @@ def test_gate_skips_when_available_below_min_entry_size() -> None:
     assert results[0].skipped_reason == "exposure_cap_reached"
 
 
-def test_gate_skips_when_hard_cap_fully_used() -> None:
-    # initial=$2000, invested=$1040 → bankroll_kalan=$960, total=$2000.
-    # hard=$1040, available=0. min_entry ≈ $14.40 > 0 → skip.
+def test_gate_skips_when_exposure_over_cap_after_prior_crossing() -> None:
+    """SPEC-P: önceki trade cap'i geçmiş; sonraki trade artık reddedilir."""
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
         condition_id="prev", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=1040.0, shares=2600.0, current_price=0.4,
+        entry_price=0.4, size_usdc=1050.0, shares=2625.0, current_price=0.4,
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
@@ -355,74 +360,38 @@ def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
 
 
 def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
-    """size_below_min (raw adjusted_size < min) → normalized reason + detail."""
-    # Bankroll $100 → B sizing ≈ $4 < $5 POLYMARKET_MIN
-    p = PortfolioManager(initial_bankroll=100.0)
+    """size_below_min (raw adjusted_size < $5 Polymarket min) → normalized reason + detail.
+
+    SPEC-P: sabit-tier dict $5 altı tutarsa skip oluşur (edge case).
+    """
+    p = PortfolioManager(initial_bankroll=1000.0)
     gate = _make_gate(portfolio=p)
+    gate.config = GateConfig(
+        max_exposure_pct=0.50,
+        fixed_bet_usdc={"A": 50.0, "B": 4.0},  # B < $5
+    )
     result = gate._evaluate_one(_market())
     assert result.skipped_reason == "size_below_min"
     assert "size=" in result.skip_detail
     assert "min=" in result.skip_detail
-    # reason must NOT embed numbers (normalized form)
     assert "(" not in result.skipped_reason
 
 
-def test_evaluate_one_size_below_min_final_sets_skip_detail_size_min() -> None:
-    """size_below_min (final clipped size < min after exposure cap clip) → normalized reason."""
-    # We need: raw_size >= min but available < min after clip.
-    # Use bankroll=$5000 (A sizing = $250 raw), but cap available to just $3 by investing heavily.
-    # invested=$2535 → total=$5000, hard_cap=5000*0.52=$2600, available=$65.
-    # Actually easier: use a very small available so final_size < POLYMARKET_MIN_ORDER_USDC
-    # but available >= min_entry_size_pct*bankroll.
-    # POLYMARKET_MIN_ORDER_USDC = $5.
-    # min_entry_size_pct=0.015 → with bankroll=$300, min_size=$4.5.
-    # A sizing → 300*0.05=$15 raw, available < $5 but >= $4.5 → final=available < $5 → size_below_min
-    # hard_cap = total * 0.52; total = bankroll + invested
-    # If invested=$152 → total=$452, hard_cap=$235, available=$235-$152=$83 — too big.
-    # Use max_exposure_pct=0.10 to shrink. But GateConfig default=0.50.
-    # Simplest: mock available_under_cap via MagicMock on portfolio.
-    # Strategy: patch portfolio so available = $4 (< POLYMARKET_MIN_ORDER_USDC=$5)
-    #           but available ($4) >= min_size (bankroll*0.015)
-    #           → exposure_cap_reached NOT triggered, final_size = min(raw, $4) = $4 < $5 → size_below_min
-    p = MagicMock(spec=PortfolioManager)
-    p.count.return_value = 0
-    p.has_event.return_value = False
-    p.count_event.return_value = 0  # SPEC-J/K: gate.py event_count >= max kontrol eder
-    p.bankroll = 100.0
-    p.total_invested.return_value = 0.0
-    p.positions = []
-
-    import unittest.mock as _mock
-
-    with _mock.patch(
-        "src.strategy.entry.gate.available_under_cap",
-        return_value=4.0,  # < POLYMARKET_MIN_ORDER_USDC ($5) but >= min_size (100*0.015=$1.5)
-    ):
-        gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.65, conf="A")))
-        result = gate._evaluate_one(_market())
-
-    assert result.skipped_reason == "size_below_min"
-    assert "size=" in result.skip_detail
-    assert "min=" in result.skip_detail
-    assert "(" not in result.skipped_reason
-
-
-def test_evaluate_one_exposure_cap_sets_skip_detail_available_min() -> None:
-    """exposure_cap_reached → skip_detail='available=X.XX, min=X.XX'."""
-    # initial=$2000, invested=$1035 → available=$5 < min_entry=$14.48 → exposure_cap_reached
+def test_evaluate_one_exposure_cap_sets_skip_detail_invested_cap() -> None:
+    """SPEC-P: exposure_cap_reached → skip_detail='invested=X.XX, cap=X.XX'."""
     from src.models.position import Position
 
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
         condition_id="prev", token_id="t", direction="BUY_YES",
-        entry_price=0.4, size_usdc=1035.0, shares=2587.5, current_price=0.4,
+        entry_price=0.4, size_usdc=1000.0, shares=2500.0, current_price=0.4,
         anchor_probability=0.55, event_id="eprev",
     ))
     gate = _make_gate(portfolio=p)
     result = gate._evaluate_one(_market(cid="new", event="enew"))
     assert result.skipped_reason == "exposure_cap_reached"
-    assert "available=" in result.skip_detail
-    assert "min=" in result.skip_detail
+    assert "invested=" in result.skip_detail
+    assert "cap=" in result.skip_detail
 
 
 def test_run_circuit_breaker_sets_skip_detail_breaker_reason_normalized() -> None:
@@ -461,8 +430,7 @@ def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
             anchor_probability=0.55, event_id=f"e{i}",
         ))
     gate = _make_gate(portfolio=p)
-    gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50,
-                             max_single_bet_usdc=75.0, max_bet_pct=0.05)
+    gate.config = GateConfig(max_positions=5, max_exposure_pct=0.50)
     results = gate.run([_market(cid="new", event="enew")])
     r = results[0]
     assert r.skipped_reason == "max_positions_reached"

@@ -64,16 +64,15 @@ edge:
     B: 1.00
 
 risk:
-  max_single_bet_usdc: 50
-  max_bet_pct: 0.05                # 19 Apr peak — disabled (1.0) yerine peak %5
-  confidence_bet_pct:
-    A: 0.05
-    B: 0.04
-  max_positions: 50        # Kozmetik cap — pratikte exposure_pct + bet_pct dominant (~12-15 aktif poz)
+  # SPEC-P (2026-05-21): sabit-tier sizing. Bankroll dalgalanmasından bağımsız.
+  fixed_bet_usdc:
+    A: 50
+    B: 30
+  max_positions: 50        # Kozmetik cap — pratikte exposure cap dominant
   max_positions_per_event: 2  # ARCH Kural 8 (gevşedi): aynı event'te max 2 bağımsız market (moneyline + spread/totals)
+  # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).
+  # Exposure ≥ %50 → yeni trade reddedilir. Clipping yok.
   max_exposure_pct: 0.50
-  hard_cap_overflow_pct: 0.02   # soft cap üstüne +%2 buffer (hard cap = %52)
-  min_entry_size_pct: 0.015     # min pozisyon = bankroll × %1.5 (tx-cost floor)
   max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2

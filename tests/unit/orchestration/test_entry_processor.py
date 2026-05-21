@@ -57,8 +57,6 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
             max_positions=50,
             max_positions_per_event=2,
             max_exposure_pct=0.5,
-            hard_cap_overflow_pct=0.02,
-            min_entry_size_pct=0.015,
         )
     if portfolio_positions is None:
         portfolio_positions = {}
@@ -123,8 +121,8 @@ def test_process_markets_gate_skip_passes_detail_through():
     )
 
 
-def test_process_markets_exposure_cap_logs_detail_with_available_min():
-    """Entry_processor's own exposure cap skip should log structured detail."""
+def test_process_markets_exposure_cap_logs_detail_with_invested_cap():
+    """SPEC-P: Entry_processor's exposure cap re-check (batch race) logs invested/cap detail."""
     signal = _make_signal()
     gate_result = GateResult(
         condition_id="0x1",
@@ -133,42 +131,39 @@ def test_process_markets_exposure_cap_logs_detail_with_available_min():
         skip_detail="",
     )
 
+    # Tight cap: %1 of (bankroll + invested = $1015) ≈ $10.15.
+    # Mevcut invested $15 ≥ $10.15 → at_or_over_cap True → blok.
     gate_config = SimpleNamespace(
         max_positions=50,
         max_positions_per_event=2,
-        max_exposure_pct=0.01,  # tight cap: 1% of 1000 = $10
-        hard_cap_overflow_pct=0.0,
-        min_entry_size_pct=0.015,  # min size = 1000 * 0.015 = $15
+        max_exposure_pct=0.01,
     )
 
-    # Portfolio has $9.2 invested, so available = $10 - $9.2 = $0.8
-    # min_size = $15, so available < min_size → exposure_cap_reached
     existing_pos = MagicMock()
-    existing_pos.size_usdc = 9.2
+    existing_pos.size_usdc = 15.0
 
     deps = _make_deps(
         gate_config=gate_config,
         bankroll=1000.0,
         portfolio_positions={"existing_pos_id": existing_pos},
     )
-    deps.state.portfolio.total_invested.return_value = 9.2
+    deps.state.portfolio.total_invested.return_value = 15.0
     deps.gate.run.return_value = [gate_result]
 
     processor = EntryProcessor(deps)
     processor.process_markets([_make_market()])
 
-    # log_skip should have been called for exposure_cap_reached with detail
     calls = deps.skipped_logger.log.call_args_list
     found = False
     for call in calls:
         record = call[0][0]
         if (record.skip_reason == "exposure_cap_reached"
-            and "available=" in record.skip_detail
-            and "min=" in record.skip_detail):
+            and "invested=" in record.skip_detail
+            and "cap=" in record.skip_detail):
             found = True
     assert found, (
         f"Expected exposure_cap_reached skip with structured detail "
-        f"(available=X.XX, min=X.XX). "
+        f"(invested=X.XX, cap=X.XX). "
         f"Got: {[(c[0][0].skip_reason, c[0][0].skip_detail) for c in calls]}"
     )
 
@@ -207,8 +202,6 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
         max_positions=50,
         max_positions_per_event=2,
         max_exposure_pct=0.5,
-        hard_cap_overflow_pct=0.02,
-        min_entry_size_pct=0.015,
     )
 
     deps = SimpleNamespace(

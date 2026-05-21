@@ -58,14 +58,13 @@ class EdgeConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    max_single_bet_usdc: float = 75
-    max_bet_pct: float = 0.05  # 19 Apr peak (disabled 1.0 → 0.05)
-    confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}  # 19 Apr peak sizing
+    # SPEC-P (2026-05-21): fixed-tier sizing. A=$50, B=$30 — bankroll dalgalanmasından bağımsız.
+    fixed_bet_usdc: dict[str, float] = {"A": 50.0, "B": 30.0}
     max_positions: int = 20
     max_positions_per_event: int = 2  # SPEC-J/K: aynı event'te moneyline+spread+totals bağımsız bahisler (Kural 8 gevşedi)
+    # Soft cap: exposure < cap iken tam trade alınır (sonuç cap'i geçse de OK).
+    # Hard blok: exposure ≥ cap → yeni trade reddedilir. Clipping uygulanmaz.
     max_exposure_pct: float = 0.50
-    hard_cap_overflow_pct: float = 0.02
-    min_entry_size_pct: float = 0.015
     max_entry_price: float = 0.88
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2

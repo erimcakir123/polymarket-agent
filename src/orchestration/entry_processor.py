@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from src.domain.matching.market_line_parser import parse_total_line
-from src.domain.portfolio.exposure import available_under_cap
+from src.domain.portfolio.exposure import at_or_over_cap
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
 from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
@@ -69,14 +69,12 @@ class EntryProcessor:
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="idle")
 
     def process_markets(self, markets: list[MarketData]) -> None:
-        """Gate → cap-clip → match_start ASC priority → execute."""
+        """Gate → soft-cap re-check (batch race) → match_start ASC priority → execute."""
         mode = self.deps.state.config.mode.value
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="analyzing")
         results = self.deps.gate.run(markets)
         by_cid = {m.condition_id: m for m in markets}
         max_exposure_pct = self.deps.gate.config.max_exposure_pct
-        overflow_pct = self.deps.gate.config.hard_cap_overflow_pct
-        min_entry_pct = self.deps.gate.config.min_entry_size_pct
         executing_written = False
 
         for r in results:
@@ -125,13 +123,13 @@ class EntryProcessor:
                     self.deps.stock.add(market, "event_count_per_event_cap")
                     continue
 
+            # SPEC-P: yumuşak cap re-check (batch race fix).
+            # Exposure ≥ cap → skip. Altındaysa tam sabit-tier boyutu girer (clipping yok).
             total_portfolio = pm.bankroll + pm.total_invested()
-            available = available_under_cap(
-                pm.positions, total_portfolio, max_exposure_pct, overflow_pct,
-            )
-            min_size = pm.bankroll * min_entry_pct
-            if available < min_size:
-                detail = f"available={available:.2f}, min={min_size:.2f}"
+            if at_or_over_cap(pm.positions, total_portfolio, max_exposure_pct):
+                invested = pm.total_invested()
+                cap = total_portfolio * max_exposure_pct
+                detail = f"invested={invested:.2f}, cap={cap:.2f}"
                 operational_writers.log_skip(
                     self.deps.skipped_logger, market,
                     "exposure_cap_reached", detail=detail,
@@ -139,13 +137,10 @@ class EntryProcessor:
                 self.deps.stock.add(market, "exposure_cap_reached")
                 continue
 
-            final_size = min(r.signal.size_usdc, available)
-            clipped_signal = r.signal.model_copy(update={"size_usdc": round(final_size, 2)})
-
             if not executing_written:
                 self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="executing")
                 executing_written = True
-            self._execute_entry(market, clipped_signal)
+            self._execute_entry(market, r.signal)
             self.deps.stock.remove(market.condition_id)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
