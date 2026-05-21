@@ -266,3 +266,82 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
     assert cap_stock_found, (
         "Expected stock.add(market, 'event_count_per_event_cap') for skipped 3rd market."
     )
+
+
+def test_run_heavy_dispatches_model_signals_when_engine_present() -> None:
+    """Heavy cycle: engine present → collect_model_signals → process_signals called."""
+    from unittest.mock import MagicMock, patch
+    from src.orchestration.entry_processor import EntryProcessor
+
+    # Build deps with a mock engine that returns a Signal for the MLB totals market
+    deps = MagicMock()
+    mlb_market = MagicMock()
+    mlb_market.condition_id = "cid-mlb"
+    mlb_market.sport_tag = "baseball_mlb"
+    mlb_market.sports_market_type = "totals"
+
+    nba_market = MagicMock()
+    nba_market.condition_id = "cid-nba"
+    nba_market.sport_tag = "basketball_nba"
+    nba_market.sports_market_type = "moneyline"
+
+    deps.scanner.scan.return_value = [mlb_market, nba_market]
+    deps.stock.refresh_from_scan.return_value = None
+    deps.stock.evict_expired.return_value = None
+    deps.stock.has.return_value = False
+    deps.stock.top_n_by_match_start.return_value = []
+    deps.stock.config.jit_batch_multiplier = 2
+    deps.state.portfolio.count.return_value = 0
+    deps.state.portfolio.positions = {}
+    deps.gate.config.max_positions = 50
+    deps.bot_status_writer.write_stage.return_value = None
+
+    # Mock engine returns a signal for MLB only
+    fake_signal = MagicMock()
+    fake_signal.condition_id = "cid-mlb"
+    deps.mlb_submarket_engine = MagicMock()
+    deps.mlb_submarket_engine.process.return_value = fake_signal
+
+    processor = EntryProcessor(deps)
+    with patch.object(processor, "process_signals") as mock_ps, \
+         patch.object(processor, "process_markets"):
+        processor.run_heavy()
+
+    # process_signals should be called once with the MLB market only
+    assert mock_ps.call_count == 1
+    call = mock_ps.call_args
+    # kwargs-first, fall back to positional
+    markets_arg: list = call.kwargs["markets"] if call.kwargs and "markets" in call.kwargs else list(call.args[0])
+    assert len(markets_arg) == 1
+    assert markets_arg[0].condition_id == "cid-mlb"
+
+
+def test_run_heavy_skips_process_signals_when_engine_none() -> None:
+    """Heavy cycle: engine=None → process_signals NOT called."""
+    from unittest.mock import MagicMock, patch
+    from src.orchestration.entry_processor import EntryProcessor
+
+    deps = MagicMock()
+    mlb_market = MagicMock()
+    mlb_market.condition_id = "cid-mlb"
+    mlb_market.sport_tag = "baseball_mlb"
+    mlb_market.sports_market_type = "totals"
+
+    deps.scanner.scan.return_value = [mlb_market]
+    deps.stock.refresh_from_scan.return_value = None
+    deps.stock.evict_expired.return_value = None
+    deps.stock.has.return_value = False
+    deps.stock.top_n_by_match_start.return_value = []
+    deps.stock.config.jit_batch_multiplier = 2
+    deps.state.portfolio.count.return_value = 0
+    deps.state.portfolio.positions = {}
+    deps.gate.config.max_positions = 50
+    deps.bot_status_writer.write_stage.return_value = None
+    deps.mlb_submarket_engine = None
+
+    processor = EntryProcessor(deps)
+    with patch.object(processor, "process_signals") as mock_ps, \
+         patch.object(processor, "process_markets"):
+        processor.run_heavy()
+
+    mock_ps.assert_not_called()

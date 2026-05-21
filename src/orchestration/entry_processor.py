@@ -17,6 +17,7 @@ from src.models.position import Position
 from src.models.signal import Signal
 from src.orchestration import operational_writers
 from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
+from src.orchestration.scanner import collect_model_signals
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,17 @@ class EntryProcessor:
 
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
+
+        # Model-anchor path (SPEC-R MLB submarket). Engine None ise no-op.
+        model_markets, model_signals = collect_model_signals(
+            candidates=scan_fresh, engine=self.deps.mlb_submarket_engine,
+        )
+        if model_markets:
+            self.process_signals(markets=model_markets, signals=model_signals)
+            # Model-path market'leri bookmaker akışından çıkar (çift trade yok)
+            model_cids = {m.condition_id for m in model_markets}
+            scan_fresh = [m for m in scan_fresh if m.condition_id not in model_cids]
+            scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
         open_event_ids = frozenset(
             p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
