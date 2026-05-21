@@ -368,7 +368,130 @@ def test_reboot_calls_archive_audit_logs() -> None:
         patch("scripts.reboot.start_bot"),
         patch("scripts.reboot.start_dashboard"),
         patch("scripts.reboot.time.sleep"),
+        patch("scripts.reboot._read_open_condition_ids", return_value=set()),
     ):
         reboot("dry_run", skip_confirm=True)
 
     mock_archive.assert_called_once()
+
+
+def test_archive_audit_logs_splits_open_positions(tmp_path: Path) -> None:
+    """2026-05-21 fix: trade_history.jsonl açık pozisyonların kayıtları yeni
+    audit'te tutulur, kapanmış trade'ler arşive taşınır.
+
+    Senaryo: positions.json reset_state ile silinmeden ÖNCE archive çağrılır.
+    Açık cid'ler (partial_exits taşıyan veya hala açık) yeni audit'te kalır.
+    Kapanmış trade'ler (exit_price set) arşive gider.
+    """
+    from scripts.reboot import archive_audit_logs
+
+    audit_file = tmp_path / "trade_history.jsonl"
+    open_cid = "0xopen_partial"
+    closed_cid = "0xclosed"
+    audit_file.write_text(
+        '{"condition_id": "0xopen_partial", "partial_exits": [{"tier": 1}]}\n'
+        '{"condition_id": "0xclosed", "exit_price": 0.83, "exit_pnl_usdc": 3.57}\n',
+        encoding="utf-8",
+    )
+
+    archive_audit_logs(
+        audit_files=[audit_file],
+        timestamp="20260521_020000",
+        open_condition_ids={open_cid},
+    )
+
+    # Audit dosyası YAŞIYOR ve sadece açık pozisyon kaydını içeriyor
+    assert audit_file.exists()
+    audit_content = audit_file.read_text(encoding="utf-8")
+    assert open_cid in audit_content
+    assert closed_cid not in audit_content
+
+    # Archive dosyası kapanmış trade'i içeriyor
+    archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
+    assert archived.exists()
+    archived_content = archived.read_text(encoding="utf-8")
+    assert closed_cid in archived_content
+    assert open_cid not in archived_content
+
+
+def test_archive_audit_logs_all_closed_clears_audit(tmp_path: Path) -> None:
+    """Tüm trade'ler kapanmışsa (açık pozisyon yok) → audit boşaltılır, hepsi arşive."""
+    from scripts.reboot import archive_audit_logs
+
+    audit_file = tmp_path / "trade_history.jsonl"
+    audit_file.write_text(
+        '{"condition_id": "0xa", "exit_price": 0.5}\n'
+        '{"condition_id": "0xb", "exit_price": 0.7}\n',
+        encoding="utf-8",
+    )
+
+    archive_audit_logs(
+        audit_files=[audit_file],
+        timestamp="20260521_020000",
+        open_condition_ids={"0xnonexistent"},
+    )
+
+    # Audit dosyası BOŞ
+    assert audit_file.exists()
+    assert audit_file.read_text(encoding="utf-8") == ""
+    # Archive hepsini içeriyor
+    archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
+    assert archived.exists()
+    assert "0xa" in archived.read_text(encoding="utf-8")
+    assert "0xb" in archived.read_text(encoding="utf-8")
+
+
+def test_archive_audit_logs_open_cids_none_full_rename(tmp_path: Path) -> None:
+    """Backward compat: open_condition_ids=None ise full rename (eski davranış).
+
+    Bu yol test/script ile direkt çağırıldığında veya positions.json okunamadığında
+    çalışır. Default davranış = full rename (veri kaybı yok, ama yeni session
+    boş audit'le başlar — startup phantom-restored çağırır).
+    """
+    from scripts.reboot import archive_audit_logs
+
+    audit_file = tmp_path / "trade_history.jsonl"
+    audit_file.write_text('{"condition_id": "0xa"}\n', encoding="utf-8")
+
+    archive_audit_logs(
+        audit_files=[audit_file], timestamp="20260521_020000",
+        # open_condition_ids deliberately not passed
+    )
+
+    assert not audit_file.exists()
+    archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
+    assert archived.exists()
+
+
+def test_read_open_condition_ids_returns_keys(tmp_path: Path) -> None:
+    """positions.json'dan condition_id'leri çıkarır."""
+    from scripts.reboot import _read_open_condition_ids
+
+    positions_file = tmp_path / "positions.json"
+    positions_file.write_text(
+        '{"positions": {"0xabc": {"slug": "s1"}, "0xdef": {"slug": "s2"}}}',
+        encoding="utf-8",
+    )
+
+    cids = _read_open_condition_ids(positions_file)
+    assert cids == {"0xabc", "0xdef"}
+
+
+def test_read_open_condition_ids_missing_file(tmp_path: Path) -> None:
+    """positions.json yoksa boş set döner."""
+    from scripts.reboot import _read_open_condition_ids
+
+    cids = _read_open_condition_ids(tmp_path / "missing.json")
+    assert cids == set()
+
+
+def test_read_open_condition_ids_corrupt_file(tmp_path: Path) -> None:
+    """positions.json bozuksa boş set döner (silent recovery, hata yutmaz logger
+    yerine - bu script seviyesi, default tolerans)."""
+    from scripts.reboot import _read_open_condition_ids
+
+    positions_file = tmp_path / "positions.json"
+    positions_file.write_text("not json {", encoding="utf-8")
+
+    cids = _read_open_condition_ids(positions_file)
+    assert cids == set()

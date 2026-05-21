@@ -20,6 +20,7 @@ Kullanım:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -30,6 +31,8 @@ ROOT = Path(__file__).parent.parent
 
 _AGENT_PID_FILE = ROOT / "logs" / "agent.pid"
 _DASHBOARD_PID_FILE = ROOT / "logs" / "dashboard.pid"
+_POSITIONS_FILE = ROOT / "data" / "positions.json"
+_TRADE_HISTORY_FILENAME = "trade_history.jsonl"
 
 # REBOOT'ta sıfırlanan state dosyaları (silindi → fresh state)
 _STATE_FILES_DELETE = [
@@ -227,9 +230,27 @@ def clear_audit_logs(audit_files: list[Path] | None = None) -> None:
             print(f"  Removed audit: {audit_file.name}")
 
 
+def _read_open_condition_ids(positions_file: Path | None = None) -> set[str]:
+    """data/positions.json'dan açık pozisyonların condition_id'lerini oku.
+    Dosya yoksa veya bozuksa boş set döner.
+    """
+    p = positions_file if positions_file is not None else _POSITIONS_FILE
+    if not p.exists():
+        return set()
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    positions = data.get("positions") if isinstance(data, dict) else None
+    if not isinstance(positions, dict):
+        return set()
+    return {cid for cid in positions.keys() if cid}
+
+
 def archive_audit_logs(
     audit_files: list[Path] | None = None,
     timestamp: str | None = None,
+    open_condition_ids: set[str] | None = None,
 ) -> None:
     """Reboot'ta audit dosyalarını rename ile arşivle — silmez, taşır.
 
@@ -238,18 +259,62 @@ def archive_audit_logs(
     ediyordu → "clean start" semantiği ihlal. Bu fonksiyon mevcut audit'i
     `<name>.archive.YYYYMMDD_HHMMSS.jsonl` olarak rename eder; yeni session boş
     audit ile başlar, eski archive forensic erişim için kalır.
+
+    2026-05-21 fix: trade_history.jsonl için açık pozisyonların kayıtları yeni
+    audit dosyasında bırakılır (kapanmış trade'ler arşive gider). Aksi halde
+    reset_state başarısız olur veya positions.json hayatta kalırsa, startup
+    phantom-restored entry yazıyor ve eski partial_exits/exit_pnl kayboluyor.
+    Açık pozisyonların kayıtlarını korumak bu kaybı önler. open_condition_ids
+    None ise data/positions.json'dan okunur (production default).
     """
     from datetime import datetime, timezone
 
     files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
     stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     for audit_file in files:
-        if audit_file.exists() and audit_file.stat().st_size > 0:
-            archived = audit_file.with_name(
-                f"{audit_file.stem}.archive.{stamp}{audit_file.suffix}",
-            )
+        if not (audit_file.exists() and audit_file.stat().st_size > 0):
+            continue
+        archived = audit_file.with_name(
+            f"{audit_file.stem}.archive.{stamp}{audit_file.suffix}",
+        )
+        if (audit_file.name == _TRADE_HISTORY_FILENAME
+                and open_condition_ids is not None and open_condition_ids):
+            _split_trade_history(audit_file, archived, open_condition_ids)
+        else:
             audit_file.rename(archived)
             print(f"  Archived: {audit_file.name} -> {archived.name}")
+
+
+def _split_trade_history(
+    audit_file: Path, archived: Path, open_cids: set[str],
+) -> None:
+    """trade_history.jsonl'i ikiye böl: açık pozisyonların kayıtları audit'te kalır,
+    kalanı archive'a taşınır. Bozuk satırlar archive'a gönderilir (forensic için).
+    """
+    keep: list[str] = []
+    move: list[str] = []
+    for line in audit_file.read_text(encoding="utf-8").splitlines(keepends=True):
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            move.append(line)
+            continue
+        cid = rec.get("condition_id") or ""
+        if cid in open_cids:
+            keep.append(line)
+        else:
+            move.append(line)
+    if move:
+        archived.write_text("".join(move), encoding="utf-8")
+        print(f"  Archived: {audit_file.name} -> {archived.name} "
+              f"({len(move)} closed, {len(keep)} kept open)")
+    if keep:
+        audit_file.write_text("".join(keep), encoding="utf-8")
+    else:
+        # Tüm kayıtlar kapanmış → audit dosyasını sıfırla (yeni session boş başlar)
+        audit_file.write_text("", encoding="utf-8")
 
 
 def start_dashboard(root: Path | None = None) -> None:
@@ -322,6 +387,10 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
             print("İptal — state korundu. (`reload` istiyor olabilirsin?)")
             return
     kill_processes()
+    # Açık pozisyonların condition_id'lerini reset_state'ten ÖNCE oku — açık
+    # pozisyonlara ait trade_history kayıtları yeni audit'te tutulur, kapanmış
+    # trade'ler arşive gider (2026-05-21 fix: partial_exits/exit_pnl koruması).
+    open_cids = _read_open_condition_ids()
     clear_runtime_logs()
     clear_session_logs()
     # NOT: clear_audit_logs() çağrılmıyor — audit kalıcı arşiv (SPEC-H 2026-05-10).
@@ -329,7 +398,7 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
     # SPEC-E reconcile_realized_pnl audit'i ground truth okuyordu, reboot sonrası
     # realized_pnl audit'ten geri inşa ediliyordu → "clean start" ihlal.
     # Archive ile audit veri kaybolmaz ama yeni session boş audit ile başlar.
-    archive_audit_logs()
+    archive_audit_logs(open_condition_ids=open_cids)
     reset_state()
     start_dashboard()
     time.sleep(3)
