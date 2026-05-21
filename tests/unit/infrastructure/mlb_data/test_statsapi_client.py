@@ -98,3 +98,42 @@ def test_get_lineup_returns_empty_if_not_posted() -> None:
         m.return_value = _mock_response(200, fake)
         lineup = StatsApiClient().get_lineup(12345)
     assert lineup == {"home": [], "away": []}
+
+
+def test_get_player_handedness_basic() -> None:
+    fake = {"people": [{"id": 12345, "batSide": {"code": "L"}, "pitchHand": {"code": "R"}}]}
+    with patch("src.infrastructure.mlb_data.statsapi_client.requests.get") as m:
+        m.return_value = _mock_response(200, fake)
+        h = StatsApiClient().get_player_handedness(12345)
+    assert h == {"bat_side": "L", "pitch_hand": "R"}
+
+
+def test_get_player_handedness_switch_batter() -> None:
+    fake = {"people": [{"id": 12345, "batSide": {"code": "S"}, "pitchHand": {"code": "R"}}]}
+    with patch("src.infrastructure.mlb_data.statsapi_client.requests.get") as m:
+        m.return_value = _mock_response(200, fake)
+        h = StatsApiClient().get_player_handedness(12345)
+    assert h["bat_side"] == "S"
+
+
+def test_get_player_handedness_missing_fields_default_R() -> None:
+    """Defensive: missing batSide/pitchHand → default 'R'."""
+    fake = {"people": [{"id": 12345}]}
+    with patch("src.infrastructure.mlb_data.statsapi_client.requests.get") as m:
+        m.return_value = _mock_response(200, fake)
+        h = StatsApiClient().get_player_handedness(12345)
+    assert h == {"bat_side": "R", "pitch_hand": "R"}
+
+
+def test_get_player_handedness_empty_people_list() -> None:
+    with patch("src.infrastructure.mlb_data.statsapi_client.requests.get") as m:
+        m.return_value = _mock_response(200, {"people": []})
+        h = StatsApiClient().get_player_handedness(12345)
+    assert h == {"bat_side": "R", "pitch_hand": "R"}
+
+
+def test_get_player_handedness_404_raises() -> None:
+    with patch("src.infrastructure.mlb_data.statsapi_client.requests.get") as m:
+        m.return_value = _mock_response(404)
+        with pytest.raises(StatsApiError):
+            StatsApiClient().get_player_handedness(99999)

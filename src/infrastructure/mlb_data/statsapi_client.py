@@ -124,3 +124,20 @@ class StatsApiClient:
             "home": list(teams.get("home", {}).get("battingOrder", [])),
             "away": list(teams.get("away", {}).get("battingOrder", [])),
         }
+
+    def get_player_handedness(self, person_id: int) -> dict[str, str]:
+        """Fetch batter side + pitcher hand for a player.
+
+        Returns:
+            {'bat_side': 'L'|'R'|'S', 'pitch_hand': 'L'|'R'}.
+            Missing data defaults to 'R' (MLB-average ~70-75% right-handed).
+        """
+        data = self._request(f"/api/v1/people/{person_id}")
+        people = data.get("people", [])
+        if not people:
+            return {"bat_side": "R", "pitch_hand": "R"}
+        person = people[0]
+        return {
+            "bat_side": person.get("batSide", {}).get("code", "R"),
+            "pitch_hand": person.get("pitchHand", {}).get("code", "R"),
+        }
