@@ -21,5 +21,8 @@ def test_unknown_sport_defaults_to_bookmaker() -> None:
     assert anchor_source("foosball_xyz", "moneyline") == "bookmaker"
 
 
-def test_alias_normalization() -> None:
-    assert anchor_source("mlb", "totals") == anchor_source("baseball_npb", "totals")
+def test_alias_normalization_reaches_mlb_submarket_anchor() -> None:
+    """baseball_npb alias 'mlb' rule'una normalize edilmeli → submarket_anchor uygulanır."""
+    assert anchor_source("baseball_npb", "totals") == "model"
+    assert anchor_source("baseball_npb", "run_line") == "model"
+    assert anchor_source("baseball_npb", "moneyline") == "bookmaker"
