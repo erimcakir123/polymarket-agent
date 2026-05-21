@@ -883,6 +883,11 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 **Plan 3 (Infrastructure) tamamlandı (2026-05-21):**
 5 infrastructure modülü `src/infrastructure/mlb_data/` altında. statsapi_client (MLB Stats API schedule + game feed + lineup, exponential backoff retry), statcast_client (pybaseball wrapper + event aggregation, JSON file cache), weather_client (Open-Meteo raw conditions, C→F + km/h→mph conversion), rate_cache (JSONL append-only persistence + clear_expired), scratch_detector (lineup change detection). 39 yeni test, 1329/1329 full suite. Yeni bağımlılık: pybaseball>=2.2. Domain layer DIRECTLY çağırmıyor — Plan 4 engine bağlayacak.
 
+**Plan 4 (Wire-Up + Backtest) tamamlandı (2026-05-21):**
+Gerçek `MlbSubmarketEngine` (`src/strategy/entry/mlb_submarket_engine.py`) Plan 2 (domain math) ve Plan 3 (data clients) modüllerini bağlar; Plan 1 Protocol'üne uyar. `mlb_signal_adapter.py` saf converter (EdgeCandidate → Signal, P(YES) preserved). Factory artık `config.mlb_submarket.enabled=True` ise gerçek engine inject ediyor — Plan 1 placeholder warning kaldırıldı. TODO-DRY persist refactor: `_persist_filled_position` shared helper hem bookmaker-anchor (`_execute_entry`) hem model-anchor (`_persist_model_entry`) path'leri tarafından kullanılıyor. Backtest CLI scaffold `scripts/mlb_submarket_backtest.py` accuracy + edge-weighted accuracy ölçer. 30 yeni test, **1359/1359 full suite**. Plan 4 simplifications (v2'ye ertelendi): Marcel multi-season weighting, bullpen segmentation, full ballpark roster (Plan 4 v1: 5 representative), DH detection, batter/pitcher handedness lookup. SPEC-R 4 fazlı plan TAMAMLANDI.
+
+**Aktivasyon (production):** `config.yaml`'da `mlb_submarket.enabled: true` yapılır + `python scripts/reboot.py reload`. Default `false` — kullanıcı manuel açar.
+
 ---
 
 ## SPEC-O: Tennis Lab Full Paper Trading Wire-Up (2026-05-20)
