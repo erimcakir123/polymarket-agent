@@ -36,13 +36,13 @@ Olasılık her zaman P(YES) olarak saklanır. BUY_YES de BUY_NO da olsa, `anchor
 ### 2. Event-Level Guard
 Aynı `event_id`'ye sahip max N pozisyon (default N=2, `config.yaml > risk.max_positions_per_event`). Bağımsız market'ler (moneyline + spread + totals) ayrı bahisler sayılır. (bkz. ARCHITECTURE_GUARD Kural 8, DECISIONS §6.18)
 
-### 3. Confidence-Based Sizing
-Pozisyon boyutu confidence seviyesine göre belirlenir:
-- **A**: bankroll × %5
-- **B**: bankroll × %4
+### 3. Confidence-Based Sizing (SPEC-P 2026-05-21 — fixed-tier)
+Pozisyon boyutu confidence tier'e göre **sabit dolar** (bankroll dalgalanmasından bağımsız):
+- **A**: $50 sabit
+- **B**: $30 sabit
 - **C**: giriş yapılmaz (blok)
 
-Ek çarpanlar `max_single_bet_usdc` (default $50) ve `max_bet_pct` (5%) cap'lerine tabidir. (bkz. DECISIONS §6.5)
+Manipulation medium risk × 0.5 indirimi uygulanır. Polymarket min $5 floor. (bkz. DECISIONS §6.5)
 
 ### 4. Bookmaker-Derived Probability
 P(YES), Odds API'den çekilen bookmaker verisiyle hesaplanır. Pinnacle/Betfair gibi sharp book'lar `bookmaker_weights` ile ağırlıklandırılır. (bkz. DECISIONS §6.1)
@@ -134,7 +134,7 @@ Her adaya Odds API'dan bookmaker verisi. `domain/matching/` Polymarket slug'ın�
 `strategy/entry/gate.py` 3 entry stratejisi orchestrate eder: consensus (bookmaker+market aynı favori), early_entry (6+ saat öncesi), normal. Öncelik: consensus → early → normal (ilk Signal kazanır). (bkz. DECISIONS §6.4)
 
 ### F4. Position Sizing
-Confidence-based. A=%5, B=%4, C=blok. `max_single_bet_usdc` ve `max_bet_pct` cap'leri. (bkz. DECISIONS §6.5)
+Fixed-tier (SPEC-P): A=$50, B=$30, C=blok. Manipulation medium × 0.5. Polymarket min $5. (bkz. DECISIONS §6.5)
 
 ### F5. Execute
 `executor.py` 3 modda çalışır: `dry_run` (log-only), `paper` (mock fills), `live` (gerçek CLOB emri). Her emir trade log'a JSONL formatında yazılır.
@@ -509,37 +509,36 @@ Bookmaker ve market aynı favoriye işaret ettiğinde "payout edge" kullanılır
 
 **Consensus yoksa (Case B):** standart edge hesabı (§6.3) kullanılır.
 
-### 6.5 Position Sizing
+### 6.5 Position Sizing (SPEC-P 2026-05-21 — fixed-tier)
 
-Confidence + market koşullarına göre trade boyutu.
+Confidence tier'e göre **sabit dolar** bahis. Bankroll dalgalanmasından bağımsız.
 
-**Base sizing (`confidence_bet_pct` config dict — `risk.confidence_bet_pct`):**
-| Confidence | Yüzde | Uygulama |
+**Sizing tablosu (`fixed_bet_usdc` config dict — `risk.fixed_bet_usdc`):**
+| Confidence | Miktar (USDC) | Gerekçe |
 |---|---|---|
-| A | 5% | bankroll × 0.05 (19 Apr peak) |
-| B | 4% | bankroll × 0.04 |
+| A | $50 | sharp bookmaker + 5+ ağırlık |
+| B | $30 | 5+ ağırlık, sharp yok |
 | C | — | 0 (entry bloklanır) |
 
-> Eski `CONF_BET_PCT` constant kaldırıldı (commit 0e91ed4). Tek doğruluk kaynağı: `config.yaml > risk > confidence_bet_pct`. Caller `position_sizer.compute_size()`'a parametre olarak geçer.
+> SPEC-P (2026-05-21): bankroll-relative sizing (`bankroll × confidence_bet_pct`) kaldırıldı. Açık pozisyon sayısı arttıkça payda küçülüyor, geç gelen iyi maç küçük bahis alıyordu (path-dependence). Yeni model: tier başına sabit dolar — sıra önemsiz.
 
 **Çarpanlar:**
 | Koşul | Çarpan |
 |---|---|
-| Lossy reentry — `is_reentry = True` | × 0.80 |
+| Manipulation medium risk | × 0.5 |
 
 **Entry price cap:** `effective_entry ≥ 0.88` → gate reddeder (`entry_price_cap`). Gerekçe: 88¢+ girişlerde max payout `0.99 − entry ≤ 0.11` → R/R çürük.
 
 **Formül:**
 ```
-size = bankroll × bet_pct × multiplier(s)
-size = min(size, max_bet_usdc, bankroll × max_bet_pct, bankroll)
+size = fixed_bet_usdc[confidence]
+if manipulation == medium: size *= 0.5
 size = max(0, round(size, 2))
 ```
 
 **Kaplar:**
-- `max_bet_usdc` = **$50** (config.yaml `risk.max_single_bet_usdc`; settings.py default $75)
-- `max_bet_pct` = 5% bankroll (`risk.max_bet_pct`)
-- Polymarket minimum: $5 — altında reddet
+- Polymarket minimum: $5 — altında reddet (`size_below_min`)
+- Bankroll-relative cap'ler (`max_bet_usdc`, `max_bet_pct`) **kaldırıldı** — sabit-tier mantığında gereksiz.
 
 ### 6.6 Scale-Out (3-tier)
 
@@ -564,7 +563,6 @@ Pozisyon için flat SL yüzdesi. Katmanlar öncelik sırasıyla; ilk eşleşen d
 | 3 | Ultra-low entry | `effective_entry < 0.09` | `0.50` (geniş tolerans) |
 | 4 | Low-entry graduated | `0.09 ≤ effective_entry < 0.20` | Linear: `sl = 0.60 − t × 0.20`, `t = (eff − 0.09) / (0.20 − 0.09)` — 60% → 40% |
 | 5 | Sport-specific (default) | Yukarıdakiler eşleşmedi | `get_stop_loss(sport_tag)` (§7) |
-| 6 | Lossy reentry modifier | `sl_reentry_count ≥ 1` | Yukarıdaki `sl × 0.75` |
 
 **Default parametreler:** `base_sl_pct = 0.30`.
 
@@ -727,27 +725,28 @@ Bankroll koruma — **yalnızca entry halt** eder, exit'i asla durdurmaz.
 
 **Kritik:** Exit kararları breaker'dan asla etkilenmez.
 
-**Exposure Cap (entry blok):**
+**Exposure Cap (yumuşak — SPEC-P 2026-05-21):**
 
 Formül:
 ```
-exposure = (toplam_yatırılan + aday_size) / toplam_portföy_değeri
-toplam_portföy_değeri = portfolio.bankroll (nakit) + portfolio.total_invested()
+total_portfolio_value = portfolio.bankroll (nakit) + portfolio.total_invested()
+                     = initial + realized_pnl  (kullanıcı tanımı: locked + non-lost)
+cap = total_portfolio_value × max_exposure_pct  (default %50)
+exposure = total_invested / total_portfolio_value
 ```
 
-`max_exposure_pct` (config `risk.max_exposure_pct`, default 0.50) **soft cap**'tir. Gate/agent, cap aşımında entry'yi tamamen reddetmek yerine **size kırparak** girer:
+**Kural (SPEC-P):**
+- `exposure < cap` → yeni trade **tam sabit-tier boyutuyla** alınır (sonuç cap'i geçse de OK).
+- `exposure ≥ cap` → yeni trade reddedilir (`exposure_cap_reached`).
+- **Size clipping uygulanmaz** — trade ya tam girer ya hiç.
 
-- `soft_cap = portfolio × max_exposure_pct` (default %50)
-- `hard_cap = portfolio × (max_exposure_pct + hard_cap_overflow_pct)` (default %52)
-- `available = max(0, hard_cap − total_invested)`
-- `min_size = bankroll × min_entry_size_pct` (default %1.5)
+**Örnek:** bankroll $978 (initial $1000 − realized $22), cap = $489.
+- invested $440 → A trade $50 girer → invested $490 ✓ (cap'i geçti, yumuşak)
+- invested $490 → yeni trade reddedilir (≥ cap)
 
-**Akış:**
-1. `available ≤ 0` → skip (`exposure_cap_reached`)
-2. `available < min_size` → skip (tx-cost floor)
-3. diğer → `entry_size = min(kelly, available)` ile gir
+> SPEC-P (2026-05-21): eski "soft+hard buffer + clipping" mantığı (`hard_cap_overflow_pct`, `min_entry_size_pct`, `available_under_cap`) kaldırıldı. Tek sade kural: cap'in altında tam trade, üstünde blok.
 
-**Kritik invariant:** payda TOPLAM portföy değeri — nakit değil. Pure function: `domain/portfolio/exposure.py::available_under_cap`.
+**Kritik invariant:** payda TOPLAM portföy değeri (initial + realized) — nakit değil. Pure function: `domain/portfolio/exposure.py::at_or_over_cap`.
 
 ### 6.16 Manipulation Guard
 
@@ -861,6 +860,44 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 # §B — KRONOLOJIK LOG (SPEC Kararları)
 
 > Aşağıdaki bölümler kronolojik (en yeni üstte). Her SPEC: ne yapıldı + neden + kanıt + commit referansı.
+
+---
+
+## SPEC-Q: Dashboard Archive Birleştirme — Exited Tab Kalıcı Geçmiş (2026-05-21)
+
+**Karar:** Dashboard `read_trades` fonksiyonu artık `logs/audit/trade_history.archive.*.jsonl` dosyalarını da okuyor (Tennis Lab pattern'i: `sorted(audit_dir.glob("trade_history.archive.*.jsonl"))`). Realized PnL widget aynı listeden hesaplandığı için widget toplamı ↔ exited tab toplamı her zaman uyumlu.
+
+**Neden:** 2026-05-21 12:35'te bir tetikleyici (henüz tespit edilemedi — TODO investigate) reboot dışında `archive_audit_logs` çalıştırdı; 26 kapanmış işlem `trade_history.archive.20260521_093516.jsonl`'a taşındı. Dashboard arşivleri okumadığı için exited tab boşaldı ve realized PnL widget 0 gösterdi. Kullanıcı talebi: reboot yapılmadığı sürece exited tab dolu kalmalı. Çözüm: Tennis Prediction Lab spec'inde aynı problem `glob("*.jsonl")` ile çözülmüş (`docs/superpowers/plans/2026-05-19-tennis-prediction-lab.md:3296`), aynı pattern normal dashboard'a uygulandı.
+
+**Etki:**
+- `src/presentation/dashboard/readers.py` — `read_trades` path listesine archive glob eklendi; dedupe (cid, entry_ts) zaten vardı.
+- `tests/unit/presentation/dashboard/test_readers.py` — eski "archive okunmaz" testi tersine çevrildi, multi-archive merge testi eklendi.
+
+**Sonuç:** 86 dashboard testi yeşil. Reload sonrası exited tab arşiv kayıtları dahil tüm geçmişi gösteriyor. Reboot semantiği değişmedi (ana dosya hâlâ archive ediliyor) ama dashboard arşivi de okuduğu için görsel kayıp yok.
+
+**TODO (investigation):** 12:35'teki gizemli archive tetikleyicisinin kaynağı (scheduled task, hook, IDE script). Bu SPEC onu çözmüyor — sadece dashboard görsel kaybını gideriyor.
+
+---
+
+## SPEC-P: Fixed-Tier Sizing + Yumuşak Exposure Cap (2026-05-21)
+
+**Karar:** Bankroll-relative sizing kaldırıldı. Tier başına sabit dolar: A=$50, B=$30, C=0. Exposure cap "yumuşak" — exposure < cap iken tam trade alınır (cap'i geçebilir), exposure ≥ cap → blok. Size clipping yok.
+
+**Neden:** Mevcut `bankroll × confidence_bet_pct` formülünde bankroll = nakit (initial + realized − açık invested). 12 pozisyon açıkken bankroll küçülür → geç gelen iyi maç küçük bahis alır. Kullanıcı kanıtı: WNBA Portland A-tier $18.35 (beklenen $50). Yeni model path-independent: sıra önemsiz.
+
+**Cap motivasyonu:** Eski "soft+hard buffer + clipping" mantığı (`hard_cap_overflow_pct: 0.02` + `min_entry_size_pct: 0.015` + `min(adjusted, available)`) yerine tek sade kural: cap'in altında tam trade, üstünde blok. Tek bir trade ile cap'in geçilebilmesi (yumuşaklık) zaten mevcut overflow buffer'ın amacıydı — sabit-tier dünyada bu buffer doğal şekilde "tek trade'lik".
+
+**Yapısal değişiklikler:**
+- `config.yaml` + `RiskConfig`: `max_single_bet_usdc`, `max_bet_pct`, `confidence_bet_pct`, `hard_cap_overflow_pct`, `min_entry_size_pct` kaldırıldı. `fixed_bet_usdc: {A: 50, B: 30}` eklendi.
+- `position_sizer.confidence_position_size`: `bankroll` + cap parametreleri kalktı; sadece `(confidence, fixed_bet_usdc)` alır.
+- `exposure.at_or_over_cap(positions, total_portfolio_value, soft_cap_pct) -> bool`: yeni helper. Eski `exceeds_exposure_limit` + `available_under_cap` kaldırıldı (dashboard'a hizmet eden `fill_ratio` korundu).
+- `gate.py` + `entry_processor.py`: clipping (`min(adjusted, available)`) kaldırıldı; cap kontrolü `at_or_over_cap` ile.
+
+**Test delta:** 1106 → 1113 (+7). `test_position_sizer` ve `test_exposure` sıfırdan yazıldı; `test_gate` clipping testleri "yumuşak cap" davranışına dönüştü; `test_entry_processor` skip_detail formatı `available/min` → `invested/cap`.
+
+**Plan referansı:** [PLAN.md](PLAN.md) PLAN-FIXED-SIZING-001 (uygulama bitince silinir).
+
+**Mimari uyumluluk:** ARCH_GUARD 8 anti-pattern ✓ (config kaynak, dosyalar küçüldü, domain saf kaldı).
 
 ---
 
@@ -1513,7 +1550,6 @@ OT (period >= 4) için: empirical tablo regulation kapsıyor, normalize öncesi 
 - `max_bet_pct` = 5% (single cap)
 - `max_single_bet_usdc` = $75
 - Polymarket minimum = $5 — altındaysa reject
-- Lossy reentry multiplier = ×0.80
 - `stake = bankroll × bet_pct × win_prob` (probability-weighted, SPEC-016)
 - **Neden win_prob çarpanı:** Portfolio avg stake ~%30 düşer → daha fazla eş zamanlı pozisyon → diversification
 

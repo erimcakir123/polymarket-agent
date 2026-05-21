@@ -70,9 +70,6 @@ class Position(BaseModel):
     scale_out_tier: int = 0
     scale_out_realized_usdc: float = 0.0
 
-    # Lossy reentry
-    sl_reentry_count: int = 0
-
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
 

@@ -69,24 +69,27 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """Trade history — session + audit/trade_history.jsonl (current) birleşik, dedupe.
+    """Trade history — session + audit (current + archive) birleşik, dedupe.
 
     Kaynaklar:
-      - logs/session/trade_history.jsonl   (reboot mirror, reboot'ta temizlenir)
-      - logs/audit/trade_history.jsonl     (kalıcı, reboot dokunmaz, ground truth)
+      - logs/session/trade_history.jsonl                (reboot mirror)
+      - logs/audit/trade_history.jsonl                  (kalıcı current)
+      - logs/audit/trade_history.archive.*.jsonl        (reboot arşivleri)
 
-    Arşiv dosyaları (`logs/audit/trade_history.archive.*.jsonl`) OKUNMAZ — onlar
-    pre-wipe era kayıtları, mevcut realized_pnl onları içermez (bkz. startup
-    reconcile GUARD-4). UI filter etmesin; dashboard kaynağı tutarlı kalsın.
+    Tennis Prediction Lab pattern'i (SPEC-Q): tüm jsonl dosyaları okunur, böylece
+    reboot bot state'ini (positions/bankroll) sıfırlasa bile dashboard exited
+    tab'ında geçmiş kayıt kaybı olmaz. Realized PnL widget'ı aynı listeden
+    beslendiği için exited tab toplamı ile her zaman uyumludur.
 
     Dedupe by (condition_id, entry_timestamp): aynı kayıt iki dosyada varsa
     daha zengin exit data taşıyan kazanır. Aynı condition_id altında farklı
-    entry_timestamp'li kayıtlar AYRI tutulur — bot SL sonrası re-entry yapabilir
-    (sl_reentry_count), her giriş ayrı trade kaydıdır.
+    entry_timestamp'li kayıtlar AYRI tutulur — her giriş ayrı trade kaydıdır.
     """
+    audit_dir = logs_dir / "audit"
     paths = [
         logs_dir / "session" / "trade_history.jsonl",
-        logs_dir / "audit" / "trade_history.jsonl",
+        audit_dir / "trade_history.jsonl",
+        *sorted(audit_dir.glob("trade_history.archive.*.jsonl")),
     ]
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     no_key: list[dict[str, Any]] = []

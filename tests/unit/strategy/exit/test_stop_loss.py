@@ -65,12 +65,6 @@ def test_sport_specific_mlb() -> None:
     assert compute_stop_loss_pct(p) == 0.30
 
 
-def test_reentry_tightens_flat() -> None:
-    p = _pos(entry_price=0.40, sport_tag="nba", sl_reentry_count=1)
-    # 0.35 × 0.75 = 0.2625
-    assert abs(compute_stop_loss_pct(p) - 0.2625) < 1e-6
-
-
 def test_buy_no_uses_token_native_entry() -> None:
     # BUY_NO entry_price = NO token fiyatı (owned side, zaten effective).
     # entry=0.15 (NO token 15¢) → low-entry graduated path.

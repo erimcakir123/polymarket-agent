@@ -95,18 +95,18 @@ def test_read_trades_tail(tmp_path: Path) -> None:
     assert out[0]["slug"] == "m-20"
 
 
-def test_read_trades_archive_files_not_read(tmp_path: Path) -> None:
-    """Arşiv dosyaları (trade_history.archive.*.jsonl) dashboard kaynağı DEĞİL.
+def test_read_trades_archive_files_are_read(tmp_path: Path) -> None:
+    """Arşiv dosyaları (trade_history.archive.*.jsonl) dashboard kaynağıdır.
 
-    Pre-wipe era kayıtları audit arşivinde durur ama mevcut realized_pnl onları
-    içermez (startup reconcile GUARD-4). Dashboard arşivleri okumamalı, aksi
-    halde realized_pnl ile UI arasında tutarsızlık doğar.
+    Tennis Lab pattern'i: tüm jsonl dosyaları okunur. Reboot ana dosyayı
+    arşivlese bile exited tab geçmişi kaybetmez; realized PnL widget'ı
+    exited tab toplamı ile uyumlu kalır.
     """
     logs_dir, _ = _mk_logs(tmp_path)
     _write_jsonl(
         logs_dir / "audit" / "trade_history.archive.20260511_115858.jsonl",
         [{
-            "slug": "pre-wipe-trade", "condition_id": "cid-old",
+            "slug": "archived-trade", "condition_id": "cid-old",
             "exit_price": 0.01, "exit_pnl_usdc": -40.93,
             "exit_timestamp": "2026-05-11T03:00:00Z",
             "entry_timestamp": "2026-05-10T20:00:00Z", "partial_exits": [],
@@ -114,7 +114,39 @@ def test_read_trades_archive_files_not_read(tmp_path: Path) -> None:
     )
 
     out = readers.read_trades(logs_dir, n=100)
-    assert out == []
+    assert len(out) == 1
+    assert out[0]["condition_id"] == "cid-old"
+    assert out[0]["exit_pnl_usdc"] == -40.93
+
+
+def test_read_trades_archive_merged_with_current(tmp_path: Path) -> None:
+    """Birden çok archive + current birleşir; dedupe sağlam çalışır."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    _write_jsonl(
+        logs_dir / "audit" / "trade_history.archive.20260511_115858.jsonl",
+        [{
+            "slug": "old-1", "condition_id": "cid-1",
+            "entry_timestamp": "2026-05-10T20:00:00Z",
+            "exit_price": 0.01, "exit_pnl_usdc": -10.0, "partial_exits": [],
+        }],
+    )
+    _write_jsonl(
+        logs_dir / "audit" / "trade_history.archive.20260521_093516.jsonl",
+        [{
+            "slug": "old-2", "condition_id": "cid-2",
+            "entry_timestamp": "2026-05-20T22:40:00Z",
+            "exit_price": 0.83, "exit_pnl_usdc": 5.0, "partial_exits": [],
+        }],
+    )
+    _write_jsonl(logs_dir / "audit" / "trade_history.jsonl", [{
+        "slug": "current-1", "condition_id": "cid-3",
+        "entry_timestamp": "2026-05-21T00:01:07Z",
+        "exit_price": None, "partial_exits": [],
+    }])
+
+    out = readers.read_trades(logs_dir, n=100)
+    cids = {r["condition_id"] for r in out}
+    assert cids == {"cid-1", "cid-2", "cid-3"}
 
 
 def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
@@ -152,11 +184,11 @@ def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
 def test_read_trades_same_condition_different_entry_kept_separately(
     tmp_path: Path,
 ) -> None:
-    """SL sonrası re-entry: aynı cid, farklı entry_timestamp → her iki trade dahil.
+    """Aynı cid, farklı entry_timestamp → her iki trade dahil.
 
-    Bot stop_loss sonrası aynı market'e yeniden girebilir (sl_reentry_count).
+    Aynı condition_id altında farklı entry_timestamp'li kayıtlar ayrı tutulur.
     Her giriş ayrı trade kaydıdır; dedupe by cid alone yanlış olur ve ilk
-    SL'yi düşürür.
+    kaydı düşürür.
     """
     logs_dir, _ = _mk_logs(tmp_path)
     cid = "0xabc123"

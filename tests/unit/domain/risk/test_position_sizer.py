@@ -1,4 +1,4 @@
-"""position_sizer.py için birim testler (DECISIONS §6.5)."""
+"""position_sizer.py için birim testler (DECISIONS §6.5, SPEC-P 2026-05-21)."""
 from __future__ import annotations
 
 from src.domain.risk.position_sizer import (
@@ -6,49 +6,24 @@ from src.domain.risk.position_sizer import (
     confidence_position_size,
 )
 
-# Test fixture — production config.yaml > risk.confidence_bet_pct mirror.
-CONF_BET_PCT: dict[str, float] = {"A": 0.05, "B": 0.04}
+# Test fixture — production config.yaml > risk.fixed_bet_usdc mirror.
+FIXED_BET_USDC: dict[str, float] = {"A": 50.0, "B": 30.0}
 
 
-def test_A_confidence_5pct_of_bankroll() -> None:
-    # $1000 × 5% = $50
-    assert confidence_position_size("A", bankroll=1000, confidence_bet_pct=CONF_BET_PCT) == 50.0
+def test_A_confidence_returns_fixed_50() -> None:
+    assert confidence_position_size("A", fixed_bet_usdc=FIXED_BET_USDC) == 50.0
 
 
-def test_B_confidence_4pct_of_bankroll() -> None:
-    # $1000 × 4% = $40
-    assert confidence_position_size("B", bankroll=1000, confidence_bet_pct=CONF_BET_PCT) == 40.0
+def test_B_confidence_returns_fixed_30() -> None:
+    assert confidence_position_size("B", fixed_bet_usdc=FIXED_BET_USDC) == 30.0
 
 
 def test_C_confidence_returns_zero() -> None:
-    assert confidence_position_size("C", bankroll=1000, confidence_bet_pct=CONF_BET_PCT) == 0.0
+    assert confidence_position_size("C", fixed_bet_usdc=FIXED_BET_USDC) == 0.0
 
 
-def test_max_single_bet_cap() -> None:
-    # $10_000 × 5% = $500, ama cap $75
-    assert confidence_position_size("A", bankroll=10_000, confidence_bet_pct=CONF_BET_PCT) == 75.0
-
-
-def test_max_bet_pct_cap() -> None:
-    # Büyük bankroll + düşük cap → cap uygulanır
-    # $10_000 × 5% = $500 ama max_bet_pct=0.01 → $100
-    # Ayrıca max_bet_usdc=1000 (cap devre dışı)
-    result = confidence_position_size(
-        "A", bankroll=10_000, confidence_bet_pct=CONF_BET_PCT,
-        max_bet_usdc=1_000, max_bet_pct=0.01,
-    )
-    assert result == 100.0
-
-
-def test_reentry_multiplier() -> None:
-    # B, reentry → 0.04 × 0.8 = 0.032 → $32
-    assert confidence_position_size(
-        "B", bankroll=1000, confidence_bet_pct=CONF_BET_PCT, is_reentry=True,
-    ) == 32.0
-
-
-def test_zero_bankroll_returns_zero() -> None:
-    assert confidence_position_size("A", bankroll=0, confidence_bet_pct=CONF_BET_PCT) == 0.0
+def test_unknown_tier_returns_zero() -> None:
+    assert confidence_position_size("Z", fixed_bet_usdc=FIXED_BET_USDC) == 0.0
 
 
 def test_polymarket_min_constant() -> None:

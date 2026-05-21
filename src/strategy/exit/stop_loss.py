@@ -1,4 +1,4 @@
-"""Flat stop-loss helper — 6-katman öncelik (DECISIONS §6.7).
+"""Flat stop-loss helper — 5-katman öncelik (DECISIONS §6.7).
 
 Tek kaynak: hem WebSocket path (exit_monitor._ws_check_exits) hem light cycle
 (monitor.py) buradan çağırır.
@@ -9,7 +9,6 @@ Katmanlar (öncelik sırasına göre):
   3. Ultra-low entry (eff < 9¢) → geniş %50 SL
   4. Low-entry graduated (9-20¢) → linear %60 → %40
   5. Sport-specific SL (sport_rules.py)
-  6. Lossy reentry çarpanı (×0.75)
 """
 from __future__ import annotations
 
@@ -20,7 +19,6 @@ _ULTRA_LOW_THRESHOLD = 0.09
 _LOW_ENTRY_UPPER = 0.20
 _LOW_ENTRY_SL_HIGH = 0.60
 _LOW_ENTRY_SL_LOW = 0.40
-_REENTRY_MULT = 0.75
 _TOTALS_KEYWORDS = ("o/u", "total", "spread")
 
 
@@ -54,10 +52,6 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     else:
         # 5. Sport-specific SL
         sl = get_stop_loss(pos.sport_tag)
-
-    # 6. Lossy reentry çarpanı
-    if pos.sl_reentry_count >= 1:
-        sl *= _REENTRY_MULT
 
     return sl
 
