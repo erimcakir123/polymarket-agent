@@ -20,6 +20,7 @@ class EntryReason(str, Enum):
     NORMAL = "normal"
     EARLY = "early"
     CONSENSUS = "consensus"
+    MLB_SUBMARKET = "mlb_submarket"  # SPEC-R: model-anchor MLB totals/run-line entries
 
 
 class ExitReason(str, Enum):
