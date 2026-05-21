@@ -37,6 +37,8 @@ def _mk_market(cid: str = "cid-1"):
     m.yes_price = 0.57
     m.slug = f"slug-{cid}"
     m.token_id = f"tok-{cid}"
+    m.match_start_iso = ""
+    m.end_date_iso = ""
     return m
 
 
@@ -132,3 +134,13 @@ def test_process_signals_passes_to_executor_when_clean() -> None:
     processor = EntryProcessor(deps)
     processor.process_signals(markets=[_mk_market()], signals=[_mk_signal()])
     assert deps.executor.execute.call_count == 1
+
+
+def test_process_signals_persists_position_and_trade_record() -> None:
+    """Successful fill → portfolio.add_position called + trade_logger.log called."""
+    deps = _mk_deps()
+    deps.state.portfolio.add_position.return_value = True
+    processor = EntryProcessor(deps)
+    processor.process_signals(markets=[_mk_market()], signals=[_mk_signal()])
+    assert deps.state.portfolio.add_position.call_count == 1
+    assert deps.trade_logger.log.call_count == 1

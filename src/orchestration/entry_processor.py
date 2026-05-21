@@ -14,6 +14,7 @@ from src.infrastructure.persistence.trade_logger import TradeRecord, _split_spor
 from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
 from src.models.position import Position
+from src.models.signal import Signal
 from src.orchestration import operational_writers
 from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
 
@@ -228,8 +229,8 @@ class EntryProcessor:
 
     def process_signals(
         self,
-        markets: list,
-        signals: list,
+        markets: list[MarketData],
+        signals: list[Signal],
     ) -> None:
         """Model-anchor entry path (SPEC-R). Bookmaker bypass.
 
@@ -290,25 +291,55 @@ class EntryProcessor:
 
             self._persist_model_entry(market, signal, result)
 
-    def _persist_model_entry(self, market, signal, result) -> None:
-        """Model-anchor entry sonrası trade kaydı yaz (SPEC-R).
+    def _persist_model_entry(self, market: MarketData, signal: Signal, result) -> None:
+        """Model-anchor entry sonrası pozisyon aç + trade kaydı yaz (SPEC-R).
 
         TODO-DRY: _execute_entry ile ortak persist helper'ına çıkar (Task 9).
         """
+        token_id = getattr(market, "token_id", "")
+        fill_price = result.avg_price
+        shares = result.size_usdc / fill_price if fill_price > 0 else 0.0
+
+        pos = Position(
+            condition_id=market.condition_id,
+            token_id=token_id,
+            direction=signal.direction.value,
+            entry_price=fill_price,
+            size_usdc=result.size_usdc,
+            shares=shares,
+            current_price=fill_price,
+            anchor_probability=signal.anchor_probability,
+            entry_reason=signal.entry_reason.value,
+            confidence=signal.confidence,
+            sport_tag=signal.sport_tag,
+            event_id=market.event_id or "",
+            match_start_iso=getattr(market, "match_start_iso", "") or "",
+            question=market.question,
+            end_date_iso=getattr(market, "end_date_iso", "") or "",
+            slug=getattr(market, "slug", ""),
+        )
+
+        if not self.deps.state.portfolio.add_position(pos):
+            logger.warning(
+                "BLOCKED add_position (model entry): %s (event=%s, cid=%s)",
+                pos.slug[:35], pos.event_id, pos.condition_id[:16],
+            )
+            return
+
         sport_category, league = _split_sport_tag(signal.sport_tag)
         record = TradeRecord(
             slug=getattr(market, "slug", ""),
             condition_id=market.condition_id,
             event_id=market.event_id or "",
-            token_id=getattr(market, "token_id", ""),
+            token_id=token_id,
             question=market.question,
             sport_tag=signal.sport_tag,
             sport_category=sport_category,
             league=league,
             direction=signal.direction.value,
-            entry_price=result.avg_price,
+            entry_price=fill_price,
             size_usdc=result.size_usdc,
-            shares=result.size_usdc / max(result.avg_price, 1e-9),
+            shares=shares,
             confidence=signal.confidence,
             bookmaker_prob=0.0,
             anchor_probability=signal.anchor_probability,
