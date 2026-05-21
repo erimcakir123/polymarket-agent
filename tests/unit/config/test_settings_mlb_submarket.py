@@ -30,10 +30,9 @@ import yaml
 from pathlib import Path
 
 
-def test_root_config_yaml_loads_mlb_submarket_disabled() -> None:
-    """config.yaml yüklendiğinde mlb_submarket.enabled = False."""
-    # The test file lives in tests/unit/config/, so parents[3] is project root.
-    # Use a robust resolution: search upward for config.yaml.
+def test_root_config_yaml_mlb_submarket_block_valid() -> None:
+    """config.yaml yüklendiğinde mlb_submarket bloğu geçerli (enabled değeri
+    operasyonel karar — SPEC-R aktivasyonu sonrası True/False değişebilir)."""
     here = Path(__file__).resolve()
     for parent in here.parents:
         candidate = parent / "config.yaml"
@@ -44,4 +43,5 @@ def test_root_config_yaml_loads_mlb_submarket_disabled() -> None:
         raise AssertionError("config.yaml not found")
     data = yaml.safe_load(root_cfg.read_text(encoding="utf-8"))
     cfg = AppConfig(**data)
-    assert cfg.mlb_submarket.enabled is False
+    assert isinstance(cfg.mlb_submarket.enabled, bool)
+    assert cfg.mlb_submarket.min_edge > 0
