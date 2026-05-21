@@ -16,9 +16,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from src.config.settings import ScannerConfig
-from src.config.sport_rules import BASKETBALL_TAGS, is_moneyline_only, is_spread_blocked
+from src.config.sport_rules import BASKETBALL_TAGS, anchor_source, is_moneyline_only, is_spread_blocked
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
+from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,44 @@ def _sort_key(m: MarketData) -> tuple[int, float, float]:
     else:
         bucket = 3  # discovery
     return (bucket, hours, -m.volume_24h)
+
+
+def classify_anchor_path(market: MarketData) -> str:
+    """Bir market için anchor kaynağı: 'bookmaker' veya 'model'.
+
+    sport_rules.anchor_source wrapper — scanner içinde tek nokta.
+    """
+    return anchor_source(market.sport_tag, market.sports_market_type)
+
+
+def collect_model_signals(
+    *,
+    candidates: list[MarketData],
+    engine: MlbSubmarketEngineProtocol | None,
+) -> tuple[list, list]:
+    """Model-anchor signal toplama (SPEC-R).
+
+    Args:
+        candidates: Scan'den gelen tüm market'ler.
+        engine: MlbSubmarketEngine instance veya None (disabled config).
+
+    Returns:
+        (markets, signals): engine.process'in edge ürettiği çiftler.
+        Engine None ise veya hiç model-path market yoksa ([], []).
+    """
+    if engine is None:
+        return [], []
+    markets: list = []
+    signals: list = []
+    for m in candidates:
+        if classify_anchor_path(m) != "model":
+            continue
+        signal = engine.process(m)
+        if signal is None:
+            continue
+        markets.append(m)
+        signals.append(signal)
+    return markets, signals
 
 
 class MarketScanner:
