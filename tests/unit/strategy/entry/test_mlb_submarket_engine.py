@@ -308,3 +308,82 @@ def test_process_weather_error_returns_none() -> None:
     eng = _engine(weather=_make_weather(ok=False))
     result = eng.process(_market())
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Test 11: Engine fetches handedness for every player (2 pitchers + 18 batters)
+# ---------------------------------------------------------------------------
+
+def test_process_calls_handedness_lookup() -> None:
+    """Engine fetches handedness for every player: 2 pitchers + 18 batters = 20 calls."""
+    statsapi = _make_statsapi()
+    statsapi.get_player_handedness.return_value = {"bat_side": "R", "pitch_hand": "R"}
+    eng = _engine(statsapi=statsapi)
+    with patch(
+        "src.strategy.entry.mlb_submarket_engine.totals_probability",
+        return_value=(0.58, 0.42),
+    ):
+        eng.process(_market())
+    assert statsapi.get_player_handedness.call_count == 20
+
+
+# ---------------------------------------------------------------------------
+# Test 12: Engine passes real batter_hand from Stats API into PA context
+# ---------------------------------------------------------------------------
+
+def test_process_uses_left_handed_batter_in_context() -> None:
+    """If statsapi returns 'L' for a batter, engine passes 'L' to compute_pa_outcome."""
+    statsapi = _make_statsapi()
+    # All batters return 'L' bat_side; pitchers return 'R' pitch_hand
+    def _handedness(person_id: int) -> dict[str, str]:
+        # pitchers have ids 100, 200 → pitch_hand used; batters 1-9 → bat_side used
+        if person_id in (100, 200):
+            return {"bat_side": "R", "pitch_hand": "R"}
+        return {"bat_side": "L", "pitch_hand": "R"}
+    statsapi.get_player_handedness.side_effect = _handedness
+
+    captured_contexts: list[dict] = []
+
+    def _fake_pa_outcome(
+        batter_rates: dict,
+        pitcher_rates: dict,
+        league_rates: dict,
+        context: dict,
+    ) -> dict:
+        captured_contexts.append(dict(context))
+        return {"run": 0.05, "out": 0.95}
+
+    eng = _engine(statsapi=statsapi)
+    with patch(
+        "src.strategy.entry.mlb_submarket_engine.totals_probability",
+        return_value=(0.58, 0.42),
+    ), patch(
+        "src.strategy.entry.mlb_submarket_engine.compute_pa_outcome",
+        side_effect=_fake_pa_outcome,
+    ), patch(
+        "src.strategy.entry.mlb_submarket_engine.simulate_game",
+        return_value=({5: 1.0}, {4: 1.0}),
+    ):
+        eng.process(_market())
+
+    # Every captured context should have batter_hand == 'L' (batters 1-9 returned L)
+    assert len(captured_contexts) > 0
+    for ctx in captured_contexts:
+        assert ctx["batter_hand"] == "L", f"Expected 'L', got {ctx['batter_hand']!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 13: StatsApiError on handedness fetch → process returns None
+# ---------------------------------------------------------------------------
+
+def test_process_handedness_fetch_failure_returns_none() -> None:
+    """If StatsApiError raised during handedness lookup, process returns None."""
+    statsapi = _make_statsapi()
+    statsapi.get_player_handedness.side_effect = StatsApiError("no handedness data")
+    eng = _engine(statsapi=statsapi)
+    with patch(
+        "src.strategy.entry.mlb_submarket_engine.totals_probability",
+        return_value=(0.58, 0.42),
+    ):
+        result = eng.process(_market())
+    assert result is None

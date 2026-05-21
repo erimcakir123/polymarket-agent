@@ -158,6 +158,26 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: rates missing for some players, skipping")
             return None
 
+        # Fetch handedness for pitchers + all batters
+        try:
+            home_pitcher_hand = self.statsapi.get_player_handedness(
+                home_pitcher_id
+            )["pitch_hand"]
+            away_pitcher_hand = self.statsapi.get_player_handedness(
+                away_pitcher_id
+            )["pitch_hand"]
+            home_batter_hands = [
+                self.statsapi.get_player_handedness(b)["bat_side"]
+                for b in lineup["home"]
+            ]
+            away_batter_hands = [
+                self.statsapi.get_player_handedness(b)["bat_side"]
+                for b in lineup["away"]
+            ]
+        except StatsApiError as e:
+            logger.info("mlb_engine: handedness fetch failed: %s", e)
+            return None
+
         # Weather — Plan 4 simplification: use first ballpark in metadata.
         # v2: map home team_id → ballpark_id → metadata entry.
         park_meta = next(iter(self.ballpark_metadata.values()), None)
@@ -173,12 +193,16 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: weather fetch failed: %s", e)
             return None
 
-        # Build per-inning lineup rate lists
+        # Build per-inning lineup rate lists with real handedness
         home_per_inning = self._build_inning_lineups(
-            home_batter_rates, away_pitcher_rates, park_meta, weather_cond,
+            home_batter_rates, home_batter_hands,
+            away_pitcher_rates, away_pitcher_hand,
+            park_meta, weather_cond,
         )
         away_per_inning = self._build_inning_lineups(
-            away_batter_rates, home_pitcher_rates, park_meta, weather_cond,
+            away_batter_rates, away_batter_hands,
+            home_pitcher_rates, home_pitcher_hand,
+            park_meta, weather_cond,
         )
 
         # Simulate
@@ -254,11 +278,13 @@ class MlbSubmarketEngine:
     def _build_inning_lineups(
         self,
         batter_rates: list[dict[str, float]],
+        batter_hands: list[str],
         pitcher_rates: dict[str, float],
+        pitcher_hand: str,
         park_meta: dict[str, Any],
         weather: dict[str, float],
     ) -> list[list[dict[str, float]]]:
-        """Build per-inning 9-batter PA outcome lists.
+        """Build per-inning 9-batter PA outcome lists using real handedness.
 
         Plan 4 simplification: same lineup each inning; CF wind computed once
         from ballpark orientation.
@@ -275,24 +301,23 @@ class MlbSubmarketEngine:
 
         innings = []
         for inning in range(1, 10):
-            ctx: PAContext = {
-                "park_id": park_meta.get("park_id", ""),
-                "batter_hand": "R",     # Plan 4: default R/R; v2 uses real handedness
-                "pitcher_hand": "R",
-                "times_through": min(((inning - 1) // 3) + 1, 4),  # rough TTO
-                "wind_mph_to_cf": wind_to_cf,
-                "temp_f": weather["temp_f"],
-                "humidity_pct": weather["humidity_pct"],
-            }
-            inning_lineup = [
-                compute_pa_outcome(
-                    batter_rates=b,
+            inning_lineup = []
+            for b_rates, b_hand in zip(batter_rates, batter_hands):
+                ctx: PAContext = {
+                    "park_id": park_meta.get("park_id", ""),
+                    "batter_hand": b_hand,
+                    "pitcher_hand": pitcher_hand,
+                    "times_through": min(((inning - 1) // 3) + 1, 4),  # rough TTO
+                    "wind_mph_to_cf": wind_to_cf,
+                    "temp_f": weather["temp_f"],
+                    "humidity_pct": weather["humidity_pct"],
+                }
+                inning_lineup.append(compute_pa_outcome(
+                    batter_rates=b_rates,
                     pitcher_rates=pitcher_rates,
                     league_rates=self.league_rates,
                     context=ctx,
-                )
-                for b in batter_rates
-            ]
+                ))
             innings.append(inning_lineup)
         return innings
 
