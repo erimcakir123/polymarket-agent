@@ -61,9 +61,23 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # FIX (2026-05-22): runtime/bot.log RotatingFileHandler ekle — basicConfig
+    # tek başına sadece stderr'a yazıyordu, subprocess (--reload) modunda log
+    # dosyası üretilmiyordu. Hem dosyaya hem stderr'a yaz.
+    from logging.handlers import RotatingFileHandler
+    _runtime_dir = _ROOT / "logs" / "runtime"
+    _runtime_dir.mkdir(parents=True, exist_ok=True)
+    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    _file_handler = RotatingFileHandler(
+        _runtime_dir / "bot.log", maxBytes=10_485_760, backupCount=5, encoding="utf-8",
+    )
+    _file_handler.setFormatter(_log_fmt)
+    _stream_handler = logging.StreamHandler()
+    _stream_handler.setFormatter(_log_fmt)
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[_file_handler, _stream_handler],
+        force=True,
     )
 
     config_path = _ROOT / "config_tennis.yaml"

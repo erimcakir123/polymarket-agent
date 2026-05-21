@@ -146,16 +146,28 @@ def archive_state(
 
 
 def start_tennis_bot(interval_sec: int = 1800, root: Path | None = None) -> None:
-    """Tennis agent'ı yeni process'te başlat."""
+    """Tennis agent'ı yeni process'te başlat.
+
+    FIX (2026-05-22): stdout/stderr tennis_run.out'a redirect — detached process
+    konsola yazma yetisini kaybediyordu; print/traceback kayıpları engellenir.
+    """
     r = root if root is not None else ROOT
     cmd = [sys.executable, "scripts/tennis_main.py", "--run", "--interval", str(interval_sec)]
+    stdout_path = r / "logs" / "tennis_run.out"
+    stdout_path.parent.mkdir(parents=True, exist_ok=True)
+    stdout_file = stdout_path.open("a", encoding="utf-8")
     if sys.platform == "win32":
         subprocess.Popen(
             cmd, cwd=str(r),
+            stdout=stdout_file, stderr=subprocess.STDOUT,
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
         )
     else:
-        subprocess.Popen(cmd, cwd=str(r), start_new_session=True)
+        subprocess.Popen(
+            cmd, cwd=str(r),
+            stdout=stdout_file, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
     print(f"  Tennis bot started (interval={interval_sec}s)")
 
 
