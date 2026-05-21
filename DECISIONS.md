@@ -877,6 +877,9 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 
 **Sonraki:** Plan 2 (domain model — rate shrinker, Log5, Markov, simulators, pricers), Plan 3 (infrastructure data — Stats API, Statcast, weather, rate cache), Plan 4 (wire-up gerçek engine + backtest).
 
+**Plan 2 (Domain Model) tamamlandı (2026-05-21):**
+18 saf domain modülü `src/domain/mlb_submarket/` altında. Layer 0 (rate shrinker — empirical Bayes Beta + Marcel weights), Layer 1 (PA outcome dispatcher: handedness/TTO/Log5 + park/weather), Layer 2 (24-state Markov + DP/SAC FLY), Layer 3 (Monte Carlo inning, 10k iter seedli reproducible), Layer 4 (9-inning convolution + DH 7-inning), Layer 5 (totals + spread pricers). Akademik temel: Haechrel SABR 2014 multi-class Log5, Tango RE Matrix (1950-2015 MLB average), Marcel 5/4/3 weighting. 133 yeni test (8/18 Layer 1 + 19 Markov + 9 simulators + 8 totals + 7 spread + ...), 1290/1290 full suite. Tek yeni bağımlılık: numpy. Plan dosyası silindi.
+
 ---
 
 ## SPEC-O: Tennis Lab Full Paper Trading Wire-Up (2026-05-20)
