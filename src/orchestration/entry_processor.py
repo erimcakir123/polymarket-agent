@@ -15,6 +15,7 @@ from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
 from src.models.position import Position
 from src.orchestration import operational_writers
+from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +220,100 @@ class EntryProcessor:
             anchor_probability=signal.anchor_probability,
             num_bookmakers=signal.num_bookmakers,
             has_sharp=signal.has_sharp,
+            entry_reason=signal.entry_reason.value,
+            entry_timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.deps.trade_logger.log(record)
+
+
+    def process_signals(
+        self,
+        markets: list,
+        signals: list,
+    ) -> None:
+        """Model-anchor entry path (SPEC-R). Bookmaker bypass.
+
+        Signal'lar zaten model'den gelir, edge ve direction belirlenmiştir.
+        Bu metod sport-agnostic portfolio guard'larını çalıştırır ve geçen
+        signal'lar için pozisyon açar. Bookmaker enrichment ve no_edge yok.
+
+        Args:
+            markets: Source market listesi.
+            signals: Aynı sırada Signal listesi (markets[i] ↔ signals[i]).
+
+        Raises:
+            ValueError: markets ve signals uzunlukları farklıysa.
+        """
+        if len(markets) != len(signals):
+            raise ValueError(
+                f"process_signals: markets/signals length mismatch "
+                f"({len(markets)} vs {len(signals)})"
+            )
+        if not markets:
+            return
+
+        global_skip = check_global_halts(
+            breaker=self.deps.circuit_breaker,
+            cooldown=self.deps.cooldown,
+            portfolio=self.deps.state.portfolio,
+            max_positions=self.deps.gate.config.max_positions,
+        )
+        if global_skip is not None:
+            logger.info(
+                "process_signals halted: %s (%s)",
+                global_skip.reason, global_skip.detail,
+            )
+            return
+
+        max_per_event = self.deps.gate.config.max_positions_per_event
+        for market, signal in zip(markets, signals):
+            per_market_skip = check_per_market_guards(
+                market=market,
+                portfolio=self.deps.state.portfolio,
+                blacklist=self.deps.blacklist,
+                max_positions_per_event=max_per_event,
+            )
+            if per_market_skip is not None:
+                logger.info(
+                    "process_signals skip %s: %s (%s)",
+                    market.condition_id, per_market_skip.reason,
+                    per_market_skip.detail,
+                )
+                continue
+
+            result = self.deps.executor.execute(market, signal)
+            if not getattr(result, "filled", False):
+                logger.info(
+                    "process_signals execute not filled: %s", market.condition_id,
+                )
+                continue
+
+            self._persist_model_entry(market, signal, result)
+
+    def _persist_model_entry(self, market, signal, result) -> None:
+        """Model-anchor entry sonrası trade kaydı yaz (SPEC-R).
+
+        TODO-DRY: _execute_entry ile ortak persist helper'ına çıkar (Task 9).
+        """
+        sport_category, league = _split_sport_tag(signal.sport_tag)
+        record = TradeRecord(
+            slug=getattr(market, "slug", ""),
+            condition_id=market.condition_id,
+            event_id=market.event_id or "",
+            token_id=getattr(market, "token_id", ""),
+            question=market.question,
+            sport_tag=signal.sport_tag,
+            sport_category=sport_category,
+            league=league,
+            direction=signal.direction.value,
+            entry_price=result.avg_price,
+            size_usdc=result.size_usdc,
+            shares=result.size_usdc / max(result.avg_price, 1e-9),
+            confidence=signal.confidence,
+            bookmaker_prob=0.0,
+            anchor_probability=signal.anchor_probability,
+            num_bookmakers=0.0,
+            has_sharp=False,
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
