@@ -71,6 +71,15 @@ class RiskConfig(BaseModel):
     stop_loss_pct: float = 0.30
 
 
+class MlbSubmarketConfig(BaseModel):
+    """MLB submarket (totals/run-line) model-anchor config (SPEC-R)."""
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = False
+    min_edge: float = Field(0.05, gt=0.0)
+    statsapi_timeout_sec: float = Field(10.0, gt=0.0)
+    rate_cache_path: str = "data/mlb_rate_cache.jsonl"
+
+
 class EarlyEntryConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
@@ -259,6 +268,7 @@ class AppConfig(BaseModel):
     score: ScoreConfig = ScoreConfig()
     price_feed: PriceFeedConfig = PriceFeedConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
+    mlb_submarket: MlbSubmarketConfig = Field(default_factory=MlbSubmarketConfig)
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:

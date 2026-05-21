@@ -6,6 +6,8 @@ main.py burayı çağırır. Test izolasyonu için agent.py DI container
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+from typing import Any
 
 from src.config.settings import AppConfig, Mode
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
@@ -30,9 +32,19 @@ from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.strategy.entry.gate import EntryGate, GateConfig
+from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 from src.strategy.enrichment.odds_enricher import enrich_market
 
 logger = logging.getLogger(__name__)
+
+# Plan 4 v1: 5 representative ballparks (subset of 30). v2 will load full table.
+_DEFAULT_BALLPARK_METADATA: dict[str, dict[str, Any]] = {
+    "COORS":  {"park_id": "COORS",  "lat": 39.7559, "lon": -104.9942, "cf_orientation_deg": 0.0},
+    "FENWAY": {"park_id": "FENWAY", "lat": 42.3467, "lon": -71.0972,  "cf_orientation_deg": 90.0},
+    "DODGER": {"park_id": "DODGER", "lat": 34.0739, "lon": -118.2400, "cf_orientation_deg": 0.0},
+    "PETCO":  {"park_id": "PETCO",  "lat": 32.7073, "lon": -117.1566, "cf_orientation_deg": 0.0},
+    "YANKEE": {"park_id": "YANKEE", "lat": 40.8296, "lon": -73.9262,  "cf_orientation_deg": 60.0},
+}
 
 
 def build_agent(state: RuntimeState) -> Agent:
@@ -129,6 +141,32 @@ def build_agent(state: RuntimeState) -> Agent:
             bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
         )
 
+    mlb_engine: MlbSubmarketEngineProtocol | None = None
+    if cfg.mlb_submarket.enabled:
+        from src.infrastructure.mlb_data.rate_cache import RateCache
+        from src.infrastructure.mlb_data.statcast_client import StatcastClient
+        from src.infrastructure.mlb_data.statsapi_client import StatsApiClient
+        from src.infrastructure.mlb_data.weather_client import WeatherClient
+        from src.strategy.entry.mlb_submarket_engine import MlbSubmarketEngine
+
+        statsapi = StatsApiClient(timeout=cfg.mlb_submarket.statsapi_timeout_sec)
+        statcast = StatcastClient(cache_dir=Path("data/mlb_statcast_cache"))
+        weather = WeatherClient()
+        rate_cache = RateCache(Path(cfg.mlb_submarket.rate_cache_path))
+
+        fixed_bet = getattr(cfg.risk, "fixed_bet_usdc", {"A": 50.0, "B": 30.0})
+
+        mlb_engine = MlbSubmarketEngine(
+            statsapi=statsapi,
+            statcast=statcast,
+            weather=weather,
+            rate_cache=rate_cache,
+            config=cfg.mlb_submarket,
+            ballpark_metadata=_DEFAULT_BALLPARK_METADATA,
+            fixed_bet_usdc=fixed_bet,
+        )
+        logger.info("MlbSubmarketEngine initialized (config.mlb_submarket.enabled=True)")
+
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
@@ -138,6 +176,7 @@ def build_agent(state: RuntimeState) -> Agent:
         price_feed=price_feed,
         command_poller=command_poller,
         score_enricher=score_enricher,
+        mlb_submarket_engine=mlb_engine,
     )
     agent = Agent(deps)
 

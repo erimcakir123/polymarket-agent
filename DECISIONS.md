@@ -838,7 +838,7 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 | **WNBA + diğer basketbol** (NCAAB/Euroleague/NBL) | 0.35 | 2.5 | NBA kuralları (BASKETBALL_TAGS normalize) |
 | **American Football** (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
 | **NHL** | 0.30 | 2.5 | period_exit @ -3 goals after P2; **moneyline_only: True** (SPEC-L, 4 günde 13W/2L ML kanıt) |
-| **MLB** (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
+| **MLB** (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th; submarket_anchor: {totals: model, run_line: model} — SPEC-R model-anchor entry path |
 | **Golf** (LPGA/LIV/PGA H2H) | 0.30 | 4.0 | playoff-aware |
 | **DEFAULT** | 0.30 | 2.0 | - |
 
@@ -898,6 +898,32 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 **Plan referansı:** [PLAN.md](PLAN.md) PLAN-FIXED-SIZING-001 (uygulama bitince silinir).
 
 **Mimari uyumluluk:** ARCH_GUARD 8 anti-pattern ✓ (config kaynak, dosyalar küçüldü, domain saf kaldı).
+
+---
+
+## SPEC-R: MLB Submarket Foundation — Model-Anchor Entry Path Altyapısı (2026-05-21)
+
+**Karar:** Sport+market_type kombinasyonu için anchor kaynağı seçilebilir hale getirildi (`anchor_source(sport_tag, market_type) → 'bookmaker'|'model'`). MLB totals/run-line için model anchor. `EntryProcessor.process_signals` public API model-path için bookmaker bypass entry noktası. Gate.py'daki 5 sport-agnostic portfolio guard `portfolio_guards.py` modülüne extract edildi (DRY refactor, zero-regression).
+
+**Neden:** Odds API baseball için sadece moneyline probability sağlıyor; totals/run-line bookmaker yok. Eski DRAFT (sandbox lab) reddedildi; kullanıcı ana bot entegrasyonu istedi. Bu plan altyapıyı kurar — Plan 2-3-4 modeli ve veri katmanlarını ekler.
+
+**Etki:**
+- Yeni: `src/orchestration/portfolio_guards.py`, `src/strategy/entry/mlb_submarket_engine_protocol.py`
+- Modifiye: `src/models/enums.py` (EntryReason.MLB_SUBMARKET), `src/config/sport_rules.py` (anchor_source), `src/config/settings.py` (MlbSubmarketConfig), `config.yaml` (disabled default), `src/strategy/entry/gate.py` (portfolio_guards kullanır), `src/orchestration/entry_processor.py` (process_signals + run_heavy dispatch), `src/orchestration/scanner.py` (anchor dispatch + collect_model_signals), `src/orchestration/factory.py` (engine inject), `src/orchestration/agent.py` (AgentDeps.mlb_submarket_engine field)
+- 10 task TDD ile uygulandı. Mock engine ile end-to-end smoke test PASS.
+
+**Sonraki:** Plan 2 (domain model — rate shrinker, Log5, Markov, simulators, pricers), Plan 3 (infrastructure data — Stats API, Statcast, weather, rate cache), Plan 4 (wire-up gerçek engine + backtest).
+
+**Plan 2 (Domain Model) tamamlandı (2026-05-21):**
+18 saf domain modülü `src/domain/mlb_submarket/` altında. Layer 0 (rate shrinker — empirical Bayes Beta + Marcel weights), Layer 1 (PA outcome dispatcher: handedness/TTO/Log5 + park/weather), Layer 2 (24-state Markov + DP/SAC FLY), Layer 3 (Monte Carlo inning, 10k iter seedli reproducible), Layer 4 (9-inning convolution + DH 7-inning), Layer 5 (totals + spread pricers). Akademik temel: Haechrel SABR 2014 multi-class Log5, Tango RE Matrix (1950-2015 MLB average), Marcel 5/4/3 weighting. 133 yeni test (8/18 Layer 1 + 19 Markov + 9 simulators + 8 totals + 7 spread + ...), 1290/1290 full suite. Tek yeni bağımlılık: numpy. Plan dosyası silindi.
+
+**Plan 3 (Infrastructure) tamamlandı (2026-05-21):**
+5 infrastructure modülü `src/infrastructure/mlb_data/` altında. statsapi_client (MLB Stats API schedule + game feed + lineup, exponential backoff retry), statcast_client (pybaseball wrapper + event aggregation, JSON file cache), weather_client (Open-Meteo raw conditions, C→F + km/h→mph conversion), rate_cache (JSONL append-only persistence + clear_expired), scratch_detector (lineup change detection). 39 yeni test, 1329/1329 full suite. Yeni bağımlılık: pybaseball>=2.2. Domain layer DIRECTLY çağırmıyor — Plan 4 engine bağlayacak.
+
+**Plan 4 (Wire-Up + Backtest) tamamlandı (2026-05-21):**
+Gerçek `MlbSubmarketEngine` (`src/strategy/entry/mlb_submarket_engine.py`) Plan 2 (domain math) ve Plan 3 (data clients) modüllerini bağlar; Plan 1 Protocol'üne uyar. `mlb_signal_adapter.py` saf converter (EdgeCandidate → Signal, P(YES) preserved). Factory artık `config.mlb_submarket.enabled=True` ise gerçek engine inject ediyor — Plan 1 placeholder warning kaldırıldı. TODO-DRY persist refactor: `_persist_filled_position` shared helper hem bookmaker-anchor (`_execute_entry`) hem model-anchor (`_persist_model_entry`) path'leri tarafından kullanılıyor. Backtest CLI scaffold `scripts/mlb_submarket_backtest.py` accuracy + edge-weighted accuracy ölçer. 30 yeni test, **1359/1359 full suite**. Plan 4 simplifications (v2'ye ertelendi): Marcel multi-season weighting, bullpen segmentation, full ballpark roster (Plan 4 v1: 5 representative), DH detection, batter/pitcher handedness lookup. SPEC-R 4 fazlı plan TAMAMLANDI.
+
+**Aktivasyon (production):** `config.yaml`'da `mlb_submarket.enabled: true` yapılır + `python scripts/reboot.py reload`. Default `false` — kullanıcı manuel açar.
 
 ---
 

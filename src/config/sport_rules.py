@@ -48,6 +48,10 @@ SPORT_RULES: dict[str, dict] = {
         "score_source": "espn",
         "espn_sport": "baseball",
         "espn_league": "mlb",
+        "submarket_anchor": {
+            "totals": "model",
+            "run_line": "model",
+        },
     },
     # Tennis kaldırıldı 2026-05-05 — geri açmak için entry geri ekle
     "golf": {
@@ -141,3 +145,15 @@ def is_moneyline_only(sport_tag: str) -> bool:
 def is_spread_blocked(sport_tag: str) -> bool:
     """Sport için spread market'leri reddedilir mi? NBA: spread exit silindi (Task 3) + 0 trade kanıtı."""
     return bool(get_sport_rule(sport_tag, "spread_blocked", False))
+
+
+def anchor_source(sport_tag: str, market_type: str) -> str:
+    """Sport+market_type için anchor kaynağı: 'bookmaker' veya 'model'.
+
+    Default 'bookmaker' — geriye uyumlu. 'model' override eden sport'lar
+    SPORT_RULES içinde `submarket_anchor` dict'iyle ilan eder (SPEC-R).
+    """
+    overrides = get_sport_rule(sport_tag, "submarket_anchor", {})
+    if not isinstance(overrides, dict):
+        return "bookmaker"
+    return str(overrides.get(market_type, "bookmaker"))

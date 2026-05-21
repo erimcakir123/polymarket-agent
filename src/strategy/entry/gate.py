@@ -27,6 +27,10 @@ from src.domain.risk.position_sizer import POLYMARKET_MIN_ORDER_USDC, confidence
 from src.models.market import MarketData
 from src.models.position import effective_price
 from src.models.signal import Signal
+from src.orchestration.portfolio_guards import (
+    check_global_halts as _check_global_halts,
+    check_per_market_guards as _check_per_market_guards,
+)
 from src.strategy.entry import (
     consensus as consensus_entry,
     early_entry,
@@ -91,45 +95,36 @@ class EntryGate:
 
     def run(self, markets: list[MarketData]) -> list[GateResult]:
         """Tüm marketleri değerlendir. Her biri için GateResult döner."""
-        # Global halts — her market için tekrar kontrol etmek yerine bir kez
-        halt, reason = self.breaker.should_halt_entries()
-        if halt:
-            logger.info("Entry gate halted: %s", reason)
-            detail = reason[len("breaker: "):] if reason.startswith("breaker: ") else reason
-            return [GateResult(m.condition_id, None, "circuit_breaker", skip_detail=detail) for m in markets]
+        global_skip = _check_global_halts(
+            breaker=self.breaker,
+            cooldown=self.cooldown,
+            portfolio=self.portfolio,
+            max_positions=self.config.max_positions,
+        )
+        if global_skip is not None:
+            logger.info("Entry gate halted: %s", global_skip.reason)
+            return [
+                GateResult(m.condition_id, None, global_skip.reason, skip_detail=global_skip.detail)
+                for m in markets
+            ]
 
-        remaining = self.cooldown.state.cooldown_remaining
-        if self.cooldown.is_active():
-            detail = f"cycles_remaining={remaining}"
-            return [GateResult(m.condition_id, None, "cooldown_active", skip_detail=detail) for m in markets]
-
-        count = self.portfolio.count()
-        if count >= self.config.max_positions:
-            detail = f"count={count}/{self.config.max_positions}"
-            return [GateResult(m.condition_id, None, "max_positions_reached", skip_detail=detail) for m in markets]
-
-        results: list[GateResult] = []
-        for m in markets:
-            results.append(self._evaluate_one(m))
-        return results
+        return [self._evaluate_one(m) for m in markets]
 
     def _evaluate_one(self, market: MarketData) -> GateResult:
         cid = market.condition_id
 
-        # 1. Event-level guard (ARCH Kural 8 — SPEC-J/K gevşedi: max N / event)
-        if market.event_id:
-            event_count = self.portfolio.count_event(market.event_id)
-            if event_count >= self.config.max_positions_per_event:
-                return GateResult(
-                    cid, None, "event_already_held",
-                    skip_detail=f"event_id={market.event_id} count={event_count}/{self.config.max_positions_per_event}",
-                )
-
-        # 2. Blacklist — split checks to know which matched
-        if self.blacklist.is_blacklisted(condition_id=cid):
-            return GateResult(cid, None, "blacklisted", skip_detail="match=condition_id")
-        if market.event_id and self.blacklist.is_blacklisted(event_id=market.event_id):
-            return GateResult(cid, None, "blacklisted", skip_detail="match=event_id")
+        # 1+2. event_cap + blacklist — portfolio_guards (DRY, SPEC-R)
+        per_market_skip = _check_per_market_guards(
+            market=market,
+            portfolio=self.portfolio,
+            blacklist=self.blacklist,
+            max_positions_per_event=self.config.max_positions_per_event,
+        )
+        if per_market_skip is not None:
+            return GateResult(
+                cid, None, per_market_skip.reason,
+                skip_detail=per_market_skip.detail,
+            )
 
         # 3. Manipulation guard
         manip = self._manip_check(

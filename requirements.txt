@@ -8,3 +8,5 @@ py-clob-client>=0.15.0
 websockets>=12.0
 flask>=3.0.0
 pytest>=8.0.0
+numpy>=1.24  # MLB submarket probability vectors (SPEC-R Plan 2)
+pybaseball>=2.2  # Statcast pitch-by-pitch event data (SPEC-R Plan 3 T2)

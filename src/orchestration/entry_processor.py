@@ -14,7 +14,10 @@ from src.infrastructure.persistence.trade_logger import TradeRecord, _split_spor
 from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
 from src.models.position import Position
+from src.models.signal import Signal
 from src.orchestration import operational_writers
+from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
+from src.orchestration.scanner import collect_model_signals
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,17 @@ class EntryProcessor:
 
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
+
+        # Model-anchor path (SPEC-R MLB submarket). Engine None ise no-op.
+        model_markets, model_signals = collect_model_signals(
+            candidates=scan_fresh, engine=self.deps.mlb_submarket_engine,
+        )
+        if model_markets:
+            self.process_signals(markets=model_markets, signals=model_signals)
+            # Model-path market'leri bookmaker akışından çıkar (çift trade yok)
+            model_cids = {m.condition_id for m in model_markets}
+            scan_fresh = [m for m in scan_fresh if m.condition_id not in model_cids]
+            scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
         open_event_ids = frozenset(
             p.event_id for p in self.deps.state.portfolio.positions.values() if p.event_id
@@ -185,16 +199,6 @@ class EntryProcessor:
             total_side=total_side,
         )
 
-        if not self.deps.state.portfolio.add_position(pos):
-            logger.warning(
-                "BLOCKED add_position: %s (event=%s, cid=%s)",
-                pos.slug[:35], pos.event_id, pos.condition_id[:16],
-            )
-            return
-
-        if self.deps.price_feed is not None:
-            self.deps.price_feed.subscribe([token_id])
-
         category, league = _split_sport_tag(market.sport_tag)
         record = TradeRecord(
             slug=market.slug,
@@ -217,7 +221,146 @@ class EntryProcessor:
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
-        self.deps.trade_logger.log(record)
+
+        if not self._persist_filled_position(pos, record):
+            return
+
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.subscribe([token_id])
+
+    def process_signals(
+        self,
+        markets: list[MarketData],
+        signals: list[Signal],
+    ) -> None:
+        """Model-anchor entry path (SPEC-R). Bookmaker bypass.
+
+        Signal'lar zaten model'den gelir, edge ve direction belirlenmiştir.
+        Bu metod sport-agnostic portfolio guard'larını çalıştırır ve geçen
+        signal'lar için pozisyon açar. Bookmaker enrichment ve no_edge yok.
+
+        Args:
+            markets: Source market listesi.
+            signals: Aynı sırada Signal listesi (markets[i] ↔ signals[i]).
+
+        Raises:
+            ValueError: markets ve signals uzunlukları farklıysa.
+        """
+        if len(markets) != len(signals):
+            raise ValueError(
+                f"process_signals: markets/signals length mismatch "
+                f"({len(markets)} vs {len(signals)})"
+            )
+        if not markets:
+            return
+
+        global_skip = check_global_halts(
+            breaker=self.deps.circuit_breaker,
+            cooldown=self.deps.cooldown,
+            portfolio=self.deps.state.portfolio,
+            max_positions=self.deps.gate.config.max_positions,
+        )
+        if global_skip is not None:
+            logger.info(
+                "process_signals halted: %s (%s)",
+                global_skip.reason, global_skip.detail,
+            )
+            return
+
+        max_per_event = self.deps.gate.config.max_positions_per_event
+        for market, signal in zip(markets, signals):
+            per_market_skip = check_per_market_guards(
+                market=market,
+                portfolio=self.deps.state.portfolio,
+                blacklist=self.deps.blacklist,
+                max_positions_per_event=max_per_event,
+            )
+            if per_market_skip is not None:
+                logger.info(
+                    "process_signals skip %s: %s (%s)",
+                    market.condition_id, per_market_skip.reason,
+                    per_market_skip.detail,
+                )
+                continue
+
+            result = self.deps.executor.execute(market, signal)
+            if not getattr(result, "filled", False):
+                logger.info(
+                    "process_signals execute not filled: %s", market.condition_id,
+                )
+                continue
+
+            self._persist_model_entry(market, signal, result)
+
+    def _persist_model_entry(self, market: MarketData, signal: Signal, result) -> None:
+        """Model-anchor entry sonrası pozisyon aç + trade kaydı yaz (SPEC-R)."""
+        token_id = getattr(market, "token_id", "")
+        fill_price = result.avg_price
+        shares = result.size_usdc / fill_price if fill_price > 0 else 0.0
+
+        pos = Position(
+            condition_id=market.condition_id,
+            token_id=token_id,
+            direction=signal.direction.value,
+            entry_price=fill_price,
+            size_usdc=result.size_usdc,
+            shares=shares,
+            current_price=fill_price,
+            anchor_probability=signal.anchor_probability,
+            entry_reason=signal.entry_reason.value,
+            confidence=signal.confidence,
+            sport_tag=signal.sport_tag,
+            event_id=market.event_id or "",
+            match_start_iso=getattr(market, "match_start_iso", "") or "",
+            question=market.question,
+            end_date_iso=getattr(market, "end_date_iso", "") or "",
+            slug=getattr(market, "slug", ""),
+        )
+
+        sport_category, league = _split_sport_tag(signal.sport_tag)
+        record = TradeRecord(
+            slug=getattr(market, "slug", ""),
+            condition_id=market.condition_id,
+            event_id=market.event_id or "",
+            token_id=token_id,
+            question=market.question,
+            sport_tag=signal.sport_tag,
+            sport_category=sport_category,
+            league=league,
+            direction=signal.direction.value,
+            entry_price=fill_price,
+            size_usdc=result.size_usdc,
+            shares=shares,
+            confidence=signal.confidence,
+            bookmaker_prob=0.0,
+            anchor_probability=signal.anchor_probability,
+            num_bookmakers=0.0,
+            has_sharp=False,
+            entry_reason=signal.entry_reason.value,
+            entry_timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self._persist_filled_position(pos, record, blocked_label="model entry")
+
+    def _persist_filled_position(
+        self,
+        position: Position,
+        trade_record: TradeRecord,
+        blocked_label: str = "",
+    ) -> bool:
+        """Pozisyonu portfolio'ya ekle + trade kaydını yaz (her entry path'inin ortak adımı).
+
+        Returns:
+            True → başarıyla eklendi; False → portfolio tarafından bloklandı.
+        """
+        if not self.deps.state.portfolio.add_position(position):
+            label = f" ({blocked_label})" if blocked_label else ""
+            logger.warning(
+                "BLOCKED add_position%s: %s (event=%s, cid=%s)",
+                label, position.slug[:35], position.event_id, position.condition_id[:16],
+            )
+            return False
+        self.deps.trade_logger.log(trade_record)
+        return True
 
 
 def _resolve_market_meta(
