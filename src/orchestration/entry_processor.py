@@ -204,16 +204,6 @@ class EntryProcessor:
             total_side=total_side,
         )
 
-        if not self.deps.state.portfolio.add_position(pos):
-            logger.warning(
-                "BLOCKED add_position: %s (event=%s, cid=%s)",
-                pos.slug[:35], pos.event_id, pos.condition_id[:16],
-            )
-            return
-
-        if self.deps.price_feed is not None:
-            self.deps.price_feed.subscribe([token_id])
-
         category, league = _split_sport_tag(market.sport_tag)
         record = TradeRecord(
             slug=market.slug,
@@ -236,8 +226,12 @@ class EntryProcessor:
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
-        self.deps.trade_logger.log(record)
 
+        if not self._persist_filled_position(pos, record):
+            return
+
+        if self.deps.price_feed is not None:
+            self.deps.price_feed.subscribe([token_id])
 
     def process_signals(
         self,
@@ -304,10 +298,7 @@ class EntryProcessor:
             self._persist_model_entry(market, signal, result)
 
     def _persist_model_entry(self, market: MarketData, signal: Signal, result) -> None:
-        """Model-anchor entry sonrası pozisyon aç + trade kaydı yaz (SPEC-R).
-
-        TODO-DRY: _execute_entry ile ortak persist helper'ına çıkar (Task 9).
-        """
+        """Model-anchor entry sonrası pozisyon aç + trade kaydı yaz (SPEC-R)."""
         token_id = getattr(market, "token_id", "")
         fill_price = result.avg_price
         shares = result.size_usdc / fill_price if fill_price > 0 else 0.0
@@ -331,13 +322,6 @@ class EntryProcessor:
             slug=getattr(market, "slug", ""),
         )
 
-        if not self.deps.state.portfolio.add_position(pos):
-            logger.warning(
-                "BLOCKED add_position (model entry): %s (event=%s, cid=%s)",
-                pos.slug[:35], pos.event_id, pos.condition_id[:16],
-            )
-            return
-
         sport_category, league = _split_sport_tag(signal.sport_tag)
         record = TradeRecord(
             slug=getattr(market, "slug", ""),
@@ -360,7 +344,28 @@ class EntryProcessor:
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
-        self.deps.trade_logger.log(record)
+        self._persist_filled_position(pos, record, blocked_label="model entry")
+
+    def _persist_filled_position(
+        self,
+        position: Position,
+        trade_record: TradeRecord,
+        blocked_label: str = "",
+    ) -> bool:
+        """Pozisyonu portfolio'ya ekle + trade kaydını yaz (her entry path'inin ortak adımı).
+
+        Returns:
+            True → başarıyla eklendi; False → portfolio tarafından bloklandı.
+        """
+        if not self.deps.state.portfolio.add_position(position):
+            label = f" ({blocked_label})" if blocked_label else ""
+            logger.warning(
+                "BLOCKED add_position%s: %s (event=%s, cid=%s)",
+                label, position.slug[:35], position.event_id, position.condition_id[:16],
+            )
+            return False
+        self.deps.trade_logger.log(trade_record)
+        return True
 
 
 def _resolve_market_meta(
