@@ -839,7 +839,7 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 | **WNBA + diğer basketbol** (NCAAB/Euroleague/NBL) | 0.35 | 2.5 | NBA kuralları (BASKETBALL_TAGS normalize) |
 | **American Football** (NCAAF/CFL/UFL) | 0.30 | 3.25 | halftime_exit @ -14 pts |
 | **NHL** | 0.30 | 2.5 | period_exit @ -3 goals after P2; **moneyline_only: True** (SPEC-L, 4 günde 13W/2L ML kanıt) |
-| **MLB** (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th |
+| **MLB** (+ MiLB/NPB/KBO/NCAA) | 0.30 | 3.0 | inning_exit @ -5 runs after 6th; submarket_anchor: {totals: model, run_line: model} — SPEC-R model-anchor entry path |
 | **Golf** (LPGA/LIV/PGA H2H) | 0.30 | 4.0 | playoff-aware |
 | **DEFAULT** | 0.30 | 2.0 | - |
 
@@ -861,6 +861,21 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 # §B — KRONOLOJIK LOG (SPEC Kararları)
 
 > Aşağıdaki bölümler kronolojik (en yeni üstte). Her SPEC: ne yapıldı + neden + kanıt + commit referansı.
+
+---
+
+## SPEC-R: MLB Submarket Foundation — Model-Anchor Entry Path Altyapısı (2026-05-21)
+
+**Karar:** Sport+market_type kombinasyonu için anchor kaynağı seçilebilir hale getirildi (`anchor_source(sport_tag, market_type) → 'bookmaker'|'model'`). MLB totals/run-line için model anchor. `EntryProcessor.process_signals` public API model-path için bookmaker bypass entry noktası. Gate.py'daki 5 sport-agnostic portfolio guard `portfolio_guards.py` modülüne extract edildi (DRY refactor, zero-regression).
+
+**Neden:** Odds API baseball için sadece moneyline probability sağlıyor; totals/run-line bookmaker yok. Eski DRAFT (sandbox lab) reddedildi; kullanıcı ana bot entegrasyonu istedi. Bu plan altyapıyı kurar — Plan 2-3-4 modeli ve veri katmanlarını ekler.
+
+**Etki:**
+- Yeni: `src/orchestration/portfolio_guards.py`, `src/strategy/entry/mlb_submarket_engine_protocol.py`
+- Modifiye: `src/models/enums.py` (EntryReason.MLB_SUBMARKET), `src/config/sport_rules.py` (anchor_source), `src/config/settings.py` (MlbSubmarketConfig), `config.yaml` (disabled default), `src/strategy/entry/gate.py` (portfolio_guards kullanır), `src/orchestration/entry_processor.py` (process_signals + run_heavy dispatch), `src/orchestration/scanner.py` (anchor dispatch + collect_model_signals), `src/orchestration/factory.py` (engine inject), `src/orchestration/agent.py` (AgentDeps.mlb_submarket_engine field)
+- 10 task TDD ile uygulandı. Mock engine ile end-to-end smoke test PASS.
+
+**Sonraki:** Plan 2 (domain model — rate shrinker, Log5, Markov, simulators, pricers), Plan 3 (infrastructure data — Stats API, Statcast, weather, rate cache), Plan 4 (wire-up gerçek engine + backtest).
 
 ---
 
