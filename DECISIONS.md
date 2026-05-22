@@ -863,6 +863,21 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### 2026-05-22 — Tennis ESPN match_start (geri açıldı)
+
+**Karar:** Tennis market'leri için `match_start_iso` ESPN ATP/WTA scoreboard'dan çekilir. Polymarket startTime fallback. İkisi de yoksa scanner filtresi market'i eler.
+
+**Neden:** Polymarket tennis startTime'ı zaman zaman boş veya gecikmeli (turnuva-level event); `end_date_iso` fallback'i turnuva sonunu gösterip 24h filtresini şişiriyor. ESPN otorite + program değişikliklerini günceller. Tennis 2026-05-05'te `sport_rules`'tan kaldırılmıştı (skor scope dışıydı); şimdi sadece match_start metadata için geri açıldı.
+
+**Etki:**
+- `src/orchestration/tennis_start_enricher.py` (yeni — 185 satır, TDD 7 unit test)
+- `src/config/sport_rules.py` — `tennis` entry geri (`start_source: "espn"`, `espn_leagues: ("atp", "wta")`); `score_source` yok (skor entegrasyonu kapalı)
+- `src/orchestration/scanner.py` — `tennis_start_enricher` optional DI; enrich → filter → sort
+- `src/orchestration/factory.py` — mevcut `ESPNClient` instance'ı paylaşılır
+- `config.yaml` — `scanner.tennis_start_cache_ttl_sec: 300`
+
+---
+
 ### 2026-05-22 — Event cap 2 → 3
 **Karar:** `max_positions_per_event` default 2'den 3'e çıkarıldı.
 **Neden:** Aynı event'te moneyline + totals + run_line (MLB submarket) üçü birden çalışabilmeli. SPEC-J/K bağımsız bahis tanımına uyumlu.
