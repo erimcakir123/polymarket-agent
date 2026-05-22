@@ -864,6 +864,54 @@ Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions
 
 ---
 
+## SPEC-N: Tennis Lab Bimodal-Aware Sizing (2026-05-22)
+
+**Karar**: Tenis lab sizing kuralları bimodal-aware oldu.
+
+| Tier | Bimodal (set_totals + set_handicap) | Non-bimodal (ML / match_o_u / first_set_winner) |
+|---|---|---|
+| A | min(bankroll × %5, $15) = **$15** | min(bankroll × %5, $50) = **$50** |
+| B | min(bankroll × %3.5, $15) = **$15** | min(bankroll × %3.5, $50) = **$35** |
+
+**Önceki sistem (kaldırıldı)**: `tennis_agent.py` `confidence_position_size`'i hardcoded `"A"` ile çağırıyor + B-tier'a `/3` uyguluyordu (set_totals/handicap bimodal SL sorunu için gözlem modu). Bu kural set_totals/handicap için yazılmıştı ama **tüm B trade'lere** uygulanıyordu — scope sızması.
+
+**Neden**:
+1. **Bimodal'da $15 cap** — kullanıcı kayıp toleransı; tek-trade max -$15 (SL net çalışmıyor bimodal piyasalarda, 4/6 trade -$40+ simülasyon kanıtı SPEC-P backtest).
+2. **B oranı %4 → %3.5** — kullanıcı tercihi: B non-bimodal $35 hedefi ($40 yerine konservatif).
+3. **/3 küçültme kaldırıldı** — gerekçesi sadece bimodal'dı, non-bimodal piyasalarda gereksiz; bimodal'da zaten $15 cap koruyor.
+4. **max_positions_per_event 2 → 3** — kullanıcı tercihi; aynı maçta üç alt market (ML + match_o_u + bir alt market) açılabilsin.
+5. **`set_handicap_max_usdc` field eklendi** — set_handicap da bimodal, simetri için ayrı config field.
+
+**Etkilenen dosyalar (commit'ler `8129d25`, `766147d`, `ecb3027`)**:
+- `config_tennis.yaml`: `set_totals_max_usdc=15`, `set_handicap_max_usdc=15`, `confidence_bet_pct.B=0.035`, `max_positions_per_event=3`
+- `src/config/settings.py`: `set_handicap_max_usdc` RiskConfig field
+- `src/orchestration/tennis_agent.py:226-244`: `/3` kaldırıldı, bimodal cap if/elif/else, `confidence=tier` (hardcoded "A" düzeltildi)
+- `tests/unit/orchestration/test_tennis_agent_entry_wiring.py`: eski `test_b_tier_gets_one_third_of_a_size` silindi, 3 yeni parametrize test (B FSW $35, B set_totals $15, A set_handicap $15)
+- `tests/unit/config/test_tennis_sizing.py`: FAZ2 eski $500/%10 varsayımları yeni $1000/%5/%3.5 matrisine güncellendi
+- `scripts/migrate_sizing_2026_05_22.py`: retroactive state migration (positions.json + trade_history.jsonl + equity_history.jsonl yeniden hesaplandı `.bak.2026-05-22-pre-sizing-migration` yedekleriyle)
+
+**Operasyonel detaylar**:
+- Migration `--dry-run` ile rapor, sonra `--apply`
+- Bot durdurma: `scripts/reboot_tennis.py` (kill only), apply, `--reload` (state preserved)
+- **Reboot YASAK** (memory feedback_restart_always_ask) — sadece reload yapıldı
+- Apply #1'de bot çalışıyordu → state ezildi; apply #2'de bot durdurulmuş → temiz uygulama
+- Apply #2 idempotent değildi (2 record over-scaled: minaur ML B $33.47→$35, tien FSW B $31.54→$35) → surgical fix `.bak.surgical-2026-05-22` yedeği ile düzeltildi
+
+**Kanıt (migration sonrası)**:
+- 1444/1444 full test suite PASS
+- Realized PnL eski $34.18 → yeni $123.69 (~3.6× — fakat bot post-migration cycles'da yeni trade'ler kapandı, doğrudan karşılaştırma değil)
+- 9W/0L kart sayısı korundu, sadece $ ölçeklendi
+- positions.json + trade_history.jsonl + equity_history.jsonl yeni sizing'e tam tutarlı
+
+**Test edilen alternatifler** (uygulanmadı):
+- **50/50 tek-partial scale-out**: kullanıcı simülasyondan sonra "bimodal'da daha riskli" görünce iptal etti — old 2-tier (%40 sat @+%25, kalanın %50si @+%50) bimodal'da daha çok kâr kitler (worst case -$0.75 vs 50/50 -$3.75)
+- **Cap $15 → $20/$30**: kullanıcı $15'te bıraktı; "$1-2 win'ler güvenlik ağı, kaderin kötü gittiği günde locked profit" mantığını kabul etti
+
+**Sonraki adım (TODO)**:
+- `src/orchestration/tennis_agent.py` 404 satır → ARCH_GUARD Kural 3 ihlali (önceden var, bu SPEC değiştirmedi). Refactor split planı ayrı PLAN olur.
+
+---
+
 ## SPEC-M: PriceFeed Sanity Layer (2026-05-19)
 
 **Karar**: WS price feed'e 4 yapısal koruma — spike rejection, REST 404 cache invalidate, asks/bids sort-agnostic, near-resolve spread sanity.
