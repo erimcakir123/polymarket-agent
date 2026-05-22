@@ -30,6 +30,7 @@ from src.domain.prediction.tennis_predictor import MarketPrediction
 from src.domain.risk.position_sizer import confidence_position_size
 from src.infrastructure.data.sackmann_csv_client import SackmannMatch
 from src.infrastructure.data.tennis_ratings_store import PlayerRating
+from src.models.enums import SportsMarketType
 from src.models.market import MarketData
 from src.models.signal import Signal
 from src.orchestration import operational_writers
@@ -219,18 +220,24 @@ def run_one_cycle(
         )
         if did_log:
             logged += 1
-        # Tennis paper trade kararı (2026-05-21 backtest sonrası):
+        # Tennis paper trade kararı (2026-05-21 backtest sonrası → 2026-05-22 güncelleme):
         # Set totals/handicap markets bimodal — SL stratejisi çalışmıyor (-$60 net zarar simülasyonu).
-        # Tek koruma: yüksek kalite tahminlere odaklan → SADECE A tier (B skip).
-        # B tier classify_tier'da hâlâ üretiliyor (diagnostic için), ama entry yapılmıyor.
-        if tier == "A":
+        # A tier: tam size ile giriş. B tier: tam skip yerine 1/3 size ile gözlemle
+        # (yeterli veri toplandığında politika netleşir). C tier: giriş yok.
+        if tier in ("A", "B"):
+            # set_totals bimodal (SL fire etmiyor) → düşük cap; diğer market'ler normal cap.
             size_usdc = confidence_position_size(
-                confidence=tier,
+                confidence="A",
                 bankroll=deps.state.portfolio.bankroll,
                 confidence_bet_pct=cfg.risk.confidence_bet_pct,
-                max_bet_usdc=cfg.risk.max_single_bet_usdc,
+                max_bet_usdc=cfg.risk.set_totals_max_usdc if market.sports_market_type == SportsMarketType.TENNIS_SET_TOTALS.value else cfg.risk.max_single_bet_usdc,
                 max_bet_pct=cfg.risk.max_bet_pct,
             )
+            if tier == "B":
+                # B tier: 2026-05-22 update — set_totals/handicap bimodal, B çıkışı
+                # için SL net çalışmıyor (-$60 sim). Tam skip yerine 1/3 size ile gözle,
+                # yeterli veri toplandığında politika netleşir.
+                size_usdc = round(size_usdc / 3.0, 2)
             if size_usdc > 0:
                 signal = tennis_candidate_to_signal(candidate, market, tier)
                 signal = signal.model_copy(update={"size_usdc": size_usdc})

@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.config.settings import AppConfig
 from src.domain.prediction.feature_extractor import FeatureSnapshot
 from src.infrastructure.data.tennis_ratings_store import PlayerRating, SurfaceRating
@@ -40,7 +42,11 @@ def _player(pid: str, name: str) -> PlayerRating:
     )
 
 
-def _market(cid: str = "0xTENNIS", yes_price: float = 0.45) -> MarketData:
+def _market(
+    cid: str = "0xTENNIS",
+    yes_price: float = 0.45,
+    sports_market_type: str = "tennis_first_set_winner",
+) -> MarketData:
     now = datetime.now(timezone.utc)
     return MarketData(
         condition_id=cid,
@@ -52,7 +58,7 @@ def _market(cid: str = "0xTENNIS", yes_price: float = 0.45) -> MarketData:
         end_date_iso=(now + timedelta(hours=5)).isoformat() + "Z",
         match_start_iso=(now + timedelta(hours=2)).isoformat() + "Z",
         sport_tag="tennis_atp",
-        sports_market_type="tennis_first_set_winner",
+        sports_market_type=sports_market_type,
         event_id="evt-tennis",
     )
 
@@ -200,3 +206,167 @@ def test_tennis_cycle_calls_persist_after_entries(tmp_path: Path) -> None:
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
 
     mock_persist.assert_called_once_with(deps.state)
+
+
+# ── Per-market sizing cap (set_totals bimodal protection, 2026-05-22) ─────────
+
+
+def test_tennis_cycle_set_totals_caps_size_at_set_totals_max(tmp_path: Path) -> None:
+    """set_totals market → bet size capped at cfg.risk.set_totals_max_usdc.
+
+    Bimodal market (SL fire etmiyor); tek-trade max kayıp config'deki düşük cap'e
+    indirilir. Default $15 (config_tennis.yaml).
+    """
+    cfg = AppConfig()
+    cfg.risk.set_totals_max_usdc = 15.0
+    cfg.risk.max_single_bet_usdc = 50.0  # diğer market'lerin normal cap'i
+    deps = _make_deps(tmp_path, cfg=cfg)
+    ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
+    parsed_info = {
+        "p1_name": "Player One", "p2_name": "Player Two",
+        "market_type": "total_sets_under_2_5", "surface": "clay",
+    }
+    set_totals_market = _market(sports_market_type="tennis_set_totals")
+
+    with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
+         patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
+        MockScanner.return_value.scan.return_value = [set_totals_market]
+        run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
+
+    deps.entry_processor.process_signals.assert_called_once()
+    _, signals_arg = deps.entry_processor.process_signals.call_args[0]
+    assert signals_arg[0].size_usdc == 15.0  # capped at set_totals_max_usdc
+
+
+def test_tennis_cycle_first_set_winner_uses_default_cap(tmp_path: Path) -> None:
+    """first_set_winner market → bet uses cfg.risk.max_single_bet_usdc (NOT set_totals cap).
+
+    Regression: SL çalışan market türlerinde küçük cap UYGULANMAMALI.
+    """
+    cfg = AppConfig()
+    cfg.risk.set_totals_max_usdc = 15.0
+    cfg.risk.max_single_bet_usdc = 50.0
+    deps = _make_deps(tmp_path, cfg=cfg)
+    ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
+    parsed_info = {
+        "p1_name": "Player One", "p2_name": "Player Two",
+        "market_type": "first_set_winner", "surface": "clay",
+    }
+    fs_market = _market(sports_market_type="tennis_first_set_winner")
+
+    with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
+         patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
+        MockScanner.return_value.scan.return_value = [fs_market]
+        run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
+
+    deps.entry_processor.process_signals.assert_called_once()
+    _, signals_arg = deps.entry_processor.process_signals.call_args[0]
+    # Default bankroll 1000, A tier %5 = 50, cap 50 → 50.0 (set_totals cap UYGULAMAZ)
+    assert signals_arg[0].size_usdc > 15.0
+    assert signals_arg[0].size_usdc <= 50.0
+
+
+# ── B tier re-enable with 1/3 size (2026-05-22 SPEC-P update) ─────────────────
+
+
+def test_b_tier_gets_one_third_of_a_size(tmp_path: Path) -> None:
+    """B tier should produce a Signal with size_usdc ≈ 1/3 of A tier's full size.
+
+    2026-05-22 policy: B tier not fully skipped (model has signal), but
+    exposure capped at 1/3 of A to limit downside while accumulating data.
+    """
+    from src.domain.risk.position_sizer import confidence_position_size  # noqa: PLC0415
+
+    cfg = AppConfig()
+    cfg.risk.max_single_bet_usdc = 50.0
+    cfg.risk.max_bet_pct = 0.05
+    deps = _make_deps(tmp_path, cfg=cfg)
+    ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
+    parsed_info = {
+        "p1_name": "Player One", "p2_name": "Player Two",
+        "market_type": "first_set_winner", "surface": "clay",
+    }
+
+    with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
+         patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value="B"), \
+         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
+        MockScanner.return_value.scan.return_value = [_market()]
+        run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
+
+    deps.entry_processor.process_signals.assert_called_once()
+    _, signals_arg = deps.entry_processor.process_signals.call_args[0]
+    assert len(signals_arg) == 1
+    signal = signals_arg[0]
+    assert signal.confidence == "B"
+
+    # Expected: A tier would be $50, so B = $50 / 3 ≈ $16.67
+    a_size = confidence_position_size(
+        confidence="A",
+        bankroll=cfg.initial_bankroll,
+        confidence_bet_pct=cfg.risk.confidence_bet_pct,
+        max_bet_usdc=cfg.risk.max_single_bet_usdc,
+        max_bet_pct=cfg.risk.max_bet_pct,
+    )
+    expected = round(a_size / 3.0, 2)
+    assert signal.size_usdc == pytest.approx(expected, abs=0.01)
+
+
+def test_a_tier_full_size_unchanged(tmp_path: Path) -> None:
+    """A tier size must be unaffected by the B-tier 1/3 reduction (regression)."""
+    cfg = AppConfig()
+    cfg.risk.max_single_bet_usdc = 50.0
+    cfg.risk.max_bet_pct = 0.05
+    deps = _make_deps(tmp_path, cfg=cfg)
+    ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
+    parsed_info = {
+        "p1_name": "Player One", "p2_name": "Player Two",
+        "market_type": "first_set_winner", "surface": "clay",
+    }
+
+    with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
+         patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
+        MockScanner.return_value.scan.return_value = [_market()]
+        run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
+
+    deps.entry_processor.process_signals.assert_called_once()
+    _, signals_arg = deps.entry_processor.process_signals.call_args[0]
+    signal = signals_arg[0]
+    assert signal.confidence == "A"
+    # A tier: bankroll=$1000, 5% = $50, capped at $50 → full $50
+    assert signal.size_usdc == pytest.approx(50.0, abs=0.01)
+
+
+def test_c_tier_no_signal_produced(tmp_path: Path) -> None:
+    """C tier must still produce zero signals (unchanged)."""
+    deps = _make_deps(tmp_path)
+    ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
+    parsed_info = {
+        "p1_name": "Player One", "p2_name": "Player Two",
+        "market_type": "first_set_winner", "surface": "clay",
+    }
+
+    with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
+         patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value="C"), \
+         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
+        MockScanner.return_value.scan.return_value = [_market()]
+        run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
+
+    deps.entry_processor.process_signals.assert_not_called()
