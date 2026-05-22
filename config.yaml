@@ -20,6 +20,7 @@ scanner:
   resolved_price_threshold: 0.98
   # Tennis match_start ESPN override icin cache TTL (saniye); 300 = 5dk.
   tennis_start_cache_ttl_sec: 300
+  tennis_athlete_cache_ttl_sec: 86400
   allowed_categories: ["sports"]
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.

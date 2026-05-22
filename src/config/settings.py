@@ -51,6 +51,7 @@ class ScannerConfig(BaseModel):
     # Tennis match_start ESPN override icin cache TTL (saniye).
     # TennisStartEnricher cycle basina bir kere ESPN tennis/atp+wta scoreboard ceker.
     tennis_start_cache_ttl_sec: int = 300
+    tennis_athlete_cache_ttl_sec: int = 86400  # 24 saat — ESPN tennis athlete adi cache
 
 
 class EdgeConfig(BaseModel):
