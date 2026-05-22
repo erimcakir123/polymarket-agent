@@ -55,7 +55,7 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
     if gate_config is None:
         gate_config = SimpleNamespace(
             max_positions=50,
-            max_positions_per_event=2,
+            max_positions_per_event=3,
             max_exposure_pct=0.5,
         )
     if portfolio_positions is None:
@@ -135,7 +135,7 @@ def test_process_markets_exposure_cap_logs_detail_with_invested_cap():
     # Mevcut invested $15 ≥ $10.15 → at_or_over_cap True → blok.
     gate_config = SimpleNamespace(
         max_positions=50,
-        max_positions_per_event=2,
+        max_positions_per_event=3,
         max_exposure_pct=0.01,
     )
 
@@ -171,28 +171,28 @@ def test_process_markets_exposure_cap_logs_detail_with_invested_cap():
 def test_entry_processor_enforces_max_positions_per_event_in_batch():
     """Batch entry race condition (Pistons-Cavaliers bug):
 
-    Gate evaluates `count_event` BEFORE any add_position fires, so 3 markets
+    Gate evaluates `count_event` BEFORE any add_position fires, so 4 markets
     of the same event can all pass the gate in a single cycle. Without the
-    per-iteration check inside the for-loop, all 3 would open — violating
-    max_positions_per_event=2.
+    per-iteration check inside the for-loop, all 4 would open — violating
+    max_positions_per_event=3 (2026-05-22 cap artırımı).
 
-    Setup: 3 markets, same event_id="465162", all approved by gate.
-    Expected: only 2 positions open; the 3rd skipped with
+    Setup: 4 markets, same event_id="465162", all approved by gate.
+    Expected: only 3 positions open; the 4th skipped with
               reason='event_count_per_event_cap' and re-added to stock.
     """
     event_id = "465162"
-    # 3 same-event markets, distinct condition_ids
+    # 4 same-event markets, distinct condition_ids
     markets = [
-        _make_market(slug=f"nba-det-cle-m{i}", cid=f"0x{i}") for i in range(1, 4)
+        _make_market(slug=f"nba-det-cle-m{i}", cid=f"0x{i}") for i in range(1, 5)
     ]
     for m in markets:
         m.event_id = event_id  # all same event
 
-    # Gate approves all 3 (the bug: no per-iteration enforcement after this)
+    # Gate approves all 4 (the bug: no per-iteration enforcement after this)
     gate_results = [
         GateResult(condition_id=f"0x{i}", signal=_make_signal(cid=f"0x{i}"),
                    skipped_reason="", skip_detail="")
-        for i in range(1, 4)
+        for i in range(1, 5)
     ]
 
     # Real PortfolioManager so count_event reflects live state mid-batch
@@ -200,7 +200,7 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
 
     gate_config = SimpleNamespace(
         max_positions=50,
-        max_positions_per_event=2,
+        max_positions_per_event=3,
         max_exposure_pct=0.5,
     )
 
@@ -229,14 +229,14 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
     processor = EntryProcessor(deps)
     processor.process_markets(markets)
 
-    # Core assertion: exactly 2 positions open for this event, NOT 3
-    assert portfolio.count_event(event_id) == 2, (
-        f"Expected 2 positions for event_id={event_id} (cap=2), "
+    # Core assertion: exactly 3 positions open for this event, NOT 4
+    assert portfolio.count_event(event_id) == 3, (
+        f"Expected 3 positions for event_id={event_id} (cap=3), "
         f"got {portfolio.count_event(event_id)}. "
         f"Batch race condition NOT prevented."
     )
 
-    # The 3rd market must be skipped with the dedicated reason
+    # The 4th market must be skipped with the dedicated reason
     skip_calls = deps.skipped_logger.log.call_args_list
     cap_skip_found = False
     for call in skip_calls:
@@ -244,20 +244,20 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
         if record.skip_reason == "event_count_per_event_cap":
             cap_skip_found = True
             assert event_id in record.skip_detail
-            assert "2/2" in record.skip_detail
+            assert "3/3" in record.skip_detail
     assert cap_skip_found, (
-        "Expected a 'event_count_per_event_cap' skip log for the 3rd market. "
+        "Expected a 'event_count_per_event_cap' skip log for the 4th market. "
         f"Got: {[c[0][0].skip_reason for c in skip_calls]}"
     )
 
-    # The 3rd market should also be re-queued in stock with the cap reason
+    # The 4th market should also be re-queued in stock with the cap reason
     stock_add_calls = deps.stock.add.call_args_list
     cap_stock_found = any(
         len(c[0]) >= 2 and c[0][1] == "event_count_per_event_cap"
         for c in stock_add_calls
     )
     assert cap_stock_found, (
-        "Expected stock.add(market, 'event_count_per_event_cap') for skipped 3rd market."
+        "Expected stock.add(market, 'event_count_per_event_cap') for skipped 4th market."
     )
 
 

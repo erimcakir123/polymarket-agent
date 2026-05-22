@@ -95,9 +95,9 @@ def test_check_per_market_event_cap() -> None:
     market = _MockMarket(condition_id="cid-x", event_id="evt-x")
     skip = check_per_market_guards(
         market=market,
-        portfolio=_mk_portfolio(event_counts={"evt-x": 2}),
+        portfolio=_mk_portfolio(event_counts={"evt-x": 3}),
         blacklist=_mk_blacklist(),
-        max_positions_per_event=2,
+        max_positions_per_event=3,
     )
     assert skip is not None
     assert skip.reason == "event_already_held"
@@ -109,7 +109,7 @@ def test_check_per_market_blacklist_cid() -> None:
         market=market,
         portfolio=_mk_portfolio(),
         blacklist=_mk_blacklist(cid_set={"cid-blocked"}),
-        max_positions_per_event=2,
+        max_positions_per_event=3,
     )
     assert skip is not None
     assert skip.reason == "blacklisted"
@@ -122,7 +122,7 @@ def test_check_per_market_blacklist_eid() -> None:
         market=market,
         portfolio=_mk_portfolio(),
         blacklist=_mk_blacklist(eid_set={"evt-blocked"}),
-        max_positions_per_event=2,
+        max_positions_per_event=3,
     )
     assert skip is not None
     assert skip.reason == "blacklisted"
@@ -135,6 +135,6 @@ def test_check_per_market_passes() -> None:
         market=market,
         portfolio=_mk_portfolio(event_counts={"evt-ok": 0}),
         blacklist=_mk_blacklist(),
-        max_positions_per_event=2,
+        max_positions_per_event=3,
     )
     assert skip is None

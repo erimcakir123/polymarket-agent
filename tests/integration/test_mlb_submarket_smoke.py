@@ -47,7 +47,7 @@ def _make_market(condition_id: str = "cid-mlb"):
 def _make_deps():
     deps = MagicMock()
     deps.gate.config.max_positions = 50
-    deps.gate.config.max_positions_per_event = 2
+    deps.gate.config.max_positions_per_event = 3
     deps.state.portfolio.count.return_value = 0
     deps.state.portfolio.count_event.return_value = 0
     deps.circuit_breaker.should_halt_entries.return_value = (False, "")
@@ -77,7 +77,7 @@ def test_mlb_submarket_signal_flows_end_to_end() -> None:
 def test_mlb_submarket_signal_skipped_when_event_cap_full() -> None:
     """Event_cap dolu → execute called değil."""
     deps = _make_deps()
-    deps.state.portfolio.count_event.return_value = 2  # event cap full
+    deps.state.portfolio.count_event.return_value = 3  # event cap full
     market = _make_market()
     signal = _make_signal()
     processor = EntryProcessor(deps)

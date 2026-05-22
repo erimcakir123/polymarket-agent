@@ -48,7 +48,7 @@ def _mk_deps(circuit_halt: bool = False, cooldown_active: bool = False,
     deps = MagicMock()
     deps.state.config.mode.value = "dry_run"
     deps.gate.config.max_positions = max_positions
-    deps.gate.config.max_positions_per_event = 2
+    deps.gate.config.max_positions_per_event = 3
     deps.state.portfolio.count.return_value = portfolio_count
     deps.state.portfolio.count_event.return_value = event_count
     deps.circuit_breaker.should_halt_entries.return_value = (circuit_halt, "")
@@ -100,7 +100,7 @@ def test_process_signals_event_cap_skips_individual() -> None:
     """Event_cap dolu market skip; diğer market'ler geçer."""
     deps = _mk_deps()
     deps.state.portfolio.count_event.side_effect = lambda eid: (
-        2 if eid == "evt-blocked" else 0
+        3 if eid == "evt-blocked" else 0
     )
     m1 = _mk_market("cid-1")
     m1.event_id = "evt-blocked"

@@ -65,7 +65,7 @@ def _make_deps(captured_positions: list):
 
     gate_config = SimpleNamespace(
         max_positions=50,
-        max_positions_per_event=2,
+        max_positions_per_event=3,
         max_exposure_pct=0.5,
     )
     deps = SimpleNamespace(
