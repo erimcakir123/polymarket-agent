@@ -75,7 +75,7 @@ class SackmannCsvClient:
         self._cache_dir = Path(cache_dir)
 
     def load_year(self, year: int) -> list[SackmannMatch]:
-        """Tek yılın CSV'sini oku. Dosya yoksa boş döner."""
+        """Tek yılın ATP main-draw CSV'sini oku. Dosya yoksa boş döner."""
         path = self._cache_dir / f"atp_matches_{year}.csv"
         if not path.exists():
             logger.warning("Sackmann CSV missing: %s", path)
@@ -90,11 +90,42 @@ class SackmannCsvClient:
         logger.info("Loaded %d matches from %s", len(matches), path.name)
         return matches
 
+    def load_challenger_year(self, year: int) -> list[SackmannMatch]:
+        """Tek yılın Challenger CSV'sini oku (sadece tourney_level='C' satırları).
+
+        Dosya: atp_matches_qual_chall_{year}.csv (qualifier+challenger mix).
+        Sadece 'C' seviyesi alınır — ATP main draw satırları (G/A/M) atlanır,
+        çünkü bunlar load_year() ile zaten dahil edilmiş olacak.
+        """
+        path = self._cache_dir / f"atp_matches_qual_chall_{year}.csv"
+        if not path.exists():
+            logger.warning("Sackmann Challenger CSV missing: %s", path)
+            return []
+        matches: list[SackmannMatch] = []
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("tourney_level", "") != "C":
+                    continue
+                m = self._parse_row(row)
+                if m is not None:
+                    matches.append(m)
+        logger.info("Loaded %d challenger matches from %s", len(matches), path.name)
+        return matches
+
     def load_years(self, years: list[int]) -> list[SackmannMatch]:
-        """Birden fazla yıl yükle, birleştir, kronolojik sırala."""
+        """Birden fazla yıl ATP main-draw yükle, birleştir, kronolojik sırala."""
         all_matches: list[SackmannMatch] = []
         for y in years:
             all_matches.extend(self.load_year(y))
+        all_matches.sort(key=lambda m: m.match_date)
+        return all_matches
+
+    def load_challenger_years(self, years: list[int]) -> list[SackmannMatch]:
+        """Birden fazla yıl Challenger maç yükle, birleştir, kronolojik sırala."""
+        all_matches: list[SackmannMatch] = []
+        for y in years:
+            all_matches.extend(self.load_challenger_year(y))
         all_matches.sort(key=lambda m: m.match_date)
         return all_matches
 

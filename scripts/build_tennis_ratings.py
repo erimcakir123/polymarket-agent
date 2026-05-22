@@ -160,8 +160,15 @@ def main() -> None:
     ratings_path = Path(cfg.tennis.ratings_cache)
 
     client = SackmannCsvClient(cache_dir=sackmann_dir)
-    matches = client.load_years(cfg.tennis.sackmann_years)
-    logger.info("Loaded %d total matches from Sackmann", len(matches))
+    atp_matches = client.load_years(cfg.tennis.sackmann_years)
+    challenger_matches = client.load_challenger_years(cfg.tennis.challenger_years)
+    matches = sorted(
+        atp_matches + challenger_matches, key=lambda m: m.match_date,
+    )
+    logger.info(
+        "Loaded %d total matches from Sackmann (%d ATP + %d Challenger)",
+        len(matches), len(atp_matches), len(challenger_matches),
+    )
 
     snapshot_date = datetime.utcnow()
     ratings = build_ratings_from_matches(

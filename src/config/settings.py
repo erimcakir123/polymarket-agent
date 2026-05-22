@@ -64,6 +64,8 @@ class EdgeConfig(BaseModel):
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     max_single_bet_usdc: float = 75
+    # Per-market override: tennis_set_totals bimodal (SL fire etmiyor, full loss riski). Tennis-lab override eder.
+    set_totals_max_usdc: float = 75
     max_bet_pct: float = 0.05  # 19 Apr peak (disabled 1.0 → 0.05)
     confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}  # 19 Apr peak sizing
     max_positions: int = 20
@@ -226,6 +228,7 @@ class TennisConfig(BaseModel):
     ratings_cache: str = "data/tennis_ratings.json"
     diagnostic_log_dir: str = "logs/tennis_diagnostics"
     sackmann_years: list[int] = [2022, 2023, 2024, 2025, 2026]
+    challenger_years: list[int] = [2022, 2023, 2024, 2025, 2026]
     glicko_initial_rating: float = 1500.0
     glicko_initial_rd: float = 350.0
     glicko_initial_volatility: float = 0.06

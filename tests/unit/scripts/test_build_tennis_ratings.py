@@ -50,3 +50,27 @@ def test_build_ratings_empty_returns_empty():
         [], snapshot_date=datetime(2026, 5, 19),
     )
     assert ratings == {}
+
+
+def test_ratings_file_has_minimum_players_after_challenger_expansion() -> None:
+    """Regression: Challenger Tour expansion must yield ≥1500 rated players.
+
+    Old count: 817 (ATP main-draw only).
+    New count: ~2650 (ATP + Challenger).
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve()
+    ratings_path: Path | None = None
+    for parent in root.parents:
+        candidate = parent / "data" / "tennis_ratings.json"
+        if candidate.exists():
+            ratings_path = candidate
+            break
+
+    if ratings_path is None:
+        raise AssertionError("tennis_ratings.json not found — run scripts/build_tennis_ratings.py first")
+
+    data = json.loads(ratings_path.read_text(encoding="utf-8"))
+    assert len(data) >= 1500, f"Expected ≥1500 players after Challenger expansion, got {len(data)}"

@@ -96,6 +96,7 @@ tennis:
   ratings_cache: "data/tennis_ratings.json"
   diagnostic_log_dir: "logs/tennis_diagnostics"
   sackmann_years: [2022, 2023, 2024, 2025, 2026]
+  challenger_years: [2022, 2023, 2024, 2025, 2026]
   glicko_initial_rating: 1500
   glicko_initial_rd: 350
   glicko_initial_volatility: 0.06

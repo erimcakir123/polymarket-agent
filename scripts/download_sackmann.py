@@ -24,13 +24,35 @@ logger = logging.getLogger(__name__)
 SACKMANN_URL_TEMPLATE = (
     "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_{year}.csv"
 )
+SACKMANN_CHALLENGER_URL_TEMPLATE = (
+    "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_qual_chall_{year}.csv"
+)
 
 
 def download_year(year: int, target_dir: Path, timeout: int = 30) -> bool:
-    """Download single year CSV. Returns True on success."""
+    """Download single ATP main-draw year CSV. Returns True on success."""
     url = SACKMANN_URL_TEMPLATE.format(year=year)
     target_dir.mkdir(parents=True, exist_ok=True)
     output = target_dir / f"atp_matches_{year}.csv"
+    try:
+        resp = requests.get(url, timeout=timeout)
+    except requests.RequestException as e:
+        logger.warning("Download %s failed: %s", url, e)
+        return False
+    if resp.status_code != 200:
+        logger.warning("Download %s returned %d", url, resp.status_code)
+        return False
+    output.write_text(resp.text, encoding="utf-8")
+    size_kb = len(resp.text) // 1024
+    logger.info("Downloaded %s (%d KB)", output.name, size_kb)
+    return True
+
+
+def download_challenger_year(year: int, target_dir: Path, timeout: int = 30) -> bool:
+    """Download single Challenger+Qualifier year CSV. Returns True on success."""
+    url = SACKMANN_CHALLENGER_URL_TEMPLATE.format(year=year)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    output = target_dir / f"atp_matches_qual_chall_{year}.csv"
     try:
         resp = requests.get(url, timeout=timeout)
     except requests.RequestException as e:
@@ -51,6 +73,8 @@ def main() -> None:
     target_dir = Path(cfg.tennis.data_dir)
     for year in cfg.tennis.sackmann_years:
         download_year(year, target_dir)
+    for year in cfg.tennis.challenger_years:
+        download_challenger_year(year, target_dir)
 
 
 if __name__ == "__main__":
