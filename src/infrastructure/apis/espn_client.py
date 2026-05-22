@@ -3,8 +3,9 @@
 Endpoint: https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard
 API key gerektirmez. Public access.
 
-Desteklenen sporlar: hokey (NHL), beyzbol (MLB), basketbol (NBA).
-Tennis ve soccer scope dışı (SPEC-A5 + SPEC-C ileri faz).
+Desteklenen sporlar: hokey (NHL), beyzbol (MLB), basketbol (NBA),
+tenis (ATP/WTA — sadece match_start için, skor entegrasyonu yok).
+Soccer scope dışı.
 """
 from __future__ import annotations
 
