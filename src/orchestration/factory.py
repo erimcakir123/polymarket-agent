@@ -80,7 +80,7 @@ def build_agent(state: RuntimeState) -> Agent:
 
     gamma = GammaClient()
     odds = OddsAPIClient()
-    espn = ESPNClient()
+    espn = ESPNClient(athlete_cache_ttl_sec=cfg.scanner.tennis_athlete_cache_ttl_sec)
     score_enricher = ScoreEnricher(
         espn_client=espn,
         odds_client=odds,

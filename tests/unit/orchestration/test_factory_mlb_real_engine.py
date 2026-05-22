@@ -20,7 +20,7 @@ def _mock_infra(monkeypatch) -> None:
     """Mock infrastructure clients factory'nin üst düzey import'larını bypass eder."""
     monkeypatch.setattr("src.orchestration.factory.GammaClient", lambda: MagicMock())
     monkeypatch.setattr("src.orchestration.factory.OddsAPIClient", lambda: MagicMock())
-    monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda: MagicMock())
+    monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda **kwargs: MagicMock())
     monkeypatch.setattr(
         "src.orchestration.factory.PriceFeed",
         lambda max_spike_pct: MagicMock(),

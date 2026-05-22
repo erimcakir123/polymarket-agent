@@ -44,7 +44,7 @@ def test_factory_engine_none_when_disabled(tmp_path, monkeypatch) -> None:
         "src.orchestration.factory.OddsAPIClient", lambda: MagicMock()
     )
     monkeypatch.setattr(
-        "src.orchestration.factory.ESPNClient", lambda: MagicMock()
+        "src.orchestration.factory.ESPNClient", lambda **kwargs: MagicMock()
     )
     monkeypatch.setattr(
         "src.orchestration.factory.PriceFeed",
@@ -70,7 +70,7 @@ def test_factory_engine_info_logged_when_enabled(tmp_path, monkeypatch, caplog) 
 
     monkeypatch.setattr("src.orchestration.factory.GammaClient", lambda: MagicMock())
     monkeypatch.setattr("src.orchestration.factory.OddsAPIClient", lambda: MagicMock())
-    monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda: MagicMock())
+    monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda **kwargs: MagicMock())
     monkeypatch.setattr(
         "src.orchestration.factory.PriceFeed", lambda max_spike_pct: MagicMock()
     )
