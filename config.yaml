@@ -69,7 +69,7 @@ risk:
     A: 50
     B: 30
   max_positions: 50        # Kozmetik cap — pratikte exposure cap dominant
-  max_positions_per_event: 2  # ARCH Kural 8 (gevşedi): aynı event'te max 2 bağımsız market (moneyline + spread/totals)
+  max_positions_per_event: 3  # ARCH Kural 8 (gevşedi): aynı event'te max 3 bağımsız market (moneyline + spread + totals)
   # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).
   # Exposure ≥ %50 → yeni trade reddedilir. Clipping yok.
   max_exposure_pct: 0.50

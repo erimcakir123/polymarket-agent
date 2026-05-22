@@ -34,7 +34,7 @@ Bu kuralların hiçbiri ihlal edilemez. Her biri ya mimari bütünlüğü ya da 
 Olasılık her zaman P(YES) olarak saklanır. BUY_YES de BUY_NO da olsa, `anchor_probability = P(YES)` değişmez. Yön ayarlaması karar mantığında yapılır, saklama yapılmaz. (bkz. ARCHITECTURE_GUARD Kural 7)
 
 ### 2. Event-Level Guard
-Aynı `event_id`'ye sahip max N pozisyon (default N=2, `config.yaml > risk.max_positions_per_event`). Bağımsız market'ler (moneyline + spread + totals) ayrı bahisler sayılır. (bkz. ARCHITECTURE_GUARD Kural 8, DECISIONS §6.18)
+Aynı `event_id`'ye sahip max N pozisyon (default N=3, `config.yaml > risk.max_positions_per_event`). Bağımsız market'ler (moneyline + spread + totals) ayrı bahisler sayılır. (bkz. ARCHITECTURE_GUARD Kural 8, DECISIONS §6.18)
 
 ### 3. Confidence-Based Sizing (SPEC-P 2026-05-21 — fixed-tier)
 Pozisyon boyutu confidence tier'e göre **sabit dolar** (bankroll dalgalanmasından bağımsız):
@@ -315,7 +315,7 @@ Scanner ve gate arasında persistent eligible pool. Amaç: Odds API kredi israf�
 4. **Profit taking = scale-out** (3-tier).
 5. **MVP kapsamı = 2-way sporlar**. Ertelenmiş branşlar için bkz. `TODO.md`.
 6. **P(YES) her zaman anchor** — direction-adjusted saklanmaz.
-7. **Event-level guard**: aynı event_id'ye max N pozisyon (default 2 — §6.18).
+7. **Event-level guard**: aynı event_id'ye max N pozisyon (default 3 — §6.18).
 
 ---
 
@@ -799,11 +799,11 @@ Entry ve exit sırasında orderbook derinliği kontrolü.
 
 ### 6.18 Event-Level Guard (max_positions_per_event)
 
-Aynı event_id'ye max N pozisyon (default N=2, `config.yaml > risk.max_positions_per_event`).
+Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions_per_event`).
 
 **Mantık:** Bir maçın bağımsız market'leri (moneyline + spread + totals) ayrı bahisler sayılır ve birden fazla pozisyon açılabilir. Karşıt aynı-tip pozisyonu (örn 2 moneyline) uygulamada görülmez çünkü Polymarket bir maç moneyline'ı için tek market açar.
 
-**Örnek:** "Spurs vs Timberwolves" event_id=446693 → moneyline + total açılabilir, 3. pozisyon AÇILAMAZ.
+**Örnek:** "Spurs vs Timberwolves" event_id=446693 → moneyline + total + spread açılabilir, 4. pozisyon AÇILAMAZ.
 
 **Race-condition fix (commit 2e9116e — Pistons-Cavaliers bug):** Batch entry sırasında per-iteration `count_event` check yapılır. Tek cycle'da 11+ pozisyon açılması önlendi.
 
@@ -2546,3 +2546,10 @@ work begins.
 **Metrics to watch (first 7 days):** position count, daily PnL, capital lock duration, exposure cap saturation.
 
 **Sprint sequence note:** Sprint 1 (MLB dormant) → Sprint 1.5 (gate refactor + MLB activation) → Sprint 2 (this — NBA/NHL window widening).
+
+---
+
+### 2026-05-22 — Event cap 2 → 3
+**Karar:** `max_positions_per_event` default 2'den 3'e çıkarıldı.
+**Neden:** Aynı event'te moneyline + totals + run_line (MLB submarket) üçü birden çalışabilmeli. SPEC-J/K bağımsız bahis tanımına uyumlu.
+**Etki:** `config.yaml`, `src/config/settings.py`, `src/strategy/entry/gate.py`, `ARCHITECTURE_GUARD.md`. Test güncellemeleri ayrı görevde (Task 2).

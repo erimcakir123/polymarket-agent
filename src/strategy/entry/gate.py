@@ -45,7 +45,7 @@ class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
     min_edge: float = 0.06
     max_positions: int = 50
-    max_positions_per_event: int = 2  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
+    max_positions_per_event: int = 3  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
     max_exposure_pct: float = 0.50  # SPEC-P: yumuşak cap, clipping yok
     fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
     max_entry_price: float = 0.88

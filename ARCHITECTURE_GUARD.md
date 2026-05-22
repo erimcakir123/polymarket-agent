@@ -117,7 +117,7 @@ Bu kural ihlal edilirse tüm edge hesapları bozulur.
 
 ```
 Aynı event_id'ye sahip max N pozisyon açılabilir.
-N = config.risk.max_positions_per_event (default 2 — SPEC-J/K).
+N = config.risk.max_positions_per_event (default 3 — SPEC-J/K + 2026-05-22 cap artırımı).
 Bu kural entry_gate seviyesinde kontrol edilir.
 
 Mantık: bir maçın bağımsız market'leri (moneyline + spread + totals) ayrı bahisler
@@ -128,7 +128,8 @@ için tek market açar; karşı taraf BUY_NO ile aynı condition_id'ye girer.
 Örnek: "Spurs vs Timberwolves" maçı event_id=446693
 - nba-sas-min-2026-05-10 (moneyline) ve
 - nba-sas-min-2026-05-10-total-218pt5 (totals) AÇILABILIR (aynı event, farklı market_type)
-- 3. bir pozisyon AÇILAMAZ (cap=2)
+- nba-sas-min-2026-05-10-spread-7pt5 (spread) AÇILABILIR (varsa, üçüncü bağımsız market)
+- 4. bir pozisyon AÇILAMAZ (cap=3)
 
 Cap'i değiştirmek için config.yaml > risk > max_positions_per_event.
 ```
