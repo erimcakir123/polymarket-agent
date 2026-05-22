@@ -48,6 +48,9 @@ class ScannerConfig(BaseModel):
     resolved_price_threshold: float = 0.98
     allowed_categories: List[str] = ["sports"]
     allowed_sport_tags: List[str] = []
+    # Tennis match_start ESPN override icin cache TTL (saniye).
+    # TennisStartEnricher cycle basina bir kere ESPN tennis/atp+wta scoreboard ceker.
+    tennis_start_cache_ttl_sec: int = 300
 
 
 class EdgeConfig(BaseModel):

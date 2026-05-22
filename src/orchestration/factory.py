@@ -31,6 +31,7 @@ from src.orchestration.scanner import MarketScanner
 from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
+from src.orchestration.tennis_start_enricher import TennisStartEnricher
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 from src.strategy.enrichment.odds_enricher import enrich_market
@@ -85,7 +86,15 @@ def build_agent(state: RuntimeState) -> Agent:
         odds_client=odds,
         config=cfg.score,
     )
-    scanner = MarketScanner(cfg.scanner, gamma_client=gamma)
+    tennis_enricher = TennisStartEnricher(
+        espn_client=espn,
+        cache_ttl_sec=cfg.scanner.tennis_start_cache_ttl_sec,
+    )
+    scanner = MarketScanner(
+        cfg.scanner,
+        gamma_client=gamma,
+        tennis_start_enricher=tennis_enricher,
+    )
     cycle_manager = CycleManager(cfg.cycle)
     cooldown = CooldownTracker(
         trigger_threshold=cfg.risk.consecutive_loss_cooldown,

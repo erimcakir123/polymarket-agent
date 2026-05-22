@@ -422,3 +422,52 @@ def _mock_gamma(markets: list[MarketData]) -> MagicMock:
     g = MagicMock()
     g.fetch_events.return_value = markets
     return g
+
+
+# ── Tennis start enricher entegrasyonu ──
+
+def test_scanner_calls_tennis_enricher_when_provided() -> None:
+    """Enricher verildiyse scan() tam olarak bir kez enrich() cagirmali."""
+    enricher = MagicMock()
+    enricher.enrich.side_effect = lambda ms: ms  # passthrough
+    sc = MarketScanner(
+        _config(),
+        gamma_client=_mock_gamma([]),
+        tennis_start_enricher=enricher,
+    )
+    sc.scan()
+    assert enricher.enrich.call_count == 1
+
+
+def test_scanner_uses_enricher_overridden_start_for_filter() -> None:
+    """Polymarket match_start 40h ileride, ESPN ile 20h'ye dustugunde filter gecmeli."""
+    now = datetime.now(timezone.utc)
+    # Polymarket'ten gelen ham market: 40h sonra (24h limit ustu).
+    m = _market(
+        cid="tennis-1",
+        sport_tag="tennis_atp",
+        match_start=now + timedelta(hours=40),
+        end_date=now + timedelta(hours=43),
+    )
+    m.slug = "atp-minaur-paul-2026-05-22"
+    # Enricher ESPN ile 20h'ye dusurur.
+    overridden = m.model_copy(update={
+        "match_start_iso": (now + timedelta(hours=20)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+    enricher = MagicMock()
+    enricher.enrich.return_value = [overridden]
+
+    sc = MarketScanner(
+        _config(max_hours_to_start=24, allowed_sport_tags=["tennis*"]),
+        gamma_client=_mock_gamma([m]),
+        tennis_start_enricher=enricher,
+    )
+    result = sc.scan()
+    assert len(result) == 1
+    assert result[0].slug == "atp-minaur-paul-2026-05-22"
+
+
+def test_scanner_works_without_enricher_backward_compat() -> None:
+    """tennis_start_enricher=None ile geriye uyumlu calismali."""
+    sc = MarketScanner(_config(), gamma_client=_mock_gamma([]))
+    sc.scan()  # hata atmamali

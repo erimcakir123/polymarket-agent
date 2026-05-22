@@ -1,6 +1,8 @@
-"""Market scanner — Gamma fetch + filter + chronological priority sort.
+"""Market scanner — Gamma fetch + tennis-start enrich + filter + chronological priority sort.
 
 Davranış (memory/project_scanner_behavior.md):
+  - Enrich: tennis market'lerin match_start_iso'su ESPN ile override edilir
+    (TennisStartEnricher; opsiyonel DI).
   - Filter: sports_market_type=moneyline, allowed_sport_tags, liquidity ≥ min,
     end_date ≤ max_duration_days
   - Sort: 4-bucket chronological priority (imminent ≤6h → unknown_time ≤48h →
@@ -8,18 +10,22 @@ Davranış (memory/project_scanner_behavior.md):
   - Top N (config.scanner.max_markets_per_cycle)
 
 Stock pool StockQueue (orchestration/stock_queue.py) tarafından yönetilir —
-scanner yalnızca fresh fetch + filter + sort sorumluluğu taşır.
+scanner yalnızca fresh fetch + enrich + filter + sort sorumluluğu taşır.
 """
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from src.config.settings import ScannerConfig
 from src.config.sport_rules import BASKETBALL_TAGS, anchor_source, is_moneyline_only, is_spread_blocked
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.models.market import MarketData
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
+
+if TYPE_CHECKING:
+    from src.orchestration.tennis_start_enricher import TennisStartEnricher
 
 logger = logging.getLogger(__name__)
 
@@ -97,15 +103,19 @@ class MarketScanner:
         self,
         config: ScannerConfig,
         gamma_client: GammaClient | None = None,
+        tennis_start_enricher: "TennisStartEnricher | None" = None,
     ) -> None:
         self.config = config
         self._gamma = gamma_client or GammaClient()
+        self._tennis_enricher = tennis_start_enricher
 
     # ── Public API ──
 
     def scan(self) -> list[MarketData]:
-        """Tüm flow: Gamma fetch → filter → sort → top N."""
+        """Tüm flow: Gamma fetch → (tennis enrich) → filter → sort → top N."""
         raw = self._gamma.fetch_events()
+        if self._tennis_enricher is not None:
+            raw = self._tennis_enricher.enrich(raw)
         filtered = [m for m in raw if self._passes_filters(m)]
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
