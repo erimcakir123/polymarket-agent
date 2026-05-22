@@ -53,7 +53,13 @@ SPORT_RULES: dict[str, dict] = {
             "run_line": "model",
         },
     },
-    # Tennis kaldırıldı 2026-05-05 — geri açmak için entry geri ekle
+    "tennis": {
+        "stop_loss_pct": 0.30,
+        "match_duration_hours": 2.0,
+        "start_source": "espn",
+        "espn_sport": "tennis",
+        "espn_leagues": ("atp", "wta"),
+    },
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
@@ -103,7 +109,12 @@ _ALIASES: dict[str, str] = {
     "baseball_kbo": "mlb",
     "baseball_ncaa": "mlb",
     "baseball": "mlb",
-    # Tennis kaldırıldı 2026-05-05
+    # Tennis (geri açıldı 2026-05-22 — ESPN match_start için)
+    "tennis_atp": "tennis",
+    "tennis_wta": "tennis",
+    "tennis_itf_men": "tennis",
+    "tennis_itf_women": "tennis",
+    "tennis": "tennis",
     # Golf
     "golf_lpga_tour": "golf",
     "golf_liv_tour": "golf",
