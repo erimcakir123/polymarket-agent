@@ -42,17 +42,20 @@ edge:
   confidence_multipliers: {A: 1.00, B: 1.00}
 
 risk:
-  # Bankroll $1000 — A tier $50 (5%), B tier $40 (4%), max cap $50.
+  # Bankroll $1000 — A non-bimodal $50 (5%), B non-bimodal $35 (3.5%), bimodal A/B $15 cap.
+  # PLAN-SIZING-001 (2026-05-22): /3 küçültme kaldırıldı, bimodal cap'ler $15.
   max_single_bet_usdc: 50
-  # set_totals override: bimodal market — SL tetiklenmeden 0'a düşüyor (4/6 trade -$40+ kayıp).
-  # Tek-trade max kaybı $50→$15 (2026-05-22 SPEC-P).
+  # Bimodal market override'ları — SL fire etmiyor, full loss riski (4/6 set_totals trade -$40+ kayıp).
+  # Tek-trade max kaybı $15 (kullanıcı risk toleransı).
   set_totals_max_usdc: 15
+  set_handicap_max_usdc: 15
   max_bet_pct: 0.05
-  confidence_bet_pct: {A: 0.05, B: 0.04}
+  # B = 3.5% (kullanıcı tercihi: bankroll $1000 → B non-bimodal $35).
+  confidence_bet_pct: {A: 0.05, B: 0.035}
   max_positions: 20
-  # At most 2 of the 3 tennis alt markets (first_set_winner / set_handicap / set_totals) per match.
-  # Tennis entry strategy picks the 2 highest |edge| candidates per event (see Task 13 / DECISIONS §6.18).
-  max_positions_per_event: 2
+  # 3 alt market açık olabilir aynı maçta (first_set_winner / set_handicap / set_totals + ML/match_o_u).
+  # Tennis entry strategy en yüksek |edge|'leri seçer (DECISIONS §6.18).
+  max_positions_per_event: 3
   max_exposure_pct: 0.60
   hard_cap_overflow_pct: 0.02
   min_entry_size_pct: 0.02

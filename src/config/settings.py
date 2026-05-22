@@ -64,8 +64,10 @@ class EdgeConfig(BaseModel):
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     max_single_bet_usdc: float = 75
-    # Per-market override: tennis_set_totals bimodal (SL fire etmiyor, full loss riski). Tennis-lab override eder.
+    # Per-market overrides: bimodal piyasalar (set_totals + set_handicap) SL fire etmiyor →
+    # full loss riski. Tennis-lab override eder. (2026-05-22 PLAN-SIZING-001)
     set_totals_max_usdc: float = 75
+    set_handicap_max_usdc: float = 75
     max_bet_pct: float = 0.05  # 19 Apr peak (disabled 1.0 → 0.05)
     confidence_bet_pct: dict[str, float] = {"A": 0.05, "B": 0.04}  # 19 Apr peak sizing
     max_positions: int = 20

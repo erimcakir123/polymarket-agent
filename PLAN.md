@@ -38,6 +38,200 @@
 
 ## Aktif Planlar
 
+### PLAN-SIZING-001: Bimodal-Aware Sizing + Retroactive Recalibration
+
+- **Durum**: PROPOSED
+- **Tarih**: 2026-05-22
+- **Öncelik**: P0 (bot çalışıyor — bekletmeyelim)
+- **Etki**: `config_tennis.yaml`, `src/config/settings.py`, `src/orchestration/tennis_agent.py`, yeni `scripts/migrate_sizing_2026_05_22.py`, testler, `DECISIONS.md`
+
+**Bağlam ve karar (kullanıcı, 2026-05-22):**
+1. Set Totals $5 minimum bahis çok küçük. Risk toleransı: bimodal piyasalarda tek-trade max $15.
+2. ML / Match O/U / First Set Winner B-tier'ı $17'de değil $35'te olsun — bimodal değil, SL çalışıyor, model %95 odds tahmin ediyor, /3 küçültme gereksiz; ama $40 yerine biraz konservatif $35.
+3. Aynı maçta açık market sayısı: 2 → 3.
+4. Mevcut açık + kapanmış trade'ler **bu kurallar baştan beri varmış gibi yeniden hesaplansın**; sonraki cycle'larda yeni sizing kullanılır.
+
+**Yeni sizing matrisi (bankroll $1000 referans):**
+
+| Tier | Bimodal (set_totals + set_handicap) | Non-bimodal (ML / Match O/U / First Set Winner) |
+|---|---|---|
+| A | min(bankroll × 5%, $15) = **$15** | min(bankroll × 5%, $50) = **$50** |
+| B | min(bankroll × 3.5%, $15) = **$15** | min(bankroll × 3.5%, $50) = **$35** |
+
+> Notlar:
+> - B için /3 küçültme **kaldırılıyor** (bimodal'da $15 cap zaten koruyor, non-bimodal'da gereksiz).
+> - A ve B bimodal aynı $15 — risk toleransı tier'dan değil piyasa tipinden geliyor.
+> - B'nin bet_pct'i %4 → %3.5 düşürülüyor (kullanıcı tercihi: B non-bimodal $35).
+> - Restart politikası: migration sırasında **sadece reload** kullanılır, reboot YASAK (memory feedback_restart_always_ask).
+
+**Mimari uyum (ARCH_GUARD):**
+- Konfig değerleri config.yaml'da, magic number yok ✓
+- Katman değişikliği: sadece orchestration (tennis_agent.py) + config — katman atlama yok ✓
+- Yeni dosya: `scripts/migrate_sizing_2026_05_22.py` — one-shot data migration, scripts/ mevcut konvansiyon ✓
+- Domain'e dokunulmuyor, position_sizer.py değişmiyor ✓
+
+---
+
+#### Task 1: Config + Settings — yeni cap'ler
+
+**Dosyalar:**
+- Modify: `src/config/settings.py:60-75` (RiskConfig)
+- Modify: `config_tennis.yaml:46-55` (risk:)
+
+- [ ] **Step 1.1**: Settings.py'a `set_handicap_max_usdc: float = 75` ekle (default; config override edecek)
+- [ ] **Step 1.2**: `config_tennis.yaml`'da:
+  - `set_totals_max_usdc: 15` → `15` (zaten 15, dokunma — netlik için PLAN'da listelendi)
+  - `set_handicap_max_usdc: 15` (yeni)
+  - `max_positions_per_event: 2` → `3`
+  - `confidence_bet_pct: {A: 0.05, B: 0.04}` → `{A: 0.05, B: 0.035}`
+- [ ] **Step 1.3**: Var olan settings testlerini koş (`pytest tests/unit/config/`) — geçmeli
+- [ ] **Step 1.4**: Commit: `feat(config): bimodal-aware sizing caps + per-event 3`
+
+---
+
+#### Task 2: tennis_agent.py — bimodal-aware sizing (TDD)
+
+**Dosyalar:**
+- Modify: `src/orchestration/tennis_agent.py:227-244`
+- Test: `tests/unit/orchestration/test_agent_heavy_stages.py`
+
+- [ ] **Step 2.1**: Failing test ekle — `test_b_tier_ml_uses_full_size_no_division`:
+
+```python
+def test_b_tier_ml_uses_full_size_no_division():
+    """B-tier ML (non-bimodal) bankroll × 3.5% kullanır, /3 yok."""
+    # bankroll=1000, B, sports_market_type=moneyline
+    # beklenen: size_usdc == 35.0 (1000 × 0.035)
+```
+
+- [ ] **Step 2.2**: Failing test — `test_b_tier_set_totals_uses_max_15_cap`:
+
+```python
+def test_b_tier_set_totals_uses_max_15_cap():
+    """B-tier set_totals = $15 cap (kayıp toleransı)."""
+    # bankroll=1000, B, sports_market_type=tennis_set_totals
+    # beklenen: size_usdc == 15.0
+```
+
+- [ ] **Step 2.3**: Failing test — `test_a_tier_set_handicap_uses_max_15_cap`:
+
+```python
+def test_a_tier_set_handicap_uses_max_15_cap():
+    """A-tier set_handicap = $15 cap (bimodal piyasa toleransı)."""
+    # bankroll=1000, A, sports_market_type=tennis_set_handicap
+    # beklenen: size_usdc == 15.0
+```
+
+- [ ] **Step 2.4**: 3 testi koş → 3 FAIL beklenir
+
+- [ ] **Step 2.5**: `tennis_agent.py:227-244` değiştir:
+
+```python
+        if tier in ("A", "B"):
+            # Bimodal piyasalar (set_totals + set_handicap): SL net çalışmıyor,
+            # tek-trade max kaybı $12 cap'le sınırlandırıldı (kullanıcı kararı 2026-05-22).
+            # Non-bimodal piyasalar (ML / match_o_u / first_set_winner): normal sizing.
+            is_bimodal = market.sports_market_type in (
+                SportsMarketType.TENNIS_SET_TOTALS.value,
+                SportsMarketType.TENNIS_SET_HANDICAP.value,
+            )
+            if is_bimodal:
+                max_cap = (
+                    cfg.risk.set_totals_max_usdc
+                    if market.sports_market_type == SportsMarketType.TENNIS_SET_TOTALS.value
+                    else cfg.risk.set_handicap_max_usdc
+                )
+            else:
+                max_cap = cfg.risk.max_single_bet_usdc
+            size_usdc = confidence_position_size(
+                confidence=tier,  # not "A" — gerçek tier kullan
+                bankroll=deps.state.portfolio.bankroll,
+                confidence_bet_pct=cfg.risk.confidence_bet_pct,
+                max_bet_usdc=max_cap,
+                max_bet_pct=cfg.risk.max_bet_pct,
+            )
+            if size_usdc > 0:
+                signal = tennis_candidate_to_signal(candidate, market, tier)
+                signal = signal.model_copy(update={"size_usdc": size_usdc})
+                signals_for_entry.append(signal)
+                markets_for_entry.append(market)
+```
+
+- [ ] **Step 2.6**: 3 yeni testi koş → 3 PASS beklenir
+- [ ] **Step 2.7**: Tüm `tests/unit/orchestration/` koş → regression yok
+- [ ] **Step 2.8**: Commit: `feat(tennis-agent): bimodal-aware sizing, /3 removed`
+
+---
+
+#### Task 3: Migration script — retroactive recalibration
+
+**Dosyalar:**
+- Create: `scripts/migrate_sizing_2026_05_22.py`
+
+Mantık (yorum olarak script başında):
+```
+1. Bot çalışıyorsa kullanıcıdan stop et iste (exit code 1, scriptten dön)
+2. Backup: data/positions.json, logs/audit/trade_history.jsonl, logs/audit/equity_history.jsonl, logs/session/* → .bak.2026-05-22-pre-sizing-migration
+3. Yeni sizing fonksiyonu (script-local, domain dokunmuyor):
+   new_size(tier, market_type, bankroll) → kurala göre
+4. Trade history için: her record için tier+market_type → new_size; ratio=new/old; size_usdc, exit_pnl_usdc, partial_exits.realized_pnl_usdc, shares ölçeklenir
+5. Active positions için: aynı mantık; size_usdc, shares, scale_out_realized_usdc, partial_exits.realized_pnl_usdc ölçeklenir
+6. Equity history regenerate: portfolio.bankroll + realized_pnl trajectory'yi yeniden hesapla (initial $1000, kronolojik)
+7. Yeni dosyaları yaz, eskiler .bak'da kalır
+8. Rapor: trade sayısı, eski vs yeni toplam realized PnL, eski vs yeni invested
+```
+
+- [ ] **Step 3.1**: Script taslağı yaz (header + arg parse + safety checks)
+- [ ] **Step 3.2**: Pure helper fonksiyonları yaz (compute_new_size, scale_record)
+- [ ] **Step 3.3**: Helper fonksiyonlar için inline test (script çalıştırılır mod, --self-test flag)
+- [ ] **Step 3.4**: `--dry-run` modu — sadece rapor yaz, dosya yazma
+- [ ] **Step 3.5**: Migration atomic file write kullanır (tmp + rename) — concurrent access'e dayanıklı; bot durdurmaya gerek yok
+- [ ] **Step 3.6**: `python scripts/migrate_sizing_2026_05_22.py --dry-run` → rapor incele
+- [ ] **Step 3.7**: Kullanıcı onayı sonrası `python scripts/migrate_sizing_2026_05_22.py --apply`
+- [ ] **Step 3.7b**: Migration sonrası **reload** ile state refresh: `python scripts/reboot.py reload` (REBOOT YASAK)
+- [ ] **Step 3.8**: Verify: positions.json ve trade_history.jsonl tutarlılık (realized + unrealized = portfolio − initial)
+- [ ] **Step 3.9**: Commit: `chore(migration): retroactive sizing recalibration 2026-05-22`
+
+---
+
+#### Task 4: Dashboard verification + bot restart
+
+- [ ] **Step 4.1**: Tennis bot başlat
+- [ ] **Step 4.2**: Dashboard'da:
+  - Set Totals trade'leri $5 değil $12 görünmeli (kapanmış olanlar dahil)
+  - ML/Match O/U B-tier'leri $17 değil ~$40 görünmeli
+  - Realized P&L yeni toplama denk gelmeli
+  - "Locked in bets" yeni active toplama denk gelmeli
+  - Branches tennis +% yeni rakamla güncellenmeli
+- [ ] **Step 4.3**: İlk yeni cycle entry'sini izle — yeni sizing kullanılıyor mu
+
+---
+
+#### Task 5: DECISIONS güncellemesi
+
+- [ ] **Step 5.1**: `DECISIONS.md`'ye SPEC-S (veya next numara) — "Tennis Lab Bimodal-Aware Sizing":
+  - Karar (yeni matris)
+  - Neden (kullanıcı tercihleri: $12 risk toleransı, B-tier non-bimodal'da /3 gereksiz)
+  - Etkilenen dosyalar
+  - Retroactive migration notu (geçmiş trade'ler yeniden hesaplandı)
+  - Eski "B = /3" kuralının iptal tarihi
+- [ ] **Step 5.2**: PLAN.md'den PLAN-SIZING-001'i sil
+
+---
+
+**Kabul Kriterleri (tümü ✓ olmalı):**
+- [ ] Yeni 3 unit test PASS
+- [ ] Tüm regression testleri PASS (tennis-lab full suite)
+- [ ] Dry-run raporu kullanıcıya gösterildi, onaylandı
+- [ ] Backup dosyaları var (recovery mümkün)
+- [ ] positions.json + trade_history.jsonl + equity_history.jsonl yeni sizing'e göre
+- [ ] Dashboard yeni rakamları gösteriyor, tutarsızlık yok
+- [ ] DECISIONS güncel, PLAN.md temiz
+
+**Geri çıkış kapısı:** `.bak.2026-05-22-pre-sizing-migration` dosyaları varken `git revert` + dosya restore mümkün.
+
+---
+
 ### PLAN-FAZ2-001: İyi-Donem Rollback Gözlem Aşaması
 
 - **Durum**: OBSERVATION
