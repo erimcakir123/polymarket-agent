@@ -74,9 +74,10 @@ def _norm(name: str) -> str:
 
 
 def _match_event(market_slug: str, events: list[ESPNMatchScore]) -> ESPNMatchScore | None:
-    """Slug'taki iki soyad ESPN event'in home+away'inde gecerse eslesme.
+    """Slug'taki iki soyad ESPN event'in home+away'inde zit taraflarda gecerse eslesme.
 
-    Her soyad en az bir tarafta (home VEYA away) substring olarak bulunmali.
+    Tennis singles: bir oyuncu home, digeri away. Bu sebeple iki soyad ayni tarafta
+    bulunursa eslesme sayilmaz (false-positive engellenir, ornegin doubles slug'lari).
     """
     surnames = _slug_surnames(market_slug)
     if surnames is None:
