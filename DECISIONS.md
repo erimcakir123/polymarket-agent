@@ -863,6 +863,13 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### 2026-05-22 — Event cap 2 → 3
+**Karar:** `max_positions_per_event` default 2'den 3'e çıkarıldı.
+**Neden:** Aynı event'te moneyline + totals + run_line (MLB submarket) üçü birden çalışabilmeli. SPEC-J/K bağımsız bahis tanımına uyumlu.
+**Etki:** `config.yaml`, `src/config/settings.py`, `src/strategy/entry/gate.py`, `ARCHITECTURE_GUARD.md`. Test güncellemeleri ayrı görevde (Task 2).
+
+---
+
 ## SPEC-Q: Dashboard Archive Birleştirme — Exited Tab Kalıcı Geçmiş (2026-05-21)
 
 **Karar:** Dashboard `read_trades` fonksiyonu artık `logs/audit/trade_history.archive.*.jsonl` dosyalarını da okuyor (Tennis Lab pattern'i: `sorted(audit_dir.glob("trade_history.archive.*.jsonl"))`). Realized PnL widget aynı listeden hesaplandığı için widget toplamı ↔ exited tab toplamı her zaman uyumlu.
@@ -2546,10 +2553,3 @@ work begins.
 **Metrics to watch (first 7 days):** position count, daily PnL, capital lock duration, exposure cap saturation.
 
 **Sprint sequence note:** Sprint 1 (MLB dormant) → Sprint 1.5 (gate refactor + MLB activation) → Sprint 2 (this — NBA/NHL window widening).
-
----
-
-### 2026-05-22 — Event cap 2 → 3
-**Karar:** `max_positions_per_event` default 2'den 3'e çıkarıldı.
-**Neden:** Aynı event'te moneyline + totals + run_line (MLB submarket) üçü birden çalışabilmeli. SPEC-J/K bağımsız bahis tanımına uyumlu.
-**Etki:** `config.yaml`, `src/config/settings.py`, `src/strategy/entry/gate.py`, `ARCHITECTURE_GUARD.md`. Test güncellemeleri ayrı görevde (Task 2).
