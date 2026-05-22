@@ -85,9 +85,10 @@ def test_enrich_caches_espn_response_within_ttl():
     espn_client = MagicMock()
     espn_client.fetch_tennis_matches_today.return_value = []
     enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    # match_start_iso bos oldugu icin sadece bugun fetch'lenir (market'lerden tarih
+    # gelmeyince today fallback). 2 league x 1 day (bugun) x 1 fetch (cached) = 2 call.
     enricher.enrich([_mkt("atp-x-y-2026-05-22")])
     enricher.enrich([_mkt("atp-a-b-2026-05-22")])
-    # 2 league x 1 fetch (cached) = 2 calls. Without cache it'd be 4.
     assert espn_client.fetch_tennis_matches_today.call_count == 2
 
 
@@ -102,7 +103,8 @@ def test_enrich_atp_slug_matches_atp_only_event():
 
     espn_client.fetch_tennis_matches_today.side_effect = fetch
     enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
-    out = enricher.enrich([_mkt("atp-minaur-paul-2026-05-22", start="")])
+    # market start'i dolu olmali: same-day guard ESPN tarihi ile market tarihini eslesir.
+    out = enricher.enrich([_mkt("atp-minaur-paul-2026-05-22", start="2026-05-22T15:00:00Z")])
     assert out[0].match_start_iso == "2026-05-22T16:00:00Z"
 
 

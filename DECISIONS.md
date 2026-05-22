@@ -863,6 +863,23 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### 2026-05-23 — Tennis ESPN gerçek-fetch düzeltmesi
+
+**Karar:** ESPN tennis için 3-aşamalı public metod `ESPNClient.fetch_tennis_matches_today` eklendi (scoreboard → competitions → athlete dereference, 24h athlete cache). `TennisStartEnricher` market'lerin `match_start_iso` tarihlerinden ihtiyaç duyulan ESPN günlerini çıkarıp her unique gün için ayrı fetch yapar. Doubles slug formatı (`atp-doubles-{p1}-{p2}-date`) parser'a eklendi. Same-day guard: ESPN eşleşmesi market'in günüyle aynı UTC günde değilse override iptal.
+
+**Neden:** Önceki entegrasyon (2026-05-22) `fetch_scoreboard` çağrısı yapıyordu; ESPN tennis scoreboard'u turnuvaları döndürür, tek tek maçları değil. Canlı doğrulamada 0 maç çıkmıştı — enricher fiilen no-op'tu. Doğru endpoint: `sports.core.api.espn.com/.../competitions`.
+
+**Etki:**
+- `src/infrastructure/apis/espn_client.py` — `fetch_tennis_matches_today` + athlete cache (~140 satır eklendi)
+- `src/orchestration/tennis_start_enricher.py` — yeni metoda yönlendi, doubles desteği, same-day guard, market-tarih-bazlı fetch
+- `src/orchestration/factory.py` — `ESPNClient(athlete_cache_ttl_sec=...)` config-driven
+- `src/config/settings.py`, `config.yaml` — `tennis_athlete_cache_ttl_sec: 86400`
+- `scripts/verify_tennis_enricher.py` — canlı doğrulama scripti
+- Canlı sonuç: 14/66 tennis market başarıyla ESPN'den override (geri kalan 52 expired turnuva = doğru fallback)
+- ITF/Challenger ESPN'de yok → Polymarket fallback (mevcut, doğru)
+
+---
+
 ### 2026-05-22 — Tennis ESPN match_start (geri açıldı)
 
 **Karar:** Tennis market'leri için `match_start_iso` ESPN ATP/WTA scoreboard'dan çekilir. Polymarket startTime fallback. İkisi de yoksa scanner filtresi market'i eler.

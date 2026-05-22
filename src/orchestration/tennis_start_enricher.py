@@ -39,6 +39,24 @@ def _is_tennis(m: MarketData) -> bool:
     return slug.startswith("atp-") or slug.startswith("wta-")
 
 
+def _iso_to_yyyymmdd(iso: str) -> str | None:
+    """ISO timestamp'in tarih kismini YYYYMMDD'ye cevir. Parse edemezse None."""
+    if not iso or len(iso) < 10:
+        return None
+    # ISO'nun ilk 10 karakteri YYYY-MM-DD; tireleri sil
+    head = iso[:10]
+    if head[4] != "-" or head[7] != "-":
+        return None
+    return head[0:4] + head[5:7] + head[8:10]
+
+
+def _same_day(iso_a: str, iso_b: str) -> bool:
+    """Iki ISO timestamp ayni UTC gunde mi? Parse edemezse False (override iptal)."""
+    a = _iso_to_yyyymmdd(iso_a)
+    b = _iso_to_yyyymmdd(iso_b)
+    return bool(a) and a == b
+
+
 def _league_for_slug(slug: str) -> str | None:
     """Slug prefix'inden league cikar: 'atp-...' -> 'atp', 'wta-...' -> 'wta'."""
     s = (slug or "").lower()
@@ -118,8 +136,8 @@ class TennisStartEnricher:
     def __init__(self, espn_client: ESPNClient, cache_ttl_sec: int) -> None:
         self._espn = espn_client
         self._ttl = cache_ttl_sec
-        # league -> (fetch_timestamp, events)
-        self._cache: dict[str, tuple[float, list[ESPNMatchScore]]] = {}
+        # (league, date_yyyymmdd) -> (fetch_timestamp, events)
+        self._cache: dict[tuple[str, str], tuple[float, list[ESPNMatchScore]]] = {}
 
     def enrich(self, markets: list[MarketData]) -> list[MarketData]:
         # 1) Tennis market var mi? Yoksa NO-OP — ESPN'e dokunma.
@@ -131,9 +149,16 @@ class TennisStartEnricher:
         leagues_raw = get_sport_rule("tennis", "espn_leagues", default=_VALID_LEAGUES)
         leagues = tuple(leagues_raw) if leagues_raw else _VALID_LEAGUES
 
-        # 3) ESPN tennis maclari icin "bugun" fetch (cached). 3-stage call icinde.
-        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        events_by_league = self._fetch_today(leagues, date_str)
+        # 3) Tennis market'lerin ihtiyac duydugu ESPN gunlerini topla.
+        # Her market'in match_start_iso'sundan YYYYMMDD cikar; UTC bugun de eklenir
+        # (Polymarket startTime bos gelirse fallback). Her unique gun icin ESPN fetch.
+        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        dates: set[str] = {today_str}
+        for tm in tennis_markets:
+            d = _iso_to_yyyymmdd(tm.match_start_iso)
+            if d:
+                dates.add(d)
+        events_by_league = self._fetch_dates(leagues, tuple(sorted(dates)))
 
         # 4) Her tennis market icin eslesme dene, match_start_iso override et.
         out: list[MarketData] = []
@@ -143,9 +168,13 @@ class TennisStartEnricher:
                 continue
             target_leagues = self._leagues_for_market(m, leagues)
             event = self._find_matching_event(m, target_leagues, events_by_league)
-            if event is not None and event.commence_time:
+            if event is not None and event.commence_time and _same_day(
+                m.match_start_iso, event.commence_time
+            ):
                 out.append(m.model_copy(update={"match_start_iso": event.commence_time}))
             else:
+                # Tarih uyumsuz ESPN eslesmesi false-positive sayilir (ayni soyad
+                # farkli turnuva). Sessizce Polymarket startTime'a fallback.
                 out.append(m)
         return out
 
@@ -173,30 +202,37 @@ class TennisStartEnricher:
                 return ev
         return None
 
-    def _fetch_today(
+    def _fetch_dates(
         self,
         leagues: Iterable[str],
-        date_str: str,
+        dates: Iterable[str],
     ) -> dict[str, list[ESPNMatchScore]]:
-        """League listesi icin ESPN tennis maclari fetch.
+        """(league, date) ciftleri icin ESPN tennis maclari fetch.
 
-        TTL cache (league anahtarli, gun bilgisini icermez — TTL << 24h oldugu icin
-        yeni gunde fresh cycle dogal olarak yeni fetch yapar). Basarisizlik cache'lenmez.
+        TTL cache (league, date) anahtarli. Birden fazla gun istenirse her gun ayri
+        fetch (ATP+WTA × bugun+yarin = 4 fetch). Cache hit fetch'i atlar. Basarisizlik
+        cache'lenmez.
+
+        Donus: league -> tum gunlerin birlesik event listesi.
         """
         now = time.time()
-        result: dict[str, list[ESPNMatchScore]] = {}
-        for lg in leagues:
-            cached = self._cache.get(lg)
-            if cached is not None and (now - cached[0]) < self._ttl:
-                result[lg] = cached[1]
-                continue
-            try:
-                events = self._espn.fetch_tennis_matches_today(lg, date_str)
-            except Exception as e:  # noqa: BLE001 — defensive; ESPN client kendisi de yutar
-                logger.warning("ESPN tennis/%s fetch failed: %s — Polymarket start kalir", lg, e)
-                result[lg] = []
-                # basarisizlik cache'lenmez; bir sonraki cycle yeniden dener
-                continue
-            self._cache[lg] = (now, events)
-            result[lg] = events
+        result: dict[str, list[ESPNMatchScore]] = {lg: [] for lg in leagues}
+        for lg in result.keys():
+            for date_str in dates:
+                key = (lg, date_str)
+                cached = self._cache.get(key)
+                if cached is not None and (now - cached[0]) < self._ttl:
+                    result[lg].extend(cached[1])
+                    continue
+                try:
+                    events = self._espn.fetch_tennis_matches_today(lg, date_str)
+                except Exception as e:  # noqa: BLE001 — defensive; ESPN client kendisi de yutar
+                    logger.warning(
+                        "ESPN tennis/%s @ %s fetch failed: %s — Polymarket start kalir",
+                        lg, date_str, e,
+                    )
+                    # basarisizlik cache'lenmez; bir sonraki cycle yeniden dener
+                    continue
+                self._cache[key] = (now, events)
+                result[lg].extend(events)
         return result
