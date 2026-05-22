@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import time
 import unicodedata
+from datetime import datetime, timezone
 from typing import Iterable
 
 from src.config.sport_rules import get_sport_rule
@@ -24,9 +25,9 @@ from src.models.market import MarketData
 
 logger = logging.getLogger(__name__)
 
-_ESPN_TENNIS_SPORT = "tennis"
 _VALID_LEAGUES = ("atp", "wta")
 _MIN_SLUG_PARTS = 4  # league + surname1 + surname2 + date
+_DOUBLES_TOKEN = "doubles"
 
 
 def _is_tennis(m: MarketData) -> bool:
@@ -49,14 +50,23 @@ def _league_for_slug(slug: str) -> str | None:
 
 
 def _slug_surnames(slug: str) -> tuple[str, str] | None:
-    """'atp-minaur-paul-2026-05-22' -> ('minaur', 'paul'). Gecersizse None."""
-    parts = (slug or "").lower().split("-")
-    if len(parts) < _MIN_SLUG_PARTS:
+    """Slug'dan iki soyad cikar.
+
+    'atp-minaur-paul-2026-05-22'              -> ('minaur', 'paul')
+    'atp-doubles-fortrom-gadatu-2026-05-22'   -> ('fortrom', 'gadatu') — 'doubles' atlanir
+    'wta-doubles-smith-jones-2026-05-22'      -> ('smith', 'jones')
+    4+ parca yoksa ya da parts[0] atp/wta degilse None.
+    """
+    if not slug:
         return None
-    if parts[0] not in _VALID_LEAGUES:
+    parts = slug.lower().split("-")
+    if len(parts) < _MIN_SLUG_PARTS or parts[0] not in _VALID_LEAGUES:
         return None
-    surname1 = parts[1].strip()
-    surname2 = parts[2].strip()
+    offset = 2 if parts[1] == _DOUBLES_TOKEN else 1
+    if len(parts) < offset + 2:
+        return None
+    surname1 = parts[offset].strip()
+    surname2 = parts[offset + 1].strip()
     if not surname1 or not surname2:
         return None
     return surname1, surname2
@@ -121,8 +131,9 @@ class TennisStartEnricher:
         leagues_raw = get_sport_rule("tennis", "espn_leagues", default=_VALID_LEAGUES)
         leagues = tuple(leagues_raw) if leagues_raw else _VALID_LEAGUES
 
-        # 3) ESPN scoreboard fetch (cached).
-        events_by_league = self._fetch_leagues(leagues)
+        # 3) ESPN tennis maclari icin "bugun" fetch (cached). 3-stage call icinde.
+        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        events_by_league = self._fetch_today(leagues, date_str)
 
         # 4) Her tennis market icin eslesme dene, match_start_iso override et.
         out: list[MarketData] = []
@@ -162,11 +173,16 @@ class TennisStartEnricher:
                 return ev
         return None
 
-    def _fetch_leagues(
+    def _fetch_today(
         self,
         leagues: Iterable[str],
+        date_str: str,
     ) -> dict[str, list[ESPNMatchScore]]:
-        """League listesi icin ESPN scoreboard cek. TTL cache, basarisizlik cache'lenmez."""
+        """League listesi icin ESPN tennis maclari fetch.
+
+        TTL cache (league anahtarli, gun bilgisini icermez — TTL << 24h oldugu icin
+        yeni gunde fresh cycle dogal olarak yeni fetch yapar). Basarisizlik cache'lenmez.
+        """
         now = time.time()
         result: dict[str, list[ESPNMatchScore]] = {}
         for lg in leagues:
@@ -175,9 +191,9 @@ class TennisStartEnricher:
                 result[lg] = cached[1]
                 continue
             try:
-                events = self._espn.fetch_scoreboard(_ESPN_TENNIS_SPORT, lg)
+                events = self._espn.fetch_tennis_matches_today(lg, date_str)
             except Exception as e:  # noqa: BLE001 — defensive; ESPN client kendisi de yutar
-                logger.warning("ESPN tennis/%s fetch failed: %s", lg, e)
+                logger.warning("ESPN tennis/%s fetch failed: %s — Polymarket start kalir", lg, e)
                 result[lg] = []
                 # basarisizlik cache'lenmez; bir sonraki cycle yeniden dener
                 continue
