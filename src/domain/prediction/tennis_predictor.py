@@ -1,6 +1,11 @@
 """Tennis predictor — orchestrates Glicko + Klaassen-Magnus + features.
 
-3 markets: First Set Winner, Set Handicap -1.5, Total Sets Under 2.5
+5 markets:
+  first_set_winner          — P(p1 wins first set)
+  set_handicap_minus_1_5    — P(p1 wins 2-0 in BO3)
+  total_sets_under_2_5      — P(match ends in 2 sets)
+  match_winner              — P(p1 wins match, BO3)
+  match_totals_over_under   — P(match ends in 2 sets) [same math as total_sets_under_2_5]
 
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §5
 """
@@ -154,4 +159,49 @@ def predict_total_sets_under_2_5(
         probability=max(_MIN_PROB, min(_MAX_PROB, base)),
         raw_probability=base,
         notes=f"p_p1_2_0={p_p1_2_0:.3f}, p_p2_2_0={p_p2_2_0:.3f}",
+    )
+
+
+def predict_match_winner(
+    p1: PlayerSurfaceProfile,
+    p2: PlayerSurfaceProfile,
+    features: FeatureSnapshot,
+) -> MarketPrediction:
+    """P(p1 wins match, best-of-3).
+
+    Uses Klaassen-Magnus: P(win set) → P(win 2-of-3).
+    Feature adjustments (form + H2H) applied at set level before BO3 convolution.
+    """
+    p1_pt = _point_win_on_serve(p1.serve.rating, p2.return_.rating)
+    p2_pt = _point_win_on_serve(p2.serve.rating, p1.return_.rating)
+    base_set = set_win_prob(p1_pt, p2_pt)
+    adjusted_set, notes = _apply_feature_adjustments(base_set, features)
+    prob = match_win_prob_bo3(adjusted_set)
+    prob = max(_MIN_PROB, min(_MAX_PROB, prob))
+    return MarketPrediction(
+        market_type="match_winner",
+        probability=prob,
+        raw_probability=match_win_prob_bo3(base_set),
+        notes=notes,
+    )
+
+
+def predict_match_totals_over_under(
+    p1: PlayerSurfaceProfile,
+    p2: PlayerSurfaceProfile,
+    features: FeatureSnapshot,
+) -> MarketPrediction:
+    """P(match ends in 2 sets) — YES side of match-totals under market.
+
+    Polymarket match_totals market question is over/under total games; YES =
+    under the line. This function returns P(under) = P(match ends 2-0 either
+    way), identical math to predict_total_sets_under_2_5, re-labelled for the
+    match_totals_over_under market_type.
+    """
+    inner = predict_total_sets_under_2_5(p1, p2, features)
+    return MarketPrediction(
+        market_type="match_totals_over_under",
+        probability=inner.probability,
+        raw_probability=inner.raw_probability,
+        notes=inner.notes,
     )

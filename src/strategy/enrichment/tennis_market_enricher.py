@@ -32,6 +32,8 @@ from src.domain.prediction.tennis_predictor import (
     MarketPrediction,
     PlayerSurfaceProfile,
     predict_first_set_winner,
+    predict_match_totals_over_under,
+    predict_match_winner,
     predict_set_handicap_minus_1_5,
     predict_total_sets_under_2_5,
 )
@@ -142,6 +144,10 @@ def _call_predictor(
         return predict_set_handicap_minus_1_5(p1_profile, p2_profile, features)
     if market_type == "total_sets_under_2_5":
         return predict_total_sets_under_2_5(p1_profile, p2_profile, features)
+    if market_type == "match_winner":
+        return predict_match_winner(p1_profile, p2_profile, features)
+    if market_type == "match_totals_over_under":
+        return predict_match_totals_over_under(p1_profile, p2_profile, features)
     return None
 
 

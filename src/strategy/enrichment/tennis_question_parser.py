@@ -9,9 +9,11 @@ Market type mapping (uses sports_market_type, not regex):
   tennis_first_set_winner  → "first_set_winner"
   tennis_set_handicap      → "set_handicap_minus_1_5"
   tennis_set_totals        → "total_sets_under_2_5"
+  moneyline                → "match_winner"
+  tennis_match_totals      → "match_totals_over_under"
 
 Skipped market types (no model for these):
-  tennis_match_totals, tennis_first_set_totals, tennis_completed_match, etc.
+  tennis_first_set_totals, tennis_completed_match, etc.
 
 Surface keyword → surface (fallback "hard"):
   Tournament name keywords extracted from slug and question text.
@@ -36,11 +38,13 @@ _WTA_SLUG_PREFIX = "wta-"
 _wta_skipped_count = 0
 
 # Mapping from Polymarket sports_market_type → internal market_type.
-# Only the 3 types the predictor handles are included; others → None (skip).
+# Only types the predictor handles are included; others → None (skip).
 _MARKET_TYPE_MAP: dict[str, str] = {
     "tennis_first_set_winner": "first_set_winner",
     "tennis_set_handicap": "set_handicap_minus_1_5",
     "tennis_set_totals": "total_sets_under_2_5",
+    "moneyline": "match_winner",
+    "tennis_match_totals": "match_totals_over_under",
 }
 
 # Tournament keyword → surface. Order matters: check longer/more-specific keys first.

@@ -27,7 +27,7 @@ def test_map_market_type_set_totals() -> None:
 
 
 def test_map_market_type_unsupported_returns_none() -> None:
-    assert map_market_type("tennis_match_totals") is None
+    assert map_market_type("tennis_completed_match") is None
 
 
 def test_map_market_type_completed_match_returns_none() -> None:
@@ -174,8 +174,8 @@ def test_parse_tennis_question_set_totals() -> None:
 
 def test_parse_tennis_question_unsupported_type_returns_none() -> None:
     result = parse_tennis_question(
-        question="Djokovic vs Alcaraz Match Totals O/U 21.5",
-        sports_market_type="tennis_match_totals",
+        question="Will the match be completed?",
+        sports_market_type="tennis_completed_match",
         slug="atp-djokovic-alcaraz-2026",
     )
     assert result is None
@@ -186,5 +186,87 @@ def test_parse_tennis_question_unresolvable_question_returns_none() -> None:
         question="Random nonsense with no player names",
         sports_market_type="tennis_first_set_winner",
         slug="atp-xxx-yyy-2026",
+    )
+    assert result is None
+
+
+# ── moneyline (match winner) ──────────────────────────────────────────────────
+
+
+def test_map_market_type_moneyline() -> None:
+    assert map_market_type("moneyline") == "match_winner"
+
+
+def test_parse_tennis_question_moneyline_simple_vs() -> None:
+    """ATP moneyline: plain 'P1 vs P2' question should parse to match_winner."""
+    result = parse_tennis_question(
+        question="Carlos Alcaraz vs Novak Djokovic",
+        sports_market_type="moneyline",
+        slug="atp-alcaraz-djokovic-2026-06-01",
+    )
+    assert result is not None
+    assert result["market_type"] == "match_winner"
+    assert "Alcaraz" in result["p1_name"]
+    assert "Djokovic" in result["p2_name"]
+
+
+def test_parse_tennis_question_moneyline_tournament_prefix() -> None:
+    """Moneyline with tournament prefix: 'Roland Garros: P1 vs P2'."""
+    result = parse_tennis_question(
+        question="Roland Garros: Djokovic vs Sinner",
+        sports_market_type="moneyline",
+        slug="atp-djokovic-sinner-roland-garros-2026",
+    )
+    assert result is not None
+    assert result["market_type"] == "match_winner"
+    assert result["surface"] == "clay"
+
+
+def test_parse_tennis_question_moneyline_wta_slug_returns_none() -> None:
+    """WTA moneyline slug must be rejected — ATP-only predictor."""
+    result = parse_tennis_question(
+        question="Swiatek vs Sabalenka",
+        sports_market_type="moneyline",
+        slug="wta-swiatek-sabalenka-2026-06-01",
+    )
+    assert result is None
+
+
+def test_parse_tennis_question_completed_match_returns_none() -> None:
+    """'will match be completed?' is not predictable — must return None."""
+    result = parse_tennis_question(
+        question="Will the match be completed?",
+        sports_market_type="tennis_completed_match",
+        slug="atp-alcaraz-djokovic-2026-06-01-completed",
+    )
+    assert result is None
+
+
+# ── tennis_match_totals ───────────────────────────────────────────────────────
+
+
+def test_map_market_type_tennis_match_totals() -> None:
+    assert map_market_type("tennis_match_totals") == "match_totals_over_under"
+
+
+def test_parse_tennis_question_match_totals() -> None:
+    """match_totals O/U question: player names extracted, market_type correct."""
+    result = parse_tennis_question(
+        question="Djokovic vs Alcaraz: Match Games O/U 21.5",
+        sports_market_type="tennis_match_totals",
+        slug="atp-djokovic-alcaraz-2026",
+    )
+    assert result is not None
+    assert result["market_type"] == "match_totals_over_under"
+    assert "Djokovic" in result["p1_name"]
+    assert "Alcaraz" in result["p2_name"]
+
+
+def test_parse_tennis_question_match_totals_wta_returns_none() -> None:
+    """WTA match_totals must be rejected."""
+    result = parse_tennis_question(
+        question="Swiatek vs Sabalenka: Match Games O/U 20.5",
+        sports_market_type="tennis_match_totals",
+        slug="wta-swiatek-sabalenka-2026",
     )
     assert result is None

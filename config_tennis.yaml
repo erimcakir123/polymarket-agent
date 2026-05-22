@@ -25,13 +25,15 @@ scanner:
   allowed_sport_tags:
     - tennis
   # Polymarket'in gerçek sports_market_type değerleri (debug script gözlemi):
-  # tennis_first_set_winner, tennis_set_handicap, tennis_set_totals (predictor
-  # bu 3 alt market'i destekliyor; tennis_match_totals/tennis_first_set_totals/
-  # tennis_completed_match/moneyline geniş kapsamda ama predictor henüz desteklemiyor).
+  # tennis_first_set_winner, tennis_set_handicap, tennis_set_totals (3 alt market),
+  # moneyline (match winner, ~89 markets), tennis_match_totals (~105 markets).
+  # tennis_completed_match/tennis_first_set_totals → predictor yok, desteklenmiyor.
   allowed_sports_market_types:
     - tennis_first_set_winner
     - tennis_set_handicap
     - tennis_set_totals
+    - moneyline
+    - tennis_match_totals
 
 edge:
   # Sandbox edge threshold deliberately relaxed (vs main bot 0.06) for exploratory data —
@@ -42,6 +44,9 @@ edge:
 risk:
   # Bankroll $1000 — A tier $50 (5%), B tier $40 (4%), max cap $50.
   max_single_bet_usdc: 50
+  # set_totals override: bimodal market — SL tetiklenmeden 0'a düşüyor (4/6 trade -$40+ kayıp).
+  # Tek-trade max kaybı $50→$15 (2026-05-22 SPEC-P).
+  set_totals_max_usdc: 15
   max_bet_pct: 0.05
   confidence_bet_pct: {A: 0.05, B: 0.04}
   max_positions: 20
