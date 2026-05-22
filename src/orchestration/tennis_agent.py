@@ -220,24 +220,24 @@ def run_one_cycle(
         )
         if did_log:
             logged += 1
-        # Tennis paper trade kararı (2026-05-21 backtest sonrası → 2026-05-22 güncelleme):
-        # Set totals/handicap markets bimodal — SL stratejisi çalışmıyor (-$60 net zarar simülasyonu).
-        # A tier: tam size ile giriş. B tier: tam skip yerine 1/3 size ile gözlemle
-        # (yeterli veri toplandığında politika netleşir). C tier: giriş yok.
+        # Tennis sizing (PLAN-SIZING-001, 2026-05-22):
+        # Bimodal piyasalar (set_totals + set_handicap) SL fire etmiyor → her tier $15 cap.
+        # Non-bimodal piyasalar (ML / match_o_u / first_set_winner) normal tier sizing.
+        # /3 küçültme kaldırıldı; tier'ın kendi bet_pct'i (A=%5, B=%3.5) kullanılır.
         if tier in ("A", "B"):
-            # set_totals bimodal (SL fire etmiyor) → düşük cap; diğer market'ler normal cap.
+            if market.sports_market_type == SportsMarketType.TENNIS_SET_TOTALS.value:
+                max_cap = cfg.risk.set_totals_max_usdc
+            elif market.sports_market_type == SportsMarketType.TENNIS_SET_HANDICAP.value:
+                max_cap = cfg.risk.set_handicap_max_usdc
+            else:
+                max_cap = cfg.risk.max_single_bet_usdc
             size_usdc = confidence_position_size(
-                confidence="A",
+                confidence=tier,
                 bankroll=deps.state.portfolio.bankroll,
                 confidence_bet_pct=cfg.risk.confidence_bet_pct,
-                max_bet_usdc=cfg.risk.set_totals_max_usdc if market.sports_market_type == SportsMarketType.TENNIS_SET_TOTALS.value else cfg.risk.max_single_bet_usdc,
+                max_bet_usdc=max_cap,
                 max_bet_pct=cfg.risk.max_bet_pct,
             )
-            if tier == "B":
-                # B tier: 2026-05-22 update — set_totals/handicap bimodal, B çıkışı
-                # için SL net çalışmıyor (-$60 sim). Tam skip yerine 1/3 size ile gözle,
-                # yeterli veri toplandığında politika netleşir.
-                size_usdc = round(size_usdc / 3.0, 2)
             if size_usdc > 0:
                 signal = tennis_candidate_to_signal(candidate, market, tier)
                 signal = signal.model_copy(update={"size_usdc": size_usdc})

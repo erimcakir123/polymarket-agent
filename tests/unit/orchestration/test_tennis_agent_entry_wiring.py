@@ -274,52 +274,72 @@ def test_tennis_cycle_first_set_winner_uses_default_cap(tmp_path: Path) -> None:
     assert signals_arg[0].size_usdc <= 50.0
 
 
-# ── B tier re-enable with 1/3 size (2026-05-22 SPEC-P update) ─────────────────
+# ── Bimodal-aware sizing (PLAN-SIZING-001, 2026-05-22) ────────────────────────
+# Politika: /3 küçültme kaldırıldı. Bimodal piyasalar (set_totals + set_handicap)
+# $15 cap'le sınırlı; non-bimodal piyasalar normal tier sizing kullanır.
 
 
-def test_b_tier_gets_one_third_of_a_size(tmp_path: Path) -> None:
-    """B tier should produce a Signal with size_usdc ≈ 1/3 of A tier's full size.
-
-    2026-05-22 policy: B tier not fully skipped (model has signal), but
-    exposure capped at 1/3 of A to limit downside while accumulating data.
-    """
-    from src.domain.risk.position_sizer import confidence_position_size  # noqa: PLC0415
-
+def _run_with_tier_and_market(
+    tmp_path: Path,
+    tier: str,
+    market_type: str,
+    sports_market_type: str,
+    confidence_bet_pct: dict[str, float] | None = None,
+) -> float:
+    """Helper — tek cycle koştur, üretilen size_usdc'yi dön. Tier+market'ı patch'ler."""
     cfg = AppConfig()
     cfg.risk.max_single_bet_usdc = 50.0
+    cfg.risk.set_totals_max_usdc = 15.0
+    cfg.risk.set_handicap_max_usdc = 15.0
     cfg.risk.max_bet_pct = 0.05
+    if confidence_bet_pct is not None:
+        cfg.risk.confidence_bet_pct = confidence_bet_pct
     deps = _make_deps(tmp_path, cfg=cfg)
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": market_type, "surface": "clay",
     }
-
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="B"), \
+         patch("src.orchestration.tennis_agent.classify_tier", return_value=tier), \
          patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
          patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
-        MockScanner.return_value.scan.return_value = [_market()]
+        MockScanner.return_value.scan.return_value = [_market(sports_market_type=sports_market_type)]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
-
     deps.entry_processor.process_signals.assert_called_once()
     _, signals_arg = deps.entry_processor.process_signals.call_args[0]
-    assert len(signals_arg) == 1
-    signal = signals_arg[0]
-    assert signal.confidence == "B"
+    return signals_arg[0].size_usdc
 
-    # Expected: A tier would be $50, so B = $50 / 3 ≈ $16.67
-    a_size = confidence_position_size(
-        confidence="A",
-        bankroll=cfg.initial_bankroll,
-        confidence_bet_pct=cfg.risk.confidence_bet_pct,
-        max_bet_usdc=cfg.risk.max_single_bet_usdc,
-        max_bet_pct=cfg.risk.max_bet_pct,
+
+def test_b_tier_first_set_winner_uses_full_size_no_division(tmp_path: Path) -> None:
+    """B-tier non-bimodal (FSW) = bankroll × B_pct, /3 YOK. $1000 × 3.5% = $35."""
+    size = _run_with_tier_and_market(
+        tmp_path, tier="B", market_type="first_set_winner",
+        sports_market_type="tennis_first_set_winner",
+        confidence_bet_pct={"A": 0.05, "B": 0.035},
     )
-    expected = round(a_size / 3.0, 2)
-    assert signal.size_usdc == pytest.approx(expected, abs=0.01)
+    assert size == pytest.approx(35.0, abs=0.01)
+
+
+def test_b_tier_set_totals_capped_at_15(tmp_path: Path) -> None:
+    """B-tier bimodal (set_totals) = $15 cap (kayıp toleransı)."""
+    size = _run_with_tier_and_market(
+        tmp_path, tier="B", market_type="total_sets_under_2_5",
+        sports_market_type="tennis_set_totals",
+        confidence_bet_pct={"A": 0.05, "B": 0.035},
+    )
+    assert size == pytest.approx(15.0, abs=0.01)
+
+
+def test_a_tier_set_handicap_capped_at_15(tmp_path: Path) -> None:
+    """A-tier bimodal (set_handicap) = $15 cap (bimodal piyasa toleransı)."""
+    size = _run_with_tier_and_market(
+        tmp_path, tier="A", market_type="set_handicap_minus_1_5",
+        sports_market_type="tennis_set_handicap",
+    )
+    assert size == pytest.approx(15.0, abs=0.01)
 
 
 def test_a_tier_full_size_unchanged(tmp_path: Path) -> None:
