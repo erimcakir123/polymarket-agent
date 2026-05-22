@@ -8,43 +8,6 @@
 
 ---
 
-## TODO-FAZ2-001: SPEC-014 baseball_score_exit değerlendirmesi
-
-- **Durum**: DEFERRED — Faz 2 (gözlem sonrası)
-- **Tarih**: 2026-05-15
-- **Öncelik**: P1
-- **Sebep**: 2026-04-19 13:51 eklendi (peak'in 14 saat sonrası). Mayıs döneminde baseball moneyline −$46.62 (1W/2L) — ama bu A-conf hold + market_flip katil mantığıyla yapılan trade'ler. Peak haftası baseball verisi diskte yok. İyi-donem rollback Faz 1 sonrası 7 gün gözlem yapılır.
-- **Karar kriterleri**:
-  - Baseball moneyline pozitif gidiyorsa → SPEC-014 modülü tutulur
-  - Negatif gidiyorsa → ya `baseball` sport_tag kapatılır ya da modül kaldırılır
-- **Önkoşul**: Faz 1 rollback tamamlandı, bot 7 gün çalıştı, dashboard veri toplandı
-
----
-
-## TODO-FAZ2-002: Belirsiz parametre gözlemi
-
-- **Durum**: DEFERRED — Faz 2 (gözlem sonrası)
-- **Tarih**: 2026-05-15
-- **Öncelik**: P1
-- **Sebep**: Aşağıdaki 4 parametre peak'te yoktu ama bot'a koruyucu olarak ekleniyor olabilir. 7 günlük yeni veri ile etkileri ölçülür:
-  - `agent.max_positions_per_event=2` (1'e geri mi inelim?)
-  - `scanner.max_post_start_hours=8.0` (kalksın mı?)
-  - `risk.min_favorite_probability` (SPEC-013, WNBA tipi favori-bias korumasi?)
-  - Multi-SL aktifken `near_resolve` threshold (0.94) hâlâ optimal mi?
-
----
-
-## TODO-FAZ2-003: Dead branch cleanup — odds_enricher.py 3-way soccer
-
-- **Durum**: DEFERRED — Faz 1 sonrası ARCH_GUARD sweep
-- **Tarih**: 2026-05-15
-- **Öncelik**: P2
-- **Sebep**: Task 6 (commit `c352da4`) soccer 3-way silinmesi sonrası `src/strategy/enrichment/odds_enricher.py`'de `is_soccer` parametre threading + `_VIG_3WAY_MIN/MAX` constants dead branch olarak kaldı. Live pipeline'da soccer sport_tag oluşmadığı için inert ama reader friction.
-- **İş**: `is_soccer` parametre + `_VIG_3WAY_*` constants + 3-way docstring satırları temizle.
-- **Önkoşul**: Faz 1 tamamen onaylandıktan sonra.
-
----
-
 ## TODO-001: Draw-Possible Sports — Her Branş için Ayrı Kural Yazılacak
 
 - **Durum**: DEFERRED — v2 MVP dışı
@@ -105,4 +68,13 @@
 
 ---
 
-## TODO-003: [sonraki eklenecekler]
+## TODO-003: scripts/reboot.py 415 satır — ARCH_GUARD Kural 3 (max 400) ihlali
+
+**Durum:** DEFERRED
+**Sebep:** Pre-existing ihlal (2026-05-22'de fark edildi). Reboot fix kapsamında 5 satır azaltıldı (420→415) ama hâlâ üzerinde.
+**Önkoşul:** Yok, ne zaman olsa bölünebilir.
+**Öneri:** `scripts/reboot.py`'i ikiye böl — örn `scripts/reboot_actions.py` (kill/clear/archive/start) + `scripts/reboot.py` (CLI + main, ince ana dosya). Mevcut testler patch yollarını günceller.
+
+---
+
+## TODO-004: [sonraki eklenecekler]
