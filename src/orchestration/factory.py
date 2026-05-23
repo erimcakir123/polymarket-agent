@@ -265,6 +265,7 @@ def build_agent(state: RuntimeState) -> Agent:
         command_poller=command_poller,
         score_enricher=score_enricher,
         mlb_submarket_engine=mlb_engine,
+        tennis_start_enricher=tennis_enricher,
     )
     agent = Agent(deps)
 

@@ -27,6 +27,7 @@ from src.orchestration.exit_processor import ExitProcessor
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
+from src.orchestration.tennis_start_enricher import TennisStartEnricher
 from src.strategy.entry.gate import EntryGate
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 
@@ -52,6 +53,7 @@ class AgentDeps:
     command_poller: TelegramCommandPoller | None = None
     score_enricher: object = None  # SPEC-B: ScoreEnricher | None — light cycle score injector
     mlb_submarket_engine: MlbSubmarketEngineProtocol | None = None  # SPEC-R: Plan 4'te gerçek engine
+    tennis_start_enricher: TennisStartEnricher | None = None  # SPEC: light cycle'da tennis pozisyonlarinin match_start_iso'sunu ESPN ile refresh eder
 
 
 class Agent:
@@ -91,6 +93,12 @@ class Agent:
                     nearest = self._compute_nearest_match_hours()
                     self.deps.cycle_manager.update_nearest_match_hours(nearest)
                 if tick.run_light:
+                    # Tennis pozisyonlarinin match_start_iso'sunu ESPN ile refresh et
+                    # (TTL-cached, exit kararlari guncel match start ile alinsin).
+                    if self.deps.tennis_start_enricher is not None:
+                        self.deps.tennis_start_enricher.refresh_positions(
+                            list(self.deps.state.portfolio.positions.values()),
+                        )
                     score_map: dict[str, dict] = {}
                     if self.deps.score_enricher is not None:
                         try:

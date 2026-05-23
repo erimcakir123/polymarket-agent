@@ -146,3 +146,54 @@ def test_run_heavy_idle_is_last():
 
     stages = [c.kwargs["stage"] for c in deps.bot_status_writer.write_stage.call_args_list]
     assert stages[-1] == "idle"
+
+
+def test_agent_cycle_refreshes_tennis_positions(monkeypatch):
+    """Light cycle exit kararindan ÖNCE tennis pozisyonlari ESPN ile refresh edilir."""
+    import time as _time_mod
+
+    from src.models.position import Position
+
+    deps = _make_deps()
+    # Light tick'i zorla: heavy kapali, light acik.
+    tick = MagicMock()
+    tick.run_heavy = False
+    tick.run_light = True
+    tick.reason = "light"
+    deps.cycle_manager.tick.return_value = tick
+    deps.cycle_manager.sleep_seconds.return_value = 0
+
+    # Tennis enricher mock'la
+    enricher = MagicMock()
+    deps.tennis_start_enricher = enricher
+
+    # Fake pozisyonlar (mix: tennis + non-tennis — enricher kendi icinde filtreler)
+    pos_tennis = Position(
+        condition_id="c-tennis", token_id="t1",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        current_price=0.5, anchor_probability=0.5,
+        slug="atp-minaur-paul-2026-05-25",
+        match_start_iso="2026-05-25T09:00:00Z",
+        sport_tag="tennis",
+    )
+    pos_mlb = Position(
+        condition_id="c-mlb", token_id="t2",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        current_price=0.5, anchor_probability=0.5,
+        slug="mlb-nyy-bos-2026-05-25",
+        match_start_iso="2026-05-25T23:00:00Z",
+        sport_tag="baseball_mlb",
+    )
+    deps.state.portfolio.positions = {"c-tennis": pos_tennis, "c-mlb": pos_mlb}
+    deps.state.portfolio.count.return_value = 2
+
+    monkeypatch.setattr(_time_mod, "sleep", lambda *a, **kw: None)
+
+    agent = Agent(deps)
+    agent.run(max_ticks=1)
+
+    enricher.refresh_positions.assert_called_once()
+    arg = enricher.refresh_positions.call_args.args[0]
+    assert isinstance(arg, list)
+    cids = {p.condition_id for p in arg}
+    assert cids == {"c-tennis", "c-mlb"}
