@@ -2,7 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-_VALID_MARKET_TYPES = {"totals", "run_line"}
+_VALID_MARKET_TYPES = {"totals", "run_line", "moneyline"}
 
 
 @dataclass(frozen=True)

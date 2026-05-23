@@ -22,6 +22,7 @@ from src.domain.mlb_submarket.edge_candidate import EdgeCandidate
 from src.domain.mlb_submarket.game_simulator import simulate_game
 from src.domain.mlb_submarket.league_constants import LEAGUE_PA_RATES
 from src.domain.mlb_submarket.pa_outcome import PAContext, compute_pa_outcome
+from src.domain.mlb_submarket.moneyline_pricer import moneyline_probability
 from src.domain.mlb_submarket.spread_pricer import spread_probability
 from src.domain.mlb_submarket.totals_pricer import totals_probability
 from src.infrastructure.mlb_data.rate_cache import RateCache
@@ -254,10 +255,15 @@ class MlbSubmarketEngine:
         if market_type == "totals":
             p_over, _p_under = totals_probability(home_dist, away_dist, line)
             model_p = p_over  # market YES = over
-        else:  # run_line
+        elif market_type == "run_line":
             home_line = line  # e.g., -1.5 or +1.5
             p_home, _p_away = spread_probability(home_dist, away_dist, home_line)
             model_p = p_home
+        elif market_type == "moneyline":
+            p_home, _p_away = moneyline_probability(home_dist, away_dist)
+            model_p = p_home  # market YES = home wins (slug format: away-home, YES = home)
+        else:
+            return None
 
         market_p: float = market.yes_price
         edge = model_p - market_p
