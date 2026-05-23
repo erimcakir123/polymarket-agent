@@ -73,6 +73,8 @@ class RiskConfig(BaseModel):
     # Hard blok: exposure ≥ cap → yeni trade reddedilir. Clipping uygulanmaz.
     max_exposure_pct: float = 0.50
     max_entry_price: float = 0.88
+    # SPEC-X (2026-05-24): bimodal market'ler için entry alt sınır.
+    bimodal_min_entry_price: float = 0.20
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30

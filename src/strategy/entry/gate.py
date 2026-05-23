@@ -67,6 +67,10 @@ class GateConfig:
     fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
     bimodal_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
     max_entry_price: float = 0.88
+    # SPEC-X (2026-05-24): bimodal market'lerde (totals + spreads) entry alt sınır.
+    # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
+    # zaten anında tetikleneceği için baştan reddedilir.
+    bimodal_min_entry_price: float = 0.20
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
