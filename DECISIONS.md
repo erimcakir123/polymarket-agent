@@ -981,6 +981,27 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 
 ---
 
+### 2026-05-23 — Position match_start refresh + LIVE rozet düzeltmesi
+
+**Karar:**
+1. Açık tennis pozisyonların `match_start_iso`'su her light cycle'da `TennisStartEnricher.refresh_positions()` ile ESPN'den güncellenir
+2. `Position.match_live` entry'de `market.event_live`'den (Polymarket Gamma flag) doldurulur
+3. Dashboard `_countdownPill` JS'i artık `match_live` argümanını gerçekten kullanır (SPEC 2026-04-15 uyumu)
+
+**Neden:**
+- Önceki ESPN entegrasyonu yalnızca scanner'a inject'liydi; entry sonrası `Position.match_start_iso` Polymarket startTime'da donuyordu → exit kararları yanlış saatle çalışabiliyordu
+- `Position.match_live` ölü field'tı (default False, hiçbir yerde set edilmiyordu); dashboard JS `match_live` argümanı kullanılmıyordu (saat geçince otomatik LIVE basıyordu, gerçek live değilken de)
+
+**Etki:**
+- `src/orchestration/tennis_start_enricher.py` — `refresh_positions()` + slug-bazlı helper refactor (DRY: `enrich` ve `refresh_positions` ortak pipeline)
+- `src/orchestration/entry_processor.py` — Position(...) constructor'lara `match_live=market.event_live`
+- `src/orchestration/agent.py` — light cycle'a refresh hook
+- `src/orchestration/factory.py` — `AgentDeps`'e tennis_start_enricher inject
+- `src/presentation/dashboard/static/js/feed.js` — `_countdownPill` SPEC uyumu
+- Commits: `498d8d8`, `756b49c`, `e6843c8`, `6f69923`
+
+---
+
 ### 2026-05-23 — Tennis ESPN gerçek-fetch düzeltmesi
 
 **Karar:** ESPN tennis için 3-aşamalı public metod `ESPNClient.fetch_tennis_matches_today` eklendi (scoreboard → competitions → athlete dereference, 24h athlete cache). `TennisStartEnricher` market'lerin `match_start_iso` tarihlerinden ihtiyaç duyulan ESPN günlerini çıkarıp her unique gün için ayrı fetch yapar. Doubles slug formatı (`atp-doubles-{p1}-{p2}-date`) parser'a eklendi. Same-day guard: ESPN eşleşmesi market'in günüyle aynı UTC günde değilse override iptal.
