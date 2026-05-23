@@ -58,3 +58,50 @@ def marcel_weight(
     if denominator == 0:
         return 0.0
     return numerator / denominator
+
+
+_MARCEL_WEIGHTS = (5, 4, 3)  # current, prev, prev-prev (Marcel)
+
+
+def marcel_weighted_rates(
+    current: dict[str, float],
+    prev: dict[str, float],
+    prev_prev: dict[str, float],
+) -> dict[str, float]:
+    """3 sezonun Marcel ağırlıklı PA-weighted ortalaması.
+
+    Ağırlık: current × 5 + prev × 4 + prev_prev × 3.
+    Eksik sezon (boş dict veya pa=0) → o ağırlık 0 (sezondan veri yok).
+
+    Args:
+        current: bu sezon rates (`pa` ve oran alanları).
+        prev: önceki sezon.
+        prev_prev: 2 önceki sezon.
+
+    Returns:
+        Weighted rates + toplam `pa`. Hiç veri yoksa current (boş olabilir).
+    """
+    seasons = [
+        (current, _MARCEL_WEIGHTS[0]),
+        (prev, _MARCEL_WEIGHTS[1]),
+        (prev_prev, _MARCEL_WEIGHTS[2]),
+    ]
+    seasons = [(s, w) for s, w in seasons if s.get("pa", 0) > 0]
+    if not seasons:
+        return current
+    if len(seasons) == 1:
+        return seasons[0][0]
+
+    total_pa = sum(s.get("pa", 0) * w for s, w in seasons)
+    if total_pa == 0:
+        return current
+
+    out: dict[str, float] = {}
+    rate_keys = {k for s, _ in seasons for k in s.keys() if k != "pa"}
+    for key in rate_keys:
+        weighted_sum = sum(
+            s.get(key, 0.0) * s.get("pa", 0) * w for s, w in seasons
+        )
+        out[key] = weighted_sum / total_pa
+    out["pa"] = total_pa
+    return out

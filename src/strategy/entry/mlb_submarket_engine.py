@@ -18,6 +18,7 @@ import re
 from typing import Any
 
 from src.config.settings import MlbSubmarketConfig
+from src.domain.mlb_submarket.rate_shrinker import marcel_weighted_rates
 from src.domain.mlb_submarket.edge_candidate import EdgeCandidate
 from src.domain.mlb_submarket.game_simulator import simulate_game
 from src.domain.mlb_submarket.league_constants import LEAGUE_PA_RATES
@@ -314,22 +315,28 @@ class MlbSubmarketEngine:
         return self._parse_slug_static(slug)
 
     def _get_batter_rates(self, mlbam_id: int, season: int) -> dict[str, float]:
-        cached = self.rate_cache.get(mlbam_id, season, "batter")
-        if cached:
-            return cached
-        rates = self.statcast.get_batter_rates(mlbam_id, season)
-        if rates:
-            self.rate_cache.put(mlbam_id, season, "batter", rates)
-        return rates
+        current = self._rates_for_season(mlbam_id, season, "batter")
+        prev = self._rates_for_season(mlbam_id, season - 1, "batter")
+        prev_prev = self._rates_for_season(mlbam_id, season - 2, "batter")
+        return marcel_weighted_rates(current, prev, prev_prev)
 
     def _get_pitcher_rates(self, mlbam_id: int, season: int) -> dict[str, float]:
-        cached = self.rate_cache.get(mlbam_id, season, "pitcher")
+        current = self._rates_for_season(mlbam_id, season, "pitcher")
+        prev = self._rates_for_season(mlbam_id, season - 1, "pitcher")
+        prev_prev = self._rates_for_season(mlbam_id, season - 2, "pitcher")
+        return marcel_weighted_rates(current, prev, prev_prev)
+
+    def _rates_for_season(self, mlbam_id: int, season: int, kind: str) -> dict[str, float]:
+        cached = self.rate_cache.get(mlbam_id, season, kind)
         if cached:
             return cached
-        rates = self.statcast.get_pitcher_rates(mlbam_id, season)
+        if kind == "batter":
+            rates = self.statcast.get_batter_rates(mlbam_id, season)
+        else:
+            rates = self.statcast.get_pitcher_rates(mlbam_id, season)
         if rates:
-            self.rate_cache.put(mlbam_id, season, "pitcher", rates)
-        return rates
+            self.rate_cache.put(mlbam_id, season, kind, rates)
+        return rates or {}
 
     def _build_inning_lineups(
         self,
