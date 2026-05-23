@@ -863,6 +863,37 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-S Faz D — Bimodal Sizing + Same-Type-Per-Event Guard (2026-05-23)
+
+**Karar:** İki bağımsız risk yönetimi kuralı eklendi:
+
+1. **Bimodal sizing** — Tüm spor marketleri (moneyline, totals, spread) binary olduğundan ("bir anda fiyat çakılır" karakterli), tek tip bahis cap'i uygulandı: A=$15, B=$10 (önceden A=$50, B=$30). Tenis Lab SPEC-N paritesi.
+
+2. **Same-market-type-per-event guard** — Aynı `event_id`'de aynı `sports_market_type`'tan ikinci pozisyon yasaklandı. `max_positions_per_event=3` cap'i korunur, ancak her biri farklı tür olmalı (1 ML + 1 totals + 1 spread). Tüm branş ve liglerde geçerli, sport-bazlı istisna yok.
+
+**Neden:** 22-23 May UTC+3 gecesi analizi:
+- A güveni $50 sabit sizing × 13 trade × 3 saat = $700 risk penceresi (kayıp -$107)
+- NBA OKC/SAS aynı maçta 2 farklı totals (215.5 + 222.5) — ikisi de kayıp -$52. Aynı maç ters giderse korelasyonlu kayıp 2-3 kat ödenir
+- Bimodal sizing aynı oranda kayıp/kazanç oranını korur ama nominal tutarı %70 düşürür → tek günlük risk -$107 → ~-$32 tahmini
+
+**Etki:**
+- `config.yaml` — `risk.fixed_bet_usdc: A: 15, B: 10` (önceden 50/30)
+- `src/config/settings.py` — `RiskConfig.fixed_bet_usdc` default `{"A": 15.0, "B": 10.0}`
+- `src/strategy/entry/mlb_submarket_engine.py` — constructor fallback güncellendi
+- `src/strategy/entry/gate.py` — `GateConfig` default güncellendi
+- `src/orchestration/factory.py` — factory fallback güncellendi
+- `src/domain/portfolio/manager.py` — `positions_for_event(event_id)` helper eklendi
+- `src/orchestration/portfolio_guards.py` — `check_per_market_guards` same-type check + `_normalize_market_type` helper; `_MarketLike`/`_PortfolioLike` protokol genişletmesi
+- `src/presentation/dashboard/static/js/skip_reason_help.js` — `same_market_type_per_event` + `event_already_held` skip-reason açıklamaları
+- 4 test dosyası sizing 50/30 → 15/10 güncellendi (test_position_sizer, test_mlb_signal_adapter, test_mlb_submarket_engine, test_gate)
+- 9 yeni test (positions_for_event 4, same-type guard 5)
+- Toplam 1460 testin tümü yeşil (full suite smoke)
+- Commit'ler: `b68407a`, `2b9567c`, `6b38482`
+
+**Sonuç:** Tek gece kayıpları geriye-bakım simülasyonda -$107 → -$24 (her iki kural birlikte: bimodal $50→$15 + NBA 2. totals açılmaz). Yapısal değişiklik tüm sporlarda geçerli; MLB modeline bağımsız çalışır.
+
+---
+
 ### SPEC-S Faz B — MLB Engine Doğruluk Artırımları (2026-05-23)
 
 **Karar:** Engine'in 3 doğruluk simplification'ı çözüldü:
