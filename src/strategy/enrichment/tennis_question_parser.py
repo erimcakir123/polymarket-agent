@@ -4,6 +4,7 @@ Parses Polymarket market question text to extract:
 - p1_name, p2_name  (player names, may be surnames or full names)
 - market_type       (derived from sports_market_type field, not text)
 - surface guess     (from tournament name keyword in slug or question)
+- tour              ('atp'/'wta') is inferred from slug prefix
 
 Market type mapping (uses sports_market_type, not regex):
   tennis_first_set_winner  → "first_set_winner"
@@ -18,10 +19,6 @@ Skipped market types (no model for these):
 Surface keyword → surface (fallback "hard"):
   Tournament name keywords extracted from slug and question text.
 
-WTA filter (2026-05-20): predictor uses ATP-only Sackmann data. Any `wta-*`
-slug is rejected at parse time to avoid (a) silent skips from missing ratings
-or (b) coincidental ATP name collisions yielding garbage predictions.
-
 Spec: docs/superpowers/specs/2026-05-19-tennis-prediction-lab-design.md §5.3
 """
 from __future__ import annotations
@@ -31,11 +28,6 @@ import re
 from typing import Literal, Optional
 
 logger = logging.getLogger(__name__)
-
-# WTA prefix filter: predictor model uses ATP-only Sackmann historical data.
-# Any market whose slug indicates WTA is unparseable → return None.
-_WTA_SLUG_PREFIX = "wta-"
-_wta_skipped_count = 0
 
 # Mapping from Polymarket sports_market_type → internal market_type.
 # Only types the predictor handles are included; others → None (skip).
@@ -160,6 +152,13 @@ def _detect_surface(slug: str, question: str) -> str:
     return "hard"
 
 
+def _detect_tour(slug: str) -> str:
+    """Detect tour from slug prefix. 'wta-' → wta, else atp."""
+    if slug and slug.lower().startswith("wta-"):
+        return "wta"
+    return "atp"
+
+
 def map_market_type(sports_market_type: str) -> Optional[str]:
     """Map Polymarket sports_market_type → internal market_type string.
 
@@ -181,22 +180,9 @@ def parse_tennis_question(
         slug: Market slug for surface detection (e.g. "atp-djokovic-alcaraz-roland-garros-2026").
 
     Returns:
-        dict with keys: p1_name, p2_name, market_type, surface
-        or None if market_type is not supported / player names unparseable
-        / slug is WTA (predictor is ATP-only).
+        dict with keys: p1_name, p2_name, market_type, surface, tour
+        or None if market_type is not supported / player names unparseable.
     """
-    # WTA filter (2026-05-20): Sackmann historical data is ATP-only. WTA slugs
-    # would either fail player lookup or hit coincidental ATP collisions.
-    if slug and slug.lower().startswith(_WTA_SLUG_PREFIX):
-        global _wta_skipped_count
-        _wta_skipped_count += 1
-        if _wta_skipped_count % 10 == 1:
-            logger.info(
-                "tennis_parser: WTA slug skipped (count=%d) — ATP-only predictor; example=%s",
-                _wta_skipped_count, slug[:60],
-            )
-        return None
-
     market_type = map_market_type(sports_market_type)
     if market_type is None:
         return None
@@ -206,10 +192,12 @@ def parse_tennis_question(
         return None
 
     surface = _detect_surface(slug=slug, question=question)
+    tour = _detect_tour(slug=slug)
 
     return {
         "p1_name": p1_name,
         "p2_name": p2_name,
         "market_type": market_type,
         "surface": surface,
+        "tour": tour,
     }

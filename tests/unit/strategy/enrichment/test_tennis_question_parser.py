@@ -149,7 +149,6 @@ def test_parse_tennis_question_first_set_winner() -> None:
 
 
 def test_parse_tennis_question_set_handicap() -> None:
-    # NOTE: ATP slug (WTA filter rejects wta-* — predictor is ATP-only).
     result = parse_tennis_question(
         question="Set Handicap: Tsitsipas (-1.5) vs Tien (+1.5)",
         sports_market_type="tennis_set_handicap",
@@ -162,7 +161,6 @@ def test_parse_tennis_question_set_handicap() -> None:
 
 
 def test_parse_tennis_question_set_totals() -> None:
-    # NOTE: ATP slug (WTA filter rejects wta-* — predictor is ATP-only).
     result = parse_tennis_question(
         question="Tsitsipas vs. Tien: Total Sets O/U 2.5",
         sports_market_type="tennis_set_totals",
@@ -222,14 +220,16 @@ def test_parse_tennis_question_moneyline_tournament_prefix() -> None:
     assert result["surface"] == "clay"
 
 
-def test_parse_tennis_question_moneyline_wta_slug_returns_none() -> None:
-    """WTA moneyline slug must be rejected — ATP-only predictor."""
+def test_parse_tennis_question_moneyline_wta_slug_parses_with_tour_wta() -> None:
+    """WTA moneyline slug parses successfully and reports tour='wta'."""
     result = parse_tennis_question(
         question="Swiatek vs Sabalenka",
         sports_market_type="moneyline",
         slug="wta-swiatek-sabalenka-2026-06-01",
     )
-    assert result is None
+    assert result is not None
+    assert result["market_type"] == "match_winner"
+    assert result["tour"] == "wta"
 
 
 def test_parse_tennis_question_completed_match_returns_none() -> None:
@@ -262,11 +262,47 @@ def test_parse_tennis_question_match_totals() -> None:
     assert "Alcaraz" in result["p2_name"]
 
 
-def test_parse_tennis_question_match_totals_wta_returns_none() -> None:
-    """WTA match_totals must be rejected."""
+def test_parse_tennis_question_match_totals_wta_parses_with_tour_wta() -> None:
+    """WTA match_totals parses successfully and reports tour='wta'."""
     result = parse_tennis_question(
         question="Swiatek vs Sabalenka: Match Games O/U 20.5",
         sports_market_type="tennis_match_totals",
         slug="wta-swiatek-sabalenka-2026",
     )
-    assert result is None
+    assert result is not None
+    assert result["market_type"] == "match_totals_over_under"
+    assert result["tour"] == "wta"
+
+
+# ── tour detection ────────────────────────────────────────────────────────────
+
+
+def test_parse_atp_slug_returns_tour_atp() -> None:
+    parsed = parse_tennis_question(
+        question="Set 1 Winner: Djokovic vs Alcaraz",
+        sports_market_type="tennis_first_set_winner",
+        slug="atp-djokovic-alcaraz-roland-garros-2026",
+    )
+    assert parsed is not None
+    assert parsed["tour"] == "atp"
+
+
+def test_parse_wta_slug_returns_tour_wta() -> None:
+    parsed = parse_tennis_question(
+        question="Set 1 Winner: Swiatek vs Gauff",
+        sports_market_type="tennis_first_set_winner",
+        slug="wta-swiatek-gauff-roland-garros-2026",
+    )
+    assert parsed is not None
+    assert parsed["tour"] == "wta"
+
+
+def test_parse_unknown_prefix_defaults_to_atp() -> None:
+    """Slugs without atp-/wta- prefix default to atp (back-compat for malformed slugs)."""
+    parsed = parse_tennis_question(
+        question="Set 1 Winner: A vs B",
+        sports_market_type="tennis_first_set_winner",
+        slug="someother-prefix-a-b-2026",
+    )
+    assert parsed is not None
+    assert parsed["tour"] == "atp"
