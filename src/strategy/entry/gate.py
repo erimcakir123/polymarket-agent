@@ -208,6 +208,16 @@ class EntryGate:
             detail = f"price={entry_price:.3f}, min={self.config.bimodal_min_entry_price}"
             return GateResult(cid, None, "bimodal_entry_below_floor", skip_detail=detail, manipulation=manip)
 
+        # 6c. Bimodal LIVE yasağı (SPEC-X 2026-05-24) — bimodal market'lerde
+        # AI/model olasılığı pre-match hesaplanır; LIVE'da market durumu değişmiş
+        # olur → tahmin bayatlamış → asimetrik risk. event_live default False.
+        if _is_bimodal_market_type(market) and market.event_live:
+            return GateResult(
+                cid, None, "bimodal_entry_live",
+                skip_detail="market is live",
+                manipulation=manip,
+            )
+
         # 7. Position sizing (SPEC-P sabit-tier + SPEC-U bimodal-aware).
         # Bimodal = totals + spreads (SL muaf, anlık çakılma riski) → küçük cap.
         # Non-bimodal = moneyline → eski sizing.
