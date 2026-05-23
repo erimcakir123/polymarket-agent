@@ -6,8 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.config.settings import AppConfig, TennisConfig
-from src.domain.matching.tennis_player_matcher import build_match_index
+from src.config.settings import AppConfig
 from src.infrastructure.data.sackmann_csv_client import SackmannMatch
 from src.infrastructure.data.tennis_ratings_store import PlayerRating, SurfaceRating
 from src.models.market import MarketData
@@ -192,17 +191,20 @@ def test_enrich_edge_candidate_event_id_from_market(monkeypatch) -> None:
         assert result.event_id == "custom-event-id"
 
 
-def test_enrich_prebuilt_index_gives_same_result() -> None:
-    """Passing pre-built index gives same output as auto-built."""
+def test_enrich_two_calls_give_same_result() -> None:
+    """Two calls with identical inputs produce identical output.
+
+    (Previously asserted prebuilt-index equivalence; after 2026-05-24 the
+    enricher always rebuilds tour-scoped indexes per call, so the prebuilt
+    kwarg no longer exists. The deterministic-output invariant remains.)"""
     ratings = _make_good_ratings()
     matches = _make_sackmann_50_matches("Novak Djokovic", "Carlos Alcaraz")
     market = _make_market(slug="atp-djokovic-alcaraz-roland-garros-2026")
     cfg = _make_cfg()
 
-    result_auto = enrich(market, ratings, matches, cfg)
-    by_full, by_last = build_match_index(ratings)
-    result_prebuilt = enrich(market, ratings, matches, cfg, by_full=by_full, by_last=by_last)
+    result_a = enrich(market, ratings, matches, cfg)
+    result_b = enrich(market, ratings, matches, cfg)
 
-    assert type(result_auto) == type(result_prebuilt)
-    if result_auto is not None and result_prebuilt is not None:
-        assert abs(result_auto.edge - result_prebuilt.edge) < 1e-9
+    assert type(result_a) == type(result_b)
+    if result_a is not None and result_b is not None:
+        assert abs(result_a.edge - result_b.edge) < 1e-9

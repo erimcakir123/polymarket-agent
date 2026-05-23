@@ -157,9 +157,6 @@ def enrich(
     sackmann_matches: list[Any],
     cfg: AppConfig,
     snapshot_date: Optional[datetime] = None,
-    *,
-    by_full: dict | None = None,
-    by_last: dict | None = None,
 ) -> Optional[EdgeCandidate]:
     """Full enrichment pipeline for one MarketData.
 
@@ -169,11 +166,13 @@ def enrich(
         sackmann_matches: Historical match list for feature extraction.
         cfg: AppConfig (reads edge.min_edge, tennis.confidence_tier_*).
         snapshot_date: Override "now" for feature extraction (test injection).
-        by_full: Pre-built full-name index (perf optimisation — avoids rebuild per market).
-        by_last: Pre-built last-name index.
 
     Returns:
         EdgeCandidate if edge qualifies, else None.
+
+    Note: name-match indexes are rebuilt per call (tour-scoped — they differ
+    per tour so cannot be reused across all markets). The perf cost is
+    negligible (small dicts) compared to feature extraction.
     """
     now = snapshot_date or datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
 
@@ -190,13 +189,13 @@ def enrich(
     p2_name: str = parsed["p2_name"]
     market_type: str = parsed["market_type"]
     surface: str = parsed["surface"]
+    tour: str = parsed["tour"]
 
-    # Step 2: Match player names → PlayerRating
-    if by_full is None or by_last is None:
-        by_full, by_last = build_match_index(ratings)
+    # Step 2: Match player names → PlayerRating (tour-scoped to avoid cross-tour collision)
+    by_full, by_last = build_match_index(ratings, tour=tour)
 
-    p1_rating = match_player(p1_name, ratings, by_full=by_full, by_last=by_last)
-    p2_rating = match_player(p2_name, ratings, by_full=by_full, by_last=by_last)
+    p1_rating = match_player(p1_name, ratings, by_full=by_full, by_last=by_last, tour=tour)
+    p2_rating = match_player(p2_name, ratings, by_full=by_full, by_last=by_last, tour=tour)
     if p1_rating is None or p2_rating is None:
         return None  # one or both players not in ratings cache
 
@@ -236,4 +235,5 @@ def enrich(
         model_p=model_p,
         market_p=market_p,
         edge=edge,
+        tour=tour,
     )

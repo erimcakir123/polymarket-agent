@@ -67,16 +67,19 @@ def _log_candidate(
     cfg: AppConfig,
     diagnostic_logger: TennisDiagnosticLogger,
     now: datetime,
-    by_full: dict,
-    by_last: dict,
 ) -> tuple[bool, str]:
     """Resolve features + tier for one candidate and write diagnostic log record.
 
     Returns (did_log, tier) — tier is "A" / "B" / "skip" / "" (player not found).
     Caller uses tier to decide whether to size + submit an entry signal.
+
+    Name-match indexes are rebuilt per call scoped to parsed["tour"] (small
+    dicts; cross-tour caching is unsafe — see enricher note).
     """
-    p1_rating = match_player(parsed["p1_name"], ratings, by_full=by_full, by_last=by_last)
-    p2_rating = match_player(parsed["p2_name"], ratings, by_full=by_full, by_last=by_last)
+    tour = parsed["tour"]
+    by_full, by_last = build_match_index(ratings, tour=tour)
+    p1_rating = match_player(parsed["p1_name"], ratings, by_full=by_full, by_last=by_last, tour=tour)
+    p2_rating = match_player(parsed["p2_name"], ratings, by_full=by_full, by_last=by_last, tour=tour)
     if p1_rating is None or p2_rating is None:
         return False, ""
 
@@ -159,14 +162,13 @@ def run_one_cycle(
     if sackmann_matches is None:
         sackmann_matches = _load_sackmann_matches(deps)
 
-    # Build name-match indexes once per cycle (not per market)
-    by_full, by_last = build_match_index(ratings)
-
     # Scan Polymarket
     scanner = MarketScanner(config=cfg.scanner)
     markets: list[MarketData] = scanner.scan()
 
-    # Enrich each market → (candidate, market) pairs
+    # Enrich each market → (candidate, market) pairs.
+    # Name-match indexes are rebuilt per call inside enrich() (tour-scoped —
+    # ATP and WTA have separate dicts, so cross-market caching is unsafe).
     candidates: list[tuple[EdgeCandidate, MarketData]] = []
     for market in markets:
         candidate = enrich(
@@ -174,8 +176,6 @@ def run_one_cycle(
             ratings=ratings,
             sackmann_matches=sackmann_matches,
             cfg=cfg,
-            by_full=by_full,
-            by_last=by_last,
         )
         if candidate is not None:
             candidates.append((candidate, market))
@@ -215,8 +215,6 @@ def run_one_cycle(
             cfg=cfg,
             diagnostic_logger=deps.diagnostic_logger,
             now=now,
-            by_full=by_full,
-            by_last=by_last,
         )
         if did_log:
             logged += 1

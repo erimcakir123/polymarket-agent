@@ -200,3 +200,75 @@ def test_match_player_reuses_prebuilt_index(ratings) -> None:
     result = match_player("Nadal", ratings, by_full=by_full, by_last=by_last)
     assert result is not None
     assert result.player_id == "p4"
+
+
+# ── tour-scoped lookup (no cross-tour collisions) ────────────────────────────
+
+
+def _make_rating_with_tour(
+    player_id: str,
+    player_name: str,
+    tour: str,
+    match_count_12mo: int = 50,
+) -> PlayerRating:
+    sr = _default_surface_rating()
+    return PlayerRating(
+        player_id=player_id,
+        player_name=player_name,
+        tour=tour,
+        overall=sr,
+        serve_clay=sr,
+        serve_grass=sr,
+        serve_hard=sr,
+        return_clay=sr,
+        return_grass=sr,
+        return_hard=sr,
+        last_match_date="2026-01-01",
+        match_count_12mo=match_count_12mo,
+    )
+
+
+def test_match_player_tour_scoped_no_cross_tour_collision() -> None:
+    """ATP Williams and WTA Williams resolve to different PlayerRating objects."""
+    atp_williams = _make_rating_with_tour("atp:Williams", "Williams", "atp", match_count_12mo=10)
+    wta_williams = _make_rating_with_tour("wta:Williams", "Williams", "wta", match_count_12mo=50)
+    ratings = {"atp:Williams": atp_williams, "wta:Williams": wta_williams}
+
+    by_full, by_last = build_match_index(ratings, tour="atp")
+    atp_hit = match_player("Williams", ratings, by_full=by_full, by_last=by_last, tour="atp")
+    assert atp_hit is not None
+    assert atp_hit.tour == "atp"
+    assert atp_hit.match_count_12mo == 10
+
+    by_full_w, by_last_w = build_match_index(ratings, tour="wta")
+    wta_hit = match_player("Williams", ratings, by_full=by_full_w, by_last=by_last_w, tour="wta")
+    assert wta_hit is not None
+    assert wta_hit.tour == "wta"
+    assert wta_hit.match_count_12mo == 50
+
+
+def test_build_match_index_tour_filter_excludes_other_tour() -> None:
+    """build_match_index(tour='atp') drops WTA players from the indexes."""
+    atp = _make_rating_with_tour("atp:Federer", "Roger Federer", "atp")
+    wta = _make_rating_with_tour("wta:Swiatek", "Iga Swiatek", "wta")
+    ratings = {"atp:Federer": atp, "wta:Swiatek": wta}
+
+    by_full, by_last = build_match_index(ratings, tour="atp")
+    assert "roger federer" in by_full
+    assert "iga swiatek" not in by_full
+    assert "swiatek" not in by_last
+
+
+def test_match_player_compound_partial_respects_tour() -> None:
+    """Tier-2 compound partial scan (e.g. 'Alcaraz' → 'Carlos Alcaraz Garfia')
+    must NOT cross tours even when only ratings.values() is scanned."""
+    atp = _make_rating_with_tour("atp:CA", "Carlos Alcaraz Garfia", "atp")
+    wta = _make_rating_with_tour("wta:CA", "Carla Alcaraz Doe", "wta")
+    ratings = {"atp:CA": atp, "wta:CA": wta}
+
+    by_full, by_last = build_match_index(ratings, tour="wta")
+    # "Alcaraz" alone — compound partial would hit both names if unscoped.
+    # With tour=wta scope, only the WTA entry is reachable.
+    hit = match_player("Alcaraz", ratings, by_full=by_full, by_last=by_last, tour="wta")
+    assert hit is not None
+    assert hit.tour == "wta"

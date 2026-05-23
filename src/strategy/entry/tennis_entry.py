@@ -16,6 +16,7 @@ class EdgeCandidate:
     model_p: float
     market_p: float
     edge: float  # signed: positive = BUY YES, negative = BUY NO
+    tour: str = "atp"  # "atp" | "wta" — drives sport_tag in signal adapter
 
 
 def select_best_2_per_event(candidates: list[EdgeCandidate]) -> list[EdgeCandidate]:

@@ -107,7 +107,7 @@ def _candidate(edge: float = 0.20) -> EdgeCandidate:
 def _parsed() -> dict:
     return {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
 

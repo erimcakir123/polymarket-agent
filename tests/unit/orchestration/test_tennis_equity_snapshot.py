@@ -153,7 +153,7 @@ def test_snapshot_written_after_heavy_cycle_with_entries(tmp_path: Path) -> None
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
@@ -182,7 +182,7 @@ def test_snapshot_written_after_heavy_cycle_no_entries(tmp_path: Path) -> None:
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \

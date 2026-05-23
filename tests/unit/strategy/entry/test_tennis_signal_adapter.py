@@ -33,13 +33,20 @@ def _market(
     )
 
 
-def _candidate(*, edge: float = 0.08, model_p: float = 0.58, market_p: float = 0.50) -> EdgeCandidate:
+def _candidate(
+    *,
+    edge: float = 0.08,
+    model_p: float = 0.58,
+    market_p: float = 0.50,
+    tour: str = "atp",
+) -> EdgeCandidate:
     return EdgeCandidate(
         event_id="evt-123",
         market_type="first_set_winner",
         model_p=model_p,
         market_p=market_p,
         edge=edge,
+        tour=tour,
     )
 
 
@@ -74,16 +81,27 @@ def test_adapter_zeroes_bookmaker_fields() -> None:
 
 
 def test_adapter_sets_sport_tag_to_tennis_atp() -> None:
-    """FIX 3 (2026-05-20): sport_tag hardcoded 'tennis_atp' (WTA filter upstream).
+    """sport_tag derived from candidate.tour — ATP candidate yields 'tennis_atp'.
 
     Dashboard Sport ROI treemap '<category>_<league>' formatına göre grup yapıyor;
-    boş veya 'tennis' tag dashboard'da görünmez/karışır. WTA parser'da reject
-    edildiği için tüm tenis sinyalleri ATP — hardcode güvenli."""
-    # market.sport_tag farklı değerlerde gelse de adapter hep tennis_atp döner
+    boş veya 'tennis' tag dashboard'da görünmez/karışır. ATP candidate için
+    adapter market.sport_tag'i yoksayar ve 'tennis_atp' yazar."""
+    # market.sport_tag farklı değerlerde gelse de ATP candidate için adapter hep tennis_atp döner
     for market_tag in ["tennis", "tennis_atp", "", "wta_atp", None]:
         market = _market(sport_tag=market_tag or "")
-        sig = tennis_candidate_to_signal(_candidate(), market, tier="A")
+        sig = tennis_candidate_to_signal(_candidate(tour="atp"), market, tier="A")
         assert sig.sport_tag == "tennis_atp", f"market_tag={market_tag!r} produced {sig.sport_tag!r}"
+
+
+def test_adapter_sets_sport_tag_to_tennis_wta_when_candidate_is_wta() -> None:
+    """When candidate.tour == 'wta', adapter emits sport_tag='tennis_wta'.
+
+    Mirrors ATP test: market.sport_tag is ignored; the candidate's tour drives
+    the dashboard grouping prefix."""
+    for market_tag in ["tennis", "tennis_wta", "", "tennis_atp", None]:
+        market = _market(sport_tag=market_tag or "")
+        sig = tennis_candidate_to_signal(_candidate(tour="wta"), market, tier="A")
+        assert sig.sport_tag == "tennis_wta", f"market_tag={market_tag!r} produced {sig.sport_tag!r}"
 
 
 @pytest.mark.parametrize("tier", ["A", "B"])

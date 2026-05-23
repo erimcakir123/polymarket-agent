@@ -138,7 +138,7 @@ def test_tennis_cycle_submits_signal_for_qualified_a_tier(tmp_path: Path) -> Non
 
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
@@ -167,7 +167,7 @@ def test_tennis_cycle_skips_unqualified_tier(tmp_path: Path) -> None:
 
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
@@ -189,7 +189,7 @@ def test_tennis_cycle_calls_persist_after_entries(tmp_path: Path) -> None:
 
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     # Confirm positions.json doesn't exist yet
@@ -224,7 +224,7 @@ def test_tennis_cycle_set_totals_caps_size_at_set_totals_max(tmp_path: Path) -> 
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "total_sets_under_2_5", "surface": "clay",
+        "market_type": "total_sets_under_2_5", "surface": "clay", "tour": "atp",
     }
     set_totals_market = _market(sports_market_type="tennis_set_totals")
 
@@ -254,7 +254,7 @@ def test_tennis_cycle_first_set_winner_uses_default_cap(tmp_path: Path) -> None:
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
     fs_market = _market(sports_market_type="tennis_first_set_winner")
 
@@ -298,7 +298,7 @@ def _run_with_tier_and_market(
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": market_type, "surface": "clay",
+        "market_type": market_type, "surface": "clay", "tour": "atp",
     }
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
@@ -351,7 +351,7 @@ def test_a_tier_full_size_unchanged(tmp_path: Path) -> None:
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
@@ -377,7 +377,7 @@ def test_c_tier_no_signal_produced(tmp_path: Path) -> None:
     ratings = {"p1": _player("p1", "Player One"), "p2": _player("p2", "Player Two")}
     parsed_info = {
         "p1_name": "Player One", "p2_name": "Player Two",
-        "market_type": "first_set_winner", "surface": "clay",
+        "market_type": "first_set_winner", "surface": "clay", "tour": "atp",
     }
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
