@@ -809,6 +809,19 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 **Lokasyon:** `src/orchestration/entry_processor.py::_add_position` + `src/strategy/entry/gate.py`. Bkz. ARCHITECTURE_GUARD.md Kural 8.
 
+### 6.19 Bimodal Entry Floor + LIVE Yasağı (SPEC-X 2026-05-24)
+
+Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kontrol. **Sport bağımsız** — `market.sports_market_type` doğrudan kontrol edilir (`_is_bimodal_market_type` helper). SPEC-W'nin sport-aware sizing classifier'ından kasıtlı olarak ayrı tutulmuştur: SPEC-W "bu market'te bimodal sizing $15 mı $50 mı" sorusunu cevaplar (SL yakalama hızı), SPEC-X ise "bu market type yapısal olarak bimodal mı" sorusunu cevaplar (entry kapı kuralı).
+
+1. **Min entry floor:** `effective_entry < 0.20` → reject (`bimodal_entry_below_floor`)
+   - Gerekçe: Ultra-low guard (§6.12) zaten `effective_entry < 0.09 AND elapsed ≥ 0.75 AND current < 0.05`'de anında çıkış yapıyor. 20¢ altı entry'de bu üç şart yüksek ihtimalle başlangıçta sağlanıyor → mikro-trade üretiyor. Floor entry'de keser, runtime'da hiç slot açılmaz.
+2. **LIVE yasağı:** `market.event_live == True` → reject (`bimodal_entry_live`)
+   - Gerekçe: Bimodal market'lerde model olasılığı pre-match (MLB için Marcel/TTO/bullpen; diğer sporlar için bookmaker). LIVE'da skor/kalan-süre değişmiş → tahmin bayatlamış → asimetrik risk (küçük yukarı, büyük aşağı). Konkre vaka: 2026-05-23 WSH-ATL spread (entry 4¢, 9s sonra ultra_low_guard exit) + LAD-MIL/STL-CIN spread (entry 40-42¢, LIVE, yüksek risk profili).
+
+**Config:** `risk.bimodal_min_entry_price: 0.20`. Mevcut MLB submarket engine içindeki `mlb_min_polymarket_price: 0.20` kuralı korunur (defense-in-depth).
+
+**Lokasyon:** `src/strategy/entry/gate.py::_evaluate_one` adım 6b + 6c. Helper `_is_bimodal_market_type(market)`.
+
 ---
 
 ## 7. Sport Rules (MVP için)
@@ -1017,6 +1030,28 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 - Commit'ler: `14cae46`, `cf5488b`, `f043102`, `76d4964`, `4b7098b`, `5432c94`
 
 **Sonuç:** MLB totals + run-line için model anchor artık doğru maç + doğru stadyum + DH-duyarlı edge üretir. Sonraki adımlar SPEC-S Faz C (moneyline pricer) ve Faz B (bullpen + Marcel + TTO doğruluk iyileştirmeleri) içinde.
+
+---
+
+### 2026-05-24 — SPEC-X: MLB Submarket Entry Yolu Sağlamlaştırması
+
+**Problem:** 2026-05-23 üretim verisinde 3 problemli MLB spread trade'i tespit edildi:
+- `mlb-wsh-atl-2026-05-23-spread-home-3pt5`: entry 4¢ → 9s sonra `ultra_low_guard` exit, $0 zarar (gereksiz mikro-trade)
+- `mlb-lad-mil-2026-05-23-spread-away-1pt5`: entry 42¢, LIVE, asimetrik risk
+- `mlb-stl-cin-2026-05-23-spread-away-1pt5`: entry 40¢, LIVE, benzer profil
+
+**Root cause:** `mlb_submarket_engine.py`'daki `_SLUG_RUN_LINE_RE` regex'i eski varsayım (`spread-(pos|neg)1pt5`) ile yazılmıştı; gerçek Polymarket slug formatı `spread-(home|away)-{N}pt5` (değişken N). Eşleşme olmadığı için MLB submarket engine `None` döndürdü → trade ana botun Normal entry'sine düştü → bookmaker pre-match prob ile market price farkı edge sanıldı.
+
+**Çözüm (3 faz, 11 commit):**
+1. **Faz 1 — Slug parser fix:** regex `spread-(home|away)-(\d+)pt5` formatına çekildi; line yorumu: home → -N.5, away → +N.5.
+2. **Faz 2A — Bimodal entry floor:** `effective_entry < 0.20` → reject (`bimodal_entry_below_floor`).
+3. **Faz 2B — Bimodal LIVE yasağı:** `market.event_live == True` → reject (`bimodal_entry_live`).
+
+**Spec-implementation revize:** Plan başlangıcında `_is_bimodal_market` (SPEC-W sport-aware sizing classifier) kullanılması düşünüldü; Task 4 testinde MLB için `bimodal_market_types=[]` olduğu için tetiklenmeyeceği fark edildi. Yeni helper `_is_bimodal_market_type(market)` eklendi: `sports_market_type in ("totals", "spreads", "spread")` doğrudan kontrol — sport bağımsız. Ayrıca `MarketData.event_live` (`match_live` değil) kullanıldı.
+
+**Etki:** MLB spread/total trade'leri artık MLB submarket engine'den geçer (Marcel + TTO + spread_pricer). Bimodal market'lere bayalı tahmin + asimetrik risk profili olan girişler kapıda kesilir.
+
+**Kapsam dışı:** Moneyline min/max price, diğer sporların submarket engine'leri (yok), bookmaker prob clamp.
 
 ---
 
