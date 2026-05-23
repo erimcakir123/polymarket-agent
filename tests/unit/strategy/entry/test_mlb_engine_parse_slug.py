@@ -29,3 +29,18 @@ def test_parse_run_line_pos_returns_teams():
 
 def test_parse_unknown_returns_none():
     assert MlbSubmarketEngine._parse_slug_static("nba-okc-sas-2026-05-22") is None
+
+
+def test_parse_moneyline_slug_returns_teams():
+    result = MlbSubmarketEngine._parse_slug_static(
+        "mlb-cle-phi-2026-05-22"
+    )
+    assert result == ("2026-05-22", "moneyline", 0.0, "cle", "phi")
+
+
+def test_parse_moneyline_with_unknown_suffix_rejected():
+    # Slug with unrecognized suffix (not -total-, -spread-, and not bare) → None
+    result = MlbSubmarketEngine._parse_slug_static(
+        "mlb-cle-phi-2026-05-22-foo"
+    )
+    assert result is None

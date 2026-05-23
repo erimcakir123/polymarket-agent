@@ -39,13 +39,17 @@ _TIER_A_EDGE_THRESHOLD = 0.07
 _DEFAULT_MC_ITERATIONS = 1_000  # Plan 4 — lower than Plan 2 default for speed
 
 # Slug patterns:
-#   totals:   mlb-{away}-{home}-{YYYY-MM-DD}-total-{N}pt5
-#   run_line: mlb-{away}-{home}-{YYYY-MM-DD}-spread-{pos|neg}1pt5
+#   totals:    mlb-{away}-{home}-{YYYY-MM-DD}-total-{N}pt5
+#   run_line:  mlb-{away}-{home}-{YYYY-MM-DD}-spread-{pos|neg}1pt5
+#   moneyline: mlb-{away}-{home}-{YYYY-MM-DD}
 _SLUG_TOTALS_RE = re.compile(
     r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-total-(\d+)pt5$"
 )
 _SLUG_RUN_LINE_RE = re.compile(
     r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-spread-(pos|neg)1pt5$"
+)
+_SLUG_MONEYLINE_RE = re.compile(
+    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})$"
 )
 
 
@@ -281,7 +285,8 @@ class MlbSubmarketEngine:
     def _parse_slug_static(slug: str) -> tuple[str, str, float, str, str] | None:
         """Parse slug → (date_str, market_type, line, away_abbr, home_abbr).
 
-        Returns None on mismatch.
+        Sıra önemli: totals/run_line önce eşleşir (spesifik pattern),
+        moneyline son fallback (gevşek pattern).
         """
         m_t = _SLUG_TOTALS_RE.match(slug)
         if m_t:
@@ -292,6 +297,10 @@ class MlbSubmarketEngine:
             away, home, date, sign = m_r.groups()
             line = -1.5 if sign == "neg" else 1.5
             return date, "run_line", line, away, home
+        m_m = _SLUG_MONEYLINE_RE.match(slug)
+        if m_m:
+            away, home, date = m_m.groups()
+            return date, "moneyline", 0.0, away, home
         return None
 
     def _parse_slug(self, slug: str) -> tuple[str, str, float, str, str] | None:
