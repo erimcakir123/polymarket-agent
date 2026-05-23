@@ -28,6 +28,10 @@ window.SKIP_REASON_HELP = (function () {
     "TOTAL_UNPARSEABLE":       "Toplam-skor bahsinin sayısını okuyamadık.",
     "EVENT_NO_MATCH":          "Bahis bürolarında bu maç bulunmadı — eşleştiremedik.",
     "HANDLER_REJECT":          "Bu spora özel kurallar engelledi.",
+    "event_already_held":      "Bu maçta zaten 3 pozisyon var (max=3).",
+    "EVENT_ALREADY_HELD":      "Bu maçta zaten 3 pozisyon var (max=3).",
+    "same_market_type_per_event": "Bu maçta aynı tür markette (ML/totals/spread) zaten açık pozisyon var.",
+    "SAME_MARKET_TYPE_PER_EVENT": "Bu maçta aynı tür markette (ML/totals/spread) zaten açık pozisyon var.",
   };
 
   // NHL — bookmaker_prob path + NHL-specific filters
