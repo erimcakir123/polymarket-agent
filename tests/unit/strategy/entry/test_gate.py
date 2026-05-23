@@ -438,3 +438,95 @@ def test_run_max_positions_sets_skip_detail_count_slash_limit() -> None:
     r = results[0]
     assert r.skipped_reason == "max_positions_reached"
     assert r.skip_detail == "count=5/5"
+
+
+# ============================================================================
+# SPEC-X (2026-05-24): Bimodal entry kapısı testleri — Faz 2A (min floor)
+# ============================================================================
+
+
+def _bimodal_market(
+    cid: str = "c_bimodal",
+    event: str = "e_bimodal",
+    yp: float = 0.04,
+    slug: str = "mlb-wsh-atl-2026-05-23-spread-home-3pt5",
+    sport_tag: str = "baseball",
+    sports_market_type: str = "spreads",
+) -> MarketData:
+    """Bimodal-aday market helper: SPEC-X test'leri için.
+
+    NOT: MarketData içinde 'match_live' alanı yok (extra="ignore" ile silently
+    dropped). Bimodal LIVE testleri (Task 6) ayrı bir mekanizma gerektirir —
+    Task 4 sadece floor testlerini kapsar.
+    """
+    return MarketData(
+        condition_id=cid,
+        question="Will home cover the spread?",
+        slug=slug,
+        yes_token_id="y", no_token_id="n",
+        yes_price=yp, no_price=1 - yp,
+        liquidity=50_000, volume_24h=10_000, tags=[],
+        end_date_iso="2026-05-24T00:00:00Z",
+        sport_tag=sport_tag,
+        sports_market_type=sports_market_type,
+        event_id=event,
+    )
+
+
+def test_gate_bimodal_market_entry_below_floor_skipped() -> None:
+    """Bimodal (totals/spreads) market'e 4¢'den entry → bimodal_entry_below_floor."""
+    market = _bimodal_market(
+        slug="mlb-wsh-atl-2026-05-23-spread-home-3pt5",
+        yp=0.04,
+        sport_tag="baseball",
+        sports_market_type="spreads",
+    )
+    bm = BookmakerProbability(
+        probability=0.59, confidence="A",
+        bookmaker_prob=0.59, num_bookmakers=29.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.signal is None
+    assert result.skipped_reason == "bimodal_entry_below_floor"
+
+
+def test_gate_bimodal_market_entry_at_floor_not_blocked_by_floor() -> None:
+    """Sınır: entry_price = 0.20 → floor blokuna takılmaz (strict less-than).
+
+    NOT: Bu test sadece floor kuralının çalışmadığını gösterir — başka kurallar
+    signal'i reddedebilir. Burada doğruladığımız tek şey: skipped_reason
+    'bimodal_entry_below_floor' DEĞİL.
+    """
+    market = _bimodal_market(
+        slug="mlb-cle-phi-2026-05-23-spread-home-1pt5",
+        yp=0.20,
+        sport_tag="baseball",
+        sports_market_type="spreads",
+    )
+    bm = BookmakerProbability(
+        probability=0.30, confidence="A",
+        bookmaker_prob=0.30, num_bookmakers=29.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_entry_below_floor"
+
+
+def test_gate_moneyline_market_low_entry_not_blocked_by_bimodal_floor() -> None:
+    """Moneyline 4¢ entry → bimodal floor TETİKLENMEZ (sadece bimodal market'ler için)."""
+    market = _bimodal_market(
+        cid="c_ml",
+        event="e_ml",
+        slug="mlb-cle-phi-2026-05-23",  # moneyline (suffix yok)
+        yp=0.04,
+        sport_tag="baseball",
+        sports_market_type="moneyline",
+    )
+    bm = BookmakerProbability(
+        probability=0.59, confidence="A",
+        bookmaker_prob=0.59, num_bookmakers=29.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_entry_below_floor"
