@@ -55,6 +55,22 @@ def _is_bimodal_market(market: MarketData) -> bool:
     return is_bimodal_market(market.sport_tag or "", str(t))
 
 
+def _is_bimodal_market_type(market: MarketData) -> bool:
+    """SPEC-X (2026-05-24): bimodal market type check — market_type only.
+
+    Independent of SPEC-W's sport-aware bimodal sizing classifier.
+    SPEC-X floor + LIVE rules apply to ALL totals/spread markets regardless of sport,
+    because the asymmetric-risk concern (in-game scoring collapse) is market-shape
+    driven, not sport-driven.
+    """
+    t = market.sports_market_type
+    if t is None:
+        return False
+    if hasattr(t, "value"):
+        t = t.value
+    return str(t) in ("totals", "spreads", "spread")
+
+
 @dataclass
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
@@ -183,6 +199,14 @@ class EntryGate:
         if entry_price >= self.config.max_entry_price:
             detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
+
+        # 6b. Bimodal entry floor (SPEC-X 2026-05-24) — totals/spread market'lerde
+        # 20¢ altı entry "piyasa kararını vermiş" sayılır; ultra-low guard zaten
+        # anında tetikleneceği için baştan reddet. _is_bimodal_market_type market_type'a
+        # bakar (sport bağımsız); SPEC-W'nin sport-aware sizing classifier'ından farklı.
+        if _is_bimodal_market_type(market) and entry_price < self.config.bimodal_min_entry_price:
+            detail = f"price={entry_price:.3f}, min={self.config.bimodal_min_entry_price}"
+            return GateResult(cid, None, "bimodal_entry_below_floor", skip_detail=detail, manipulation=manip)
 
         # 7. Position sizing (SPEC-P sabit-tier + SPEC-U bimodal-aware).
         # Bimodal = totals + spreads (SL muaf, anlık çakılma riski) → küçük cap.
