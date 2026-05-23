@@ -1,15 +1,7 @@
-"""MLB Submarket Engine — real implementation of Plan 1 Protocol.
+"""MLB Submarket Engine — SPEC-R Plan 4 T2.
 
-SPEC-R Plan 4 T2. Orchestrates Plan 2 (domain math) + Plan 3 (data clients).
-Implements MlbSubmarketEngineProtocol: process(market) -> Signal | None.
-
-Plan 4 simplifications (v2 TODO items):
-- Marcel multi-season weighting deferred (raw Statcast current season only).
-- Bullpen segmentation deferred (starter pitches all 9 innings).
-- TTO simplified: rough ((inning-1)//3 + 1) instead of full PA tracking.
-- Handedness lookup deferred: default R/R matchup for all batters/pitchers.
-- DH detection: implemented (A6) — gameType "D" + scheduledInnings < 9 → dh_game=True.
-- Team matching: implemented (A4) — picks game matched by home/away team_id.
+Orchestrates Plan 2 domain math + Plan 3 data clients.
+Opt-in bullpen interface: pass team_bullpen_rates to enable per-inning pitcher selection.
 """
 from __future__ import annotations
 
@@ -18,6 +10,7 @@ import re
 from typing import Any
 
 from src.config.settings import MlbSubmarketConfig
+from src.domain.mlb_submarket.bullpen_segmenter import select_pitcher
 from src.domain.mlb_submarket.rate_shrinker import marcel_weighted_rates
 from src.domain.mlb_submarket.edge_candidate import EdgeCandidate
 from src.domain.mlb_submarket.game_simulator import simulate_game
@@ -78,6 +71,7 @@ class MlbSubmarketEngine:
         team_id_to_park_id: dict[int, str],
         league_rates: dict[str, float] | None = None,
         fixed_bet_usdc: dict[str, float] | None = None,
+        team_bullpen_rates: dict[int, dict[str, dict[str, float]]] | None = None,
     ) -> None:
         self.statsapi = statsapi
         self.statcast = statcast
@@ -88,6 +82,7 @@ class MlbSubmarketEngine:
         self.team_id_to_park_id = team_id_to_park_id
         self.league_rates = league_rates or LEAGUE_PA_RATES
         self.fixed_bet_usdc = fixed_bet_usdc or {"A": 50.0, "B": 30.0}
+        self.team_bullpen_rates = team_bullpen_rates  # None = bullpen disabled
 
     # ------------------------------------------------------------------
     # Public API (Protocol implementation)
@@ -98,7 +93,7 @@ class MlbSubmarketEngine:
 
         Returns None on: parse failure, data unavailability, or sub-threshold edge.
         """
-        parsed = self._parse_slug(getattr(market, "slug", "") or "")
+        parsed = self._parse_slug_static(getattr(market, "slug", "") or "")
         if parsed is None:
             return None
         date_str, market_type, line, away_abbr, home_abbr = parsed
@@ -112,7 +107,6 @@ class MlbSubmarketEngine:
         if not schedule:
             return None
 
-        # Team matching: schedule içinde slug'ın home/away'i ile eşleşen game
         home_team_id = abbreviation_to_team_id(home_abbr)
         away_team_id = abbreviation_to_team_id(away_abbr)
         if home_team_id is None or away_team_id is None:
@@ -140,7 +134,6 @@ class MlbSubmarketEngine:
         if game_pk is None:
             return None
 
-        # Lineup
         try:
             lineup = self.statsapi.get_lineup(game_pk)
         except StatsApiError as e:
@@ -153,7 +146,6 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: lineup incomplete for game %s", game_pk)
             return None
 
-        # Probable pitchers
         try:
             pitchers = self.statsapi.get_probable_pitchers(date_str).get(game_pk, {})
         except StatsApiError as e:
@@ -164,7 +156,6 @@ class MlbSubmarketEngine:
         if home_pitcher_id is None or away_pitcher_id is None:
             return None
 
-        # Rates (cache → Statcast fallback)
         season = int(date_str[:4])
         try:
             home_pitcher_rates = self._get_pitcher_rates(home_pitcher_id, season)
@@ -188,7 +179,6 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: rates missing for some players, skipping")
             return None
 
-        # Fetch handedness for pitchers + all batters
         try:
             home_pitcher_hand = self.statsapi.get_player_handedness(
                 home_pitcher_id
@@ -208,7 +198,6 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: handedness fetch failed: %s", e)
             return None
 
-        # Park selection: home_team_id → park_id → ballpark_metadata
         park_id = self.team_id_to_park_id.get(home_team_id)
         park_meta = self.ballpark_metadata.get(park_id) if park_id else None
         if park_meta is None:
@@ -225,20 +214,20 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: weather fetch failed: %s", e)
             return None
 
-        # Build per-inning lineup rate lists with real handedness
         home_per_inning = self._build_inning_lineups(
             home_batter_rates, home_batter_hands,
             away_pitcher_rates, away_pitcher_hand,
             park_meta, weather_cond,
+            pitching_team_id=away_team_id,
         )
         away_per_inning = self._build_inning_lineups(
             away_batter_rates, away_batter_hands,
             home_pitcher_rates, home_pitcher_hand,
             park_meta, weather_cond,
+            pitching_team_id=home_team_id,
         )
 
-        # DH detection: gameType "D" + scheduled_innings < 9 → 7-inning DH game.
-        # Diğer her durum (regular, makeup, traditional DH game 1, vs.) 9-inning.
+        # DH detection: gameType "D" + scheduled_innings < 9 → 7-inning game.
         is_dh_7inning = (
             game.get("game_type") == "D"
             and game.get("scheduled_innings", 9) < 9
@@ -287,25 +276,14 @@ class MlbSubmarketEngine:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
-
     @staticmethod
     def _tto_for_pa(cumulative_pa: int) -> int:
-        """Cumulative PA → TTO tier (1, 2, 3, 4). 9 PA = 1 tur lineup.
-
-        TTO 1: PA 0-8 (lineup ilk turu)
-        TTO 2: PA 9-17 (ikinci tur)
-        TTO 3: PA 18-26 (üçüncü tur)
-        TTO 4: PA 27+ (cap)
-        """
+        """Cumulative PA → TTO tier 1-4 (9 PA per lineup turn, cap=4)."""
         return min(cumulative_pa // 9 + 1, 4)
 
     @staticmethod
     def _parse_slug_static(slug: str) -> tuple[str, str, float, str, str] | None:
-        """Parse slug → (date_str, market_type, line, away_abbr, home_abbr).
-
-        Sıra önemli: totals/run_line önce eşleşir (spesifik pattern),
-        moneyline son fallback (gevşek pattern).
-        """
+        """Parse slug → (date_str, market_type, line, away_abbr, home_abbr)."""
         m_t = _SLUG_TOTALS_RE.match(slug)
         if m_t:
             away, home, date, n = m_t.groups()
@@ -320,10 +298,6 @@ class MlbSubmarketEngine:
             away, home, date = m_m.groups()
             return date, "moneyline", 0.0, away, home
         return None
-
-    def _parse_slug(self, slug: str) -> tuple[str, str, float, str, str] | None:
-        """Instance method wrapper for backward-compat callers."""
-        return self._parse_slug_static(slug)
 
     def _get_batter_rates(self, mlbam_id: int, season: int) -> dict[str, float]:
         current = self._rates_for_season(mlbam_id, season, "batter")
@@ -349,6 +323,26 @@ class MlbSubmarketEngine:
             self.rate_cache.put(mlbam_id, season, kind, rates)
         return rates or {}
 
+    def _select_pitcher_for_inning(
+        self,
+        inning: int,
+        opposing_team_id: int,
+        starter_rates: dict[str, float],
+    ) -> dict[str, float]:
+        """Inning-bazlı pitcher seçimi. Bullpen rates yoksa starter tüm inning'lerde.
+
+        score_diff=0 (close-game) varsayımı — pre-game deterministik. V3'te Monte Carlo ile genişler.
+        """
+        if self.team_bullpen_rates is None:
+            return starter_rates
+        team_pen = self.team_bullpen_rates.get(opposing_team_id)
+        if team_pen is None:
+            return starter_rates
+        return select_pitcher(
+            inning=inning, score_diff=0,
+            starter_rates=starter_rates, bullpen=team_pen,
+        )
+
     def _build_inning_lineups(
         self,
         batter_rates: list[dict[str, float]],
@@ -357,26 +351,25 @@ class MlbSubmarketEngine:
         pitcher_hand: str,
         park_meta: dict[str, Any],
         weather: dict[str, float],
+        pitching_team_id: int,
     ) -> list[list[dict[str, float]]]:
-        """Build per-inning 9-batter PA outcome lists using real handedness.
-
-        Plan 4 simplification: same lineup each inning; CF wind computed once
-        from ballpark orientation.
-        """
         cf_deg = park_meta.get("cf_orientation_deg", 0.0)
         wind_dir = weather["wind_dir_deg"]
         dir_diff = (wind_dir - cf_deg + 360) % 360
         if dir_diff <= 45 or dir_diff >= 315:
-            wind_to_cf = weather["wind_mph"]    # blowing OUT to CF (positive)
+            wind_to_cf = weather["wind_mph"]
         elif 135 <= dir_diff <= 225:
-            wind_to_cf = -weather["wind_mph"]   # blowing IN from CF
+            wind_to_cf = -weather["wind_mph"]
         else:
-            wind_to_cf = 0.0                    # crosswind
+            wind_to_cf = 0.0
 
         innings = []
         cumulative_pa = 0
         for inning in range(1, 10):
             inning_lineup = []
+            current_pitcher = self._select_pitcher_for_inning(
+                inning, pitching_team_id, pitcher_rates,
+            )
             for b_rates, b_hand in zip(batter_rates, batter_hands):
                 ctx: PAContext = {
                     "park_id": park_meta.get("park_id", ""),
@@ -389,7 +382,7 @@ class MlbSubmarketEngine:
                 }
                 inning_lineup.append(compute_pa_outcome(
                     batter_rates=b_rates,
-                    pitcher_rates=pitcher_rates,
+                    pitcher_rates=current_pitcher,
                     league_rates=self.league_rates,
                     context=ctx,
                 ))
