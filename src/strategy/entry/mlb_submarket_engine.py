@@ -289,6 +289,17 @@ class MlbSubmarketEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _tto_for_pa(cumulative_pa: int) -> int:
+        """Cumulative PA → TTO tier (1, 2, 3, 4). 9 PA = 1 tur lineup.
+
+        TTO 1: PA 0-8 (lineup ilk turu)
+        TTO 2: PA 9-17 (ikinci tur)
+        TTO 3: PA 18-26 (üçüncü tur)
+        TTO 4: PA 27+ (cap)
+        """
+        return min(cumulative_pa // 9 + 1, 4)
+
+    @staticmethod
     def _parse_slug_static(slug: str) -> tuple[str, str, float, str, str] | None:
         """Parse slug → (date_str, market_type, line, away_abbr, home_abbr).
 
@@ -363,6 +374,7 @@ class MlbSubmarketEngine:
             wind_to_cf = 0.0                    # crosswind
 
         innings = []
+        cumulative_pa = 0
         for inning in range(1, 10):
             inning_lineup = []
             for b_rates, b_hand in zip(batter_rates, batter_hands):
@@ -370,7 +382,7 @@ class MlbSubmarketEngine:
                     "park_id": park_meta.get("park_id", ""),
                     "batter_hand": b_hand,
                     "pitcher_hand": pitcher_hand,
-                    "times_through": min(((inning - 1) // 3) + 1, 4),  # rough TTO
+                    "times_through": self._tto_for_pa(cumulative_pa),
                     "wind_mph_to_cf": wind_to_cf,
                     "temp_f": weather["temp_f"],
                     "humidity_pct": weather["humidity_pct"],
@@ -381,6 +393,7 @@ class MlbSubmarketEngine:
                     league_rates=self.league_rates,
                     context=ctx,
                 ))
+                cumulative_pa += 1
             innings.append(inning_lineup)
         return innings
 
