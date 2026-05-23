@@ -863,6 +863,26 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-T — Circuit Breaker Tamamen Kaldırıldı (2026-05-23)
+
+**Karar:** `CircuitBreaker.should_halt_entries` her zaman `(False, "")` döndürür. CB state dosyası (`data/circuit_breaker_state.json`) silindi. Kod yapısı korundu (state, `record_exit`, `reset_if_needed`) ama entry kararını ETKİLEMEZ — ileride gerekirse açmak için tek satır revert yeterli.
+
+**Neden:** 22-23 May UTC+3 gecesi 5 ardışık kayıp sonrası CB state'i 60-90 dakikalık cooldown tetikledi. `config.yaml`'da `circuit_breaker.enabled: false` olmasına rağmen state dosyası respect ediliyordu — bug niteliğinde. Bot reload sonrası bile state'i okuyup cooldown uyguluyordu, audit'i ilerletemedik. Kullanıcı kararı: CB'yi tamamen kaldır.
+
+CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağımsız maçlar arası gereksiz bloklama yapıyordu. Multi-SL (graduated_sl + flat stop_loss + market_flip) zaten maç-içi koruma sağlıyor — CB üst-seviye stop unnecessary.
+
+**Etki:**
+- `src/domain/risk/circuit_breaker.py` — `should_halt_entries` her zaman False döner; `timedelta` import kaldırıldı
+- `tests/unit/domain/risk/test_circuit_breaker.py` — modül-level `pytestmark = pytest.mark.skip(reason="CB removed 2026-05-23 SPEC-T")`
+- `tests/unit/strategy/entry/test_gate.py::test_circuit_breaker_halts_all` — `@pytest.mark.skip` ile devre dışı
+- `data/circuit_breaker_state.json` silindi
+- 16 CB tetikleyici test skip; 1444 diğer test yeşil
+- Commit: `792378d`
+
+**Sonuç:** Bot artık ardışık kayıplarda durmaz. Çok büyük drawdown riski varsa kullanıcı bot'u manuel durdurur. Multi-SL ve same-type-per-event guard (SPEC-S Faz D) maç-içi/portföy seviyesinde yeterli koruma sağlar.
+
+---
+
 ### SPEC-S Faz D — Bimodal Sizing + Same-Type-Per-Event Guard (2026-05-23)
 
 **Karar:** İki bağımsız risk yönetimi kuralı eklendi:
