@@ -108,7 +108,7 @@ def _engine(
         config=config or _make_config(),
         ballpark_metadata=_BALLPARK_META,
         team_id_to_park_id={112: "pnc"},
-        fixed_bet_usdc=fixed_bet or {"A": 50.0, "B": 30.0},
+        fixed_bet_usdc=fixed_bet or {"A": 15.0, "B": 10.0},  # 2026-05-23 bimodal (SPEC-S Faz D)
     )
 
 
@@ -237,8 +237,8 @@ def test_process_invalid_slug_returns_none() -> None:
 # ---------------------------------------------------------------------------
 
 def test_process_large_edge_returns_tier_a() -> None:
-    """Edge >= 0.07 → confidence tier A, size = 50.0."""
-    eng = _engine(fixed_bet={"A": 50.0, "B": 30.0})
+    """Edge >= 0.07 → confidence tier A, size = 15.0."""
+    eng = _engine(fixed_bet={"A": 15.0, "B": 10.0})
     # edge = 0.58 - 0.50 = 0.08 >= 0.07 → A
     with patch(
         "src.strategy.entry.mlb_submarket_engine.totals_probability",
@@ -247,7 +247,7 @@ def test_process_large_edge_returns_tier_a() -> None:
         sig = eng.process(_market(yes_price=0.50))
     assert sig is not None
     assert sig.confidence == "A"
-    assert sig.size_usdc == 50.0
+    assert sig.size_usdc == 15.0
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +255,8 @@ def test_process_large_edge_returns_tier_a() -> None:
 # ---------------------------------------------------------------------------
 
 def test_process_medium_edge_returns_tier_b() -> None:
-    """Edge in [min_edge, 0.07) → confidence tier B, size = 30.0."""
-    eng = _engine(config=_make_config(min_edge=0.05), fixed_bet={"A": 50.0, "B": 30.0})
+    """Edge in [min_edge, 0.07) → confidence tier B, size = 10.0."""
+    eng = _engine(config=_make_config(min_edge=0.05), fixed_bet={"A": 15.0, "B": 10.0})
     # edge = 0.56 - 0.50 = 0.06 → [0.05, 0.07) → B
     with patch(
         "src.strategy.entry.mlb_submarket_engine.totals_probability",
@@ -265,7 +265,7 @@ def test_process_medium_edge_returns_tier_b() -> None:
         sig = eng.process(_market(yes_price=0.50))
     assert sig is not None
     assert sig.confidence == "B"
-    assert sig.size_usdc == 30.0
+    assert sig.size_usdc == 10.0
 
 
 # ---------------------------------------------------------------------------

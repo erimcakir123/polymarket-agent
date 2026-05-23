@@ -47,7 +47,7 @@ class GateConfig:
     max_positions: int = 50
     max_positions_per_event: int = 3  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
     max_exposure_pct: float = 0.50  # SPEC-P: yumuşak cap, clipping yok
-    fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
+    fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
     max_entry_price: float = 0.88
     # Consensus
     consensus_enabled: bool = True

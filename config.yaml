@@ -68,9 +68,10 @@ edge:
 
 risk:
   # SPEC-P (2026-05-21): sabit-tier sizing. Bankroll dalgalanmasından bağımsız.
+  # SPEC-S Faz D (2026-05-23): bimodal cap — tüm spor marketleri binary, $15/$10 cap (tenis paritesi).
   fixed_bet_usdc:
-    A: 50
-    B: 30
+    A: 15
+    B: 10
   max_positions: 50        # Kozmetik cap — pratikte exposure cap dominant
   max_positions_per_event: 3  # ARCH Kural 8 (gevşedi): aynı event'te max 3 bağımsız market (moneyline + spread + totals)
   # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).

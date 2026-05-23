@@ -119,8 +119,8 @@ def test_manipulation_medium_halves_size() -> None:
     gate = _make_gate(portfolio=p, manip=lambda question, liquidity: _medium_manip())
     results = gate.run([_market()])
     assert results[0].signal is not None
-    # SPEC-P: B sabit $30; medium × 0.5 = $15
-    assert results[0].signal.size_usdc == 15.0
+    # SPEC-S Faz D: B sabit $10; medium × 0.5 = $5 (was B=$30 → $15 before bimodal)
+    assert results[0].signal.size_usdc == 5.0
 
 
 def test_no_bookmaker_data_skips() -> None:
@@ -187,7 +187,7 @@ def test_size_below_min_skips_when_manipulation_halves_C_tier_floor() -> None:
     # Override: B tier $4 → < $5 polymarket min → skip
     gate.config = GateConfig(
         max_exposure_pct=0.50,
-        fixed_bet_usdc={"A": 50.0, "B": 4.0},
+        fixed_bet_usdc={"A": 15.0, "B": 4.0},
     )
     results = gate.run([_market()])
     assert results[0].signal is None
@@ -214,7 +214,7 @@ def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
     """SPEC-P: yumuşak cap — exposure < cap iken tam sabit-tier trade alınır.
 
     initial=$2000, invested=$990 → exposure 49.5% < 50% cap.
-    A trade tam $50 girer (sonuç 52% > %50, ama yumuşak cap).
+    A trade tam $15 girer (sonuç cap'i geçse de, yumuşak cap — SPEC-S Faz D bimodal).
     """
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
@@ -225,7 +225,7 @@ def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
     gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.60, conf="A")))
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is not None
-    assert results[0].signal.size_usdc == 50.0
+    assert results[0].signal.size_usdc == 15.0
 
 
 def test_gate_skips_when_exposure_at_cap() -> None:
@@ -368,7 +368,7 @@ def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
     gate = _make_gate(portfolio=p)
     gate.config = GateConfig(
         max_exposure_pct=0.50,
-        fixed_bet_usdc={"A": 50.0, "B": 4.0},  # B < $5
+        fixed_bet_usdc={"A": 15.0, "B": 4.0},  # B < $5
     )
     result = gate._evaluate_one(_market())
     assert result.skipped_reason == "size_below_min"

@@ -7,15 +7,15 @@ from src.domain.risk.position_sizer import (
 )
 
 # Test fixture — production config.yaml > risk.fixed_bet_usdc mirror.
-FIXED_BET_USDC: dict[str, float] = {"A": 50.0, "B": 30.0}
+FIXED_BET_USDC: dict[str, float] = {"A": 15.0, "B": 10.0}  # 2026-05-23 bimodal (SPEC-S Faz D, was A=50 B=30)
 
 
-def test_A_confidence_returns_fixed_50() -> None:
-    assert confidence_position_size("A", fixed_bet_usdc=FIXED_BET_USDC) == 50.0
+def test_A_confidence_returns_fixed_15() -> None:
+    assert confidence_position_size("A", fixed_bet_usdc=FIXED_BET_USDC) == 15.0
 
 
-def test_B_confidence_returns_fixed_30() -> None:
-    assert confidence_position_size("B", fixed_bet_usdc=FIXED_BET_USDC) == 30.0
+def test_B_confidence_returns_fixed_10() -> None:
+    assert confidence_position_size("B", fixed_bet_usdc=FIXED_BET_USDC) == 10.0
 
 
 def test_C_confidence_returns_zero() -> None:

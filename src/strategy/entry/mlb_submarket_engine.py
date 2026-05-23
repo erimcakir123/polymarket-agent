@@ -81,7 +81,7 @@ class MlbSubmarketEngine:
         self.ballpark_metadata = ballpark_metadata
         self.team_id_to_park_id = team_id_to_park_id
         self.league_rates = league_rates or LEAGUE_PA_RATES
-        self.fixed_bet_usdc = fixed_bet_usdc or {"A": 50.0, "B": 30.0}
+        self.fixed_bet_usdc = fixed_bet_usdc or {"A": 15.0, "B": 10.0}
         self.team_bullpen_rates = team_bullpen_rates  # None = bullpen disabled
 
     # ------------------------------------------------------------------

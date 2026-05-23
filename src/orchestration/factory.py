@@ -238,7 +238,7 @@ def build_agent(state: RuntimeState) -> Agent:
         weather = WeatherClient()
         rate_cache = RateCache(Path(cfg.mlb_submarket.rate_cache_path))
 
-        fixed_bet = getattr(cfg.risk, "fixed_bet_usdc", {"A": 50.0, "B": 30.0})
+        fixed_bet = getattr(cfg.risk, "fixed_bet_usdc", {"A": 15.0, "B": 10.0})
 
         mlb_engine = MlbSubmarketEngine(
             statsapi=statsapi,

@@ -15,7 +15,7 @@ def _market(cid: str = "cid-mlb", event_id: str = "evt-mlb"):
 
 
 def _fixed_bet() -> dict[str, float]:
-    return {"A": 50.0, "B": 30.0}
+    return {"A": 15.0, "B": 10.0}  # 2026-05-23 bimodal (SPEC-S Faz D)
 
 
 def test_positive_edge_buy_yes() -> None:
@@ -62,15 +62,15 @@ def test_sport_tag_baseball_mlb() -> None:
     assert sig.sport_tag == "baseball_mlb"
 
 
-def test_size_a_tier_50() -> None:
+def test_size_a_tier_15() -> None:
     ec = EdgeCandidate(model_p=0.55, market_p=0.50, edge=0.05,
                        market_type="totals", line=8.5)
     sig = mlb_candidate_to_signal(ec, _market(), tier="A", fixed_bet_usdc=_fixed_bet())
-    assert sig.size_usdc == 50.0
+    assert sig.size_usdc == 15.0
 
 
-def test_size_b_tier_30() -> None:
+def test_size_b_tier_10() -> None:
     ec = EdgeCandidate(model_p=0.55, market_p=0.50, edge=0.05,
                        market_type="totals", line=8.5)
     sig = mlb_candidate_to_signal(ec, _market(), tier="B", fixed_bet_usdc=_fixed_bet())
-    assert sig.size_usdc == 30.0
+    assert sig.size_usdc == 10.0
