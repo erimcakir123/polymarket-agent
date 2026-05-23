@@ -51,6 +51,15 @@ class PortfolioManager:
             return 0
         return sum(1 for p in self.positions.values() if p.event_id == event_id)
 
+    def positions_for_event(self, event_id: str) -> list[Position]:
+        """Bu event_id'ye ait tüm açık pozisyonların listesi.
+
+        Boş event_id → [] (uniform with count_event behavior).
+        """
+        if not event_id:
+            return []
+        return [p for p in self.positions.values() if p.event_id == event_id]
+
     # ── Mutations ──
 
     def add_position(self, pos: Position) -> bool:

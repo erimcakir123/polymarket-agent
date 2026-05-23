@@ -13,6 +13,7 @@ from src.orchestration.portfolio_guards import (
 class _MockMarket:
     condition_id: str = "cid-1"
     event_id: str = "evt-1"
+    sports_market_type: str = ""  # boş → same-type guard atlanır (eski testler etkilenmez)
 
 
 def _mk_breaker(halt: bool = False, reason: str = "") -> MagicMock:
@@ -32,6 +33,7 @@ def _mk_portfolio(count: int = 0, event_counts: dict | None = None) -> MagicMock
     p = MagicMock()
     p.count.return_value = count
     p.count_event.side_effect = lambda eid: (event_counts or {}).get(eid, 0)
+    p.positions_for_event.return_value = []  # SPEC-S Faz D: default no existing positions
     return p
 
 

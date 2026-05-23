@@ -36,6 +36,7 @@ class _CooldownLike(Protocol):
 class _PortfolioLike(Protocol):
     def count(self) -> int: ...
     def count_event(self, event_id: str) -> int: ...
+    def positions_for_event(self, event_id: str) -> list: ...
 
 
 class _BlacklistLike(Protocol):
@@ -46,6 +47,7 @@ class _BlacklistLike(Protocol):
 class _MarketLike(Protocol):
     condition_id: str
     event_id: str | None
+    sports_market_type: object  # str veya SportsMarketType enum
 
 
 def check_global_halts(
@@ -85,7 +87,7 @@ def check_per_market_guards(
     blacklist: _BlacklistLike,
     max_positions_per_event: int,
 ) -> GuardSkip | None:
-    """Tek market için per-market guard kontrolleri (event_cap + blacklist)."""
+    """Tek market için per-market guard kontrolleri (event_cap + same_type + blacklist)."""
     if market.event_id:
         event_count = portfolio.count_event(market.event_id)
         if event_count >= max_positions_per_event:
@@ -97,9 +99,30 @@ def check_per_market_guards(
                 ),
             )
 
+        # SPEC-S Faz D: aynı event'te aynı market_type yasak
+        market_type = _normalize_market_type(market.sports_market_type)
+        if market_type:
+            existing = portfolio.positions_for_event(market.event_id)
+            same = [p for p in existing
+                    if _normalize_market_type(p.sports_market_type) == market_type]
+            if same:
+                return GuardSkip(
+                    reason="same_market_type_per_event",
+                    detail=f"event_id={market.event_id} type={market_type}",
+                )
+
     if blacklist.is_blacklisted(condition_id=market.condition_id):
         return GuardSkip(reason="blacklisted", detail="match=condition_id")
     if market.event_id and blacklist.is_blacklisted(event_id=market.event_id):
         return GuardSkip(reason="blacklisted", detail="match=event_id")
 
     return None
+
+
+def _normalize_market_type(t: object) -> str:
+    """SportsMarketType enum or str → lowercase str. Boş → ''."""
+    if t is None:
+        return ""
+    if hasattr(t, "value"):
+        return str(t.value).lower()  # type: ignore[union-attr]
+    return str(t).lower()
