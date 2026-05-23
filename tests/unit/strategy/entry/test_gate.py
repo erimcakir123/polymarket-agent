@@ -452,12 +452,12 @@ def _bimodal_market(
     slug: str = "mlb-wsh-atl-2026-05-23-spread-home-3pt5",
     sport_tag: str = "baseball",
     sports_market_type: str = "spreads",
+    event_live: bool = False,
 ) -> MarketData:
     """Bimodal-aday market helper: SPEC-X test'leri için.
 
-    NOT: MarketData içinde 'match_live' alanı yok (extra="ignore" ile silently
-    dropped). Bimodal LIVE testleri (Task 6) ayrı bir mekanizma gerektirir —
-    Task 4 sadece floor testlerini kapsar.
+    Task 6 (2026-05-24): event_live parametresi LIVE entry yasağı testleri için
+    eklendi. Default False — pre-match davranışını korur.
     """
     return MarketData(
         condition_id=cid,
@@ -470,6 +470,7 @@ def _bimodal_market(
         sport_tag=sport_tag,
         sports_market_type=sports_market_type,
         event_id=event,
+        event_live=event_live,
     )
 
 
@@ -530,3 +531,81 @@ def test_gate_moneyline_market_low_entry_not_blocked_by_bimodal_floor() -> None:
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(market)
     assert result.skipped_reason != "bimodal_entry_below_floor"
+
+
+# ============================================================================
+# SPEC-X (2026-05-24): Bimodal LIVE entry yasağı testleri — Faz 2B
+# ============================================================================
+
+
+def test_gate_bimodal_market_live_entry_blocked() -> None:
+    """Bimodal market LIVE (event_live=True) → bimodal_entry_live."""
+    market = _bimodal_market(
+        slug="mlb-lad-mil-2026-05-23-spread-away-1pt5",
+        yp=0.42,
+        sport_tag="baseball",
+        sports_market_type="spreads",
+        event_live=True,
+    )
+    bm = BookmakerProbability(
+        probability=0.52, confidence="A",
+        bookmaker_prob=0.52, num_bookmakers=54.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.signal is None
+    assert result.skipped_reason == "bimodal_entry_live"
+
+
+def test_gate_bimodal_market_not_live_entry_allowed_by_live_rule() -> None:
+    """Bimodal market pre-match (event_live=False) → bimodal_entry_live TETİKLENMEZ."""
+    market = _bimodal_market(
+        slug="mlb-cle-phi-2026-05-23-spread-home-1pt5",
+        yp=0.42,
+        sport_tag="baseball",
+        sports_market_type="spreads",
+        event_live=False,
+    )
+    bm = BookmakerProbability(
+        probability=0.52, confidence="A",
+        bookmaker_prob=0.52, num_bookmakers=54.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_entry_live"
+
+
+def test_gate_moneyline_market_live_entry_not_blocked_by_bimodal_live_rule() -> None:
+    """Moneyline LIVE → bimodal_entry_live TETİKLENMEZ (sadece bimodal market'ler için)."""
+    market = _bimodal_market(
+        slug="wnba-por-tor-2026-05-23",
+        yp=0.65,
+        sport_tag="wnba",
+        sports_market_type="moneyline",
+        event_live=True,
+    )
+    bm = BookmakerProbability(
+        probability=0.75, confidence="A",
+        bookmaker_prob=0.75, num_bookmakers=10.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_entry_live"
+
+
+def test_gate_bimodal_market_event_live_default_treated_as_not_live() -> None:
+    """Sınır: event_live default/None → 'canlı değil' kabul, blok yok."""
+    market = _bimodal_market(
+        slug="mlb-cle-phi-2026-05-23-spread-home-1pt5",
+        yp=0.42,
+        sport_tag="baseball",
+        sports_market_type="spreads",
+        # event_live omitted → default False
+    )
+    bm = BookmakerProbability(
+        probability=0.52, confidence="A",
+        bookmaker_prob=0.52, num_bookmakers=54.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_entry_live"
