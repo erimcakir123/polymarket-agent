@@ -121,3 +121,56 @@ def test_load_challenger_years_combines_years(chall_csv_dir):
     # 1 challenger match per file × 2 = 2
     assert len(matches) == 2
     assert all(m.tourney_level == "C" for m in matches)
+
+
+# ── WTA loading tests ──────────────────────────────────────────────────────
+
+
+def test_load_wta_year_reads_csv(tmp_path: Path) -> None:
+    csv_content = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner_id,winner_name,winner_hand,loser_id,loser_name,loser_hand,"
+        "score,best_of,round,minutes,"
+        "w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,"
+        "l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced,"
+        "winner_rank,winner_rank_points,loser_rank,loser_rank_points\n"
+        "2024-W-1,US Open,Hard,128,G,20240826,1,12345,Iga Swiatek,R,67890,Coco Gauff,R,"
+        "6-3 6-4,3,F,90,5,2,60,40,30,15,10,2,3,4,3,55,35,28,12,9,3,4,1,1500,3,1200\n"
+    )
+    csv_path = tmp_path / "wta_matches_2024.csv"
+    csv_path.write_text(csv_content, encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_wta_year(2024)
+    assert len(matches) == 1
+    assert matches[0].winner_name == "Iga Swiatek"
+    assert matches[0].loser_name == "Coco Gauff"
+    assert matches[0].surface == "Hard"
+
+
+def test_load_wta_year_missing_file_returns_empty(tmp_path: Path) -> None:
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_wta_year(1999)
+    assert matches == []
+
+
+def test_load_wta_years_sorted_chronologically(tmp_path: Path) -> None:
+    def _row(date: str, winner: str, loser: str) -> str:
+        return (
+            f"id,T,Hard,32,A,{date},1,1,{winner},R,2,{loser},R,"
+            "6-3,3,F,,,,,,,,,,,,,,,,,,,,,,,,\n"
+        )
+    header = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner_id,winner_name,winner_hand,loser_id,loser_name,loser_hand,"
+        "score,best_of,round,minutes,"
+        "w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,"
+        "l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced,"
+        "winner_rank,winner_rank_points,loser_rank,loser_rank_points\n"
+    )
+    (tmp_path / "wta_matches_2023.csv").write_text(header + _row("20230615", "Sabalenka", "Rybakina"), encoding="utf-8")
+    (tmp_path / "wta_matches_2024.csv").write_text(header + _row("20240115", "Swiatek", "Pegula"), encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_wta_years([2024, 2023])
+    assert len(matches) == 2
+    assert matches[0].match_date.year == 2023
+    assert matches[1].match_date.year == 2024

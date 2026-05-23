@@ -90,6 +90,33 @@ class SackmannCsvClient:
         logger.info("Loaded %d matches from %s", len(matches), path.name)
         return matches
 
+    def load_wta_year(self, year: int) -> list[SackmannMatch]:
+        """Tek yılın WTA main-draw CSV'sini oku. Dosya yoksa boş döner.
+
+        WTA CSV formatı ATP ile aynı 49-kolon — sadece dosya adı 'wta_matches_'.
+        """
+        path = self._cache_dir / f"wta_matches_{year}.csv"
+        if not path.exists():
+            logger.warning("Sackmann WTA CSV missing: %s", path)
+            return []
+        matches: list[SackmannMatch] = []
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                m = self._parse_row(row)
+                if m is not None:
+                    matches.append(m)
+        logger.info("Loaded %d WTA matches from %s", len(matches), path.name)
+        return matches
+
+    def load_wta_years(self, years: list[int]) -> list[SackmannMatch]:
+        """Birden fazla yıl WTA main-draw yükle, birleştir, kronolojik sırala."""
+        all_matches: list[SackmannMatch] = []
+        for y in years:
+            all_matches.extend(self.load_wta_year(y))
+        all_matches.sort(key=lambda m: m.match_date)
+        return all_matches
+
     def load_challenger_year(self, year: int) -> list[SackmannMatch]:
         """Tek yılın Challenger CSV'sini oku (sadece tourney_level='C' satırları).
 
