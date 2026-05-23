@@ -69,6 +69,7 @@ class MlbSubmarketEngine:
         rate_cache: RateCache,
         config: MlbSubmarketConfig,
         ballpark_metadata: dict[str, dict[str, Any]],
+        team_id_to_park_id: dict[int, str],
         league_rates: dict[str, float] | None = None,
         fixed_bet_usdc: dict[str, float] | None = None,
     ) -> None:
@@ -78,6 +79,7 @@ class MlbSubmarketEngine:
         self.rate_cache = rate_cache
         self.config = config
         self.ballpark_metadata = ballpark_metadata
+        self.team_id_to_park_id = team_id_to_park_id
         self.league_rates = league_rates or LEAGUE_PA_RATES
         self.fixed_bet_usdc = fixed_bet_usdc or {"A": 50.0, "B": 30.0}
 
@@ -200,11 +202,13 @@ class MlbSubmarketEngine:
             logger.info("mlb_engine: handedness fetch failed: %s", e)
             return None
 
-        # Weather — Plan 4 simplification: use first ballpark in metadata.
-        # v2: map home team_id → ballpark_id → metadata entry.
-        park_meta = next(iter(self.ballpark_metadata.values()), None)
+        # Park selection: home_team_id → park_id → ballpark_metadata
+        park_id = self.team_id_to_park_id.get(home_team_id)
+        park_meta = self.ballpark_metadata.get(park_id) if park_id else None
         if park_meta is None:
-            logger.info("mlb_engine: no ballpark metadata available")
+            logger.info(
+                "mlb_engine: no ballpark for home_team_id=%s", home_team_id,
+            )
             return None
         try:
             game_time_iso = f"{date_str}T19:00"  # Plan 4: 7 PM local (UTC approx)

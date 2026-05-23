@@ -247,6 +247,7 @@ def build_agent(state: RuntimeState) -> Agent:
             rate_cache=rate_cache,
             config=cfg.mlb_submarket,
             ballpark_metadata=_DEFAULT_BALLPARK_METADATA,
+            team_id_to_park_id=TEAM_ID_TO_PARK_ID,
             fixed_bet_usdc=fixed_bet,
         )
         logger.info("MlbSubmarketEngine initialized (config.mlb_submarket.enabled=True)")

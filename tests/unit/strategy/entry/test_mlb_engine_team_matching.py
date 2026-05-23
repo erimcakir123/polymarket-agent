@@ -31,6 +31,7 @@ def _make_engine(schedule_return):
         rate_cache=MagicMock(),
         config=MlbSubmarketConfig(enabled=True, min_edge=0.05),
         ballpark_metadata={"FAKE": {"lat": 0, "lon": 0, "cf_orientation_deg": 0, "park_id": "FAKE"}},
+        team_id_to_park_id={143: "FAKE", 114: "FAKE"},
     )
     return engine, statsapi
 

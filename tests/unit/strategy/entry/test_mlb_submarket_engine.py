@@ -99,6 +99,7 @@ def _engine(
     config: MlbSubmarketConfig | None = None,
     fixed_bet: dict[str, float] | None = None,
 ) -> MlbSubmarketEngine:
+    # Default slug: mlb-pit-chc → away=pit(134), home=chc(112)
     return MlbSubmarketEngine(
         statsapi=statsapi or _make_statsapi(),
         statcast=statcast or _make_statcast(),
@@ -106,6 +107,7 @@ def _engine(
         rate_cache=rate_cache or _make_rate_cache(hit=False),
         config=config or _make_config(),
         ballpark_metadata=_BALLPARK_META,
+        team_id_to_park_id={112: "pnc"},
         fixed_bet_usdc=fixed_bet or {"A": 50.0, "B": 30.0},
     )
 
