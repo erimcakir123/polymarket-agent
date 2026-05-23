@@ -863,6 +863,25 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-S Faz C — MLB Moneyline Model Anchor (2026-05-23)
+
+**Karar:** MLB moneyline marketleri artık model anchor kullanır (önceden bookmaker konsensüsündeydi). Engine'in mevcut `home_dist`/`away_dist` çıktısından yeni `moneyline_pricer.moneyline_probability()` ile P(home wins) hesaplanır; berabere kalan dağılımlar 50/50 split edilir (ekstra inning rastgele varsayımı).
+
+**Neden:** Audit son 13 saatte MLB moneyline 5/5 kayıp (-$83). Bahisçi konsensüsü beyzbol için yetersiz (atıcı/bullpen/hava günlük değişir). Engine zaten totals + run-line için doğru çalışan domain motoruna sahip — moneyline pricer eklemek ~40 satır iş; sıfırdan model değil.
+
+**Etki:**
+- `src/domain/mlb_submarket/moneyline_pricer.py` (yeni, 39 satır) — pattern: totals_pricer + spread_pricer
+- `src/strategy/entry/mlb_submarket_engine.py` — `_SLUG_MONEYLINE_RE` regex, `_parse_slug_static` moneyline branch, `process()` dispatch elif branch
+- `src/domain/mlb_submarket/edge_candidate.py` — `_VALID_MARKET_TYPES` setine `"moneyline"` eklendi
+- `src/config/sport_rules.py` — `mlb.submarket_anchor.moneyline = "model"` (önceden eksik, default "bookmaker"a düşüyordu)
+- 11 yeni test (moneyline_pricer 5, parse_slug 2, engine moneyline 3, sport_rules anchor 6 — bazıları mevcut testlerin güncellenmiş hali)
+- Scanner dispatch testi: MLB moneyline artık `collect_model_signals` üzerinden engine'e yönlendiriliyor (önceden bookmaker yoluna düşüyordu)
+- Commit'ler: `a048631`, `26c1561`, `19032e2`, `8057588`
+
+**Sonuç:** MLB için tüm submarket türleri (moneyline + totals + run-line) artık aynı domain motorundan model-anchor edge üretir. Sonraki Faz B (bullpen + Marcel + TTO) ile motorun doğruluk artırımları yapılır.
+
+---
+
 ### SPEC-S Faz A — MLB Submarket Engine Plan 4 Simplifications Resolved (2026-05-23)
 
 **Karar:** MLB submarket engine'inin (`src/strategy/entry/mlb_submarket_engine.py`) 3 kritik "Plan 4 simplification" hardcoded davranışı düzeltildi:
