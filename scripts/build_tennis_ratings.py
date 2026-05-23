@@ -57,22 +57,46 @@ def _surface_key(surface: str) -> str:
 
 
 def build_ratings_from_matches(
-    matches: list[SackmannMatch],
+    atp_matches: list[SackmannMatch],
+    wta_matches: list[SackmannMatch],
     snapshot_date: datetime,
     tau: float = 0.5,
 ) -> dict[str, PlayerRating]:
-    """Build ratings dict by walking matches chronologically.
+    """Build ratings dict for ATP + WTA. Keys are tour-prefixed (atp:Name / wta:Name).
 
-    Each match updates winner+loser ratings (overall + surface-specific).
-
-    Args:
-        matches: list of SackmannMatch records (any order)
-        snapshot_date: reference date for 12-month match count
-        tau: Glicko-2 system constant controlling volatility change (0.3–1.2)
+    Each tour's ratings are computed independently — no cross-tour matches feed
+    into the same player profile (Williams in ATP and WTA are different entities).
 
     Returns:
-        dict mapping player_name → PlayerRating with overall + 6 surface ratings
+        dict mapping "{tour}:{player_name}" → PlayerRating(tour=...)
     """
+    output: dict[str, PlayerRating] = {}
+    for tour, matches in (("atp", atp_matches), ("wta", wta_matches)):
+        per_tour = _build_single_tour(matches, snapshot_date, tau)
+        for name, rating in per_tour.items():
+            output[f"{tour}:{name}"] = PlayerRating(
+                player_id=f"{tour}:{name}",
+                player_name=name,
+                tour=tour,
+                overall=rating.overall,
+                serve_clay=rating.serve_clay,
+                serve_grass=rating.serve_grass,
+                serve_hard=rating.serve_hard,
+                return_clay=rating.return_clay,
+                return_grass=rating.return_grass,
+                return_hard=rating.return_hard,
+                last_match_date=rating.last_match_date,
+                match_count_12mo=rating.match_count_12mo,
+            )
+    return output
+
+
+def _build_single_tour(
+    matches: list[SackmannMatch],
+    snapshot_date: datetime,
+    tau: float,
+) -> dict[str, PlayerRating]:
+    """Build per-tour rating dict (keyed by raw player name). Internal helper."""
     if not matches:
         return {}
 
@@ -92,46 +116,30 @@ def build_ratings_from_matches(
         if loser not in profiles:
             profiles[loser] = _new_player()
 
-        # Update overall ratings (winner=1, loser=0)
         w_overall = profiles[winner]["overall"]
         l_overall = profiles[loser]["overall"]
-        profiles[winner]["overall"] = update_rating(
-            w_overall, [(l_overall, 1.0)], tau=tau,
-        )
-        profiles[loser]["overall"] = update_rating(
-            l_overall, [(w_overall, 0.0)], tau=tau,
-        )
+        profiles[winner]["overall"] = update_rating(w_overall, [(l_overall, 1.0)], tau=tau)
+        profiles[loser]["overall"] = update_rating(l_overall, [(w_overall, 0.0)], tau=tau)
 
-        # Update surface-specific serve ratings (proxy: winner served better)
         w_serve_key = f"serve_{surface_key}"
         l_serve_key = f"serve_{surface_key}"
         w_serve = profiles[winner][w_serve_key]
         l_serve = profiles[loser][l_serve_key]
-        profiles[winner][w_serve_key] = update_rating(
-            w_serve, [(l_serve, 1.0)], tau=tau,
-        )
-        profiles[loser][l_serve_key] = update_rating(
-            l_serve, [(w_serve, 0.0)], tau=tau,
-        )
+        profiles[winner][w_serve_key] = update_rating(w_serve, [(l_serve, 1.0)], tau=tau)
+        profiles[loser][l_serve_key] = update_rating(l_serve, [(w_serve, 0.0)], tau=tau)
 
-        # Update surface-specific return ratings (proxy: winner returned better)
         w_return_key = f"return_{surface_key}"
         l_return_key = f"return_{surface_key}"
         w_return = profiles[winner][w_return_key]
         l_return = profiles[loser][l_return_key]
-        profiles[winner][w_return_key] = update_rating(
-            w_return, [(l_return, 1.0)], tau=tau,
-        )
-        profiles[loser][l_return_key] = update_rating(
-            l_return, [(w_return, 0.0)], tau=tau,
-        )
+        profiles[winner][w_return_key] = update_rating(w_return, [(l_return, 1.0)], tau=tau)
+        profiles[loser][l_return_key] = update_rating(l_return, [(w_return, 0.0)], tau=tau)
 
         profiles[winner]["last_match_date"] = m.match_date
         profiles[loser]["last_match_date"] = m.match_date
         profiles[winner]["match_dates"].append(m.match_date)
         profiles[loser]["match_dates"].append(m.match_date)
 
-    # Convert to PlayerRating + compute 12mo count
     cutoff = snapshot_date - timedelta(days=365)
     output: dict[str, PlayerRating] = {}
     for name, p in profiles.items():
@@ -140,7 +148,7 @@ def build_ratings_from_matches(
         output[name] = PlayerRating(
             player_id=name,
             player_name=name,
-            tour="atp",
+            tour="atp",  # placeholder — caller overwrites with correct tour
             overall=_glicko_to_surface(p["overall"]),
             serve_clay=_glicko_to_surface(p["serve_clay"]),
             serve_grass=_glicko_to_surface(p["serve_grass"]),
@@ -161,21 +169,21 @@ def main() -> None:
     ratings_path = Path(cfg.tennis.ratings_cache)
 
     client = SackmannCsvClient(cache_dir=sackmann_dir)
-    atp_matches = client.load_years(cfg.tennis.sackmann_years)
-    challenger_matches = client.load_challenger_years(cfg.tennis.challenger_years)
-    matches = sorted(
-        atp_matches + challenger_matches, key=lambda m: m.match_date,
-    )
+    atp_main = client.load_years(cfg.tennis.sackmann_years)
+    atp_chall = client.load_challenger_years(cfg.tennis.challenger_years)
+    atp_matches = sorted(atp_main + atp_chall, key=lambda m: m.match_date)
+    wta_matches = client.load_wta_years(cfg.tennis.sackmann_wta_years)
     logger.info(
-        "Loaded %d total matches from Sackmann (%d ATP + %d Challenger)",
-        len(matches), len(atp_matches), len(challenger_matches),
+        "Loaded %d ATP matches (%d main + %d challenger) + %d WTA matches",
+        len(atp_matches), len(atp_main), len(atp_chall), len(wta_matches),
     )
 
     snapshot_date = datetime.utcnow()
     ratings = build_ratings_from_matches(
-        matches, snapshot_date=snapshot_date, tau=cfg.tennis.glicko_tau,
+        atp_matches, wta_matches,
+        snapshot_date=snapshot_date, tau=cfg.tennis.glicko_tau,
     )
-    logger.info("Built ratings for %d players", len(ratings))
+    logger.info("Built ratings for %d player-tour entries", len(ratings))
 
     store = TennisRatingsStore(path=ratings_path)
     store.save(ratings)

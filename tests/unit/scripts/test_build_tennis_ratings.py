@@ -35,21 +35,36 @@ def test_build_ratings_creates_player_profiles():
         _make_match("20260103", "B", "A"),
     ]
     ratings = build_ratings_from_matches(
-        matches, snapshot_date=datetime(2026, 5, 19),
+        matches, [], snapshot_date=datetime(2026, 5, 19),
     )
-    assert "A" in ratings
-    assert "B" in ratings
+    assert "atp:A" in ratings
+    assert "atp:B" in ratings
     # A more matches → some rating ≠ 1500
-    assert ratings["A"].overall.rating != 1500
+    assert ratings["atp:A"].overall.rating != 1500
     # match_count_12mo computed
-    assert ratings["A"].match_count_12mo >= 2
+    assert ratings["atp:A"].match_count_12mo >= 2
 
 
 def test_build_ratings_empty_returns_empty():
     ratings = build_ratings_from_matches(
-        [], snapshot_date=datetime(2026, 5, 19),
+        [], [], snapshot_date=datetime(2026, 5, 19),
     )
     assert ratings == {}
+
+
+def test_build_ratings_tour_prefix_keys_no_collision() -> None:
+    """Players with same name in ATP and WTA must be stored under different keys."""
+    atp = [_make_match("20240101", "Williams", "Other ATP")]
+    wta = [_make_match("20240101", "Williams", "Other WTA")]
+    snap = datetime(2024, 6, 1)
+    out = build_ratings_from_matches(atp, wta, snapshot_date=snap)
+
+    assert "atp:Williams" in out
+    assert "wta:Williams" in out
+    assert out["atp:Williams"].tour == "atp"
+    assert out["wta:Williams"].tour == "wta"
+    assert out["atp:Williams"].player_name == "Williams"
+    assert out["wta:Williams"].player_name == "Williams"
 
 
 def test_ratings_file_has_minimum_players_after_challenger_expansion() -> None:
