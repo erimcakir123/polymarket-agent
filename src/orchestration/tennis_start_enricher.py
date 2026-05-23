@@ -22,6 +22,7 @@ from typing import Iterable
 from src.config.sport_rules import get_sport_rule
 from src.infrastructure.apis.espn_client import ESPNClient, ESPNMatchScore
 from src.models.market import MarketData
+from src.models.position import Position
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,15 @@ def _is_tennis(m: MarketData) -> bool:
     if tag.startswith("tennis"):
         return True
     slug = (m.slug or "").lower()
+    return slug.startswith("atp-") or slug.startswith("wta-")
+
+
+def _is_position_tennis(p: Position) -> bool:
+    """Position icin tennis kontrolu — sport_tag tennis veya slug atp-/wta-."""
+    tag = (p.sport_tag or "").lower()
+    if tag.startswith("tennis"):
+        return True
+    slug = (p.slug or "").lower()
     return slug.startswith("atp-") or slug.startswith("wta-")
 
 
@@ -166,8 +176,10 @@ class TennisStartEnricher:
             if not _is_tennis(m):
                 out.append(m)
                 continue
-            target_leagues = self._leagues_for_market(m, leagues)
-            event = self._find_matching_event(m, target_leagues, events_by_league)
+            target_leagues = self._leagues_for_slug(m.slug, leagues)
+            event = self._find_matching_event_by_slug(
+                m.slug, target_leagues, events_by_league,
+            )
             if event is not None and event.commence_time and _same_day(
                 m.match_start_iso, event.commence_time
             ):
@@ -178,26 +190,64 @@ class TennisStartEnricher:
                 out.append(m)
         return out
 
-    def _leagues_for_market(
+    def refresh_positions(self, positions: list[Position]) -> None:
+        """Acik tennis pozisyonlarinin match_start_iso'sunu ESPN ile in-place gunceller.
+
+        Akis:
+          1. positions icinde tennis var mi? Yoksa NO-OP, ESPN'e dokunma.
+          2. Her tennis pos'un match_start_iso'sundan YYYYMMDD topla → unique dates.
+          3. ESPN'i bu gunler icin fetch (cached).
+          4. Slug-surname eslestirmesi ile her tennis pos'un match_start_iso'sunu
+             guncelle. Same-day guard, no-match-keep, ESPN-fail-keep mantigi enrich
+             ile birebir ayni (DRY: ayni helper'lar).
+          5. Non-tennis dokunulmaz.
+        """
+        tennis_positions = [p for p in positions if _is_position_tennis(p)]
+        if not tennis_positions:
+            return
+
+        leagues_raw = get_sport_rule("tennis", "espn_leagues", default=_VALID_LEAGUES)
+        leagues = tuple(leagues_raw) if leagues_raw else _VALID_LEAGUES
+
+        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        dates: set[str] = {today_str}
+        for tp in tennis_positions:
+            d = _iso_to_yyyymmdd(tp.match_start_iso)
+            if d:
+                dates.add(d)
+        events_by_league = self._fetch_dates(leagues, tuple(sorted(dates)))
+
+        for p in tennis_positions:
+            target_leagues = self._leagues_for_slug(p.slug, leagues)
+            event = self._find_matching_event_by_slug(
+                p.slug, target_leagues, events_by_league,
+            )
+            if event is None or not event.commence_time:
+                continue
+            if not _same_day(p.match_start_iso, event.commence_time):
+                continue
+            p.match_start_iso = event.commence_time
+
+    def _leagues_for_slug(
         self,
-        m: MarketData,
+        slug: str,
         all_leagues: tuple[str, ...],
     ) -> tuple[str, ...]:
         """Slug prefix'i 'atp-' / 'wta-' ise sadece o league. Aksi halde hepsi."""
-        slug_league = _league_for_slug(m.slug)
+        slug_league = _league_for_slug(slug)
         if slug_league is not None and slug_league in all_leagues:
             return (slug_league,)
         return all_leagues
 
-    def _find_matching_event(
+    def _find_matching_event_by_slug(
         self,
-        m: MarketData,
+        slug: str,
         target_leagues: tuple[str, ...],
         events_by_league: dict[str, list[ESPNMatchScore]],
     ) -> ESPNMatchScore | None:
         for lg in target_leagues:
             events = events_by_league.get(lg, [])
-            ev = _match_event(m.slug, events)
+            ev = _match_event(slug, events)
             if ev is not None:
                 return ev
         return None

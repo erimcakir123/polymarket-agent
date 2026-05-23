@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from src.infrastructure.apis.espn_client import ESPNMatchScore
 from src.models.market import MarketData
+from src.models.position import Position
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
 
 
@@ -130,3 +131,68 @@ def test_slug_surnames_skips_doubles_token():
     assert _slug_surnames("atp-doubles-fortrom-gadatu-2026-05-22") == ("fortrom", "gadatu")
     assert _slug_surnames("wta-doubles-smith-jones-2026-05-22") == ("smith", "jones")
     assert _slug_surnames("xyz-foo-bar-2026") is None
+
+
+# ---- refresh_positions tests ----
+
+def _pos(slug: str, start: str = "", sport_tag: str = "tennis") -> Position:
+    return Position(
+        condition_id=f"cid-{slug}", token_id="t1",
+        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
+        current_price=0.5, anchor_probability=0.5,
+        slug=slug, match_start_iso=start, sport_tag=sport_tag,
+        match_live=False,
+    )
+
+
+def test_refresh_positions_updates_match_start_when_espn_match_found():
+    """ESPN'de eşleşme bulunan tennis pozisyonun match_start_iso'su güncellenir."""
+    espn_client = MagicMock()
+    espn_client.fetch_tennis_matches_today.return_value = [
+        _espn("Alex de Minaur", "Tommy Paul", "2026-05-25T04:00:00Z"),
+    ]
+    enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    pos = _pos("atp-minaur-paul-2026-05-25", start="2026-05-25T09:00:00Z")
+    enricher.refresh_positions([pos])
+    assert pos.match_start_iso == "2026-05-25T04:00:00Z"
+
+
+def test_refresh_positions_skips_non_tennis():
+    """Non-tennis pozisyon dokunulmaz, ESPN'e çağrı yok."""
+    espn_client = MagicMock()
+    enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    pos = _pos("mlb-x-y", sport_tag="baseball", start="2026-05-23T22:00:00Z")
+    enricher.refresh_positions([pos])
+    espn_client.fetch_tennis_matches_today.assert_not_called()
+    assert pos.match_start_iso == "2026-05-23T22:00:00Z"
+
+
+def test_refresh_positions_no_tennis_skips_espn():
+    """Hiç tennis pozisyon yoksa ESPN'e çağrı yok."""
+    espn_client = MagicMock()
+    enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    enricher.refresh_positions([])
+    espn_client.fetch_tennis_matches_today.assert_not_called()
+
+
+def test_refresh_positions_same_day_guard():
+    """ESPN eşleşmesi farklı bir günde ise override iptal (false-positive koruması)."""
+    espn_client = MagicMock()
+    espn_client.fetch_tennis_matches_today.return_value = [
+        _espn("Alex de Minaur", "Tommy Paul", "2026-02-24T12:00:00Z"),  # 3 ay önce
+    ]
+    enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    pos = _pos("atp-minaur-paul-2026-05-25", start="2026-05-25T04:00:00Z")
+    enricher.refresh_positions([pos])
+    # Tarih uyumsuz → override yok
+    assert pos.match_start_iso == "2026-05-25T04:00:00Z"
+
+
+def test_refresh_positions_no_match_keeps_existing():
+    """ESPN bulamazsa mevcut saat korunur (no-op)."""
+    espn_client = MagicMock()
+    espn_client.fetch_tennis_matches_today.return_value = []
+    enricher = TennisStartEnricher(espn_client=espn_client, cache_ttl_sec=300)
+    pos = _pos("atp-x-y-2026-05-23", start="2026-05-23T13:00:00Z")
+    enricher.refresh_positions([pos])
+    assert pos.match_start_iso == "2026-05-23T13:00:00Z"
