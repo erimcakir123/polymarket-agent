@@ -261,6 +261,61 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
     )
 
 
+def test_entry_processor_propagates_event_live_to_position():
+    """Position.match_live, market.event_live'den propagate edilmeli.
+
+    Dashboard'daki LIVE rozeti Position.match_live'a bakar; bu alan entry sırasında
+    market.event_live'den okunmazsa hep False kalır ve rozet hiç görünmez.
+    """
+    market = _make_market()
+    market.event_live = True  # Polymarket "şu an canlı" bayrağı
+
+    gate_result = GateResult(
+        condition_id=market.condition_id,
+        signal=_make_signal(cid=market.condition_id),
+        skipped_reason="",
+        skip_detail="",
+    )
+
+    # Gerçek PortfolioManager — açılan pozisyonu state'de görelim
+    portfolio = PortfolioManager(initial_bankroll=1000.0)
+    gate_config = SimpleNamespace(
+        max_positions=50,
+        max_positions_per_event=3,
+        max_exposure_pct=0.5,
+    )
+    deps = SimpleNamespace(
+        state=SimpleNamespace(
+            config=SimpleNamespace(mode=SimpleNamespace(value="dry_run")),
+            portfolio=portfolio,
+        ),
+        scanner=MagicMock(),
+        stock=MagicMock(),
+        gate=MagicMock(),
+        skipped_logger=MagicMock(),
+        bot_status_writer=MagicMock(),
+        equity_logger=MagicMock(),
+        executor=MagicMock(),
+        trade_logger=MagicMock(),
+        price_feed=None,
+    )
+    deps.gate.config = gate_config
+    deps.gate.run.return_value = [gate_result]
+    deps.executor.place_order.return_value = {
+        "status": "simulated", "price": 0.55,
+    }
+
+    processor = EntryProcessor(deps)
+    processor.process_markets([market])
+
+    # Tek pozisyon açıldı ve match_live=True olmalı
+    positions = list(portfolio.positions.values())
+    assert len(positions) == 1, f"Beklenen 1 pozisyon, açılan: {len(positions)}"
+    assert positions[0].match_live is True, (
+        f"Position.match_live=True bekleniyordu, alındı: {positions[0].match_live}"
+    )
+
+
 def test_run_heavy_dispatches_model_signals_when_engine_present() -> None:
     """Heavy cycle: engine present → collect_model_signals → process_signals called."""
     from unittest.mock import MagicMock, patch
