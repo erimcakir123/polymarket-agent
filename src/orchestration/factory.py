@@ -73,6 +73,55 @@ _DEFAULT_BALLPARK_METADATA: dict[str, dict[str, Any]] = {
     "OAKLAND_COLISEUM": {"park_id": "OAKLAND_COLISEUM", "lat": 37.7516, "lon": -122.2005, "cf_orientation_deg": 0.0},
 }
 
+# Stats API team_id → ballpark_id (_DEFAULT_BALLPARK_METADATA anahtarı).
+# 2026 sezonu (Athletics geçici Sacramento 2025-2027, OAKLAND_COLISEUM key korunur).
+TEAM_ID_TO_PARK_ID: dict[int, str] = {
+    # AL East
+    110: "ORIOLE_PARK",     # Orioles
+    111: "FENWAY",          # Red Sox
+    147: "YANKEE",          # Yankees
+    139: "TROPICANA",       # Rays
+    141: "ROGERS",          # Blue Jays
+    # AL Central
+    145: "GUARANTEED_RATE", # White Sox
+    114: "PROGRESSIVE",     # Guardians
+    116: "COMERICA",        # Tigers
+    118: "KAUFFMAN",        # Royals
+    142: "TARGET",          # Twins
+    # AL West
+    117: "MINUTE_MAID",     # Astros
+    108: "ANGEL",           # Angels
+    133: "OAKLAND_COLISEUM",# Athletics (geçici Sacramento 2025-27)
+    136: "T_MOBILE",        # Mariners
+    140: "GLOBE_LIFE",      # Rangers
+    # NL East
+    144: "TRUIST",          # Braves
+    146: "LOAN_DEPOT",      # Marlins
+    121: "CITI",            # Mets
+    143: "CITIZENS_BANK",   # Phillies
+    120: "NATIONALS",       # Nationals
+    # NL Central
+    112: "WRIGLEY",         # Cubs
+    113: "GREAT_AMERICAN",  # Reds
+    158: "AMERICAN_FAMILY", # Brewers
+    134: "PNC",             # Pirates
+    138: "BUSCH",           # Cardinals
+    # NL West
+    109: "CHASE",           # D-backs
+    115: "COORS",           # Rockies
+    119: "DODGER",          # Dodgers
+    135: "PETCO",           # Padres
+    137: "ORACLE",          # Giants
+}
+
+
+def park_meta_for_team(team_id: int) -> dict | None:
+    """Stats API team_id → ballpark metadata. Bilinmeyen → None."""
+    park_id = TEAM_ID_TO_PARK_ID.get(team_id)
+    if park_id is None:
+        return None
+    return _DEFAULT_BALLPARK_METADATA.get(park_id)
+
 
 def build_agent(state: RuntimeState) -> Agent:
     """Tüm agent bağımlılıklarını inşa et."""
