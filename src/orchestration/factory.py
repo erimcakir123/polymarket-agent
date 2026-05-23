@@ -195,6 +195,7 @@ def build_agent(state: RuntimeState) -> Agent:
         fixed_bet_usdc=cfg.risk.fixed_bet_usdc,
         bimodal_bet_usdc=cfg.risk.bimodal_bet_usdc,
         max_entry_price=cfg.risk.max_entry_price,
+        bimodal_min_entry_price=cfg.risk.bimodal_min_entry_price,
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
