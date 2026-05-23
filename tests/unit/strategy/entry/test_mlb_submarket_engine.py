@@ -51,7 +51,10 @@ def _make_statsapi(*, schedule_ok: bool = True, lineup_ok: bool = True,
                    pitchers_ok: bool = True) -> MagicMock:
     m = MagicMock()
     if schedule_ok:
-        m.get_schedule.return_value = [{"gamePk": 111}]
+        # Default slug: mlb-pit-chc-2026-05-21 → away=pit(134), home=chc(112)
+        m.get_schedule.return_value = [
+            {"gamePk": 111, "home_team_id": 112, "away_team_id": 134}
+        ]
     else:
         m.get_schedule.side_effect = StatsApiError("schedule fail")
     if lineup_ok:

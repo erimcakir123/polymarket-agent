@@ -9,7 +9,7 @@ Plan 4 simplifications (v2 TODO items):
 - TTO simplified: rough ((inning-1)//3 + 1) instead of full PA tracking.
 - Handedness lookup deferred: default R/R matchup for all batters/pitchers.
 - DH detection deferred: always 9-inning game.
-- Team matching deferred: picks first game in schedule for that date.
+- Team matching: implemented (A4) — picks game matched by home/away team_id.
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from src.domain.mlb_submarket.totals_pricer import totals_probability
 from src.infrastructure.mlb_data.rate_cache import RateCache
 from src.infrastructure.mlb_data.statcast_client import StatcastClient, StatcastError
 from src.infrastructure.mlb_data.statsapi_client import StatsApiClient, StatsApiError
+from src.infrastructure.mlb_data.team_lookup import abbreviation_to_team_id
 from src.infrastructure.mlb_data.weather_client import WeatherClient, WeatherError
 from src.models.market import MarketData
 from src.models.signal import Signal
@@ -103,9 +104,30 @@ class MlbSubmarketEngine:
         if not schedule:
             return None
 
-        # Plan 4 simplification: pick first game for that date.
-        # v2 will match by away/home team_id parsed from slug.
-        game = schedule[0]
+        # Team matching: schedule içinde slug'ın home/away'i ile eşleşen game
+        home_team_id = abbreviation_to_team_id(home_abbr)
+        away_team_id = abbreviation_to_team_id(away_abbr)
+        if home_team_id is None or away_team_id is None:
+            logger.info(
+                "mlb_engine: unknown team abbreviation in slug %s/%s",
+                away_abbr, home_abbr,
+            )
+            return None
+
+        matched = next(
+            (g for g in schedule
+             if g.get("home_team_id") == home_team_id
+             and g.get("away_team_id") == away_team_id),
+            None,
+        )
+        if matched is None:
+            logger.info(
+                "mlb_engine: no schedule game for %s @ %s on %s",
+                away_abbr, home_abbr, date_str,
+            )
+            return None
+
+        game = matched
         game_pk = game.get("gamePk")
         if game_pk is None:
             return None
