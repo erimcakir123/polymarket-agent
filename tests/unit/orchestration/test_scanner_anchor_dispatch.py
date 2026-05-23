@@ -27,10 +27,10 @@ def test_scanner_routes_mlb_totals_to_model() -> None:
     assert classify_anchor_path(mlb_totals) == "model"
 
 
-def test_scanner_routes_mlb_moneyline_to_bookmaker() -> None:
+def test_scanner_routes_mlb_moneyline_to_model() -> None:
     from src.orchestration.scanner import classify_anchor_path
     mlb_ml = _mk_market("c2", "baseball_mlb", "moneyline")
-    assert classify_anchor_path(mlb_ml) == "bookmaker"
+    assert classify_anchor_path(mlb_ml) == "model"
 
 
 def test_scanner_routes_nba_totals_to_bookmaker() -> None:
@@ -44,14 +44,17 @@ def test_scanner_collects_model_signals_when_engine_present() -> None:
     mlb_totals = _mk_market("cid-x", "baseball_mlb", "totals")
     mlb_ml = _mk_market("cid-y", "baseball_mlb", "moneyline")
     engine = MagicMock()
-    engine.process.return_value = _mk_signal("cid-x")
+    # SPEC-S C4: MLB moneyline now uses model anchor → both markets sent to engine
+    engine.process.side_effect = [_mk_signal("cid-x"), _mk_signal("cid-y")]
     markets, signals = collect_model_signals(
         candidates=[mlb_totals, mlb_ml], engine=engine,
     )
-    assert len(markets) == 1
+    assert len(markets) == 2
     assert markets[0].condition_id == "cid-x"
+    assert markets[1].condition_id == "cid-y"
     assert signals[0].condition_id == "cid-x"
-    engine.process.assert_called_once_with(mlb_totals)
+    assert signals[1].condition_id == "cid-y"
+    assert engine.process.call_count == 2
 
 
 def test_scanner_skips_when_engine_none() -> None:

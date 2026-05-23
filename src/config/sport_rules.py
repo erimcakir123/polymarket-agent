@@ -49,6 +49,7 @@ SPORT_RULES: dict[str, dict] = {
         "espn_sport": "baseball",
         "espn_league": "mlb",
         "submarket_anchor": {
+            "moneyline": "model",  # SPEC-S Faz C (2026-05-23)
             "totals": "model",
             "run_line": "model",
         },
