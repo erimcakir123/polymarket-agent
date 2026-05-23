@@ -1,9 +1,9 @@
 # Bimodal Sizing + Same-Type-Per-Event Guard (Design Spec)
 
 **Tarih:** 2026-05-23
-**Durum:** DRAFT — kullanıcı incelemesi bekliyor
+**Durum:** DONE (2026-05-23) — implementation tamamlandı, DECISIONS §B SPEC-S Faz D kayıtlı
 **Anahtar kelime / lookup:** `BIMODAL-SAMETYPE`
-**Onaylayan:** —
+**Onaylayan:** Erim (2026-05-23)
 **Tetik:** Son 13 saatlik session (22 May 22:23 UTC sonrası) gözlemi: yeni açılan 13 trade'in 12'si zarar; aynı maçta iki totals (NBA OKC/SAS 215.5 + 222.5) birlikte -$52; A güveni $50 sabit sizing tüm spor marketlerine uygulanıyor (Tenis Lab'daki $15 bimodal cap genel bota taşınmamış).
 
 ---

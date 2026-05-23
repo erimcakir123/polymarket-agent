@@ -1,7 +1,7 @@
 # MLB Submarket — Ana Bot Entegrasyonu (Design Spec)
 
 **Tarih:** 2026-05-21
-**Durum:** DRAFT — kullanıcı incelemesi bekliyor
+**Durum:** DONE (2026-05-23) — SPEC-R Plan 1-4 master'a merge edildi; SPEC-S Faz A+B+C ile Plan 4 simplifications çözüldü (team+park+DH binding, moneyline pricer, Marcel+TTO+bullpen interface). Bullpen rates aggregation TODO-004 olarak ertelendi.
 **Anahtar kelime / lookup:** `MLB-SUBMARKET-MAINBOT`
 **Supersedes:** `docs/superpowers/specs/2026-05-21-mlb-submarket-lab-design.md` (sandbox lab versiyonu — REJECTED, kullanıcı ana bot entegrasyonu istedi 2026-05-21)
 
