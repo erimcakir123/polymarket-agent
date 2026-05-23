@@ -35,13 +35,16 @@ _DEFAULT_MC_ITERATIONS = 1_000  # Plan 4 — lower than Plan 2 default for speed
 
 # Slug patterns:
 #   totals:    mlb-{away}-{home}-{YYYY-MM-DD}-total-{N}pt5
-#   run_line:  mlb-{away}-{home}-{YYYY-MM-DD}-spread-{pos|neg}1pt5
+#   run_line:  mlb-{away}-{home}-{YYYY-MM-DD}-spread-{home|away}-{N}pt5
 #   moneyline: mlb-{away}-{home}-{YYYY-MM-DD}
 _SLUG_TOTALS_RE = re.compile(
     r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-total-(\d+)pt5$"
 )
+# SPEC-X (2026-05-24): gerçek Polymarket spread slug formatı.
+# Eski "spread-(pos|neg)1pt5" formatı 2026-05 öncesi bir varsayımdı; üretimde
+# karşılaşılan slug'lar "spread-(home|away)-{N}pt5" — değişken N (1, 2, 3...).
 _SLUG_RUN_LINE_RE = re.compile(
-    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-spread-(pos|neg)1pt5$"
+    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-spread-(home|away)-(\d+)pt5$"
 )
 _SLUG_MONEYLINE_RE = re.compile(
     r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})$"
@@ -295,8 +298,12 @@ class MlbSubmarketEngine:
             return date, "totals", float(n) + 0.5, away, home
         m_r = _SLUG_RUN_LINE_RE.match(slug)
         if m_r:
-            away, home, date, sign = m_r.groups()
-            line = -1.5 if sign == "neg" else 1.5
+            away, home, date, side, n_str = m_r.groups()
+            # SPEC-X: "spread-home-Npt5" = home team -N.5 covers (yes_token);
+            # "spread-away-Npt5" = away team -N.5 covers → home team gets +N.5.
+            # spread_pricer perspective: home_line = home team's handicap.
+            magnitude = float(n_str) + 0.5
+            line = -magnitude if side == "home" else +magnitude
             return date, "run_line", line, away, home
         m_m = _SLUG_MONEYLINE_RE.match(slug)
         if m_m:

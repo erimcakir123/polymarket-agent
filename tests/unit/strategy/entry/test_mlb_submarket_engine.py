@@ -299,7 +299,8 @@ def test_process_run_line_market_uses_spread_pricer() -> None:
     ) as mock_spread, patch(
         "src.strategy.entry.mlb_submarket_engine.totals_probability",
     ) as mock_totals:
-        eng.process(_market(slug="mlb-pit-chc-2026-05-21-spread-pos1pt5"))
+        # SPEC-X (2026-05-24): yeni slug format → spread-(home|away)-{N}pt5
+        eng.process(_market(slug="mlb-pit-chc-2026-05-21-spread-home-1pt5"))
     mock_spread.assert_called_once()
     mock_totals.assert_not_called()
 
