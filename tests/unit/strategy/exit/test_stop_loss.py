@@ -21,14 +21,17 @@ def test_stale_price_skip_returns_none() -> None:
     assert compute_stop_loss_pct(p) is None
 
 
-def test_totals_market_skip() -> None:
+def test_totals_market_now_uses_sport_sl() -> None:
+    """SPEC-V (2026-05-23): Totals muafiyeti kaldırıldı — sport-specific SL döner."""
     p = _pos(question="Total over/under 215.5?", slug="nba-totals")
-    assert compute_stop_loss_pct(p) is None
+    # entry 0.40 → NBA sport-specific SL (0.35); muafiyet yok
+    assert compute_stop_loss_pct(p) == 0.35
 
 
-def test_spread_keyword_skip() -> None:
+def test_spread_keyword_now_uses_sport_sl() -> None:
+    """SPEC-V (2026-05-23): Spread muafiyeti kaldırıldı — sport-specific SL döner."""
     p = _pos(slug="nba-lakers-spread-2026")
-    assert compute_stop_loss_pct(p) is None
+    assert compute_stop_loss_pct(p) == 0.35
 
 
 def test_ultra_low_entry_wide_50pct() -> None:

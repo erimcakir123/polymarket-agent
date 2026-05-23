@@ -1,14 +1,16 @@
-"""Flat stop-loss helper — 5-katman öncelik (DECISIONS §6.7).
+"""Flat stop-loss helper — 4-katman öncelik (DECISIONS §6.7).
 
 Tek kaynak: hem WebSocket path (exit_monitor._ws_check_exits) hem light cycle
 (monitor.py) buradan çağırır.
 
 Katmanlar (öncelik sırasına göre):
   1. Stale price skip (WS tick gelmedi → fake -100% PnL)
-  2. Totals/spread skip (hold to resolution, SL yok)
-  3. Ultra-low entry (eff < 9¢) → geniş %50 SL
-  4. Low-entry graduated (9-20¢) → linear %60 → %40
-  5. Sport-specific SL (sport_rules.py)
+  2. Ultra-low entry (eff < 9¢) → geniş %50 SL
+  3. Low-entry graduated (9-20¢) → linear %60 → %40
+  4. Sport-specific SL (sport_rules.py)
+
+SPEC-V (2026-05-23): Totals/spread muafiyeti KALDIRILDI. Tüm market türlerinde
+SL aktif — anlık çakılma riski bimodal sizing cap'i ile sınırlanır (SPEC-U).
 """
 from __future__ import annotations
 
@@ -19,7 +21,6 @@ _ULTRA_LOW_THRESHOLD = 0.09
 _LOW_ENTRY_UPPER = 0.20
 _LOW_ENTRY_SL_HIGH = 0.60
 _LOW_ENTRY_SL_LOW = 0.40
-_TOTALS_KEYWORDS = ("o/u", "total", "spread")
 
 
 def compute_stop_loss_pct(pos: Position) -> float | None:
@@ -27,16 +28,10 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
 
     Returns:
         float: SL yüzdesi (örn. 0.30 = %30).
-        None: bu pozisyonda flat SL UYGULANMAZ (totals/spread veya stale price).
+        None: bu pozisyonda flat SL UYGULANMAZ (sadece stale price).
     """
     # 1. Stale price — WS tick hiç gelmemiş gibi
     if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
-        return None
-
-    # 2. Totals/spread — hold to resolution
-    q = (pos.question or "").lower()
-    slug = (pos.slug or "").lower()
-    if any(k in q or k in slug for k in _TOTALS_KEYWORDS):
         return None
 
     # entry_price zaten token-native (owned side).
