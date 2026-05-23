@@ -863,6 +863,28 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-S Faz A — MLB Submarket Engine Plan 4 Simplifications Resolved (2026-05-23)
+
+**Karar:** MLB submarket engine'inin (`src/strategy/entry/mlb_submarket_engine.py`) 3 kritik "Plan 4 simplification" hardcoded davranışı düzeltildi:
+
+1. **Team matching** — slug'tan home/away abbreviation parse edilip Stats API `team_id` ile schedule içinde eşleşen maç bulunur. Önceden: `schedule[0]` (o günün ilk maçı, yanlış takım). Yeni: `TEAM_ABBREVIATIONS` lookup table (`src/infrastructure/mlb_data/team_lookup.py`) + schedule filtreleme.
+2. **Park binding** — `home_team_id → park_id → ballpark_metadata`. Önceden: `next(iter(ballpark_metadata.values()))` (sözlüğün ilk park'ı, yanlış stadyum). Yeni: `TEAM_ID_TO_PARK_ID` mapping (`src/orchestration/factory.py`) + `park_meta_for_team()` helper.
+3. **DH detection** — `gameType == "D"` AND `scheduled_innings < 9` → `dh_game=True`. Önceden: `dh_game=False` hardcoded. Yeni: `StatsApiClient.get_schedule()` `game_type`, `scheduled_innings`, `double_header` alanlarını döndürür; engine bunları okuyarak 7-inning DH path'e geçer.
+
+**Neden:** Audit'te son 13 saatte MLB totals/run-line trade SAYISI 0 idi; MLB ML trade'leri ise %0 kazanma oranıyla -$83 (5/5 kayıp). Engine aktif (`enabled: true`) ama yanlış maç + yanlış stadyum verileriyle edge hesaplıyordu → güvenilmez edge → no_edge skip. Bu 3 simplification çözülmeden model anchor pratikte değer üretmiyordu.
+
+**Etki:**
+- `src/infrastructure/mlb_data/team_lookup.py` (yeni, 65 satır) — 30 takım abbreviation ↔ team_id sabit veri
+- `src/orchestration/factory.py` — `TEAM_ID_TO_PARK_ID` (30 takım → park_id), `park_meta_for_team()` helper; engine instantiation'a `team_id_to_park_id` parametresi eklendi
+- `src/strategy/entry/mlb_submarket_engine.py` — `_parse_slug_static` 5-tuple (date, market_type, line, away_abbr, home_abbr); `process()` team matching + home-park binding + DH detection
+- `src/infrastructure/mlb_data/statsapi_client.py` — `get_schedule()` her game dict'ine `game_type`/`scheduled_innings`/`double_header` ekler (default `"R"`/`9`/`"N"`)
+- 14 yeni test (team_lookup 7, park_mapping 5, parse_slug 4, team_matching 3, park_matching 2, dh statsapi 2, dh engine 3) — toplam 1423 testin tümü yeşil
+- Commit'ler: `14cae46`, `cf5488b`, `f043102`, `76d4964`, `4b7098b`, `5432c94`
+
+**Sonuç:** MLB totals + run-line için model anchor artık doğru maç + doğru stadyum + DH-duyarlı edge üretir. Sonraki adımlar SPEC-S Faz C (moneyline pricer) ve Faz B (bullpen + Marcel + TTO doğruluk iyileştirmeleri) içinde.
+
+---
+
 ### 2026-05-23 — Tennis ESPN gerçek-fetch düzeltmesi
 
 **Karar:** ESPN tennis için 3-aşamalı public metod `ESPNClient.fetch_tennis_matches_today` eklendi (scoreboard → competitions → athlete dereference, 24h athlete cache). `TennisStartEnricher` market'lerin `match_start_iso` tarihlerinden ihtiyaç duyulan ESPN günlerini çıkarıp her unique gün için ayrı fetch yapar. Doubles slug formatı (`atp-doubles-{p1}-{p2}-date`) parser'a eklendi. Same-day guard: ESPN eşleşmesi market'in günüyle aynı UTC günde değilse override iptal.
