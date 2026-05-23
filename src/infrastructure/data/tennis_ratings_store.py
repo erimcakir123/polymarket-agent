@@ -25,6 +25,7 @@ class SurfaceRating:
 class PlayerRating:
     player_id: str
     player_name: str
+    tour: str           # "atp" | "wta"
     overall: SurfaceRating
     serve_clay: SurfaceRating
     serve_grass: SurfaceRating
@@ -56,6 +57,7 @@ class TennisRatingsStore:
                 out[pid] = PlayerRating(
                     player_id=d["player_id"],
                     player_name=d["player_name"],
+                    tour=d.get("tour", "atp"),  # backward compat for pre-WTA JSONs
                     overall=SurfaceRating(**d["overall"]),
                     serve_clay=SurfaceRating(**d["serve_clay"]),
                     serve_grass=SurfaceRating(**d["serve_grass"]),

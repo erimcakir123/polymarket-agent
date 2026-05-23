@@ -20,6 +20,7 @@ def _make_rating(player_id: str, player_name: str) -> PlayerRating:
     return PlayerRating(
         player_id=player_id,
         player_name=player_name,
+        tour="atp",
         overall=sr,
         serve_clay=sr,
         serve_grass=sr,
@@ -131,6 +132,51 @@ def test_match_player_empty_ratings_returns_none() -> None:
 def test_match_player_no_match_returns_none(ratings) -> None:
     result = match_player("Xxxxxxyyyyyy", ratings)
     assert result is None
+
+
+# ── short-name collision guard ────────────────────────────────────────────────
+
+
+def test_match_player_short_name_does_not_match_longer_full_name() -> None:
+    """Prefix-of-full-name input must NOT fuzzy-match a longer real name.
+
+    Real-world bug (2026-05-21): Polymarket question "Juan Martin" matched
+    "Juan Martin del Potro" via rapidfuzz partial_ratio=100. The correct
+    behavior is to refuse the match — too many missing tokens to be confident.
+    """
+    rating = _make_rating("dp", "Juan Martin del Potro")
+    rs = {"dp": rating}
+    assert match_player("Juan Martin", rs) is None
+
+
+def test_match_player_typo_still_resolves() -> None:
+    """Regression: single-token typo must still fuzzy-match (token diff ≤1)."""
+    rating = _make_rating("js", "Jannik Sinner")
+    rs = {"js": rating}
+    # "Sinnerr" — 1 token vs target's 2 tokens → diff 1 → fuzz check fires
+    result = match_player("Sinnerr", rs)
+    assert result is not None
+    assert result.player_id == "js"
+
+
+def test_match_player_compound_last_name_partial_resolves() -> None:
+    """Regression: 2-token input vs 3-token target (diff=1) still allowed."""
+    rating = _make_rating("ca", "Carlos Alcaraz Garfia")
+    rs = {"ca": rating}
+    result = match_player("Carlos Alcaraz", rs)
+    assert result is not None
+    assert result.player_id == "ca"
+
+
+def test_match_player_same_surname_different_first_name_rejected() -> None:
+    """Real-world bug (2026-05-21): "Juan Martin" matched "Dan Martin"
+    because surname is exact and partial_ratio on the full string scores
+    high. Per-token guard must reject when ANY input token has no strong
+    match among target tokens.
+    """
+    rating = _make_rating("dm", "Dan Martin")
+    rs = {"dm": rating}
+    assert match_player("Juan Martin", rs) is None
 
 
 # ── build_match_index ─────────────────────────────────────────────────────────

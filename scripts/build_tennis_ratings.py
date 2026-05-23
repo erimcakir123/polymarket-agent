@@ -140,6 +140,7 @@ def build_ratings_from_matches(
         output[name] = PlayerRating(
             player_id=name,
             player_name=name,
+            tour="atp",
             overall=_glicko_to_surface(p["overall"]),
             serve_clay=_glicko_to_surface(p["serve_clay"]),
             serve_grass=_glicko_to_surface(p["serve_grass"]),

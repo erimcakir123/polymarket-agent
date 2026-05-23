@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -23,7 +24,7 @@ def _full_rating(rating: float = 1500, rd: float = 350, vol: float = 0.06) -> Su
 
 def _full_player(player_id: str = "p1", player_name: str = "Player A") -> PlayerRating:
     return PlayerRating(
-        player_id=player_id, player_name=player_name,
+        player_id=player_id, player_name=player_name, tour="atp",
         overall=SurfaceRating(rating=1820, rd=95, volatility=0.05),
         serve_clay=SurfaceRating(rating=1810, rd=98, volatility=0.06),
         serve_grass=SurfaceRating(rating=1800, rd=100, volatility=0.06),
@@ -57,7 +58,7 @@ def test_load_missing_file_returns_empty_dict(store_path):
 def test_save_atomic_writes_to_disk(store_path):
     store = TennisRatingsStore(path=store_path)
     rating = PlayerRating(
-        player_id="p1", player_name="A",
+        player_id="p1", player_name="A", tour="atp",
         overall=_full_rating(),
         serve_clay=_full_rating(), serve_grass=_full_rating(), serve_hard=_full_rating(),
         return_clay=_full_rating(), return_grass=_full_rating(), return_hard=_full_rating(),
@@ -87,3 +88,50 @@ def test_save_creates_parent_directory_if_missing(tmp_path):
     store.save({})
     assert deep_path.parent.exists()
     assert deep_path.exists()
+
+
+def test_store_save_load_preserves_tour_field(tmp_path: Path) -> None:
+    """tour field round-trips through save → load."""
+    path = tmp_path / "ratings.json"
+    store = TennisRatingsStore(path=path)
+    sr = SurfaceRating(rating=1500.0, rd=350.0, volatility=0.06)
+    atp_player = PlayerRating(
+        player_id="atp:Federer", player_name="Roger Federer", tour="atp",
+        overall=sr, serve_clay=sr, serve_grass=sr, serve_hard=sr,
+        return_clay=sr, return_grass=sr, return_hard=sr,
+        last_match_date="2023-09-01", match_count_12mo=20,
+    )
+    wta_player = PlayerRating(
+        player_id="wta:Swiatek", player_name="Iga Swiatek", tour="wta",
+        overall=sr, serve_clay=sr, serve_grass=sr, serve_hard=sr,
+        return_clay=sr, return_grass=sr, return_hard=sr,
+        last_match_date="2024-09-01", match_count_12mo=55,
+    )
+    store.save({"atp:Federer": atp_player, "wta:Swiatek": wta_player})
+    loaded = store.load()
+    assert loaded["atp:Federer"].tour == "atp"
+    assert loaded["wta:Swiatek"].tour == "wta"
+    assert loaded["atp:Federer"].player_name == "Roger Federer"
+    assert loaded["wta:Swiatek"].player_name == "Iga Swiatek"
+
+
+def test_store_load_missing_tour_field_defaults_to_atp(tmp_path: Path) -> None:
+    """Backward compat: old JSON without tour field loads as ATP."""
+    path = tmp_path / "ratings.json"
+    legacy_json = {
+        "Federer": {
+            "player_id": "Federer", "player_name": "Federer",
+            "overall": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "serve_clay": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "serve_grass": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "serve_hard": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "return_clay": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "return_grass": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "return_hard": {"rating": 1500.0, "rd": 350.0, "volatility": 0.06},
+            "last_match_date": "2023-09-01", "match_count_12mo": 20,
+        }
+    }
+    path.write_text(json.dumps(legacy_json), encoding="utf-8")
+    store = TennisRatingsStore(path=path)
+    loaded = store.load()
+    assert loaded["Federer"].tour == "atp"

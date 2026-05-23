@@ -27,6 +27,7 @@ def _make_player_rating(pid: str, name: str, r: float = 1500.0) -> PlayerRating:
     return PlayerRating(
         player_id=pid,
         player_name=name,
+        tour="atp",
         overall=sr,
         serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
