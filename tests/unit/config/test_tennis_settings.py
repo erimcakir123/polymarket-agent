@@ -13,6 +13,8 @@ def test_tennis_config_defaults():
     assert cfg.glicko_initial_rd == 350
     assert cfg.glicko_tau == 0.5
     assert cfg.sackmann_years == [2022, 2023, 2024, 2025, 2026]
+    # WTA disabled by default — empty list means rebuild script skips women's tour.
+    assert cfg.sackmann_wta_years == []
 
 
 def test_tennis_confidence_tier_a_defaults():

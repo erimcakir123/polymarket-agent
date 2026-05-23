@@ -11,7 +11,7 @@ cycle:
 
 scanner:
   min_liquidity: 1000
-  max_markets_per_cycle: 100
+  max_markets_per_cycle: 500
   # Polymarket tennis end_date'i match_start + ~7 gün (turnuva sonu cushion).
   # 7 gün cutoff bugünün maçlarını saatlerce kıl payıyla eler — 10 güne çıkarıyoruz.
   max_duration_days: 10
@@ -100,6 +100,7 @@ tennis:
   diagnostic_log_dir: "logs/tennis_diagnostics"
   sackmann_years: [2022, 2023, 2024, 2025, 2026]
   challenger_years: [2022, 2023, 2024, 2025, 2026]
+  sackmann_wta_years: [2022, 2023, 2024, 2025, 2026]
   glicko_initial_rating: 1500
   glicko_initial_rd: 350
   glicko_initial_volatility: 0.06

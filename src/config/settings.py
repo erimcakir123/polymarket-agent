@@ -231,6 +231,8 @@ class TennisConfig(BaseModel):
     diagnostic_log_dir: str = "logs/tennis_diagnostics"
     sackmann_years: list[int] = [2022, 2023, 2024, 2025, 2026]
     challenger_years: list[int] = [2022, 2023, 2024, 2025, 2026]
+    # Empty default = WTA disabled; rebuild script skips women's tour unless set in yaml.
+    sackmann_wta_years: list[int] = []
     glicko_initial_rating: float = 1500.0
     glicko_initial_rd: float = 350.0
     glicko_initial_volatility: float = 0.06
