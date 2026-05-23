@@ -12,7 +12,7 @@ Zaman dışarıdan verilir (now_fn) — test için deterministik.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Callable
 
 
@@ -98,32 +98,12 @@ class CircuitBreaker:
             self.state.last_hourly_reset = now
 
     def should_halt_entries(self) -> tuple[bool, str]:
-        """Sadece entry halt — exit'leri ASLA durdurmaz."""
-        if not self.config.enabled:
-            return False, ""
-        self.reset_if_needed()
-        now = self._now()
-        cfg = self.config
-        st = self.state
+        """Circuit breaker KALDIRILDI (kullanıcı kararı 2026-05-23, SPEC-T).
 
-        if st.breaker_active_until and now < st.breaker_active_until:
-            remaining = int((st.breaker_active_until - now).total_seconds() // 60)
-            return True, f"Circuit breaker cooldown ({remaining}min remaining)"
-
-        if st.daily_realized_pnl_pct <= cfg.daily_max_loss_pct:
-            st.breaker_active_until = now + timedelta(minutes=cfg.cooldown_after_daily_min)
-            return True, f"Daily loss {st.daily_realized_pnl_pct:.1%} hit {cfg.daily_max_loss_pct:.0%} limit"
-
-        if st.hourly_realized_pnl_pct <= cfg.hourly_max_loss_pct:
-            st.breaker_active_until = now + timedelta(minutes=cfg.cooldown_after_hourly_min)
-            return True, f"Hourly loss {st.hourly_realized_pnl_pct:.1%} hit {cfg.hourly_max_loss_pct:.0%} limit"
-
-        if st.consecutive_losses >= cfg.consecutive_loss_limit:
-            st.breaker_active_until = now + timedelta(minutes=cfg.cooldown_after_consecutive_min)
-            st.consecutive_losses = 0  # Çift cooldown önle
-            return True, f"{cfg.consecutive_loss_limit} consecutive losses"
-
-        if st.daily_realized_pnl_pct <= cfg.entry_block_threshold:
-            return True, f"Daily loss {st.daily_realized_pnl_pct:.1%} exceeded soft limit {cfg.entry_block_threshold:.0%}"
-
+        Eskiden günlük/saatlik/ardışık kayıp eşiklerine göre entry'leri durduruyordu.
+        Multi-SL (graduated + flat + market_flip) zaten maç-içi koruma sağlıyor;
+        CB bağımsız maçlar arası gereksiz blok uyguluyordu. Tüm tetikleyiciler
+        kaldırıldı; state hâlâ kayıt edilir (record_exit/reset_if_needed) ama
+        entry kararını ETKİLEMEZ — her zaman False döner.
+        """
         return False, ""

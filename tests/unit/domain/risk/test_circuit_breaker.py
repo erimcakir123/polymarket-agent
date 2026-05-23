@@ -1,6 +1,12 @@
-"""circuit_breaker.py için birim testler (DECISIONS §6.15)."""
+"""circuit_breaker.py için birim testler (DECISIONS §6.15).
+
+⚠️ SPEC-T (2026-05-23): CB kullanıcı kararıyla kaldırıldı.
+`should_halt_entries` artık her zaman (False, "") döndürür. Aşağıdaki tetikleyici
+test'ler artık geçerli değil — modül-level skip uygulandı.
+"""
 from __future__ import annotations
 
+import pytest
 from datetime import datetime, timedelta, timezone
 
 from src.domain.risk.circuit_breaker import (
@@ -8,6 +14,8 @@ from src.domain.risk.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitBreakerState,
 )
+
+pytestmark = pytest.mark.skip(reason="CB removed 2026-05-23 SPEC-T")
 
 
 def _fixed_now(ts: datetime):

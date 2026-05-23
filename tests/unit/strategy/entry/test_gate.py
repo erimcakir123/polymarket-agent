@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import BookmakerProbability
 from src.domain.guards.blacklist import Blacklist
@@ -145,9 +147,10 @@ def test_no_edge_skips() -> None:
     assert results[0].skipped_reason == "no_edge"
 
 
+@pytest.mark.skip(reason="CB removed 2026-05-23 SPEC-T")
 def test_circuit_breaker_halts_all() -> None:
     cb = CircuitBreaker()
-    cb.record_exit(pnl_usd=-100, portfolio_value=1000)  # -10% daily → halt
+    cb.record_exit(pnl_usd=-100, portfolio_value=1000)
     gate = _make_gate(cb=cb)
     results = gate.run([_market(), _market(cid="c2", event="e2")])
     assert all(r.signal is None for r in results)
