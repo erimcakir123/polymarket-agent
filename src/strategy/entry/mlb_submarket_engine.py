@@ -71,6 +71,7 @@ class MlbSubmarketEngine:
         team_id_to_park_id: dict[int, str],
         league_rates: dict[str, float] | None = None,
         fixed_bet_usdc: dict[str, float] | None = None,
+        bimodal_bet_usdc: dict[str, float] | None = None,
         team_bullpen_rates: dict[int, dict[str, dict[str, float]]] | None = None,
     ) -> None:
         self.statsapi = statsapi
@@ -81,7 +82,9 @@ class MlbSubmarketEngine:
         self.ballpark_metadata = ballpark_metadata
         self.team_id_to_park_id = team_id_to_park_id
         self.league_rates = league_rates or LEAGUE_PA_RATES
-        self.fixed_bet_usdc = fixed_bet_usdc or {"A": 15.0, "B": 10.0}
+        # SPEC-U: moneyline = fixed; totals + run_line = bimodal
+        self.fixed_bet_usdc = fixed_bet_usdc or {"A": 50.0, "B": 30.0}
+        self.bimodal_bet_usdc = bimodal_bet_usdc or {"A": 15.0, "B": 10.0}
         self.team_bullpen_rates = team_bullpen_rates  # None = bullpen disabled
 
     # ------------------------------------------------------------------
@@ -270,7 +273,9 @@ class MlbSubmarketEngine:
             line=line,
         )
         return mlb_candidate_to_signal(
-            candidate, market, tier=tier, fixed_bet_usdc=self.fixed_bet_usdc,
+            candidate, market, tier=tier,
+            fixed_bet_usdc=self.fixed_bet_usdc,
+            bimodal_bet_usdc=self.bimodal_bet_usdc,
         )
 
     # ------------------------------------------------------------------

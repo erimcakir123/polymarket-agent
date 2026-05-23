@@ -193,6 +193,7 @@ def build_agent(state: RuntimeState) -> Agent:
         max_positions_per_event=cfg.risk.max_positions_per_event,
         max_exposure_pct=cfg.risk.max_exposure_pct,
         fixed_bet_usdc=cfg.risk.fixed_bet_usdc,
+        bimodal_bet_usdc=cfg.risk.bimodal_bet_usdc,
         max_entry_price=cfg.risk.max_entry_price,
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
@@ -238,7 +239,8 @@ def build_agent(state: RuntimeState) -> Agent:
         weather = WeatherClient()
         rate_cache = RateCache(Path(cfg.mlb_submarket.rate_cache_path))
 
-        fixed_bet = getattr(cfg.risk, "fixed_bet_usdc", {"A": 15.0, "B": 10.0})
+        fixed_bet = getattr(cfg.risk, "fixed_bet_usdc", {"A": 50.0, "B": 30.0})
+        bimodal_bet = getattr(cfg.risk, "bimodal_bet_usdc", {"A": 15.0, "B": 10.0})
 
         mlb_engine = MlbSubmarketEngine(
             statsapi=statsapi,
@@ -249,6 +251,7 @@ def build_agent(state: RuntimeState) -> Agent:
             ballpark_metadata=_DEFAULT_BALLPARK_METADATA,
             team_id_to_park_id=TEAM_ID_TO_PARK_ID,
             fixed_bet_usdc=fixed_bet,
+            bimodal_bet_usdc=bimodal_bet,
         )
         logger.info("MlbSubmarketEngine initialized (config.mlb_submarket.enabled=True)")
 

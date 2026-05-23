@@ -39,6 +39,20 @@ from src.strategy.entry import (
 
 logger = logging.getLogger(__name__)
 
+# SPEC-U (2026-05-23): bimodal market türleri — anlık fiyat çakılma riski,
+# stop_loss muaf (stop_loss.py:39 _TOTALS_KEYWORDS uyumlu). Küçük sizing cap.
+_BIMODAL_MARKET_TYPES: frozenset[str] = frozenset({"totals", "spreads"})
+
+
+def _is_bimodal_market(market: MarketData) -> bool:
+    """market.sports_market_type → bimodal mi? Enum veya str kabul eder."""
+    t = market.sports_market_type
+    if t is None:
+        return False
+    if hasattr(t, "value"):
+        t = t.value
+    return str(t).lower() in _BIMODAL_MARKET_TYPES
+
 
 @dataclass
 class GateConfig:
@@ -47,7 +61,10 @@ class GateConfig:
     max_positions: int = 50
     max_positions_per_event: int = 3  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
     max_exposure_pct: float = 0.50  # SPEC-P: yumuşak cap, clipping yok
-    fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
+    # SPEC-U (2026-05-23): bimodal-aware sizing.
+    # Non-bimodal (moneyline) = fixed_bet_usdc; bimodal (totals + spreads) = bimodal_bet_usdc.
+    fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
+    bimodal_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
     max_entry_price: float = 0.88
     # Consensus
     consensus_enabled: bool = True
@@ -162,10 +179,17 @@ class EntryGate:
             detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
 
-        # 7. Position sizing (SPEC-P: sabit-tier, bankroll bağımsız).
+        # 7. Position sizing (SPEC-P sabit-tier + SPEC-U bimodal-aware).
+        # Bimodal = totals + spreads (SL muaf, anlık çakılma riski) → küçük cap.
+        # Non-bimodal = moneyline → eski sizing.
+        bet_dict = (
+            self.config.bimodal_bet_usdc
+            if _is_bimodal_market(market)
+            else self.config.fixed_bet_usdc
+        )
         raw_size = confidence_position_size(
             confidence=signal.confidence,
-            fixed_bet_usdc=self.config.fixed_bet_usdc,
+            fixed_bet_usdc=bet_dict,
         )
 
         # Manipulation medium risk → halve

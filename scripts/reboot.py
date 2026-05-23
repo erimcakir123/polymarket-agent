@@ -387,18 +387,13 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
             print("İptal — state korundu. (`reload` istiyor olabilirsin?)")
             return
     kill_processes()
-    # Açık pozisyonların condition_id'lerini reset_state'ten ÖNCE oku — açık
-    # pozisyonlara ait trade_history kayıtları yeni audit'te tutulur, kapanmış
-    # trade'ler arşive gider (2026-05-21 fix: partial_exits/exit_pnl koruması).
-    open_cids = _read_open_condition_ids()
     clear_runtime_logs()
     clear_session_logs()
-    # NOT: clear_audit_logs() çağrılmıyor — audit kalıcı arşiv (SPEC-H 2026-05-10).
-    # AMA mevcut audit dosyaları rename ile archive'lenir (2026-05-11 fix):
-    # SPEC-E reconcile_realized_pnl audit'i ground truth okuyordu, reboot sonrası
-    # realized_pnl audit'ten geri inşa ediliyordu → "clean start" ihlal.
-    # Archive ile audit veri kaybolmaz ama yeni session boş audit ile başlar.
-    archive_audit_logs(open_condition_ids=open_cids)
+    # Audit kalıcı arşiv (SPEC-H 2026-05-10) — rename ile archive'lenir, veri
+    # kaybolmaz, yeni session boş audit'le başlar.
+    # 2026-05-22: open_condition_ids=None → FULL archive. reset_state() zaten
+    # positions.json'ı siliyor, açık pozisyon kaydı tutmanın anlamı yok.
+    archive_audit_logs(open_condition_ids=None)
     reset_state()
     start_dashboard()
     time.sleep(3)

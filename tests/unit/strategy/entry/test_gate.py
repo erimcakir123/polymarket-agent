@@ -121,8 +121,8 @@ def test_manipulation_medium_halves_size() -> None:
     gate = _make_gate(portfolio=p, manip=lambda question, liquidity: _medium_manip())
     results = gate.run([_market()])
     assert results[0].signal is not None
-    # SPEC-S Faz D: B sabit $10; medium × 0.5 = $5 (was B=$30 → $15 before bimodal)
-    assert results[0].signal.size_usdc == 5.0
+    # SPEC-U: market default moneyline (sports_market_type="") → non-bimodal B=$30; medium × 0.5 = $15
+    assert results[0].signal.size_usdc == 15.0
 
 
 def test_no_bookmaker_data_skips() -> None:
@@ -217,7 +217,7 @@ def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
     """SPEC-P: yumuşak cap — exposure < cap iken tam sabit-tier trade alınır.
 
     initial=$2000, invested=$990 → exposure 49.5% < 50% cap.
-    A trade tam $15 girer (sonuç cap'i geçse de, yumuşak cap — SPEC-S Faz D bimodal).
+    A trade tam $50 girer (default moneyline non-bimodal, SPEC-U).
     """
     p = PortfolioManager(initial_bankroll=2000.0)
     p.add_position(Position(
@@ -228,7 +228,7 @@ def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
     gate = _make_gate(portfolio=p, enricher=lambda m: _enrich(_bm(prob=0.60, conf="A")))
     results = gate.run([_market(cid="new", event="enew")])
     assert results[0].signal is not None
-    assert results[0].signal.size_usdc == 15.0
+    assert results[0].signal.size_usdc == 50.0
 
 
 def test_gate_skips_when_exposure_at_cap() -> None:

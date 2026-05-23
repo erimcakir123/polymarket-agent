@@ -68,8 +68,13 @@ edge:
 
 risk:
   # SPEC-P (2026-05-21): sabit-tier sizing. Bankroll dalgalanmasından bağımsız.
-  # SPEC-S Faz D (2026-05-23): bimodal cap — tüm spor marketleri binary, $15/$10 cap (tenis paritesi).
-  fixed_bet_usdc:
+  # SPEC-U (2026-05-23): bimodal-aware. Non-bimodal (moneyline) = fixed_bet_usdc;
+  # bimodal (totals + spreads — anlık fiyat çakılma riski, SL muaf) = bimodal_bet_usdc.
+  # Tenis lab pattern (set_totals + set_handicap için ayrı cap).
+  fixed_bet_usdc:        # non-bimodal (moneyline)
+    A: 50
+    B: 30
+  bimodal_bet_usdc:      # bimodal (totals + spreads) — tenis paritesi
     A: 15
     B: 10
   max_positions: 50        # Kozmetik cap — pratikte exposure cap dominant

@@ -375,6 +375,32 @@ def test_reboot_calls_archive_audit_logs() -> None:
     mock_archive.assert_called_once()
 
 
+def test_reboot_archives_full_audit_not_split() -> None:
+    """2026-05-22: reboot full clean slate ister → archive_audit_logs'a
+    open_condition_ids=None geçer. Eski "open positions kept" davranışı
+    (2026-05-21 fix) artık kullanılmıyor — reset_state() zaten positions.json'ı
+    siliyor, kayıt tutmanın anlamı yok.
+    """
+    with (
+        patch("scripts.reboot.kill_processes"),
+        patch("scripts.reboot.clear_runtime_logs"),
+        patch("scripts.reboot.clear_session_logs"),
+        patch("scripts.reboot.archive_audit_logs") as mock_archive,
+        patch("scripts.reboot.reset_state"),
+        patch("scripts.reboot.start_bot"),
+        patch("scripts.reboot.start_dashboard"),
+        patch("scripts.reboot.time.sleep"),
+    ):
+        reboot("dry_run", skip_confirm=True)
+
+    mock_archive.assert_called_once()
+    _, kwargs = mock_archive.call_args
+    assert kwargs.get("open_condition_ids") is None, (
+        "reboot() archive_audit_logs'a open_condition_ids=None geçmeli "
+        "(full archive). Şu an: " + repr(kwargs.get("open_condition_ids"))
+    )
+
+
 def test_archive_audit_logs_splits_open_positions(tmp_path: Path) -> None:
     """2026-05-21 fix: trade_history.jsonl açık pozisyonların kayıtları yeni
     audit'te tutulur, kapanmış trade'ler arşive taşınır.

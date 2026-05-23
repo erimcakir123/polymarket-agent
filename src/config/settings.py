@@ -63,8 +63,10 @@ class EdgeConfig(BaseModel):
 class RiskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     # SPEC-P (2026-05-21): fixed-tier sizing — bankroll dalgalanmasından bağımsız.
-    # SPEC-S Faz D (2026-05-23): bimodal cap A=$15, B=$10 (was A=$50, B=$30 — tenis paritesi).
-    fixed_bet_usdc: dict[str, float] = {"A": 15.0, "B": 10.0}
+    # SPEC-U (2026-05-23): bimodal-aware. Non-bimodal (moneyline) eski sizing;
+    # bimodal (totals + spreads) tenis paritesi cap.
+    fixed_bet_usdc: dict[str, float] = {"A": 50.0, "B": 30.0}    # non-bimodal
+    bimodal_bet_usdc: dict[str, float] = {"A": 15.0, "B": 10.0}  # bimodal (totals + spreads)
     max_positions: int = 20
     max_positions_per_event: int = 3  # SPEC-J/K: aynı event'te moneyline+spread+totals bağımsız bahisler (Kural 8 gevşedi)
     # Soft cap: exposure < cap iken tam trade alınır (sonuç cap'i geçse de OK).
