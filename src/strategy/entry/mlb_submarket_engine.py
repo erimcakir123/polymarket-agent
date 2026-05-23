@@ -92,7 +92,7 @@ class MlbSubmarketEngine:
         parsed = self._parse_slug(getattr(market, "slug", "") or "")
         if parsed is None:
             return None
-        date_str, market_type, line = parsed
+        date_str, market_type, line, away_abbr, home_abbr = parsed
 
         try:
             schedule = self.statsapi.get_schedule(date_str)
@@ -244,18 +244,26 @@ class MlbSubmarketEngine:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _parse_slug(self, slug: str) -> tuple[str, str, float] | None:
-        """Parse slug → (date_str, market_type, line). Returns None on mismatch."""
+    @staticmethod
+    def _parse_slug_static(slug: str) -> tuple[str, str, float, str, str] | None:
+        """Parse slug → (date_str, market_type, line, away_abbr, home_abbr).
+
+        Returns None on mismatch.
+        """
         m_t = _SLUG_TOTALS_RE.match(slug)
         if m_t:
-            _away, _home, date, n = m_t.groups()
-            return date, "totals", float(n) + 0.5
+            away, home, date, n = m_t.groups()
+            return date, "totals", float(n) + 0.5, away, home
         m_r = _SLUG_RUN_LINE_RE.match(slug)
         if m_r:
-            _away, _home, date, sign = m_r.groups()
+            away, home, date, sign = m_r.groups()
             line = -1.5 if sign == "neg" else 1.5
-            return date, "run_line", line
+            return date, "run_line", line, away, home
         return None
+
+    def _parse_slug(self, slug: str) -> tuple[str, str, float, str, str] | None:
+        """Instance method wrapper for backward-compat callers."""
+        return self._parse_slug_static(slug)
 
     def _get_batter_rates(self, mlbam_id: int, season: int) -> dict[str, float]:
         cached = self.rate_cache.get(mlbam_id, season, "batter")
