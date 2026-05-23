@@ -68,7 +68,14 @@ class StatsApiClient:
         raise StatsApiError(f"StatsAPI {url} unexpected fallthrough")
 
     def get_schedule(self, date: str) -> list[dict]:
-        """date = 'YYYY-MM-DD'. Returns list of {gamePk, home_team_id, away_team_id, status}."""
+        """date = 'YYYY-MM-DD'. Returns list of game dicts.
+
+        Keys: gamePk, home_team_id, away_team_id, status,
+              game_type, scheduled_innings, double_header.
+
+        DH fields default: game_type='R', scheduled_innings=9, double_header='N'.
+        7-inning DH makeups have gameType='D' and scheduledInnings=7.
+        """
         data = self._request("/api/v1/schedule", {"sportId": 1, "date": date})
         result = []
         for d in data.get("dates", []):
@@ -82,6 +89,9 @@ class StatsApiClient:
                         g.get("teams", {}).get("away", {}).get("team", {}).get("id")
                     ),
                     "status": g.get("status", {}).get("abstractGameState"),
+                    "game_type": g.get("gameType", "R"),
+                    "scheduled_innings": g.get("scheduledInnings", 9),
+                    "double_header": g.get("doubleHeader", "N"),
                 })
         return result
 

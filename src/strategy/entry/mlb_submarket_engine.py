@@ -8,7 +8,7 @@ Plan 4 simplifications (v2 TODO items):
 - Bullpen segmentation deferred (starter pitches all 9 innings).
 - TTO simplified: rough ((inning-1)//3 + 1) instead of full PA tracking.
 - Handedness lookup deferred: default R/R matchup for all batters/pitchers.
-- DH detection deferred: always 9-inning game.
+- DH detection: implemented (A6) — gameType "D" + scheduledInnings < 9 → dh_game=True.
 - Team matching: implemented (A4) — picks game matched by home/away team_id.
 """
 from __future__ import annotations
@@ -231,10 +231,17 @@ class MlbSubmarketEngine:
             park_meta, weather_cond,
         )
 
+        # DH detection: gameType "D" + scheduled_innings < 9 → 7-inning DH game.
+        # Diğer her durum (regular, makeup, traditional DH game 1, vs.) 9-inning.
+        is_dh_7inning = (
+            game.get("game_type") == "D"
+            and game.get("scheduled_innings", 9) < 9
+        )
+
         # Simulate
         home_dist, away_dist = simulate_game(
             home_per_inning, away_per_inning,
-            dh_game=False,
+            dh_game=is_dh_7inning,
             mc_iterations=_DEFAULT_MC_ITERATIONS,
             seed=42,
         )
