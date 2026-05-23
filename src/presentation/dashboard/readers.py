@@ -69,27 +69,25 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """Trade history — session + audit (current + archive) birleşik, dedupe.
+    """Trade history — session + audit (sadece AKTİF dosyalar, archive YOK).
 
     Kaynaklar:
-      - logs/session/trade_history.jsonl                (reboot mirror)
-      - logs/audit/trade_history.jsonl                  (kalıcı current)
-      - logs/audit/trade_history.archive.*.jsonl        (reboot arşivleri)
+      - logs/session/trade_history.jsonl     (reboot mirror, fresh)
+      - logs/audit/trade_history.jsonl       (aktif session audit'i, fresh)
 
-    Tennis Prediction Lab pattern'i (SPEC-Q): tüm jsonl dosyaları okunur, böylece
-    reboot bot state'ini (positions/bankroll) sıfırlasa bile dashboard exited
-    tab'ında geçmiş kayıt kaybı olmaz. Realized PnL widget'ı aynı listeden
-    beslendiği için exited tab toplamı ile her zaman uyumludur.
+    Archive dosyaları (`trade_history.archive.*.jsonl`) BİLİNÇLİ atlanır
+    (2026-05-23 kullanıcı kararı): reboot = gerçek 0 nokta semantiği.
+    Eski SPEC-Q "archive'ları da oku" davranışı geri çevrildi çünkü reboot
+    sonrası dashboard hâlâ eski geçmişi gösteriyordu. Archive dosyaları forensic
+    için disk'te durur ama dashboard görmez.
 
     Dedupe by (condition_id, entry_timestamp): aynı kayıt iki dosyada varsa
-    daha zengin exit data taşıyan kazanır. Aynı condition_id altında farklı
-    entry_timestamp'li kayıtlar AYRI tutulur — her giriş ayrı trade kaydıdır.
+    daha zengin exit data taşıyan kazanır.
     """
     audit_dir = logs_dir / "audit"
     paths = [
         logs_dir / "session" / "trade_history.jsonl",
         audit_dir / "trade_history.jsonl",
-        *sorted(audit_dir.glob("trade_history.archive.*.jsonl")),
     ]
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     no_key: list[dict[str, Any]] = []

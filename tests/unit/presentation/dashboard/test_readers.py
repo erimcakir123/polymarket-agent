@@ -95,12 +95,12 @@ def test_read_trades_tail(tmp_path: Path) -> None:
     assert out[0]["slug"] == "m-20"
 
 
-def test_read_trades_archive_files_are_read(tmp_path: Path) -> None:
-    """Arşiv dosyaları (trade_history.archive.*.jsonl) dashboard kaynağıdır.
+def test_read_trades_archive_files_are_ignored(tmp_path: Path) -> None:
+    """Arşiv dosyaları (trade_history.archive.*.jsonl) dashboard tarafından OKUNMAZ.
 
-    Tennis Lab pattern'i: tüm jsonl dosyaları okunur. Reboot ana dosyayı
-    arşivlese bile exited tab geçmişi kaybetmez; realized PnL widget'ı
-    exited tab toplamı ile uyumlu kalır.
+    2026-05-23 kullanıcı kararı: reboot = gerçek 0 nokta. Eski SPEC-Q "archive'ları
+    da oku" davranışı geri çevrildi. Archive dosyaları forensic için disk'te
+    durur ama dashboard widget'larına sızmaz.
     """
     logs_dir, _ = _mk_logs(tmp_path)
     _write_jsonl(
@@ -114,13 +114,11 @@ def test_read_trades_archive_files_are_read(tmp_path: Path) -> None:
     )
 
     out = readers.read_trades(logs_dir, n=100)
-    assert len(out) == 1
-    assert out[0]["condition_id"] == "cid-old"
-    assert out[0]["exit_pnl_usdc"] == -40.93
+    assert out == []
 
 
-def test_read_trades_archive_merged_with_current(tmp_path: Path) -> None:
-    """Birden çok archive + current birleşir; dedupe sağlam çalışır."""
+def test_read_trades_archive_not_merged_with_current(tmp_path: Path) -> None:
+    """Sadece aktif trade_history.jsonl okunur; archive'lar atlanır."""
     logs_dir, _ = _mk_logs(tmp_path)
     _write_jsonl(
         logs_dir / "audit" / "trade_history.archive.20260511_115858.jsonl",
@@ -146,7 +144,8 @@ def test_read_trades_archive_merged_with_current(tmp_path: Path) -> None:
 
     out = readers.read_trades(logs_dir, n=100)
     cids = {r["condition_id"] for r in out}
-    assert cids == {"cid-1", "cid-2", "cid-3"}
+    # Sadece aktif current trade görünür; arşivlerdekiler değil.
+    assert cids == {"cid-3"}
 
 
 def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
