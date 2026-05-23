@@ -47,7 +47,7 @@ class _BlacklistLike(Protocol):
 class _MarketLike(Protocol):
     condition_id: str
     event_id: str | None
-    sports_market_type: object  # str veya SportsMarketType enum
+    sports_market_type: str  # MarketData field — empty str if absent
 
 
 def check_global_halts(

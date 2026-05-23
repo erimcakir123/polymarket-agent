@@ -20,12 +20,18 @@ SPORT_RULES: dict[str, dict] = {
         # mantığı yok (Faz 1 rollback Task 3 silindi) + veri yok (0 trade) →
         # scanner'da blokla. Faz 2'de kanıtla açma kararı verilir.
         "spread_blocked": True,
+        # SPEC-W (2026-05-23): empirical analiz — NBA totals %67, spread %100
+        # kademeli (n=8-9). Yüksek puan + küçük adım = SL yakalar. Bimodal yok.
+        "bimodal_market_types": [],
     },
     "nfl": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 3.25,
         "halftime_exit": True,
         "halftime_exit_deficit": 14,
+        # SPEC-W: NFL empirical veri yok; mantık orta (35-55 puan, +3-7 adım).
+        # Konservatif boş — empirical kanıt gelene kadar non-bimodal.
+        "bimodal_market_types": [],
     },
     "nhl": {
         "stop_loss_pct": 0.30,
@@ -38,6 +44,9 @@ SPORT_RULES: dict[str, dict] = {
         # Eski projede 4 günde 13W/2L +$126 ML-only kanıtı (SPEC-L 2026-05-11).
         # NHL spread/totals trade'leri için kanıt yok → moneyline-only.
         "moneyline_only": True,
+        # SPEC-W: NHL ML audit n=6 ort -%50 → BIMODAL kanıt. Totals/spread
+        # mantıksal yüksek risk (5-7 gol, +1 gol büyük etki). Hepsi bimodal.
+        "bimodal_market_types": ["moneyline", "totals", "spread", "spreads"],
     },
     "mlb": {
         "stop_loss_pct": 0.30,
@@ -53,6 +62,9 @@ SPORT_RULES: dict[str, dict] = {
             "totals": "model",
             "run_line": "model",
         },
+        # SPEC-W: empirical — MLB totals %73, run_line %93, nrfi %69, ML %79
+        # kademeli (n=13-15). 8-12 koşu + orta adım = SL yakalar. Bimodal yok.
+        "bimodal_market_types": [],
     },
     "tennis": {
         "stop_loss_pct": 0.30,
@@ -60,11 +72,19 @@ SPORT_RULES: dict[str, dict] = {
         "start_source": "espn",
         "espn_sport": "tennis",
         "espn_leagues": ("atp", "wta"),
+        # SPEC-W: empirical — set_totals/set_handicap WTA ambiguous (bimodal),
+        # match_total_games ATP %53 no_sig_drop. ATP set_totals %60 kademeli
+        # (non-bimodal). Tenis lab kendi worktree'sinde ayrı yapı kullanır.
+        "bimodal_market_types": [
+            "set_totals", "set_handicap", "match_total_games",
+        ],
     },
     "golf": {
         "stop_loss_pct": 0.30,
         "match_duration_hours": 4.0,
         "playoff_aware": True,
+        # SPEC-W: golf empirical yok, audit yok. Konservatif boş.
+        "bimodal_market_types": [],
     },
 }
 
@@ -169,3 +189,28 @@ def anchor_source(sport_tag: str, market_type: str) -> str:
     if not isinstance(overrides, dict):
         return "bookmaker"
     return str(overrides.get(market_type, "bookmaker"))
+
+
+def is_bimodal_market(sport_tag: str, market_type: str) -> bool:
+    """SPEC-W (2026-05-23): SL'in yakalayamadığı, anlık çakılan market mi?
+
+    Empirical analiz (analysis/bimodal_classification_2026-05-23.md) ile
+    sport-bazlı liste belirlendi. Default: non-bimodal ($50 sizing).
+
+    Args:
+        sport_tag: Internal sport key (örn "nhl", "mlb"). Boş/bilinmeyen
+            → False (konservatif sport-yok varsayımı, default sizing).
+        market_type: Polymarket sports_market_type (örn "moneyline", "totals",
+            "spread"). Boş → False.
+
+    Returns:
+        True → bimodal_bet_usdc ($15 cap) uygulanır.
+        False → fixed_bet_usdc ($50) uygulanır.
+    """
+    if not market_type:
+        return False
+    overrides = get_sport_rule(sport_tag, "bimodal_market_types", None)
+    if not isinstance(overrides, (list, tuple, set, frozenset)):
+        return False
+    mt = market_type.lower()
+    return mt in {str(m).lower() for m in overrides}

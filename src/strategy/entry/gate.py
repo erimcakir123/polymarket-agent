@@ -39,19 +39,20 @@ from src.strategy.entry import (
 
 logger = logging.getLogger(__name__)
 
-# SPEC-U (2026-05-23): bimodal market türleri — anlık fiyat çakılma riski,
-# stop_loss muaf (stop_loss.py:39 _TOTALS_KEYWORDS uyumlu). Küçük sizing cap.
-_BIMODAL_MARKET_TYPES: frozenset[str] = frozenset({"totals", "spreads"})
-
 
 def _is_bimodal_market(market: MarketData) -> bool:
-    """market.sports_market_type → bimodal mi? Enum veya str kabul eder."""
+    """SPEC-W (2026-05-23): sport-aware bimodal dispatch.
+
+    sport_rules.is_bimodal_market(sport_tag, market_type) → True = SL
+    yakalayamaz, anlık çakılan market → küçük sizing cap ($15/$10).
+    """
+    from src.config.sport_rules import is_bimodal_market
     t = market.sports_market_type
     if t is None:
         return False
     if hasattr(t, "value"):
         t = t.value
-    return str(t).lower() in _BIMODAL_MARKET_TYPES
+    return is_bimodal_market(market.sport_tag or "", str(t))
 
 
 @dataclass

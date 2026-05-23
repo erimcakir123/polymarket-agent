@@ -5,6 +5,7 @@ P(YES) preserved (anchor_probability = candidate.model_p, unchanged).
 """
 from __future__ import annotations
 
+from src.config.sport_rules import is_bimodal_market
 from src.domain.mlb_submarket.edge_candidate import EdgeCandidate
 from src.models.enums import Direction, EntryReason
 from src.models.market import MarketData
@@ -12,9 +13,6 @@ from src.models.signal import Signal
 
 
 _MLB_SPORT_TAG = "baseball_mlb"
-
-
-_BIMODAL_MARKET_TYPES: frozenset[str] = frozenset({"totals", "run_line", "spreads"})
 
 
 def mlb_candidate_to_signal(
@@ -26,23 +24,23 @@ def mlb_candidate_to_signal(
 ) -> Signal:
     """Convert MLB EdgeCandidate to a Signal for EntryProcessor.process_signals.
 
-    SPEC-U (2026-05-23): bimodal-aware sizing.
-    - moneyline → fixed_bet_usdc (eski sizing)
-    - totals + run_line + spreads → bimodal_bet_usdc (tenis paritesi)
+    SPEC-W (2026-05-23): sport-aware bimodal-aware sizing. Bimodal listesi
+    sport_rules.py'da empirical analiz ile tanımlı (SPEC-W). MLB için empirical:
+    totals/run_line/nrfi/moneyline hepsi %69+ kademeli → non-bimodal → $50.
 
     Args:
         candidate: Qualified edge with model_p (P(YES)) and signed edge.
         market: Source Polymarket market.
         tier: Confidence tier ("A" or "B").
-        fixed_bet_usdc: Non-bimodal sizing dict.
-        bimodal_bet_usdc: Bimodal sizing dict. None → fixed_bet_usdc'ye düşer (backward-compat).
+        fixed_bet_usdc: Non-bimodal sizing dict (default $50/$30).
+        bimodal_bet_usdc: Bimodal sizing dict ($15/$10). None → fixed kullanılır.
 
     Returns:
         Signal with model anchor (bookmaker fields zeroed).
     """
     direction = Direction.BUY_YES if candidate.edge > 0 else Direction.BUY_NO
-    is_bimodal = candidate.market_type in _BIMODAL_MARKET_TYPES
-    if is_bimodal and bimodal_bet_usdc is not None:
+    is_bm = is_bimodal_market("mlb", candidate.market_type)
+    if is_bm and bimodal_bet_usdc is not None:
         size = bimodal_bet_usdc.get(tier, 0.0)
     else:
         size = fixed_bet_usdc.get(tier, 0.0)

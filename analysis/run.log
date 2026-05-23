@@ -1,0 +1,177 @@
+[1] Fetching market pool...
+[pool] page=0 cumulative=100
+[pool] page=5 cumulative=600
+[pool] page=10 cumulative=1100
+[pool] page=15 cumulative=1600
+[pool] page=20 cumulative=2100
+[pool] page=25 cumulative=2600
+[pool] page=30 cumulative=3100
+[pool] page=35 cumulative=3600
+[pool] page=40 cumulative=4100
+[pool] page=45 cumulative=4600
+[pool] page=50 cumulative=5100
+[pool] page=55 cumulative=5600
+[pool] page=60 cumulative=6100
+[pool] page=65 cumulative=6600
+[pool] page=70 cumulative=7100
+[pool] page=75 cumulative=7600
+[pool] page=80 cumulative=8100
+[pool] page=85 cumulative=8600
+[pool] page=90 cumulative=9100
+[pool] page=95 cumulative=9600
+[pool] page=100 cumulative=10100
+[pool] page=101 status=422
+[pool] page=102 status=422
+[pool] page=103 status=422
+[pool] page=104 status=422
+[pool] page=105 status=422
+[pool] page=106 status=422
+[pool] page=107 status=422
+[pool] page=108 status=422
+[pool] page=109 status=422
+[pool] page=110 status=422
+[pool] page=111 status=422
+[pool] page=112 status=422
+[pool] page=113 status=422
+[pool] page=114 status=422
+[pool] page=115 status=422
+[pool] page=116 status=422
+[pool] page=117 status=422
+[pool] page=118 status=422
+[pool] page=119 status=422
+[pool] page=120 status=422
+[pool] page=121 status=422
+[pool] page=122 status=422
+[pool] page=123 status=422
+[pool] page=124 status=422
+[pool] page=125 status=422
+[pool] page=126 status=422
+[pool] page=127 status=422
+[pool] page=128 status=422
+[pool] page=129 status=422
+[pool] page=130 status=422
+[pool] page=131 status=422
+[pool] page=132 status=422
+[pool] page=133 status=422
+[pool] page=134 status=422
+[pool] page=135 status=422
+[pool] page=136 status=422
+[pool] page=137 status=422
+[pool] page=138 status=422
+[pool] page=139 status=422
+[pool] page=140 status=422
+[pool] page=141 status=422
+[pool] page=142 status=422
+[pool] page=143 status=422
+[pool] page=144 status=422
+[pool] page=145 status=422
+[pool] page=146 status=422
+[pool] page=147 status=422
+[pool] page=148 status=422
+[pool] page=149 status=422
+[pool] page=150 status=422
+[pool] page=151 status=422
+[pool] page=152 status=422
+[pool] page=153 status=422
+[pool] page=154 status=422
+[pool] page=155 status=422
+[pool] page=156 status=422
+[pool] page=157 status=422
+[pool] page=158 status=422
+[pool] page=159 status=422
+[pool] page=160 status=422
+[pool] page=161 status=422
+[pool] page=162 status=422
+[pool] page=163 status=422
+[pool] page=164 status=422
+[pool] page=165 status=422
+[pool] page=166 status=422
+[pool] page=167 status=422
+[pool] page=168 status=422
+[pool] page=169 status=422
+[pool] page=170 status=422
+[pool] page=171 status=422
+[pool] page=172 status=422
+[pool] page=173 status=422
+[pool] page=174 status=422
+[pool] page=175 status=422
+[pool] page=176 status=422
+[pool] page=177 status=422
+[pool] page=178 status=422
+[pool] page=179 status=422
+[pool] page=180 status=422
+[pool] page=181 status=422
+[pool] page=182 status=422
+[pool] page=183 status=422
+[pool] page=184 status=422
+[pool] page=185 status=422
+[pool] page=186 status=422
+[pool] page=187 status=422
+[pool] page=188 status=422
+[pool] page=189 status=422
+[pool] page=190 status=422
+[pool] page=191 status=422
+[pool] page=192 status=422
+[pool] page=193 status=422
+[pool] page=194 status=422
+[pool] page=195 status=422
+[pool] page=196 status=422
+[pool] page=197 status=422
+[pool] page=198 status=422
+[pool] page=199 status=422
+[1] Pool size: 10100 markets
+[2] Bucketing by cell...
+    ('baseball', 'mlb', 'totals'): 130 candidates
+    ('baseball', 'mlb', 'run_line'): 104 candidates
+    ('tennis', 'atp', 'match_total_games'): 38 candidates
+    ('tennis', 'atp', 'set_totals'): 20 candidates
+    ('tennis', 'wta', 'match_total_games'): 19 candidates
+    ('tennis', 'atp', 'moneyline'): 18 candidates
+    ('tennis', 'wta', 'set_totals'): 17 candidates
+    ('tennis', 'atp', 'first_set_winner'): 16 candidates
+    ('tennis', 'wta', 'moneyline'): 14 candidates
+    ('baseball', 'mlb', 'moneyline'): 14 candidates
+    ('baseball', 'mlb', 'nrfi'): 13 candidates
+    ('tennis', 'atp', 'set_handicap'): 12 candidates
+    ('tennis', 'wta', 'set_handicap'): 11 candidates
+    ('tennis', 'wta', 'first_set_winner'): 9 candidates
+    ('basketball', 'wnba', 'totals'): 9 candidates
+    ('basketball', 'nba', 'totals'): 9 candidates
+    ('basketball', 'wnba', 'spread'): 8 candidates
+    ('basketball', 'nba', 'spread'): 8 candidates
+    ('hockey', 'nhl', 'totals'): 4 candidates
+    ('basketball', 'wnba', 'moneyline'): 3 candidates
+    ('hockey', 'nhl', 'moneyline'): 1 candidates
+    ('hockey', 'nhl', 'spread'): 1 candidates
+    ('basketball', 'nba', 'moneyline'): 1 candidates
+    ('basketball', 'nba', '1h_moneyline'): 1 candidates
+[3] Analyzing per-cell samples (target=15, min=5)...
+    [('tennis', 'wta', 'set_totals')] analyzed n=15
+    [('tennis', 'wta', 'first_set_winner')] analyzed n=9
+    [('tennis', 'wta', 'set_handicap')] analyzed n=11
+    [('tennis', 'wta', 'moneyline')] analyzed n=14
+    [('tennis', 'wta', 'match_total_games')] analyzed n=15
+    [('tennis', 'atp', 'first_set_winner')] analyzed n=15
+    [('tennis', 'atp', 'set_totals')] analyzed n=15
+    [('tennis', 'atp', 'match_total_games')] analyzed n=15
+    [('tennis', 'atp', 'moneyline')] analyzed n=15
+    [('baseball', 'mlb', 'totals')] analyzed n=15
+    [('baseball', 'mlb', 'run_line')] analyzed n=15
+    [('baseball', 'mlb', 'moneyline')] analyzed n=14
+    [('baseball', 'mlb', 'nrfi')] analyzed n=13
+    [('basketball', 'wnba', 'moneyline')] analyzed n=3
+    [('basketball', 'wnba', 'totals')] analyzed n=9
+    [('basketball', 'wnba', 'spread')] analyzed n=8
+    [('basketball', 'nba', 'spread')] analyzed n=8
+    [('basketball', 'nba', 'totals')] analyzed n=9
+    [('hockey', 'nhl', 'totals')] analyzed n=4
+    [('hockey', 'nhl', 'moneyline')] analyzed n=1
+    [('hockey', 'nhl', 'spread')] analyzed n=1
+    [('basketball', 'nba', 'moneyline')] analyzed n=1
+    [('basketball', 'nba', '1h_moneyline')] analyzed n=1
+    [('tennis', 'atp', 'set_handicap')] analyzed n=12
+
+[OK] Wrote C:\Users\erimc\OneDrive\Desktop\CLAUDE PROJELER\Polymarket Agent 2.0\analysis\bimodal_classification_2026-05-23.json
+[OK] Wrote C:\Users\erimc\OneDrive\Desktop\CLAUDE PROJELER\Polymarket Agent 2.0\analysis\bimodal_classification_2026-05-23.md
+
+Total API calls: 438

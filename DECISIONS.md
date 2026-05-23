@@ -863,6 +863,45 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-W — Empirical Bimodal Classification (sport-aware) (2026-05-23)
+
+**Karar:** Bimodal sizing dispatch artık **sport-aware**. Hangi (sport × market_type) kombinasyonlarının "SL yakalayamadığı, anlık çakılan" market olduğu Polymarket public API'den 238 maç (24 cell) empirical analiziyle belirlendi. Hardcoded `_BIMODAL_MARKET_TYPES = {"totals","spreads"}` (gate.py) ve `{"totals","run_line","spreads"}` (mlb_signal_adapter.py) **drift olarak silindi**; tek doğruluk kaynağı `sport_rules.is_bimodal_market(sport_tag, market_type)`.
+
+**Neden:** Önceki SPEC-U mantıksal varsayım yapıyordu (totals + spreads = bimodal). Empirical analiz çürüttü: MLB run_line %93, MLB totals %73, NBA spread %100, NBA totals %67 KADEMELI (SL yakalar). NHL ML audit n=6 ort -%50 GERÇEKTEN bimodal. Mantıksal kategori + empirical kanıt birleşik = doğru karar.
+
+**Metodoloji:** `analysis/bimodal_analyzer.py` script — Polymarket Gamma API'den kapanmış maç sample + CLOB prices-history (1-dk floor) + drop-window analiz. Cell başına 15 hedef (audit yeterli olunca audit override). Rapor: `analysis/bimodal_classification_2026-05-23.md`.
+
+**API limitasyonu:** Polymarket public CLOB minimum 1-dk floor. <60s anlık çakılmalar görünmüyor — bu nedenle hokey (düşük olay sayılı, +1 gol büyük etki) için mantıksal kategori + audit kanıt empirical'ı override eder.
+
+**BIMODAL ($15 cap) cell'ler:**
+| Cell | Kanıt |
+|---|---|
+| nhl/moneyline | audit n=6, ort -%50; mantıksal yüksek (5-7 gol) |
+| nhl/totals, spread | mantıksal yüksek (1 gol = büyük etki); empirical insufficient |
+| wnba/spread | empirical n=8, %13 instant + %38 borderline |
+| tennis/set_totals, set_handicap | empirical n=11-15 ambiguous |
+| tennis/match_total_games | empirical n=15, %53 no_sig_drop |
+
+**NON_BIMODAL ($50) cell'ler:**
+- MLB tümü (moneyline/nrfi/run_line/totals): %69-93 kademeli, n=13-15
+- NBA tümü (moneyline/spread/totals): %67-100 kademeli (n=8-9, ML/1h n=1 audit destek)
+- WNBA moneyline + totals: %89 kademeli, audit %50 win
+- ATP moneyline/first_set_winner/set_handicap/set_totals: %60-73 kademeli
+- WTA moneyline/first_set_winner/match_total_games: %67-71 kademeli
+
+**Etki:**
+- `src/config/sport_rules.py` — `bimodal_market_types` her sport için liste; `is_bimodal_market()` fonksiyonu eklendi
+- `src/strategy/entry/gate.py` — hardcoded `_BIMODAL_MARKET_TYPES` SİLİNDİ, sport_rules delege
+- `src/strategy/entry/mlb_signal_adapter.py` — aynı drift SİLİNDİ, sport_rules delege
+- `src/orchestration/portfolio_guards.py` — `_MarketLike.sports_market_type: object` → `str` tip düzeltmesi
+- `analysis/bimodal_analyzer.py` + `analysis/bimodal_classification_2026-05-23.{json,md}` — empirical kanıt korunur
+- 1451 test yeşil (0 regresyon)
+- Tenis lab worktree'ye dokunulmadı (ayrı yapı kullanır)
+
+**Sonuç:** Sizing artık her cell için empirical/mantıksal birleşik kanıtla karar verilir. Yeni branş/market için default non-bimodal ($50) — empirical kanıt gelene kadar konservatif değil, çünkü mantıksal "bimodal" kategori ekstrem (hokey) için zaten yakalandı.
+
+---
+
 ### SPEC-T — Circuit Breaker Tamamen Kaldırıldı (2026-05-23)
 
 **Karar:** `CircuitBreaker.should_halt_entries` her zaman `(False, "")` döndürür. CB state dosyası (`data/circuit_breaker_state.json`) silindi. Kod yapısı korundu (state, `record_exit`, `reset_if_needed`) ama entry kararını ETKİLEMEZ — ileride gerekirse açmak için tek satır revert yeterli.
