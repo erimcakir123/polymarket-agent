@@ -100,4 +100,36 @@ Bullpen aktive olunca inning 6+'da gerçekçi pitcher rotasyonu → totals/run-l
 
 ---
 
-## TODO-005: [sonraki eklenecekler]
+## TODO-005: `mlb_submarket_engine.py` 400+ satır — slug parser'ı ayrı modüle çıkar
+
+- **Durum**: DEFERRED
+- **Tarih**: 2026-05-24
+- **Önkoşul**: Yok
+
+### Bağlam
+SPEC-X Task 2 sonrası `src/strategy/entry/mlb_submarket_engine.py` 412 satır (ARCH_GUARD Kural 3 — 400 satır limiti aşıldı). Pre-existing ihlal, SPEC-X +7 satır eklemiş. Code-reviewer (Task 2) bu konuyu işaret etti.
+
+### Öneri
+Slug parser'ı yeni modüle çıkar: `src/strategy/entry/mlb_slug_parser.py` — `_parse_slug_static` + üç regex sabiti. Pure static. Engine import eder.
+
+### Tahmini Süre
+30 dakika (saf refactor + test path güncellemesi).
+
+---
+
+## TODO-006: SPEC-Y7/Y8 dokümantasyon yarım — DECISIONS güncellemesi ve `test_repo_config_yaml_parses` fix
+
+- **Durum**: DEFERRED — kullanıcının diğer in-flight SPEC'i
+- **Tarih**: 2026-05-24
+- **Önkoşul**: SPEC-Y7/Y8 kararlarının tamamlanması
+
+### Bağlam
+Session başında `config.yaml` + `DECISIONS.md` + bazı kod dosyaları M durumda idi (SPEC-Y7 `mlb_submarket.enabled: false` + SPEC-Y8 `scanner.max_markets_per_cycle: 300 → 500` + tennis allowed_sport_tags kaldırma). Bu değişiklikler hâlâ uncommitted. Ayrıca `tests/unit/config/test_settings.py::test_repo_config_yaml_parses` tennis tag silinmesinden dolayı FAIL veriyor.
+
+### Yapılacak
+- SPEC-Y7/Y8 kararlarını DECISIONS.md'ye temiz commit
+- `test_repo_config_yaml_parses` testini güncelle (tennis assertion'ı kaldır veya conditional yap)
+
+---
+
+## TODO-007: [sonraki eklenecekler]
