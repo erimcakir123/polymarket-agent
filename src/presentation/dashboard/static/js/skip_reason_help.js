@@ -32,6 +32,11 @@ window.SKIP_REASON_HELP = (function () {
     "EVENT_ALREADY_HELD":      "Bu maçta zaten 3 pozisyon var (max=3).",
     "same_market_type_per_event": "Bu maçta aynı tür markette (ML/totals/spread) zaten açık pozisyon var.",
     "SAME_MARKET_TYPE_PER_EVENT": "Bu maçta aynı tür markette (ML/totals/spread) zaten açık pozisyon var.",
+    // SPEC-X (2026-05-24): bimodal entry kapısı
+    "bimodal_entry_below_floor": "Spread/total market'inde fiyat 20¢ altında — piyasa kararını vermiş sayıldı, giriş atlandı.",
+    "BIMODAL_ENTRY_BELOW_FLOOR": "Spread/total market'inde fiyat 20¢ altında — piyasa kararını vermiş sayıldı, giriş atlandı.",
+    "bimodal_entry_live": "Maç başladıktan sonra spread/total market'e giriş yapılmıyor (model tahmini bayat olabilir).",
+    "BIMODAL_ENTRY_LIVE": "Maç başladıktan sonra spread/total market'e giriş yapılmıyor (model tahmini bayat olabilir).",
   };
 
   // NHL — bookmaker_prob path + NHL-specific filters
