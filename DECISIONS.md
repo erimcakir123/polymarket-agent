@@ -863,6 +863,32 @@ Aynı event_id'ye max N pozisyon (default N=3, `config.yaml > risk.max_positions
 
 ---
 
+### SPEC-S Faz B — MLB Engine Doğruluk Artırımları (2026-05-23)
+
+**Karar:** Engine'in 3 doğruluk simplification'ı çözüldü:
+
+1. **Marcel 5/4/3 multi-season weighting** — `rate_shrinker.marcel_weighted_rates(current, prev, prev_prev)` her oyuncu için 3 sezonun PA-weighted ortalamasını döndürür (ağırlık 5/4/3 — Tom Tango Marcel projeksiyon). Engine `_get_batter_rates`/`_get_pitcher_rates` artık 3 sezon fetch eder + `_rates_for_season` helper'ı ile cache+statcast birlikte. Eksik sezonlar (boş dict / pa=0) otomatik atlanır.
+
+2. **TTO refinement** — Önceden inning-bazlı kaba formül `((inning-1)//3)+1` (1-3 → TTO1, 4-6 → TTO2, 7-9 → TTO3) kullanılıyordu. Yeni `_tto_for_pa(cumulative_pa) = min(cumulative_pa // 9 + 1, 4)` cumulative PA tracking ile: her 9 PA = +1 TTO tier. Engine `_build_inning_lineups` döngüsünde her batter sonrası sayaç +1.
+
+3. **Bullpen opt-in interface (kısmi)** — Engine constructor'a `team_bullpen_rates: dict[int, dict[str, dict[str, float]]] | None = None` opsiyonel parametresi eklendi. Verilirse `bullpen_segmenter.select_pitcher(inning, score_diff=0, starter, bullpen)` ile inning-bazlı seçim yapılır; None ise eski "starter all innings" davranışı korunur (geriye uyumlu). Pre-game `score_diff=0` (close-game) varsayımı; V3 Monte Carlo dinamik state'e geçilebilir.
+
+**Bullpen rates aggregation kapsam dışı (TODO):** Engine bullpen rates dict bekliyor ama factory default `None` geçiyor — yani şu an aktif değil. Bullpen rates statcast'tan team-bazlı leverage tier (middle/setup/closer) aggregation gerektirir; bu Statcast client'a yeni method + Stats API team roster fetch ekleme gerektirir (ayrı mini-proje). Bu kapsam dışı bırakıldı; engine interface hazır, rates yüklendiğinde otomatik devreye girer. TODO-002 olarak kaydedilecek.
+
+**Neden:** Marcel ve TTO doğruluk artırımı; bullpen sıralaması starter'ı 9 inning kullanmaktansa gerçekçi pitcher rotasyonu sağlar. SPEC-R Plan 4 simplifications listesinde 6 madde vardı; Faz A 3'ünü, Faz B kalan 3'ü çözer (kısmi bullpen + Marcel + TTO).
+
+**Etki:**
+- `src/domain/mlb_submarket/rate_shrinker.py` — `marcel_weighted_rates()` eklendi
+- `src/strategy/entry/mlb_submarket_engine.py` — `_tto_for_pa`, `_select_pitcher_for_inning`, `_rates_for_season` helpers; constructor `team_bullpen_rates` parametresi; `_build_inning_lineups` `pitching_team_id` parametresi + cumulative_pa + dinamik pitcher seçimi
+- Engine dosyası 400 satır (ARCH_GUARD Kural 3 sınırında)
+- 18 yeni test (Marcel 5, multiseason 2, TTO 6, bullpen 5)
+- Toplam 1451 testin tümü yeşil (full suite smoke)
+- Commit'ler: `1affbcf`, `07bf6ce`, `d359d05`
+
+**Sonuç:** Engine artık 3-sezon Marcel weighted rates + PA-tracked TTO + opt-in bullpen rotasyon altyapısı ile çalışır. Faz B kapsamı dışı kalan bullpen rates aggregation TODO-002 olarak işaretlendi. Sonraki Faz D: bimodal sizing + same-type-per-event guard (genel risk yönetimi, MLB modeline bağımsız).
+
+---
+
 ### SPEC-S Faz C — MLB Moneyline Model Anchor (2026-05-23)
 
 **Karar:** MLB moneyline marketleri artık model anchor kullanır (önceden bookmaker konsensüsündeydi). Engine'in mevcut `home_dist`/`away_dist` çıktısından yeni `moneyline_pricer.moneyline_probability()` ile P(home wins) hesaplanır; berabere kalan dağılımlar 50/50 split edilir (ekstra inning rastgele varsayımı).

@@ -77,4 +77,27 @@
 
 ---
 
-## TODO-004: [sonraki eklenecekler]
+## TODO-004: MLB Bullpen Rates Aggregation (Statcast → leverage tier)
+
+- **Durum**: DEFERRED — SPEC-S Faz B kapsamı dışı bırakıldı
+- **Tarih**: 2026-05-23
+- **Önkoşul**: Statcast pybaseball erişimi (var); MLB Stats API team roster fetch (yeni method gerek)
+
+### Bağlam
+SPEC-S Faz B'de engine'e opt-in bullpen interface eklendi (`team_bullpen_rates: dict | None`, default `None`). Engine interface hazır ama factory `None` geçiyor — yani bullpen seçimi şu an aktif değil. Bullpen rates'i gerçek veriyle doldurmak için takım-bazlı leverage tier aggregation gerek.
+
+### Yapılacak
+1. **Statcast aggregation method** — `StatcastClient.get_team_bullpen_rates(team_id, season) -> dict[str, dict[str, float]]` (her leverage tier için PA outcome rates: middle/setup/closer)
+2. **Stats API team roster** — `StatsApiClient.get_team_roster(team_id, season) -> list[pitcher_ids_with_role]` — Stats API'de team roster endpoint var; her pitcher'ın "Reliever" rolü ve leverage tier (CSW%/leverage index) filtre edilir
+3. **Bullpen rates cache** — pahalı fetch (her takım × her sezon × 3-4 leverage pitcher), günlük TTL cache gerek
+4. **Factory'de wiring** — `MlbSubmarketEngine(team_bullpen_rates=BullpenRatesProvider(statcast, statsapi))` lazy loader veya pre-loaded dict
+
+### Etki
+Bullpen aktive olunca inning 6+'da gerçekçi pitcher rotasyonu → totals/run-line/moneyline edge'leri %3-7 daha doğru olmalı. Şu an starter 9 inning varsayımı altında engine bullpen-iyi takımları (Phillies, Yankees) underestimate, bullpen-zayıf takımları (Rockies) overestimate ediyor olabilir.
+
+### Tahmini Süre
+1-2 hafta (data fetch + cache + integration test).
+
+---
+
+## TODO-005: [sonraki eklenecekler]
