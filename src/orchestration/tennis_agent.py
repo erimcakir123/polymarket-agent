@@ -53,9 +53,19 @@ _light_tick_state = {"count": 0}
 
 
 def _load_sackmann_matches(deps: TennisDeps) -> list[SackmannMatch]:
-    """Load historical matches for feature extraction."""
-    years = deps.config.tennis.sackmann_years
-    return deps.sackmann_client.load_years(years)
+    """Load historical matches for feature extraction.
+
+    Loads ATP main + ATP challenger + WTA per config (same composition as
+    scripts/build_tennis_ratings.py). Without WTA matches the enricher's
+    feature extractor returns p1/p2 match_count=0 for all WTA markets,
+    causing classify_tier to fall to "skip" and the agent to never produce
+    WTA candidates.
+    """
+    cfg = deps.config.tennis
+    atp_main = deps.sackmann_client.load_years(cfg.sackmann_years)
+    atp_chall = deps.sackmann_client.load_challenger_years(cfg.challenger_years)
+    wta = deps.sackmann_client.load_wta_years(cfg.sackmann_wta_years)
+    return atp_main + atp_chall + wta
 
 
 def _log_candidate(
