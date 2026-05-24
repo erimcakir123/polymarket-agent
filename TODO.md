@@ -132,4 +132,23 @@ Session başında `config.yaml` + `DECISIONS.md` + bazı kod dosyaları M durumd
 
 ---
 
-## TODO-007: [sonraki eklenecekler]
+## TODO-007: archive_audit_logs trigger forensic logger
+
+- **Durum**: DEFERRED
+- **Tarih**: 2026-05-25
+- **Sebep**: SPEC-Z7 (copy mode) semptom çözdü; trigger kaynağı belirsiz
+
+### Bağlam
+2026-05-25 SPEC-Z7 araştırması: `archive_audit_logs` 3 yöntemle aratıldı (derin grep, Windows Task Scheduler, Registry Run) — kaynak BULUNAMADI. Yine de archive dosyaları periyodik oluşuyor (bot.log timestamp'leri ile uyumsuz). SPEC-Z7 (rename→copy) dashboard kaybını önledi, ama trigger hâlâ aktif.
+
+### Yapılacak
+1. `archive_audit_logs` fonksiyonuna stack trace logger ekle (caller'ı `inspect.stack()` ile yakala)
+2. 24-48 saat gözlem
+3. Trigger bulunduğunda: kaldır veya kontrole bağla
+
+### Etki
+Bilinmeyen scheduler/script kaynağı tespit edilir. Belki Windows Task Scheduler altındaki gizli task, IDE auto-formatter, veya bot içinde keşfedilemeyen subprocess çağrısı.
+
+---
+
+## TODO-008: [sonraki eklenecekler]
