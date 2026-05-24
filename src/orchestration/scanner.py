@@ -143,6 +143,14 @@ class MarketScanner:
         if m.yes_price >= th or m.yes_price <= (1.0 - th):
             return False
 
+        # SPEC-Z3 (2026-05-24): order book sanity. bestBid None → alıcı yok, pozisyon
+        # gerçek dünyada açılamaz (sadece dry_run simulasyon kabul eder). Phantom
+        # market detection: 2026-05-24 Detroit-Baltimore bug'ında market YES=0.005
+        # ama bestBid None — bot fiyatı yanlış aldı, 4 phantom trade üretti. Bid yoksa
+        # her durumda reddet (likidite varlığı sahte).
+        if m.best_bid is None or m.best_bid <= 0.0:
+            return False
+
         # Sports market type — SPEC-J: basketbol için spreads + totals da geçer.
         # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
         if m.sports_market_type not in ("moneyline", "spreads", "totals"):

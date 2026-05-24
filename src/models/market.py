@@ -32,3 +32,7 @@ class MarketData(BaseModel):
     resolved: bool = False
     accepting_orders: bool = True
     odds_api_implied_prob: float | None = None
+    # SPEC-Z3 (2026-05-24): order book bestBid sanity. None ya da çok küçük → alıcı
+    # yok, pozisyon gerçek dünyada açılamaz. Phantom market detection için kritik.
+    best_bid: float | None = None
+    best_ask: float | None = None

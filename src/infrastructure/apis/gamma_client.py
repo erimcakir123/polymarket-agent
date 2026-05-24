@@ -69,6 +69,34 @@ def _default_http_get(url: str, params: dict | None = None, timeout: int = _DEFA
     return requests.get(url, params=params or {}, timeout=timeout)
 
 
+def _safe_float(v: Any) -> float | None:
+    """None / "" / hatalı string güvenli float conversion. Phantom orderbook için kritik."""
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return None
+
+
+def _normalize_iso(raw: str) -> str:
+    """Polymarket tarih string'ini ISO 8601 formatına çevirir.
+
+    SPEC-Z3 (2026-05-24): market.gameStartTime "2026-05-24 16:35:00+00" gibi boşluklu
+    Postgres timestamp formatı dönebilir; Python datetime.fromisoformat 'T' separator
+    bekliyor. Bu helper boşluğu 'T' yapar ve "+00" → "+00:00" düzeltir.
+    """
+    if not raw:
+        return ""
+    s = raw.strip()
+    if " " in s and "T" not in s:
+        s = s.replace(" ", "T", 1)
+    # Postgres style "+00" suffix → ISO "+00:00"
+    if s.endswith("+00"):
+        s = s + ":00"
+    return s
+
+
 class GammaClient:
     """Ham pazar verisini çeken infra istemcisi. Filtering orkestrasyonda."""
 
@@ -194,11 +222,13 @@ class GammaClient:
                 volume_24h=float(raw.get("volume24hr", 0) or 0),
                 tags=[],
                 end_date_iso=str(raw.get("endDate", "") or ""),
-                # match_start_iso öncelik: event.startTime (single-game maç saati,
-                # mevcutsa) → market.startDate (futures fallback — market yaratılma
-                # tarihi) → "" (ikisi de yoksa)
-                match_start_iso=str(
-                    raw.get("_event_start_time", "")
+                # match_start_iso öncelik: market.gameStartTime (kesin maç saati,
+                # SPEC-Z3 2026-05-24) → event.startTime (single-game) → market.startDate
+                # (futures fallback) → "". gameStartTime "2026-05-24 16:35:00+00" gibi
+                # boşluklu olabilir, ISO formatına çevir.
+                match_start_iso=_normalize_iso(
+                    raw.get("gameStartTime", "")
+                    or raw.get("_event_start_time", "")
                     or raw.get("startDate", "")
                     or ""
                 ),
@@ -210,6 +240,8 @@ class GammaClient:
                 closed=bool(raw.get("closed", False)),
                 resolved=bool(raw.get("resolved", False)),
                 accepting_orders=bool(raw.get("acceptingOrders", True)),
+                best_bid=_safe_float(raw.get("bestBid")),
+                best_ask=_safe_float(raw.get("bestAsk")),
             )
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             logger.debug("parse_market failed for %s: %s", raw.get("conditionId", "?"), e)

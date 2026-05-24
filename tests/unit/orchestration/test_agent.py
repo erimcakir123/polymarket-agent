@@ -46,6 +46,7 @@ def _market(cid: str = "m1", yes: float = 0.50) -> MarketData:
         sport_tag="basketball_nba",
         sports_market_type="moneyline",
         event_id=f"evt_{cid}",
+        best_bid=yes - 0.01, best_ask=yes + 0.01,  # SPEC-Z3 mock orderbook
     )
 
 

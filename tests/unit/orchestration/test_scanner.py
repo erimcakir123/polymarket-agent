@@ -35,6 +35,8 @@ def _market(
         match_start_iso=_iso(match_start) if match_start else "",
         sport_tag=sport_tag, sports_market_type=market_type,
         closed=closed,
+        best_bid=0.50,  # SPEC-Z3: default valid bid for test mocks
+        best_ask=0.51,
     )
 
 
