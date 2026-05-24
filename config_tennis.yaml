@@ -46,9 +46,9 @@ risk:
   # PLAN-SIZING-001 (2026-05-22): /3 küçültme kaldırıldı, bimodal cap'ler $15.
   max_single_bet_usdc: 50
   # Bimodal market override'ları — SL fire etmiyor, full loss riski (4/6 set_totals trade -$40+ kayıp).
-  # Tek-trade max kaybı $15 (kullanıcı risk toleransı).
-  set_totals_max_usdc: 15
-  set_handicap_max_usdc: 15
+  # Tek-trade max kaybı $20 (kullanıcı risk toleransı, 2026-05-24 $15→$20).
+  set_totals_max_usdc: 20
+  set_handicap_max_usdc: 20
   max_bet_pct: 0.05
   # B = 3.5% (kullanıcı tercihi: bankroll $1000 → B non-bimodal $35).
   confidence_bet_pct: {A: 0.05, B: 0.035}

@@ -46,14 +46,14 @@ def test_tennis_config_max_bet_pct_5pct() -> None:
     assert cfg.risk.max_bet_pct == 0.05
 
 
-def test_tennis_config_set_totals_max_usdc_15() -> None:
+def test_tennis_config_set_totals_max_usdc_20() -> None:
     cfg = _load_tennis_config()
-    assert cfg.risk.set_totals_max_usdc == 15
+    assert cfg.risk.set_totals_max_usdc == 20
 
 
-def test_tennis_config_set_handicap_max_usdc_15() -> None:
+def test_tennis_config_set_handicap_max_usdc_20() -> None:
     cfg = _load_tennis_config()
-    assert cfg.risk.set_handicap_max_usdc == 15
+    assert cfg.risk.set_handicap_max_usdc == 20
 
 
 def test_tennis_config_max_positions_per_event_3() -> None:
@@ -101,7 +101,7 @@ def test_tennis_sizing_max_bet_cap_active_at_double_bankroll() -> None:
 
 
 def test_tennis_sizing_bimodal_cap_applies_a_tier() -> None:
-    """A tier bimodal: bankroll=1000 raw $50 → $15 cap (set_totals_max_usdc)."""
+    """A tier bimodal: bankroll=1000 raw $50 → $20 cap (set_totals_max_usdc)."""
     cfg = _load_tennis_config()
     size = confidence_position_size(
         confidence="A",
@@ -110,11 +110,11 @@ def test_tennis_sizing_bimodal_cap_applies_a_tier() -> None:
         max_bet_usdc=cfg.risk.set_totals_max_usdc,  # bimodal cap
         max_bet_pct=cfg.risk.max_bet_pct,
     )
-    assert size == 15.0
+    assert size == 20.0
 
 
 def test_tennis_sizing_bimodal_cap_applies_b_tier() -> None:
-    """B tier bimodal: bankroll=1000 raw $35 → $15 cap."""
+    """B tier bimodal: bankroll=1000 raw $35 → $20 cap."""
     cfg = _load_tennis_config()
     size = confidence_position_size(
         confidence="B",
@@ -123,4 +123,4 @@ def test_tennis_sizing_bimodal_cap_applies_b_tier() -> None:
         max_bet_usdc=cfg.risk.set_handicap_max_usdc,  # bimodal cap
         max_bet_pct=cfg.risk.max_bet_pct,
     )
-    assert size == 15.0
+    assert size == 20.0
