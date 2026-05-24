@@ -213,15 +213,13 @@ def test_realized_pnl_from_trades_sums_full_and_partial_exits() -> None:
     assert computed.realized_pnl_from_trades(trades) == 2.0
 
 
-def test_equity_summary_from_session_trades_override_realized() -> None:
-    """trades verilirse session_balance.realized_pnl yerine sum-of-trades kullanılır.
-
-    Reboot-scoped tutarlılık: exited tab ile widget aynı kaynaktan okur.
-    """
+def test_equity_summary_snapshot_wins_when_nonzero_SPEC_Z8() -> None:
+    """SPEC-Z8 (2026-05-25): snapshot.realized_pnl != 0 → snapshot win.
+    positions.json single source of truth (audit/forensic log değil)."""
     sb = {
         "has_data": True,
         "bankroll": 968.16,
-        "realized_pnl": -4.88,  # lifetime carry-over (kirli)
+        "realized_pnl": -4.88,
         "unrealized_pnl": 0.0,
         "invested": 0.0,
         "open_positions": 0,
@@ -230,12 +228,28 @@ def test_equity_summary_from_session_trades_override_realized() -> None:
     trades = [
         {"exit_price": 0.50, "exit_pnl_usdc": -10.0, "partial_exits": []},
         {"exit_price": 0.30, "exit_pnl_usdc": -6.18, "partial_exits": []},
-        {"exit_price": 0.59, "exit_pnl_usdc": -5.07, "partial_exits": []},
-        {"exit_price": 0.50, "exit_pnl_usdc": -10.59, "partial_exits": []},
     ]
     out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=trades)
-    # 4 exit toplamı = -31.84 — session_balance.realized_pnl (-4.88) override edilir
-    assert out["realized_pnl"] == -31.84
+    # SPEC-Z8: snapshot win
+    assert out["realized_pnl"] == -4.88
+
+
+def test_equity_summary_fresh_snapshot_uses_trades_SPEC_Z8() -> None:
+    """SPEC-Z8: snapshot.realized_pnl == 0 (fresh start) → trades fallback."""
+    sb = {
+        "has_data": True,
+        "bankroll": 1000.0,
+        "realized_pnl": 0.0,
+        "unrealized_pnl": 0.0,
+        "invested": 0.0,
+        "open_positions": 0,
+        "peak_bankroll": 1000.0,
+    }
+    trades = [
+        {"exit_price": 0.50, "exit_pnl_usdc": 25.0, "partial_exits": []},
+    ]
+    out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=trades)
+    assert out["realized_pnl"] == 25.0
 
 
 def test_equity_summary_from_session_no_trades_falls_back_to_session() -> None:
