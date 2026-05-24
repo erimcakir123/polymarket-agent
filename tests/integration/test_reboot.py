@@ -320,17 +320,18 @@ def test_no_stacking(tmp_path: Path) -> None:
 
 # ─── archive_audit_logs (2026-05-11 fix) ─────────────────────────────────────
 
-def test_archive_audit_logs_renames_nonempty_file(tmp_path: Path) -> None:
-    """Reboot fix: audit dosyasi silinmez, rename ile arşivlenir.
-    Yeni session bos audit ile baslar (reconcile_realized_pnl 0'dan baslar)."""
+def test_archive_audit_logs_copies_nonempty_file(tmp_path: Path) -> None:
+    """SPEC-Z7 (2026-05-25): rename → copy. Audit korunur, dashboard exited tab
+    boşalmaz (otomatik trigger durumunda). Reboot mode reset_state ile sonradan siler."""
     audit_file = tmp_path / "trade_history.jsonl"
     audit_file.write_text('{"pnl": -86.80}\n', encoding="utf-8")
 
     archive_audit_logs(audit_files=[audit_file], timestamp="20260511_124500")
 
-    # Orijinal dosya artik YOK
-    assert not audit_file.exists()
-    # Archive olarak rename edildi
+    # SPEC-Z7: orijinal KORUNUR (ground truth for dashboard)
+    assert audit_file.exists()
+    assert audit_file.read_text(encoding="utf-8") == '{"pnl": -86.80}\n'
+    # Archive de oluşur (forensic snapshot)
     archived = tmp_path / "trade_history.archive.20260511_124500.jsonl"
     assert archived.exists()
     assert archived.read_text(encoding="utf-8") == '{"pnl": -86.80}\n'
@@ -467,12 +468,11 @@ def test_archive_audit_logs_all_closed_clears_audit(tmp_path: Path) -> None:
     assert "0xb" in archived.read_text(encoding="utf-8")
 
 
-def test_archive_audit_logs_open_cids_none_full_rename(tmp_path: Path) -> None:
-    """Backward compat: open_condition_ids=None ise full rename (eski davranış).
+def test_archive_audit_logs_open_cids_none_full_copy(tmp_path: Path) -> None:
+    """SPEC-Z7: open_condition_ids=None ise full copy (eskiden rename idi).
 
-    Bu yol test/script ile direkt çağırıldığında veya positions.json okunamadığında
-    çalışır. Default davranış = full rename (veri kaybı yok, ama yeni session
-    boş audit'le başlar — startup phantom-restored çağırır).
+    Audit dosyası KORUNUR (dashboard ground truth). Archive snapshot olarak
+    forensic için yaratılır. Reboot mode reset_state ile asıl temizlik yapar.
     """
     from scripts.reboot import archive_audit_logs
 
@@ -481,10 +481,10 @@ def test_archive_audit_logs_open_cids_none_full_rename(tmp_path: Path) -> None:
 
     archive_audit_logs(
         audit_files=[audit_file], timestamp="20260521_020000",
-        # open_condition_ids deliberately not passed
     )
 
-    assert not audit_file.exists()
+    # SPEC-Z7: orijinal korunur
+    assert audit_file.exists()
     archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
     assert archived.exists()
 

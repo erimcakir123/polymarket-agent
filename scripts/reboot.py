@@ -252,25 +252,25 @@ def archive_audit_logs(
     timestamp: str | None = None,
     open_condition_ids: set[str] | None = None,
 ) -> None:
-    """Reboot'ta audit dosyalarını rename ile arşivle — silmez, taşır.
+    """Audit dosyalarını arşivle (snapshot olarak kopyala).
 
-    2026-05-11 fix: SPEC-E _reconcile_realized_pnl audit'i ground truth okuyor.
-    Reboot audit'i korusa da bot startup'ta audit'ten realized_pnl'i geri inşa
-    ediyordu → "clean start" semantiği ihlal. Bu fonksiyon mevcut audit'i
-    `<name>.archive.YYYYMMDD_HHMMSS.jsonl` olarak rename eder; yeni session boş
-    audit ile başlar, eski archive forensic erişim için kalır.
+    SPEC-Z7 (2026-05-25): rename → copy. Audit dosyası (trade_history.jsonl,
+    equity_history.jsonl) dashboard exited tab'inin ground truth'u. Gizli bir
+    scheduler periyodik olarak archive_audit_logs çağırıyor (DECISIONS 1137
+    TODO investigate) — rename davranışı dashboard'ı boşaltıyordu. Copy ile
+    orijinal korunur, snapshot forensic için yaratılır. Reboot mode reset_state
+    ile asıl temizliği yapar; bu fonksiyon clean-start semantiğini bozmaz.
 
-    2026-05-21 fix: trade_history.jsonl için açık pozisyonların kayıtları yeni
-    audit dosyasında bırakılır (kapanmış trade'ler arşive gider). Aksi halde
-    reset_state başarısız olur veya positions.json hayatta kalırsa, startup
-    phantom-restored entry yazıyor ve eski partial_exits/exit_pnl kayboluyor.
-    Açık pozisyonların kayıtlarını korumak bu kaybı önler. open_condition_ids
-    None ise data/positions.json'dan okunur (production default).
+    2026-05-21: trade_history.jsonl için açık pozisyonların kayıtları audit'te
+    bırakılır (kapanmış trade'ler archive'a). Açık pozisyon split mantığı yine
+    `_split_trade_history` ile yapılır (orijinal trade_history yeniden yazılır
+    — sadece açık kayıtlar). open_condition_ids None ise tüm audit kopyalanır.
     """
     from datetime import datetime, timezone
 
     files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
     stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    import shutil  # noqa: PLC0415 - lazy import for copy-on-archive path
     for audit_file in files:
         if not (audit_file.exists() and audit_file.stat().st_size > 0):
             continue
@@ -281,8 +281,12 @@ def archive_audit_logs(
                 and open_condition_ids is not None and open_condition_ids):
             _split_trade_history(audit_file, archived, open_condition_ids)
         else:
-            audit_file.rename(archived)
-            print(f"  Archived: {audit_file.name} -> {archived.name}")
+            # SPEC-Z7 (2026-05-25): rename → copy. Audit dosyası dashboard exited
+            # tab'inin ground truth'u; otomatik archive trigger (DECISIONS satır 1137
+            # "TODO investigate") rename yapinca dashboard boşaliyordu. Reboot modunda
+            # reset_state sonradan siler — copy yaklaşımı reboot'u kırmaz.
+            shutil.copy2(audit_file, archived)
+            print(f"  Archived (copy): {audit_file.name} -> {archived.name}")
 
 
 def _split_trade_history(
