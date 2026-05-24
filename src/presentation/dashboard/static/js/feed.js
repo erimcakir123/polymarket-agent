@@ -107,20 +107,19 @@
     },
 
     _countdownPill(matchStartIso, matchLive) {
-      // SPEC kuralı (2026-04-15 design):
-      //   delta > 0           → countdown ("Xh Ym" veya "Xm")
-      //   delta <= 0 + live   → "LIVE" (kırmızı pill)
-      //   delta <= 0 + !live  → rozet gizlenir (maç saati geçti ama Polymarket
-      //                        event.live henüz true değil; muhtemelen gecikti)
+      // SPEC kuralı (SPEC-Z4 2026-05-24):
+      //   delta > 0                  → countdown ("Xh Ym" veya "Xm")
+      //   delta <= 0 + <= 8h geçti   → "LIVE" (match_live ne olursa olsun;
+      //                                Polymarket event.live gecikiyor olabilir)
+      //   delta <= -8h               → rozet gizlenir (maç çoktan bitti, max_post_start)
       if (!matchStartIso) return "";
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
       const diff = start - Date.now();
       if (diff <= 0) {
-        if (matchLive) {
-          return `<span class="feed-countdown live">LIVE</span>`;
-        }
-        return "";
+        const hoursPast = -diff / (MS_PER_MIN * 60);
+        if (hoursPast > 8) return "";  // tipik max maç süresi geçti
+        return `<span class="feed-countdown live">LIVE</span>`;
       }
       const mins = Math.floor(diff / MS_PER_MIN);
       const hours = Math.floor(mins / 60);
