@@ -32,11 +32,13 @@ def test_reconcile_no_change_when_snapshot_matches_log():
     assert pm.bankroll == 970.0
 
 
-def test_reconcile_overrides_snapshot_when_log_differs():
-    """Log -82, snapshot -46 → log kazanır, bankroll yeniden türetilir."""
+def test_reconcile_snapshot_wins_when_nonzero_SPEC_Z8():
+    """SPEC-Z8 (2026-05-25): snapshot.realized != 0 ise log override etmez.
+    positions.json single source of truth — log audit/forensic.
+    Log -82, snapshot -46 → snapshot KORUNUR (-46 kalır)."""
     pm = PortfolioManager(initial_bankroll=1000.0)
     pm.realized_pnl = -46.0
-    pm.bankroll = 954.0  # eski yanlış değer
+    pm.bankroll = 954.0
     trade_logger = _make_logger_with_records([
         {"exit_price": 0.27, "exit_pnl_usdc": -17.07, "partial_exits": []},
         {"exit_price": 0.27, "exit_pnl_usdc": -19.32, "partial_exits": []},
@@ -45,8 +47,22 @@ def test_reconcile_overrides_snapshot_when_log_differs():
         {"exit_price": 0.41, "exit_pnl_usdc": -14.97, "partial_exits": []},
     ])
     _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
-    assert abs(pm.realized_pnl - (-82.15)) < 0.01
-    assert abs(pm.bankroll - (1000.0 - 82.15)) < 0.01  # invested=0
+    # SPEC-Z8: snapshot win — değişmez
+    assert abs(pm.realized_pnl - (-46.0)) < 0.01
+    assert abs(pm.bankroll - 954.0) < 0.01
+
+
+def test_reconcile_fresh_snapshot_uses_log():
+    """SPEC-Z8: snapshot.realized == 0 (fresh start) → log'a güven."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pm.realized_pnl = 0.0
+    pm.bankroll = 1000.0
+    trade_logger = _make_logger_with_records([
+        {"exit_price": 0.50, "exit_pnl_usdc": 25.0, "partial_exits": []},
+    ])
+    _reconcile_realized_pnl(pm, trade_logger, initial_bankroll=1000.0)
+    # Fresh snapshot: log wins
+    assert abs(pm.realized_pnl - 25.0) < 0.01
 
 
 def test_reconcile_includes_partial_exits():

@@ -304,9 +304,23 @@ def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHist
         )
         return
 
+    # GUARD-5 (SPEC-Z8 2026-05-25): snapshot.realized != 0 → snapshot her zaman win.
+    # positions.json single source of truth (kullanıcı kararı). Trade_history audit'i
+    # bizim cleanup/synthetic edit'lerden bozulabilir; snapshot bot'un net hesabı.
+    # Sadece snapshot.realized == 0 (fresh start, bot kripto-temiz) durumunda log'a güven.
+    if abs(portfolio.realized_pnl) > 0.01:
+        logger.warning(
+            "Reconcile skipped (GUARD-5 SPEC-Z8): snapshot.realized=$%.2f (non-zero, "
+            "ground truth) vs log=$%.2f (delta=$%+.2f) — trusting snapshot. "
+            "positions.json is single source of truth.",
+            portfolio.realized_pnl, true_realized, delta,
+        )
+        return
+
+    # snapshot.realized == 0 → fresh start, log'a güven (bot ilk başlatıldı, audit dolu)
     logger.warning(
-        "Realized PnL reconciliation: snapshot=$%.2f, log=$%.2f, delta=$%+.2f — using log",
-        portfolio.realized_pnl, true_realized, delta,
+        "Realized PnL reconciliation (fresh snapshot): snapshot=$0.00, log=$%.2f — using log",
+        true_realized,
     )
     portfolio.realized_pnl = true_realized
     portfolio.recalculate_bankroll(initial_bankroll)
