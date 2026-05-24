@@ -52,6 +52,12 @@ _LIGHT_TICK_LOG_EVERY = 10
 _light_tick_state = {"count": 0}
 
 
+def _is_bimodal_slug(slug: str) -> bool:
+    """Tennis bimodal market detection from slug (set_handicap + set_totals)."""
+    s = (slug or "").lower()
+    return "set-handicap" in s or "set-total" in s
+
+
 def _load_sackmann_matches(deps: TennisDeps) -> list[SackmannMatch]:
     """Load historical matches for feature extraction.
 
@@ -200,6 +206,13 @@ def run_one_cycle(
         (c, m) for c, m in candidates
         if id(c) in selected_set and abs(c.edge) >= cfg.edge.min_edge
     ]
+
+    # Risk-based priority: SL-protected (non-bimodal) markets fill slots first.
+    # Bimodal markets (set_handicap + set_totals) carry full-loss tail risk
+    # because price gaps prevent SL fire — they should consume residual capacity
+    # only, not crowd out SL-protected entries when max_positions cap is tight.
+    # Stable sort preserves scanner's nearest-match ordering within each group.
+    qualified_pairs.sort(key=lambda pair: 1 if _is_bimodal_slug(pair[1].slug or "") else 0)
 
     # Log each qualifying candidate + build sized signals for entry
     now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC for Sackmann comparisons
