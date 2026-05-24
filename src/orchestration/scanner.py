@@ -112,11 +112,18 @@ class MarketScanner:
     # ── Public API ──
 
     def scan(self) -> list[MarketData]:
-        """Tüm flow: Gamma fetch → (tennis enrich) → filter → sort → top N."""
+        """Tüm flow: Gamma fetch → filter → (tennis enrich filter-sonrası) → sort → top N.
+
+        SPEC-Z2 (2026-05-24): tennis_enricher artık filter SONRASI çağrılıyor.
+        Eskiden filter öncesi tüm 20k+ raw market'in tenis olanlarına ESPN call
+        atıyordu → 6+ dakika cycle bloke. Tenis ana botta allowed_sport_tags'ten
+        kaldırıldığı için (SPEC 2026-05-23) filter sonrası 0 tenis market kalır
+        → enricher no-op. Açık tenis pozisyonlar için refresh_positions ayrı.
+        """
         raw = self._gamma.fetch_events()
-        if self._tennis_enricher is not None:
-            raw = self._tennis_enricher.enrich(raw)
         filtered = [m for m in raw if self._passes_filters(m)]
+        if self._tennis_enricher is not None:
+            filtered = self._tennis_enricher.enrich(filtered)
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
         logger.info("Scanner: %d raw → %d filtered → top %d",
