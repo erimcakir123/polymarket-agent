@@ -175,10 +175,18 @@ def test_update_on_exit_only_touches_open_record(tmp_path: Path) -> None:
     assert rows[1]["exit_price"] == 0.8
 
 
-def test_update_on_exit_no_match_returns_false(tmp_path: Path) -> None:
+def test_update_on_exit_no_match_writes_standalone(tmp_path: Path) -> None:
+    """SPEC-Z6: orphan exit standalone record olarak yazılır, True döner."""
     log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
     log.log(_valid_record(condition_id="c1"))
-    assert log.update_on_exit("nonexistent", {"exit_price": 0.5}) is False
+    assert log.update_on_exit("nonexistent", {"exit_price": 0.5, "exit_pnl_usdc": 7.5}) is True
+    records = log.read_all()
+    orphan = [r for r in records if r.get("condition_id") == "nonexistent"]
+    assert len(orphan) == 1
+    assert orphan[0]["exit_price"] == 0.5
+    assert orphan[0]["exit_pnl_usdc"] == 7.5
+    assert orphan[0]["slug"] == "(orphan)"
+    assert orphan[0]["entry_price"] is None
 
 
 def test_trade_record_default_partial_exits_is_empty_list():
@@ -263,15 +271,18 @@ def test_log_partial_exit_appends_to_open_trade(tmp_path):
     assert records[0]["partial_exits"][0]["price"] == 0.62
 
 
-def test_log_partial_exit_returns_false_if_no_open_record(tmp_path):
-    """Eşleşen açık kayıt yoksa False döner, dosya değişmez."""
+def test_log_partial_exit_writes_standalone_if_no_open_record(tmp_path):
+    """SPEC-Z6: orphan partial standalone yazılır, True döner."""
     from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
     logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
     ok = logger.log_partial_exit(
         condition_id="missing", tier=1, sell_pct=0.4,
         realized_pnl_usdc=5.0, timestamp="t1", price=0.62,
     )
-    assert ok is False
+    assert ok is True
+    recs = logger.read_all()
+    assert len(recs) == 1
+    assert recs[0]["partial_exits"][0]["realized_pnl_usdc"] == 5.0
 
 
 def test_log_partial_exit_persists_price_field(tmp_path):
@@ -328,19 +339,20 @@ def test_read_all_threshold_corrupt_raises_alarm(tmp_path: Path) -> None:
 
 
 def test_update_on_exit_no_match_warns(tmp_path: Path, caplog) -> None:
-    """SPEC-D: update_on_exit matching entry yoksa WARNING + False döner."""
+    """SPEC-Z6: orphan exit WARNING üretir + standalone yazar (True döner)."""
     import logging
     caplog.set_level(logging.WARNING)
     p = tmp_path / "trade.jsonl"
     p.write_text("", encoding="utf-8")
     log = TradeHistoryLogger(str(p))
     result = log.update_on_exit("orphan_cid_12345", {"exit_price": 0.5})
-    assert result is False
+    assert result is True
+    assert any("orphan" in rec.message.lower() for rec in caplog.records)
     assert any("no matching open record" in rec.message for rec in caplog.records)
 
 
 def test_log_partial_exit_no_match_warns(tmp_path: Path, caplog) -> None:
-    """SPEC-D: log_partial_exit matching entry yoksa WARNING + False döner."""
+    """SPEC-Z6: orphan partial WARNING üretir + standalone yazar (True döner)."""
     import logging
     caplog.set_level(logging.WARNING)
     p = tmp_path / "trade.jsonl"
@@ -350,5 +362,5 @@ def test_log_partial_exit_no_match_warns(tmp_path: Path, caplog) -> None:
         condition_id="orphan_cid", tier=1, sell_pct=0.4,
         realized_pnl_usdc=5.0, timestamp="2026-05-09T00:00:00Z", price=0.55,
     )
-    assert result is False
-    assert any("no matching open record" in rec.message for rec in caplog.records)
+    assert result is True
+    assert any("orphan" in rec.message.lower() for rec in caplog.records)

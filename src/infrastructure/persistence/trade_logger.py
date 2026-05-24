@@ -158,13 +158,34 @@ class TradeHistoryLogger:
                 updated = True
                 break
         if not updated:
-            # SPEC-D: matching open record yok → orphan position riski. Sessiz değil, WARN.
+            # SPEC-Z6 (2026-05-25): orphan exit standalone yazılır (eskiden skip ediliyordu,
+            # dashboard exited tab'da kayıp olarak görünüyordu). Mutator boş bir kayda
+            # uygulanıp standalone record append edilir; entry fields null kalır, exit
+            # fields dolu — dashboard exit_pnl bazlı toplama doğru çalışır.
             logger.warning(
                 "trade_history: no matching open record for condition_id=%s "
-                "(orphan position?) — write skipped",
+                "(orphan) — writing standalone exit record",
                 condition_id[:24],
             )
-            return False
+            standalone: dict[str, Any] = {
+                "condition_id": condition_id,
+                "slug": "(orphan)",
+                "entry_price": None,
+                "entry_timestamp": "",
+                "exit_price": None,
+                "exit_pnl_usdc": 0.0,
+                "exit_reason": "",
+                "exit_timestamp": "",
+                "partial_exits": [],
+            }
+            mutator(standalone)
+            line = json.dumps(standalone) + "\n"
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(line)
+            if self.mirror is not None:
+                with open(self.mirror, "a", encoding="utf-8") as f:
+                    f.write(line)
+            return True
         serialized = [json.dumps(rec) + "\n" for rec in records]
         # Audit atomic rewrite
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
