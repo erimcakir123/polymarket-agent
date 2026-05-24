@@ -1033,6 +1033,27 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 
 ---
 
+### 2026-05-24 — SPEC-Z: Gamma fetch lookback hack kaldırıldı
+
+**Problem:** 2026-05-24 sabah saatlerinde bot 8+ saat 0 trade aldı. Tanı: scanner her cycle "Scanner: 1825 raw → 0 filtered → top 0" yazıyordu. Direkt Polymarket API testi ile bugünkü 16 MLB maçı + diğer sporlarda eligible market'ler olduğu doğrulandı, ama fetch_events bunları getirmedi.
+
+**Root cause:** `gamma_client.py` içindeki `_FETCH_LOOKBACK_HOURS = 24` sabiti API çağrısına `start_date_min = now - 24h` ekliyordu. Polymarket `event.startDate` field'ı **event yaratım zamanı civarı** — bugünkü MLB market'leri 5-7 gün önce yaratılmış (event.startDate ≈ 2026-05-17), 24h lookback penceresinin dışında kaldı, kaçırıldı. Eski yorum bu sabitin "Polymarket-side bug için workaround" olduğunu söylüyordu (yakın event'leri tag fetch'inde göstermeme). 2026-05-24 test'lerinde o bug görünmüyor; API artık `start_date` filter olmadan tüm aktif event'leri döndürüyor.
+
+**Çözüm:** Lookback hack tamamen kaldırıldı. `_FETCH_LOOKBACK_HOURS` + `_FETCH_LOOKFORWARD_HOURS` sabitleri silindi, `_fetch_by_tag` params dict'inden `start_date_min/max` satırları silindi, `fetch_events`'tan `now`/`start_min`/`start_max` hesaplamaları silindi, `datetime`/`timedelta`/`timezone` import'ları silindi. Match-saat filtreleme zaten `MarketScanner._passes_filters` içinde match_start_iso bazlı yapılıyor (`_hours_to_start ≤ max_hours_to_start=24` + `_match_start_recent_or_future`).
+
+**Etki:**
+- Fetch raw count: 1825 → **20,854** (10x artış, çünkü tüm aktif event'ler döner)
+- Bugün MLB: 0 → **263 market** (moneyline + spreads + totals)
+- Scanner.scan() top eligible: 0 → **40**
+- Fetch süresi: 74s → 72s (no regression)
+- Scan süresi (filter dahil): ~85s, heavy cycle 25dk içinde toplam tolere edilebilir
+
+**Mimari prensip:** API-side filter ile bizim domain-side filter çakışmamalı. Bir bilgiyi bir kez filtre — daha basit, daha az hata yüzeyi. Lookback hack iki katmanlı filtreleme yarattığı için bugünkü maçları kaybediyordu.
+
+**Geri çevrilebilirlik:** Polymarket eski bug'ı yeniden ortaya çıkarsa (yakın event'leri tag fetch'inde göstermeme), `_fetch_by_tag` params'a `start_date_min/max` geri eklenir; ama BU SEFER lookback değeri 240h+ olmalı (test edildi, 168h'den itibaren bugünkü maçlar yakalanır).
+
+---
+
 ### 2026-05-24 — SPEC-X: MLB Submarket Entry Yolu Sağlamlaştırması
 
 **Problem:** 2026-05-23 üretim verisinde 3 problemli MLB spread trade'i tespit edildi:
