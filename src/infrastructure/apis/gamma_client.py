@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 import requests
@@ -57,17 +56,13 @@ PARENT_TAGS: list[tuple[str, int]] = [
 ]
 _DEFAULT_TIMEOUT = 20
 
-# Polymarket Gamma API'nin tag-bazlı event listesi, start_date_min/max parametresi
-# YOKKEN bugün başlayan maçları DÖNDÜRMÜYOR (Polymarket-side indeksleme: yakın
-# başlangıç event'leri farklı state'te tutuluyor, sayfa gösteriyor ama tag fetch
-# eksik veriyor). Bu pencere parametreleri yazılınca API tüm yakın maçları döndürür.
-#
-# DİKKAT: start_date_min filter event.startDate field'ı üzerinden çalışır. Polymarket
-# event.startDate genellikle MAÇ saatinden 12-24 saat ÖNCESİNE set edilir (event
-# yaratıldığında atanır, maç saatiyle aynı değildir). Lookback'in 24h olması bu yüzden
-# şart — daha küçük pencere bugünkü maçları kaçırır.
-_FETCH_LOOKBACK_HOURS = 24
-_FETCH_LOOKFORWARD_HOURS = 25  # 24h scanner penceresi + 1h margin
+# SPEC-Z (2026-05-24): start_date_min/max API filter hack'i kaldırıldı.
+# Eski yorumda Polymarket-side bug (yakın event'leri tag fetch'inde göstermeme)
+# için workaround idi; 2026-05-24 test'inde bu davranış görülmüyor, API tüm aktif
+# event'leri döndürüyor. Match-saat filtreleme zaten MarketScanner._passes_filters
+# içinde match_start_iso bazlı yapılıyor (24h hours_to_start + match_start_recent
+# kontrolleri). İki katmanlı filter karışıklığı + 24h lookback hack'inin "bugünkü
+# event'leri kaçırma" yan etkisi giderildi.
 
 
 def _default_http_get(url: str, params: dict | None = None, timeout: int = _DEFAULT_TIMEOUT) -> Any:
@@ -91,20 +86,17 @@ class GammaClient:
 
         seen: set[str] = set()
         out: list[MarketData] = []
-        now = datetime.now(timezone.utc)
-        start_min = now - timedelta(hours=_FETCH_LOOKBACK_HOURS)
-        start_max = now + timedelta(hours=_FETCH_LOOKFORWARD_HOURS)
 
         for category, tag_id in tags:
             try:
-                self._fetch_by_tag(tag_id, category, seen, out, start_min, start_max)
+                self._fetch_by_tag(tag_id, category, seen, out)
             except Exception as e:
                 logger.warning("Gamma fetch tag=%s failed: %s", tag_id, e)
 
         # Parent fallback (yeni tag'ler için)
         for category, tag_id in PARENT_TAGS:
             try:
-                self._fetch_by_tag(tag_id, category, seen, out, start_min, start_max)
+                self._fetch_by_tag(tag_id, category, seen, out)
             except Exception as e:
                 logger.warning("Gamma parent-tag fetch failed: %s", e)
 
@@ -117,8 +109,6 @@ class GammaClient:
         category: str,
         seen: set[str],
         out: list[MarketData],
-        start_min: datetime,
-        start_max: datetime,
     ) -> None:
         offset = 0
         while True:
@@ -128,11 +118,6 @@ class GammaClient:
                 "closed": "false",
                 "limit": EVENTS_PER_PAGE,
                 "offset": offset,
-                # Polymarket-side bug: start_date_min/max parametreleri olmadan
-                # yakın başlangıç event'leri tag fetch'inde gözükmüyor (bkz. üstteki
-                # _FETCH_LOOKBACK_HOURS sabitinin açıklaması).
-                "start_date_min": start_min.isoformat().replace("+00:00", "Z"),
-                "start_date_max": start_max.isoformat().replace("+00:00", "Z"),
             }
             resp = self._http(f"{GAMMA_BASE}/events", params=params, timeout=_DEFAULT_TIMEOUT)
             resp.raise_for_status()
