@@ -27,6 +27,7 @@ from src.orchestration.exit_processor import ExitProcessor
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
+from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
 from src.strategy.entry.gate import EntryGate
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
@@ -51,7 +52,7 @@ class AgentDeps:
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
     command_poller: TelegramCommandPoller | None = None
-    score_enricher: object = None  # SPEC-B: ScoreEnricher | None — light cycle score injector
+    score_enricher: ScoreEnricher | None = None  # SPEC-B: light cycle score injector + SPEC-Z5 match_live refresh
     mlb_submarket_engine: MlbSubmarketEngineProtocol | None = None  # SPEC-R: Plan 4'te gerçek engine
     tennis_start_enricher: TennisStartEnricher | None = None  # SPEC: light cycle'da tennis pozisyonlarinin match_start_iso'sunu ESPN ile refresh eder
 
@@ -102,6 +103,12 @@ class Agent:
                     score_map: dict[str, dict] = {}
                     if self.deps.score_enricher is not None:
                         try:
+                            # SPEC-Z5: ESPN'den match_live/match_ended bayraklarini tum
+                            # sporlar icin tazele (eskiden sadece tenis icin vardi).
+                            # Polymarket event.live gecikiyor olabilir; ESPN canli kaynak.
+                            self.deps.score_enricher.refresh_match_status(
+                                self.deps.state.portfolio.positions,
+                            )
                             score_map = self.deps.score_enricher.get_scores_if_due(
                                 self.deps.state.portfolio.positions,
                             )

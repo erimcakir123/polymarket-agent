@@ -93,20 +93,17 @@ class ScoreEnricher:
 
         return score_map
 
-    def _match_position_to_score(
+    def _match_position_to_any(
         self,
         pos: Position,
         scores: list[ESPNMatchScore],
     ) -> ESPNMatchScore | None:
-        """Pozisyon question/slug'ini ESPN home/away ile eslestir.
+        """Pozisyon question/slug'ini ESPN home/away ile eslestir (live + completed).
 
         Heuristic: question lowercase'inde home_name veya away_name gecerse match.
-        Sadece is_live=True maclar dikkate alinir.
         """
         q = (pos.question or pos.slug or "").lower()
         for s in scores:
-            if not s.is_live:
-                continue
             home_lower = (s.home_name or "").lower()
             away_lower = (s.away_name or "").lower()
             if home_lower and home_lower in q:
@@ -114,6 +111,64 @@ class ScoreEnricher:
             if away_lower and away_lower in q:
                 return s
         return None
+
+    def _match_position_to_score(
+        self,
+        pos: Position,
+        scores: list[ESPNMatchScore],
+    ) -> ESPNMatchScore | None:
+        """Skor enrichment icin sadece is_live=True maclari getir (DRY: _any uzerinden)."""
+        matched = self._match_position_to_any(pos, scores)
+        if matched is None or not matched.is_live:
+            return None
+        return matched
+
+    def refresh_match_status(self, positions: dict[str, Position]) -> int:
+        """SPEC-Z5 (2026-05-25): pozisyonlarin match_live + match_ended bayraklarini
+        ESPN scoreboard'dan tazele.
+
+        Polymarket event.live field'i gecikiyor olabilir; ESPN canli kaynak. Eski
+        tasarimda sadece tenis icin refresh_positions vardi (TennisStartEnricher).
+        Bu metod genel sporlara yayar (MLB/NBA/WNBA/NHL — sport_rules.score_source=espn
+        olan hepsi).
+
+        Yan etki: pos.match_live ve pos.match_ended mutate eder.
+        Returns: kac pozisyonun bayraklari guncellendi.
+        """
+        if not self._cfg.enabled or not positions:
+            return 0
+
+        sport_keys: dict[str, list[Position]] = {}
+        for pos in positions.values():
+            sport_tag = (pos.sport_tag or "").lower()
+            score_source = get_sport_rule(sport_tag, "score_source", default=None)
+            if score_source != "espn":
+                continue
+            espn_sport = get_sport_rule(sport_tag, "espn_sport")
+            espn_league = get_sport_rule(sport_tag, "espn_league")
+            if not espn_sport or not espn_league:
+                continue
+            key = f"{espn_sport}/{espn_league}"
+            sport_keys.setdefault(key, []).append(pos)
+
+        if not sport_keys:
+            return 0
+
+        updated = 0
+        for key, pos_list in sport_keys.items():
+            espn_sport, espn_league = key.split("/", 1)
+            scores = self._espn.fetch_scoreboard(espn_sport, espn_league)
+            if not scores:
+                continue
+            for pos in pos_list:
+                matched = self._match_position_to_any(pos, scores)
+                if matched is None:
+                    continue
+                if pos.match_live != matched.is_live or pos.match_ended != matched.is_completed:
+                    pos.match_live = matched.is_live
+                    pos.match_ended = matched.is_completed
+                    updated += 1
+        return updated
 
     @staticmethod
     def _to_score_info(pos: Position, score: ESPNMatchScore) -> dict:

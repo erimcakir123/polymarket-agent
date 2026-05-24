@@ -21,12 +21,75 @@ def _pos(slug: str = "test", sport_tag: str = "nhl", current_price: float = 0.50
 
 
 def _espn_score(event_id: str = "1", home: str = "Maple Leafs", away: str = "Bruins",
-                home_score: int = 2, away_score: int = 1, is_live: bool = True) -> ESPNMatchScore:
+                home_score: int = 2, away_score: int = 1, is_live: bool = True,
+                is_completed: bool = False) -> ESPNMatchScore:
     return ESPNMatchScore(
         event_id=event_id, home_name=home, away_name=away,
         home_score=home_score, away_score=away_score,
-        is_live=is_live, period="In Progress",
+        is_live=is_live, is_completed=is_completed, period="In Progress",
     )
+
+
+# -- SPEC-Z5: refresh_match_status --
+
+def test_refresh_match_status_updates_live_flag() -> None:
+    """SPEC-Z5: ESPN is_live=True → position.match_live = True."""
+    espn = MagicMock()
+    espn.fetch_scoreboard.return_value = [
+        _espn_score(home="Maple Leafs", away="Bruins", is_live=True, is_completed=False),
+    ]
+    odds = MagicMock()
+    enricher = ScoreEnricher(espn_client=espn, odds_client=odds, config=ScoreConfig())
+    pos = _pos("p1", sport_tag="nhl")
+    pos.match_live = False  # baslangic durumu
+    pos.match_ended = False
+    updated = enricher.refresh_match_status({"p1": pos})
+    assert updated == 1
+    assert pos.match_live
+    assert not pos.match_ended
+
+
+def test_refresh_match_status_updates_ended_flag() -> None:
+    """SPEC-Z5: ESPN is_completed=True → position.match_ended = True."""
+    espn = MagicMock()
+    espn.fetch_scoreboard.return_value = [
+        _espn_score(home="Maple Leafs", away="Bruins", is_live=False, is_completed=True),
+    ]
+    odds = MagicMock()
+    enricher = ScoreEnricher(espn_client=espn, odds_client=odds, config=ScoreConfig())
+    pos = _pos("p2", sport_tag="nhl")
+    pos.match_live = True  # canlıyken bitti
+    pos.match_ended = False
+    updated = enricher.refresh_match_status({"p2": pos})
+    assert updated == 1
+    assert not pos.match_live
+    assert pos.match_ended
+
+
+def test_refresh_match_status_no_change_returns_zero() -> None:
+    """ESPN durum aynı → no-op, 0 update."""
+    espn = MagicMock()
+    espn.fetch_scoreboard.return_value = [
+        _espn_score(home="Maple Leafs", away="Bruins", is_live=True, is_completed=False),
+    ]
+    odds = MagicMock()
+    enricher = ScoreEnricher(espn_client=espn, odds_client=odds, config=ScoreConfig())
+    pos = _pos("p3", sport_tag="nhl")
+    pos.match_live = True
+    pos.match_ended = False
+    updated = enricher.refresh_match_status({"p3": pos})
+    assert updated == 0  # zaten True, değişiklik yok
+
+
+def test_refresh_match_status_skips_unsupported_sport() -> None:
+    """Sport_rules score_source != 'espn' → ESPN cagrilmaz, 0 update."""
+    espn = MagicMock()
+    odds = MagicMock()
+    enricher = ScoreEnricher(espn_client=espn, odds_client=odds, config=ScoreConfig())
+    pos = _pos("g1", sport_tag="golf")
+    updated = enricher.refresh_match_status({"g1": pos})
+    assert updated == 0
+    espn.fetch_scoreboard.assert_not_called()
 
 
 # -- Disabled gate --
