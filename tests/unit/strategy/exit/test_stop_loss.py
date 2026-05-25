@@ -21,14 +21,10 @@ def test_stale_price_skip_returns_none() -> None:
     assert compute_stop_loss_pct(p) is None
 
 
-def test_totals_market_skip() -> None:
-    p = _pos(question="Total over/under 215.5?", slug="nba-totals")
-    assert compute_stop_loss_pct(p) is None
-
-
-def test_spread_keyword_skip() -> None:
-    p = _pos(slug="nba-lakers-spread-2026")
-    assert compute_stop_loss_pct(p) is None
+# Note: totals/spread keyword-based exemption removed 2026-05-26.
+# Bimodal market exemption is now config-driven (cfg.risk.stop_loss_exempt_market_types)
+# applied at monitor.evaluate() layer, not inside stop_loss.compute_stop_loss_pct.
+# See test_monitor.py::test_monitor_skips_simple_stop_loss_for_exempt_market_types.
 
 
 def test_ultra_low_entry_wide_50pct() -> None:
