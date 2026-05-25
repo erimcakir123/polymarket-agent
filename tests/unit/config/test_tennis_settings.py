@@ -122,3 +122,21 @@ def test_sackmann_itf_years_default_empty() -> None:
     cfg = TennisConfig()
     assert cfg.sackmann_atp_itf_years == []
     assert cfg.sackmann_wta_itf_years == []
+
+
+# ── match_start_refresh_every_n_ticks (light-cycle stale-cache fix) ──────────
+
+
+def test_match_start_refresh_every_n_ticks_default() -> None:
+    """Default 60 ticks (with light_interval_sec=5 → ~5 min cadence)."""
+    cfg = TennisConfig()
+    assert cfg.match_start_refresh_every_n_ticks == 60
+
+
+def test_match_start_refresh_every_n_ticks_loaded_from_yaml() -> None:
+    """config_tennis.yaml ships the explicit value."""
+    from pathlib import Path
+
+    from src.config.settings import load_config
+    cfg = load_config(Path("config_tennis.yaml"))
+    assert cfg.tennis.match_start_refresh_every_n_ticks == 60

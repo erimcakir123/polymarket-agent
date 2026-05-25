@@ -135,3 +135,7 @@ tennis:
     min_surface_matches: 8
     max_form_age_days: 90
     max_glicko_rd: 150
+  # Re-fetch gameStartTime from Polymarket every N light ticks (5sec each = 5min).
+  # Fixes LIVE-badge false fires + graduated_sl elapsed_pct staleness when
+  # Polymarket reschedules a match after position opened.
+  match_start_refresh_every_n_ticks: 60

@@ -34,6 +34,7 @@ from src.models.enums import SportsMarketType
 from src.models.market import MarketData
 from src.models.signal import Signal
 from src.orchestration import operational_writers
+from src.orchestration.match_start_refresh import maybe_refresh_match_start
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import persist
 from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
@@ -336,9 +337,16 @@ def run_light_cycle(
     # 2026-05-20: WS güvensiz (10¢'e kadar drift + boş book'ta RESOLVED kaçar)
     # → exit_processor ÖNCESİ REST top-up + realized PnL drift visibility check.
     run_light_telemetry(deps.state.portfolio, deps.trade_logger)
+    _light_tick_state["count"] += 1
+    # 2026-05-26 stale-cache fix: Polymarket can reschedule a match after position
+    # opens — re-fetch gameStartTime every N ticks BEFORE exit_processor so SL +
+    # graduated_sl + LIVE badge use fresh elapsed_pct.
+    maybe_refresh_match_start(
+        _light_tick_state["count"], deps.config.tennis.match_start_refresh_every_n_ticks,
+        deps.state.portfolio, deps.gamma_client,
+    )
     score_map = _fetch_tennis_score_map(deps)
     deps.exit_processor.run_light(score_map=score_map)
-    _light_tick_state["count"] += 1
     if _light_tick_state["count"] % _LIGHT_TICK_LOG_EVERY == 0:
         logger.info("Light cycle tick #%d: %d open positions checked",
                     _light_tick_state["count"], len(deps.state.portfolio.positions))

@@ -23,6 +23,7 @@ from src.config.settings import AppConfig, load_config
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.espn_client import ESPNClient
+from src.infrastructure.apis.gamma_client import GammaClient
 from src.infrastructure.data.sackmann_csv_client import SackmannCsvClient
 from src.infrastructure.data.tennis_ratings_store import TennisRatingsStore
 from src.infrastructure.executor import Executor
@@ -107,6 +108,11 @@ class TennisDeps:
     # set/games verisi map_diff + never_in_profit + hold_revocation
     # guard'larına input. None = test/legacy; production her zaman wired.
     score_enricher: ScoreEnricher | None = None
+    # 2026-05-26 (tennis-lab): Polymarket gamma client — light cycle
+    # match_start_refresh helper'ı her N tick'te gameStartTime'ı yeniden
+    # çekip Position.match_start_iso'yu in-place günceller (stale-cache fix).
+    # None = test/legacy; production her zaman wired.
+    gamma_client: GammaClient | None = None
 
 
 def build_tennis_deps(
@@ -168,6 +174,10 @@ def build_tennis_deps(
     espn = ESPNClient()
     score_enricher = ScoreEnricher(espn_client=espn, odds_client=None, config=cfg.score)
 
+    # Polymarket gamma client — light cycle match_start refresh helper uses
+    # gamma.fetch_market_by_condition_id to detect rescheduled matches.
+    gamma_client = GammaClient()
+
     # Entry + exit infrastructure (shared deps container — built once, used both)
     entry_processor, exit_processor, equity_logger, trade_logger = _build_entry_exit_processors(
         cfg, state, data_path, logs_path, price_feed,
@@ -192,6 +202,7 @@ def build_tennis_deps(
         trade_logger=trade_logger,
         price_feed=price_feed,
         score_enricher=score_enricher,
+        gamma_client=gamma_client,
     )
 
 

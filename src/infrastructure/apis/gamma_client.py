@@ -57,12 +57,15 @@ PARENT_TAGS: list[tuple[str, int]] = [
 _DEFAULT_TIMEOUT = 20
 
 
-def _normalize_game_start(raw: Any) -> str:
+def normalize_game_start(raw: Any) -> str:
     """Polymarket gameStartTime format ('2026-05-26 09:00:00+00') -> ISO ('2026-05-26T09:00:00Z').
 
     Diger zaman alanlari ISO formatta ('T' separator, 'Z' suffix), gameStartTime
     bosluk + '+00' kullaniyor. Tutarsizlik tuketim tarafini bozar (parse hatasi),
     burada normalize ediyoruz. Bos/None -> ''.
+
+    Public helper — match_start_refresh module reuses this for in-place
+    Position.match_start_iso updates (DRY: same wire format must normalize identically).
     """
     s = str(raw or "").strip()
     if not s:
@@ -211,7 +214,7 @@ class GammaClient:
                 # etmiyordu, gameStartTime daha tutarli) → market.startDate (futures
                 # fallback — market yaratilma tarihi) → "" (hicbiri yoksa).
                 match_start_iso=str(
-                    _normalize_game_start(raw.get("gameStartTime", ""))
+                    normalize_game_start(raw.get("gameStartTime", ""))
                     or raw.get("_event_start_time", "")
                     or raw.get("startDate", "")
                     or ""
@@ -227,6 +230,32 @@ class GammaClient:
             )
         except (ValueError, TypeError, json.JSONDecodeError) as e:
             logger.debug("parse_market failed for %s: %s", raw.get("conditionId", "?"), e)
+            return None
+
+    def fetch_market_by_condition_id(self, condition_id: str) -> dict | None:
+        """Single-market fetch by condition_id. Returns raw market dict or None.
+
+        Used by match_start_refresh helper (light-cycle stale-cache fix):
+        re-fetches gameStartTime for an open position to detect Polymarket
+        reschedules. Returns the raw dict (not parsed MarketData) — caller
+        only consumes gameStartTime, so parsing the full market is wasteful.
+        """
+        if not condition_id:
+            return None
+        try:
+            resp = self._http(
+                f"{GAMMA_BASE}/markets",
+                params={"condition_ids": condition_id},
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json() or []
+            return data[0] if data else None
+        except Exception as e:
+            logger.warning(
+                "Gamma fetch_market_by_condition_id(%s) failed: %s",
+                condition_id, e,
+            )
             return None
 
     def _fetch_league_tags(self) -> list[tuple[str, int]]:

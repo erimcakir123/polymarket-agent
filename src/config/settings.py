@@ -282,6 +282,13 @@ class TennisConfig(BaseModel):
             max_form_age_days=90, max_glicko_rd=150.0,
         ),
     )
+    # Light-cycle match_start_iso refresh: every N ticks, re-fetch gameStartTime
+    # from Polymarket gamma for each open position. 0 = disabled. Default 60
+    # (with light_interval_sec=5, fires ~every 5 minutes).
+    # Fixes stale-cache bug: Polymarket can reschedule a match after position
+    # opens — bot's cached match_start_iso then triggers LIVE badge falsely +
+    # makes graduated_sl over-aggressive (elapsed_pct miscomputed).
+    match_start_refresh_every_n_ticks: int = 60
 
 
 # ── Basketbol exit config (SPEC-J — DECISIONS §6/§7 kalibrasyonları) ────────────────
