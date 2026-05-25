@@ -125,7 +125,7 @@ Tüm pozisyonlar için koşulsuz multi-SL zinciri (Faz 1 rollback 2026-05-15 son
 8 yetenek grubu. Detaylar §6/§7'de.
 
 ### F1. Scan
-Polymarket Gamma API'dan canlı market keşfi. `allowed_sport_tags` filtresi. Max `max_markets_per_cycle=300` limiti. (`src/orchestration/scanner.py`)
+Polymarket Gamma API'dan canlı market keşfi. `allowed_sport_tags` filtresi. Max `max_markets_per_cycle=500` limiti (24 saat içindeki tüm eligible maçlar). (`src/orchestration/scanner.py`)
 
 ### F2. Enrich
 Her adaya Odds API'dan bookmaker verisi. `domain/matching/` Polymarket slug'ını Odds API sport key'ine dönüştürür. `bookmaker_weights.py` sharp book'ları ağırlıklandırır. (bkz. DECISIONS §6.1)
@@ -220,7 +220,7 @@ Fixed-tier (SPEC-P): A=$50, B=$30, C=blok. Manipulation medium × 0.5. Polymarke
 - Min likidite: $1000
 - Max süre: 14 gün
 - Allowed categories: `sports` (yalnızca)
-- Allowed sport_tags (kısa liste, ayrıntı için §7.1): MLB/KBO/NPB/MiLB/NCAA baseball, NBA/WNBA/NCAAB/Euroleague/NBL basketball, NHL hockey (ML-only), NCAAF/CFL/UFL football, MMA/UFC/Boxing combat, LPGA/LIV/PGA H2H golf. Tennis config'de allow listede ama `sport_rules.py`'de yok (DORMANT 2026-05-05).
+- Allowed sport_tags (kısa liste, ayrıntı için §7.1): MLB/KBO/NPB/MiLB/NCAA baseball, NBA/WNBA/NCAAB/Euroleague/NBL basketball, NHL hockey (ML-only), NCAAF/CFL/UFL football, MMA/UFC/Boxing combat, LPGA/LIV/PGA H2H golf. Tennis ana botta KAPALI (steril ayrım — tennis lab `feature/tennis-lab` branch'ında, 2026-05-23); `sport_rules.py`'de entry korunur (açık tenis pozisyonların ESPN `match_start_iso` refresh'i için).
 
 ### Savunma Mekanizmaları (cross-ref)
 - Manipulation Guard → §6.16
@@ -837,7 +837,7 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 - **Golf**: LPGA, LIV, PGA H2H
 
 **MVP dışı / kaldırılmış:**
-- **Tennis**: 2026-05-05'te `sport_rules.py`'den kaldırıldı. Config'de allow listede ama uygulamada aktif değil (DORMANT — bkz. §5.7.6). Geri açma kararı Faz 2'ye.
+- **Tennis**: Ana botta KAPALI (steril ayrım, 2026-05-23 — STOCK kirlenmesi + bookmaker yokluğu). Tahmin laboratuvarı `feature/tennis-lab` branch'ında ayrı pipeline'da çalışır. `sport_rules.py` tenis entry'si korunur (mevcut açık tenis pozisyonların `match_start_iso` ESPN refresh'i için — bkz. §B 2026-05-23 position refresh kararı).
 - **NHL secondary leagues** (AHL/Liiga/SHL/Mestis/Allsvenskan): Config + `sport_rules.py`'den kaldırıldı — sadece NHL.
 - **Soccer** (tüm ligler): 3-way market yapısı, MVP 2-way pipeline ile uyumsuz (SPEC-015 rollback'le silindi).
 - **Cricket**: Test match draw olasılığı (SPEC-011 rollback'le silindi).
@@ -873,6 +873,23 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 # §B — KRONOLOJIK LOG (SPEC Kararları)
 
 > Aşağıdaki bölümler kronolojik (en yeni üstte). Her SPEC: ne yapıldı + neden + kanıt + commit referansı.
+
+---
+
+### 2026-05-23 — Tennis ana bot izin listesinden kaldırıldı (steril ayrım)
+
+**Karar:** `config.yaml` `scanner.allowed_sport_tags` listesinden `tennis`, `atp*`, `wta*` üç giriş silindi. Ana botun scanner'ı artık tenis maçlarını görmüyor.
+
+**Neden:** Tenis ana bot için DORMANT (2026-05-05'te `sport_rules.py`'den çıkarılmış, sonra 2026-05-22'de SADECE `match_start_iso` ESPN refresh'i için geri eklenmişti — skor/bookmaker entegrasyonu yok). Tenis maçları config allow listesinde olduğu için scanner tarıyor → `odds_enricher` `no_bookmaker_data` ile reddediyor → STOCK kuyruğuna düşüyor (24h TTL'e kadar bekliyor). Sonuç: dashboard STOCK sekmesi tenis maçlarıyla kirleniyor + her tur boşa Odds API kredisi harcanıyor. Kullanıcı tenis lab (`feature/tennis-lab` branch) ile ana bot arasında steril ayrım istedi.
+
+**Etki:**
+- `config.yaml` — `allowed_sports` listesinden 3 satır silindi, kapatma sebebi olarak yorum kondu
+- `tests/unit/config/test_settings.py::test_repo_config_yaml_parses` — `must_have` listesinden tenis çıktı, "ana botta olmamalı" guard'ı eklendi (gelecek drift'i yakalar)
+- `sport_rules.py` tennis entry KORUNDU — açık tenis pozisyonların `TennisStartEnricher.refresh_positions()` üzerinden ESPN match_start refresh'i çalışmaya devam ediyor
+- `tennis_start_enricher.py` + `tennis_player_resolver.py` + `tennis_tournament_resolver.py` KORUNDU — mevcut pozisyon yönetimi için lazım
+- 1451 test yeşil (0 regresyon)
+
+**Sonuç:** Ana bot tenis maçlarını taramıyor → STOCK temiz, API kredisi tasarruflu. Açık tenis pozisyonlar (varsa) normal yönetilmeye devam ediyor. Tenis lab branch'ı etkilenmedi.
 
 ---
 
@@ -1030,6 +1047,48 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 - Commit'ler: `14cae46`, `cf5488b`, `f043102`, `76d4964`, `4b7098b`, `5432c94`
 
 **Sonuç:** MLB totals + run-line için model anchor artık doğru maç + doğru stadyum + DH-duyarlı edge üretir. Sonraki adımlar SPEC-S Faz C (moneyline pricer) ve Faz B (bullpen + Marcel + TTO doğruluk iyileştirmeleri) içinde.
+
+---
+
+### 2026-05-25 — SPEC-Z2..Z10: Bot İyileştirme Paketi (phantom market + dashboard parity + audit ground truth)
+
+**Bağlam:** 2026-05-24 SPEC-Z lookback fix sonrası bot trade almaya başladı. Aynı gün/ertesi gün audit'inde 4× Detroit-Baltimore $476 phantom trade tespit edildi (bestBid=None + entry 4¢ → exit 100¢ — matematiksel olarak imkansız "kazanç"). Aynı oturumda dashboard'da realized widget ↔ EXITED tab tutarsızlığı + gizemli archive scheduler'ın trade_history.jsonl'i boşaltması + LIVE rozet eksikliği + score enricher'ın tüm sporlar için çalışmaması ortaya çıktı. Tek brainstorming → spec → subagent TDD zinciriyle 9 düzeltme uygulandı.
+
+**Z2 — Scanner: tennis_enricher filter sonrası çağrılıyor.** Tennis enricher heavy cycle'da filtre öncesi çalışıyordu → 20k market için ESPN dereference cycle'ı bloke ediyordu. Filter sonrasına alındı, sadece eligible tennis market'leri enrich edilir.
+
+**Z3 — Phantom market detection (bestBid sanity).** `MarketData` modeli `best_bid: float | None` + `best_ask: float | None` ile genişletildi. `gamma_client._safe_float()` yeni helper bestBid/bestAsk'i güvenle parse eder. Scanner filter: `m.best_bid is None or m.best_bid <= 0.0` → reject. `gameStartTime` parsing de düzeltildi (`_normalize_iso()` helper). Detroit-Baltimore tipi phantom market'ler (zaten resolve olmuş, orderbook boş) artık scanner aşamasında elenir.
+
+**Z4 — LIVE rozet (dashboard).** `_countdownPill` (feed.js) artık `delta ≤ 0 AND match_start ≤ 8h önce` → "LIVE" basıyor. Polymarket `event.live` flag'i gecikmeli güncellendiği için saat-bazlı fallback gerekli; `match_live` argümanı tek başına yeterli değil (önceki SPEC 2026-04-15 zaten saat-bazlı tasarımı şart koşmuştu).
+
+**Z5 — Score enricher tüm sporlar için ESPN live sync.** `score_enricher.refresh_match_status(positions)` yeni public method + `_match_position_to_any` (live + completed) yardımcısı. Agent light cycle her döngüde `refresh_match_status()` çağırıp pozisyonların `match_live` field'ını günceller. Önceden sadece skor poll'u vardı, status (live/completed) güncellemesi yoktu — dashboard'da maç bitse bile "LIVE" görünmeye devam ediyordu.
+
+**Z6 — Orphan exit kaydı.** `trade_logger`'da bir pozisyon için `log_partial_exit` çağrıldığında karşılık gelen `entry` kaydı yoksa (reboot sonrası snapshot yüklenmiş ama trade_history temizlenmiş senaryo), eskiden exit kaydı sessizce atılıyordu. Yeni davranış: orphan exit standalone kayıt olarak yazılır (entry_ts=None, partial=True). Audit kaybı engellendi.
+
+**Z7 — Archive rename → copy.** `scripts/reboot.py:archive_audit_logs` artık `shutil.copy2` kullanır (önceden `Path.rename`). Gizemli bir scheduler (henüz tespit edilmedi — TODO-007 forensic logger) reboot dışında bu fonksiyonu çağırıyor; rename davranışı dashboard'ı boşaltıyordu. Copy ile asıl dosya korunur, snapshot forensic için yaratılır. Reboot modu `reset_state` ile asıl temizliği yapar — bu değişiklik reboot semantiğini bozmaz.
+
+**Z8 — startup `_reconcile_realized_pnl` snapshot öncelik (GUARD-5).** Reboot/reload sonrası `positions.json.snapshot.realized_pnl != 0` ise audit'tan yeniden hesaplama yapılmaz, snapshot trust edilir. Audit (trade_history) silinmiş olsa bile lifetime realized PnL kaybolmaz.
+
+**Z10 — Dashboard realized widget = read_trades toplamı.** `computed.realized = sum(read_trades())` — snapshot priority kaldırıldı. Önceden widget snapshot.realized'i okuyordu ($95) ama EXITED tab `read_trades`'i okuyordu ($33) → kullanıcıya çelişkili görünüyordu. Kullanıcı direktifi: "realized PnL ile EXITED tab aynı yerden bilgi çekiyor olmalı." Z8 (snapshot reconcile) backend bütünlüğünü korur, Z10 (dashboard parity) görsel tutarlılığı sağlar — ikisi farklı katmanda.
+
+**TODO-005 — Slug parser ayrı modüle.** `mlb_submarket_engine.py` 419 satır → 385 satır. Regex'ler `src/strategy/entry/mlb_slug_parser.py`'a taşındı (pure static, no I/O). Engine `parse_slug` import eder; parser kendi başına test edilebilir. ARCH_GUARD Kural 3 uyumu.
+
+**TODO-006 — SPEC-Y7/Y8 commit + test fix.** `config.yaml`: `heavy_interval_min: 30 → 25`, `max_markets_per_cycle: 300 → 500` (SPEC-Y8 throughput), tennis/atp*/wta* `allowed_sport_tags`'ten çıkarıldı (SPEC-Y7 — tennis ana botta yok, tennis lab ayrı branch). `test_repo_config_yaml_parses` güncellendi: tennis tag'leri `must_have`'den çıkarıldı + explicit "banned_tennis" kontrolü eklendi (SPEC-Y7 enforcement).
+
+**TODO-007 — Archive trigger forensic logger.** `archive_audit_logs` başlangıcında `inspect.stack()[1:5]` ile çağıran 4 frame loglanıyor. Geçici — gizli scheduler tespit edilince kaldırılacak. DECISIONS satır 1137 "TODO investigate" notunun aktif takip mekanizması.
+
+**Etki (özet):**
+- `src/orchestration/scanner.py`, `src/orchestration/score_enricher.py`, `src/orchestration/agent.py`, `src/orchestration/startup.py`, `src/orchestration/factory.py`
+- `src/infrastructure/apis/gamma_client.py`, `src/infrastructure/persistence/trade_logger.py`
+- `src/models/market.py` (best_bid, best_ask alanları)
+- `src/presentation/dashboard/computed.py`, `src/presentation/dashboard/readers.py`, `src/presentation/dashboard/static/js/feed.js`
+- `src/strategy/entry/mlb_slug_parser.py` (yeni), `src/strategy/entry/mlb_submarket_engine.py` (refactor)
+- `scripts/reboot.py` (Z7 copy + TODO-007 forensic)
+- `config.yaml`, `tests/unit/config/test_settings.py`
+- 1469 testin tümü yeşil. Phantom Detroit-Baltimore tipi trade artık scanner aşamasında elenir; dashboard realized ↔ EXITED tab tutarlı; reboot dışı audit kayıpları engellendi.
+
+**Açık takip:**
+- TODO-007 forensic logger'ın çıktısından gizli archive scheduler tespit edilecek (kaynak belirlenince logger kaldırılır)
+- MLB SL %30 → %25 sıkılaştırma kullanıcı onayına bağlı (henüz uygulanmadı)
 
 ---
 
