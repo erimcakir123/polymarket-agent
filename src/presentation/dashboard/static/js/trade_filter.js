@@ -74,16 +74,30 @@
   // chronological sıralı. Dashboard cumulative chart için: partial PnL atlama
   // bug'ı (chart $500-$620 takılı kalıyordu, gerçek equity $1100+) düzeltildi.
   function _allExitEvents(trades) {
+    // Bot exit'leri 2 yere yaziyor: (1) orijinal trade kaydinin partial_exits[] dizisi,
+    // (2) ayri trade kaydi (exit_reason=scale_out_tier_X, exit_price=null). Eski filtre
+    // sadece partial_exits[] + exit_price!=null okuyordu — ayri scale-out kayitlari
+    // (henuz kapanmamis trade'lerin partial'lari) chart'tan dusuyordu, Exited tab ile
+    // tutarsizlik yaratiyordu. Cozum: her iki kaynaktan da topla, (slug+timestamp) ile
+    // dedupe (Droguet/Tomljan gibi cift yazilmis trade'lerde tek say).
     const events = [];
+    const seen = new Set();
     for (const t of (trades || [])) {
+      const slug = t.slug || "";
       for (const pe of (t.partial_exits || [])) {
         if (!pe || !pe.timestamp) continue;
+        const key = slug + "|" + pe.timestamp;
+        if (seen.has(key)) continue;
+        seen.add(key);
         events.push({
           timestamp: pe.timestamp,
           pnl: Number(pe.realized_pnl_usdc || 0),
         });
       }
-      if (t.exit_price != null && t.exit_timestamp) {
+      if (t.exit_timestamp && t.exit_pnl_usdc != null) {
+        const key = slug + "|" + t.exit_timestamp;
+        if (seen.has(key)) continue;
+        seen.add(key);
         events.push({
           timestamp: t.exit_timestamp,
           pnl: Number(t.exit_pnl_usdc || 0),
