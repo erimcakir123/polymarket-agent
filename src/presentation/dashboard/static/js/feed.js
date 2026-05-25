@@ -8,6 +8,10 @@
 
   const MAX_ITEMS = 100;
   const MS_PER_MIN = 60000;
+  // LIVE badge guard: cached match_start_iso 1 dk eski/erken olabilir (Polymarket
+  // reschedule + bot refresh yoklugu). LIVE sadece start'tan 5dk+ gectiyse gosterir;
+  // arada bekleme penceresi countdown olarak kalir.
+  const LIVE_GRACE_MS = 5 * MS_PER_MIN;
 
   const FEED = {
     state: { tab: "active", data: { active: [], exited: [], skipped: [], stock: [] } },
@@ -111,8 +115,14 @@
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
       const diff = start - Date.now();
-      if (diff <= 0) {
+      // diff > 0 → mac henuz baslamadi (countdown).
+      // diff <= 0 ve start'tan 5dk+ gectiyse LIVE (cache staleness korumasi).
+      // Arada bekleme penceresinde "soon" gosterir.
+      if (diff <= -LIVE_GRACE_MS) {
         return `<span class="feed-countdown live">LIVE</span>`;
+      }
+      if (diff <= 0) {
+        return `<span class="feed-countdown">soon</span>`;
       }
       const mins = Math.floor(diff / MS_PER_MIN);
       const hours = Math.floor(mins / 60);
