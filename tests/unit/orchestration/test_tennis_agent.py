@@ -153,9 +153,9 @@ def test_run_one_cycle_with_edge_candidate_logs_to_diagnostic(tmp_path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=candidate), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=good_features), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=good_features), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
 
         MockScanner.return_value.scan.return_value = [market]

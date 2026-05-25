@@ -190,9 +190,9 @@ def test_heavy_cycle_call_order(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner", scanner_cls), \
          patch("src.orchestration.tennis_agent.enrich", enrich_mock), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=_parsed()), \
          patch("src.orchestration.tennis_agent.persist", persist_mock), \
          patch(
@@ -237,9 +237,9 @@ def test_heavy_cycle_skip_entry_when_no_qualified(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner", scanner_cls), \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="skip"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="skip"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=_parsed()), \
          patch("src.orchestration.tennis_agent.persist", persist_mock), \
          patch(

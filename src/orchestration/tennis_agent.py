@@ -18,15 +18,10 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from src.config.settings import AppConfig
-from src.domain.matching.tennis_player_matcher import build_match_index, match_player
-from src.domain.prediction.feature_extractor import extract_features
-from src.domain.prediction.tennis_predictor import MarketPrediction
 from src.domain.risk.position_sizer import confidence_position_size
 from src.infrastructure.data.sackmann_csv_client import SackmannMatch
 from src.infrastructure.data.tennis_ratings_store import PlayerRating
@@ -37,12 +32,12 @@ from src.orchestration import operational_writers
 from src.orchestration.match_start_refresh import maybe_refresh_match_start
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import persist
-from src.orchestration.tennis_diagnostic_logger import TennisDiagnosticLogger
+from src.orchestration.tennis_diagnostic_writer import log_candidate
 from src.orchestration.tennis_factory import TennisDeps
 from src.orchestration.tennis_price_callback import install_price_feed
 from src.orchestration.tennis_pnl_integrity import run_light_telemetry
 from src.orchestration.tennis_status_writer import write_pid, write_status
-from src.strategy.enrichment.tennis_market_enricher import classify_tier, enrich
+from src.strategy.enrichment.tennis_market_enricher import enrich
 from src.strategy.enrichment.tennis_question_parser import parse_tennis_question
 from src.strategy.entry.tennis_entry import EdgeCandidate, select_best_2_per_event
 from src.strategy.entry.tennis_signal_adapter import tennis_candidate_to_signal
@@ -73,68 +68,6 @@ def _load_sackmann_matches(deps: TennisDeps) -> list[SackmannMatch]:
     atp_chall = deps.sackmann_client.load_challenger_years(cfg.challenger_years)
     wta = deps.sackmann_client.load_wta_years(cfg.sackmann_wta_years)
     return atp_main + atp_chall + wta
-
-
-def _log_candidate(
-    candidate: EdgeCandidate,
-    market: MarketData,
-    parsed: dict,
-    ratings: dict[str, PlayerRating],
-    sackmann_matches: list[SackmannMatch],
-    cfg: AppConfig,
-    diagnostic_logger: TennisDiagnosticLogger,
-    now: datetime,
-) -> tuple[bool, str]:
-    """Resolve features + tier for one candidate and write diagnostic log record.
-
-    Returns (did_log, tier) — tier is "A" / "B" / "skip" / "" (player not found).
-    Caller uses tier to decide whether to size + submit an entry signal.
-
-    Name-match indexes are rebuilt per call scoped to parsed["tour"] (small
-    dicts; cross-tour caching is unsafe — see enricher note).
-    """
-    tour = parsed["tour"]
-    by_full, by_last = build_match_index(ratings, tour=tour)
-    p1_rating = match_player(parsed["p1_name"], ratings, by_full=by_full, by_last=by_last, tour=tour)
-    p2_rating = match_player(parsed["p2_name"], ratings, by_full=by_full, by_last=by_last, tour=tour)
-    if p1_rating is None or p2_rating is None:
-        return False, ""
-
-    features = extract_features(
-        matches=sackmann_matches,
-        p1=p1_rating.player_name,
-        p2=p2_rating.player_name,
-        surface=parsed["surface"].capitalize(),
-        snapshot_date=now,
-    )
-    tier = classify_tier(features, cfg)
-    if tier == "skip":
-        return False, tier
-
-    direction = "BUY_YES" if candidate.edge >= 0 else "BUY_NO"
-    prediction = MarketPrediction(
-        market_type=candidate.market_type,
-        probability=candidate.model_p,
-        raw_probability=candidate.model_p,
-        notes=f"edge={candidate.edge:+.3f} tier={tier}",
-    )
-    tournament = market.question.split(":")[0].strip() if ":" in market.question else "Unknown"
-
-    diagnostic_logger.log_prediction(
-        trade_id=str(uuid.uuid4()),
-        tournament=tournament,
-        tournament_tier="unknown",
-        slug=market.slug or "",
-        format_="BO3",
-        match_start_iso=market.match_start_iso or now.isoformat() + "Z",
-        market_polymarket_price=market.yes_price,
-        direction=direction,
-        prediction=prediction,
-        features=features,
-        confidence_tier=tier,
-        edge=candidate.edge,
-    )
-    return True, tier
 
 
 def run_one_cycle(
@@ -230,7 +163,7 @@ def run_one_cycle(
         if parsed is None:
             continue
 
-        did_log, tier = _log_candidate(
+        did_log, tier = log_candidate(
             candidate=candidate,
             market=market,
             parsed=parsed,

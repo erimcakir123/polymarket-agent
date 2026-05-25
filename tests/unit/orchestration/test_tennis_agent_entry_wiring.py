@@ -143,9 +143,9 @@ def test_tennis_cycle_submits_signal_for_qualified_a_tier(tmp_path: Path) -> Non
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [_market()]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -172,9 +172,9 @@ def test_tennis_cycle_skips_unqualified_tier(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="skip"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="skip"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [_market()]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -197,9 +197,9 @@ def test_tennis_cycle_calls_persist_after_entries(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info), \
          patch("src.orchestration.tennis_agent.persist") as mock_persist:
         MockScanner.return_value.scan.return_value = [_market()]
@@ -230,9 +230,9 @@ def test_tennis_cycle_set_totals_caps_size_at_set_totals_max(tmp_path: Path) -> 
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [set_totals_market]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -260,9 +260,9 @@ def test_tennis_cycle_first_set_winner_uses_default_cap(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [fs_market]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -302,9 +302,9 @@ def _run_with_tier_and_market(
     }
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value=tier), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value=tier), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [_market(sports_market_type=sports_market_type)]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -356,9 +356,9 @@ def test_a_tier_full_size_unchanged(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="A"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="A"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [_market()]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
@@ -382,9 +382,9 @@ def test_c_tier_no_signal_produced(tmp_path: Path) -> None:
 
     with patch("src.orchestration.tennis_agent.MarketScanner") as MockScanner, \
          patch("src.orchestration.tennis_agent.enrich", return_value=_candidate(edge=0.20)), \
-         patch("src.orchestration.tennis_agent.classify_tier", return_value="C"), \
-         patch("src.orchestration.tennis_agent.extract_features", return_value=_features()), \
-         patch("src.orchestration.tennis_agent.match_player", return_value=ratings["p1"]), \
+         patch("src.orchestration.tennis_diagnostic_writer.classify_tier", return_value="C"), \
+         patch("src.orchestration.tennis_diagnostic_writer.extract_features", return_value=_features()), \
+         patch("src.orchestration.tennis_diagnostic_writer.match_player", return_value=ratings["p1"]), \
          patch("src.orchestration.tennis_agent.parse_tennis_question", return_value=parsed_info):
         MockScanner.return_value.scan.return_value = [_market()]
         run_one_cycle(deps, ratings=ratings, sackmann_matches=[])
