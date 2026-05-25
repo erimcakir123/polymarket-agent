@@ -217,6 +217,14 @@ def enrich(
     if tier == "skip":
         return None
 
+    # Data-driven (tour, market_type, confidence) exclusion — see config.edge.exclude_combos.
+    # Kill-switch for bleeding combos (2026-05-26: ATP_set_totals B -$179 net).
+    if tier in ("A", "B"):
+        smt = market.sports_market_type or ""
+        for excl in cfg.edge.exclude_combos:
+            if excl.tour == tour and excl.market_type == smt and excl.confidence == tier:
+                return None
+
     # Step 6: Predict
     prediction = _call_predictor(market_type, p1_profile, p2_profile, features)
     if prediction is None:

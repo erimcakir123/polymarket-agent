@@ -55,10 +55,25 @@ class ScannerConfig(BaseModel):
     allowed_sports_market_types: List[str] | None = None
 
 
+class EntryExcludeCombo(BaseModel):
+    """Block entry when (tour, market_type, confidence) all match.
+
+    Data-driven kill switch for bleeding (tour, market_type, conf) combos
+    without closing an entire confidence tier. Each entry should have a
+    50+ trade history showing clearly negative EV.
+    """
+    model_config = ConfigDict(extra="ignore")
+    tour: str          # "atp" | "wta"
+    market_type: str   # Polymarket sports_market_type (e.g. "tennis_set_totals")
+    confidence: str    # "A" | "B"
+
+
 class EdgeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_edge: float = 0.06
     confidence_multipliers: dict = {"A": 1.00, "B": 1.00}  # 19 Apr peak (A: 1.25 → 1.00)
+    # 2026-05-26: Data-driven entry exclusions (see EntryExcludeCombo).
+    exclude_combos: List[EntryExcludeCombo] = []
 
 
 class RiskConfig(BaseModel):

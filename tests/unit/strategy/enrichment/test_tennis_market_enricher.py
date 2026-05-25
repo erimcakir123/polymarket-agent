@@ -191,6 +191,84 @@ def test_enrich_edge_candidate_event_id_from_market(monkeypatch) -> None:
         assert result.event_id == "custom-event-id"
 
 
+# ── EntryExcludeCombo gating (2026-05-26) ─────────────────────────────────────
+
+
+def _make_tier_b_matches(p1: str, p2: str) -> list[SackmannMatch]:
+    """25 matches each — lands in Tier B (>=20, <40 per player)."""
+    matches: list[SackmannMatch] = []
+    for i in range(15):
+        matches.append(_make_sackmann_match(p1, p2, "Clay", days_ago=i + 5))
+    for i in range(10):
+        matches.append(_make_sackmann_match(p2, p1, "Clay", days_ago=i + 35))
+    return matches
+
+
+def _make_wta_player_rating(pid: str, name: str, r: float = 1500.0) -> PlayerRating:
+    sr = _surface_rating(r)
+    return PlayerRating(
+        player_id=pid, player_name=name, tour="wta", overall=sr,
+        serve_clay=sr, serve_grass=sr, serve_hard=sr,
+        return_clay=sr, return_grass=sr, return_hard=sr,
+        last_match_date="2026-01-01", match_count_12mo=60,
+    )
+
+
+def test_enrich_blocks_atp_set_totals_b_when_excluded() -> None:
+    """ATP_set_totals B is data-driven excluded; enrich() returns None."""
+    from src.config.settings import EntryExcludeCombo
+    cfg = _make_cfg()
+    cfg.edge.exclude_combos = [
+        EntryExcludeCombo(tour="atp", market_type="tennis_set_totals", confidence="B"),
+    ]
+    ratings = _make_good_ratings()
+    matches = _make_tier_b_matches("Novak Djokovic", "Carlos Alcaraz")
+    market = _make_market(
+        question="Djokovic vs Alcaraz: Total Sets O/U 2.5",
+        sports_market_type="tennis_set_totals",
+        slug="atp-djokovic-alcaraz-roland-garros-2026",
+    )
+    result = enrich(market, ratings, matches, cfg)
+    assert result is None  # blocked by exclude_combos
+
+
+def test_enrich_does_not_block_when_exclude_combo_does_not_match() -> None:
+    """WTA market is NOT blocked by an ATP exclude entry — exclusion is tour-specific."""
+    from src.config.settings import EntryExcludeCombo
+    cfg = _make_cfg()
+    cfg.edge.exclude_combos = [
+        EntryExcludeCombo(tour="atp", market_type="tennis_set_totals", confidence="B"),
+    ]
+    ratings = {
+        "p1": _make_wta_player_rating("p1", "Iga Swiatek", r=1600.0),
+        "p2": _make_wta_player_rating("p2", "Aryna Sabalenka", r=1580.0),
+    }
+    matches = _make_tier_b_matches("Iga Swiatek", "Aryna Sabalenka")
+    market = _make_market(
+        question="Swiatek vs Sabalenka: Total Sets O/U 2.5",
+        sports_market_type="tennis_set_totals",
+        slug="wta-swiatek-sabalenka-roland-garros-2026",
+    )
+    result = enrich(market, ratings, matches, cfg)
+    # Exclusion is tour="atp" only — WTA passes through and yields an EdgeCandidate.
+    assert isinstance(result, EdgeCandidate)
+
+
+def test_enrich_does_not_block_atp_set_totals_when_no_exclude_configured() -> None:
+    """With empty exclude_combos, ATP set_totals B is NOT blocked (regression guard)."""
+    cfg = _make_cfg()
+    cfg.edge.exclude_combos = []
+    ratings = _make_good_ratings()
+    matches = _make_tier_b_matches("Novak Djokovic", "Carlos Alcaraz")
+    market = _make_market(
+        question="Djokovic vs Alcaraz: Total Sets O/U 2.5",
+        sports_market_type="tennis_set_totals",
+        slug="atp-djokovic-alcaraz-roland-garros-2026",
+    )
+    result = enrich(market, ratings, matches, cfg)
+    assert isinstance(result, EdgeCandidate)
+
+
 def test_enrich_two_calls_give_same_result() -> None:
     """Two calls with identical inputs produce identical output.
 

@@ -50,3 +50,26 @@ def test_confidence_tier_a_enforces_h2h():
     """Spec §6: Tier A requires H2H (default 5 years)."""
     cfg = TennisConfig()
     assert cfg.confidence_tier_a.min_h2h_years == 5
+
+
+# ── EntryExcludeCombo (data-driven entry exclusion) ──────────────────────────
+
+
+def test_edge_exclude_combos_loaded_from_yaml() -> None:
+    """2026-05-26 analysis: ATP_set_totals B (-$179 net) blocked via config."""
+    from pathlib import Path
+
+    from src.config.settings import load_config
+    cfg = load_config(Path("config_tennis.yaml"))
+    excl = cfg.edge.exclude_combos
+    assert any(
+        c.tour == "atp" and c.market_type == "tennis_set_totals" and c.confidence == "B"
+        for c in excl
+    )
+
+
+def test_edge_exclude_combos_default_empty() -> None:
+    """When not configured, exclude_combos defaults to []."""
+    from src.config.settings import EdgeConfig
+    cfg = EdgeConfig()
+    assert cfg.exclude_combos == []
