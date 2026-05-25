@@ -118,6 +118,8 @@ tennis:
   sackmann_years: [2022, 2023, 2024, 2025, 2026]
   challenger_years: [2022, 2023, 2024, 2025, 2026]
   sackmann_wta_years: [2022, 2023, 2024, 2025, 2026]
+  sackmann_atp_itf_years: [2022, 2023, 2024, 2025, 2026]
+  sackmann_wta_itf_years: [2022, 2023, 2024, 2025, 2026]
   glicko_initial_rating: 1500
   glicko_initial_rd: 350
   glicko_initial_volatility: 0.06

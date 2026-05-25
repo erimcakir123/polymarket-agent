@@ -96,3 +96,29 @@ def test_stop_loss_exempt_market_types_default_empty() -> None:
     from src.config.settings import RiskConfig
     cfg = RiskConfig()
     assert cfg.stop_loss_exempt_market_types == []
+
+
+# ── ITF Futures year lists (Task 3 of 2026-05-26-itf-futures-doubles) ────────
+
+
+def test_sackmann_atp_itf_years_loaded() -> None:
+    from pathlib import Path
+
+    from src.config.settings import load_config
+    cfg = load_config(Path("config_tennis.yaml"))
+    assert cfg.tennis.sackmann_atp_itf_years == [2022, 2023, 2024, 2025, 2026]
+
+
+def test_sackmann_wta_itf_years_loaded() -> None:
+    from pathlib import Path
+
+    from src.config.settings import load_config
+    cfg = load_config(Path("config_tennis.yaml"))
+    assert cfg.tennis.sackmann_wta_itf_years == [2022, 2023, 2024, 2025, 2026]
+
+
+def test_sackmann_itf_years_default_empty() -> None:
+    from src.config.settings import TennisConfig
+    cfg = TennisConfig()
+    assert cfg.sackmann_atp_itf_years == []
+    assert cfg.sackmann_wta_itf_years == []

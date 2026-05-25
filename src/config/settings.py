@@ -260,6 +260,11 @@ class TennisConfig(BaseModel):
     challenger_years: list[int] = [2022, 2023, 2024, 2025, 2026]
     # Empty default = WTA disabled; rebuild script skips women's tour unless set in yaml.
     sackmann_wta_years: list[int] = []
+    # ITF Futures year lists (Task 3 of 2026-05-26-itf-futures-doubles plan).
+    # Empty default = ITF disabled; rebuild script feeds ITF matches at 0.5x Glicko
+    # weight when populated, and counts them toward tier-A match_count_12mo.
+    sackmann_atp_itf_years: list[int] = []
+    sackmann_wta_itf_years: list[int] = []
     glicko_initial_rating: float = 1500.0
     glicko_initial_rd: float = 350.0
     glicko_initial_volatility: float = 0.06
