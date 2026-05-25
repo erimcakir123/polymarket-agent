@@ -118,10 +118,15 @@ stock:
 
 scale_out:
   enabled: true
+  # 2026-05-25: profit-percentage thresholds (0.25/0.50) -> distance-to-resolution.
+  # threshold = fraction of distance from entry to 1.0. progress = (cur-entry)/(1-entry).
+  # Tier fires when progress >= threshold. Scale-invariant: 19c entry and 80c entry
+  # both fire tier1 at ~40% of their respective journeys, locking meaningful $.
+  # Sim across 10 edge cases (Model D): +$26 better than profit-pct thresholds.
   tiers:
-    - threshold: 0.25    # 19 Apr — agresif erken kâr kilitle
+    - threshold: 0.40    # 40% of way from entry to $1 -> sell 40%
       sell_pct: 0.40
-    - threshold: 0.50    # 19 Apr orijinal
+    - threshold: 0.70    # 70% of way -> sell 50% of remaining
       sell_pct: 0.50
 
 circuit_breaker:
