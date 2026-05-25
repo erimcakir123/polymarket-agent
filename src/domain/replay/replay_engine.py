@@ -8,10 +8,13 @@ seviyesinde scale_out/resolved/sport_rules modüllerinden okunmasıyla sağlanı
 Çıkış zinciri (her tick'te öncelik sırasıyla değerlendirilir, ilk tetiklenen kazanır):
   0. RESOLVED       (price ≤ lost_threshold veya ≥ won_threshold)        → full
   1. NEAR_RESOLVE   (price ≥ near_resolve_threshold AND elapsed ≥ guard) → full
-  2. SCALE_OUT t1   (pnl_pct ≥ tier1_trigger, scale_out_tier == 0)       → partial
-  3. SCALE_OUT t2   (pnl_pct ≥ tier2_trigger, scale_out_tier == 1)       → partial
+  2. SCALE_OUT t1   (progress ≥ tier1_threshold, scale_out_tier == 0)    → partial
+  3. SCALE_OUT t2   (progress ≥ tier2_threshold, scale_out_tier == 1)    → partial
   4. STOP_LOSS      (pnl_pct ≤ -stop_loss_pct)                           → full
   5. GRADUATED_SL   (elapsed gated, score_info=available=False varsayılır)→ full
+
+Scale-out distance-based: progress = (current_price - entry_price) / (1 - entry_price).
+Bu, üretim `src/strategy/exit/scale_out.py` ile aynı semantiği taşır.
 
 Pozisyonun başlangıç state'i (entry_price, direction, shares, size_usdc,
 scale_out_tier) caller tarafından sağlanır. Engine state'i ilerletir, partial
@@ -21,13 +24,12 @@ fazla scale-out + sonra resolved/stop_loss yaşayabilir.
 Direction handling (DECISIONS §6.1):
   - BUY_YES: pozisyon fiyatı = YES price (raw)
   - BUY_NO:  pozisyon fiyatı = (1 - YES price), shares = NO token
-
-unrealized_pnl_pct = (current_position_price - entry_price) / entry_price.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 
@@ -37,16 +39,18 @@ class ExitRulesConfig:
 
     Eşiklerin tek doğruluk kaynağı yine `src/strategy/exit/*.py` ve
     `src/config/sport_rules.py` — script wire'lar, engine pure kalır.
+
+    Scale-out distance-based: tier threshold = (current-entry)/(1-entry) hedefi.
     """
-    tier1_trigger_pnl: float          # scale_out.TIER1_TRIGGER_PNL  (0.25)
-    tier1_sell_pct: float             # scale_out.TIER1_SELL_PCT     (0.40)
-    tier2_trigger_pnl: float          # scale_out.TIER2_TRIGGER_PNL  (0.50)
-    tier2_sell_pct: float             # scale_out.TIER2_SELL_PCT     (0.50)
-    lost_threshold: float             # resolved.LOST_THRESHOLD      (0.03)
-    won_threshold: float              # resolved.WON_THRESHOLD       (0.97)
+    tier1_threshold: float            # scale_out tier1 progress threshold (0.40)
+    tier1_sell_pct: float             # scale_out tier1 sell_pct          (0.40)
+    tier2_threshold: float            # scale_out tier2 progress threshold (0.70)
+    tier2_sell_pct: float             # scale_out tier2 sell_pct          (0.50)
+    lost_threshold: float             # resolved.LOST_THRESHOLD           (0.03)
+    won_threshold: float              # resolved.WON_THRESHOLD            (0.97)
     near_resolve_threshold: float     # 0.94 (cents/100)
     near_resolve_guard_minutes: int   # 5–10 (sport_rules tennis: 5)
-    stop_loss_pct: float              # sport_rules.tennis.stop_loss_pct (0.30)
+    stop_loss_pct: float              # sport_rules.tennis.stop_loss_pct  (0.30)
     graduated_sl_enabled: bool = False  # replay'de score_info yok → varsayılan kapalı
     match_duration_hours: float = 1.75  # tennis default
 
@@ -91,6 +95,18 @@ def _pnl_pct(current_price: float, entry_price: float) -> float:
     if entry_price <= 0:
         return 0.0
     return (current_price - entry_price) / entry_price
+
+
+def _distance_progress(current_price: float, entry_price: float) -> float:
+    """Distance-based scale-out progress (same formula as production scale_out).
+
+    progress = (current_price - entry_price) / (1.0 - entry_price)
+    Returns -inf for entry_price >= 1.0 (defensive, no scale-out fires).
+    """
+    distance = 1.0 - entry_price
+    if distance <= 0.0:
+        return float("-inf")
+    return (current_price - entry_price) / distance
 
 
 def _parse_ts(iso: str) -> datetime | None:
@@ -167,6 +183,7 @@ def replay_position(
         yes_price = float(point.get("price", 0.0))
         pos_price = _position_price_at(yes_price, direction)
         pnl_pct = _pnl_pct(pos_price, entry_price)
+        progress = _distance_progress(pos_price, entry_price)
 
         # 0. RESOLVED — fiyat settled (≤lost veya ≥won)
         if pos_price <= rules.lost_threshold or pos_price >= rules.won_threshold:
@@ -224,8 +241,12 @@ def replay_position(
                 result.final_scale_out_tier = scale_out_tier
                 return result
 
-        # 2-3. SCALE_OUT tiers — partial, pozisyonu küçült, devam et
-        if scale_out_tier == 0 and pnl_pct >= rules.tier1_trigger_pnl:
+        # 2-3. SCALE_OUT tiers — distance-based partial. Boundary equality:
+        # math.isclose absorbs IEEE-754 rounding (same as production scale_out).
+        if scale_out_tier == 0 and (
+            progress >= rules.tier1_threshold
+            or math.isclose(progress, rules.tier1_threshold)
+        ):
             sell_pct = rules.tier1_sell_pct
             shares_to_sell = remaining_shares * sell_pct
             basis_returned = remaining_size * sell_pct
@@ -243,13 +264,16 @@ def replay_position(
                 sell_pct=sell_pct,
                 sell_pct_of_original=sell_pct_orig,
                 realized_pnl_usdc=realized,
-                detail=f"tier 1 at +{pnl_pct:.0%}",
+                detail=f"tier 1 at progress {progress:.2f}",
             ))
             result.realized_pnl_total += realized
             # Tick'i bitirmeyip aynı tick'te tier2 trigger olmasın — DEVAM (sonraki tick'te tier2'ye bakılır)
             continue
 
-        if scale_out_tier == 1 and pnl_pct >= rules.tier2_trigger_pnl:
+        if scale_out_tier == 1 and (
+            progress >= rules.tier2_threshold
+            or math.isclose(progress, rules.tier2_threshold)
+        ):
             sell_pct = rules.tier2_sell_pct
             shares_to_sell = remaining_shares * sell_pct
             basis_returned = remaining_size * sell_pct
@@ -267,7 +291,7 @@ def replay_position(
                 sell_pct=sell_pct,
                 sell_pct_of_original=sell_pct_orig,
                 realized_pnl_usdc=realized,
-                detail=f"tier 2 at +{pnl_pct:.0%}",
+                detail=f"tier 2 at progress {progress:.2f}",
             ))
             result.realized_pnl_total += realized
             continue

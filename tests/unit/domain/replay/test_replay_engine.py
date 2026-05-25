@@ -1,30 +1,27 @@
 """Replay engine — retroactive simülasyon kuralları + öncelik testleri.
 
-Engine pure; sabitler dışarıdan ExitRulesConfig ile verilir. Testler için
-canonical tennis profili kullanılır (scale_out.TIER1/2 + resolved + tennis SL).
+Engine pure; sabitler dışarıdan ExitRulesConfig ile verilir. Scale-out
+distance-based (production ile aynı): progress = (cur-entry)/(1-entry).
+Tier thresholds ScaleOutConfig defaults'tan okunur (tier1=0.40, tier2=0.70).
 """
 from __future__ import annotations
 
+from src.config.settings import ScaleOutConfig
+from src.config.sport_rules import get_stop_loss
 from src.domain.replay.replay_engine import (
     ExitRulesConfig,
     replay_position,
 )
 from src.strategy.exit.resolved import LOST_THRESHOLD, WON_THRESHOLD
-from src.strategy.exit.scale_out import (
-    TIER1_SELL_PCT,
-    TIER1_TRIGGER_PNL,
-    TIER2_SELL_PCT,
-    TIER2_TRIGGER_PNL,
-)
-from src.config.sport_rules import get_stop_loss
 
 
 def _tennis_rules() -> ExitRulesConfig:
+    so_cfg = ScaleOutConfig()
     return ExitRulesConfig(
-        tier1_trigger_pnl=TIER1_TRIGGER_PNL,
-        tier1_sell_pct=TIER1_SELL_PCT,
-        tier2_trigger_pnl=TIER2_TRIGGER_PNL,
-        tier2_sell_pct=TIER2_SELL_PCT,
+        tier1_threshold=so_cfg.tiers[0].threshold,
+        tier1_sell_pct=so_cfg.tiers[0].sell_pct,
+        tier2_threshold=so_cfg.tiers[1].threshold,
+        tier2_sell_pct=so_cfg.tiers[1].sell_pct,
         lost_threshold=LOST_THRESHOLD,
         won_threshold=WON_THRESHOLD,
         near_resolve_threshold=0.94,
@@ -41,13 +38,13 @@ def _hist(*ticks: tuple[str, float]) -> list[dict]:
 # ── 1) BUY_YES, fiyat dümdüz tırmanışla resolved (won) — tek RESOLVED ─────────
 
 def test_replay_buy_yes_full_resolution_no_intermediate_exits():
-    # entry=0.45, fiyat asla 0.25 üzeri sıçramayı yapamadan direkt 1.0'a kapansa
-    # (yani tier1 trigger %25 hiç görülmeden) sadece RESOLVED tetiklenir.
+    # entry=0.45, fiyat asla scale-out threshold'unu görmeden direkt 1.0'a kapansa
+    # — distance-based progress 10.0'a ulaşamaz (max=1.0) → sadece RESOLVED tetiklenir.
     rules = _tennis_rules()
     rules2 = ExitRulesConfig(
-        tier1_trigger_pnl=10.0,   # imkansız trigger → scale-out yok
+        tier1_threshold=10.0,   # imkansız trigger (progress maks 1.0) → scale-out yok
         tier1_sell_pct=rules.tier1_sell_pct,
-        tier2_trigger_pnl=10.0,
+        tier2_threshold=10.0,
         tier2_sell_pct=rules.tier2_sell_pct,
         lost_threshold=rules.lost_threshold,
         won_threshold=rules.won_threshold,
@@ -80,11 +77,11 @@ def test_replay_buy_yes_full_resolution_no_intermediate_exits():
 
 def test_replay_buy_yes_scale_out_tier_1():
     rules = _tennis_rules()
-    # entry=0.40, tick=0.52 → pnl=+30% → tier1 net trigger (float epsilon güvenli)
+    # entry=0.40, tick=0.64 → progress=(0.64-0.40)/0.60=0.40 → tier1 net trigger
     history = _hist(
         ("2026-05-20T16:30:00+00:00", 0.40),
-        ("2026-05-20T16:40:00+00:00", 0.52),  # +30% → tier1
-        ("2026-05-20T16:50:00+00:00", 0.55),  # +37.5% (tier2 değil)
+        ("2026-05-20T16:40:00+00:00", 0.64),  # progress=0.40 → tier1
+        ("2026-05-20T16:50:00+00:00", 0.70),  # progress=0.50 < 0.70 (tier2 değil)
     )
     res = replay_position(
         entry_price=0.40, direction="BUY_YES",
@@ -97,9 +94,9 @@ def test_replay_buy_yes_scale_out_tier_1():
     assert len(res.exits) == 1
     assert res.exits[0].reason == "scale_out"
     assert res.exits[0].tier == 1
-    assert res.exits[0].sell_pct == TIER1_SELL_PCT
-    # Tier1: 40% sat → kalan %60. realized = (100*0.52 - 40) * 0.40 = 4.8
-    assert abs(res.exits[0].realized_pnl_usdc - 4.8) < 1e-6
+    assert res.exits[0].sell_pct == rules.tier1_sell_pct
+    # Tier1: 40% sat → kalan %60. realized = (100*0.64 - 40) * 0.40 = 9.6
+    assert abs(res.exits[0].realized_pnl_usdc - 9.6) < 1e-6
     assert abs(res.final_remaining_pct - 0.60) < 1e-6
     assert abs(res.final_size_usdc - 24.0) < 1e-6  # 40 * 0.6
     assert res.final_scale_out_tier == 1
@@ -109,11 +106,11 @@ def test_replay_buy_yes_scale_out_tier_1():
 
 def test_replay_buy_yes_scale_out_both_tiers_then_resolved():
     rules = _tennis_rules()
-    # entry=0.40 → tier1@0.52 (+30%) → tier2@0.62 (+55%) → resolved@0.98 (won)
+    # entry=0.40 → tier1@0.64 (progress=0.40) → tier2@0.82 (progress=0.70) → resolved@0.98
     history = _hist(
         ("2026-05-20T16:30:00+00:00", 0.40),
-        ("2026-05-20T16:40:00+00:00", 0.52),  # tier1
-        ("2026-05-20T16:50:00+00:00", 0.62),  # tier2 (sonraki tick'te)
+        ("2026-05-20T16:40:00+00:00", 0.64),  # tier1 (progress=0.40)
+        ("2026-05-20T16:50:00+00:00", 0.82),  # tier2 (progress=0.70)
         ("2026-05-20T17:00:00+00:00", 0.98),  # resolved
     )
     res = replay_position(

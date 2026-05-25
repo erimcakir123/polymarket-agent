@@ -129,9 +129,9 @@ def test_monitor_basketball_no_exit_falls_through() -> None:
 
 def test_monitor_basketball_dispatch_runs_after_scale_out() -> None:
     """Hem scale_out hem totals death → scale_out kazanır (öncelik korunur)."""
-    # entry 0.40, current 0.50, shares=25 → pnl = (25*0.50 - 10)/10 = 25% → tier 1
+    # entry 0.40, current 0.64 → progress=(0.64-0.40)/(1-0.40)=0.40 → tier 1
     p = _pos(
-        entry_price=0.40, current_price=0.50, size_usdc=10.0, shares=25.0,
+        entry_price=0.40, current_price=0.64, size_usdc=10.0, shares=25.0,
     )
     r = evaluate(
         p,

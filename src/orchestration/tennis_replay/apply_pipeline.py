@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
 
+from src.config.settings import ScaleOutConfig
 from src.config.sport_rules import (
     get_match_duration_hours,
     get_sport_rule,
@@ -31,24 +32,26 @@ from src.domain.replay.replay_engine import (
 )
 from src.infrastructure.persistence.price_history_fetcher import fetch_price_history
 from src.strategy.exit.resolved import LOST_THRESHOLD, WON_THRESHOLD
-from src.strategy.exit.scale_out import (
-    TIER1_SELL_PCT,
-    TIER1_TRIGGER_PNL,
-    TIER2_SELL_PCT,
-    TIER2_TRIGGER_PNL,
-)
 
 # Closed-record retroactive correction guard: yakın kayıtlara dokunma.
 MIN_HOURS_FOR_CORRECTION = 2.0
 
 
 def rules_for(sport_tag: str) -> ExitRulesConfig:
-    """Strategy modüllerinden + sport_rules'tan canlı eşikleri topla."""
+    """Strategy modüllerinden + sport_rules'tan canlı eşikleri topla.
+
+    Scale-out: production ile aynı distance-based eşikler — ScaleOutConfig()
+    defaults [tier1=0.40/0.40, tier2=0.70/0.50]. Replay tier'i progress
+    (= (current-entry)/(1-entry)) üzerinden tetikler.
+    """
+    so_cfg = ScaleOutConfig()
+    tier1 = so_cfg.tiers[0]
+    tier2 = so_cfg.tiers[1]
     return ExitRulesConfig(
-        tier1_trigger_pnl=TIER1_TRIGGER_PNL,
-        tier1_sell_pct=TIER1_SELL_PCT,
-        tier2_trigger_pnl=TIER2_TRIGGER_PNL,
-        tier2_sell_pct=TIER2_SELL_PCT,
+        tier1_threshold=tier1.threshold,
+        tier1_sell_pct=tier1.sell_pct,
+        tier2_threshold=tier2.threshold,
+        tier2_sell_pct=tier2.sell_pct,
         lost_threshold=LOST_THRESHOLD,
         won_threshold=WON_THRESHOLD,
         near_resolve_threshold=int(

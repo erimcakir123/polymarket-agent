@@ -35,8 +35,9 @@ def test_rules_for_tennis_uses_sport_rules_thresholds():
     assert rules.near_resolve_threshold == 0.94
     assert rules.near_resolve_guard_minutes == 5
     assert rules.match_duration_hours == 1.75
-    assert rules.tier1_trigger_pnl == 0.25
-    assert rules.tier2_trigger_pnl == 0.50
+    # Distance-based scale-out (production ScaleOutConfig defaults)
+    assert rules.tier1_threshold == 0.40
+    assert rules.tier2_threshold == 0.70
 
 
 def test_process_open_positions_with_stop_loss_trigger():
@@ -118,8 +119,8 @@ def test_process_closed_records_rewrites_carabelli_style_resolved():
     }
     history = [
         {"t": _ts(2026, 5, 20, 16, 30), "p": 0.40},
-        {"t": _ts(2026, 5, 20, 17, 0), "p": 0.52},   # tier1 (+30%)
-        {"t": _ts(2026, 5, 20, 17, 30), "p": 0.65},  # tier2 (+62%)
+        {"t": _ts(2026, 5, 20, 17, 0), "p": 0.64},   # tier1 (progress=0.40)
+        {"t": _ts(2026, 5, 20, 17, 30), "p": 0.82},  # tier2 (progress=0.70)
         {"t": _ts(2026, 5, 20, 18, 30), "p": 0.98},  # resolved
     ]
     outcome = process_closed_records([rec], now, http_get=_http(history))
