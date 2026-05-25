@@ -45,6 +45,41 @@ def test_add_duplicate_condition_blocked() -> None:
     assert m.count() == 1
 
 
+def test_count_event_market_type_returns_match_count() -> None:
+    """count_event_market_type counts open positions matching BOTH event_id and sports_market_type.
+
+    Used by B-confidence same-market-type guard (chain loss prevention on
+    correlated multi-line bets like set_totals 3.5 + 4.5 on same match).
+    """
+    m = PortfolioManager(initial_bankroll=1000.0)
+
+    def _typed_pos(cid: str, event_id: str, sports_market_type: str) -> Position:
+        return Position(
+            condition_id=cid,
+            token_id="tok_" + cid,
+            direction="BUY_YES",
+            entry_price=0.40,
+            size_usdc=15.0,
+            shares=37.5,
+            current_price=0.40,
+            anchor_probability=0.55,
+            event_id=event_id,
+            slug=f"s-{cid}",
+            sports_market_type=sports_market_type,
+        )
+
+    # Open: 2 set_totals on event A, 1 set_handicap on event A, 1 set_totals on event B
+    m.add_position(_typed_pos("c1", "A", "tennis_set_totals"))
+    m.add_position(_typed_pos("c2", "A", "tennis_set_totals"))
+    m.add_position(_typed_pos("c3", "A", "tennis_set_handicap"))
+    m.add_position(_typed_pos("c4", "B", "tennis_set_totals"))
+
+    assert m.count_event_market_type("A", "tennis_set_totals") == 2
+    assert m.count_event_market_type("A", "tennis_set_handicap") == 1
+    assert m.count_event_market_type("B", "tennis_set_totals") == 1
+    assert m.count_event_market_type("C", "tennis_set_totals") == 0  # unknown event
+
+
 def test_event_level_guard_count_event_increments(caplog) -> None:
     """SPEC-J/K: ARCH Kural 8 gevşedi — add_position event duplicate'i artık bloklamaz.
     Max N kontrolü gate.py'da (config.risk.max_positions_per_event); add_position

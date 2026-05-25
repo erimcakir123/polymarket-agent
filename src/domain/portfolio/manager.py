@@ -51,6 +51,20 @@ class PortfolioManager:
             return 0
         return sum(1 for p in self.positions.values() if p.event_id == event_id)
 
+    def count_event_market_type(self, event_id: str, market_type: str) -> int:
+        """Count open positions matching BOTH event_id AND sports_market_type.
+
+        Used by B-confidence same-market-type guard to prevent chain losses on
+        correlated multi-line bets (e.g., set_totals 3.5 + 4.5 on same match).
+        """
+        if not event_id:
+            return 0
+        return sum(
+            1 for p in self.positions.values()
+            if p.event_id == event_id
+            and (p.sports_market_type or "") == market_type
+        )
+
     # ── Mutations ──
 
     def add_position(self, pos: Position) -> bool:

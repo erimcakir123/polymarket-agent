@@ -111,6 +111,27 @@ def process_signals(
                 )
                 continue
 
+        # 4b. B-only same_market_type per-event guard (chain loss prevention).
+        # A confidence (77% win rate in 51-trade analysis) compounds wins on
+        # same-direction multi-line bets — keep A unrestricted. B (26% win
+        # rate) compounds chain losses (aguilar-shelton set_totals 3.5+4.5 case)
+        # — block dup market_type per event for B only.
+        if signal.confidence == "B" and market.event_id:
+            same_type_count = pm.count_event_market_type(
+                market.event_id, market.sports_market_type or "",
+            )
+            if same_type_count >= 1:
+                detail = (
+                    f"event_id={market.event_id} "
+                    f"market_type={market.sports_market_type} "
+                    f"already_held_for_B={same_type_count}"
+                )
+                operational_writers.log_skip(
+                    deps.skipped_logger, market,
+                    "same_market_type_per_event_b", detail=detail,
+                )
+                continue
+
         # 5. Blacklist
         if deps.gate.blacklist.is_blacklisted(condition_id=market.condition_id):
             operational_writers.log_skip(
