@@ -14,6 +14,14 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# ITF Futures tourney_level codes (Sackmann convention).
+# WTA "qual_itf" CSVs mix WTA qualifying + ITF; filter on level keeps only ITF.
+# ATP "futures" CSVs are pure ITF but we filter uniformly for defensiveness.
+# Levels 15/25/60 cover $15K/$25K/$60K prize money. 75/100 exist for larger ITF
+# events. Anything else (S=qualifying, A=ATP/WTA, M=Masters, G=Grand Slam,
+# C=Challenger) is excluded.
+_ITF_TOURNEY_LEVELS = frozenset({"15", "25", "60", "75", "100"})
+
 
 @dataclass
 class SackmannMatch:
@@ -153,6 +161,38 @@ class SackmannCsvClient:
         all_matches: list[SackmannMatch] = []
         for y in years:
             all_matches.extend(self.load_challenger_year(y))
+        all_matches.sort(key=lambda m: m.match_date)
+        return all_matches
+
+    def load_itf_year(self, tour: str, year: int) -> list[SackmannMatch]:
+        """ITF Futures CSV for a single year/tour.
+
+        File: {tour}_futures_{year}.csv (must already be in cache_dir from
+        fetch_sackmann_data step). Same 49-column schema as ATP/WTA main draw.
+        Filters tourney_level to ITF tiers only (15/25/60/75/100); excludes
+        WTA qualifying entries which share the same CSV file upstream.
+        """
+        path = self._cache_dir / f"{tour}_futures_{year}.csv"
+        if not path.exists():
+            logger.warning("Sackmann ITF CSV missing: %s", path)
+            return []
+        matches: list[SackmannMatch] = []
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if (row.get("tourney_level", "") or "") not in _ITF_TOURNEY_LEVELS:
+                    continue
+                m = self._parse_row(row)
+                if m is not None:
+                    matches.append(m)
+        logger.info("Loaded %d %s ITF matches from %s", len(matches), tour.upper(), path.name)
+        return matches
+
+    def load_itf_years(self, tour: str, years: list[int]) -> list[SackmannMatch]:
+        """Aggregate multiple years of ITF Futures matches, sorted chronologically."""
+        all_matches: list[SackmannMatch] = []
+        for y in years:
+            all_matches.extend(self.load_itf_year(tour, y))
         all_matches.sort(key=lambda m: m.match_date)
         return all_matches
 

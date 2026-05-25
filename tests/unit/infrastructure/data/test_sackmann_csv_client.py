@@ -174,3 +174,83 @@ def test_load_wta_years_sorted_chronologically(tmp_path: Path) -> None:
     assert len(matches) == 2
     assert matches[0].match_date.year == 2023
     assert matches[1].match_date.year == 2024
+
+
+# ── ITF Futures loading tests ──────────────────────────────────────────────
+
+
+def test_load_itf_year_atp_reads_csv(tmp_path: Path) -> None:
+    """ATP ITF CSV: every row is ITF (level 15/25/60), parsed identical to main draw."""
+    header = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner_id,winner_name,winner_hand,loser_id,loser_name,loser_hand,"
+        "score,best_of,round,minutes,"
+        "w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,"
+        "l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced,"
+        "winner_rank,winner_rank_points,loser_rank,loser_rank_points\n"
+    )
+    rows = (
+        "ITF1,M15 City,Hard,32,15,20240601,1,99,Junior A,R,98,Junior B,R,6-3 6-4,3,F,90,5,2,55,38,28,15,8,2,3,2,3,52,32,25,10,7,3,4,300,80,310,75\n"
+        "ITF2,M25 Town,Clay,32,25,20240615,1,77,Pro Player,R,66,Other,R,6-4 6-3,3,F,95,4,3,60,42,30,12,9,3,4,3,2,58,40,28,11,8,4,3,250,100,290,90\n"
+    )
+    csv_path = tmp_path / "atp_futures_2024.csv"
+    csv_path.write_text(header + rows, encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_itf_year("atp", 2024)
+    assert len(matches) == 2
+    assert matches[0].winner_name == "Junior A"
+    assert matches[1].tourney_level == "25"
+
+
+def test_load_itf_year_wta_filters_non_itf_levels(tmp_path: Path) -> None:
+    """WTA futures CSV mixes qualifying + ITF. Filter must include only ITF levels (15/25/60)."""
+    header = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner_id,winner_name,winner_hand,loser_id,loser_name,loser_hand,"
+        "score,best_of,round,minutes,"
+        "w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,"
+        "l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced,"
+        "winner_rank,winner_rank_points,loser_rank,loser_rank_points\n"
+    )
+    rows = (
+        # ITF $15K — KEEP
+        "WITF1,W15 Town,Hard,32,15,20240601,1,1,ITF Player,R,2,Other,R,6-3,3,F,,,,,,,,,,,,,,,,,,,,,,,,\n"
+        # WTA qual — SKIP (level 'S')
+        "WQ1,WTA Tour Q,Hard,32,S,20240601,1,3,Tour Player,R,4,Other,R,6-3,3,F,,,,,,,,,,,,,,,,,,,,,,,,\n"
+        # ITF $25K — KEEP
+        "WITF2,W25 City,Clay,32,25,20240615,1,5,ITF Player2,R,6,Other,R,6-3,3,F,,,,,,,,,,,,,,,,,,,,,,,,\n"
+    )
+    csv_path = tmp_path / "wta_futures_2024.csv"
+    csv_path.write_text(header + rows, encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_itf_year("wta", 2024)
+    assert len(matches) == 2  # only ITF levels, qual filtered out
+    levels = sorted(m.tourney_level for m in matches)
+    assert levels == ["15", "25"]
+
+
+def test_load_itf_years_combines_and_sorts(tmp_path: Path) -> None:
+    """load_itf_years aggregates multiple years sorted chronologically."""
+    header = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner_id,winner_name,winner_hand,loser_id,loser_name,loser_hand,"
+        "score,best_of,round,minutes,"
+        "w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,"
+        "l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced,"
+        "winner_rank,winner_rank_points,loser_rank,loser_rank_points\n"
+    )
+    def _row(date: str, name: str) -> str:
+        return f"id,T,Hard,32,15,{date},1,1,{name},R,2,Other,R,6-3,3,F,,,,,,,,,,,,,,,,,,,,,,,,\n"
+    (tmp_path / "atp_futures_2023.csv").write_text(header + _row("20230615", "Older"), encoding="utf-8")
+    (tmp_path / "atp_futures_2024.csv").write_text(header + _row("20240115", "Newer"), encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_itf_years("atp", [2024, 2023])
+    assert len(matches) == 2
+    assert matches[0].match_date.year == 2023
+    assert matches[1].match_date.year == 2024
+
+
+def test_load_itf_year_missing_file_returns_empty(tmp_path: Path) -> None:
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    matches = client.load_itf_year("atp", 1999)
+    assert matches == []
