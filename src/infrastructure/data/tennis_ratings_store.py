@@ -36,7 +36,7 @@ class PlayerRating:
     last_match_date: str    # ISO date
     singles_main_count_12mo: int = 0   # main draw + Challenger (weight 1.0)
     singles_itf_count_12mo: int = 0    # ITF Futures (weight 0.5)
-    doubles_count_12mo: int = 0        # doubles (weight 0.5) — populated in Task 6
+    doubles_count_12mo: int = 0        # doubles match count (filter-only signal, NOT in Glicko)
 
 
 class TennisRatingsStore:

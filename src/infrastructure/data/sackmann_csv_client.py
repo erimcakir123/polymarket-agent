@@ -196,6 +196,40 @@ class SackmannCsvClient:
         all_matches.sort(key=lambda m: m.match_date)
         return all_matches
 
+    def count_doubles_matches_by_player(
+        self, tour: str, years: list[int], cutoff_date: datetime,
+    ) -> dict[str, int]:
+        """Return {player_name: count_of_doubles_matches_since_cutoff_date}.
+
+        Doubles CSV has 4 player columns (winner1_name, winner2_name, loser1_name,
+        loser2_name). Each match contributes +1 to count for all 4 players that
+        played on/after cutoff_date.
+
+        Used for filter purposes only — doubles results DO NOT update singles Glicko
+        ratings (different skill set).
+        """
+        counts: dict[str, int] = {}
+        for year in years:
+            path = self._cache_dir / f"{tour}_doubles_{year}.csv"
+            if not path.exists():
+                logger.warning("Sackmann doubles CSV missing: %s", path)
+                continue
+            with open(path, encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Parse date — bail if before cutoff
+                    try:
+                        dt = datetime.strptime(row.get("tourney_date", "") or "", "%Y%m%d")
+                    except ValueError:
+                        continue
+                    if dt < cutoff_date:
+                        continue
+                    for col in ("winner1_name", "winner2_name", "loser1_name", "loser2_name"):
+                        name = (row.get(col) or "").strip()
+                        if name:
+                            counts[name] = counts.get(name, 0) + 1
+        return counts
+
     def _parse_row(self, row: dict[str, str]) -> Optional[SackmannMatch]:
         try:
             return SackmannMatch(

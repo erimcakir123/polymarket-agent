@@ -191,7 +191,7 @@ def _build_single_tour(
             last_match_date=last_date.strftime("%Y-%m-%d") if last_date else "1970-01-01",
             singles_main_count_12mo=main_12mo,
             singles_itf_count_12mo=itf_12mo,
-            doubles_count_12mo=0,  # populated by doubles pipeline in a later task
+            doubles_count_12mo=0,  # populated post-build in main() via count_doubles_matches_by_player
         )
     return output
 
@@ -252,6 +252,27 @@ def main() -> None:
         snapshot_date=snapshot_date, tau=cfg.tennis.glicko_tau,
     )
     logger.info("Built ratings for %d player-tour entries", len(ratings))
+
+    # Doubles match counts — filter-only signal, not fed into Glicko.
+    # Reuses sackmann_atp/wta_itf_years config (same year range applies).
+    cutoff_date = snapshot_date - timedelta(days=365)
+    atp_doubles_counts = client.count_doubles_matches_by_player(
+        "atp", cfg.tennis.sackmann_atp_itf_years, cutoff_date,
+    )
+    wta_doubles_counts = client.count_doubles_matches_by_player(
+        "wta", cfg.tennis.sackmann_wta_itf_years, cutoff_date,
+    )
+    # Inject into ratings dict in-place (PlayerRating is a non-frozen dataclass).
+    for key, p in ratings.items():
+        if key.startswith("atp:"):
+            p.doubles_count_12mo = atp_doubles_counts.get(p.player_name, 0)
+        elif key.startswith("wta:"):
+            p.doubles_count_12mo = wta_doubles_counts.get(p.player_name, 0)
+    logger.info(
+        "Doubles counts populated: %d ATP players, %d WTA players have >=1 doubles match",
+        sum(1 for p in ratings.values() if p.tour == "atp" and p.doubles_count_12mo > 0),
+        sum(1 for p in ratings.values() if p.tour == "wta" and p.doubles_count_12mo > 0),
+    )
 
     store = TennisRatingsStore(path=ratings_path)
     store.save(ratings)

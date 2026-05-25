@@ -136,3 +136,37 @@ def test_build_ratings_keeps_old_signature_friendly() -> None:
         snapshot_date=datetime(2024, 6, 1),
     )
     assert out == {}
+
+
+def test_doubles_count_injection_does_not_affect_glicko_ratings() -> None:
+    """Injecting doubles_count_12mo via dict mutation preserves Glicko fields.
+
+    Mirrors the post-build injection pattern in main(): ratings dict built from
+    singles only, then doubles_count_12mo overwritten per-player. Glicko fields
+    (overall, surface ratings) must be untouched.
+    """
+    matches = [
+        _make_match("20260101", "Alpha", "Beta"),
+        _make_match("20260102", "Alpha", "Gamma"),
+    ]
+    ratings = build_ratings_from_matches(
+        atp_main=matches, wta_main=[], snapshot_date=datetime(2026, 5, 19),
+    )
+    # Snapshot Glicko fields before injection
+    pre_overall = ratings["atp:Alpha"].overall.rating
+    pre_serve_hard = ratings["atp:Alpha"].serve_hard.rating
+    pre_main_count = ratings["atp:Alpha"].singles_main_count_12mo
+
+    # Simulate doubles counts injection (same pattern as build script main())
+    fake_atp_counts = {"Alpha": 7, "Beta": 3}
+    for key, p in ratings.items():
+        if key.startswith("atp:"):
+            p.doubles_count_12mo = fake_atp_counts.get(p.player_name, 0)
+
+    # Glicko untouched, doubles count populated
+    assert ratings["atp:Alpha"].overall.rating == pre_overall
+    assert ratings["atp:Alpha"].serve_hard.rating == pre_serve_hard
+    assert ratings["atp:Alpha"].singles_main_count_12mo == pre_main_count
+    assert ratings["atp:Alpha"].doubles_count_12mo == 7
+    assert ratings["atp:Beta"].doubles_count_12mo == 3
+    assert ratings["atp:Gamma"].doubles_count_12mo == 0  # not in counts dict

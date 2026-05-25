@@ -254,3 +254,43 @@ def test_load_itf_year_missing_file_returns_empty(tmp_path: Path) -> None:
     client = SackmannCsvClient(cache_dir=tmp_path)
     matches = client.load_itf_year("atp", 1999)
     assert matches == []
+
+
+# ── Doubles match-count tests ──────────────────────────────────────────────
+
+
+def test_count_doubles_matches_by_player(tmp_path: Path) -> None:
+    """Doubles CSV: 4 player columns per row, all incremented; cutoff filters old matches."""
+    from datetime import datetime
+    header = (
+        "tourney_id,tourney_name,surface,draw_size,tourney_level,tourney_date,"
+        "match_num,winner1_id,winner1_name,winner2_id,winner2_name,"
+        "loser1_id,loser1_name,loser2_id,loser2_name,score,best_of,round\n"
+    )
+    rows = (
+        # Recent match — counts
+        "T1,Test,Hard,32,A,20240615,1,1,Alpha,2,Bravo,3,Charlie,4,Delta,6-3 6-4,3,F\n"
+        # Same players — Alpha gets 2 doubles
+        "T2,Test,Hard,32,A,20240701,1,1,Alpha,5,Echo,3,Charlie,6,Foxtrot,6-3,3,F\n"
+        # Old match — filtered out
+        "T3,OldTest,Hard,32,A,20200101,1,1,Alpha,7,Golf,8,Hotel,9,Indigo,6-3,3,F\n"
+    )
+    csv_path = tmp_path / "atp_doubles_2024.csv"
+    csv_path.write_text(header + rows, encoding="utf-8")
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    cutoff = datetime(2024, 1, 1)
+    counts = client.count_doubles_matches_by_player("atp", [2024], cutoff)
+    assert counts.get("Alpha") == 2  # both 2024 matches
+    assert counts.get("Bravo") == 1
+    assert counts.get("Charlie") == 2
+    assert counts.get("Delta") == 1
+    assert counts.get("Echo") == 1
+    assert counts.get("Foxtrot") == 1
+    assert counts.get("Golf", 0) == 0  # old match filtered
+
+
+def test_count_doubles_matches_missing_file_returns_empty(tmp_path: Path) -> None:
+    from datetime import datetime
+    client = SackmannCsvClient(cache_dir=tmp_path)
+    counts = client.count_doubles_matches_by_player("atp", [1999], datetime(2024, 1, 1))
+    assert counts == {}
