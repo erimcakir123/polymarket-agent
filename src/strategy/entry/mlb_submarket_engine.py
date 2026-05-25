@@ -33,22 +33,8 @@ logger = logging.getLogger(__name__)
 _TIER_A_EDGE_THRESHOLD = 0.07
 _DEFAULT_MC_ITERATIONS = 1_000  # Plan 4 — lower than Plan 2 default for speed
 
-# Slug patterns:
-#   totals:    mlb-{away}-{home}-{YYYY-MM-DD}-total-{N}pt5
-#   run_line:  mlb-{away}-{home}-{YYYY-MM-DD}-spread-{home|away}-{N}pt5
-#   moneyline: mlb-{away}-{home}-{YYYY-MM-DD}
-_SLUG_TOTALS_RE = re.compile(
-    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-total-(\d+)pt5$"
-)
-# SPEC-X (2026-05-24): gerçek Polymarket spread slug formatı.
-# Eski "spread-(pos|neg)1pt5" formatı 2026-05 öncesi bir varsayımdı; üretimde
-# karşılaşılan slug'lar "spread-(home|away)-{N}pt5" — değişken N (1, 2, 3...).
-_SLUG_RUN_LINE_RE = re.compile(
-    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})-spread-(home|away)-(\d+)pt5$"
-)
-_SLUG_MONEYLINE_RE = re.compile(
-    r"^mlb-(\w+)-(\w+)-(\d{4}-\d{2}-\d{2})$"
-)
+# Slug parser TODO-005 (2026-05-25): mlb_slug_parser.py modülüne taşındı.
+from src.strategy.entry.mlb_slug_parser import parse_slug as _parse_mlb_slug
 
 
 class MlbSubmarketEngine:
@@ -291,25 +277,12 @@ class MlbSubmarketEngine:
 
     @staticmethod
     def _parse_slug_static(slug: str) -> tuple[str, str, float, str, str] | None:
-        """Parse slug → (date_str, market_type, line, away_abbr, home_abbr)."""
-        m_t = _SLUG_TOTALS_RE.match(slug)
-        if m_t:
-            away, home, date, n = m_t.groups()
-            return date, "totals", float(n) + 0.5, away, home
-        m_r = _SLUG_RUN_LINE_RE.match(slug)
-        if m_r:
-            away, home, date, side, n_str = m_r.groups()
-            # SPEC-X: "spread-home-Npt5" = home team -N.5 covers (yes_token);
-            # "spread-away-Npt5" = away team -N.5 covers → home team gets +N.5.
-            # spread_pricer perspective: home_line = home team's handicap.
-            magnitude = float(n_str) + 0.5
-            line = -magnitude if side == "home" else +magnitude
-            return date, "run_line", line, away, home
-        m_m = _SLUG_MONEYLINE_RE.match(slug)
-        if m_m:
-            away, home, date = m_m.groups()
-            return date, "moneyline", 0.0, away, home
-        return None
+        """Parse slug → (date_str, market_type, line, away_abbr, home_abbr).
+
+        TODO-005: gerçek parser mantığı mlb_slug_parser.parse_slug'a taşındı.
+        Bu method backward-compat için kalıyor (test'ler hâlâ kullanıyor).
+        """
+        return _parse_mlb_slug(slug)
 
     def _get_batter_rates(self, mlbam_id: int, season: int) -> dict[str, float]:
         current = self._rates_for_season(mlbam_id, season, "batter")
