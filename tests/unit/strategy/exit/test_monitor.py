@@ -48,11 +48,11 @@ def test_near_resolve_priority_over_scale_out() -> None:
     assert r.exit_signal.reason == ExitReason.NEAR_RESOLVE
 
 
-# ── Scale-out ──
+# ── Scale-out (distance-based: progress = (cur-entry)/(1-entry)) ──
 
-def test_scale_out_tier1_at_25pct() -> None:
-    # entry 0.40, current 0.50 → pnl 25%
-    p = _pos(current_price=0.50, entry_price=0.40, size_usdc=40, shares=100)
+def test_scale_out_tier1_at_40pct_distance() -> None:
+    # entry 0.40, current 0.64 → progress = 0.24/0.60 = 0.40 (tier1 threshold)
+    p = _pos(current_price=0.64, entry_price=0.40, size_usdc=40, shares=100)
     r = evaluate(p)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.SCALE_OUT
@@ -61,8 +61,8 @@ def test_scale_out_tier1_at_25pct() -> None:
 
 
 def test_scale_out_tier2_after_tier1() -> None:
-    # scale_out_tier=1, current 0.60 → pnl 50%
-    p = _pos(current_price=0.60, entry_price=0.40, scale_out_tier=1, size_usdc=40, shares=100)
+    # scale_out_tier=1, entry 0.40, current 0.82 → progress = 0.42/0.60 = 0.70 (tier2 threshold)
+    p = _pos(current_price=0.82, entry_price=0.40, scale_out_tier=1, size_usdc=40, shares=100)
     r = evaluate(p)
     assert r.exit_signal.tier == 2
 

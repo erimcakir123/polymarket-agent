@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.settings import BasketballExitConfig
+from src.config.settings import BasketballExitConfig, ScaleOutConfig, ScaleOutTier
 from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
@@ -189,13 +189,17 @@ def evaluate(
     near_resolve_guard_min: int = 10,
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
+    scale_out_tiers: list[ScaleOutTier] | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
     FAV transition ayrı (exit değil, pos.favored state update).
     SPEC-M: near_resolve_max_spread sahte ask spike koruması (KBO bug 2026-05-19).
+    scale_out_tiers: None → ScaleOutConfig() defaults (distance-based 0.40/0.70).
     """
     score_info = score_info or {}
+    if scale_out_tiers is None:
+        scale_out_tiers = ScaleOutConfig().tiers
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
     # 1. Near-resolve — en yüksek öncelik
@@ -209,16 +213,19 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
-    # 2. Scale-out (partial exit)
+    # 2. Scale-out (partial exit) — distance-based: progress = (cur-entry)/(1-entry)
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
-        unrealized_pnl_pct=pos.unrealized_pnl_pct,
+        entry_price=pos.entry_price,
+        current_price=pos.current_price,
+        tiers=scale_out_tiers,
     )
     if so is not None:
         return MonitorResult(
             exit_signal=ExitSignal(
                 reason=ExitReason.SCALE_OUT, partial=True,
-                sell_pct=so.sell_pct, tier=so.tier, detail=so.reason,
+                sell_pct=so.sell_pct, tier=so.tier,
+                detail=f"tier {so.tier} (distance-based)",
             ),
             fav_transition=_fav_transition(pos),
             elapsed_pct=elapsed_pct,
