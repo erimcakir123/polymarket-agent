@@ -46,7 +46,7 @@ def _player(pid: str, name: str) -> PlayerRating:
         player_id=pid, player_name=name, tour="atp", overall=sr,
         serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
-        last_match_date="2026-01-01", match_count_12mo=60,
+        last_match_date="2026-01-01", singles_main_count_12mo=60,
     )
 
 

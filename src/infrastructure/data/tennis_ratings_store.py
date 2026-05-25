@@ -34,7 +34,9 @@ class PlayerRating:
     return_grass: SurfaceRating
     return_hard: SurfaceRating
     last_match_date: str    # ISO date
-    match_count_12mo: int
+    singles_main_count_12mo: int = 0   # main draw + Challenger (weight 1.0)
+    singles_itf_count_12mo: int = 0    # ITF Futures (weight 0.5)
+    doubles_count_12mo: int = 0        # doubles (weight 0.5) — populated in Task 6
 
 
 class TennisRatingsStore:
@@ -54,6 +56,11 @@ class TennisRatingsStore:
         out: dict[str, PlayerRating] = {}
         for pid, d in data.items():
             try:
+                # Backward-compat: pre-ITF JSONs stored a single `match_count_12mo`
+                # representing main-draw matches only. Map it to singles_main.
+                singles_main_raw = d.get("singles_main_count_12mo")
+                if singles_main_raw is None:
+                    singles_main_raw = d.get("match_count_12mo", 0)
                 out[pid] = PlayerRating(
                     player_id=d["player_id"],
                     player_name=d["player_name"],
@@ -66,7 +73,9 @@ class TennisRatingsStore:
                     return_grass=SurfaceRating(**d["return_grass"]),
                     return_hard=SurfaceRating(**d["return_hard"]),
                     last_match_date=d["last_match_date"],
-                    match_count_12mo=int(d["match_count_12mo"]),
+                    singles_main_count_12mo=int(singles_main_raw),
+                    singles_itf_count_12mo=int(d.get("singles_itf_count_12mo", 0)),
+                    doubles_count_12mo=int(d.get("doubles_count_12mo", 0)),
                 )
             except (KeyError, TypeError, ValueError) as e:
                 logger.warning("Skipping malformed rating for %s: %s", pid, e)

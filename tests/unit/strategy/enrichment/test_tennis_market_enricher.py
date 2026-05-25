@@ -31,7 +31,7 @@ def _make_player_rating(pid: str, name: str, r: float = 1500.0) -> PlayerRating:
         serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
         last_match_date="2026-01-01",
-        match_count_12mo=60,
+        singles_main_count_12mo=60,
     )
 
 
@@ -210,7 +210,7 @@ def _make_wta_player_rating(pid: str, name: str, r: float = 1500.0) -> PlayerRat
         player_id=pid, player_name=name, tour="wta", overall=sr,
         serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
-        last_match_date="2026-01-01", match_count_12mo=60,
+        last_match_date="2026-01-01", singles_main_count_12mo=60,
     )
 
 

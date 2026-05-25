@@ -262,7 +262,8 @@ class TennisConfig(BaseModel):
     sackmann_wta_years: list[int] = []
     # ITF Futures year lists (Task 3 of 2026-05-26-itf-futures-doubles plan).
     # Empty default = ITF disabled; rebuild script feeds ITF matches at 0.5x Glicko
-    # weight when populated, and counts them toward tier-A match_count_12mo.
+    # weight when populated and tracks them in singles_itf_count_12mo. Tier-A
+    # classifier (FeatureSnapshot.p1_match_count_12mo) reads the combined count.
     sackmann_atp_itf_years: list[int] = []
     sackmann_wta_itf_years: list[int] = []
     glicko_initial_rating: float = 1500.0

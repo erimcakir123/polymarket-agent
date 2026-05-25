@@ -50,7 +50,10 @@ def _new_player() -> dict:
         "serve_clay": initial, "serve_grass": initial, "serve_hard": initial,
         "return_clay": initial, "return_grass": initial, "return_hard": initial,
         "last_match_date": None,
-        "match_dates": [],  # for 12mo count later
+        # Split main-draw vs ITF for tier-A classifier (singles only here; doubles
+        # populated by the doubles pipeline in a later task).
+        "match_dates_main": [],
+        "match_dates_itf": [],
     }
 
 
@@ -112,7 +115,9 @@ def build_ratings_from_matches(
                 return_grass=rating.return_grass,
                 return_hard=rating.return_hard,
                 last_match_date=rating.last_match_date,
-                match_count_12mo=rating.match_count_12mo,
+                singles_main_count_12mo=rating.singles_main_count_12mo,
+                singles_itf_count_12mo=rating.singles_itf_count_12mo,
+                doubles_count_12mo=rating.doubles_count_12mo,
             )
     return output
 
@@ -161,13 +166,16 @@ def _build_single_tour(
 
         profiles[winner]["last_match_date"] = m.match_date
         profiles[loser]["last_match_date"] = m.match_date
-        profiles[winner]["match_dates"].append(m.match_date)
-        profiles[loser]["match_dates"].append(m.match_date)
+        # weight == 1.0 → main draw / Challenger; weight < 1.0 → ITF Futures.
+        bucket = "match_dates_main" if weight >= 1.0 else "match_dates_itf"
+        profiles[winner][bucket].append(m.match_date)
+        profiles[loser][bucket].append(m.match_date)
 
     cutoff = snapshot_date - timedelta(days=365)
     output: dict[str, PlayerRating] = {}
     for name, p in profiles.items():
-        count_12mo = sum(1 for d in p["match_dates"] if d >= cutoff)
+        main_12mo = sum(1 for d in p["match_dates_main"] if d >= cutoff)
+        itf_12mo = sum(1 for d in p["match_dates_itf"] if d >= cutoff)
         last_date = p["last_match_date"]
         output[name] = PlayerRating(
             player_id=name,
@@ -181,7 +189,9 @@ def _build_single_tour(
             return_grass=_glicko_to_surface(p["return_grass"]),
             return_hard=_glicko_to_surface(p["return_hard"]),
             last_match_date=last_date.strftime("%Y-%m-%d") if last_date else "1970-01-01",
-            match_count_12mo=count_12mo,
+            singles_main_count_12mo=main_12mo,
+            singles_itf_count_12mo=itf_12mo,
+            doubles_count_12mo=0,  # populated by doubles pipeline in a later task
         )
     return output
 

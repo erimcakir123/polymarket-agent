@@ -33,7 +33,7 @@ def _full_player(player_id: str = "p1", player_name: str = "Player A") -> Player
         return_grass=SurfaceRating(rating=1740, rd=112, volatility=0.06),
         return_hard=SurfaceRating(rating=1770, rd=105, volatility=0.05),
         last_match_date="2026-02-15",
-        match_count_12mo=87,
+        singles_main_count_12mo=87,
     )
 
 
@@ -46,7 +46,7 @@ def test_save_and_load_full_player_returns_same_data(store_path):
     assert loaded["p1"].player_name == "Player A"
     assert loaded["p1"].overall.rating == 1820
     assert loaded["p1"].serve_clay.rd == 98
-    assert loaded["p1"].match_count_12mo == 87
+    assert loaded["p1"].singles_main_count_12mo == 87
 
 
 def test_load_missing_file_returns_empty_dict(store_path):
@@ -63,7 +63,7 @@ def test_save_atomic_writes_to_disk(store_path):
         serve_clay=_full_rating(), serve_grass=_full_rating(), serve_hard=_full_rating(),
         return_clay=_full_rating(), return_grass=_full_rating(), return_hard=_full_rating(),
         last_match_date="2025-01-01",
-        match_count_12mo=10,
+        singles_main_count_12mo=10,
     )
     store.save({"p1": rating})
     assert store_path.exists()
@@ -99,13 +99,13 @@ def test_store_save_load_preserves_tour_field(tmp_path: Path) -> None:
         player_id="atp:Federer", player_name="Roger Federer", tour="atp",
         overall=sr, serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
-        last_match_date="2023-09-01", match_count_12mo=20,
+        last_match_date="2023-09-01", singles_main_count_12mo=20,
     )
     wta_player = PlayerRating(
         player_id="wta:Swiatek", player_name="Iga Swiatek", tour="wta",
         overall=sr, serve_clay=sr, serve_grass=sr, serve_hard=sr,
         return_clay=sr, return_grass=sr, return_hard=sr,
-        last_match_date="2024-09-01", match_count_12mo=55,
+        last_match_date="2024-09-01", singles_main_count_12mo=55,
     )
     store.save({"atp:Federer": atp_player, "wta:Swiatek": wta_player})
     loaded = store.load()
@@ -135,3 +135,49 @@ def test_store_load_missing_tour_field_defaults_to_atp(tmp_path: Path) -> None:
     store = TennisRatingsStore(path=path)
     loaded = store.load()
     assert loaded["Federer"].tour == "atp"
+
+
+def test_player_rating_persists_singles_main_itf_doubles_counts(tmp_path: Path) -> None:
+    """PlayerRating round-trips 3 separate count fields (main + ITF + doubles)."""
+    path = tmp_path / "ratings.json"
+    store = TennisRatingsStore(path=path)
+    sr = SurfaceRating(rating=1500.0, rd=350.0, volatility=0.06)
+    p = PlayerRating(
+        player_id="atp:Test", player_name="Test", tour="atp",
+        overall=sr, serve_clay=sr, serve_grass=sr, serve_hard=sr,
+        return_clay=sr, return_grass=sr, return_hard=sr,
+        last_match_date="2024-06-01",
+        singles_main_count_12mo=30,
+        singles_itf_count_12mo=15,
+        doubles_count_12mo=10,
+    )
+    store.save({"atp:Test": p})
+    loaded = store.load()
+    assert loaded["atp:Test"].singles_main_count_12mo == 30
+    assert loaded["atp:Test"].singles_itf_count_12mo == 15
+    assert loaded["atp:Test"].doubles_count_12mo == 10
+
+
+def test_legacy_match_count_12mo_loaded_as_singles_main(tmp_path: Path) -> None:
+    """Old JSON with match_count_12mo (no new fields) loads into singles_main_count_12mo."""
+    path = tmp_path / "ratings.json"
+    legacy = {
+        "atp:Old": {
+            "player_id": "atp:Old", "player_name": "Old", "tour": "atp",
+            "overall": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "serve_clay": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "serve_grass": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "serve_hard": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "return_clay": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "return_grass": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "return_hard": {"rating": 1500, "rd": 350, "volatility": 0.06},
+            "last_match_date": "2024-06-01",
+            "match_count_12mo": 25,  # LEGACY KEY
+        }
+    }
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+    store = TennisRatingsStore(path=path)
+    loaded = store.load()
+    assert loaded["atp:Old"].singles_main_count_12mo == 25
+    assert loaded["atp:Old"].singles_itf_count_12mo == 0
+    assert loaded["atp:Old"].doubles_count_12mo == 0

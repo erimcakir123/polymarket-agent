@@ -41,8 +41,11 @@ def test_build_ratings_creates_player_profiles():
     assert "atp:B" in ratings
     # A more matches → some rating ≠ 1500
     assert ratings["atp:A"].overall.rating != 1500
-    # match_count_12mo computed
-    assert ratings["atp:A"].match_count_12mo >= 2
+    # singles_main_count_12mo computed (main draw)
+    assert ratings["atp:A"].singles_main_count_12mo >= 2
+    # No ITF / doubles in this scenario
+    assert ratings["atp:A"].singles_itf_count_12mo == 0
+    assert ratings["atp:A"].doubles_count_12mo == 0
 
 
 def test_build_ratings_empty_returns_empty():

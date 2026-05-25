@@ -29,7 +29,7 @@ def _make_rating(player_id: str, player_name: str) -> PlayerRating:
         return_grass=sr,
         return_hard=sr,
         last_match_date="2026-01-01",
-        match_count_12mo=50,
+        singles_main_count_12mo=50,
     )
 
 
@@ -209,7 +209,7 @@ def _make_rating_with_tour(
     player_id: str,
     player_name: str,
     tour: str,
-    match_count_12mo: int = 50,
+    singles_main_count_12mo: int = 50,
 ) -> PlayerRating:
     sr = _default_surface_rating()
     return PlayerRating(
@@ -224,27 +224,27 @@ def _make_rating_with_tour(
         return_grass=sr,
         return_hard=sr,
         last_match_date="2026-01-01",
-        match_count_12mo=match_count_12mo,
+        singles_main_count_12mo=singles_main_count_12mo,
     )
 
 
 def test_match_player_tour_scoped_no_cross_tour_collision() -> None:
     """ATP Williams and WTA Williams resolve to different PlayerRating objects."""
-    atp_williams = _make_rating_with_tour("atp:Williams", "Williams", "atp", match_count_12mo=10)
-    wta_williams = _make_rating_with_tour("wta:Williams", "Williams", "wta", match_count_12mo=50)
+    atp_williams = _make_rating_with_tour("atp:Williams", "Williams", "atp", singles_main_count_12mo=10)
+    wta_williams = _make_rating_with_tour("wta:Williams", "Williams", "wta", singles_main_count_12mo=50)
     ratings = {"atp:Williams": atp_williams, "wta:Williams": wta_williams}
 
     by_full, by_last = build_match_index(ratings, tour="atp")
     atp_hit = match_player("Williams", ratings, by_full=by_full, by_last=by_last, tour="atp")
     assert atp_hit is not None
     assert atp_hit.tour == "atp"
-    assert atp_hit.match_count_12mo == 10
+    assert atp_hit.singles_main_count_12mo == 10
 
     by_full_w, by_last_w = build_match_index(ratings, tour="wta")
     wta_hit = match_player("Williams", ratings, by_full=by_full_w, by_last=by_last_w, tour="wta")
     assert wta_hit is not None
     assert wta_hit.tour == "wta"
-    assert wta_hit.match_count_12mo == 50
+    assert wta_hit.singles_main_count_12mo == 50
 
 
 def test_build_match_index_tour_filter_excludes_other_tour() -> None:
