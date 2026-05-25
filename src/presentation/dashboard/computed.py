@@ -129,17 +129,14 @@ def equity_summary_from_session(
         }
 
     bankroll = session_balance["bankroll"]
-    # SPEC-Z8 dashboard parity (2026-05-25): snapshot.realized_pnl single source of
-    # truth (positions.json ground truth). trade_history.jsonl audit/forensic, archive
-    # rotation veya cleanup ile bozulabilir. Snapshot non-zero ise snapshot win;
-    # snapshot 0 (fresh start) ise log fallback.
-    snap_realized = float(session_balance.get("realized_pnl", 0.0) or 0.0)
-    if abs(snap_realized) > 0.01:
-        realized = snap_realized
-    elif trades is not None:
+    # SPEC-Z10 (2026-05-25): realized widget DAİMA trade_history toplamından
+    # hesaplanır — EXITED tab ile AYNI source. Kullanıcı kararı: "realized PnL ile
+    # exited tab aynı yerden bilgi çekmeli ki çatışmasın". Z8'in snapshot priority
+    # mantığı widget vs tab tutarsızlığı yaratıyordu, geri çevrildi.
+    if trades is not None:
         realized = realized_pnl_from_trades(trades)
     else:
-        realized = snap_realized
+        realized = float(session_balance.get("realized_pnl", 0.0) or 0.0)
     unrealized = session_balance["unrealized_pnl"]
     invested = session_balance["invested"]
     peak = max(session_balance["peak_bankroll"], bankroll, initial_bankroll)

@@ -213,13 +213,13 @@ def test_realized_pnl_from_trades_sums_full_and_partial_exits() -> None:
     assert computed.realized_pnl_from_trades(trades) == 2.0
 
 
-def test_equity_summary_snapshot_wins_when_nonzero_SPEC_Z8() -> None:
-    """SPEC-Z8 (2026-05-25): snapshot.realized_pnl != 0 → snapshot win.
-    positions.json single source of truth (audit/forensic log değil)."""
+def test_equity_summary_realized_from_trades_SPEC_Z10() -> None:
+    """SPEC-Z10 (2026-05-25): realized widget = trades toplamı (EXITED tab ile AYNI).
+    Snapshot priority kaldırıldı — kullanıcı kararı: tek source."""
     sb = {
         "has_data": True,
         "bankroll": 968.16,
-        "realized_pnl": -4.88,
+        "realized_pnl": -4.88,  # snapshot dikkate alınmaz
         "unrealized_pnl": 0.0,
         "invested": 0.0,
         "open_positions": 0,
@@ -230,25 +230,22 @@ def test_equity_summary_snapshot_wins_when_nonzero_SPEC_Z8() -> None:
         {"exit_price": 0.30, "exit_pnl_usdc": -6.18, "partial_exits": []},
     ]
     out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=trades)
-    # SPEC-Z8: snapshot win
-    assert out["realized_pnl"] == -4.88
+    # SPEC-Z10: trades toplamı kazanır
+    assert out["realized_pnl"] == -16.18
 
 
-def test_equity_summary_fresh_snapshot_uses_trades_SPEC_Z8() -> None:
-    """SPEC-Z8: snapshot.realized_pnl == 0 (fresh start) → trades fallback."""
+def test_equity_summary_no_trades_falls_back_to_snapshot_SPEC_Z10() -> None:
+    """SPEC-Z10: trades=None ise snapshot fallback (sadece bu durumda)."""
     sb = {
         "has_data": True,
         "bankroll": 1000.0,
-        "realized_pnl": 0.0,
+        "realized_pnl": 25.0,
         "unrealized_pnl": 0.0,
         "invested": 0.0,
         "open_positions": 0,
         "peak_bankroll": 1000.0,
     }
-    trades = [
-        {"exit_price": 0.50, "exit_pnl_usdc": 25.0, "partial_exits": []},
-    ]
-    out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=trades)
+    out = computed.equity_summary_from_session(sb, initial_bankroll=1000.0, trades=None)
     assert out["realized_pnl"] == 25.0
 
 
