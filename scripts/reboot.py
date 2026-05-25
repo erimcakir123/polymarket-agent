@@ -267,6 +267,10 @@ def archive_audit_logs(
     — sadece açık kayıtlar). open_condition_ids None ise tüm audit kopyalanır.
     """
     from datetime import datetime, timezone
+    import inspect  # noqa: PLC0415 — TODO-007 forensic, geçici
+    # TODO-007 (2026-05-25): Gizli scheduler kim? Çağrı zincirini bas, sorun bulununca kaldır.
+    _trace = " ← ".join(f"{Path(f.filename).name}:{f.lineno}" for f in inspect.stack()[1:5])
+    print(f"  [TODO-007 forensic] archive_audit_logs called from: {_trace}")
 
     files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
     stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
