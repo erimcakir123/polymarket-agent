@@ -117,39 +117,49 @@ def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     return list(by_key.values()) + no_key
 
 
-def read_trades_by_week(
-    logs_dir: Path, week_offset: int = 0,
+def read_trades_by_month(
+    logs_dir: Path, month_offset: int = 0,
 ) -> tuple[list[dict[str, Any]], str, bool]:
-    """ISO-week-aligned trade pagination.
+    """Calendar-month-aligned trade pagination.
 
-    week_offset=0 → current week (Mon 00:00 UTC – Sun 23:59 UTC).
-    week_offset=1 → previous week, etc.
+    month_offset=0 → current month (1st 00:00 UTC – last day 23:59 UTC).
+    month_offset=1 → previous month, etc.
 
-    Returns (trades_in_week, week_label, has_older_data).
+    Returns (trades_in_month, month_label, has_older_data).
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
-    current_monday = (now - timedelta(days=now.weekday())).replace(
-        hour=0, minute=0, second=0, microsecond=0,
-    )
-    week_start = current_monday - timedelta(weeks=week_offset)
-    week_end = week_start + timedelta(days=7)
+    # Target month (year, month)
+    y, m = now.year, now.month
+    off = month_offset
+    while off > 0:
+        m -= 1
+        if m < 1:
+            m = 12
+            y -= 1
+        off -= 1
+    month_start = datetime(y, m, 1, 0, 0, 0, tzinfo=timezone.utc)
+    # Next month (for end boundary)
+    nm = m + 1
+    ny = y
+    if nm > 12:
+        nm = 1
+        ny += 1
+    month_end = datetime(ny, nm, 1, 0, 0, 0, tzinfo=timezone.utc)
 
-    buffer_weeks = week_offset + 2
-    n = 150 * buffer_weeks
+    buffer_months = month_offset + 2
+    n = 600 * buffer_months
     all_trades = _read_jsonl_tail(logs_dir / "session" / "trade_history.jsonl", n, _BYTES_TRADES)
 
-    week_trades: list[dict[str, Any]] = []
+    month_trades: list[dict[str, Any]] = []
     has_older = False
-    start_ts = week_start.isoformat()
-    end_ts = week_end.isoformat()
+    start_ts = month_start.isoformat()
+    end_ts = month_end.isoformat()
 
     for t in all_trades:
-        # Trade'in hafta içinde olup olmadığını belirlemek için hem tam-close
-        # exit_timestamp'i hem partial_exits[*].timestamp'lerini kontrol et.
-        # Sadece tam-close bakılırsa, partial-only açık pozisyonlar haftadan
-        # dışarı düşüyor → Trade History modal boş gözüküyor.
+        # Tam-close exit_timestamp'i + partial_exits[*].timestamp'lerini kontrol et.
+        # Partial-only açık pozisyonlar düşmesin diye iki kaynak da bakılır.
         timestamps = []
         top_ts = t.get("exit_timestamp") or ""
         if top_ts:
@@ -164,19 +174,13 @@ def read_trades_by_week(
         if latest < start_ts:
             has_older = True
         elif latest < end_ts:
-            week_trades.append(t)
+            month_trades.append(t)
 
     _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    sun = week_start + timedelta(days=6)
-    if week_start.month == sun.month:
-        label = (f"{week_start.day} - {sun.day} "
-                 f"{_MONTHS[week_start.month - 1]} {week_start.year}")
-    else:
-        label = (f"{week_start.day} {_MONTHS[week_start.month - 1]} - "
-                 f"{sun.day} {_MONTHS[sun.month - 1]} {week_start.year}")
+    label = f"{_MONTHS[m - 1]} {y}"
 
-    return week_trades, label, has_older
+    return month_trades, label, has_older
 
 
 def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:

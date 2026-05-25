@@ -196,10 +196,10 @@ def test_sport_roi_groups_tennis(client) -> None:
     assert any(g["league"] == "tennis" for g in data["leagues"])
 
 
-def test_trades_history_returns_weekly_payload(client) -> None:
-    r = client.get("/api/trades/history?week_offset=0")
+def test_trades_history_returns_monthly_payload(client) -> None:
+    r = client.get("/api/trades/history?month_offset=0")
     assert r.status_code == 200
     data = r.get_json()
-    assert {"trades", "week_label", "week_offset",
-            "has_older", "total_in_week"} <= set(data.keys())
-    assert data["week_offset"] == 0
+    assert {"trades", "month_label", "month_offset",
+            "has_older", "total_in_month"} <= set(data.keys())
+    assert data["month_offset"] == 0

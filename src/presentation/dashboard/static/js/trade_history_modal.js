@@ -31,9 +31,9 @@
           <button class="modal-close" id="modal-close">&times;</button>
         </div>
         <div class="modal-nav">
-          <button class="modal-nav-btn" id="modal-prev" title="Previous week">&#9664;</button>
-          <span class="modal-nav-label" id="modal-week-label">--</span>
-          <button class="modal-nav-btn" id="modal-next" title="Next week">&#9654;</button>
+          <button class="modal-nav-btn" id="modal-prev" title="Previous month">&#9664;</button>
+          <span class="modal-nav-label" id="modal-month-label">--</span>
+          <button class="modal-nav-btn" id="modal-next" title="Next month">&#9654;</button>
         </div>
         <div class="modal-view-tabs">
           <button class="modal-view-tab active" data-view="chart">Chart</button>
@@ -118,7 +118,7 @@
             ticks: { color: C.axisLabel || "rgba(148,163,184,0.5)",
               font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
           y: { display: true, grid: { color: C.gridLine || "rgba(148,163,184,0.06)" },
-            suggestedMin: -75, suggestedMax: 75,
+            suggestedMin: -50, suggestedMax: 50,
             ticks: { display: false, stepSize: 25 },
             afterFit: (s) => { s.width = 0; } },
         },
@@ -223,7 +223,7 @@
   function _renderTable(trades) {
     const wrap = document.getElementById("modal-table-wrap");
     if (!trades.length) {
-      wrap.innerHTML = '<div class="modal-empty">No trades this week.</div>';
+      wrap.innerHTML = '<div class="modal-empty">No trades this month.</div>';
       return;
     }
     const rows = trades.map((t) => {
@@ -249,24 +249,24 @@
 
   // ── Data + navigation ──
 
-  async function _loadWeek(weekOffset) {
-    _offset = weekOffset;
+  async function _loadMonth(monthOffset) {
+    _offset = monthOffset;
     try {
-      const r = await fetch("/api/trades/history?week_offset=" + _offset + "&_=" + Date.now());
+      const r = await fetch("/api/trades/history?month_offset=" + _offset + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
-      // Split "13 - 19 Apr 2026" → "13 - 19 Apr" bold + "2026" dim
-      const lbl = data.week_label || "--";
+      // "May 2026" -> "May" bold + "2026" dim
+      const lbl = data.month_label || data.week_label || "--";
       const ym = lbl.match(/^(.+?)(\d{4})$/);
       if (ym) {
-        document.getElementById("modal-week-label").innerHTML =
+        document.getElementById("modal-month-label").innerHTML =
           ym[1].trim() + ' <span class="modal-nav-year">' + ym[2] + '</span>';
       } else {
-        document.getElementById("modal-week-label").textContent = lbl;
+        document.getElementById("modal-month-label").textContent = lbl;
       }
       // ◄ hidden when no older trades exist
       document.getElementById("modal-prev").style.visibility = data.has_older ? "visible" : "hidden";
-      // ► always visible; disabled (opacity 40%) at current week
+      // ► always visible; disabled (opacity 40%) at current month
       const nextBtn = document.getElementById("modal-next");
       nextBtn.disabled = _offset === 0;
       nextBtn.style.visibility = "visible";
@@ -284,7 +284,7 @@
   function _navigate(delta) {
     const next = _offset + delta;
     if (next < 0) return;
-    _loadWeek(next);
+    _loadMonth(next);
   }
 
   // ── Open / Close ──
@@ -297,7 +297,7 @@
     _offset = 0;
     _overlay.style.display = "flex";
     requestAnimationFrame(() => _overlay.classList.add("visible"));
-    _loadWeek(0);
+    _loadMonth(0);
   }
 
   function _close() {

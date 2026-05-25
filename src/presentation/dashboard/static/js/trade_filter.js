@@ -11,9 +11,10 @@
 (function (global) {
   "use strict";
 
-  const HOURS_BY_PERIOD = { "24h": 24, "7d": 168, "30d": 720, "1y": 8760 };
+  const HOURS_BY_PERIOD = { "24h": 24, "48h": 48, "7d": 168, "30d": 720, "1y": 8760 };
   const RESOLUTION_BY_PERIOD = {
     "24h": "event",
+    "48h": "event",
     "7d": "hour",
     "30d": "day",
     "1y": "week",
@@ -145,7 +146,7 @@
     if (!isoTs) return "";
     const d = new Date(isoTs);
     if (Number.isNaN(d.getTime())) return "";
-    if (period === "24h") return `${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
+    if (period === "24h" || period === "48h") return `${_pad2(d.getUTCHours())}:${_pad2(d.getUTCMinutes())}`;
     if (period === "7d")  return `${_WEEKDAY[d.getUTCDay()]} ${_pad2(d.getUTCHours())}h`;
     if (period === "30d") return `${_MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
     if (period === "1y") {

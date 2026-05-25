@@ -99,13 +99,13 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/trades/history")
     def api_trades_history():
-        offset = request.args.get("week_offset", 0, type=int)
-        raw, label, has_older = readers.read_trades_by_week(logs_dir, offset)
+        offset = request.args.get("month_offset", 0, type=int)
+        raw, label, has_older = readers.read_trades_by_month(logs_dir, offset)
         events = computed.exit_events(raw)
         return jsonify({
             "trades": events,
-            "week_label": label,
-            "week_offset": offset,
+            "month_label": label,
+            "month_offset": offset,
             "has_older": has_older,
-            "total_in_week": len(events),
+            "total_in_month": len(events),
         })
