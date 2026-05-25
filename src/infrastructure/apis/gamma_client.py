@@ -57,6 +57,25 @@ PARENT_TAGS: list[tuple[str, int]] = [
 _DEFAULT_TIMEOUT = 20
 
 
+def _normalize_game_start(raw: Any) -> str:
+    """Polymarket gameStartTime format ('2026-05-26 09:00:00+00') -> ISO ('2026-05-26T09:00:00Z').
+
+    Diger zaman alanlari ISO formatta ('T' separator, 'Z' suffix), gameStartTime
+    bosluk + '+00' kullaniyor. Tutarsizlik tuketim tarafini bozar (parse hatasi),
+    burada normalize ediyoruz. Bos/None -> ''.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    if " " in s and "T" not in s:
+        s = s.replace(" ", "T", 1)
+    if s.endswith("+00"):
+        s = s[:-3] + "Z"
+    elif s.endswith("+00:00"):
+        s = s[:-6] + "Z"
+    return s
+
+
 def _default_http_get(url: str, params: dict | None = None, timeout: int = _DEFAULT_TIMEOUT) -> Any:
     return requests.get(url, params=params or {}, timeout=timeout)
 
@@ -186,11 +205,14 @@ class GammaClient:
                 volume_24h=float(raw.get("volume24hr", 0) or 0),
                 tags=[],
                 end_date_iso=str(raw.get("endDate", "") or ""),
-                # match_start_iso öncelik: event.startTime (single-game maç saati,
-                # mevcutsa) → market.startDate (futures fallback — market yaratılma
-                # tarihi) → "" (ikisi de yoksa)
+                # match_start_iso öncelik: market.gameStartTime (Polymarket'in single-game
+                # mac saati, en guvenilir) → event.startTime (event toplaminin saati, bazen
+                # market yaratilma anina set ediliyor; sonradan duzelttiginde bot bunu fark
+                # etmiyordu, gameStartTime daha tutarli) → market.startDate (futures
+                # fallback — market yaratilma tarihi) → "" (hicbiri yoksa).
                 match_start_iso=str(
-                    raw.get("_event_start_time", "")
+                    _normalize_game_start(raw.get("gameStartTime", ""))
+                    or raw.get("_event_start_time", "")
                     or raw.get("startDate", "")
                     or ""
                 ),
