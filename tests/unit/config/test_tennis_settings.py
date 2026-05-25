@@ -73,3 +73,26 @@ def test_edge_exclude_combos_default_empty() -> None:
     from src.config.settings import EdgeConfig
     cfg = EdgeConfig()
     assert cfg.exclude_combos == []
+
+
+# ── stop_loss_exempt_market_types (bimodal SL bug fix) ───────────────────────
+
+
+def test_stop_loss_exempt_market_types_loaded_from_yaml() -> None:
+    """tennis_set_handicap is exempt from simple stop_loss (bimodal SL bug).
+
+    shnaide-zarazua case (2026-05-26): entry 0.64, transient -50% to 0.32,
+    simple SL fired at -$10. Market resolved at 0.9995 — would have won +$56.
+    """
+    from pathlib import Path
+
+    from src.config.settings import load_config
+    cfg = load_config(Path("config_tennis.yaml"))
+    assert "tennis_set_handicap" in cfg.risk.stop_loss_exempt_market_types
+
+
+def test_stop_loss_exempt_market_types_default_empty() -> None:
+    """When not configured, exemption list defaults to []."""
+    from src.config.settings import RiskConfig
+    cfg = RiskConfig()
+    assert cfg.stop_loss_exempt_market_types == []

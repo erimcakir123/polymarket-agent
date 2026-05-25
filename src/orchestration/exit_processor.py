@@ -46,6 +46,7 @@ class ExitProcessor:
                 near_resolve_max_spread=self.deps.state.config.price_feed.max_spread_for_near_resolve,
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
                 scale_out_tiers=self.deps.state.config.scale_out.tiers,
+                stop_loss_exempt_market_types=self.deps.state.config.risk.stop_loss_exempt_market_types,
             )
             self._apply_fav_transition(pos, result.fav_transition)
 

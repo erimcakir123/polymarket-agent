@@ -68,6 +68,12 @@ risk:
   min_entry_size_pct: 0.02
   max_entry_price: 0.88
   stop_loss_pct: 0.30
+  # 2026-05-26: set_handicap is bimodal — price swings between sets routinely
+  # exceed -30%, triggering simple SL prematurely. shnaide-zarazua case: bot
+  # exited at -$10 stop_loss when market resolved at 0.9995 (would have won
+  # +$56). graduated_sl (elapsed+price-tier-aware) remains active.
+  stop_loss_exempt_market_types:
+    - tennis_set_handicap
 
 circuit_breaker:
   # Paper trading context — no real capital at risk, CB disabled intentionally.

@@ -207,16 +207,22 @@ def evaluate(
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
+    stop_loss_exempt_market_types: list[str] | None = None,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
     FAV transition ayrı (exit değil, pos.favored state update).
     SPEC-M: near_resolve_max_spread sahte ask spike koruması (KBO bug 2026-05-19).
     scale_out_tiers: None → ScaleOutConfig() defaults (distance-based 0.40/0.70).
+    stop_loss_exempt_market_types: bimodal markets (e.g. tennis_set_handicap)
+        where price routinely swings >30% between sets — simple SL is skipped
+        for these; graduated_sl continues to apply (2026-05-26 shnaide-zarazua).
     """
     score_info = score_info or {}
     if scale_out_tiers is None:
         scale_out_tiers = ScaleOutConfig().tiers
+    if stop_loss_exempt_market_types is None:
+        stop_loss_exempt_market_types = []
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
     # 0. Resolved — fiyat settled aralıkta (≤3¢ veya ≥97¢) → maç bitmiş,
@@ -286,13 +292,20 @@ def evaluate(
                 elapsed_pct=elapsed_pct,
             )
 
-    # 3. Flat stop-loss (tüm pozisyonlar için aktif — 19 Apr peak pattern)
-    if stop_loss.check(pos):
-        return MonitorResult(
-            exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
-            fav_transition=_fav_transition(pos),
-            elapsed_pct=elapsed_pct,
-        )
+    # 3. Flat stop-loss (tüm pozisyonlar için aktif — 19 Apr peak pattern).
+    # Bimodal markets (e.g., tennis_set_handicap) exempt: price swings between
+    # sets routinely exceed -30%, firing simple SL prematurely. graduated_sl
+    # (elapsed+price-tier+score-aware) continues to apply as smarter backup.
+    # Enum.value (Py 3.14: str(Enum) returns "Class.NAME", not raw value).
+    smt_raw = pos.sports_market_type
+    smt = smt_raw.value if hasattr(smt_raw, "value") else str(smt_raw or "")
+    if smt not in stop_loss_exempt_market_types:
+        if stop_loss.check(pos):
+            return MonitorResult(
+                exit_signal=ExitSignal(reason=ExitReason.STOP_LOSS, detail="flat SL hit"),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
     # 4. Graduated SL + never-in-profit + hold-revocation + ultra-low (elapsed >= 0)
     if elapsed_pct >= 0:
         if _ultra_low_guard_exit(pos, elapsed_pct):

@@ -202,3 +202,42 @@ def test_no_exit_when_position_calm() -> None:
     p = _pos(entry_price=0.50, current_price=0.52, size_usdc=40, shares=80, confidence="B")
     r = evaluate(p)
     assert r.exit_signal is None
+
+
+# ── Stop-loss exempt market types (bimodal SL bug fix, 2026-05-26) ───────────
+
+def test_monitor_skips_simple_stop_loss_for_exempt_market_types() -> None:
+    """When pos.sports_market_type is in stop_loss_exempt_market_types,
+    simple stop_loss check is skipped. graduated_sl still applies separately.
+
+    Real case: shnaide-zarazua set_handicap, entry 0.64, current 0.32 (-50%),
+    bot's old simple SL would fire, but bimodal markets need elapsed-aware logic.
+    Here elapsed_pct = -1.0 (no match_start_iso) so graduated_sl path is gated
+    out, isolating the simple-SL exemption check.
+    """
+    from src.models.enums import SportsMarketType
+    # entry 0.64, current 0.32 → pnl = (31.25*0.32 - 20)/20 = -50% < tennis SL -30%.
+    # Without exemption: simple SL fires.
+    p = _pos(
+        confidence="B", entry_price=0.64, current_price=0.32,
+        size_usdc=20, shares=31.25, sport_tag="tennis",
+        sports_market_type=SportsMarketType.TENNIS_SET_HANDICAP,
+        match_start_iso="",  # elapsed = -1 → graduated SL gated out
+    )
+    r = evaluate(p, stop_loss_exempt_market_types=["tennis_set_handicap"])
+    assert r.exit_signal is None or r.exit_signal.reason != ExitReason.STOP_LOSS
+
+
+def test_monitor_applies_simple_stop_loss_for_non_exempt_market_types() -> None:
+    """Non-exempt market type (e.g., moneyline) still triggers simple SL when
+    pnl breaches sport-specific threshold."""
+    from src.models.enums import SportsMarketType
+    p = _pos(
+        confidence="B", entry_price=0.64, current_price=0.32,
+        size_usdc=20, shares=31.25, sport_tag="tennis",
+        sports_market_type=SportsMarketType.MONEYLINE,
+        match_start_iso="",
+    )
+    r = evaluate(p, stop_loss_exempt_market_types=["tennis_set_handicap"])
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.STOP_LOSS

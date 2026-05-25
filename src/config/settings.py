@@ -94,6 +94,10 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
+    # 2026-05-26: Bimodal markets where price routinely swings >30% between sets,
+    # making simple stop_loss fire prematurely. graduated_sl (elapsed-aware) remains
+    # active as backup. shnaide-zarazua case: -$66 catastrophic from premature SL.
+    stop_loss_exempt_market_types: List[str] = []
 
 
 class EarlyEntryConfig(BaseModel):
