@@ -186,8 +186,6 @@
       const resolution = global.FILTER.RESOLUTION_BY_PERIOD[period] || "event";
       const windowTrades = global.FILTER.filterByPeriod(trades, period);
       const buckets = global.FILTER.pnlByResolution(windowTrades, resolution);
-      // Event modunda takım adları (chronological sıra — windowTrades reversed).
-      const chronTrades = resolution === "event" ? [...windowTrades].reverse() : [];
       // Minimum 12 slot — az bar varsa sola yaslanır.
       const MIN_SLOTS = 12;
       const slots = Math.max(buckets.length, MIN_SLOTS);
@@ -197,9 +195,12 @@
       buckets.forEach((b, i) => {
         labels[i] = period === "1y" ? "W" + (i + 1) : global.FILTER.periodLabel(b.timestamp, period);
         data[i] = Number(b.pnl || 0);
-        if (resolution === "event" && chronTrades[i]) {
-          tooltips[i] = FMT.teamsText(chronTrades[i].question, chronTrades[i].slug);
-        } else if (resolution !== "event") {
+        // Tooltip: event modunda bucket'in kendi slug/question'i (1-trade-N-event
+        // durumlarinda chronTrades[i] index'i kayiyordu — bar'in gercek event'i ile
+        // eslesmeyen takim adi gosteriyordu). Bucket modunda trade sayisi.
+        if (resolution === "event") {
+          tooltips[i] = FMT.teamsText(b.question || "", b.slug || "");
+        } else {
           tooltips[i] = b.count + " trade";
         }
       });

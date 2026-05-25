@@ -84,6 +84,7 @@
     const seen = new Set();
     for (const t of (trades || [])) {
       const slug = t.slug || "";
+      const question = t.question || "";
       for (const pe of (t.partial_exits || [])) {
         if (!pe || !pe.timestamp) continue;
         const key = slug + "|" + pe.timestamp;
@@ -92,6 +93,8 @@
         events.push({
           timestamp: pe.timestamp,
           pnl: Number(pe.realized_pnl_usdc || 0),
+          slug,
+          question,
         });
       }
       if (t.exit_timestamp && t.exit_pnl_usdc != null) {
@@ -101,6 +104,8 @@
         events.push({
           timestamp: t.exit_timestamp,
           pnl: Number(t.exit_pnl_usdc || 0),
+          slug,
+          question,
         });
       }
     }
@@ -159,6 +164,8 @@
         timestamp: ev.timestamp,
         pnl: ev.pnl,
         count: 1,
+        slug: ev.slug || "",
+        question: ev.question || "",
       }));
     }
     const byKey = new Map();
