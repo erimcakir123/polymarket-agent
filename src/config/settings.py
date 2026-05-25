@@ -114,6 +114,14 @@ class StockConfig(BaseModel):
 
 
 class ScaleOutTier(BaseModel):
+    """Scale-out tier: at threshold (distance-to-resolution), sell sell_pct of remaining.
+
+    threshold: fraction of distance from entry to $1.00. Formula:
+        progress = (current - entry) / (1.0 - entry)
+        tier fires when progress >= threshold.
+    Replaces profit-percentage semantic which locked too small $ on cheap entries
+    and never fired on expensive entries.
+    """
     model_config = ConfigDict(extra="ignore")
     threshold: float
     sell_pct: float
@@ -123,8 +131,8 @@ class ScaleOutConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
     tiers: List[ScaleOutTier] = [
-        ScaleOutTier(threshold=0.25, sell_pct=0.40),
-        ScaleOutTier(threshold=0.50, sell_pct=0.50),
+        ScaleOutTier(threshold=0.40, sell_pct=0.40),
+        ScaleOutTier(threshold=0.70, sell_pct=0.50),
     ]
 
 

@@ -68,10 +68,20 @@ def test_config_scale_out_tiers_defaults() -> None:
     cfg = AppConfig()
     tiers = cfg.scale_out.tiers
     assert len(tiers) == 2
-    assert tiers[0].threshold == 0.25
+    assert tiers[0].threshold == 0.40
     assert tiers[0].sell_pct == 0.40
-    assert tiers[1].threshold == 0.50
+    assert tiers[1].threshold == 0.70
     assert tiers[1].sell_pct == 0.50
+
+
+def test_scale_out_default_tiers_are_distance_based() -> None:
+    from src.config.settings import ScaleOutConfig
+    cfg = ScaleOutConfig()
+    assert len(cfg.tiers) == 2
+    assert cfg.tiers[0].threshold == 0.40
+    assert cfg.tiers[0].sell_pct == 0.40
+    assert cfg.tiers[1].threshold == 0.70
+    assert cfg.tiers[1].sell_pct == 0.50
 
 
 def test_config_score_defaults() -> None:
