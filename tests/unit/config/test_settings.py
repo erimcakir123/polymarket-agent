@@ -94,17 +94,22 @@ def test_repo_config_yaml_parses() -> None:
     assert cfg.initial_bankroll > 0
     assert cfg.edge.min_edge == 0.06
     # 2026-05-15 iyi-donem-rollback: 19 Apr peak sport portföyü geri açıldı.
-    # Hockey için SADECE NHL (kullanıcı kararı — AHL/Liiga/SHL/Mestis/Allsvenskan EKLENMEZ).
+    # Hockey için SADECE NHL. Tennis 2026-05-23'te ana bot listesinden çıkarıldı
+    # (TODO-006: SPEC-Y7 — tennis lab feature/tennis-lab branch'ında ayrı pipeline).
     for must_have in (
         "mlb", "milb", "npb", "kbo", "baseball",
         "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
         "nhl",
         "ncaaf", "cfl", "ufl",
-        "tennis", "atp*", "wta*",
         "mma", "ufc", "boxing",
         "lpga*", "liv*", "pga*",
     ):
         assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"
+    # SPEC-Y7: Tennis ana botta OLMAMALI (steril ayrım)
+    for banned_tennis in ("tennis", "atp*", "wta*"):
+        assert banned_tennis not in cfg.scanner.allowed_sport_tags, (
+            f"{banned_tennis} ana botta olmamalı — tennis lab ayrı"
+        )
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
     for banned in ("soccer_epl", "soccer_laliga"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"

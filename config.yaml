@@ -3,14 +3,16 @@ mode: dry_run  # dry_run | paper | live
 initial_bankroll: 1000.0
 
 cycle:
-  heavy_interval_min: 30
+  heavy_interval_min: 25
   light_interval_sec: 5
   night_interval_min: 60
   night_hours: [8, 9, 10, 11, 12, 13]
 
 scanner:
   min_liquidity: 1000
-  max_markets_per_cycle: 300
+  max_markets_per_cycle: 500  # SPEC-Y8 (2026-05-24): 30 → 500. MLB submarket engine
+                              # devre disi (mlb_submarket.enabled=false), bottleneck yok.
+                              # 24 saatteki TUM eligible maclari incelesin (su an ~268).
   max_duration_days: 14
   # Maç bu kadar saatten uzaksa Odds API h2h verisi yok → scanner'da ele
   max_hours_to_start: 24.0
@@ -47,10 +49,8 @@ scanner:
     - ncaaf
     - cfl
     - ufl
-    # Tennis
-    - tennis
-    - "atp*"
-    - "wta*"
+    # Tennis — ana botta KAPALI (steril ayrım: tennis lab feature/tennis-lab branch'ında).
+    # 2026-05-23: STOCK kirlenmesi + bookmaker yokluğu nedeniyle kaldırıldı.
     # Combat sports
     - mma
     - ufc
@@ -184,7 +184,10 @@ price_feed:
   max_spread_for_near_resolve: 0.10
 
 mlb_submarket:
-  enabled: true               # SPEC-R: model-anchor MLB totals/run-line (aktif 2026-05-21)
+  enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin
+                              # 25+ API call (lineup/people/weather) yapip heavy cycle'i blokluyor.
+                              # 30 market × 30sn = 12+dk bottleneck. 22 May'deki gibi bookmaker path
+                              # devre disi MLB submarket trade yok, ama tum diger maclar acilabilir.
   min_edge: 0.05              # Model edge eşiği (Tennis Lab paritesi)
   statsapi_timeout_sec: 10.0
   rate_cache_path: data/mlb_rate_cache.jsonl
