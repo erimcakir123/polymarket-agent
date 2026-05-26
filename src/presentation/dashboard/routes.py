@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from flask import Flask, jsonify, render_template, request
 
@@ -15,6 +16,20 @@ from src.config.settings import AppConfig
 from src.presentation.dashboard import computed, readers
 
 logger = logging.getLogger(__name__)
+
+
+def _attach_replay_simulation(
+    events: list[dict[str, Any]], logs_dir: Path,
+) -> list[dict[str, Any]]:
+    """Enrich exit_events with replay_simulation entries (key: cid+entry_ts)."""
+    sim = readers.read_replay_simulation(logs_dir)
+    if not sim:
+        return events
+    for ev in events:
+        key = (ev.get("condition_id") or "", ev.get("entry_timestamp") or "")
+        if key in sim:
+            ev["replay_simulation"] = sim[key]
+    return events
 
 
 def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
@@ -77,7 +92,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_trades():
         trades = readers.read_trades(logs_dir, n=100)
         # Exited tab source: full close + partial scale-out event'leri flatten.
-        return jsonify(computed.exit_events(trades))
+        events = computed.exit_events(trades)
+        return jsonify(_attach_replay_simulation(events, logs_dir))
 
     @app.route("/api/skipped")
     def api_skipped():
@@ -101,7 +117,7 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_trades_history():
         offset = request.args.get("month_offset", 0, type=int)
         raw, label, has_older = readers.read_trades_by_month(logs_dir, offset)
-        events = computed.exit_events(raw)
+        events = _attach_replay_simulation(computed.exit_events(raw), logs_dir)
         return jsonify({
             "trades": events,
             "month_label": label,

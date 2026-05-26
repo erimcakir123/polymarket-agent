@@ -21,3 +21,4 @@ data/sackmann_cache/*.csv
 data/tml_cache/*.csv
 data/tennis_ratings.json
 data/tennis_data_uk/
+data/replay_simulation.json

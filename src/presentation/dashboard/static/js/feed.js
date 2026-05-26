@@ -237,6 +237,22 @@
         ? `<span class="feed-badge badge-replay" title="Retroactive replay simulation">REPLAY</span>`
         : "";
 
+      // Replay-simulation overlay: scripts/replay_fixes_simulation.py tarafından
+      // yazılan data/replay_simulation.json'dan gelir. Her fix için (bimodal_sl,
+      // same_market_type_blocked, resolved_sustained_check) "fix aktif olsaydı"
+      // P&L farkını gösterir. Sadece full-close event'lerde (partial yok).
+      const sim = t.replay_simulation;
+      let simRowHtml = "";
+      if (sim && sim.fixes && sim.fixes.length) {
+        const fixHtml = sim.fixes.map((f) => {
+          const dlt = Number(f.delta_usdc || 0);
+          const cls = dlt >= 0 ? "pnl-pos" : "pnl-neg";
+          const label = FMT.replaySimFixLabel ? FMT.replaySimFixLabel(f.label) : f.label;
+          return `<span class="sim-fix ${cls}" title="If-held P&L: $${Number(f.if_held_pnl_usdc || 0).toFixed(2)}">${label}: ${FMT.usdSignedHtml(dlt)}</span>`;
+        }).join(" ");
+        simRowHtml = `<div class="feed-replay-sim">${fixHtml}</div>`;
+      }
+
       return `${this._cardOpen(t.slug)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
@@ -258,6 +274,7 @@
             <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
           </div>
         </div>
+        ${simRowHtml}
         <div class="feed-time">
           <span>$${invested.toFixed(0)}</span>
           <span class="feed-exit-reason">${reasonText}</span>

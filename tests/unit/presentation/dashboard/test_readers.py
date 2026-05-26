@@ -64,6 +64,65 @@ def test_read_positions_valid_file(tmp_path: Path) -> None:
     assert "k1" in out["positions"]
 
 
+# ── read_replay_simulation ──
+
+def test_read_replay_simulation_missing_returns_empty(tmp_path: Path) -> None:
+    logs_dir, _ = _mk_logs(tmp_path)
+    out = readers.read_replay_simulation(logs_dir)
+    assert out == {}
+
+
+def test_read_replay_simulation_indexes_by_cid_and_entry_ts(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    blob = {
+        "schema_version": 1,
+        "trades": [
+            {
+                "condition_id": "0xAAA",
+                "entry_timestamp": "2026-05-25T10:00:00Z",
+                "slug": "atp-x-set-totals-4pt5",
+                "actual_pnl_usdc": -9.84,
+                "fixes": [
+                    {"label": "bimodal_sl_exempt", "if_held_pnl_usdc": 11.25,
+                     "delta_usdc": 21.09},
+                ],
+            },
+            {
+                "condition_id": "0xBBB",
+                "entry_timestamp": "2026-05-25T11:00:00Z",
+                "slug": "wta-y-set-handicap-home-1pt5",
+                "actual_pnl_usdc": 0.88,
+                "fixes": [{"label": "same_market_type_blocked", "delta_usdc": -0.88}],
+            },
+        ],
+    }
+    (data_dir / "replay_simulation.json").write_text(
+        json.dumps(blob), encoding="utf-8",
+    )
+    out = readers.read_replay_simulation(logs_dir)
+    assert len(out) == 2
+    a = out[("0xAAA", "2026-05-25T10:00:00Z")]
+    assert a["actual_pnl_usdc"] == -9.84
+    assert a["fixes"][0]["label"] == "bimodal_sl_exempt"
+    b = out[("0xBBB", "2026-05-25T11:00:00Z")]
+    assert b["fixes"][0]["label"] == "same_market_type_blocked"
+
+
+def test_read_replay_simulation_skips_entries_without_keys(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    blob = {"trades": [{"slug": "x", "fixes": []}]}  # missing cid + entry_ts
+    (data_dir / "replay_simulation.json").write_text(
+        json.dumps(blob), encoding="utf-8",
+    )
+    assert readers.read_replay_simulation(logs_dir) == {}
+
+
+def test_read_replay_simulation_corrupt_returns_empty(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    (data_dir / "replay_simulation.json").write_text("not-json", encoding="utf-8")
+    assert readers.read_replay_simulation(logs_dir) == {}
+
+
 def test_read_positions_corrupt_returns_default(tmp_path: Path) -> None:
     logs_dir, data_dir = _mk_logs(tmp_path)
     (data_dir / "positions.json").write_text("not json", encoding="utf-8")

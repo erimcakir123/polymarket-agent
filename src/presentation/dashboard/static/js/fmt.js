@@ -358,6 +358,16 @@
       if (twoWay) return (direction === "BUY_YES" ? twoWay[1] : twoWay[2]).toUpperCase();
       return direction === "BUY_YES" ? "YES" : "NO";
     },
+
+    // Replay-simulation fix label → kullanıcıya gösterilen kısa Türkçe etiket.
+    // Yeni fix eklenirse buraya satır eklenir (script tarafında label string'i
+    // değişirse hem orada hem burada güncellenmeli — küçük drift riski kabul).
+    replaySimFixLabel(label) {
+      if (label === "bimodal_sl_exempt") return "SL olmasaydı";
+      if (label === "same_market_type_blocked") return "Bloklanırdı";
+      if (label === "resolved_sustained_check") return "Resolved-bekleseydi";
+      return label;
+    },
   };
 
   global.FMT = FMT;

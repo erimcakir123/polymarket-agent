@@ -166,6 +166,63 @@ def test_trades_returns_only_closed(tmp_path: Path) -> None:
     assert data[0]["slug"] == "c-closed"
 
 
+def test_trades_attaches_replay_simulation_when_present(tmp_path: Path) -> None:
+    """exit_event'lerin replay_simulation alanı data/replay_simulation.json'dan zenginleşir."""
+    session_dir = _logs(tmp_path) / "session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    closed = json.dumps({
+        "slug": "atp-x-set-handicap-home-1pt5",
+        "condition_id": "0xAAA",
+        "entry_timestamp": "2026-05-25T10:00:00Z",
+        "exit_price": 0.32,
+        "exit_pnl_usdc": -9.84,
+        "exit_timestamp": "2026-05-25T18:14:07Z",
+        "direction": "BUY_YES",
+        "size_usdc": 20.0,
+        "shares": 31.25,
+    })
+    (session_dir / "trade_history.jsonl").write_text(
+        closed + "\n", encoding="utf-8",
+    )
+    sim = {
+        "schema_version": 1,
+        "trades": [{
+            "condition_id": "0xAAA",
+            "entry_timestamp": "2026-05-25T10:00:00Z",
+            "slug": "atp-x-set-handicap-home-1pt5",
+            "actual_pnl_usdc": -9.84,
+            "fixes": [{"label": "bimodal_sl_exempt",
+                       "if_held_pnl_usdc": 11.25, "delta_usdc": 21.09}],
+        }],
+    }
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "replay_simulation.json").write_text(
+        json.dumps(sim), encoding="utf-8",
+    )
+    data = _client(tmp_path).get("/api/trades").get_json()
+    assert len(data) == 1
+    event = data[0]
+    assert event.get("replay_simulation") is not None
+    assert event["replay_simulation"]["fixes"][0]["label"] == "bimodal_sl_exempt"
+    assert event["replay_simulation"]["fixes"][0]["delta_usdc"] == 21.09
+
+
+def test_trades_no_replay_simulation_when_file_missing(tmp_path: Path) -> None:
+    """File yoksa replay_simulation eklenmemeli (mevcut alan değişmez)."""
+    session_dir = _logs(tmp_path) / "session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    closed = json.dumps({
+        "slug": "x", "condition_id": "0xZ", "entry_timestamp": "t",
+        "exit_price": 0.5, "exit_pnl_usdc": 1.0,
+        "exit_timestamp": "2026-05-25T10:00:00Z",
+    })
+    (session_dir / "trade_history.jsonl").write_text(closed + "\n", encoding="utf-8")
+    data = _client(tmp_path).get("/api/trades").get_json()
+    assert len(data) == 1
+    assert "replay_simulation" not in data[0]
+
+
 # ── /api/equity_history ──
 
 def test_equity_history_empty(tmp_path: Path) -> None:
