@@ -149,7 +149,11 @@ favored:
 dashboard:
   enabled: true
   host: "127.0.0.1"
-  port: 5050
+  # 2026-05-26: port main bot (Polymarket Agent 2.0) ile çakışıyordu.
+  # Tennis-lab dashboard her zaman scripts/tennis_dashboard.py
+  # (config_tennis.yaml port 5051) üzerinden başlatılır; bu fallback
+  # yalnızca defansif tutarlılık içindir, fiili kullanım 5051.
+  port: 5051
 
 telegram:
   enabled: false

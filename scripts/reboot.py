@@ -62,8 +62,12 @@ _AUDIT_FILES_CLEAR = [
 _GRACEFUL_WAIT_SECONDS = 2
 
 
-_BOT_CMDLINE_MARKER = "src.main"
-_DASHBOARD_CMDLINE_MARKER = "src.presentation.dashboard"
+# 2026-05-26: Cmdline marker'lar artık tennis-specific entry-script adına bakar.
+# Eski markers ("src.main", "src.presentation.dashboard") MAIN BOT (Polymarket
+# Agent 2.0) cmdline'ında da geçtiği için tennis-lab reboot main bot'u
+# yanlışlıkla öldürüyordu. start_bot/start_dashboard de bu script'leri çağırıyor.
+_BOT_CMDLINE_MARKER = "tennis_main.py"
+_DASHBOARD_CMDLINE_MARKER = "tennis_dashboard.py"
 
 
 def _is_pid_alive(pid: int) -> bool:
@@ -280,9 +284,9 @@ def archive_audit_on_demand(
 
 
 def start_dashboard(root: Path | None = None) -> None:
-    """Dashboard'u ayrı process'te başlat."""
+    """Dashboard'u ayrı process'te başlat — tennis-specific launcher."""
     r = root or ROOT
-    cmd = [sys.executable, "-m", "src.presentation.dashboard.app"]
+    cmd = [sys.executable, "scripts/tennis_dashboard.py"]
     if sys.platform == "win32":
         subprocess.Popen(
             cmd, cwd=str(r),
@@ -294,9 +298,9 @@ def start_dashboard(root: Path | None = None) -> None:
 
 
 def start_bot(mode: str = "dry_run", root: Path | None = None) -> None:
-    """Bot'u ayrı process'te başlat."""
+    """Bot'u ayrı process'te başlat — tennis-specific launcher."""
     r = root or ROOT
-    cmd = [sys.executable, "-m", "src.main", "--mode", mode]
+    cmd = [sys.executable, "scripts/tennis_main.py", "--run", "--interval", "1800"]
     if sys.platform == "win32":
         subprocess.Popen(
             cmd, cwd=str(r),
@@ -382,11 +386,12 @@ if __name__ == "__main__":
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live"])
     parser.add_argument("--yes", action="store_true",
                         help="Reboot onayını bypass et")
-    parser.add_argument("--wipe", action="store_true",
-                        help="Audit dosyalarını da arşivle (SPEC-H protokol istisnası — clean slate)")
     args = parser.parse_args()
 
     if args.action == "reboot":
-        reboot(args.mode, skip_confirm=args.yes, wipe_audit=args.wipe)
+        # 2026-05-23 kural değişikliği: reboot HER ZAMAN tam wipe yapar (audit dahil).
+        # Eski "audit korur" davranışı (SPEC-H, 2026-05-10) geri çevrildi. Tek reboot,
+        # tek mod: 0 nokta. Yedek isteyen reload kullanır.
+        reboot(args.mode, skip_confirm=args.yes, wipe_audit=True)
     else:
         reload_bot(args.mode)
