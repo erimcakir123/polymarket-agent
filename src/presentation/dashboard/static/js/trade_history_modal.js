@@ -286,7 +286,9 @@
   async function _loadMonth(monthOffset) {
     _offset = monthOffset;
     try {
-      const r = await fetch("/api/trades/history?month_offset=" + _offset + "&_=" + Date.now());
+      const modeParam = (global.REPLAY_MODE && global.REPLAY_MODE.get() === "simulated")
+        ? "&mode=simulated" : "";
+      const r = await fetch("/api/trades/history?month_offset=" + _offset + "&_=" + Date.now() + modeParam);
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
       // "May 2026" -> "May" bold + "2026" dim

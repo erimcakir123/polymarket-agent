@@ -24,6 +24,11 @@
     <header class="topbar">
       <div class="brand">Poly<span class="brand-accent">Agent</span> <span class="brand-sport" title="Tennis Prediction Lab (sandbox, paper mode)">🎾 Tennis</span></div>
       <div class="topbar-spacer"></div>
+      <!-- Replay mode toggle: simulated (fix-active P&L per kart) vs actual (gerçek) -->
+      <button id="replay-toggle" class="replay-toggle" type="button" title="Replay simulation modu — fixleri aktifmiş gibi P&L">
+        <span class="replay-toggle-dot"></span>
+        <span class="replay-toggle-label" id="replay-toggle-label">SIM</span>
+      </button>
       <div class="cycle-bar" id="cycle-bar">
         <div class="cycle-group hard" id="cg-hard">
           <span class="cycle-dot"></span>
@@ -38,6 +43,11 @@
         </div>
       </div>
     </header>
+
+    <!-- Replay simulation banner — simulated mode aktifken görünür -->
+    <div id="replay-banner" class="replay-banner" style="display:none">
+      🔄 <strong>SIMULATED MODE</strong> — kartlar fix-active P&L gösteriyor (gerçek değerler dosyada korunuyor)
+    </div>
 
     <!-- Main -->
     <main class="main">

@@ -32,6 +32,43 @@ def _attach_replay_simulation(
     return events
 
 
+def _apply_simulated_pnl(
+    records: list[dict[str, Any]], logs_dir: Path,
+) -> list[dict[str, Any]]:
+    """Simulated mode: replay_simulation entry varsa exit_pnl_usdc → (actual+delta).
+
+    Actual değer `actual_exit_pnl_usdc` alanında saklanır (gerçek tarihçe için).
+    `simulated=True` flag'i UI'nin REPLAY badge'i göstermesi için eklenir.
+    Dosya üzerine yazılmaz — sadece response payload modifiye edilir.
+    """
+    sim = readers.read_replay_simulation(logs_dir)
+    if not sim:
+        return records
+    out: list[dict[str, Any]] = []
+    for r in records:
+        key = (r.get("condition_id") or "", r.get("entry_timestamp") or "")
+        sim_entry = sim.get(key)
+        if not sim_entry or not sim_entry.get("fixes"):
+            out.append(r)
+            continue
+        new_r = dict(r)
+        actual = r.get("exit_pnl_usdc") or 0.0
+        delta = sum(f.get("delta_usdc", 0.0) for f in sim_entry["fixes"])
+        new_r["actual_exit_pnl_usdc"] = actual
+        new_r["exit_pnl_usdc"] = round(actual + delta, 2)
+        new_r["simulated"] = True
+        out.append(new_r)
+    return out
+
+
+def _mode_simulated(request_args: Any) -> bool:
+    """Query param ?mode=simulated → True. Default actual (False).
+
+    Dashboard JS gönderir; URL'de yoksa actual mode varsayılır.
+    """
+    return request_args.get("mode", "actual") == "simulated"
+
+
 def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     """Flask app'e tüm endpoint'leri kaydet."""
 
@@ -65,6 +102,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
         # Slot sayısı açık pozisyon listesinden alınır (positions.json).
         session_balance = readers.read_balance_from_session(logs_dir)
         trades = readers.read_trades(logs_dir, n=1000)
+        if _mode_simulated(request.args):
+            trades = _apply_simulated_pnl(trades, logs_dir)
         blob = readers.read_positions(logs_dir)
         cb = config.circuit_breaker
         return jsonify({
@@ -91,6 +130,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     @app.route("/api/trades")
     def api_trades():
         trades = readers.read_trades(logs_dir, n=100)
+        if _mode_simulated(request.args):
+            trades = _apply_simulated_pnl(trades, logs_dir)
         # Exited tab source: full close + partial scale-out event'leri flatten.
         events = computed.exit_events(trades)
         return jsonify(_attach_replay_simulation(events, logs_dir))
@@ -117,6 +158,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_trades_history():
         offset = request.args.get("month_offset", 0, type=int)
         raw, label, has_older = readers.read_trades_by_month(logs_dir, offset)
+        if _mode_simulated(request.args):
+            raw = _apply_simulated_pnl(raw, logs_dir)
         events = _attach_replay_simulation(computed.exit_events(raw), logs_dir)
         return jsonify({
             "trades": events,
