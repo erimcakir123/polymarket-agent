@@ -262,68 +262,69 @@ def test_process_signals_respects_max_positions_per_event_cap() -> None:
     assert any(c[0][0].skip_reason == "event_count_per_event_cap" for c in calls)
 
 
-def test_b_confidence_blocks_same_market_type_per_event() -> None:
-    """B-only same_market_type guard: 2nd B signal for same (event, market_type) skipped.
+def test_same_market_type_per_event_blocks_for_both_a_and_b() -> None:
+    """Correlation guard: 2nd signal for same (event, market_type) skipped regardless of tier.
 
-    aguilar-shelton case (2026-05-26): bot opened set_totals 3.5 AND 4.5 on the
-    same match (both B confidence). Model wrong -> BOTH lost (-$31 chain).
-    B (26% win rate) compounds chain losses on correlated multi-line bets.
-    A (77% win rate) compounds wins -> guard MUST NOT apply to A.
+    Tiered totals/handicaps (Over 3.5 ⊂ Over 4.5 in best-of-5) are positively
+    correlated; holding both = concentration, not diversification. aguilar-shelton
+    case (2026-05-25): bot opened B set_totals 3.5 + 4.5, match 3 sets -> both lost.
+    Same applies to A on Grand Slam markets, so guard is tier-agnostic.
     """
-    portfolio = PortfolioManager(initial_bankroll=1000.0)
-    # Pre-fill: 1 open B set_totals position on event "evt-shared"
     from src.models.position import Position
+
+    for tier in ("A", "B"):
+        portfolio = PortfolioManager(initial_bankroll=1000.0)
+        portfolio.add_position(Position(
+            condition_id=f"0xEXISTING_{tier}",
+            token_id=f"t-existing-{tier}", direction="BUY_YES",
+            entry_price=0.50, size_usdc=10.0, shares=20.0,
+            current_price=0.50, anchor_probability=0.55,
+            event_id="evt-shared",
+            sports_market_type="tennis_set_totals",
+            confidence=tier,
+        ))
+        deps = _build_deps(portfolio=portfolio, max_positions_per_event=10)
+
+        m = _make_market(cid=f"0xNEW_{tier}", event_id="evt-shared", slug="atp-x-set-totals-4pt5")
+        m.sports_market_type = "tennis_set_totals"
+        s = _make_signal(cid=f"0xNEW_{tier}", event_id="evt-shared")
+        s = s.model_copy(update={"confidence": tier})
+
+        EntryProcessor(deps).process_signals([m], [s])
+
+        assert f"0xNEW_{tier}" not in portfolio.positions, (
+            f"{tier}-tier should be blocked by same_market_type guard"
+        )
+        skips = [c[0][0].skip_reason for c in deps.skipped_logger.log.call_args_list]
+        assert "same_market_type_per_event" in skips, (
+            f"expected same_market_type_per_event skip for {tier}; got {skips}"
+        )
+
+
+def test_same_market_type_per_event_allows_different_market_type() -> None:
+    """Different market_types on the same event are independent — guard must NOT fire."""
+    from src.models.position import Position
+    portfolio = PortfolioManager(initial_bankroll=1000.0)
     portfolio.add_position(Position(
-        condition_id="0xEXISTING_B",
-        token_id="t-existing", direction="BUY_YES",
+        condition_id="0xTOTALS",
+        token_id="t-totals", direction="BUY_YES",
         entry_price=0.50, size_usdc=10.0, shares=20.0,
         current_price=0.50, anchor_probability=0.55,
-        event_id="evt-shared",
+        event_id="evt-mix",
         sports_market_type="tennis_set_totals",
         confidence="B",
     ))
-
     deps = _build_deps(portfolio=portfolio, max_positions_per_event=10)
 
-    # Try to add a second B set_totals signal on the SAME event/market_type -> SKIPPED
-    m_b = _make_market(cid="0xNEW_B", event_id="evt-shared", slug="atp-x-set-totals-4pt5")
-    m_b.sports_market_type = "tennis_set_totals"
-    s_b = _make_signal(cid="0xNEW_B", event_id="evt-shared")
-    s_b = s_b.model_copy(update={"confidence": "B"})
+    m = _make_market(cid="0xHANDICAP", event_id="evt-mix", slug="atp-x-set-handicap-home-1pt5")
+    m.sports_market_type = "tennis_set_handicap"
+    s = _make_signal(cid="0xHANDICAP", event_id="evt-mix")
 
-    EntryProcessor(deps).process_signals([m_b], [s_b])
+    EntryProcessor(deps).process_signals([m], [s])
 
-    # Second B was blocked
-    assert "0xNEW_B" not in portfolio.positions
-    calls = deps.skipped_logger.log.call_args_list
-    assert any(
-        c[0][0].skip_reason == "same_market_type_per_event_b" for c in calls
-    ), f"expected same_market_type_per_event_b skip; got {[c[0][0].skip_reason for c in calls]}"
-
-    # Now: an A signal for the SAME event/market_type -> ALLOWED (A unrestricted)
-    portfolio_a = PortfolioManager(initial_bankroll=1000.0)
-    portfolio_a.add_position(Position(
-        condition_id="0xEXISTING_A",
-        token_id="t-existing-a", direction="BUY_YES",
-        entry_price=0.50, size_usdc=15.0, shares=30.0,
-        current_price=0.50, anchor_probability=0.60,
-        event_id="evt-A-shared",
-        sports_market_type="tennis_set_totals",
-        confidence="A",
-    ))
-    deps_a = _build_deps(portfolio=portfolio_a, max_positions_per_event=10)
-
-    m_a = _make_market(cid="0xNEW_A", event_id="evt-A-shared", slug="atp-x-set-totals-4pt5")
-    m_a.sports_market_type = "tennis_set_totals"
-    s_a = _make_signal(cid="0xNEW_A", event_id="evt-A-shared")  # confidence="A" by default
-
-    EntryProcessor(deps_a).process_signals([m_a], [s_a])
-
-    # A was opened (no guard for A)
-    assert "0xNEW_A" in portfolio_a.positions
-    a_skips = [c[0][0].skip_reason for c in deps_a.skipped_logger.log.call_args_list]
-    assert "same_market_type_per_event_b" not in a_skips, (
-        f"A must not be blocked by B-only guard; skips: {a_skips}"
+    skips = [c[0][0].skip_reason for c in deps.skipped_logger.log.call_args_list]
+    assert "same_market_type_per_event" not in skips, (
+        f"different market_type must not be blocked; skips: {skips}"
     )
 
 

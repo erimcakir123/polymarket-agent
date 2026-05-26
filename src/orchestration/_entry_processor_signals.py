@@ -111,12 +111,13 @@ def process_signals(
                 )
                 continue
 
-        # 4b. B-only same_market_type per-event guard (chain loss prevention).
-        # A confidence (77% win rate in 51-trade analysis) compounds wins on
-        # same-direction multi-line bets — keep A unrestricted. B (26% win
-        # rate) compounds chain losses (aguilar-shelton set_totals 3.5+4.5 case)
-        # — block dup market_type per event for B only.
-        if signal.confidence == "B" and market.event_id:
+        # 4b. same_market_type per-event guard (correlation cap).
+        # Tiered totals/handicaps on the same event are positively correlated
+        # (Over 4.5 sets ⊂ Over 3.5 sets). Holding multiple ⇒ concentration,
+        # not diversification (Wizard of Odds, correlated-parlay industry rule).
+        # Applies to BOTH A and B — A-tier Grand Slam best-of-5 markets can
+        # also stack tiers; this guard is logic-based, not data-tier-specific.
+        if market.event_id:
             same_type_count = pm.count_event_market_type(
                 market.event_id, market.sports_market_type or "",
             )
@@ -124,11 +125,11 @@ def process_signals(
                 detail = (
                     f"event_id={market.event_id} "
                     f"market_type={market.sports_market_type} "
-                    f"already_held_for_B={same_type_count}"
+                    f"already_held={same_type_count}"
                 )
                 operational_writers.log_skip(
                     deps.skipped_logger, market,
-                    "same_market_type_per_event_b", detail=detail,
+                    "same_market_type_per_event", detail=detail,
                 )
                 continue
 
