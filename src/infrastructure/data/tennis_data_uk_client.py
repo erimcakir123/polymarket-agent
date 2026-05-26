@@ -1,19 +1,27 @@
 """Tennis Data UK historical match + closing odds parser.
 
-Source: http://www.tennis-data.co.uk/ (free, no auth). Provides ATP/WTA
-match results with closing odds from Pinnacle (PSW/PSL columns) and B365.
+Source: Kaggle mirror of tennis-data.co.uk — combined per-tour CSV
+(`df_atp.csv`, `df_wta.csv`). Original tennis-data.co.uk hosts per-year
+xlsx files but the site blocks scripted downloads; the Kaggle mirror
+(EdouardThomas/tennis-data-from-www-tennis-data-co-uk and similar) packs
+the same data into one CSV per tour. Coverage stops at ~2019; updates
+require a manual re-download when a newer mirror is published.
 
-Used by offline calibration scripts (scripts/calibration/) to compare our
-Glicko predictions to sharp-money closing odds. NOT used by live bot.
+Provides Pinnacle closing odds (PSW/PSL columns). Used by offline
+calibration scripts to compare our Glicko predictions to sharp-money
+closing odds. NOT used by live bot.
 """
 from __future__ import annotations
 
+import csv
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 logger = logging.getLogger(__name__)
+
+_TOUR_FILENAME = {"atp": "df_atp.csv", "wta": "df_wta.csv"}
 
 
 @dataclass(frozen=True)
@@ -33,71 +41,70 @@ class TennisDataUKMatch:
 
 
 class TennisDataUKClient:
-    """Read Tennis Data UK xlsx files (one per year per tour)."""
+    """Read Tennis Data UK combined CSV (one file per tour, all years)."""
 
     def __init__(self, cache_dir: Path) -> None:
         self._cache_dir = Path(cache_dir)
 
+    def load_all(self, tour: str) -> list[TennisDataUKMatch]:
+        return list(self._iter_matches(tour, year_filter=None))
+
     def load_year(self, tour: str, year: int) -> list[TennisDataUKMatch]:
-        path = self._cache_dir / f"{tour}_{year}.xlsx"
-        if not path.exists():
-            logger.warning("Tennis Data UK file missing: %s", path)
-            return []
-        try:
-            import openpyxl
-        except ImportError:
-            logger.error("openpyxl not installed — cannot parse Tennis Data UK xlsx")
-            return []
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-        ws = wb.active
-        rows_iter = ws.iter_rows(values_only=True)
-        headers = next(rows_iter, None)
-        if not headers:
-            return []
-        idx = {str(h): i for i, h in enumerate(headers) if h is not None}
-        matches: list[TennisDataUKMatch] = []
-        for row in rows_iter:
-            if row is None or all(v is None for v in row):
-                continue
-            m = self._parse_row(row, idx, tour)
-            if m is not None:
-                matches.append(m)
-        logger.info(
-            "Loaded %d Tennis Data UK %s matches from %s",
-            len(matches), tour.upper(), path.name,
-        )
-        return matches
+        return list(self._iter_matches(tour, year_filter=year))
 
     def load_years(self, tour: str, years: list[int]) -> list[TennisDataUKMatch]:
+        wanted = set(years)
         out: list[TennisDataUKMatch] = []
-        for y in years:
-            out.extend(self.load_year(tour, y))
+        for m in self._iter_matches(tour, year_filter=None):
+            if m.date[:4].isdigit() and int(m.date[:4]) in wanted:
+                out.append(m)
         return out
 
-    @staticmethod
-    def _parse_row(
-        row: tuple, idx: dict[str, int], tour: str,
-    ) -> TennisDataUKMatch | None:
-        def get(col: str) -> Any:
-            i = idx.get(col)
-            return row[i] if i is not None and i < len(row) else None
+    def _iter_matches(
+        self, tour: str, year_filter: Optional[int],
+    ) -> Iterator[TennisDataUKMatch]:
+        filename = _TOUR_FILENAME.get(tour.lower())
+        if filename is None:
+            logger.warning("Unknown tour: %s (expected atp|wta)", tour)
+            return
+        path = self._cache_dir / filename
+        if not path.exists():
+            logger.warning("Tennis Data UK file missing: %s", path)
+            return
+        kept = 0
+        with open(path, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            year_prefix = f"{year_filter}" if year_filter is not None else None
+            for row in reader:
+                date_raw = (row.get("Date") or "").strip()
+                if year_prefix and not date_raw.startswith(year_prefix):
+                    continue
+                m = self._parse_row(row, tour.lower())
+                if m is not None:
+                    kept += 1
+                    yield m
+        logger.info(
+            "Loaded %d Tennis Data UK %s matches from %s (year_filter=%s)",
+            kept, tour.upper(), filename, year_filter,
+        )
 
+    @staticmethod
+    def _parse_row(row: dict, tour: str) -> TennisDataUKMatch | None:
         try:
-            date_raw = get("Date")
-            date = str(date_raw)[:10] if date_raw is not None else ""
+            date_raw = (row.get("Date") or "").strip()
             return TennisDataUKMatch(
                 tour=tour,
-                date=date,
-                tournament=str(get("Tournament") or ""),
-                surface=str(get("Surface") or ""),
-                round_=str(get("Round") or ""),
-                best_of=int(get("Best of") or 0),
-                winner_name=str(get("Winner") or ""),
-                loser_name=str(get("Loser") or ""),
-                winner_rank=_to_int(get("WRank")),
-                loser_rank=_to_int(get("LRank")),
-                pinnacle_winner_odds=_to_float(get("PSW")),
-                pinnacle_loser_odds=_to_float(get("PSL")),
+                date=date_raw[:10],
+                tournament=str(row.get("Tournament") or ""),
+                surface=str(row.get("Surface") or ""),
+                round_=str(row.get("Round") or ""),
+                best_of=int(row.get("Best of") or 0),
+                winner_name=str(row.get("Winner") or ""),
+                loser_name=str(row.get("Loser") or ""),
+                winner_rank=_to_int(row.get("WRank")),
+                loser_rank=_to_int(row.get("LRank")),
+                pinnacle_winner_odds=_to_float(row.get("PSW")),
+                pinnacle_loser_odds=_to_float(row.get("PSL")),
             )
         except (ValueError, TypeError) as e:
             logger.debug("Skipping bad Tennis Data UK row: %s", e)
@@ -108,7 +115,7 @@ def _to_int(v: Any) -> Optional[int]:
     if v is None or v == "":
         return None
     try:
-        return int(v)
+        return int(float(v))
     except (ValueError, TypeError):
         return None
 
