@@ -28,26 +28,11 @@
   const CHART_STATE = { equityPeriod: "30d", pnlPeriod: "30d" };
   const LAST = { trades: [] };
 
-  // ── Replay simulation mode (per-card P&L = fix-active value) ──
-  // localStorage'da saklanır; user toggle ile değiştirir. Default = "simulated"
-  // (user 2026-05-26 istegi: "kartlari fix-active P&L ile renderla").
-  // Aktif olduğunda: api/summary, api/trades, api/trades/history endpoint'lerine
-  // ?mode=simulated eklenir → backend exit_pnl_usdc'yi (actual+delta) ile değiştirir.
-  function getReplayMode() {
-    return localStorage.getItem("replay_mode") || "simulated";
-  }
-  function setReplayMode(mode) {
-    localStorage.setItem("replay_mode", mode);
-  }
-  function _modeParam() {
-    const m = getReplayMode();
-    return m === "simulated" ? "&mode=simulated" : "";
-  }
-
   // ── API (fetch wrappers) ──
+  // Simulated mode default (api kendisi simulated değerler döndürür) — toggle yok.
   const API = {
     async _json(path) {
-      const r = await fetch(path + "?_=" + Date.now() + _modeParam());
+      const r = await fetch(path + "?_=" + Date.now());
       if (!r.ok) throw new Error(path + " " + r.status);
       return r.json();
     },
@@ -61,7 +46,6 @@
     stats() { return this._json("/api/stats"); },
     sportRoi() { return this._json("/api/sport_roi"); },
   };
-  global.REPLAY_MODE = { get: getReplayMode, set: setReplayMode };
 
   // ── CHARTS (Chart.js) — palette CSS'ten okunur, hex literal YASAK ──
   // Lazy init — script parse anında CSS henüz uygulanmamış olabilir.
@@ -413,29 +397,8 @@
         idleTickMs: CONFIG.idleTickMs,
       });
       global.FEED.bindTabs();
-      this._initReplayToggle();
       this.refresh();
       setInterval(() => this.refresh(), CONFIG.pollIntervalMs);
-    },
-    _initReplayToggle() {
-      const btn = document.getElementById("replay-toggle");
-      const banner = document.getElementById("replay-banner");
-      const label = document.getElementById("replay-toggle-label");
-      if (!btn || !banner || !label) return;
-      const apply = () => {
-        const mode = getReplayMode();
-        const sim = mode === "simulated";
-        banner.style.display = sim ? "" : "none";
-        label.textContent = sim ? "SIM" : "REAL";
-        btn.classList.toggle("active", sim);
-      };
-      btn.addEventListener("click", () => {
-        const cur = getReplayMode();
-        setReplayMode(cur === "simulated" ? "actual" : "simulated");
-        apply();
-        this.refresh();  // re-fetch with new mode
-      });
-      apply();
     },
   };
   document.addEventListener("DOMContentLoaded", () => MAIN.init());

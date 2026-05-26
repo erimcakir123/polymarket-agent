@@ -183,51 +183,6 @@ html, body {
 
 .topbar-spacer { flex: 1; }
 
-/* ── Replay simulation toggle (topbar button) ── */
-.replay-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  margin-right: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: "Inter", system-ui, sans-serif;
-}
-.replay-toggle.active {
-  background: rgba(8, 211, 145, 0.12);
-  border-color: rgba(8, 211, 145, 0.35);
-  color: var(--green);
-}
-.replay-toggle-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.replay-toggle.active .replay-toggle-dot {
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green);
-}
-.replay-toggle:hover { background: rgba(255, 255, 255, 0.06); }
-
-/* Banner — simulated mode aktifken topbar altinda görünür */
-.replay-banner {
-  grid-column: 1 / -1;
-  padding: 8px 16px;
-  background: rgba(8, 211, 145, 0.08);
-  border-bottom: 1px solid rgba(8, 211, 145, 0.25);
-  color: var(--text);
-  font-size: 12px;
-  font-family: "Inter", system-ui, sans-serif;
-}
-.replay-banner strong { color: var(--green); }
-
 /* ── Main column ── */
 .main {
   grid-area: main;

@@ -228,23 +228,6 @@
   justify-content: space-between;
 }
 
-/* Replay simulation overlay — exited card'da actual'in altında ince satır.
-   "Fix aktif olsaydı" P&L farkını her fix için ayrı chip olarak gösterir. */
-.feed-replay-sim {
-  margin-top: 4px;
-  font-size: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  font-family: "Inter", system-ui, sans-serif;
-}
-
-.sim-fix {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
 
 /* Active card — yeni öğeler (Task 7) */
 .feed-badges {

@@ -54,19 +54,21 @@ def _apply_simulated_pnl(
         new_r = dict(r)
         actual = r.get("exit_pnl_usdc") or 0.0
         delta = sum(f.get("delta_usdc", 0.0) for f in sim_entry["fixes"])
-        new_r["actual_exit_pnl_usdc"] = actual
+        new_r["actual_exit_pnl_usdc"] = actual  # debug için saklanır, UI göstermez
         new_r["exit_pnl_usdc"] = round(actual + delta, 2)
-        new_r["simulated"] = True
+        # simulated flag VERILMEZ — kart normal görünür, REPLAY badge tetiklenmez.
         out.append(new_r)
     return out
 
 
 def _mode_simulated(request_args: Any) -> bool:
-    """Query param ?mode=simulated → True. Default actual (False).
+    """Simulated mode = default (kullanıcı kararı 2026-05-26).
 
-    Dashboard JS gönderir; URL'de yoksa actual mode varsayılır.
+    Kartların P&L'i "fixler en başından beri aktif olsaydı" değerine eşitlenir.
+    ?mode=actual query'siyle açıkça gerçek değerlere dönülebilir (debug için);
+    parametresiz çağrı = simulated.
     """
-    return request_args.get("mode", "actual") == "simulated"
+    return request_args.get("mode", "simulated") != "actual"
 
 
 def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:

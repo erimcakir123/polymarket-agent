@@ -146,25 +146,9 @@
     const pnl = trades.reduce((s, t) => s + Number(t.exit_pnl_usdc || 0), 0);
     const wins = trades.filter((t) => Number(t.exit_pnl_usdc || 0) > 0).length;
     const wr = total > 0 ? Math.round((wins / total) * 100) : 0;
-    // Replay simulation: aydaki bütün fix delta'larının toplamı.
-    // Sadece replay_simulation alanı dolu trade'lerde anlamlı; yoksa 0.
-    const simDelta = trades.reduce((s, t) => {
-      if (t.replay_simulation && t.replay_simulation.fixes) {
-        return s + t.replay_simulation.fixes.reduce(
-          (ss, f) => ss + Number(f.delta_usdc || 0), 0,
-        );
-      }
-      return s;
-    }, 0);
     const C = global.COLORS || {};
     const pnlColor = pnl >= 0 ? (C.green || "#08D391") : (C.red || "#D7323C");
     const wrColor = wr >= 50 ? (C.green || "#08D391") : (C.red || "#D7323C");
-    const simColor = simDelta >= 0 ? (C.green || "#08D391") : (C.red || "#D7323C");
-    const simCard = simDelta !== 0
-      ? `<div class="modal-hero-card" title="Fixes aktif olsaydı aydaki net etki">` +
-          `<div class="modal-hero-value" style="color:${simColor}">${FMT.usdSignedHtml(simDelta)}</div>` +
-          `<div class="modal-hero-label">If-Fixes</div></div>`
-      : "";
     el.innerHTML =
       `<div class="modal-hero-card">` +
         `<div class="modal-hero-value" style="color:${pnlColor}">${FMT.usdSignedHtml(pnl)}</div>` +
@@ -174,8 +158,7 @@
         `<div class="modal-hero-label">Win Rate</div></div>` +
       `<div class="modal-hero-card">` +
         `<div class="modal-hero-value">${total}</div>` +
-        `<div class="modal-hero-label">Trades</div></div>` +
-      simCard;
+        `<div class="modal-hero-label">Trades</div></div>`;
   }
 
   function _renderChart(trades) {
@@ -250,17 +233,6 @@
       const icon = global.ICONS ? global.ICONS.getSportEmoji(t.sport_tag, t.slug) : "";
       const pnl = Number(t.exit_pnl_usdc || 0);
       const cls = pnl >= 0 ? "pnl-pos" : "pnl-neg";
-      // Replay simulation: tüm fix delta'larını topla, en büyük etkili fix label'ını title'a koy.
-      const sim = t.replay_simulation;
-      let simCell = `<td class="modal-sim-cell"></td>`;
-      if (sim && sim.fixes && sim.fixes.length) {
-        const totalDelta = sim.fixes.reduce((s, f) => s + Number(f.delta_usdc || 0), 0);
-        const dcls = totalDelta >= 0 ? "pnl-pos" : "pnl-neg";
-        const fixSummary = sim.fixes.map(
-          (f) => `${FMT.replaySimFixLabel(f.label)}: ${Number(f.delta_usdc || 0).toFixed(2)}`,
-        ).join(" | ");
-        simCell = `<td class="modal-sim-cell ${dcls}" title="${FMT.escapeHtml(fixSummary)}">${FMT.usdSignedHtml(totalDelta)}</td>`;
-      }
       return `<tr>
         <td>${dateStr}</td>
         <td>${icon}</td>
@@ -268,17 +240,11 @@
         <td>${_dirBadge(t.direction)}</td>
         <td>${_holdTime(t.entry_timestamp, t.exit_timestamp)}</td>
         <td class="${cls}">${FMT.usdSignedHtml(pnl)}</td>
-        ${simCell}
         <td>${_reasonBadge(t.exit_reason, pnl)}<button class="help-btn" type="button" onclick="event.stopPropagation(); event.preventDefault(); showSkipHelp('', 'exit', '${(String(t.exit_reason || "")).replace(/'/g, "").replace(/"/g, "")}')" title="Çıkış sebepleri açıkla">?</button></td>
       </tr>`;
     }).join("");
-    const header =
-      `<thead><tr>` +
-        `<th>Date</th><th></th><th>Match</th><th>Dir</th>` +
-        `<th>Hold</th><th>PnL</th><th title="Fixes aktif olsa toplam delta">If-Fixes</th><th>Reason</th>` +
-      `</tr></thead>`;
     wrap.innerHTML =
-      `<table class="modal-table">${header}<tbody>${rows}</tbody></table>`;
+      `<table class="modal-table"><tbody>${rows}</tbody></table>`;
   }
 
   // ── Data + navigation ──
@@ -286,9 +252,7 @@
   async function _loadMonth(monthOffset) {
     _offset = monthOffset;
     try {
-      const modeParam = (global.REPLAY_MODE && global.REPLAY_MODE.get() === "simulated")
-        ? "&mode=simulated" : "";
-      const r = await fetch("/api/trades/history?month_offset=" + _offset + "&_=" + Date.now() + modeParam);
+      const r = await fetch("/api/trades/history?month_offset=" + _offset + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const data = await r.json();
       // "May 2026" -> "May" bold + "2026" dim
