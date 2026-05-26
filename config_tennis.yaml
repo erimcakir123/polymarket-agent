@@ -40,13 +40,9 @@ edge:
   # tennis alt markets are inefficient (no bookmaker), expected raw edge smaller but more frequent.
   min_edge: 0.05
   confidence_multipliers: {A: 1.00, B: 1.00}
-  # 2026-05-26: Data-driven entry exclusions (51 closed trade analysis).
-  # ATP_set_totals B: 2W/10L, -$14.93 EV/trade, -$179 net. Clear negative signal.
-  # WTA_set_totals B (+$8 EV) and ATP_set_handicap B (+$5 EV) left enabled.
-  exclude_combos:
-    - tour: atp
-      market_type: tennis_set_totals
-      confidence: B
+  # exclude_combos: data-driven entry exclusions. Empty by default — only add
+  # combos with strong negative-EV evidence (n>=15 trades, net<-$50).
+  exclude_combos: []
 
 risk:
   # Bankroll $1000 — A non-bimodal $50 (5%), B non-bimodal $35 (3.5%), bimodal A/B $15 cap.

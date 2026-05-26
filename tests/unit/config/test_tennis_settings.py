@@ -55,17 +55,13 @@ def test_confidence_tier_a_enforces_h2h():
 # ── EntryExcludeCombo (data-driven entry exclusion) ──────────────────────────
 
 
-def test_edge_exclude_combos_loaded_from_yaml() -> None:
-    """2026-05-26 analysis: ATP_set_totals B (-$179 net) blocked via config."""
+def test_edge_exclude_combos_yaml_is_empty_list() -> None:
+    """Live config keeps exclude_combos empty — combos only added with strong evidence."""
     from pathlib import Path
 
     from src.config.settings import load_config
     cfg = load_config(Path("config_tennis.yaml"))
-    excl = cfg.edge.exclude_combos
-    assert any(
-        c.tour == "atp" and c.market_type == "tennis_set_totals" and c.confidence == "B"
-        for c in excl
-    )
+    assert cfg.edge.exclude_combos == []
 
 
 def test_edge_exclude_combos_default_empty() -> None:
