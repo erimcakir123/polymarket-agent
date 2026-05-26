@@ -35,10 +35,12 @@ def _attach_replay_simulation(
 def _apply_simulated_pnl(
     records: list[dict[str, Any]], logs_dir: Path,
 ) -> list[dict[str, Any]]:
-    """Simulated mode: replay_simulation entry varsa exit_pnl_usdc → (actual+delta).
+    """Simulated mode: replay_simulation'dakı fixleri uygula.
 
-    Actual değer `actual_exit_pnl_usdc` alanında saklanır (gerçek tarihçe için).
-    `simulated=True` flag'i UI'nin REPLAY badge'i göstermesi için eklenir.
+    same_market_type_blocked fixi varsa → bu trade simülasyonda hiç açılmamış
+    sayılır, response'tan KOMPLE çıkarılır (chart'ta boşluk olmaz).
+    Diğer fixler (bimodal_sl, resolved_sustained) → exit_pnl_usdc'ye delta
+    eklenir. Actual değer debug için actual_exit_pnl_usdc'de saklanır.
     Dosya üzerine yazılmaz — sadece response payload modifiye edilir.
     """
     sim = readers.read_replay_simulation(logs_dir)
@@ -51,12 +53,15 @@ def _apply_simulated_pnl(
         if not sim_entry or not sim_entry.get("fixes"):
             out.append(r)
             continue
+        fixes = sim_entry["fixes"]
+        # Block fixi → trade simülasyonda hiç açılmadı, response'a koyma.
+        if any(f.get("label") == "same_market_type_blocked" for f in fixes):
+            continue
         new_r = dict(r)
         actual = r.get("exit_pnl_usdc") or 0.0
-        delta = sum(f.get("delta_usdc", 0.0) for f in sim_entry["fixes"])
-        new_r["actual_exit_pnl_usdc"] = actual  # debug için saklanır, UI göstermez
+        delta = sum(f.get("delta_usdc", 0.0) for f in fixes)
+        new_r["actual_exit_pnl_usdc"] = actual
         new_r["exit_pnl_usdc"] = round(actual + delta, 2)
-        # simulated flag VERILMEZ — kart normal görünür, REPLAY badge tetiklenmez.
         out.append(new_r)
     return out
 
