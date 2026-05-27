@@ -78,6 +78,9 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
+    # 2026-05-27 (SPEC-force-close): market_type → max dakika; süre dolarsa pozisyon
+    # zorla kapatılır. Boş dict → feature devre dışı (mevcut SL/TP zincirine etki yok).
+    force_close_timeouts: dict[str, int] = Field(default_factory=dict)
 
 
 class MlbSubmarketConfig(BaseModel):

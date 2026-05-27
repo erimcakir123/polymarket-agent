@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 
 from src.domain.risk.cooldown import CooldownTracker
+from src.infrastructure.apis.espn_client import ESPNClient
 from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
@@ -55,6 +56,7 @@ class AgentDeps:
     score_enricher: ScoreEnricher | None = None  # SPEC-B: light cycle score injector + SPEC-Z5 match_live refresh
     mlb_submarket_engine: MlbSubmarketEngineProtocol | None = None  # SPEC-R: Plan 4'te gerçek engine
     tennis_start_enricher: TennisStartEnricher | None = None  # SPEC: light cycle'da tennis pozisyonlarinin match_start_iso'sunu ESPN ile refresh eder
+    espn_client: ESPNClient | None = None  # SPEC-force-close 2026-05-27: get_match_status icin
 
 
 class Agent:

@@ -17,12 +17,26 @@ from typing import Any, Callable
 
 import httpx
 
+# MatchStatus 2026-05-27'de src/models/match_status.py'a tasindi (strategy + infra
+# arasi katman ihlalini gidermek icin). Geriye donuk import yolu korunur.
+from src.models.match_status import MatchStatus  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 _ESPN_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports"
 _ESPN_CORE_URL = "https://sports.core.api.espn.com/v2/sports"
 _DEFAULT_HTTP_TIMEOUT = 10
 _TENNIS_COMPETITIONS_LIMIT = 50
+
+# Force-close get_match_status icin sport -> league mapping. Bilinmeyen sport
+# duser ki kendi adi league olarak denensin (paper-lab paritesi).
+_LEAGUES_FOR_SPORT: dict[str, list[str]] = {
+    "basketball": ["nba", "wnba", "mens-college-basketball", "womens-college-basketball"],
+    "football": ["nfl", "college-football"],
+    "hockey": ["nhl"],
+    "baseball": ["mlb"],
+    "tennis": ["atp", "wta"],
+}
 
 
 @dataclass
@@ -121,6 +135,74 @@ class ESPNClient:
             return []
 
         return self._parse_events(data, sport)
+
+    def get_match_status(self, event_id: str, sport: str) -> MatchStatus | None:
+        """Belirli bir event_id icin ESPN status'unu doner (force-close icin).
+
+        sport: "basketball" / "football" / "hockey" / "baseball" / "tennis" vb.
+        league mapping yapilmaz — sport icin known league set'i denenir.
+
+        Returns:
+            MatchStatus: mac bulundu ve parse edildi
+            None: API hatasi, parse hatasi, event bulunamadi
+        """
+        leagues = _LEAGUES_FOR_SPORT.get(sport, [sport])
+        for league in leagues:
+            url = f"{_ESPN_BASE_URL}/{sport}/{league}/scoreboard"
+            try:
+                resp = self._http_get(url, params={}, timeout=self._timeout)
+                if resp.status_code >= 400:
+                    continue
+                data = resp.json()
+            except (httpx.TimeoutException, httpx.HTTPError, ValueError) as e:
+                logger.warning("ESPN status %s/%s failed: %s", sport, league, e)
+                continue
+            except Exception as e:
+                logger.warning("ESPN status %s/%s unexpected: %s", sport, league, e)
+                continue
+
+            status = self._find_event_status(data, event_id, sport)
+            if status is not None:
+                return status
+
+        return None
+
+    def _find_event_status(self, data: dict, event_id: str, sport: str) -> MatchStatus | None:
+        """ESPN scoreboard data'sinda event_id'yi bul, MatchStatus dondur.
+
+        Tek bir bozuk event tum aramayi durdurmaz — _parse_events ile ayni
+        defansif pattern: per-event try/except + log + continue.
+        """
+        events = data.get("events") or []
+        for ev in events:
+            try:
+                if sport == "tennis":
+                    for grouping in (ev.get("groupings") or []):
+                        for comp in (grouping.get("competitions") or []):
+                            if str(comp.get("id", "")) == str(event_id):
+                                return self._extract_status(comp)
+                else:
+                    if str(ev.get("id", "")) == str(event_id):
+                        comps = ev.get("competitions") or []
+                        if comps:
+                            return self._extract_status(comps[0])
+            except (KeyError, TypeError, ValueError) as e:
+                logger.warning("ESPN status event parse failed (%s): %s", ev.get("id", "?"), e)
+                continue
+        return None
+
+    @staticmethod
+    def _extract_status(comp: dict) -> MatchStatus | None:
+        """Competition dict'ten MatchStatus uret. None -> parse basarisiz."""
+        status = comp.get("status") or {}
+        type_info = status.get("type") or {}
+        state = (type_info.get("state") or "").lower()
+        if not state:
+            return None
+        period_raw = status.get("period")
+        period = period_raw if isinstance(period_raw, int) and period_raw > 0 else None
+        completed = bool(type_info.get("completed", False))
+        return MatchStatus(state=state, period=period, is_completed=completed)
 
     def fetch_tennis_matches_today(
         self,

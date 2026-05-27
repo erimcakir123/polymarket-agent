@@ -159,3 +159,76 @@ def test_score_field_missing_treated_as_none() -> None:
     scores = client.fetch_scoreboard("hockey", "nhl")
     assert scores[0].home_score is None
     assert scores[0].away_score is None
+
+
+# ---------------------------------------------------------------------------
+# MatchStatus + get_match_status (SPEC-force-close 2026-05-27)
+# ---------------------------------------------------------------------------
+
+
+def test_match_status_dataclass_fields():
+    from src.infrastructure.apis.espn_client import MatchStatus
+    s = MatchStatus(state="post", period=4, is_completed=True)
+    assert s.state == "post"
+    assert s.period == 4
+    assert s.is_completed is True
+
+
+def test_get_match_status_returns_final_when_completed():
+    """NBA match: scoreboard final → state=post, completed=True."""
+    response = {
+        "events": [{
+            "id": "401234",
+            "competitions": [{
+                "status": {
+                    "type": {"state": "post", "completed": True},
+                    "period": 4,
+                },
+            }],
+        }],
+    }
+    http_get = MagicMock(return_value=_mock_response(response))
+    client = ESPNClient(http_get=http_get)
+    result = client.get_match_status("401234", sport="basketball")
+    assert result is not None
+    assert result.is_completed is True
+    assert result.state == "post"
+    assert result.period == 4
+
+
+def test_get_match_status_returns_in_progress():
+    """NBA match: 2. çeyrek devam → state=in, completed=False."""
+    response = {
+        "events": [{
+            "id": "401234",
+            "competitions": [{
+                "status": {
+                    "type": {"state": "in", "completed": False},
+                    "period": 2,
+                },
+            }],
+        }],
+    }
+    http_get = MagicMock(return_value=_mock_response(response))
+    client = ESPNClient(http_get=http_get)
+    result = client.get_match_status("401234", sport="basketball")
+    assert result is not None
+    assert result.is_completed is False
+    assert result.state == "in"
+    assert result.period == 2
+
+
+def test_get_match_status_event_not_found_returns_none():
+    response = {"events": []}
+    http_get = MagicMock(return_value=_mock_response(response))
+    client = ESPNClient(http_get=http_get)
+    result = client.get_match_status("nonexistent", sport="basketball")
+    assert result is None
+
+
+def test_get_match_status_api_error_returns_none():
+    import httpx
+    http_get = MagicMock(side_effect=httpx.TimeoutException("timeout"))
+    client = ESPNClient(http_get=http_get)
+    result = client.get_match_status("401234", sport="basketball")
+    assert result is None

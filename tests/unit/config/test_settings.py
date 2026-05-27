@@ -106,8 +106,8 @@ def test_repo_config_yaml_parses() -> None:
     # 2026-05-15 iyi-donem-rollback: 19 Apr peak sport portföyü geri açıldı.
     # Hockey için SADECE NHL. Tennis 2026-05-23'te ana bot listesinden çıkarıldı
     # (TODO-006: SPEC-Y7 — tennis lab feature/tennis-lab branch'ında ayrı pipeline).
+    # Baseball 2026-05-26 ana bot listesinden çıkarıldı (bleed: 5 haftada -$297).
     for must_have in (
-        "mlb", "milb", "npb", "kbo", "baseball",
         "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
         "nhl",
         "ncaaf", "cfl", "ufl",
@@ -120,6 +120,11 @@ def test_repo_config_yaml_parses() -> None:
         assert banned_tennis not in cfg.scanner.allowed_sport_tags, (
             f"{banned_tennis} ana botta olmamalı — tennis lab ayrı"
         )
+    # 2026-05-26: Baseball ana botta OLMAMALI (bleed kontrolü)
+    for banned_baseball in ("mlb", "milb", "npb", "kbo", "baseball"):
+        assert banned_baseball not in cfg.scanner.allowed_sport_tags, (
+            f"{banned_baseball} ana botta olmamalı — 2026-05-26 bleed kontrolü"
+        )
     # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
     for banned in ("soccer_epl", "soccer_laliga"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
@@ -128,3 +133,23 @@ def test_repo_config_yaml_parses() -> None:
         assert hockey_minor not in cfg.scanner.allowed_sport_tags, (
             f"{hockey_minor} eklenmez — kullanıcı kararı (sadece NHL)"
         )
+
+
+def test_force_close_timeouts_default_is_empty_dict() -> None:
+    """Boş default → feature devre dışı (yaml override etmedikçe)."""
+    cfg = AppConfig()
+    assert cfg.risk.force_close_timeouts == {}
+
+
+def test_force_close_timeouts_yaml_override_parses(tmp_path: Path) -> None:
+    p = tmp_path / "cfg.yaml"
+    p.write_text(
+        "risk:\n"
+        "  force_close_timeouts:\n"
+        "    nba_match_winner: 180\n"
+        "    default: 300\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(p)
+    assert cfg.risk.force_close_timeouts["nba_match_winner"] == 180
+    assert cfg.risk.force_close_timeouts["default"] == 300

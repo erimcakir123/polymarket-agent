@@ -9,8 +9,13 @@ import logging
 from datetime import datetime, timezone
 
 from src.domain.portfolio.lifecycle import tick_position_state
+from src.models.enums import ExitReason
 from src.models.position import Position
 from src.orchestration import operational_writers
+from src.orchestration.force_close_executor import (
+    ForceCloseExecutor,
+    reason_to_exit_reason,
+)
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
 
@@ -22,6 +27,12 @@ class ExitProcessor:
 
     def __init__(self, deps) -> None:
         self.deps = deps
+        # Force-close executor — espn_client deps üzerinden opsiyonel; None ise
+        # time-based path tek başına çalışır (graceful degradation).
+        self._force_close = ForceCloseExecutor(
+            espn_client=getattr(deps, "espn_client", None),
+            executor=deps.executor,
+        )
 
     def run_light(self, score_map: dict[str, dict] | None = None) -> None:
         """Her pozisyonu cycle-state tick + exit_monitor'dan geçir.
@@ -50,7 +61,20 @@ class ExitProcessor:
             self._apply_fav_transition(pos, result.fav_transition)
 
             if result.exit_signal is not None:
-                self._execute_exit(pos, result.exit_signal)
+                exit_status = self._execute_exit(pos, result.exit_signal)
+                if exit_status == "FILLED":
+                    exits_processed += 1
+                    continue
+                # Hiç fill olmadıysa (ana botta şu an için simulated her zaman FILLED)
+                # force-close safety net'i aşağıda çalıştır — pozisyon hâlâ açık demek.
+
+            # Force-close safety net (SPEC-force-close 2026-05-27) — deep-loss
+            # pozisyon + maç bitti senaryosu. ForceCloseExecutor pure-check döner,
+            # tetiklenirse aşağıda fill + finalize.
+            timeouts = self.deps.state.config.risk.force_close_timeouts
+            fc_signal = self._force_close.check(pos, timeouts)
+            if fc_signal is not None:
+                self._execute_force_close(pos, fc_signal)
                 exits_processed += 1
 
         if exits_processed > 0:
@@ -66,15 +90,45 @@ class ExitProcessor:
             pos.favored = False
             logger.info("FAV DEMOTED: %s", pos.slug[:40])
 
-    def _execute_exit(self, pos: Position, signal: ExitSignal) -> None:
-        """Exit sinyalini execute et — full veya partial."""
+    def _execute_exit(self, pos: Position, signal: ExitSignal) -> str:
+        """Exit sinyalini execute et — full veya partial.
+
+        Returns:
+            "FILLED" → pozisyon kapandı (caller continue eder)
+            (ana bot mevcut akış: simulated/live her ikisi de FILLED varsayar;
+            force-close branch'i ileride REJECTED/PARTIAL_FILL dönecek paper
+            mode için hazır.)
+        """
         if signal.partial:
             self._execute_partial_exit(pos, signal)
-            return
+            return "FILLED"
 
         self.deps.executor.exit_position(pos, reason=signal.reason.value)
         realized = pos.unrealized_pnl_usdc
 
+        self._finalize_full_exit(
+            pos=pos,
+            exit_price=pos.current_price,
+            realized=realized,
+            exit_reason_value=signal.reason.value,
+            audit_signal=signal,
+        )
+        return "FILLED"
+
+    def _finalize_full_exit(
+        self,
+        pos: Position,
+        exit_price: float,
+        realized: float,
+        exit_reason_value: str,
+        audit_signal: ExitSignal | None,
+    ) -> None:
+        """Full-exit finalize: portfolio remove + breaker + cooldown + ws unsub + audit.
+
+        DRY: `_execute_exit` (normal FILLED branch) + `_execute_force_close` ortak
+        kullanıyor. `audit_signal=None` → synth-from-exit fallback'te `signal.detail`
+        olmayan force-close path için synth record yine yazılır.
+        """
         self.deps.state.portfolio.remove_position(pos.condition_id, realized_pnl_usdc=realized)
         self.deps.state.circuit_breaker.record_exit(
             pnl_usd=realized, portfolio_value=self.deps.state.portfolio.bankroll + pos.size_usdc,
@@ -87,8 +141,8 @@ class ExitProcessor:
         pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
         now_iso = datetime.now(timezone.utc).isoformat()
         logged = self.deps.trade_logger.update_on_exit(pos.condition_id, {
-            "exit_price": pos.current_price,
-            "exit_reason": signal.reason.value,
+            "exit_price": exit_price,
+            "exit_reason": exit_reason_value,
             "exit_pnl_usdc": round(realized, 2),
             "exit_pnl_pct": round(pnl_pct, 4),
             "exit_timestamp": now_iso,
@@ -97,15 +151,57 @@ class ExitProcessor:
             # SPEC-G: matching open record yok (orphan / phantom recovery atlandı).
             # Audit gap olusturmamak icin synth-from-exit complete record yaz —
             # entry_price + exit_price ayni satirda, exit_reason "synth-from-exit".
-            self._write_synth_exit_record(pos, signal, realized, pnl_pct, now_iso)
+            self._write_synth_exit_record(
+                pos, exit_reason_value, exit_price, realized, pnl_pct, now_iso,
+            )
 
+        detail = audit_signal.detail if audit_signal is not None else "force_close"
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
-                    pos.slug[:35], signal.reason.value, realized, signal.detail)
+                    pos.slug[:35], exit_reason_value, realized, detail)
 
-    def _write_synth_exit_record(self, pos: Position, signal: ExitSignal,
-                                  realized: float, pnl_pct: float, now_iso: str) -> None:
+    def _execute_force_close(self, pos: Position, signal) -> None:
+        """Force-close execution — bid book walk full slippage bypass.
+
+        Bid varsa: realize @ avg_price (FORCE_CLOSE_ESPN veya FORCE_CLOSE_TIME).
+        Bid yoksa: realize @ 0 (FORCE_CLOSE_NO_BIDS) — tam kayıp.
+        Hem fill hem finalize `_finalize_full_exit` üzerinden (DRY).
+        """
+        avg_price, filled_shares, no_bids = self._force_close.fill_via_book(pos)
+        if no_bids:
+            exit_reason_value = ExitReason.FORCE_CLOSE_NO_BIDS.value
+            # Bid yok → realize @ 0, tam size kaybı (-size_usdc).
+            self._finalize_full_exit(
+                pos=pos, exit_price=0.0, realized=-pos.size_usdc,
+                exit_reason_value=exit_reason_value, audit_signal=None,
+            )
+        else:
+            exit_reason_value = reason_to_exit_reason(signal.reason).value
+            # filled_shares < pos.shares ise yine "full close" semantik:
+            # bid'le satılabilen kadar realize, kalan share zarar yazılır.
+            realized = filled_shares * avg_price - pos.size_usdc
+            self._finalize_full_exit(
+                pos=pos, exit_price=avg_price, realized=realized,
+                exit_reason_value=exit_reason_value, audit_signal=None,
+            )
+        logger.info(
+            "FORCE_CLOSE %s reason=%s shares_filled=%.2f avg=%.3f",
+            (pos.slug or pos.token_id)[:40], exit_reason_value, filled_shares, avg_price,
+        )
+
+    def _write_synth_exit_record(
+        self,
+        pos: Position,
+        exit_reason_value: str,
+        exit_price: float,
+        realized: float,
+        pnl_pct: float,
+        now_iso: str,
+    ) -> None:
         """SPEC-G: orphan/phantom-yok exit'lerde audit gap'i kapatmak icin
-        complete synth record yaz. Entry + exit aynı satirda, gercek pos verileriyle."""
+        complete synth record yaz. Entry + exit aynı satirda, gercek pos verileriyle.
+
+        2026-05-27: signature signal yerine primitive — force-close path da
+        kullanır (signal nesnesi olmayabilir)."""
         from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
         category, league = _split_sport_tag(pos.sport_tag or "")
         try:
@@ -129,8 +225,8 @@ class ExitProcessor:
                 has_sharp=False,
                 entry_reason=f"synth-from-exit:{pos.entry_reason or 'unknown'}",
                 entry_timestamp=pos.match_start_iso or now_iso,
-                exit_price=pos.current_price,
-                exit_reason=signal.reason.value,
+                exit_price=exit_price,
+                exit_reason=exit_reason_value,
                 exit_pnl_usdc=round(realized, 2),
                 exit_pnl_pct=round(pnl_pct, 4),
                 exit_timestamp=now_iso,
