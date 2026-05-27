@@ -98,6 +98,9 @@ class RiskConfig(BaseModel):
     # making simple stop_loss fire prematurely. graduated_sl (elapsed-aware) remains
     # active as backup. shnaide-zarazua case: -$66 catastrophic from premature SL.
     stop_loss_exempt_market_types: List[str] = []
+    # 2026-05-27 (SPEC-force-close): market_type → max dakika; süre dolarsa pozisyon
+    # zorla kapatılır. Boş dict → feature devre dışı (mevcut SL/TP zincirine etki yok).
+    force_close_timeouts: dict[str, int] = Field(default_factory=dict)
 
 
 class EarlyEntryConfig(BaseModel):

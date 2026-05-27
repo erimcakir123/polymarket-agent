@@ -37,12 +37,21 @@ class ExitReason(str, Enum):
     PREDICTIVE_DEAD = "predictive_dead"
     SCORE_EXIT = "score_exit"
     RESOLVED = "resolved"  # Market resolved (price ≤0.03 lost / ≥0.97 won)
+    # Force-close (SPEC-force-close 2026-05-27) — safety net for deep-loss positions
+    # whose match has ended but normal exit chain didn't fire.
+    FORCE_CLOSE_ESPN = "force_close_espn_event_ended"
+    FORCE_CLOSE_TIME = "force_close_time_expired"
+    FORCE_CLOSE_NO_BIDS = "force_close_no_bids"
 
 
 class SportsMarketType(str, Enum):
     MONEYLINE = "moneyline"
     SPREADS = "spreads"
     TOTALS = "totals"
+    # Tennis sub-markets — Polymarket raw strings (sandbox/tennis-lab only)
+    TENNIS_FIRST_SET_WINNER = "tennis_first_set_winner"
+    TENNIS_SET_HANDICAP = "tennis_set_handicap"
+    TENNIS_SET_TOTALS = "tennis_set_totals"
 
 
 class TotalSide(str, Enum):

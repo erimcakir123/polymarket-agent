@@ -47,6 +47,11 @@ class ESPNMatchScore:
     raw_status: dict[str, Any] = field(default_factory=dict)
 
 
+# MatchStatus 2026-05-27'de src/models/match_status.py'a taşındı (strategy + infra
+# arası katman ihlalini gidermek için). Geriye dönük import yolu korunur.
+from src.models.match_status import MatchStatus  # noqa: E402
+
+
 def _parse_clock_to_seconds(clock: str) -> int | None:
     if not clock or not isinstance(clock, str):
         return None
@@ -127,6 +132,75 @@ class ESPNClient:
             return []
 
         return self._parse_events(data, sport)
+
+    def get_match_status(self, event_id: str, sport: str) -> MatchStatus | None:
+        """Belirli bir event_id için ESPN status'ını döner.
+
+        Returns:
+            MatchStatus: maç bulundu ve parse edildi
+            None: API hatası, parse hatası, event bulunamadı
+        """
+        if sport == "tennis":
+            leagues = ["atp", "wta"]
+        else:
+            leagues = [sport]
+
+        for league in leagues:
+            url = f"{_ESPN_BASE_URL}/{sport}/{league}/scoreboard"
+            try:
+                resp = self._http_get(url, params={}, timeout=self._timeout)
+                if resp.status_code >= 400:
+                    continue
+                data = resp.json()
+            except (httpx.TimeoutException, httpx.HTTPError, ValueError) as e:
+                logger.warning("ESPN status %s/%s failed: %s", sport, league, e)
+                continue
+            except Exception as e:
+                logger.warning("ESPN status %s/%s unexpected: %s", sport, league, e)
+                continue
+
+            status = self._find_event_status(data, event_id, sport)
+            if status is not None:
+                return status
+
+        return None
+
+    def _find_event_status(self, data: dict, event_id: str, sport: str) -> MatchStatus | None:
+        """ESPN scoreboard data'sında event_id'yi bul, MatchStatus döndür.
+
+        Tek bir bozuk event ham aramayı durdurmaz — _parse_events ile aynı
+        defansif pattern: per-event try/except + log + continue.
+        """
+        events = data.get("events") or []
+        for ev in events:
+            try:
+                if sport == "tennis":
+                    for grouping in (ev.get("groupings") or []):
+                        for comp in (grouping.get("competitions") or []):
+                            if str(comp.get("id", "")) == str(event_id):
+                                return self._extract_status(comp)
+                else:
+                    if str(ev.get("id", "")) == str(event_id):
+                        comps = ev.get("competitions") or []
+                        if comps:
+                            return self._extract_status(comps[0])
+            except (KeyError, TypeError, ValueError) as e:
+                logger.warning("ESPN status event parse failed (%s): %s", ev.get("id", "?"), e)
+                continue
+        return None
+
+    @staticmethod
+    def _extract_status(comp: dict) -> MatchStatus | None:
+        """Competition dict'ten MatchStatus üret. None → parse başarısız."""
+        status = comp.get("status") or {}
+        type_info = status.get("type") or {}
+        state = (type_info.get("state") or "").lower()
+        if not state:
+            return None
+        period_raw = status.get("period")
+        period = period_raw if isinstance(period_raw, int) and period_raw > 0 else None
+        completed = bool(type_info.get("completed", False))
+        return MatchStatus(state=state, period=period, is_completed=completed)
 
     def _parse_events(self, data: dict, sport: str) -> list[ESPNMatchScore]:
         events = data.get("events") or []

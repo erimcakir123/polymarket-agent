@@ -123,3 +123,36 @@ def test_repo_config_yaml_parses() -> None:
         assert hockey_minor not in cfg.scanner.allowed_sport_tags, (
             f"{hockey_minor} eklenmez — kullanıcı kararı (sadece NHL)"
         )
+
+
+def test_force_close_timeouts_loads_from_yaml(tmp_path: Path) -> None:
+    import yaml
+    cfg_dict = {
+        "initial_bankroll": 1000,
+        "scan_interval_seconds": 60,
+        "max_active_markets": 30,
+        "edge": {"min_edge": 0.05, "min_market_volume": 100},
+        "risk": {
+            "max_single_bet_usdc": 50,
+            "max_bet_pct": 0.05,
+            "confidence_bet_pct": {"A": 0.05, "B": 0.035},
+            "force_close_timeouts": {
+                "tennis_first_set_winner": 60,
+                "default": 300,
+            },
+        },
+    }
+    cfg_path = tmp_path / "test_config.yaml"
+    cfg_path.write_text(yaml.dump(cfg_dict), encoding="utf-8")
+    cfg = load_config(cfg_path)
+    assert cfg.risk.force_close_timeouts["tennis_first_set_winner"] == 60
+    assert cfg.risk.force_close_timeouts["default"] == 300
+
+
+def test_force_close_timeouts_defaults_to_empty() -> None:
+    from src.config.settings import RiskConfig
+    rc = RiskConfig(
+        max_single_bet_usdc=50, max_bet_pct=0.05,
+        confidence_bet_pct={"A": 0.05, "B": 0.035},
+    )
+    assert rc.force_close_timeouts == {}

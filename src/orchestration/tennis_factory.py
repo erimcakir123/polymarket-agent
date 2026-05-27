@@ -179,8 +179,9 @@ def build_tennis_deps(
     gamma_client = GammaClient()
 
     # Entry + exit infrastructure (shared deps container — built once, used both)
+    # espn passed to exit processor for force-close ESPN-first path (SPEC-force-close).
     entry_processor, exit_processor, equity_logger, trade_logger = _build_entry_exit_processors(
-        cfg, state, data_path, logs_path, price_feed,
+        cfg, state, data_path, logs_path, price_feed, espn_client=espn,
     )
 
     logger.info(
@@ -212,6 +213,8 @@ def _build_entry_exit_processors(
     data_dir: Path,
     logs_dir: Path,
     price_feed: PriceFeed,
+    *,
+    espn_client: ESPNClient | None = None,
 ) -> tuple[EntryProcessor, ExitProcessor, EquityHistoryLogger, TradeHistoryLogger]:
     """Paper-mode entry + exit pipeline'larını ortak deps üzerinde kur.
 
@@ -308,6 +311,9 @@ def _build_entry_exit_processors(
         cooldown: CooldownTracker
         cycle_manager: CycleManager
         price_feed: PriceFeed | None = None
+        # SPEC-force-close 2026-05-27: ExitProcessor force-close path için ESPN.
+        # None ise time-based fallback tek başına çalışır.
+        espn_client: ESPNClient | None = None
 
     deps = _TennisAgentDeps(
         state=state,
@@ -320,5 +326,6 @@ def _build_entry_exit_processors(
         cooldown=cooldown,
         cycle_manager=cycle_manager,
         price_feed=price_feed,
+        espn_client=espn_client,
     )
     return EntryProcessor(deps), ExitProcessor(deps), equity_logger, trade_logger

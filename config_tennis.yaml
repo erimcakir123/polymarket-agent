@@ -74,6 +74,18 @@ risk:
     - tennis_set_totals
     - tennis_match_totals
     - tennis_first_set_totals
+  # 2026-05-27 (SPEC-force-close): market_type başına max dakika.
+  # ESPN bittiğini gösterirse veya süre dolduğunda pozisyon zorla bid'den satılır,
+  # bid yoksa 0 ile realize. Saf güvenlik ağı — normal SL/TP zincirine etki yok.
+  force_close_timeouts:
+    tennis_first_set_winner: 60
+    tennis_set_handicap: 60
+    tennis_first_set_totals: 60
+    tennis_match_winner: 200
+    tennis_match_totals: 200
+    tennis_set_totals: 200
+    moneyline: 200
+    default: 300
 
 circuit_breaker:
   # Paper trading context — no real capital at risk, CB disabled intentionally.

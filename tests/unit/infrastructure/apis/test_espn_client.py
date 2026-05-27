@@ -159,3 +159,95 @@ def test_score_field_missing_treated_as_none() -> None:
     scores = client.fetch_scoreboard("hockey", "nhl")
     assert scores[0].home_score is None
     assert scores[0].away_score is None
+
+
+def test_match_status_dataclass_fields():
+    from src.infrastructure.apis.espn_client import MatchStatus
+    s = MatchStatus(state="FINAL", period=2, is_completed=True)
+    assert s.state == "FINAL"
+    assert s.period == 2
+    assert s.is_completed is True
+
+
+def test_get_match_status_returns_final_when_completed():
+    from src.infrastructure.apis.espn_client import ESPNClient
+
+    def fake_http_get(url, params=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                return {
+                    "events": [{
+                        "groupings": [{
+                            "competitions": [{
+                                "id": "401234",
+                                "status": {"type": {"state": "post", "completed": True}, "period": 2},
+                                "competitors": [
+                                    {"homeAway": "home", "athlete": {"displayName": "A"}},
+                                    {"homeAway": "away", "athlete": {"displayName": "B"}},
+                                ],
+                                "linescores": [],
+                            }]
+                        }],
+                    }],
+                }
+        return R()
+
+    client = ESPNClient(http_get=fake_http_get)
+    result = client.get_match_status("401234", sport="tennis")
+    assert result is not None
+    assert result.is_completed is True
+    assert result.state == "post"
+
+
+def test_get_match_status_returns_in_progress():
+    from src.infrastructure.apis.espn_client import ESPNClient
+
+    def fake_http_get(url, params=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                return {"events": [{"groupings": [{"competitions": [{
+                    "id": "401234",
+                    "status": {"type": {"state": "in", "completed": False}, "period": 1},
+                    "competitors": [
+                        {"homeAway": "home", "athlete": {"displayName": "A"}},
+                        {"homeAway": "away", "athlete": {"displayName": "B"}},
+                    ],
+                    "linescores": [],
+                }]}]}]}
+        return R()
+
+    client = ESPNClient(http_get=fake_http_get)
+    result = client.get_match_status("401234", sport="tennis")
+    assert result is not None
+    assert result.is_completed is False
+    assert result.state == "in"
+    assert result.period == 1
+
+
+def test_get_match_status_event_not_found_returns_none():
+    from src.infrastructure.apis.espn_client import ESPNClient
+
+    def fake_http_get(url, params=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                return {"events": []}
+        return R()
+
+    client = ESPNClient(http_get=fake_http_get)
+    result = client.get_match_status("nonexistent", sport="tennis")
+    assert result is None
+
+
+def test_get_match_status_api_error_returns_none():
+    import httpx
+    from src.infrastructure.apis.espn_client import ESPNClient
+
+    def fake_http_get(url, params=None, timeout=None):
+        raise httpx.TimeoutException("timeout")
+
+    client = ESPNClient(http_get=fake_http_get)
+    result = client.get_match_status("401234", sport="tennis")
+    assert result is None
