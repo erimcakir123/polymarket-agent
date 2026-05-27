@@ -267,6 +267,7 @@ def build_agent(state: RuntimeState) -> Agent:
         score_enricher=score_enricher,
         mlb_submarket_engine=mlb_engine,
         tennis_start_enricher=tennis_enricher,
+        espn_client=espn,  # SPEC-force-close 2026-05-27
     )
     agent = Agent(deps)
 

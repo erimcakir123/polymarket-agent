@@ -36,6 +36,11 @@ class ExitReason(str, Enum):
     MANUAL = "manual"
     PREDICTIVE_DEAD = "predictive_dead"
     SCORE_EXIT = "score_exit"
+    # Force-close (SPEC-force-close 2026-05-27) — safety net for deep-loss positions
+    # whose match has ended but normal exit chain didn't fire.
+    FORCE_CLOSE_ESPN = "force_close_espn_event_ended"
+    FORCE_CLOSE_TIME = "force_close_time_expired"
+    FORCE_CLOSE_NO_BIDS = "force_close_no_bids"
 
 
 class SportsMarketType(str, Enum):

@@ -1050,6 +1050,28 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 
 ---
 
+### 2026-05-26 — Baseball Portföyden Çıkarıldı (Bleed Kontrolü)
+
+**Bağlam:** Dashboard branş kırılımı + audit tüm-tarih analizi: baseball 5 haftada (19 Nis → 26 May) 122 pozisyon, **67 kapanış, %37 win, net −$297**. Post-reboot 48 saatte (24 May 18:00 → 26 May): 21 pozisyon, **12 kapanış, %25 win, net −$107**. Aynı dönemde NBA +$21, WNBA −$1, NHL −$3 → diğer üç spor net **+$17 artıda**. Baseball tek başına bot'u eksiye çekti. Counterfactual: baseball hiç açılmasaydı dashboard realized **+$120.88 yerine +$185.88** olurdu.
+
+**Çıkış sebebi mucize deseni (39 SL exit / 25 near-resolve exit):** her SL'ye düşen pozisyon %100 kaybetti, her maç-sonuna varan pozisyon %100 kazandı. Yani edge yanlış değil, **giriş zamanlaması + SL bizi kestirmeden atıyor**. Submarket kırılımı: moneyline n=98 %34 −$319, runline n=9 %0 −$74, totals n=11 %100 +$88 — yalnız totals pozitif ama (a) örneklem 11, (b) totals path'i `mlb_submarket.enabled=false` ile zaten kapalı (SPEC-Y7 — heavy cycle API bottleneck).
+
+**Karar:** `config.yaml > scanner > allowed_sport_tags` listesinden 5 baseball etiketi (`mlb, milb, npb, kbo, baseball`) çıkarıldı. Scanner artık baseball marketlerini sport_tag filter'da reddeder ([src/orchestration/scanner.py:174-176](src/orchestration/scanner.py#L174-L176)). Yeni MLB pozisyonu açılmaz; mevcut 9 açık MLB pozisyonu doğal SL/scale-out/near_resolve ile kapanır (~$450 exposure azalır).
+
+**Geri-açma protokolü:** Bu liste-bazlı kapatma 5 satır geri ekleme ile çözülür. Tekrar açma kararı için ön koşul: (a) MLB submarket engine performans bottleneck çözümlü (mevcut: 30 market × 30s = 12+dk heavy cycle bloğu), (b) totals-only başlangıç (moneyline + runline kapalı kalır — empirik kanıt zayıf), (c) 50+ trade örneklemle paper test.
+
+**Etki:**
+- [config.yaml](config.yaml#L29-L34) `allowed_sport_tags` baseball satırları silindi (yorum eklendi)
+- [tests/unit/config/test_settings.py](tests/unit/config/test_settings.py) `must_have`'dan baseball çıkarıldı + yeni `banned_baseball` assertion eklendi
+- Açık 9 MLB pozisyon: hold-to-resolve modunda doğal kapanış
+- mlb_submarket.enabled=false dokunulmadı (geri-açma yolu açık)
+
+**Açık takip:**
+- Mevcut 9 açık pozisyon kapanınca lifetime baseball P&L kesinleşir (şu an −$107 + open −$65 = ~−$172 dashboard'a göre)
+- Totals path'i bağımsız ve verimli hale getirilirse (Polymarket Agent 2.0 MLB Submarket Lab spec'i) baseball totals geri açılabilir — moneyline ve runline kalıcı kapalı tutulmalı
+
+---
+
 ### 2026-05-25 — SPEC-Z2..Z10: Bot İyileştirme Paketi (phantom market + dashboard parity + audit ground truth)
 
 **Bağlam:** 2026-05-24 SPEC-Z lookback fix sonrası bot trade almaya başladı. Aynı gün/ertesi gün audit'inde 4× Detroit-Baltimore $476 phantom trade tespit edildi (bestBid=None + entry 4¢ → exit 100¢ — matematiksel olarak imkansız "kazanç"). Aynı oturumda dashboard'da realized widget ↔ EXITED tab tutarsızlığı + gizemli archive scheduler'ın trade_history.jsonl'i boşaltması + LIVE rozet eksikliği + score enricher'ın tüm sporlar için çalışmaması ortaya çıktı. Tek brainstorming → spec → subagent TDD zinciriyle 9 düzeltme uygulandı.
@@ -2878,3 +2900,29 @@ work begins.
 **Metrics to watch (first 7 days):** position count, daily PnL, capital lock duration, exposure cap saturation.
 
 **Sprint sequence note:** Sprint 1 (MLB dormant) → Sprint 1.5 (gate refactor + MLB activation) → Sprint 2 (this — NBA/NHL window widening).
+
+---
+
+## SPEC-force-close (2026-05-27) — DONE
+
+**Sorun:** Bazı pozisyonlar -%99 zarara düşüp orderbook'ta alıcı kalmayınca SL bypass'a takılıp açık kalıyordu. Concrete: `atp-humbert-halys-2026-05-27-first-set-winner` entry 0.567 → current 0.0005, 162+ retry sonra hâlâ açık. `stop_loss.py:36-37`'deki "stale price" skip (`current_price <= 0.001`) gerçek -%99 düşüşü "WS tick gelmedi" sanıyordu.
+
+**Çözüm:** Hybrid time+ESPN force-close güvenlik ağı, normal SL/TP/scale-out zincirinden bağımsız:
+
+1. **ESPN-first kontrol:** `MatchStatus` event-state çekilir; `is_completed=True` veya market_type-specific period bitmiş ise (first_set için period>=2, quarter_1 için period>=2) → signal "espn_event_ended"
+2. **Time fallback:** ESPN cevap yok ise `now - match_start_iso` elapsed hesaplanır; `force_close_timeouts[market_type]` (veya default) aşıldıysa → signal "time_expired"
+3. **Slippage bypass:** Sinyal varsa bid book full slippage (`max_slippage_pct=1.0`) ile walk → ne fiyatta olursa olsun satılır
+4. **Bid yoksa 0 realize:** Orderbook'ta hiç bid yoksa pozisyon 0 fiyatla manuel realize edilir, `FORCE_CLOSE_NO_BIDS` reason ile audit'e yazılır
+
+**Trigger gate:** `unrealized_pnl_pct <= -0.50` (CPU + false-positive korumacı, normal SL'in alanına girmez). `force_close_timeouts` config boş ise feature devre dışı (yeni proje için opt-in).
+
+**Karar mantığı saf:** `src/strategy/exit/time_force_close.py:check()` — I/O yok, sadece state + ESPN status + zaman → signal. Orchestration `force_close_executor.py`'da, normal exit chain'den sonra çağrılır. `_execute_exit` artık status string döndürür ("FILLED"/"REJECTED"/"PARTIAL_FILL") → REJECTED'da `continue` etmez, force-close branch'i devreye girer. (Phase 1 bug fix.)
+
+**Etki:** 3 bot (Polymarket Agent 2.0 ana bot + tennis-lab + tennis-paper-lab) aynı stratejik mantık, ayrı config. Tennis Paper Lab'da canlı doğrulandı (2026-05-27 21:56:46-47): humbert-halys 2 pozisyon `force_close_no_bids` ile kapandı, audit + dashboard güncellendi.
+
+**Yeni spor eklendiğinde:**
+- ESPN destekliyorsa → otomatik (sport_tag mapper'a satır eklemek yeterli olabilir)
+- Desteklemiyorsa → `config*.yaml` `risk.force_close_timeouts` tablosuna 1-2 satır ekle
+
+**Spec:** docs/superpowers/specs/2026-05-27-force-close-design.md
+**Plan:** docs/superpowers/plans/2026-05-27-force-close.md

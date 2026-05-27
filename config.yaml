@@ -29,12 +29,8 @@ scanner:
   allowed_sport_tags:
     # 2026-05-15: 19 Apr peak rollback — sport portföyü geri açıldı (iyi-donem-rollback).
     # Hockey için SADECE NHL (kullanıcı kararı, AHL/Liiga/SHL/Mestis/Allsvenskan EKLENMEZ).
-    # Baseball
-    - mlb
-    - milb
-    - npb
-    - kbo
-    - baseball
+    # Baseball — 2026-05-26 portföyden çıkarıldı (bleed: 5 haftada -$297, post-reboot tek başına
+    # -$107 kayıp; diğer sporlar net +$186 üretirken baseball net'i eksiye çevirdi).
     # Basketball
     - nba
     - wnba
@@ -89,6 +85,21 @@ risk:
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   stop_loss_pct: 0.30
+  # 2026-05-27 (SPEC-force-close): market_type -> max dakika.
+  # ESPN bittigini gosterirse veya sure dolduğunda pozisyon zorla bid'den satilir,
+  # bid yoksa 0 ile realize. Saf guvenlik agi — normal SL/TP zincirine etki yok.
+  force_close_timeouts:
+    nba_quarter_1_winner: 35
+    nba_match_winner: 180
+    nfl_quarter_1: 45
+    nfl_match_winner: 240
+    nhl_match_winner: 200
+    mlb_match_winner: 240
+    wnba_match_winner: 180
+    moneyline: 240
+    totals: 240
+    spread: 240
+    default: 300
 
 early:
   enabled: true
