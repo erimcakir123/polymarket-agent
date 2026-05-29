@@ -252,8 +252,14 @@ def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
     """session/equity_history.jsonl son entry'sinden balance widget metrikleri.
 
     Dashboard balance, realized P&L, open P&L ve peak balance hesabı için
-    TEK kaynak. positions.json'a bakılmaz — reboot sonrası session silinirse
-    sıfır döner (kasıtlı, audit leak koruması — test_summary_reboot_scenario).
+    kaynak. positions.json'a bakılmaz (lifetime kirlilik koruması —
+    test_summary_reboot_scenario).
+
+    Z11 (2026-05-29): session bos/yoksa audit/equity_history.jsonl'a fallback
+    yapar — read_trades pattern'i (session + audit cift-yedek). Mid-run
+    session corruption (gizemli scheduler, manual_resolve script vs.)
+    karsisinda widget $0 yerine kanonik audit verisini gosterir. Reboot
+    --wipe gercek 0 noktasi icin audit'i de silmeli (kasıtli).
 
     Returns dict with keys:
       bankroll, realized_pnl, unrealized_pnl, invested,
@@ -268,19 +274,26 @@ def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
         "peak_bankroll": 0.0,
         "has_data": False,
     }
-    path = logs_dir / "session" / "equity_history.jsonl"
-    if not path.exists():
-        return _EMPTY
-
-    # Son entry için tail=1; peak için tüm dosyayı okumak pahalı olabilir —
-    # yeterince büyük bir pencere al (son 500 satır yeterli pratik senaryolar için).
-    last_entries = _read_jsonl_tail(path, n=1, bytes_per_line=_BYTES_EQUITY)
-    if not last_entries:
+    # Session oncelik, audit fallback (Z11). Var olan + dolu ilk path kazanir.
+    candidate_paths = [
+        logs_dir / "session" / "equity_history.jsonl",
+        logs_dir / "audit" / "equity_history.jsonl",
+    ]
+    path = None
+    last_entries: list[dict[str, Any]] = []
+    for p in candidate_paths:
+        if not p.exists():
+            continue
+        last_entries = _read_jsonl_tail(p, n=1, bytes_per_line=_BYTES_EQUITY)
+        if last_entries:
+            path = p
+            break
+    if path is None or not last_entries:
         return _EMPTY
 
     last = last_entries[-1]
 
-    # Peak hesabı için daha geniş pencere oku.
+    # Peak hesabı için daha geniş pencere oku (aynı dosyadan).
     all_entries = _read_jsonl_tail(path, n=500, bytes_per_line=_BYTES_EQUITY)
     peak = max(
         (float(e.get("bankroll", 0.0)) for e in all_entries),

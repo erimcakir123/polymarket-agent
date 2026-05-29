@@ -119,6 +119,71 @@ def test_read_balance_session_single_entry_peak_equals_bankroll(tmp_path: Path) 
     assert out["bankroll"] == 1025.0
 
 
+# ── Audit fallback (Z11, 2026-05-29) ─────────────────────────────────────────
+# Tek-nokta-ariza koruma: session/equity_history.jsonl bilinmeyen sebeple
+# silinirse (gizemli scheduler, manual_resolve script vs.) dashboard $0
+# gostermek yerine audit/equity_history.jsonl'a fallback yapar.
+# read_trades zaten ayni pattern'i kullaniyor (session + audit cift-yedek).
+
+
+def _write_audit_equity(logs_dir: Path, entries: list[dict]) -> None:
+    path = logs_dir / "audit" / "equity_history.jsonl"
+    with open(path, "w", encoding="utf-8") as f:
+        for e in entries:
+            f.write(json.dumps(e) + "\n")
+
+
+def test_read_balance_session_missing_audit_has_data_falls_back_to_audit(tmp_path: Path) -> None:
+    """Session yok, audit dolu -> audit son entry'sinden balance gelir.
+    (Mid-run session corruption: $0 gostermek yerine kanonik audit verisi)."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    _write_audit_equity(logs_dir, [
+        {"bankroll": 971.34, "realized_pnl": 236.34, "unrealized_pnl": -2.73,
+         "invested": 265.0, "open_positions": 6},
+    ])
+    out = readers.read_balance_from_session(logs_dir)
+    assert out["has_data"] is True
+    assert out["bankroll"] == 971.34
+    assert out["realized_pnl"] == 236.34
+    assert out["open_positions"] == 6
+
+
+def test_read_balance_session_empty_audit_has_data_falls_back_to_audit(tmp_path: Path) -> None:
+    """Session bos dosya, audit dolu -> audit fallback (corrupt session senaryosu)."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    (logs_dir / "session" / "equity_history.jsonl").write_text("", encoding="utf-8")
+    _write_audit_equity(logs_dir, [
+        {"bankroll": 1100.0, "realized_pnl": 100.0, "unrealized_pnl": 0.0,
+         "invested": 0.0, "open_positions": 0},
+    ])
+    out = readers.read_balance_from_session(logs_dir)
+    assert out["has_data"] is True
+    assert out["bankroll"] == 1100.0
+
+
+def test_read_balance_session_priority_over_audit(tmp_path: Path) -> None:
+    """Hem session hem audit dolu -> session oncelik (en taze veri)."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    _write_equity(logs_dir, [
+        {"bankroll": 1050.0, "realized_pnl": 50.0, "unrealized_pnl": 0.0,
+         "invested": 0.0, "open_positions": 0},
+    ])
+    _write_audit_equity(logs_dir, [
+        {"bankroll": 999.0, "realized_pnl": -1.0, "unrealized_pnl": 0.0,
+         "invested": 0.0, "open_positions": 0},
+    ])
+    out = readers.read_balance_from_session(logs_dir)
+    assert out["bankroll"] == 1050.0  # session wins
+
+
+def test_read_balance_both_missing_returns_empty(tmp_path: Path) -> None:
+    """Ne session ne audit -> _EMPTY (true clean state, e.g. fresh reboot --wipe)."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    out = readers.read_balance_from_session(logs_dir)
+    assert out["has_data"] is False
+    assert out["bankroll"] == 0.0
+
+
 # ── computed.equity_summary_from_session ─────────────────────────────────────
 
 def test_equity_summary_from_session_no_data_returns_zeros(tmp_path: Path) -> None:
