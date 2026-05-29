@@ -60,7 +60,7 @@ def test_executor_paper_returns_paper_order_via_paper_executor(tmp_path) -> None
     out = ex.place_order(token_id="tok", side="BUY", price=0.40, size_usdc=40.0)
     assert out["mode"] == "paper"
     assert out["order_id"].startswith("paper_")
-    assert out["status"] in ("filled", "partial_fill", "rejected")
+    assert out["status"] in ("FILLED", "PARTIAL_FILL", "REJECTED")
 
 
 def test_executor_live_requires_clob_client() -> None:

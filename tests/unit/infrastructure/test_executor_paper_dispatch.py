@@ -30,7 +30,7 @@ def test_paper_mode_delegates_to_paper_executor(tmp_path: Path) -> None:
     )
     result = ex.place_order(token_id="tok1", side="BUY", price=0.65, size_usdc=50.0)
     assert result["mode"] == "paper"
-    assert result["status"] == "filled"
+    assert result["status"] == "FILLED"
     assert (tmp_path / "exec.jsonl").exists()
 
 

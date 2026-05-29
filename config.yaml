@@ -26,6 +26,17 @@ scanner:
   allowed_categories: ["sports"]
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.
+  # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity. Polymarket tennis
+  # market_type'ları kabul edilen tipler. Basket için legacy moneyline/spreads/
+  # totals zaten içeride; tennis için ek 4 tip.
+  allowed_sports_market_types:
+    - moneyline
+    - spreads
+    - totals
+    - tennis_first_set_winner
+    - tennis_set_handicap
+    - tennis_set_totals
+    - tennis_match_totals
   allowed_sport_tags:
     # 2026-05-29 (unified paper lab Phase 3): basket + tenis (final portföy).
     # Phase 1'de daraltıldı, Phase 3'te tennis (atp/wta) eklendi.
@@ -217,16 +228,11 @@ mlb_submarket:
 
 paper:
   # 2026-05-29 (unified paper lab Phase 2): real Polymarket fill simulation.
-  # Yapay latency/rejection YOK — bot gerçek CLOB orderbook + davranış kullanır.
-  #
-  # 2026-05-29 (Phase 3 follow-up): Polymarket tennis ask book ince, %95 fill
-  # zorunluluğu tennis trade'leri tamamen blokluyor. Pragmatik gevşetme:
-  #   min_fill_ratio: 0.95 → 0.60 (target'in %60+'si dolduysa kabul; gerçek live'da
-  #     FOK biraz daha katı olabilir ama paper'da öğrenme + tennis trade'i akmak için).
-  #   max_buy_slippage_pct: 0.02 → 0.04 (tennis ask book aşamalı; %4 makul tolerans).
-  max_buy_slippage_pct: 0.04     # %4 BUY (Polymarket tennis için tolerans)
-  max_sell_slippage_pct: 0.05    # %5 SELL max
-  min_fill_ratio: 0.60           # %60+ dolduysa FILLED kabul (tennis için)
+  # tennis-paper-lab config_tennis.yaml ile birebir aynı ayarlar
+  # (kanıtlanmış kombinasyon — 10 günde +$122 realized o ayarlarla geldi).
+  max_buy_slippage_pct: 0.02     # %2 BUY
+  max_sell_slippage_pct: 0.05    # %5 SELL
+  min_fill_ratio: 0.95           # %95+ dolduysa FILLED
   book_cache_ttl_sec: 5
   max_open_cycles: 6             # GTC limit ~3sa açık kalır sonra CANCEL
   max_stuck_cycles: 12           # Stuck position alarm eşiği (~1sa)

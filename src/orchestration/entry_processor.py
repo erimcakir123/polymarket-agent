@@ -165,7 +165,9 @@ class EntryProcessor:
         order = self.deps.executor.place_order(
             token_id=token_id, side=side, price=price, size_usdc=signal.size_usdc,
         )
-        if order.get("status") != "simulated" and order.get("status") != "placed":
+        # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity.
+        # Paper mode gerçek fill simulator FILLED/PARTIAL_FILL döner (başarı).
+        if order.get("status") not in ("simulated", "placed", "FILLED", "PARTIAL_FILL"):
             logger.warning("Order rejected: %s", order.get("reason", "?"))
             return
 

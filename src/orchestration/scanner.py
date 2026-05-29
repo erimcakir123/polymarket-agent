@@ -152,8 +152,18 @@ class MarketScanner:
             return False
 
         # Sports market type — SPEC-J: basketbol için spreads + totals da geçer.
-        # Boş string (PGA Top-N props gibi) REDDEDILIR çünkü bookmaker h2h verisi yok.
-        if m.sports_market_type not in ("moneyline", "spreads", "totals"):
+        # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity. Eğer
+        # allowed_sports_market_types config'te set edilirse o kullanılır
+        # (tennis tipleri dahil); aksi legacy moneyline/spreads/totals.
+        allowed_types = getattr(self.config, "allowed_sports_market_types", None) or []
+        if allowed_types:
+            if m.sports_market_type not in allowed_types:
+                return False
+        else:
+            if m.sports_market_type not in ("moneyline", "spreads", "totals"):
+                return False
+        # Tennis doubles skip — singles analysis only (no doubles data).
+        if "doubles" in (m.slug or "").lower():
             return False
         # spreads/totals sadece basketbol sport_tag için (NHL/MLB/diğer ayrı spec)
         if m.sports_market_type in ("spreads", "totals"):

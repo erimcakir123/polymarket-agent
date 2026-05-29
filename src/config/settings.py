@@ -48,6 +48,11 @@ class ScannerConfig(BaseModel):
     resolved_price_threshold: float = 0.98
     allowed_categories: List[str] = ["sports"]
     allowed_sport_tags: List[str] = []
+    # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity. Eğer set edilirse
+    # scanner sadece bu market_type'ları kabul eder; None/empty → legacy
+    # (moneyline/spreads/totals). Tennis için: tennis_first_set_winner,
+    # tennis_set_handicap, tennis_set_totals, moneyline, tennis_match_totals.
+    allowed_sports_market_types: List[str] = []
     # Tennis match_start ESPN override icin cache TTL (saniye).
     # TennisStartEnricher cycle basina bir kere ESPN tennis/atp+wta scoreboard ceker.
     tennis_start_cache_ttl_sec: int = 300

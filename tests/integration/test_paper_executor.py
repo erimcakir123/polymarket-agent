@@ -31,7 +31,7 @@ def test_paper_buy_filled_writes_audit() -> None:
         http = MagicMock(return_value=book)
         px = PaperExecutor(config=PaperConfig(), audit_path=audit, http_get=http)
         result = px.place_buy(token_id="tok1", target_price=0.65, target_size_usdc=50.0)
-        assert result["status"] == "filled"
+        assert result["status"] == "FILLED"
         assert result["filled_size_usdc"] == 50.0
         assert audit.exists()
         assert audit.read_text(encoding="utf-8").strip() != ""
@@ -45,7 +45,7 @@ def test_paper_buy_below_min_order_rejected() -> None:
             http_get=MagicMock(return_value=_book_resp([], [])),
         )
         result = px.place_buy(token_id="tok1", target_price=0.65, target_size_usdc=0.5)
-        assert result["status"] == "rejected"
+        assert result["status"] == "REJECTED"
         assert "min_order" in result["reason"]
 
 
@@ -59,7 +59,7 @@ def test_paper_sell_partial_keeps_remaining_shares() -> None:
             http_get=MagicMock(return_value=book),
         )
         result = px.place_sell(token_id="tok1", target_price=0.65, shares=100.0)
-        assert result["status"] == "partial_fill"
+        assert result["status"] == "PARTIAL_FILL"
         assert result["filled_shares"] == 30.0
 
 
@@ -71,5 +71,5 @@ def test_paper_sell_no_bids_rejected_stuck() -> None:
             http_get=MagicMock(return_value=_book_resp([], [])),
         )
         result = px.place_sell(token_id="tok1", target_price=0.65, shares=50.0)
-        assert result["status"] == "rejected"
+        assert result["status"] == "REJECTED"
         assert result["filled_shares"] == 0.0

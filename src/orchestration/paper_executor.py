@@ -111,15 +111,27 @@ class PaperExecutor:
         if shares_in is not None:
             rec["shares_in"] = shares_in
         self._audit.write(rec)
+        # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity. Status
+        # UPPERCASE (FILLED/PARTIAL_FILL/REJECTED), filled_shares/avg_price
+        # standardize alanları. Entry/exit processor bu schema'ya göre çalışır.
+        status_upper = {
+            FillStatus.FILLED: "FILLED",
+            FillStatus.PARTIAL_FILL: "PARTIAL_FILL",
+            FillStatus.REJECTED: "REJECTED",
+        }[result.status]
         return {
             "order_id": order_id,
-            "status": result.status.value,
+            "status": status_upper,
             "mode": "paper",
             "token_id": token_id,
             "side": side,
-            "fill_price": result.weighted_avg_price,
-            "filled_size_usdc": result.filled_size_usdc,
             "filled_shares": result.filled_shares,
+            "avg_price": result.weighted_avg_price,
+            "price": result.weighted_avg_price,  # backward-compat alias
+            "size_usdc": target_size_usdc,        # intended (alias)
+            "intended_size_usdc": target_size_usdc,
+            "actual_size_usdc": round(result.filled_size_usdc, 4),
+            "filled_size_usdc": result.filled_size_usdc,
             "fee_paid": fee,
             "gas_paid": gas,
             "reason": result.reason,
@@ -146,11 +158,14 @@ class PaperExecutor:
         self._audit.write(rec)
         return {
             "order_id": order_id,
-            "status": "rejected",
+            "status": "REJECTED",
             "mode": "paper",
             "token_id": token_id,
             "side": side,
             "reason": reason,
-            "filled_size_usdc": 0.0,
             "filled_shares": 0.0,
+            "avg_price": 0.0,
+            "intended_size_usdc": target_size_usdc,
+            "actual_size_usdc": 0.0,
+            "filled_size_usdc": 0.0,
         }
