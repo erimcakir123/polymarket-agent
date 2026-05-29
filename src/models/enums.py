@@ -41,6 +41,10 @@ class ExitReason(str, Enum):
     FORCE_CLOSE_ESPN = "force_close_espn_event_ended"
     FORCE_CLOSE_TIME = "force_close_time_expired"
     FORCE_CLOSE_NO_BIDS = "force_close_no_bids"
+    # Polymarket auto-resolution detected via Gamma (closed=true + umaResolutionStatus=resolved).
+    # 2026-05-28: previously bot couldn't detect resolved markets because fetch_events
+    # queries closed=false; ExitProcessor now polls gamma per-position periodically.
+    RESOLVED = "resolved"
 
 
 class SportsMarketType(str, Enum):
