@@ -38,6 +38,11 @@ scanner:
     - euroleague
     - nbl
     # Tennis (Phase 3 — paper realism + Sackmann refresher hazır)
+    # FIX 2026-05-29: Polymarket gamma event-level sport_tag "tennis" döner
+    # ("atp"/"wta" sadece /sports endpoint sport_code'unda, event tag'lerinde
+    # değil). Whitelist "tennis" olmalı yoksa scanner 949 tennis market'i hep
+    # reddediyor. atp/wta backup olarak kalır (sport_tag override değişirse).
+    - tennis
     - atp
     - wta
 
