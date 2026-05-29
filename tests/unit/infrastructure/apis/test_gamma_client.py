@@ -135,6 +135,38 @@ def test_fetch_events_http_error_returns_empty() -> None:
     assert client.fetch_events() == []
 
 
+def test_fetch_closed_market_returns_dict_when_resolved() -> None:
+    """Gamma /markets?condition_ids=... &closed=true → resolved market dict."""
+    http = MagicMock()
+    market = {
+        "conditionId": "0xresolved",
+        "closed": True,
+        "umaResolutionStatus": "resolved",
+        "outcomePrices": '["1", "0"]',
+    }
+    http.return_value = _resp(200, [market])
+    client = GammaClient(http_get=http)
+    result = client.fetch_closed_market_by_condition("0xresolved")
+    assert result is not None
+    assert result["conditionId"] == "0xresolved"
+    assert result["closed"] is True
+
+
+def test_fetch_closed_market_returns_none_when_empty() -> None:
+    """Boş liste → None."""
+    http = MagicMock()
+    http.return_value = _resp(200, [])
+    client = GammaClient(http_get=http)
+    assert client.fetch_closed_market_by_condition("0xempty") is None
+
+
+def test_fetch_closed_market_returns_none_on_http_error() -> None:
+    """HTTP exception → warning log + None (caller graceful skip yapar)."""
+    http = MagicMock(side_effect=RuntimeError("boom"))
+    client = GammaClient(http_get=http)
+    assert client.fetch_closed_market_by_condition("0xboom") is None
+
+
 def test_sports_endpoint_caches() -> None:
     http = MagicMock()
     http.side_effect = [

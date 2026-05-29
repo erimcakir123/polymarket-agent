@@ -247,6 +247,33 @@ class GammaClient:
             logger.debug("parse_market failed for %s: %s", raw.get("conditionId", "?"), e)
             return None
 
+    def fetch_closed_market_by_condition(self, condition_id: str) -> dict | None:
+        """Polymarket gamma'da kapanmis (resolved) market'i condition_id ile getir.
+
+        Sadece closed=true market'lere bakar — yeni open market'leri fetch_events handles.
+        Bot acik pozisyonun underlying market'i bu arada resolve oldu mu kontrol icin
+        kullanir (ExitProcessor polymarket-resolution check).
+
+        Hicbir hit yok ise None. HTTP hata sessiz None doner (warning log) — caller
+        graceful skip yapar, bot crash etmez.
+        """
+        try:
+            resp = self._http(
+                f"{GAMMA_BASE}/markets",
+                params={"condition_ids": condition_id, "closed": "true"},
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return data[0]
+            if isinstance(data, dict):
+                return data
+            return None
+        except Exception as e:
+            logger.warning("Gamma closed-market fetch failed %s: %s", condition_id[:20], e)
+            return None
+
     def _fetch_league_tags(self) -> list[tuple[str, int]]:
         if self._league_tags and (time.time() - self._league_tags_ts) < _SPORTS_CACHE_SEC:
             return self._league_tags
