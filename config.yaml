@@ -218,9 +218,15 @@ mlb_submarket:
 paper:
   # 2026-05-29 (unified paper lab Phase 2): real Polymarket fill simulation.
   # Yapay latency/rejection YOK — bot gerçek CLOB orderbook + davranış kullanır.
-  max_buy_slippage_pct: 0.02     # %2 BUY max
-  max_sell_slippage_pct: 0.05    # %5 SELL max (exit toleransı yüksek)
-  min_fill_ratio: 0.95           # FOK: bu oran altı → REJECTED
+  #
+  # 2026-05-29 (Phase 3 follow-up): Polymarket tennis ask book ince, %95 fill
+  # zorunluluğu tennis trade'leri tamamen blokluyor. Pragmatik gevşetme:
+  #   min_fill_ratio: 0.95 → 0.60 (target'in %60+'si dolduysa kabul; gerçek live'da
+  #     FOK biraz daha katı olabilir ama paper'da öğrenme + tennis trade'i akmak için).
+  #   max_buy_slippage_pct: 0.02 → 0.04 (tennis ask book aşamalı; %4 makul tolerans).
+  max_buy_slippage_pct: 0.04     # %4 BUY (Polymarket tennis için tolerans)
+  max_sell_slippage_pct: 0.05    # %5 SELL max
+  min_fill_ratio: 0.60           # %60+ dolduysa FILLED kabul (tennis için)
   book_cache_ttl_sec: 5
   max_open_cycles: 6             # GTC limit ~3sa açık kalır sonra CANCEL
   max_stuck_cycles: 12           # Stuck position alarm eşiği (~1sa)
