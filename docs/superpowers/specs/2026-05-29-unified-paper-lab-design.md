@@ -116,41 +116,113 @@ Default = paper
 - **paper:** Bu spec'in odağı. Gerçek orderbook → gerçekçi fill. Polymarket'e gerçek emir GİTMEZ.
 - **live:** Bu spec'in dışında. Wallet bağlı, gerçek emir. Sonraki faz.
 
-### 4.2. Paper BUY simülasyonu
+### 4.2. HİPER GERÇEKÇİ Order Strategy (FOK Market vs GTC Limit)
 
-Girdi: `token_id`, `target_price`, `target_size_usdc`.
+**KRİTİK:** Mevcut `clob_client.py` LIVE modda iki order stratejisi kullanır:
+- **FOK Market** — book likit (≥$500 USDC derinlik) + `size_usdc < depth × %20` → "ya tamamı dolar ya hiç" (Fill-or-Kill)
+- **GTC Limit** — illikit book → `best ± 1¢` limit order, book'a yerleşir, fill bekler
 
-1. `clob_book.fetch_book(token_id)` → asks listesi `[(price, size), ...]` artan sıralı.
-2. `paper_fill.walk_buy(asks, target_price, target_size_usdc, max_slippage_pct, min_fill_ratio)`:
-   - Asks'i artan sırada yürü.
-   - Her seviyede satın al: `level_price <= target_price * (1 + max_slippage_pct)` ise.
-   - Toplam satın alınan share × weighted_avg_price birikir.
-   - Tamamlanan dolar hedef dolar × `min_fill_ratio` (default 0.95) altında → REJECTED.
-   - Aksi → FILLED, weighted_avg_price ve filled_shares ile state güncellenir.
-3. Sonuç `paper_executions.jsonl`'a yazılır (book snapshot top 3 ask + karar + sonuç).
-4. REJECTED → pozisyon açılmaz, bot bir sonraki cycle'da yeniden değerlendirebilir.
+Paper bu iki davranışı da simüle eder. Stratejiyi seçen fonksiyon `choose_order_strategy(book, side, price, size_usdc)` AYNEN paper'da da kullanılır → live ile birebir aynı karar mantığı.
 
-### 4.3. Paper SELL simülasyonu (exit)
+### 4.3. Paper BUY simülasyonu — Strateji bazlı
 
-Girdi: `token_id`, `position.shares`, `target_price` (entry/SL/scale-out target).
+**Girdi:** `token_id`, `target_price`, `target_size_usdc`, `confidence` (A/B).
 
-1. `clob_book.fetch_book(token_id)` → bids listesi `[(price, size), ...]` azalan sıralı.
-2. `paper_fill.walk_sell(bids, target_price, shares, max_slippage_pct)`:
-   - Bids'i azalan sırada yürü.
-   - Her seviyede sat: `level_price >= target_price * (1 - max_slippage_pct)` ise.
-   - Tamamlanan share × weighted_avg_price birikir.
-   - Tüm bids tükenmesine rağmen 0 share dolduysa → REJECTED.
-   - Kısmi doluysa → PARTIAL_FILL. Kalan shares pozisyonda kalır; bir sonraki cycle yeniden denenir.
-   - Tam doluysa → FILLED.
-3. Sonuç `paper_executions.jsonl`'a yazılır.
-4. **Force-close timeout:** `paper_fill.walk_sell` REJECTED dönerse force-close 0 ile realize ETMEZ; pozisyon "stuck" durumuna geçer ve N sonraki cycle yeniden denenir. Max retry sonrası alarm (dashboard'da görünür, gerçek live'da operatör müdahalesi gerekir). Bu MEVCUT "bid yoksa 0 ile realize" davranışını DEĞİŞTİRİR — paper'da 0 hayali, sürpriz pnl yaratır.
+**Adım 0 — Pre-fill kontroller:**
+- `target_price = round(target_price, 2)` (Polymarket 1¢ tick zorunluluğu).
+- `target_size_usdc < MIN_ORDER_USDC` (default $1.0) → REJECTED + log "below_min_order".
+- `clob_book.fetch_book(token_id)` → book getir (5sn cache; gerçek network latency neyse o).
 
-### 4.4. Cache mantığı
+**Adım 1 — Strateji seç:** `choose_order_strategy(book, "BUY", target_price, target_size_usdc)` → `{strategy: "market"|"limit", price, order_type}`.
+
+**Adım 2a — FOK Market simülasyonu:**
+1. asks listesini artan sırada yürü (best ask'ten başla).
+2. Her seviyede satın al: `level_price <= target_price × (1 + max_slippage_pct)` (default %2) ise.
+3. Tamamlanan dolar = `min(target_size_usdc, walked_total)`.
+4. **FOK kuralı:** Tamamlanan dolar < `target_size_usdc × min_fill_ratio` (default %95) → **REJECTED** (hiç fill yok, FOK = ya tamamı ya hiç).
+5. Tamamı doldu → **FILLED**, `weighted_avg_price` + `filled_shares` + `fee_paid` + `gas_paid` ile pozisyon açılır.
+
+**Adım 2b — GTC Limit simülasyonu:**
+1. Limit fiyat = `best_ask - 1¢` (BUY). Bu fiyat asks'in altında, book'a yerleşir.
+2. Mevcut book'ta `level_price <= limit_price` varsa anında fill (market mover bid'i aldı).
+3. Yerleşti → state'e `open_orders[order_id] = {token_id, side, price, size, cycles_open: 0}`.
+4. Her sonraki cycle'da book yeniden çekilir, `cycles_open += 1`:
+   - Eğer `current_best_ask <= limit_price` → FILLED.
+   - `cycles_open >= max_open_cycles` (default 6 cycle = ~3 saat) → CANCELLED + log.
+
+**Adım 3 — Fee + Gas modelleme:**
+- `fee_paid = filled_size_usdc × maker_fee_pct` (FOK=taker, GTC=maker; bilinen Polymarket default %0 ama config'de override).
+- `gas_paid = polygon_gas_usdc` (config default $0.01).
+- `realized_cost = filled_size_usdc + fee_paid + gas_paid`.
+
+**Adım 4 — Audit log:** `paper_executions.jsonl` (book snapshot top 3 ask + strateji + sonuç + fee/gas).
+
+### 4.4. Paper SELL simülasyonu — Strateji bazlı
+
+**Girdi:** `token_id`, `position.shares`, `target_price` (SL/scale-out target).
+
+**Adım 0 — Pre-fill:**
+- `target_price = round(target_price, 2)`.
+- `shares × current_bid < MIN_ORDER_USDC` → REJECTED (kalan share çok düşük, satılamaz; pozisyon stuck → operatör manuel close).
+- `clob_book.fetch_book(token_id)` (5sn cache).
+
+**Adım 1 — Strateji seç:** `choose_order_strategy(book, "SELL", target_price, shares × target_price)`.
+
+**Adım 2a — FOK Market sell:**
+1. bids listesini azalan sırada yürü (best bid'ten başla).
+2. Her seviyede sat: `level_price >= target_price × (1 - max_slippage_pct)` (default %5) ise.
+3. Tamamlanan shares < `total_shares × min_fill_ratio` → REJECTED (FOK).
+4. Tamamı doldu → FILLED.
+
+**Adım 2b — GTC Limit sell:**
+1. Limit fiyat = `best_bid + 1¢` (SELL).
+2. Book'a yerleşir, fill bekler.
+3. Cycle başına `current_best_bid >= limit_price` kontrolü.
+4. `cycles_open >= max_open_cycles` → CANCELLED, pozisyon hala açık.
+
+**Adım 3 — Fee + Gas:** BUY'la aynı mantık.
+
+**Adım 4 — Stuck position kuralı:** `walk_sell` REJECTED dönerse pozisyon "stuck" durumuna geçer. `consecutive_stuck_cycles += 1`. `max_stuck_cycles` (default 12 cycle = ~1 saat) aşılırsa dashboard alarm. **Force-close mevcut "bid yoksa 0 ile realize" davranışı paper'da KAPALIDIR.** Bu mevcut davranışı değiştirir — paper'da 0 hayali kazanç/zarar yaratır, gerçek live'da kullanıcı için sürpriz olur.
+
+**Adım 5 — Audit log:** `paper_executions.jsonl`.
+
+### 4.5. Constants ve config'e taşınanlar (magic number yok)
+
+```yaml
+paper:
+  # Slippage toleransı
+  max_buy_slippage_pct: 0.02      # %2
+  max_sell_slippage_pct: 0.05     # %5
+
+  # FOK kuralı: tamamlanan dolar < target × min_fill_ratio → REJECTED
+  min_fill_ratio: 0.95            # %95
+
+  # Book cache
+  book_cache_ttl_sec: 5
+
+  # GTC limit order open süresi
+  max_open_cycles: 6              # ~3 saat (30dk cycle varsayımı)
+
+  # Stuck position alarmı
+  max_stuck_cycles: 12            # ~1 saat alarm öncesi
+
+  # Min/max order
+  min_order_usdc: 1.0             # Polymarket min order
+  price_tick: 0.01                # 1¢ tick zorunlu round
+
+  # Fee + gas modelleme
+  maker_fee_pct: 0.0              # bilinen Polymarket default
+  taker_fee_pct: 0.0
+  polygon_gas_usdc: 0.01          # her order başına
+```
+
+### 4.6. Cache mantığı
 
 - `clob_book` LRU cache, key=token_id, TTL=5sn (config'den).
 - Aynı cycle içinde aynı token için tekrar fetch yapılmaz (entry + exit guard cycle paralellikleri).
+- **Cache miss & API rate limit:** 429 → exponential backoff 1s/2s/4s, sonra cycle skip + log WARNING.
 
-### 4.5. Sport whitelist (kapalı liste)
+### 4.7. Sport whitelist (kapalı liste)
 
 ```yaml
 allowed_sport_tags:
@@ -171,13 +243,13 @@ allowed_sport_tags:
 >
 > NHL çıkarıldı — 13 trade, %0 win rate, -$57 net (kullanıcı kararı: sadece basket + tennis).
 
-### 4.6. Bankroll
+### 4.8. Bankroll
 
 - `initial_bankroll` tek değer (default 1000 USDC).
 - Exposure cap basket + tennis ortak (`max_exposure_pct` global).
 - Tennis bimodal sizing ($15/$10 A/B) ile basket fixed sizing ($50/$30 A/B) ortak kasadan çekilir. `sport_rules.is_bimodal_market(sport_tag, market_type)` zaten ayrımı yapıyor.
 
-### 4.7. Tennis-spesifik exclude_combos
+### 4.9. Tennis-spesifik exclude_combos
 
 config_tennis'ten alınıp ana config'e taşınır:
 
@@ -196,7 +268,7 @@ edge:
 
 Sebep: tennis paper lab'ı 97 trade analizi (post-spike-removal) → bu iki sub-market net negatif EV. Sackmann modeli bu iki market'te %16 ve %56 doğru, market sırasıyla %72 ve %69 → modele güvenilmez.
 
-### 4.8. Sackmann startup refresher
+### 4.10. Sackmann startup refresher
 
 Tennis aktif olduğu için `main.py` startup'ta:
 
@@ -207,11 +279,11 @@ Tennis aktif olduğu için `main.py` startup'ta:
 
 Stale değilse skip. Tennis whitelist'te değilse skip (config-driven). İlk başlatma ~1-2 dk sürebilir; sonraki başlatmalar 1sn'den az.
 
-### 4.9. Gamma series_id desteği
+### 4.11. Gamma series_id desteği
 
 `gamma_client._fetch_league_sources` artık hem `tag_id` hem `series_id` döner. Tennis ITF gibi tag-orphan event'ler series_id ile bulunur. Diğer sporlarda etki yok (sport entry'de series yoksa atlanır).
 
-### 4.10. Dashboard topbar
+### 4.12. Dashboard topbar
 
 Mode'a göre rozet:
 - `dry_run` → kırmızı "DRY RUN" rozet
@@ -222,7 +294,7 @@ Operatörün hangi modda olduğunu hep göstersin (yanlış mod sürprizini enge
 
 ---
 
-## 5. Sınır Durumları
+## 5. Sınır Durumları (HİPER kontrol)
 
 | Durum | Davranış |
 |---|---|
@@ -231,14 +303,27 @@ Operatörün hangi modda olduğunu hep göstersin (yanlış mod sürprizini enge
 | `clob_book` rate limit (429) | Exponential backoff 1s/2s/4s, sonra cycle skip |
 | Sackmann refresher network fail | Log WARNING, mevcut cache ile devam (tennis stale ratings kullanılır) |
 | Sackmann CSV download fail | Log ERROR, refresh atla, mevcut ratings.json kullanılır |
-| Tennis market_type bilinmiyor | enrichment skip, ARK trade alınmaz |
+| Tennis market_type bilinmiyor | enrichment skip, trade alınmaz |
 | `allowed_sport_tags`'de olmayan slug Polymarket'te görünür | scanner filter atar (zaten mevcut davranış) |
-| Aynı maça basket + tennis çakışması (mümkün değil) | Yok (event_id farklı) |
+| Aynı maça basket + tennis çakışması | İmkansız (event_id farklı). |
 | Tennis player matcher None döner (ambiguous surname) | enrichment skip, market trade alınmaz |
-| Force-close timeout SELL stuck N cycle | Dashboard "stuck position" alarm; manuel müdahale opsiyonel |
+| Force-close timeout SELL stuck N cycle | Dashboard "stuck position" alarm; manuel müdahale opsiyonel; **paper'da 0 ile realize ETMEZ** |
 | Mode config'de tanımsız (dry_run/paper/live dışı) | Startup ERROR + exit (program açılmaz) |
 | `config_tennis.yaml` artık yok ama eski script onu arıyor | tennis_main.py silindi (Adım), reboot.py marker güncel; sorun yok |
 | Reboot sonrası state restore (positions/audit) | Reboot=full-wipe kuralı (memory) korunur, paper mode da temizler |
+| **GTC limit order N cycle açık kalır** | `max_open_cycles` sonra CANCELLED + log, pozisyon açılmaz/exit gerçekleşmez. |
+| **GTC limit fill anı** | Cycle başı book çekildiğinde best_ask/bid limit fiyatını geçerse FILL kabul edilir (gerçek live'da maker fee). |
+| **Order verirken book çekti, fill anı book değişti** | Gerçek network latency neyse o (yapay bekletme yok). Cycle başına 5sn cache, doğal davranış. |
+| **`min_order_usdc` altı order isteği** | REJECTED + log "below_min_order_$1". Faz 2 testte bu durumu test edecek. |
+| **`price_tick` ihlali (3 ondalık fiyat)** | `target_price = round(target_price, 2)` her order öncesi zorla round. |
+| **Maker/Taker fee runtime'da değişirse** | config-driven, restart gerekir; default %0. |
+| **Polygon gas yüksek dönemde > $0.01** | Mevcut sabit (config). Realistik live'da nadir +$0.001 etki. |
+| **Faz 1 sonrası açık NHL pozisyon (whitelist daraltıldı)** | Scanner YENİ entry'yi engellemez (zaten allowed_sport_tags YENİ entry için filter). Mevcut açık pozisyonu exit_processor yönetmeye devam eder. Faz 1 öncesi kontrol: açık pozisyon listesi temiz mi? **Şu an 0 açık → güvenli.** |
+| **Faz 3 öncesi açık pozisyon varsa** | UYARI: Faz 3 = full wipe (reboot kuralı). Açık pozisyonları manuel kapat veya doğal expire bekle. |
+| **Faz 3'te Sackmann CSV download bot'u durdurur** | Önlem: Faz 3 başlamadan önce manuel `python scripts/refresh_sackmann.py` ile cache fresh. Startup hook stale değilse skip. |
+| **force_close_executor mode farkındalığı** | `force_close_executor` artık `mode` parametresi alır. dry_run/live mevcut "bid yoksa 0 realize", paper "stuck position" davranışı. |
+| **paper mode'da mevcut WebSocket price_feed (varsa) çakışır mı** | Paper executor sadece order placement'i değiştirir, price feed mevcut (WS) kalır. Mevcut spike rejection vs. çalışır. |
+| **paper mode + multiple bot competition** | Simüle edilemez (bilinmez). Real live'da bot kompozisyonu farklı olabilir, kabul edilir. |
 
 ---
 
