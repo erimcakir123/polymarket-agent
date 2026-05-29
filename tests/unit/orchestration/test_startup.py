@@ -44,6 +44,28 @@ def test_persist_then_restore_roundtrip(tmp_path: Path) -> None:
     assert state2.circuit_breaker.state.daily_realized_pnl_pct < 0
 
 
+def test_bootstrap_writes_session_start_when_missing(tmp_path: Path) -> None:
+    """Reboot sonrasi data/session_start.json yok -> bootstrap olusturur."""
+    cfg = AppConfig()
+    bootstrap(cfg, logs_dir=tmp_path, trade_history_path=tmp_path / "trade_history.jsonl")
+    p = tmp_path / "session_start.json"
+    assert p.exists()
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert "iso" in data and data["iso"]
+
+
+def test_bootstrap_preserves_existing_session_start(tmp_path: Path) -> None:
+    """Reload sirasinda mevcut session_start.json korunmali (sirf reboot siler)."""
+    existing_iso = "2026-05-25T10:00:00+00:00"
+    (tmp_path / "session_start.json").write_text(
+        json.dumps({"iso": existing_iso}), encoding="utf-8",
+    )
+    cfg = AppConfig()
+    bootstrap(cfg, logs_dir=tmp_path, trade_history_path=tmp_path / "trade_history.jsonl")
+    data = json.loads((tmp_path / "session_start.json").read_text(encoding="utf-8"))
+    assert data["iso"] == existing_iso
+
+
 def test_corrupt_positions_file_safe_fallback(tmp_path: Path) -> None:
     (tmp_path / "positions.json").write_text("{not json", encoding="utf-8")
     cfg = AppConfig()

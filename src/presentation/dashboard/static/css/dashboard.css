@@ -102,6 +102,17 @@ html, body {
   color: var(--accent);
 }
 
+/* Session start zaman damgasi (topbar logo yaninda, opasite 0.6). */
+.session-start {
+  font-size: 12px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.session-start:empty {
+  display: none;
+}
+
 /* Cycle bar — iki cycle yan yana (hard + light) */
 .cycle-bar {
   display: flex;

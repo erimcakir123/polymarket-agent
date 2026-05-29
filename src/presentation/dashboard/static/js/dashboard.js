@@ -162,7 +162,15 @@
       const baseline = Number(initialBankroll) || 0;
       this.equity.data.labels = [""].concat(points.map((p, i) =>
         period === "1y" ? "W" + (i + 1) : global.FILTER.periodLabel(p.timestamp, period)));
-      this.equity.data.datasets[0].data = [baseline].concat(points.map((p) => p.value));
+      const seriesValues = [baseline].concat(points.map((p) => p.value));
+      this.equity.data.datasets[0].data = seriesValues;
+      // Y-axis veriye sikica fit — Chart.js default suggestedMax cok genis padding
+      // ekliyordu ($1.18 peak iken $1.25k tavan). $50 snap, peak hemen ustte.
+      const _CHART_Y_SNAP = 50;
+      const dMin = Math.min(...seriesValues);
+      const dMax = Math.max(...seriesValues);
+      this.equity.options.scales.y.min = Math.floor(dMin / _CHART_Y_SNAP) * _CHART_Y_SNAP;
+      this.equity.options.scales.y.max = Math.ceil(dMax / _CHART_Y_SNAP) * _CHART_Y_SNAP;
       // Parent wrap width — Chart.js responsive observer → canvas internal senkron (hitbox).
       this.equity.canvas.parentElement.style.width = ((points.length + 1) * CONFIG.equityBarMinPx) + "px";
 
@@ -354,9 +362,33 @@
     },
   };
 
+  // ── Session start (topbar opasite 0.6) ──
+  // Inline: sadece "1.5d" (uptime). Tam tarih hover tooltip'inde — diger
+  // trading app'lerinin yaptigi gibi (compact summary + detail on hover).
+  const _MONTHS_TR_SHORT = [
+    "Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara",
+  ];
+  const _MS_PER_DAY = 86400000;
+  function _renderSessionStart() {
+    const el = document.querySelector(".session-start");
+    if (!el) return;
+    const iso = el.dataset.iso || "";
+    if (!iso) { el.textContent = ""; el.title = ""; return; }
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) { el.textContent = ""; el.title = ""; return; }
+    const ageDays = ((Date.now() - d.getTime()) / _MS_PER_DAY).toFixed(1);
+    el.textContent = `${ageDays}d`;
+    const day = d.getDate();
+    const mon = _MONTHS_TR_SHORT[d.getMonth()];
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    el.title = `Session start: ${day} ${mon} ${hh}:${mm}`;
+  }
+
   // ── MAIN ──
   const MAIN = {
     async refresh() {
+      _renderSessionStart();  // Sure ilerlesin: 1.5h -> 2.3h -> 1.0 days ...
       try {
         const [status, summary,
                positions, trades, skipped, stock, stats, sportRoi] = await Promise.all([
@@ -385,6 +417,7 @@
       _initColors();
       global.COLORS = COLORS;  // modal JS needs palette access
       document.getElementById("slots-max").textContent = MAX_POSITIONS;
+      _renderSessionStart();
       CHARTS.initAll();
       global.CHART_TABS.bind({
         charts: CHARTS,

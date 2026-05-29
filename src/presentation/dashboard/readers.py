@@ -68,6 +68,17 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
     return _read_json(logs_dir.parent / "data" / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
 
 
+def read_session_start(logs_dir: Path) -> str:
+    """data/session_start.json -> ISO timestamp string ("" if missing/corrupt).
+
+    Bootstrap reboot sonrasi bu dosyayi olusturur (current UTC). Reload korur,
+    reboot siler. Dashboard topbar'inda "28 May · 14:30" formatinda gosterilir.
+    """
+    data = _read_json(logs_dir.parent / "data" / "session_start.json", {})
+    iso = data.get("iso") if isinstance(data, dict) else None
+    return str(iso) if iso else ""
+
+
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """Trade history — session + audit (sadece AKTİF dosyalar, archive YOK).
 

@@ -71,6 +71,29 @@ def test_read_positions_corrupt_returns_default(tmp_path: Path) -> None:
     assert out["positions"] == {}
 
 
+# ── read_session_start (topbar "session basladi" gosterimi) ──
+
+def test_read_session_start_missing_returns_empty(tmp_path: Path) -> None:
+    """Reboot sonrasi bootstrap henuz session_start.json yazmamissa boş string."""
+    logs_dir, _ = _mk_logs(tmp_path)
+    assert readers.read_session_start(logs_dir) == ""
+
+
+def test_read_session_start_valid_returns_iso(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    iso = "2026-05-29T00:05:56+00:00"
+    (data_dir / "session_start.json").write_text(
+        json.dumps({"iso": iso}), encoding="utf-8",
+    )
+    assert readers.read_session_start(logs_dir) == iso
+
+
+def test_read_session_start_corrupt_returns_empty(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    (data_dir / "session_start.json").write_text("not json", encoding="utf-8")
+    assert readers.read_session_start(logs_dir) == ""
+
+
 # ── JSONL tail readers ──
 
 def _write_jsonl(path: Path, lines: list[dict]) -> None:

@@ -27,6 +27,7 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
             mode=config.mode.value,
             initial_bankroll=config.initial_bankroll,
             max_positions=config.risk.max_positions,
+            session_start_iso=readers.read_session_start(logs_dir),
         )
 
     @app.route("/api/status")
@@ -76,7 +77,9 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/trades")
     def api_trades():
-        trades = readers.read_trades(logs_dir, n=100)
+        # Log modal "All" trades icin ?n=5000 verir; varsayilan 100 (feed).
+        n = request.args.get("n", 100, type=int)
+        trades = readers.read_trades(logs_dir, n=n)
         # Exited tab source: full close + partial scale-out event'leri flatten.
         return jsonify(computed.exit_events(trades))
 

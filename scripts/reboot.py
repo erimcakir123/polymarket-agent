@@ -41,6 +41,10 @@ _STATE_FILES_DELETE = [
     ROOT / "data" / "stock_queue.json",
     ROOT / "data" / "bot_status.json",
     ROOT / "data" / "blacklist.json",
+    # session_start.json: reboot siler -> bootstrap yeniden olusturur (yeni session
+    # zaman damgasi). Reload bu listeyi kullanmaz -> dashboard topbar'inda
+    # gosterilen "session basladi" zamani reload boyunca sabit kalir.
+    ROOT / "data" / "session_start.json",
 ]
 
 # REBOOT'ta temizlenen runtime log dosyaları (içeriği boşaltılır, arşiv yok)
@@ -373,11 +377,13 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
         print(f"  Cleared session log: {f.name}")
 
 
-def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
-    """REBOOT: state + session + runtime sıfırlanır. AUDIT KORUNUR (kalıcı arşiv).
+def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool = False) -> None:
+    """REBOOT: state + session + runtime sıfırlanır. Audit varsayılan olarak
+    arşivlenir (kopya), orijinaller dashboard için durur.
 
-    Audit tamamen silinmek istenirse manuel olarak `clear_audit_logs()` çağrılmalı
-    veya dosyalar elle silinmeli (--include-audit flag yok, kazara silmeyi önler).
+    wipe_audit=True ise orijinal audit dosyaları da silinir (tam fabrika sıfır) —
+    arşiv kopyası zaten oluşturulduğu için veri kaybı yoktur, sadece dashboard
+    eski kayıtları göstermez.
     """
     print("=== REBOOT ===")
     if not skip_confirm:
@@ -385,7 +391,10 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
         print("   - data/positions.json, data/circuit_breaker_state.json (state)")
         print("   - logs/session/* (dashboard kaynağı)")
         print("   - logs/runtime/* (bot.log)")
-        print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv).\n")
+        if wipe_audit:
+            print("   - logs/audit/* SİLİNECEK (--wipe). Arşiv kopyası saklanır.")
+        else:
+            print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv).\n")
         try:
             answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -402,6 +411,8 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False) -> None:
     # 2026-05-22: open_condition_ids=None → FULL archive. reset_state() zaten
     # positions.json'ı siliyor, açık pozisyon kaydı tutmanın anlamı yok.
     archive_audit_logs(open_condition_ids=None)
+    if wipe_audit:
+        clear_audit_logs()
     reset_state()
     start_dashboard()
     time.sleep(3)
@@ -415,9 +426,11 @@ if __name__ == "__main__":
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live"])
     parser.add_argument("--yes", action="store_true",
                         help="Reboot onayını bypass et (audit silme uyarısını atla)")
+    parser.add_argument("--wipe", action="store_true",
+                        help="Reboot'a ek: orijinal audit dosyalarını da sil (arşiv kopya saklanır)")
     args = parser.parse_args()
 
     if args.action == "reboot":
-        reboot(args.mode, skip_confirm=args.yes)
+        reboot(args.mode, skip_confirm=args.yes, wipe_audit=args.wipe)
     else:
         reload_bot(args.mode)

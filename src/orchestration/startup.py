@@ -13,11 +13,12 @@ Bu modül state'i kurup döner; ana döngü agent.py'de.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.config.settings import AppConfig, Mode
+from src.config.settings import AppConfig
 from src.domain.guards.blacklist import Blacklist
 from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.manager import PortfolioManager
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 _POSITIONS_FILE = "data/positions.json"
 _BREAKER_FILE = "data/circuit_breaker_state.json"
 _BLACKLIST_FILE = "data/blacklist.json"
+_SESSION_START_FILE = "session_start.json"  # logs_dir-relative
 # Trade history audit ground truth — reboot dokunmaz, crash recovery için.
 _TRADE_HISTORY_AUDIT = "logs/audit/trade_history.jsonl"
 
@@ -66,6 +68,8 @@ def bootstrap(
     """
     logs = Path(logs_dir)
     logs.mkdir(parents=True, exist_ok=True)
+
+    _ensure_session_start(logs)
 
     positions_store = JsonStore(logs / "positions.json")
     breaker_store = JsonStore(logs / "circuit_breaker_state.json")
@@ -107,6 +111,24 @@ def bootstrap(
         breaker_store=breaker_store,
         blacklist_store=blacklist_store,
     )
+
+
+def _ensure_session_start(logs: Path) -> None:
+    """Reboot sonrasi data/session_start.json yoksa olustur (current UTC).
+
+    Reload mevcut dosyayi korur (varsa dokunmaz) -> dashboard topbar'inda
+    session basladi zamani sabit kalir. Reboot.py bu dosyayi siler -> bir
+    sonraki bootstrap'ta yeniden olusur.
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415 - lazy stdlib import
+    p = logs / _SESSION_START_FILE
+    if p.exists():
+        return
+    iso = datetime.now(timezone.utc).isoformat()
+    try:
+        p.write_text(json.dumps({"iso": iso}), encoding="utf-8")
+    except OSError as e:
+        logger.warning("session_start.json write failed: %s", e)
 
 
 def _restore_portfolio(store: JsonStore, initial_bankroll: float) -> PortfolioManager:
