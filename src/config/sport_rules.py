@@ -93,6 +93,20 @@ DEFAULT_RULES: dict[str, Any] = {
     "match_duration_hours": 2.0,
 }
 
+# Basketball alt-ligleri: tum exit kurallarini NBA'den miras alir, sadece ESPN
+# league override + (varsa) score_source devre disi. Sebep: BASKETBALL_TAGS
+# fallback espn_league'i de NBA'ye ceviriyordu, score_enricher yanlis scoreboard
+# sorguluyordu (WNBA/NCAAB maclari basketball/nba endpoint'inde yok)
+# -> match_ended/match_live hicbir zaman True olmuyordu.
+SPORT_RULES["wnba"] = {**SPORT_RULES["nba"], "espn_league": "wnba"}
+SPORT_RULES["ncaab"] = {**SPORT_RULES["nba"], "espn_league": "mens-college-basketball"}
+SPORT_RULES["cbb"] = {**SPORT_RULES["nba"], "espn_league": "mens-college-basketball"}
+SPORT_RULES["wncaab"] = {**SPORT_RULES["nba"], "espn_league": "womens-college-basketball"}
+SPORT_RULES["nbl"] = {**SPORT_RULES["nba"], "espn_league": "nbl"}
+# Euroleague ESPN'de yok (endpoint 400) -> score_source kapali; NBA exit
+# kurallari (SL, halftime) yine gecerli, sadece ESPN skor enrichment atlanir.
+SPORT_RULES["euroleague"] = {**SPORT_RULES["nba"], "score_source": None}
+
 # Basketball sport tags (NBA + WNBA + college + international leagues).
 # Tek doğruluk kaynağı — hem scanner filter (spreads/totals gate) hem de
 # exit dispatch (NBA exit guard) buradan import eder.
@@ -102,13 +116,14 @@ BASKETBALL_TAGS: frozenset[str] = frozenset({
 
 # Odds API key → internal sport key aliases (DECISIONS §7.1 MVP)
 _ALIASES: dict[str, str] = {
-    # Basketball
+    # Basketball — her alt-lig kendi SPORT_RULES entry'sine yonlenir (ESPN
+    # league override icin). Plain "basketball" NBA'ye duser (geriye uyumlu).
     "basketball_nba": "nba",
-    "basketball_wnba": "nba",
-    "basketball_ncaab": "nba",
-    "basketball_wncaab": "nba",
-    "basketball_euroleague": "nba",
-    "basketball_nbl": "nba",
+    "basketball_wnba": "wnba",
+    "basketball_ncaab": "ncaab",
+    "basketball_wncaab": "wncaab",
+    "basketball_euroleague": "euroleague",
+    "basketball_nbl": "nbl",
     "basketball": "nba",
     # American Football
     "americanfootball_ncaaf": "nfl",
@@ -148,10 +163,6 @@ def _normalize(sport_tag: str) -> str:
         return tag
     if tag in _ALIASES:
         return _ALIASES[tag]
-    # Polymarket basketball alt etiketleri (wnba/ncaab/cbb/wncaab/euroleague/nbl)
-    # NBA kuralının altında çalışır — spread_blocked vs flag'leri için tek-yer.
-    if tag in BASKETBALL_TAGS:
-        return "nba"
     return ""
 
 

@@ -14,17 +14,18 @@ def test_is_spread_blocked_nba_returns_true():
     assert is_spread_blocked("nba") is True
 
 
-def test_is_spread_blocked_wnba_returns_true_via_basketball_tags():
-    # Polymarket sport_tag "wnba" → BASKETBALL_TAGS via _normalize → "nba" rule → spread_blocked True
+def test_is_spread_blocked_wnba_returns_true():
+    # WNBA kendi SPORT_RULES entry'si var, NBA'den spread_blocked miras alir.
     assert is_spread_blocked("wnba") is True
 
 
 def test_is_spread_blocked_basketball_wnba_alias_returns_true():
-    # Odds API key "basketball_wnba" → alias → "nba" rule → spread_blocked True
+    # Odds API key "basketball_wnba" -> alias -> "wnba" rule -> spread_blocked True
     assert is_spread_blocked("basketball_wnba") is True
 
 
-def test_is_spread_blocked_ncaab_via_basketball_tags():
+def test_is_spread_blocked_ncaab_returns_true():
+    # NCAAB kendi SPORT_RULES entry'si var, NBA'den spread_blocked miras alir.
     assert is_spread_blocked("ncaab") is True
 
 
@@ -115,6 +116,65 @@ def test_sport_rule_score_source_nba() -> None:
     assert get_sport_rule("nba", "score_source") == "espn"
     assert get_sport_rule("nba", "espn_sport") == "basketball"
     assert get_sport_rule("nba", "espn_league") == "nba"
+
+
+# ── Basketball sub-leagues: ESPN league override (fix: WNBA macslari
+# basketball/nba scoreboard'unda gozukmuyor, kendi ligi sorgulanmali) ──
+
+
+def test_sport_rule_wnba_uses_own_espn_league() -> None:
+    assert get_sport_rule("wnba", "score_source") == "espn"
+    assert get_sport_rule("wnba", "espn_sport") == "basketball"
+    assert get_sport_rule("wnba", "espn_league") == "wnba"
+
+
+def test_sport_rule_wnba_inherits_nba_exit_rules() -> None:
+    # WNBA, NBA'nin tum exit kurallarini miras alir (sadece ESPN league override).
+    assert get_sport_rule("wnba", "stop_loss_pct") == 0.35
+    assert get_sport_rule("wnba", "halftime_exit") is True
+    assert get_sport_rule("wnba", "halftime_exit_deficit") == 15
+    assert get_sport_rule("wnba", "spread_blocked") is True
+
+
+def test_sport_rule_ncaab_uses_mens_college_espn_league() -> None:
+    assert get_sport_rule("ncaab", "score_source") == "espn"
+    assert get_sport_rule("ncaab", "espn_sport") == "basketball"
+    assert get_sport_rule("ncaab", "espn_league") == "mens-college-basketball"
+
+
+def test_sport_rule_cbb_alias_uses_mens_college_espn_league() -> None:
+    # CBB Polymarket'te NCAAB ile esanlamli (men's college basketball).
+    assert get_sport_rule("cbb", "espn_league") == "mens-college-basketball"
+
+
+def test_sport_rule_wncaab_uses_womens_college_espn_league() -> None:
+    assert get_sport_rule("wncaab", "espn_league") == "womens-college-basketball"
+
+
+def test_sport_rule_nbl_uses_own_espn_league() -> None:
+    assert get_sport_rule("nbl", "espn_league") == "nbl"
+
+
+def test_sport_rule_euroleague_score_source_disabled() -> None:
+    # ESPN'de euroleague endpoint'i 400 doner -> score enricher sessizce atla.
+    # score_source != "espn" => score_enricher iterasyonunda skip.
+    assert get_sport_rule("euroleague", "score_source") is None
+
+
+def test_sport_rule_euroleague_inherits_nba_exit_rules() -> None:
+    # Score yok ama NBA'nin diger exit kurallari (SL, halftime) calismali.
+    assert get_sport_rule("euroleague", "stop_loss_pct") == 0.35
+    assert get_sport_rule("euroleague", "spread_blocked") is True
+
+
+def test_odds_api_alias_basketball_wnba_resolves_to_wnba() -> None:
+    # Odds API key "basketball_wnba" artik kendi WNBA kurallarini cekmeli,
+    # NBA'ye geri dusmemeli (espn_league dogru olsun).
+    assert get_sport_rule("basketball_wnba", "espn_league") == "wnba"
+
+
+def test_odds_api_alias_basketball_ncaab_resolves_to_ncaab() -> None:
+    assert get_sport_rule("basketball_ncaab", "espn_league") == "mens-college-basketball"
 
 
 # ── is_moneyline_only (NHL ML-only kanıt, SPEC-L 2026-05-11) ──
