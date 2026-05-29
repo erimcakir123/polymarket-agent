@@ -19,9 +19,9 @@ _CLOB_BOOK_URL = "https://clob.polymarket.com/book"
 _DEFAULT_TIMEOUT = 10
 
 # Scanner fiyatı ile CLOB live fiyat farkı > bu oran → reject
-# 2026-05-29 Phase 3 follow-up: Polymarket tennis fiyatları daha dalgalı
-# (heavy cycle 25dk arası %10-15 drift olağan). %5 → %15.
-STALE_PRICE_MAX_DRIFT = 0.15
+# 2026-05-30: tennis-paper-lab paritesine geri alındı (0.05). Önceki 0.15
+# gevşetmesi hatalıydı — canlıda kötü fill üretirdi.
+STALE_PRICE_MAX_DRIFT = 0.05
 
 
 def _default_http_get(url: str, params: dict | None = None, timeout: int = _DEFAULT_TIMEOUT) -> Any:
