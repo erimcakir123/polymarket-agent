@@ -268,6 +268,7 @@ def build_agent(state: RuntimeState) -> Agent:
         mlb_submarket_engine=mlb_engine,
         tennis_start_enricher=tennis_enricher,
         espn_client=espn,  # SPEC-force-close 2026-05-27
+        gamma_client=gamma,  # 2026-05-28: ExitProcessor polymarket-resolution detector
     )
     agent = Agent(deps)
 

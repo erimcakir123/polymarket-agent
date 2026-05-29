@@ -17,6 +17,7 @@ from src.orchestration.force_close_executor import (
     reason_to_exit_reason,
 )
 from src.strategy.exit import monitor as exit_monitor
+from src.strategy.exit import polymarket_resolution
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,10 @@ class ExitProcessor:
             espn_client=getattr(deps, "espn_client", None),
             executor=deps.executor,
         )
+        # 2026-05-28: Polymarket resolution detector — light tick sayaci per pozisyon.
+        # Her N tick'te bir gamma'ya sorgu; N=0 → devre disi. gamma_client deps'te
+        # yoksa feature sessizce kapali (backwards-compat).
+        self._resolution_tick_counters: dict[str, int] = {}
 
     def run_light(self, score_map: dict[str, dict] | None = None) -> None:
         """Her pozisyonu cycle-state tick + exit_monitor'dan geçir.
@@ -47,6 +52,14 @@ class ExitProcessor:
         for cid in list(state.portfolio.positions.keys()):
             pos = state.portfolio.positions.get(cid)
             if pos is None:
+                continue
+
+            # 2026-05-28: Polymarket auto-resolution detector — diğer exit chain'lerden
+            # ÖNCE çalışır. Market kapanmış (closed=true + uma resolved) ise WS price
+            # feed güncellemeyi durdurur, normal SL/TP/scale-out asla tetiklenmez.
+            # Bu detector açık pozisyonu owned-side payout (0/1) ile finalize eder.
+            if self._check_polymarket_resolution(pos):
+                exits_processed += 1
                 continue
 
             tick_position_state(pos)
@@ -81,6 +94,58 @@ class ExitProcessor:
             self.deps.cycle_manager.signal_exit_happened()
             # Dashboard realized_pnl anlık güncellensin — bir sonraki heavy cycle bekleme.
             operational_writers.log_equity_snapshot(state.portfolio, self.deps.equity_logger)
+
+    def _check_polymarket_resolution(self, pos: Position) -> bool:
+        """Pozisyonun market'i Polymarket'te resolve oldu mu?
+
+        Her N light tick'te bir gamma'ya sorgu (config.risk.polymarket_resolution_check_every_n_ticks).
+        Resolved ise owned-side payout ile finalize → True. Aksi → False.
+
+        Backwards-compat: gamma_client deps'te yoksa veya N=0 ise feature kapali,
+        her zaman False döner (mevcut exit chain aynen çalışır).
+        """
+        every_n = self.deps.state.config.risk.polymarket_resolution_check_every_n_ticks
+        if every_n <= 0:
+            return False
+        gamma_client = getattr(self.deps, "gamma_client", None)
+        if gamma_client is None:
+            return False
+
+        counter = self._resolution_tick_counters.get(pos.condition_id, 0)
+        self._resolution_tick_counters[pos.condition_id] = counter + 1
+        # Tick 0 (ilk gör) ve her N tick'te bir → fetch
+        if counter % every_n != 0:
+            return False
+
+        try:
+            market = gamma_client.fetch_closed_market_by_condition(pos.condition_id)
+        except Exception as e:
+            logger.warning(
+                "Polymarket resolution check failed for %s: %s",
+                pos.slug[:35] or pos.condition_id[:20], e,
+            )
+            return False
+
+        signal = polymarket_resolution.check_resolution(pos, market)
+        if signal is None:
+            return False
+
+        # Payout-based realized: shares × payout - basis (owned-side semantik,
+        # BUY_NO için shares NO token'a aittir, payout NO resolution price).
+        realized = pos.shares * signal.exit_price - pos.size_usdc
+        logger.info(
+            "RESOLVED %s: payout=%.2f realized=$%.2f",
+            (pos.slug or pos.condition_id)[:40], signal.exit_price, realized,
+        )
+        self._finalize_full_exit(
+            pos=pos,
+            exit_price=signal.exit_price,
+            realized=realized,
+            exit_reason_value=ExitReason.RESOLVED.value,
+            audit_signal=None,
+        )
+        self._resolution_tick_counters.pop(pos.condition_id, None)
+        return True
 
     def _apply_fav_transition(self, pos: Position, transition: FavoredTransition) -> None:
         if transition.promote and not pos.favored:

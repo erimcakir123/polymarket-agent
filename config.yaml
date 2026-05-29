@@ -100,6 +100,10 @@ risk:
     totals: 240
     spread: 240
     default: 300
+  # 2026-05-28: Polymarket otomatik resolution detector. Her N light tick'te bir
+  # acik pozisyon gamma'da sorgulanir (closed + umaResolutionStatus=resolved →
+  # exit @ owned-side payout). 5sn × 60 = 5dk per pozisyon. 0 → kapali.
+  polymarket_resolution_check_every_n_ticks: 60
 
 early:
   enabled: true

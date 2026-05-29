@@ -81,6 +81,11 @@ class RiskConfig(BaseModel):
     # 2026-05-27 (SPEC-force-close): market_type → max dakika; süre dolarsa pozisyon
     # zorla kapatılır. Boş dict → feature devre dışı (mevcut SL/TP zincirine etki yok).
     force_close_timeouts: dict[str, int] = Field(default_factory=dict)
+    # 2026-05-28: Polymarket auto-resolution detector. ExitProcessor light cycle her N
+    # tick'te bir pozisyonun underlying market'ini gamma'da sorgular (closed=true +
+    # umaResolutionStatus=resolved → exit @ owned-side payout). 5sn light interval × 60
+    # = 5dk per pozisyon. 0 → devre disi.
+    polymarket_resolution_check_every_n_ticks: int = 60
 
 
 class MlbSubmarketConfig(BaseModel):
