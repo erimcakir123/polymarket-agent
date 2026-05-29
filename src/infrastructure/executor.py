@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 import requests
 
-from src.config.settings import Mode
+from src.config.settings import Mode, PaperConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,22 @@ class Executor:
         mode: Mode,
         http_get: Callable[..., Any] = _default_http_get,
         clob_client: Any = None,
+        paper_config: PaperConfig | None = None,
+        paper_audit_path: Any = "logs/audit/paper_executions.jsonl",
     ) -> None:
         self.mode = mode
         self._http = http_get
         self._clob = clob_client
         if mode == Mode.LIVE and clob_client is None:
             raise ValueError("LIVE mode requires clob_client (ClobOrderClient)")
+        self._paper = None
+        if mode == Mode.PAPER:
+            from src.orchestration.paper_executor import PaperExecutor
+            self._paper = PaperExecutor(
+                config=paper_config or PaperConfig(),
+                audit_path=paper_audit_path,
+                http_get=http_get,
+            )
 
     def place_order(
         self,
@@ -76,8 +86,14 @@ class Executor:
                 "fill_price": price, "cap": max_entry_price,
             }
 
-        if self.mode in (Mode.DRY_RUN, Mode.PAPER):
+        if self.mode == Mode.DRY_RUN:
             return self._simulate_order(token_id, side, price, size_usdc)
+        if self.mode == Mode.PAPER:
+            assert self._paper is not None
+            if side == "BUY":
+                return self._paper.place_buy(token_id, price, size_usdc)
+            shares = size_usdc / price if price > 0 else 0.0
+            return self._paper.place_sell(token_id, price, shares)
 
         # LIVE
         book = self._fetch_book(token_id)
@@ -98,13 +114,19 @@ class Executor:
         logger.info("EXIT_POSITION: %s reason=%s mode=%s shares=%.2f",
                     slug[:40], reason, self.mode.value, shares)
 
-        if self.mode in (Mode.DRY_RUN, Mode.PAPER):
+        if self.mode == Mode.DRY_RUN:
             return {
                 "order_id": f"sim_exit_{uuid.uuid4().hex[:8]}",
                 "status": "simulated",
-                "mode": self.mode.value,
+                "mode": "dry_run",
                 "reason": reason,
             }
+        if self.mode == Mode.PAPER:
+            assert self._paper is not None
+            token_id = getattr(pos, "token_id", "")
+            bid_price = getattr(pos, "bid_price", None) or getattr(pos, "current_price", 0) or 0
+            res = self._paper.place_sell(token_id, target_price=float(bid_price), shares=float(shares))
+            return {**res, "reason": reason}
 
         resp = self._clob.place_market_sell(token_id=pos.token_id, shares=shares)
         return {**resp, "mode": "live", "reason": reason}

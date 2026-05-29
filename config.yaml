@@ -199,3 +199,18 @@ mlb_submarket:
   min_edge: 0.05              # Model edge eşiği (Tennis Lab paritesi)
   statsapi_timeout_sec: 10.0
   rate_cache_path: data/mlb_rate_cache.jsonl
+
+paper:
+  # 2026-05-29 (unified paper lab Phase 2): real Polymarket fill simulation.
+  # Yapay latency/rejection YOK — bot gerçek CLOB orderbook + davranış kullanır.
+  max_buy_slippage_pct: 0.02     # %2 BUY max
+  max_sell_slippage_pct: 0.05    # %5 SELL max (exit toleransı yüksek)
+  min_fill_ratio: 0.95           # FOK: bu oran altı → REJECTED
+  book_cache_ttl_sec: 5
+  max_open_cycles: 6             # GTC limit ~3sa açık kalır sonra CANCEL
+  max_stuck_cycles: 12           # Stuck position alarm eşiği (~1sa)
+  min_order_usdc: 1.0            # Polymarket min order
+  price_tick: 0.01               # 1¢ tick zorunlu
+  maker_fee_pct: 0.0             # Polymarket varsayılan
+  taker_fee_pct: 0.0
+  polygon_gas_usdc: 0.01         # Polygon gas/order

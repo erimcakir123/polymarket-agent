@@ -44,12 +44,23 @@ def test_executor_dry_run_returns_sim_order() -> None:
     assert out["mode"] == "dry_run"
 
 
-def test_executor_paper_returns_sim_order() -> None:
+def test_executor_paper_returns_paper_order_via_paper_executor(tmp_path) -> None:
+    """2026-05-29 Phase 2: PAPER mode artık PaperExecutor'a delegate.
+
+    Eski hayali _simulate_order yerine gerçek orderbook walk + audit.
+    """
+    # _mock_ob_resp helper'ı best_ask=0.40 olan asks/bids döner; book derinliği yeterli
+    # → FILLED bekleniyor.
     http = MagicMock(return_value=_mock_ob_resp(best_ask=0.40))
-    ex = Executor(mode=Mode.PAPER, http_get=http)
+    ex = Executor(
+        mode=Mode.PAPER,
+        http_get=http,
+        paper_audit_path=tmp_path / "exec.jsonl",
+    )
     out = ex.place_order(token_id="tok", side="BUY", price=0.40, size_usdc=40.0)
-    assert out["status"] == "simulated"
     assert out["mode"] == "paper"
+    assert out["order_id"].startswith("paper_")
+    assert out["status"] in ("filled", "partial_fill", "rejected")
 
 
 def test_executor_live_requires_clob_client() -> None:

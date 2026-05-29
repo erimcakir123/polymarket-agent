@@ -270,6 +270,26 @@ class BasketballExitConfig(BaseModel):
     predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
 
 
+class PaperConfig(BaseModel):
+    """Paper mode realism parameters (real Polymarket behavior, no synthetic).
+
+    FOK + GTC limit order parity with live mode, 1¢ tick, $1 min order,
+    maker/taker fee + Polygon gas modeling.
+    """
+    model_config = ConfigDict(extra="ignore")
+    max_buy_slippage_pct: float = 0.02
+    max_sell_slippage_pct: float = 0.05
+    min_fill_ratio: float = 0.95
+    book_cache_ttl_sec: int = 5
+    max_open_cycles: int = 6
+    max_stuck_cycles: int = 12
+    min_order_usdc: float = 1.0
+    price_tick: float = 0.01
+    maker_fee_pct: float = 0.0
+    taker_fee_pct: float = 0.0
+    polygon_gas_usdc: float = 0.01
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     mode: Mode = Mode.DRY_RUN
@@ -294,6 +314,7 @@ class AppConfig(BaseModel):
     price_feed: PriceFeedConfig = PriceFeedConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
     mlb_submarket: MlbSubmarketConfig = Field(default_factory=MlbSubmarketConfig)
+    paper: PaperConfig = Field(default_factory=PaperConfig)
 
 
 def load_config(path: Path = Path("config.yaml")) -> AppConfig:

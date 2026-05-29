@@ -230,9 +230,22 @@ class ExitProcessor:
         Bid varsa: realize @ avg_price (FORCE_CLOSE_ESPN veya FORCE_CLOSE_TIME).
         Bid yoksa: realize @ 0 (FORCE_CLOSE_NO_BIDS) — tam kayıp.
         Hem fill hem finalize `_finalize_full_exit` üzerinden (DRY).
+
+        2026-05-29 (Phase 2): Paper modda no_bids → realize @ 0 YAPMAZ;
+        pozisyon "stuck" durumda açık kalır + log alarm. Sonraki cycle yeniden
+        dener (gerçek live davranışı). DRY_RUN/LIVE mevcut davranışı korur.
         """
+        from src.config.settings import Mode
         avg_price, filled_shares, no_bids = self._force_close.fill_via_book(pos)
+        executor_mode = getattr(self.deps.executor, "mode", Mode.DRY_RUN)
         if no_bids:
+            if executor_mode == Mode.PAPER:
+                logger.warning(
+                    "FORCE_CLOSE_STUCK_PAPER %s no_bids — pozisyon acik, "
+                    "sonraki cycle retry. pnl_pct=%.2f",
+                    (pos.slug or pos.token_id)[:40], pos.unrealized_pnl_pct,
+                )
+                return  # state mutation yok; pozisyon stuck kalır
             exit_reason_value = ExitReason.FORCE_CLOSE_NO_BIDS.value
             # Bid yok → realize @ 0, tam size kaybı (-size_usdc).
             self._finalize_full_exit(

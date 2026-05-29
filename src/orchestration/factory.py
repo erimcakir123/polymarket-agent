@@ -280,9 +280,15 @@ def build_agent(state: RuntimeState) -> Agent:
 
 
 def _build_executor(cfg: AppConfig) -> Executor:
-    """LIVE mode → CLOB client wire; dry_run/paper → stub."""
-    if cfg.mode != Mode.LIVE:
+    """Mode dispatch: dry_run → stub; paper → realistic fill; live → CLOB."""
+    if cfg.mode == Mode.DRY_RUN:
         return Executor(mode=cfg.mode)
+    if cfg.mode == Mode.PAPER:
+        return Executor(
+            mode=cfg.mode,
+            paper_config=cfg.paper,
+            paper_audit_path="logs/audit/paper_executions.jsonl",
+        )
     # LIVE: py-clob-client runtime wiring
     import os
     from src.infrastructure.apis.clob_client import ClobOrderClient, build_client
