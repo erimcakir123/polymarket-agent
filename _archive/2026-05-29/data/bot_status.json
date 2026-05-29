@@ -1,0 +1,8 @@
+{
+  "mode": "dry_run",
+  "cycle": "light",
+  "stage": "light",
+  "stage_at": "2026-05-29T17:27:22.512315+00:00",
+  "next_heavy_at": "2026-05-29T17:43:54.551337+00:00",
+  "light_alive": true
+}

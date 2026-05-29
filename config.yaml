@@ -27,10 +27,14 @@ scanner:
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.
   allowed_sport_tags:
-    # 2026-05-15: 19 Apr peak rollback — sport portföyü geri açıldı (iyi-donem-rollback).
-    # Hockey için SADECE NHL (kullanıcı kararı, AHL/Liiga/SHL/Mestis/Allsvenskan EKLENMEZ).
-    # Baseball — 2026-05-26 portföyden çıkarıldı (bleed: 5 haftada -$297, post-reboot tek başına
-    # -$107 kayıp; diğer sporlar net +$186 üretirken baseball net'i eksiye çevirdi).
+    # 2026-05-29 (unified paper lab Phase 1): portföy SADECE BASKETBOL'a indirildi.
+    # Tennis (atp/wta) Phase 3'te eklenecek (paper realism executor yazıldıktan sonra).
+    # Çıkarılanlar (gerekçe — gerçek aktivite verisi):
+    #   - NHL: 13 trade, %0 WR, -$57 net (post-reboot bleed)
+    #   - NCAAF/CFL/UFL: tarihte 0 trade (sezon dışı / Polymarket'te market yok)
+    #   - MMA/UFC/Boxing: toplam 1 trade, -$14 (örneklem yetersiz)
+    #   - PGA*/LIV*/LPGA*: tarihte 0 trade
+    #   - Baseball: 2026-05-26 çıkarıldı (-$297, 5 hafta bleed)
     # Basketball
     - nba
     - wnba
@@ -39,22 +43,6 @@ scanner:
     - cbb
     - euroleague
     - nbl
-    # Hockey — SADECE NHL (kullanıcı kararı, AHL/Liiga/SHL/Mestis/Allsvenskan EKLENMEZ)
-    - nhl
-    # American Football
-    - ncaaf
-    - cfl
-    - ufl
-    # Tennis — ana botta KAPALI (steril ayrım: tennis lab feature/tennis-lab branch'ında).
-    # 2026-05-23: STOCK kirlenmesi + bookmaker yokluğu nedeniyle kaldırıldı.
-    # Combat sports
-    - mma
-    - ufc
-    - boxing
-    # Golf
-    - "lpga*"
-    - "liv*"
-    - "pga*"
 
 edge:
   min_edge: 0.06

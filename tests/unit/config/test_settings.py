@@ -98,40 +98,46 @@ def test_config_score_disabled_overrides() -> None:
 
 
 def test_repo_config_yaml_parses() -> None:
-    """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli."""
+    """Kökdeki config.yaml geçerli Pydantic olarak yüklenmeli.
+
+    2026-05-29 Phase 1 (unified paper lab): portföy SADECE BASKETBOL'a
+    indirildi. NHL/NCAAF/CFL/UFL/MMA/UFC/Boxing/PGA*/LIV*/LPGA* çıkarıldı.
+    Tennis (atp/wta) Phase 3'te eklenecek.
+    """
     cfg = load_config()  # default Path("config.yaml")
     assert cfg.mode is not None
     assert cfg.initial_bankroll > 0
     assert cfg.edge.min_edge == 0.06
-    # 2026-05-15 iyi-donem-rollback: 19 Apr peak sport portföyü geri açıldı.
-    # Hockey için SADECE NHL. Tennis 2026-05-23'te ana bot listesinden çıkarıldı
-    # (TODO-006: SPEC-Y7 — tennis lab feature/tennis-lab branch'ında ayrı pipeline).
-    # Baseball 2026-05-26 ana bot listesinden çıkarıldı (bleed: 5 haftada -$297).
-    for must_have in (
-        "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
+    # Phase 1 sonrası whitelist sadece basket
+    for must_have in ("nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl"):
+        assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"
+    # Phase 1 sonrası çıkarılanlar OLMAMALI
+    for banned_phase1 in (
         "nhl",
         "ncaaf", "cfl", "ufl",
         "mma", "ufc", "boxing",
         "lpga*", "liv*", "pga*",
     ):
-        assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"
-    # SPEC-Y7: Tennis ana botta OLMAMALI (steril ayrım)
-    for banned_tennis in ("tennis", "atp*", "wta*"):
-        assert banned_tennis not in cfg.scanner.allowed_sport_tags, (
-            f"{banned_tennis} ana botta olmamalı — tennis lab ayrı"
+        assert banned_phase1 not in cfg.scanner.allowed_sport_tags, (
+            f"{banned_phase1} Phase 1'de çıkarıldı"
         )
-    # 2026-05-26: Baseball ana botta OLMAMALI (bleed kontrolü)
+    # Tennis Phase 3'te eklenecek — ŞU AN olmamalı
+    for not_yet_tennis in ("atp", "wta", "tennis"):
+        assert not_yet_tennis not in cfg.scanner.allowed_sport_tags, (
+            f"{not_yet_tennis} Phase 3 bekliyor"
+        )
+    # Baseball 2026-05-26 çıkarıldı, hala olmamalı
     for banned_baseball in ("mlb", "milb", "npb", "kbo", "baseball"):
         assert banned_baseball not in cfg.scanner.allowed_sport_tags, (
-            f"{banned_baseball} ana botta olmamalı — 2026-05-26 bleed kontrolü"
+            f"{banned_baseball} 2026-05-26'da çıkarıldı"
         )
-    # Draw-possible sporlar MVP dışı — eklenmemiş olmalı
+    # Draw-possible sporlar MVP dışı
     for banned in ("soccer_epl", "soccer_laliga"):
         assert banned not in cfg.scanner.allowed_sport_tags, f"{banned} MVP dışı"
-    # Hockey alt ligleri (NHL hariç) — kullanıcı kararı ile EKLENMEZ
+    # Hockey alt ligleri (NHL artık tamamen yok)
     for hockey_minor in ("ahl", "liiga", "mestis", "shl", "allsvenskan"):
         assert hockey_minor not in cfg.scanner.allowed_sport_tags, (
-            f"{hockey_minor} eklenmez — kullanıcı kararı (sadece NHL)"
+            f"{hockey_minor} eklenmez"
         )
 
 

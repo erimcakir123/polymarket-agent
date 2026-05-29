@@ -1,0 +1,8 @@
+{
+  "daily_realized_pnl_pct": -0.01788887898192945,
+  "hourly_realized_pnl_pct": -0.01788887898192945,
+  "consecutive_losses": 0,
+  "breaker_active_until": null,
+  "last_daily_reset": "2026-05-27T13:50:50.060137+00:00",
+  "last_hourly_reset": "2026-05-27T13:50:50.060141+00:00"
+}
