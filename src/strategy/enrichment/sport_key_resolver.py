@@ -3,8 +3,9 @@
 Öncelik: static mapping (slug/tag) → event discovery fallback.
 odds_client DI ile — HTTP çağrıları dışarıdan verilir.
 
-Tennis dinamik routing 2026-05-05 itibariyle DORMANT (SPEC-A5) — kod korundu,
-re-enable için resolve_sport_key'deki erken-return'u kaldır.
+Tennis dinamik routing 2026-05-29 itibariyle YENİDEN AKTİF (Phase 3 fix):
+tennis ana botta whitelist'e alındı (Phase 3), sport_key_resolver _match_tennis_key
+ile aktif tennis turnuvasından (city-based) Odds API key'i çözer.
 """
 from __future__ import annotations
 
@@ -50,17 +51,28 @@ def resolve_sport_key(
     if static:
         return static
 
-    # 2. Tennis kapatıldı 2026-05-05 (SPEC-A5) — atp/wta prefix veya tennis-related
-    # question text → erken None. Eski dinamik turnuva matching kaldırıldı çünkü
-    # tennis allowed_sport_tags'den çıkarıldı; gereksiz Odds API çağrısı yok.
+    # 2. Tennis dinamik tournament matching — 2026-05-29 (Phase 3 fix) ile
+    # YENİDEN AÇILDI. Tennis ana botta aktif (whitelist'te tennis/atp/wta).
+    # Polymarket slug atp-* veya wta-* gelir; Odds API key'i şehir-bazlı
+    # (tennis_atp_munich, tennis_wta_stuttgart_open vs.) — _match_tennis_key
+    # aktif turnuva listesinden en iyi eşleşmeyi bulur.
     slug_lower = (slug or "").lower()
     prefix = slug_lower.split("-")[0] if slug_lower else ""
     q_lower = (question or "").lower()
 
-    if prefix in ("atp", "wta"):
-        return None
-    if any(kw in q_lower for kw in ("atp", "wta", "tennis", "women")):
-        return None
+    if prefix == "atp":
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+    if prefix == "wta":
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+    # Question text tabanlı fallback — slug prefix yoksa ama soru ATP/WTA içeriyorsa
+    if "atp" in q_lower or "men's" in q_lower:
+        return _match_tennis_key("atp", q_lower, slug_lower, odds_client)
+    if "wta" in q_lower or "women" in q_lower:
+        return _match_tennis_key("wta", q_lower, slug_lower, odds_client)
+    if "tennis" in q_lower:
+        # Cinsiyet belirsiz — atp + wta sırayla dene, ilk hit kazanır
+        return (_match_tennis_key("atp", q_lower, slug_lower, odds_client)
+                or _match_tennis_key("wta", q_lower, slug_lower, odds_client))
 
     # 3. Dinamik discovery — takım adlarıyla tüm sport'ların event'lerini ara
     team_a, team_b = extract_teams(question)
