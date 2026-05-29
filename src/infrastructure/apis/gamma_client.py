@@ -102,46 +102,50 @@ class GammaClient:
 
     def __init__(self, http_get: Callable[..., Any] = _default_http_get) -> None:
         self._http = http_get
-        self._league_tags: list[tuple[str, int]] = []
-        self._league_tags_ts: float = 0.0
+        # Cache holds (category, kind, id) tuples where kind in {"tag","series"}.
+        # Series-based fetch picks up ITF tennis events that tag query misses.
+        self._league_sources: list[tuple[str, str, int]] = []
+        self._league_sources_ts: float = 0.0
 
     def fetch_events(self) -> list[MarketData]:
         try:
-            tags = self._fetch_league_tags() or PARENT_TAGS
+            sources = self._fetch_league_sources() or [(c, "tag", i) for c, i in PARENT_TAGS]
         except Exception as e:
             logger.warning("Gamma /sports failed: %s — using parent tags", e)
-            tags = PARENT_TAGS
+            sources = [(c, "tag", i) for c, i in PARENT_TAGS]
 
         seen: set[str] = set()
         out: list[MarketData] = []
 
-        for category, tag_id in tags:
+        for category, kind, value in sources:
             try:
-                self._fetch_by_tag(tag_id, category, seen, out)
+                self._fetch_by_param(f"{kind}_id", value, category, seen, out)
             except Exception as e:
-                logger.warning("Gamma fetch tag=%s failed: %s", tag_id, e)
+                logger.warning("Gamma fetch %s=%s failed: %s", kind, value, e)
 
         # Parent fallback (yeni tag'ler için)
         for category, tag_id in PARENT_TAGS:
             try:
-                self._fetch_by_tag(tag_id, category, seen, out)
+                self._fetch_by_param("tag_id", tag_id, category, seen, out)
             except Exception as e:
                 logger.warning("Gamma parent-tag fetch failed: %s", e)
 
         logger.info("Gamma fetched %d unique markets", len(out))
         return out
 
-    def _fetch_by_tag(
+    def _fetch_by_param(
         self,
-        tag_id: int,
+        param_name: str,
+        value: int,
         category: str,
         seen: set[str],
         out: list[MarketData],
     ) -> None:
+        """Paginate /events filtered by tag_id or series_id and ingest each event."""
         offset = 0
         while True:
             params = {
-                "tag_id": tag_id,
+                param_name: value,
                 "active": "true",
                 "closed": "false",
                 "limit": EVENTS_PER_PAGE,
@@ -274,24 +278,37 @@ class GammaClient:
             logger.warning("Gamma closed-market fetch failed %s: %s", condition_id[:20], e)
             return None
 
-    def _fetch_league_tags(self) -> list[tuple[str, int]]:
-        if self._league_tags and (time.time() - self._league_tags_ts) < _SPORTS_CACHE_SEC:
-            return self._league_tags
+    def _fetch_league_sources(self) -> list[tuple[str, str, int]]:
+        """Returns (category, kind, id) where kind in {"tag","series"}. Cached.
+
+        Series-based queries surface markets that tag queries miss — most
+        notably ITF tennis, which has no tennis-specific tag in Polymarket's
+        taxonomy and is only reachable via series_id (e.g. 11634).
+        """
+        if self._league_sources and (time.time() - self._league_sources_ts) < _SPORTS_CACHE_SEC:
+            return self._league_sources
         resp = self._http(f"{GAMMA_BASE}/sports", timeout=_DEFAULT_TIMEOUT)
         resp.raise_for_status()
         sports = resp.json() or []
-        seen: set[int] = set()
-        result: list[tuple[str, int]] = []
+        seen_tags: set[int] = set()
+        seen_series: set[int] = set()
+        result: list[tuple[str, str, int]] = []
         for entry in sports:
             sport_code = entry.get("sport", "")
             for t in str(entry.get("tags", "")).split(","):
                 t = t.strip()
                 if t.isdigit():
                     tid = int(t)
-                    if tid not in seen:
-                        seen.add(tid)
-                        result.append((sport_code, tid))
+                    if tid not in seen_tags:
+                        seen_tags.add(tid)
+                        result.append((sport_code, "tag", tid))
+            series_raw = str(entry.get("series", "") or "").strip()
+            if series_raw.isdigit():
+                sid = int(series_raw)
+                if sid not in seen_series:
+                    seen_series.add(sid)
+                    result.append((sport_code, "series", sid))
         if result:
-            self._league_tags = result
-            self._league_tags_ts = time.time()
+            self._league_sources = result
+            self._league_sources_ts = time.time()
         return result

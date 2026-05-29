@@ -1,0 +1,30 @@
+On branch feature/tennis-lab
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   SPEC.md
+	modified:   Sound/Loss.mp3
+	modified:   config_tennis.yaml
+	deleted:    data/positions.pre_rollback_20260515_160958.bak
+	deleted:    logs/tennis_diagnostics/.gitkeep
+	modified:   scripts/reboot.py
+	modified:   scripts/tennis_main.py
+	modified:   src/domain/matching/tennis_player_matcher.py
+	modified:   src/infrastructure/apis/gamma_client.py
+	modified:   tests/unit/domain/matching/test_tennis_player_matcher.py
+	modified:   tests/unit/infrastructure/apis/test_gamma_client.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	data/positions.json.bak.2026-05-24-cap20
+	docs/superpowers/plans/2026-05-25-distance-based-scale-out.md
+	docs/superpowers/plans/2026-05-26-acute-losses-fix.md
+	docs/superpowers/plans/2026-05-26-espn-match-start-refresh.md
+	docs/superpowers/plans/2026-05-26-itf-futures-doubles.md
+	docs/superpowers/plans/2026-05-26-tennis-data-uk-calibration.md
+	docs/superpowers/specs/2026-05-26-resolved-reason-bug-spec.md
+	scripts/refresh_sackmann.py
+	src/infrastructure/data/sackmann_refresher.py
+	tests/unit/infrastructure/data/test_sackmann_refresher.py
+
+no changes added to commit (use "git add" and/or "git commit -a")

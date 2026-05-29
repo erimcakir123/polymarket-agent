@@ -423,7 +423,7 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bot reload/reboot kontrolü")
     parser.add_argument("action", choices=["reload", "reboot"])
-    parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live"])
+    parser.add_argument("--mode", default="dry_run", choices=["dry_run", "paper", "live"])
     parser.add_argument("--yes", action="store_true",
                         help="Reboot onayını bypass et (audit silme uyarısını atla)")
     parser.add_argument("--wipe", action="store_true",

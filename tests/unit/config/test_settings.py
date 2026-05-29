@@ -121,11 +121,13 @@ def test_repo_config_yaml_parses() -> None:
         assert banned_phase1 not in cfg.scanner.allowed_sport_tags, (
             f"{banned_phase1} Phase 1'de çıkarıldı"
         )
-    # Tennis Phase 3'te eklenecek — ŞU AN olmamalı
-    for not_yet_tennis in ("atp", "wta", "tennis"):
-        assert not_yet_tennis not in cfg.scanner.allowed_sport_tags, (
-            f"{not_yet_tennis} Phase 3 bekliyor"
+    # Phase 3 sonrası tennis (atp/wta) listede OLMALI
+    for tennis_tag in ("atp", "wta"):
+        assert tennis_tag in cfg.scanner.allowed_sport_tags, (
+            f"{tennis_tag} Phase 3'te eklendi, listede olmalı"
         )
+    # Tennis-related ama eski generic 'tennis' tag YOK (slug değil)
+    assert "tennis" not in cfg.scanner.allowed_sport_tags
     # Baseball 2026-05-26 çıkarıldı, hala olmamalı
     for banned_baseball in ("mlb", "milb", "npb", "kbo", "baseball"):
         assert banned_baseball not in cfg.scanner.allowed_sport_tags, (

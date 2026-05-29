@@ -1,22 +1,22 @@
-"""Phase 1 verification — config.yaml allowed_sport_tags constraint.
+"""Phase 1 verification — historical (Phase 3 superseded these checks).
 
-After Phase 1, the whitelist must contain ONLY basketball sport tags
-(NHL/NCAAF/CFL/UFL/MMA/UFC/Boxing/PGA/LIV/LPGA removed). Tennis
-(atp/wta) is NOT added yet — that's Phase 3.
+Phase 1 daralttı: basket-only, dry_run kalır.
+Phase 3 eklendi: tennis (atp/wta) + mode=paper default.
+
+Phase 1 testleri güncel state'e göre yeniden ifade edildi (basket hala içeride,
+NHL/golf/MMA çıkarılmış kalır). Mode + tennis kontrolü Phase 3 testinde.
 """
 from pathlib import Path
 
 import yaml
 
 
-_BASKET_ALLOWED = {"nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl"}
-_MUST_NOT_BE_PRESENT = {
+_BASKET_REQUIRED = {"nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl"}
+_PHASE_1_REMOVED = {
     "nhl",
     "ncaaf", "cfl", "ufl",
     "mma", "ufc", "boxing",
     "lpga*", "liv*", "pga*",
-    # Tennis NOT added in Phase 1
-    "atp", "wta",
 }
 
 
@@ -26,25 +26,18 @@ def _load_config_yaml() -> dict:
         return yaml.safe_load(f) or {}
 
 
-def test_phase_1_whitelist_contains_only_basketball() -> None:
+def test_phase_1_basketball_still_in_whitelist() -> None:
+    """Phase 1 daralttı: basket içeride kalır (Phase 3'te tennis eklendi ama
+    basket dokunulmaz)."""
     cfg = _load_config_yaml()
     tags = set(cfg["scanner"]["allowed_sport_tags"])
-    assert tags == _BASKET_ALLOWED, (
-        f"Phase 1: whitelist must equal basketball-only set.\n"
-        f"got: {sorted(tags)}\nexpected: {sorted(_BASKET_ALLOWED)}"
-    )
+    missing = _BASKET_REQUIRED - tags
+    assert not missing, f"Phase 1 daralttı ama basket TAGLARI EKSİK: {sorted(missing)}"
 
 
-def test_phase_1_whitelist_excludes_removed_sports() -> None:
+def test_phase_1_removed_sports_stay_out() -> None:
+    """Phase 1'de çıkarılan sporlar (NHL/golf/MMA) Phase 3'te geri eklenmez."""
     cfg = _load_config_yaml()
     tags = set(cfg["scanner"]["allowed_sport_tags"])
-    intersect = tags & _MUST_NOT_BE_PRESENT
-    assert not intersect, f"Phase 1: these tags must be REMOVED: {sorted(intersect)}"
-
-
-def test_phase_1_mode_remains_dry_run() -> None:
-    """Phase 1 must NOT change mode. Mode default stays dry_run until Phase 3."""
-    cfg = _load_config_yaml()
-    assert cfg.get("mode", "dry_run") == "dry_run", (
-        "Phase 1 must keep mode=dry_run. Mode change is Phase 3."
-    )
+    intersect = tags & _PHASE_1_REMOVED
+    assert not intersect, f"Phase 1'de çıkarılan tag'ler geri sızmış: {sorted(intersect)}"

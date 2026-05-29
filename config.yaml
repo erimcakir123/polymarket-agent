@@ -1,5 +1,5 @@
 # config.yaml — Polymarket Agent 2.0 v2 defaults (DECISIONS §9)
-mode: dry_run  # dry_run | paper | live
+mode: paper  # dry_run | paper | live  (2026-05-29 Phase 3: paper default)
 initial_bankroll: 1000.0
 
 cycle:
@@ -27,14 +27,8 @@ scanner:
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.
   allowed_sport_tags:
-    # 2026-05-29 (unified paper lab Phase 1): portföy SADECE BASKETBOL'a indirildi.
-    # Tennis (atp/wta) Phase 3'te eklenecek (paper realism executor yazıldıktan sonra).
-    # Çıkarılanlar (gerekçe — gerçek aktivite verisi):
-    #   - NHL: 13 trade, %0 WR, -$57 net (post-reboot bleed)
-    #   - NCAAF/CFL/UFL: tarihte 0 trade (sezon dışı / Polymarket'te market yok)
-    #   - MMA/UFC/Boxing: toplam 1 trade, -$14 (örneklem yetersiz)
-    #   - PGA*/LIV*/LPGA*: tarihte 0 trade
-    #   - Baseball: 2026-05-26 çıkarıldı (-$297, 5 hafta bleed)
+    # 2026-05-29 (unified paper lab Phase 3): basket + tenis (final portföy).
+    # Phase 1'de daraltıldı, Phase 3'te tennis (atp/wta) eklendi.
     # Basketball
     - nba
     - wnba
@@ -43,12 +37,28 @@ scanner:
     - cbb
     - euroleague
     - nbl
+    # Tennis (Phase 3 — paper realism + Sackmann refresher hazır)
+    - atp
+    - wta
 
 edge:
   min_edge: 0.06
   confidence_multipliers:
     A: 1.00    # 19 Apr peak değer (önceki 1.25)
     B: 1.00
+  # 2026-05-29 (Phase 3): tennis paper lab 97 trade analizi (post-spike-removal):
+  #   tennis_set_totals -$63 net, tennis_first_set_winner -$162 net.
+  #   Sackmann modeli %16/%56 doğru, market %72/%69 → modele güvenilmez.
+  # tennis_set_handicap (+$2), tennis_match_totals (+$117), moneyline açık tutuluyor.
+  exclude_combos:
+    - {tour: atp, market_type: tennis_set_totals, confidence: A}
+    - {tour: atp, market_type: tennis_set_totals, confidence: B}
+    - {tour: wta, market_type: tennis_set_totals, confidence: A}
+    - {tour: wta, market_type: tennis_set_totals, confidence: B}
+    - {tour: atp, market_type: tennis_first_set_winner, confidence: A}
+    - {tour: atp, market_type: tennis_first_set_winner, confidence: B}
+    - {tour: wta, market_type: tennis_first_set_winner, confidence: A}
+    - {tour: wta, market_type: tennis_first_set_winner, confidence: B}
 
 risk:
   # SPEC-P (2026-05-21): sabit-tier sizing. Bankroll dalgalanmasından bağımsız.

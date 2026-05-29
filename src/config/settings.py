@@ -58,6 +58,10 @@ class EdgeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     min_edge: float = 0.06
     confidence_multipliers: dict = {"A": 1.00, "B": 1.00}  # 19 Apr peak (A: 1.25 → 1.00)
+    # Data-driven entry exclusions (Phase 3, 2026-05-29). Tennis paper lab
+    # analizinden negative-EV kanıtlı sub-market'ler. Genişletilebilir
+    # (yeni evidence olduğunda).
+    exclude_combos: list[dict] = Field(default_factory=list)
 
 
 class RiskConfig(BaseModel):

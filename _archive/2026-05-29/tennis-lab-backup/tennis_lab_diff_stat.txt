@@ -1,0 +1,12 @@
+ SPEC.md                                            | 124 +++++++++++
+ Sound/Loss.mp3                                     | Bin 178814 -> 50228 bytes
+ config_tennis.yaml                                 |  15 +-
+ data/positions.pre_rollback_20260515_160958.bak    | 236 ---------------------
+ logs/tennis_diagnostics/.gitkeep                   |   0
+ scripts/reboot.py                                  |  53 ++---
+ scripts/tennis_main.py                             |  44 ++++
+ src/domain/matching/tennis_player_matcher.py       |   7 +
+ src/infrastructure/apis/gamma_client.py            |  60 ++++--
+ .../domain/matching/test_tennis_player_matcher.py  |  38 +++-
+ .../unit/infrastructure/apis/test_gamma_client.py  |  42 ++++
+ 11 files changed, 332 insertions(+), 287 deletions(-)

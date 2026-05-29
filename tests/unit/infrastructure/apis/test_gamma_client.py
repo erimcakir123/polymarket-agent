@@ -186,3 +186,42 @@ def test_sports_endpoint_caches() -> None:
     client.fetch_events()
     sports_calls2 = [c for c in http.call_args_list if "/sports" in str(c)]
     assert len(sports_calls2) == 0
+
+
+def test_fetch_events_uses_series_id_when_present() -> None:
+    """Sport entries with a 'series' field trigger an additional /events?series_id=X query.
+
+    Polymarket assigns ITF tennis events to a series but not to a tennis-specific
+    tag — tag-based fetch misses them entirely. Series-based fetch is the only
+    discovery path. Without this, the bot misses ~95% of daily tennis volume.
+    """
+    http = MagicMock()
+    http.side_effect = [
+        _resp(200, [{"sport": "itf", "tags": "864", "series": "11634"}]),
+        _resp(200, [_event("from-tag")]),     # /events?tag_id=864
+        _resp(200, [_event("from-series")]),  # /events?series_id=11634
+        _resp(200, []),  # parent sports
+        _resp(200, []),  # parent esports
+    ]
+    client = GammaClient(http_get=http)
+    markets = client.fetch_events()
+    cids = {m.condition_id for m in markets}
+    assert "from-tag" in cids
+    assert "from-series" in cids
+    series_calls = [c for c in http.call_args_list if "series_id" in str(c)]
+    assert len(series_calls) >= 1
+
+
+def test_fetch_events_series_id_invalid_value_skipped() -> None:
+    """Non-numeric series field on a sport entry is ignored (no /events call)."""
+    http = MagicMock()
+    http.side_effect = [
+        _resp(200, [{"sport": "x", "tags": "100", "series": "not-a-number"}]),
+        _resp(200, []),  # tag=100
+        _resp(200, []),  # parent sports
+        _resp(200, []),  # parent esports
+    ]
+    client = GammaClient(http_get=http)
+    client.fetch_events()
+    series_calls = [c for c in http.call_args_list if "series_id" in str(c)]
+    assert len(series_calls) == 0

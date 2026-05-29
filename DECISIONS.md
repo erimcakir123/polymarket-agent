@@ -1217,6 +1217,29 @@ CB'nin kuralı: 4 ardışık kayıpta tüm liglerden 60 dakika blok. Bu bağıms
 
 ---
 
+## SPEC-UNIFIED-PAPER-LAB: Tek Bot — Basket + Tenis Paper (2026-05-29)
+
+**Karar:** Tennis lab + main bot birleştirildi. Tek bot, tek bankroll, sadece basket + tenis, mode=paper default.
+
+**Sebep:** Tennis lab ayrı branch'ta + ayrı process + ayrı config + ayrı dashboard yorucu hale gelmişti. Diğer sporlar (NHL 13 trade %0 WR -$57, NCAAF/CFL/UFL/golf 0 trade) portföyde anlam taşımıyordu. Gerçek paraya geçiş öncesi HIPER GERÇEKÇİ tek paper bot kurmak hedef.
+
+**Üç fazlı uygulama (rollback-friendly):**
+- **Faz 1** (commit 56a4a52): rollback safety (git tag `pre-unified-2026-05-29` + state snapshot `_archive/2026-05-29/`) + spor whitelist daraltma (basket-only).
+- **Faz 2** (commit c506fee, tag `phase2-paper-executor-2026-05-29`): paper realism executor — `PaperConfig` + `ClobBook` (5sn TTL cache) + `paper_fill.py` (pure walk_buy/walk_sell) + `PaperExecutor` (FOK/GTC strategy parity, 1¢ tick, $1 min order, fee + gas) + force-close paper-aware (no_bids → stuck, no zero-realize). Mode hala dry_run.
+- **Faz 3**: tennis cherry-pick (gamma series_id + Sackmann refresher) + factory tennis startup hook + config.yaml (tennis whitelist + exclude_combos + mode=paper) + reboot.py paper desteği + `_backup_tennis_lab/` arşivlendi.
+
+**Whitelist (final):** nba, wnba, ncaab, wncaab, cbb, euroleague, nbl, atp, wta (9 entry).
+
+**Exclude combos (Phase 3):** tennis_set_totals (atp/wta × A/B), tennis_first_set_winner (atp/wta × A/B) — paper lab analizinden negative-EV kanıtı (97 trade post-spike-removal: -$63 ve -$162 net).
+
+**HIPER gerçekçilik (yapay simülasyon YOK):** Gerçek Polymarket orderbook → FOK/GTC choose_order_strategy (live ile aynı) → walk_buy/walk_sell slippage tolerans + min_fill_ratio %95 → fee/gas modelleme → audit log (paper_executions.jsonl, book snapshot dahil). Mevcut "bid yoksa 0 realize" davranışı paper'da KAPATILDI; pozisyon stuck açık kalır.
+
+**Etki:** `config.yaml`, `src/config/settings.py` (PaperConfig + EdgeConfig.exclude_combos), 5 yeni modül (`src/domain/execution/paper_fill.py`, `src/infrastructure/apis/clob_book.py`, `src/infrastructure/audit/paper_executions.py`, `src/infrastructure/data/sackmann_refresher.py`, `src/orchestration/paper_executor.py`), `src/infrastructure/executor.py` (mode dispatch), `src/orchestration/factory.py` (Sackmann hook + paper config wire), `src/orchestration/exit_processor.py` (paper force-close), `src/infrastructure/apis/gamma_client.py` (series_id), `scripts/reboot.py` (paper choice), `scripts/refresh_sackmann.py`, ~29 yeni test (full suite 1579 passed).
+
+**Rollback:** `git reset --hard pre-unified-2026-05-29` + `cp -r _archive/2026-05-29/data/* data/`.
+
+---
+
 ## SPEC-Q: Dashboard Archive Birleştirme — Exited Tab Kalıcı Geçmiş (2026-05-21)
 
 **Karar:** Dashboard `read_trades` fonksiyonu artık `logs/audit/trade_history.archive.*.jsonl` dosyalarını da okuyor (Tennis Lab pattern'i: `sorted(audit_dir.glob("trade_history.archive.*.jsonl"))`). Realized PnL widget aynı listeden hesaplandığı için widget toplamı ↔ exited tab toplamı her zaman uyumlu.

@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from src.config.settings import AppConfig, Mode
+from src.infrastructure.data.sackmann_refresher import (
+    is_cache_stale,
+    refresh_if_stale,
+)
 from src.domain.guards.manipulation import ManipulationCheck, check_market as manipulation_check
 from src.domain.risk.cooldown import CooldownTracker
 from src.infrastructure.apis.espn_client import ESPNClient
@@ -126,6 +130,10 @@ def park_meta_for_team(team_id: int) -> dict | None:
 def build_agent(state: RuntimeState) -> Agent:
     """Tüm agent bağımlılıklarını inşa et."""
     cfg = state.config
+
+    # Phase 3: tennis aktif iken Sackmann cache refresh hook (build_deps öncesi
+    # blocking, ratings.json'ı agent'ın taze yüklemesi için). Stale değilse skip.
+    _maybe_invoke_sackmann_refresh(cfg)
 
     gamma = GammaClient()
     odds = OddsAPIClient()
@@ -277,6 +285,38 @@ def build_agent(state: RuntimeState) -> Agent:
         command_poller.set_on_stop(agent.request_stop)
 
     return agent
+
+
+def maybe_refresh_sackmann_on_startup(cache_dir: Path) -> None:
+    """Refresh Sackmann CSV + rebuild ratings if cache stale (tennis aktif iken).
+
+    Synchronous; bot agent build_deps öncesi blocking çalışır. Stale değilse
+    early return (1sn altı). İlk başlatma stale → ~1-2dk download + rebuild.
+    Network fail → log WARNING, mevcut cache ile devam.
+    """
+    if not is_cache_stale(cache_dir):
+        logger.info("Sackmann cache fresh — skipping startup refresh")
+        return
+    logger.info("Sackmann cache stale — refreshing before agent start")
+    refreshed = refresh_if_stale(cache_dir)
+    if not refreshed:
+        logger.warning("Sackmann refresh attempted but no files downloaded")
+        return
+    logger.info("Rebuilding tennis_ratings.json from refreshed CSVs...")
+    try:
+        from scripts.build_tennis_ratings import main as rebuild_main  # noqa: PLC0415
+        rebuild_main()
+        logger.info("Startup Sackmann refresh + rebuild complete")
+    except ImportError:
+        logger.warning("scripts/build_tennis_ratings.py yok — sadece CSV refresh yapıldı")
+
+
+def _maybe_invoke_sackmann_refresh(cfg: AppConfig) -> None:
+    """Tennis aktif iken Sackmann refresh hook çağır (allowed_sport_tags'e bak)."""
+    tags_lc = {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])}
+    if not ({"atp", "wta"} & tags_lc):
+        return
+    maybe_refresh_sackmann_on_startup(Path("data/sackmann_cache"))
 
 
 def _build_executor(cfg: AppConfig) -> Executor:

@@ -1,0 +1,796 @@
+diff --git a/SPEC.md b/SPEC.md
+index 900a7b5..e0c3c41 100644
+--- a/SPEC.md
++++ b/SPEC.md
+@@ -49,6 +49,130 @@ Modülün ne yaptığı, tek cümle.
+ 
+ ---
+ 
++## SPEC-PAPER: Tennis Paper Lab (steril ayrı kopya, gerçekçi fill simülasyonu)
++
++- **Durum:** DRAFT
++- **Tarih:** 2026-05-26
++- **Katman:** infrastructure (executor) + presentation (ayrı dashboard) + scripts
++- **Dosya:** YENİ KLASÖR `tennis-paper-lab/` (tennis-lab dışı, kardeş klasör)
++
++### Amaç
++Bot'un mevcut dry-run "hayal kazançları" (33 resolved trade'de +$310 şişme) sorununu gerçek piyasada doğrulamak için **ayrı, steril bir paper-trading lab kurmak**. Bot mevcut stratejiyi koruyacak, tek fark: her order kararında Polymarket'in **canlı order book**'una bakacak — yeterli alıcı/satıcı yoksa fill **fail/slippage** olur (gerçeğin aynısı). Hiçbir gerçek emir Polymarket'e gitmez.
++
++### Hedef-dışı (yapmadıkları)
++- Mevcut `tennis-lab/` kodunu DEĞİŞTİRMEYECEK — git diff boş kalacak
++- Ana bot'a (`Polymarket Agent 2.0`) DOKUNMAYACAK
++- Live trading kodu YAZILMAYACAK (sıra geldiğinde ayrı spec)
++- Stratejide değişiklik YOK — bot tamamen aynı kararları verecek
++
++### Mimari karar
++Tennis-lab'ın **tam dizin kopyası**: `tennis-paper-lab/`. Sebep: %100 sterilite. Kullanıcı net söyledi "diğerlerine dokunma değiştirme sadece tennis'i kopyala." Kod paylaşımı yerine duplikasyon kabul edilir.
++
++```
++CLAUDE PROJELER/
++├── Polymarket Agent 2.0/      (ana bot — dokunulmuyor)
++├── tennis-lab/                 (mevcut dry-run — dokunulmuyor)
++└── tennis-paper-lab/           (YENİ — full copy + paper modifications)
++```
++
++### Girdi/Çıktı
++- **Girdi:** Polymarket CLOB order book endpoint (read-only, free, no auth)
++- **Çıktı:** Pozisyon state'i (gerçekçi fill ile), `logs/audit/paper_executions.jsonl` (her fill kararının book snapshot'ı + sonucu)
++
++### Davranış Kuralları
++1. **Mode.PAPER yeni enum değeri** — default mode olur. `--mode dry_run` flag'i fallback için çalışır.
++2. **Her order kararında** `clob.polymarket.com/book?token_id=...` çağrılır (book_cache_ttl_sec = 5).
++3. **BUY simülasyonu:**
++   - asks side (artan) yürünür
++   - target_price'a max +2% (max_buy_slippage_pct) toleransta dolar
++   - Toplam dolma oranı min %95 (min_fill_ratio) altında ise → REJECTED
++   - Aksi halde weighted avg price ile FILLED
++4. **SELL (exit) simülasyonu:**
++   - bids side (azalan) yürünür
++   - target_price'tan max -5% (max_sell_slippage_pct) toleransta satılır
++   - 0 share dolarsa → REJECTED (pozisyon açık kalır, sonraki cycle tekrar denenir)
++   - Kısmi dolma → PARTIAL_FILL, kalan share pozisyonda kalır
++   - Tam dolma → FILLED
++5. **PARTIAL_FILL ve REJECTED durumlarında** bir sonraki light cycle'da bot tekrar dener (gerçek live davranışı).
++6. **Tüm fill kararları `paper_executions.jsonl`'ye yazılır** — book snapshot dahil (top 3 bid/ask).
++7. **Bankroll & bet size'lar tennis-lab'la aynı kalır** (paralel karşılaştırma için).
++8. **Dashboard topbar'da brand-sport "🎾 TENNIS PAPER"** olarak değişir (buton/banner yok, ayrı tag eklemiyoruz, "Tennis" stringi "TENNIS PAPER" olur).
++9. **Process management:** tennis-paper-lab'ın kendi `scripts/reboot.py`'si, marker'lar path-tabanlı (`tennis-paper-lab` string'i cmdline'da geçer).
++10. **Mainnet'e gerçek emir GİTMEZ** — py-clob-client'ın `place_order` çağrısı PAPER mode'da koşmaz, sadece `_fetch_book` çağrılır.
++
++### Sınır Durumları
++- **Order book stale:** book_cache_ttl_sec=5sn, daha eski ise re-fetch
++- **Polymarket API rate limit:** Bot cycle'ları 30-60sn → saniyede max 1-2 book çekilir, free tier (~10/s) yeter
++- **Bot çift pozisyon açar (tennis-lab + tennis-paper-lab aynı maça):** İstenen davranış — iki bağımsız bot, karşılaştırma için
++- **Büyük order book (500+ levels):** O(N) walk, performans sorunu yok
++- **Reboot.py main bot'u öldürmesin:** marker path-tabanlı (`tennis-paper-lab/`) → tennis-lab ve main bot'la asla çakışmaz
++
++### Konfigürasyon (tennis-paper-lab/config_tennis.yaml)
++```yaml
++mode: paper
++dashboard:
++  port: 5052                       # tennis-lab 5051'den ayrı
++paper:
++  max_buy_slippage_pct: 0.02
++  max_sell_slippage_pct: 0.05
++  min_fill_ratio: 0.95
++  book_cache_ttl_sec: 5
++# (geri kalan ayarlar tennis-lab'la birebir aynı)
++```
++
++### Test Senaryoları
++**Birim testler (yeni ~10 adet):**
++- `book_walk_buy_full_fill_within_slippage`
++- `book_walk_buy_insufficient_depth_rejected`
++- `book_walk_buy_exceeds_slippage_partial`
++- `book_walk_sell_full_fill`
++- `book_walk_sell_partial`
++- `book_walk_sell_no_bids_rejected`
++- `paper_logger_writes_execution_with_book_snapshot`
++- `paper_mode_never_calls_real_place_order`
++- `paper_mode_default_when_no_flag`
++- `partial_fill_keeps_remaining_shares_in_position`
++
++**Integration test (manuel, 1 saat):**
++1. `tennis-paper-lab/scripts/tennis_main.py --once` çalıştır
++2. Polymarket'ten gerçek (read-only) order book çekildiğini logla
++3. py-clob-client `place_order`/`place_market_sell` ÇAĞRILMADI doğrula
++4. `paper_executions.jsonl`'de en az 1 kayıt var doğrula
++
++### Acceptance Criteria
++- [ ] `tennis-lab/` git diff boş — hiç dosyaya dokunulmamış
++- [ ] `Polymarket Agent 2.0/` git diff boş — ana bot dokunulmamış
++- [ ] `tennis-paper-lab/` çalışır halde, kendi process'leri 5052'de
++- [ ] Mevcut 1510 test geçer (kopya tennis-lab kodu için)
++- [ ] Yeni ~10 paper unit test geçer
++- [ ] Dashboard topbar'da "PAPER" tag görünür
++- [ ] 1 saatlik run sonrası ≥1 paper execution kaydı `paper_executions.jsonl`'de
++- [ ] Tüm executions için book snapshot loglu
++- [ ] py-clob-client gerçek POST çağrısı SIFIR (kod review + log review)
++
++### Implementation Sırası (faz faz, her faz onay noktası)
++| Faz | İçerik | Süre | Onay |
++|---|---|---|---|
++| A | Dizin kopyala, dashboard'a "PAPER" tag | 30dk | kopya tamam |
++| B | Mode.PAPER enum + paper executor iskelet | 1sa | mode tanındı |
++| C | Realistic fill simulator (BUY+SELL) + 10 unit test | 1.5sa | testler geşer |
++| D | Kendi reboot.py + tennis-paper marker'ı | 30dk | reload bağımsız çalışır |
++| E | E2E smoke + 1 saat run | 30dk+1sa | gerçek paper kayıtları var |
++| F | README + doc | 30dk | restart prosedürü yazılı |
++
++**Toplam aktif kod:** ~4 saat. **Takvim:** 1 gün.
++
++### Başarı kriteri (1-2 hafta sonra)
++| Metrik | tennis-lab dry-run | tennis-paper-lab |
++|---|---|---|
++| Aynı dönem realized P&L | $A | $B |
++| Fill başarı oranı | %100 varsayım | gerçek % |
++
++- **$B ≈ $A** → strateji canlıda çalışıyor → live'a hazır
++- **$B << $A** → strateji canlıda işlemiyor → derin exchange'e (Betfair) geçiş veya stratejiyi değiştir
++
++---
++
+ ## SPEC-C: 3-Way Bookmaker Sanity (LOW PRIORITY — Bekliyor)
+ 
+ > **Tarih:** 2026-05-08
+diff --git a/Sound/Loss.mp3 b/Sound/Loss.mp3
+index 82a2145..f7cccaf 100644
+Binary files a/Sound/Loss.mp3 and b/Sound/Loss.mp3 differ
+diff --git a/config_tennis.yaml b/config_tennis.yaml
+index 7575708..3d40c5a 100644
+--- a/config_tennis.yaml
++++ b/config_tennis.yaml
+@@ -42,7 +42,20 @@ edge:
+   confidence_multipliers: {A: 1.00, B: 1.00}
+   # exclude_combos: data-driven entry exclusions. Empty by default — only add
+   # combos with strong negative-EV evidence (n>=15 trades, net<-$50).
+-  exclude_combos: []
++  # 2026-05-28: Polymarket resolution analizi (97 trade, spike-catch çıkarılmış
++  # gerçek paper EV) — set_totals -$63, first_set_winner -$162. Sackmann modeli
++  # bu iki sub-market'te %16 ve %56 doğru (market %72 ve %69 → modele güvenilmez).
++  # set_handicap (+$2, %61 acc) ve tennis_match_totals (+$117) ve moneyline (FAZ 2
++  # Odds API testi için) açık tutuluyor.
++  exclude_combos:
++    - {tour: atp, market_type: tennis_set_totals, confidence: A}
++    - {tour: atp, market_type: tennis_set_totals, confidence: B}
++    - {tour: wta, market_type: tennis_set_totals, confidence: A}
++    - {tour: wta, market_type: tennis_set_totals, confidence: B}
++    - {tour: atp, market_type: tennis_first_set_winner, confidence: A}
++    - {tour: atp, market_type: tennis_first_set_winner, confidence: B}
++    - {tour: wta, market_type: tennis_first_set_winner, confidence: A}
++    - {tour: wta, market_type: tennis_first_set_winner, confidence: B}
+ 
+ risk:
+   # Bankroll $1000 — A non-bimodal $50 (5%), B non-bimodal $35 (3.5%), bimodal A/B $15 cap.
+diff --git a/data/positions.pre_rollback_20260515_160958.bak b/data/positions.pre_rollback_20260515_160958.bak
+deleted file mode 100644
+index a1cd6e8..0000000
+--- a/data/positions.pre_rollback_20260515_160958.bak
++++ /dev/null
+@@ -1,236 +0,0 @@
+-{
+-  "realized_pnl": -4.16208168642952,
+-  "high_water_mark": 1070.38,
+-  "positions": {
+-    "0x5376e032a8f5a389b55aeafb39b6985bfb323f8392e304bc48b1b01e9cd39850": {
+-      "condition_id": "0x5376e032a8f5a389b55aeafb39b6985bfb323f8392e304bc48b1b01e9cd39850",
+-      "token_id": "96916356246542344447385329248090870759846519742384159224454120913104375462657",
+-      "direction": "BUY_NO",
+-      "entry_price": 0.62,
+-      "size_usdc": 38.22,
+-      "shares": 61.64516129032258,
+-      "slug": "nba-cle-det-2026-05-13",
+-      "entry_timestamp": "2026-05-13T01:04:27.667478Z",
+-      "entry_reason": "consensus",
+-      "confidence": "A",
+-      "anchor_probability": 0.3981,
+-      "current_price": 0.57,
+-      "bid_price": 0.56,
+-      "peak_pnl_pct": 0.016129032258064533,
+-      "peak_price": 0.63,
+-      "ever_in_profit": true,
+-      "consecutive_down_cycles": 0,
+-      "cumulative_drop": 0.0,
+-      "previous_cycle_price": 0.57,
+-      "cycles_held": 15691,
+-      "sport_tag": "nba",
+-      "event_id": "457191",
+-      "match_start_iso": "2026-05-14T00:00:00Z",
+-      "match_live": false,
+-      "match_ended": false,
+-      "match_score": "",
+-      "match_period": "",
+-      "question": "Cavaliers vs. Pistons",
+-      "end_date_iso": "2026-05-13T04:00:00Z",
+-      "favored": false,
+-      "original_shares": null,
+-      "original_size_usdc": null,
+-      "partial_exits": [],
+-      "scale_out_tier": 0,
+-      "scale_out_realized_usdc": 0.0,
+-      "sl_reentry_count": 0,
+-      "bookmaker_prob": 0.3981,
+-      "sports_market_type": "moneyline",
+-      "spread_line": null,
+-      "total_line": null,
+-      "total_side": null,
+-      "current_value": 35.13774193548387,
+-      "unrealized_pnl_usdc": -3.0822580645161324,
+-      "unrealized_pnl_pct": -0.08064516129032268
+-    },
+-    "0x78d62bb198334d9d159cf5640f3c7b383d90ae5225b4b0fb448d03a75b3400a2": {
+-      "condition_id": "0x78d62bb198334d9d159cf5640f3c7b383d90ae5225b4b0fb448d03a75b3400a2",
+-      "token_id": "88602635174533082252245339783884810194591889982487116128558682979220281737726",
+-      "direction": "BUY_NO",
+-      "entry_price": 0.69,
+-      "size_usdc": 40.88,
+-      "shares": 59.24637681159421,
+-      "slug": "wnba-chi-gsv-2026-05-13",
+-      "entry_timestamp": "2026-05-13T02:00:36.596139Z",
+-      "entry_reason": "consensus",
+-      "confidence": "A",
+-      "anchor_probability": 0.3343,
+-      "current_price": 0.69,
+-      "bid_price": 0.68,
+-      "peak_pnl_pct": 0.04347826086956531,
+-      "peak_price": 0.72,
+-      "ever_in_profit": true,
+-      "consecutive_down_cycles": 0,
+-      "cumulative_drop": 0.0,
+-      "previous_cycle_price": 0.69,
+-      "cycles_held": 15307,
+-      "sport_tag": "wnba",
+-      "event_id": "436147",
+-      "match_start_iso": "2026-05-14T02:00:00Z",
+-      "match_live": false,
+-      "match_ended": false,
+-      "match_score": "",
+-      "match_period": "",
+-      "question": "Chicago Sky vs. Golden State Valkyries",
+-      "end_date_iso": "2026-05-14T02:00:00Z",
+-      "favored": true,
+-      "original_shares": null,
+-      "original_size_usdc": null,
+-      "partial_exits": [],
+-      "scale_out_tier": 0,
+-      "scale_out_realized_usdc": 0.0,
+-      "sl_reentry_count": 0,
+-      "bookmaker_prob": 0.3343,
+-      "sports_market_type": "moneyline",
+-      "spread_line": null,
+-      "total_line": null,
+-      "total_side": null,
+-      "current_value": 40.88,
+-      "unrealized_pnl_usdc": 0.0,
+-      "unrealized_pnl_pct": 0.0
+-    },
+-    "0x655262e104dbc321c15f2b12b4e009938edfd25f6606cff42677aeccbfaaf144": {
+-      "condition_id": "0x655262e104dbc321c15f2b12b4e009938edfd25f6606cff42677aeccbfaaf144",
+-      "token_id": "7063507328368487645497749117946812722042969643680399846154307014517608768148",
+-      "direction": "BUY_YES",
+-      "entry_price": 0.85,
+-      "size_usdc": 48.56,
+-      "shares": 57.129411764705885,
+-      "slug": "wnba-nyl-por-2026-05-14",
+-      "entry_timestamp": "2026-05-14T09:40:24.974412Z",
+-      "entry_reason": "consensus",
+-      "confidence": "A",
+-      "anchor_probability": 0.8257,
+-      "current_price": 0.71,
+-      "bid_price": 0.67,
+-      "peak_pnl_pct": 0.047058823529411715,
+-      "peak_price": 0.89,
+-      "ever_in_profit": true,
+-      "consecutive_down_cycles": 1,
+-      "cumulative_drop": 0.020000000000000018,
+-      "previous_cycle_price": 0.71,
+-      "cycles_held": 11023,
+-      "sport_tag": "wnba",
+-      "event_id": "438631",
+-      "match_start_iso": "2026-05-15T02:00:00Z",
+-      "match_live": false,
+-      "match_ended": false,
+-      "match_score": "",
+-      "match_period": "",
+-      "question": "New York Liberty vs. Portland Fire",
+-      "end_date_iso": "2026-05-15T02:00:00Z",
+-      "favored": true,
+-      "original_shares": null,
+-      "original_size_usdc": null,
+-      "partial_exits": [],
+-      "scale_out_tier": 0,
+-      "scale_out_realized_usdc": 0.0,
+-      "sl_reentry_count": 0,
+-      "bookmaker_prob": 0.8257,
+-      "sports_market_type": "moneyline",
+-      "spread_line": null,
+-      "total_line": null,
+-      "total_side": null,
+-      "current_value": 40.561882352941176,
+-      "unrealized_pnl_usdc": -7.998117647058827,
+-      "unrealized_pnl_pct": -0.16470588235294123
+-    },
+-    "0x7b461ba0d582c03577966cfdf0da2a5cb9696a26b954b5ed1890f82d6f2a3c88": {
+-      "condition_id": "0x7b461ba0d582c03577966cfdf0da2a5cb9696a26b954b5ed1890f82d6f2a3c88",
+-      "token_id": "31336121594291014914271611062289284423554618020629759821503694496084098706290",
+-      "direction": "BUY_NO",
+-      "entry_price": 0.62,
+-      "size_usdc": 41.63,
+-      "shares": 67.14516129032259,
+-      "slug": "nba-det-cle-2026-05-15",
+-      "entry_timestamp": "2026-05-15T00:00:30.451642Z",
+-      "entry_reason": "consensus",
+-      "confidence": "A",
+-      "anchor_probability": 0.3976,
+-      "current_price": 0.62,
+-      "bid_price": 0.61,
+-      "peak_pnl_pct": 0.0,
+-      "peak_price": 0.0,
+-      "ever_in_profit": false,
+-      "consecutive_down_cycles": 0,
+-      "cumulative_drop": 0.0,
+-      "previous_cycle_price": 0.62,
+-      "cycles_held": 1438,
+-      "sport_tag": "nba",
+-      "event_id": "465162",
+-      "match_start_iso": "2026-05-15T23:00:00Z",
+-      "match_live": false,
+-      "match_ended": false,
+-      "match_score": "",
+-      "match_period": "",
+-      "question": "Pistons vs. Cavaliers",
+-      "end_date_iso": "2026-05-15T04:00:00Z",
+-      "favored": false,
+-      "original_shares": null,
+-      "original_size_usdc": null,
+-      "partial_exits": [],
+-      "scale_out_tier": 0,
+-      "scale_out_realized_usdc": 0.0,
+-      "sl_reentry_count": 0,
+-      "bookmaker_prob": 0.3976,
+-      "sports_market_type": "moneyline",
+-      "spread_line": null,
+-      "total_line": null,
+-      "total_side": null,
+-      "current_value": 41.63,
+-      "unrealized_pnl_usdc": 0.0,
+-      "unrealized_pnl_pct": 0.0
+-    },
+-    "0x5155658d4dcf7c7c7870c90cf0425ac075ac19612ccd90b433188f06f9c66a0c": {
+-      "condition_id": "0x5155658d4dcf7c7c7870c90cf0425ac075ac19612ccd90b433188f06f9c66a0c",
+-      "token_id": "81262010269055828856347920880899127922566464285388836491739008186397150771465",
+-      "direction": "BUY_NO",
+-      "entry_price": 0.79,
+-      "size_usdc": 41.63,
+-      "shares": 52.69620253164557,
+-      "slug": "wnba-wsh-ind-2026-05-15",
+-      "entry_timestamp": "2026-05-15T00:00:31.095497Z",
+-      "entry_reason": "consensus",
+-      "confidence": "A",
+-      "anchor_probability": 0.2354,
+-      "current_price": 0.79,
+-      "bid_price": 0.77,
+-      "peak_pnl_pct": 0.0,
+-      "peak_price": 0.0,
+-      "ever_in_profit": false,
+-      "consecutive_down_cycles": 0,
+-      "cumulative_drop": 0.0,
+-      "previous_cycle_price": 0.79,
+-      "cycles_held": 1438,
+-      "sport_tag": "wnba",
+-      "event_id": "439916",
+-      "match_start_iso": "2026-05-15T23:30:00Z",
+-      "match_live": false,
+-      "match_ended": false,
+-      "match_score": "",
+-      "match_period": "",
+-      "question": "Washington Mystics vs. Indiana Fever",
+-      "end_date_iso": "2026-05-15T23:30:00Z",
+-      "favored": true,
+-      "original_shares": null,
+-      "original_size_usdc": null,
+-      "partial_exits": [],
+-      "scale_out_tier": 0,
+-      "scale_out_realized_usdc": 0.0,
+-      "sl_reentry_count": 0,
+-      "bookmaker_prob": 0.2354,
+-      "sports_market_type": "moneyline",
+-      "spread_line": null,
+-      "total_line": null,
+-      "total_side": null,
+-      "current_value": 41.63,
+-      "unrealized_pnl_usdc": 0.0,
+-      "unrealized_pnl_pct": 0.0
+-    }
+-  }
+-}
+\ No newline at end of file
+diff --git a/logs/tennis_diagnostics/.gitkeep b/logs/tennis_diagnostics/.gitkeep
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/scripts/reboot.py b/scripts/reboot.py
+index 90054e4..da8a19d 100644
+--- a/scripts/reboot.py
++++ b/scripts/reboot.py
+@@ -62,12 +62,13 @@ _AUDIT_FILES_CLEAR = [
+ _GRACEFUL_WAIT_SECONDS = 2
+ 
+ 
+-# 2026-05-26: Cmdline marker'lar artık tennis-specific entry-script adına bakar.
+-# Eski markers ("src.main", "src.presentation.dashboard") MAIN BOT (Polymarket
+-# Agent 2.0) cmdline'ında da geçtiği için tennis-lab reboot main bot'u
+-# yanlışlıkla öldürüyordu. start_bot/start_dashboard de bu script'leri çağırıyor.
+-_BOT_CMDLINE_MARKER = "tennis_main.py"
+-_DASHBOARD_CMDLINE_MARKER = "tennis_dashboard.py"
++# 2026-05-27: Cmdline marker = "--live-lab" sentinel.
++# tennis-lab ve tennis-paper-lab aynı script isimlerini (tennis_main.py,
++# tennis_dashboard.py) kullanır. Eski marker (script ismi) paper-lab'i de
++# öldürüyordu. Tennis-lab kendi start cmd'lerine "--live-lab" flag'i ekler
++# ve marker olarak bunu arar — böylece her iki bot bağımsız reboot edilebilir.
++_BOT_CMDLINE_MARKER = "--live-lab"
++_DASHBOARD_CMDLINE_MARKER = "--live-lab"
+ 
+ 
+ def _is_pid_alive(pid: int) -> bool:
+@@ -283,32 +284,36 @@ def archive_audit_on_demand(
+     return True
+ 
+ 
++def _spawn_detached(cmd: list[str], cwd: Path, label: str, stderr_log: Path) -> None:
++    """Detach launch + stderr capture + 1.5s alive verify.
++
++    Without stderr+verify, DETACHED_PROCESS swallows crashes silently and the
++    user sees "started" while the child is already dead.
++    """
++    stderr_log.parent.mkdir(parents=True, exist_ok=True)
++    fh = open(stderr_log, "a", encoding="utf-8")
++    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
++    kwargs = {"start_new_session": True} if sys.platform != "win32" else {"creationflags": flags}
++    proc = subprocess.Popen(cmd, cwd=str(cwd), stdout=subprocess.DEVNULL, stderr=fh, **kwargs)
++    time.sleep(1.5)
++    if proc.poll() is None:
++        print(f"  {label} started (PID {proc.pid})")
++    else:
++        print(f"  {label} DIED on launch (exit={proc.returncode}) — check {stderr_log}")
++
++
+ def start_dashboard(root: Path | None = None) -> None:
+     """Dashboard'u ayrı process'te başlat — tennis-specific launcher."""
+     r = root or ROOT
+-    cmd = [sys.executable, "scripts/tennis_dashboard.py"]
+-    if sys.platform == "win32":
+-        subprocess.Popen(
+-            cmd, cwd=str(r),
+-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+-        )
+-    else:
+-        subprocess.Popen(cmd, cwd=str(r), start_new_session=True)
+-    print("  Dashboard started")
++    cmd = [sys.executable, "scripts/tennis_dashboard.py", "--live-lab"]
++    _spawn_detached(cmd, r, "Dashboard", r / "logs" / "runtime" / "dashboard.stderr.log")
+ 
+ 
+ def start_bot(mode: str = "dry_run", root: Path | None = None) -> None:
+     """Bot'u ayrı process'te başlat — tennis-specific launcher."""
+     r = root or ROOT
+-    cmd = [sys.executable, "scripts/tennis_main.py", "--run", "--interval", "1800"]
+-    if sys.platform == "win32":
+-        subprocess.Popen(
+-            cmd, cwd=str(r),
+-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+-        )
+-    else:
+-        subprocess.Popen(cmd, cwd=str(r), start_new_session=True)
+-    print(f"  Bot started (mode={mode})")
++    cmd = [sys.executable, "scripts/tennis_main.py", "--run", "--interval", "1800", "--live-lab"]
++    _spawn_detached(cmd, r, f"Bot (mode={mode})", r / "logs" / "runtime" / "bot.stderr.log")
+ 
+ 
+ def reload_bot(mode: str = "dry_run") -> None:
+diff --git a/scripts/tennis_main.py b/scripts/tennis_main.py
+index 4290b94..89323f2 100644
+--- a/scripts/tennis_main.py
++++ b/scripts/tennis_main.py
+@@ -23,9 +23,40 @@ from pathlib import Path
+ _ROOT = Path(__file__).resolve().parent.parent
+ sys.path.insert(0, str(_ROOT))
+ 
++from src.infrastructure.data.sackmann_refresher import (
++    is_cache_stale,
++    refresh_if_stale,
++)
+ from src.orchestration.tennis_agent import run_forever, run_one_cycle
+ from src.orchestration.tennis_factory import build_tennis_deps
+ 
++logger = logging.getLogger(__name__)
++
++
++def _maybe_refresh_sackmann_on_startup(cache_dir: Path) -> None:
++    """If Sackmann cache stale, refresh CSVs + rebuild tennis_ratings.json.
++
++    Runs synchronously before agent loop starts. Heavy on first stale boot
++    (~1-2 min total: download ~25 CSVs + Glicko rebuild over ~70K matches),
++    but skipped entirely when cache is fresh (<3 days old).
++
++    Without this hook, a long-stopped bot would resume on stale ratings and
++    silently miss currently-active players whose form data falls outside the
++    90-day tier-B window (2026-05-27 root cause: Trevor Svajda not in cache).
++    """
++    if not is_cache_stale(cache_dir):
++        logger.info("Sackmann cache is fresh — skipping startup refresh")
++        return
++    logger.info("Sackmann cache is stale — refreshing before agent start")
++    refreshed = refresh_if_stale(cache_dir)
++    if not refreshed:
++        logger.warning("Sackmann refresh attempted but no files downloaded")
++        return
++    logger.info("Rebuilding tennis_ratings.json from refreshed CSVs...")
++    from scripts.build_tennis_ratings import main as rebuild_main  # noqa: PLC0415
++    rebuild_main()
++    logger.info("Startup Sackmann refresh + rebuild complete")
++
+ 
+ def _print_status(deps) -> None:  # type: ignore[no-untyped-def]
+     print("Tennis lab sandbox")
+@@ -59,6 +90,12 @@ def main() -> None:
+         default=1800,
+         help="Cycle interval in seconds for --run mode (default: 1800 = 30min)",
+     )
++    # --live-lab sentinel — reboot.py cmdline marker olarak kullanır.
++    # tennis-paper-lab ile aynı script dosyalarını taşıyan live kopyasının
++    # process'lerini izole etmek için unique işaret. Script kodu argümandan
++    # etkilenmez (no-op flag).
++    parser.add_argument("--live-lab", action="store_true",
++                       help="Tennis-lab (live) marker (used by reboot.py)")
+     args = parser.parse_args()
+ 
+     # FIX (2026-05-22): runtime/bot.log RotatingFileHandler ekle — basicConfig
+@@ -90,6 +127,13 @@ def main() -> None:
+     # bile main bot dizinine yazma sızıntısı yapmaz.
+     logs_root = _ROOT / "logs"
+     data_root = _ROOT / "data"
++
++    # Refresh Sackmann CSV cache + rebuild ratings BEFORE building deps —
++    # build_tennis_deps loads ratings.json into memory, so refresh must
++    # complete first for the agent to see fresh data on cycle 1.
++    if args.run or args.once:
++        _maybe_refresh_sackmann_on_startup(data_root / "sackmann_cache")
++
+     deps = build_tennis_deps(
+         config_path=config_path,
+         data_dir=data_root,
+diff --git a/src/domain/matching/tennis_player_matcher.py b/src/domain/matching/tennis_player_matcher.py
+index 9186a39..d967f4b 100644
+--- a/src/domain/matching/tennis_player_matcher.py
++++ b/src/domain/matching/tennis_player_matcher.py
+@@ -137,6 +137,13 @@ def match_player(
+         ]
+         if len(partial_matches) == 1:
+             return partial_matches[0]
++        # Single-token surname with multiple candidates is ambiguous. Tier 3
++        # partial_ratio scores all "X <surname>" at 100, picking whichever is
++        # first in dict order. Polymarket sometimes uses surname only — refuse
++        # to guess; the caller (enricher) skips the market. See bug repro
++        # 2026-05-27 (Little Rock: 8 ATP "Smith"s collided).
++        if len(partial_matches) > 1:
++            return None
+ 
+     # Tier 3: rapidfuzz partial_ratio (graceful fallback if not installed)
+     try:
+diff --git a/src/infrastructure/apis/gamma_client.py b/src/infrastructure/apis/gamma_client.py
+index 70bb6f2..0493854 100644
+--- a/src/infrastructure/apis/gamma_client.py
++++ b/src/infrastructure/apis/gamma_client.py
+@@ -88,46 +88,51 @@ class GammaClient:
+ 
+     def __init__(self, http_get: Callable[..., Any] = _default_http_get) -> None:
+         self._http = http_get
+-        self._league_tags: list[tuple[str, int]] = []
+-        self._league_tags_ts: float = 0.0
++        # Cache holds (category, kind, id) tuples where kind in {"tag","series"}.
++        # Series-based fetch is required for ITF (tag-orphan in Polymarket) and
++        # picks up ATP/WTA events that the tag query misses.
++        self._league_sources: list[tuple[str, str, int]] = []
++        self._league_sources_ts: float = 0.0
+ 
+     def fetch_events(self) -> list[MarketData]:
+         try:
+-            tags = self._fetch_league_tags() or PARENT_TAGS
++            sources = self._fetch_league_sources() or [(c, "tag", i) for c, i in PARENT_TAGS]
+         except Exception as e:
+             logger.warning("Gamma /sports failed: %s — using parent tags", e)
+-            tags = PARENT_TAGS
++            sources = [(c, "tag", i) for c, i in PARENT_TAGS]
+ 
+         seen: set[str] = set()
+         out: list[MarketData] = []
+ 
+-        for category, tag_id in tags:
++        for category, kind, value in sources:
+             try:
+-                self._fetch_by_tag(tag_id, category, seen, out)
++                self._fetch_by_param(f"{kind}_id", value, category, seen, out)
+             except Exception as e:
+-                logger.warning("Gamma fetch tag=%s failed: %s", tag_id, e)
++                logger.warning("Gamma fetch %s=%s failed: %s", kind, value, e)
+ 
+         # Parent fallback (yeni tag'ler için)
+         for category, tag_id in PARENT_TAGS:
+             try:
+-                self._fetch_by_tag(tag_id, category, seen, out)
++                self._fetch_by_param("tag_id", tag_id, category, seen, out)
+             except Exception as e:
+                 logger.warning("Gamma parent-tag fetch failed: %s", e)
+ 
+         logger.info("Gamma fetched %d unique markets", len(out))
+         return out
+ 
+-    def _fetch_by_tag(
++    def _fetch_by_param(
+         self,
+-        tag_id: int,
++        param_name: str,
++        value: int,
+         category: str,
+         seen: set[str],
+         out: list[MarketData],
+     ) -> None:
++        """Paginate /events filtered by tag_id or series_id and ingest each event."""
+         offset = 0
+         while True:
+             params = {
+-                "tag_id": tag_id,
++                param_name: value,
+                 "active": "true",
+                 "closed": "false",
+                 "limit": EVENTS_PER_PAGE,
+@@ -258,24 +263,37 @@ class GammaClient:
+             )
+             return None
+ 
+-    def _fetch_league_tags(self) -> list[tuple[str, int]]:
+-        if self._league_tags and (time.time() - self._league_tags_ts) < _SPORTS_CACHE_SEC:
+-            return self._league_tags
++    def _fetch_league_sources(self) -> list[tuple[str, str, int]]:
++        """Returns (category, kind, id) where kind ∈ {"tag","series"}. Cached.
++
++        Series-based queries surface markets that tag queries miss — most
++        notably ITF tennis, which has no tennis-specific tag in Polymarket's
++        taxonomy and is only reachable via series_id=11634.
++        """
++        if self._league_sources and (time.time() - self._league_sources_ts) < _SPORTS_CACHE_SEC:
++            return self._league_sources
+         resp = self._http(f"{GAMMA_BASE}/sports", timeout=_DEFAULT_TIMEOUT)
+         resp.raise_for_status()
+         sports = resp.json() or []
+-        seen: set[int] = set()
+-        result: list[tuple[str, int]] = []
++        seen_tags: set[int] = set()
++        seen_series: set[int] = set()
++        result: list[tuple[str, str, int]] = []
+         for entry in sports:
+             sport_code = entry.get("sport", "")
+             for t in str(entry.get("tags", "")).split(","):
+                 t = t.strip()
+                 if t.isdigit():
+                     tid = int(t)
+-                    if tid not in seen:
+-                        seen.add(tid)
+-                        result.append((sport_code, tid))
++                    if tid not in seen_tags:
++                        seen_tags.add(tid)
++                        result.append((sport_code, "tag", tid))
++            series_raw = str(entry.get("series", "") or "").strip()
++            if series_raw.isdigit():
++                sid = int(series_raw)
++                if sid not in seen_series:
++                    seen_series.add(sid)
++                    result.append((sport_code, "series", sid))
+         if result:
+-            self._league_tags = result
+-            self._league_tags_ts = time.time()
++            self._league_sources = result
++            self._league_sources_ts = time.time()
+         return result
+diff --git a/tests/unit/domain/matching/test_tennis_player_matcher.py b/tests/unit/domain/matching/test_tennis_player_matcher.py
+index 04d59c4..34293b0 100644
+--- a/tests/unit/domain/matching/test_tennis_player_matcher.py
++++ b/tests/unit/domain/matching/test_tennis_player_matcher.py
+@@ -98,14 +98,42 @@ def test_match_player_surname_djokovic(ratings) -> None:
+ 
+ 
+ def test_match_player_surname_not_unique_returns_none() -> None:
+-    """Two players with same surname → no confident match."""
++    """Two players with same surname → no confident match (must be None).
++
++    Bug fix (2026-05-27): Tier 3 fuzzy partial_ratio scores all "X Smith" names
++    at 100 for input "Smith", picking whichever appears first in dict order.
++    Polymarket sometimes uses surname only ("Smith vs Svajda"); the matcher
++    must refuse to guess when the surname is non-unique.
++    """
+     rating_a = _make_rating("a1", "John Smith")
+     rating_b = _make_rating("a2", "Jane Smith")
+     ratings = {"a1": rating_a, "a2": rating_b}
+-    result = match_player("Smith", ratings)
+-    # With two Smiths: surname-only returns None (ambiguous)
+-    # rapidfuzz may pick the better ratio match, so we just check no crash
+-    assert result is None or result.player_id in ("a1", "a2")
++    assert match_player("Smith", ratings) is None
++
++
++def test_match_player_surname_eight_collisions_returns_none() -> None:
++    """Real-world repro (2026-05-27 Little Rock): 8 ATP players named "* Smith".
++
++    Polymarket question "Set 1 Winner: Smith vs Svajda" — surname only. With 8
++    Smiths in ratings, partial_ratio scores all at 100 and the matcher silently
++    picks one (Roy Smith — the wrong player). Must return None instead.
++    """
++    smiths = [
++        "Thomas Pavlekovich Smith", "Roy Smith", "Keegan Smith",
++        "Jordan Smith", "John Patrick Smith", "Colter Smith",
++        "Colton Smith", "Jack Bruce Smith",
++    ]
++    ratings = {f"id{i}": _make_rating(f"id{i}", n) for i, n in enumerate(smiths)}
++    assert match_player("Smith", ratings) is None
++
++
++def test_match_player_two_surname_collisions_with_compound_returns_none() -> None:
++    """Trevor Svajda vs Zachary Svajda — also ambiguous, must return None."""
++    ratings = {
++        "z": _make_rating("z", "Zachary Svajda"),
++        "t": _make_rating("t", "Trevor Svajda"),
++    }
++    assert match_player("Svajda", ratings) is None
+ 
+ 
+ # ── fuzzy match ───────────────────────────────────────────────────────────────
+diff --git a/tests/unit/infrastructure/apis/test_gamma_client.py b/tests/unit/infrastructure/apis/test_gamma_client.py
+index b44641e..929ccd9 100644
+--- a/tests/unit/infrastructure/apis/test_gamma_client.py
++++ b/tests/unit/infrastructure/apis/test_gamma_client.py
+@@ -154,3 +154,45 @@ def test_sports_endpoint_caches() -> None:
+     client.fetch_events()
+     sports_calls2 = [c for c in http.call_args_list if "/sports" in str(c)]
+     assert len(sports_calls2) == 0
++
++
++def test_fetch_events_uses_series_id_when_present() -> None:
++    """Sport entries with a 'series' field trigger an additional /events?series_id=X query.
++
++    Polymarket assigns ITF tennis events to a series but not to a tennis-specific
++    tag — tag-based fetch misses them entirely. Series-based fetch is the only
++    discovery path. Without this, the bot misses ~95% of daily tennis volume
++    (320 future tennis markets — root cause analysis 2026-05-27).
++    """
++    http = MagicMock()
++    http.side_effect = [
++        # /sports: itf has only shared tags + a series id
++        _resp(200, [{"sport": "itf", "tags": "864", "series": "11634"}]),
++        _resp(200, [_event("from-tag")]),     # /events?tag_id=864
++        _resp(200, [_event("from-series")]),  # /events?series_id=11634
++        _resp(200, []),  # parent sports
++        _resp(200, []),  # parent esports
++    ]
++    client = GammaClient(http_get=http)
++    markets = client.fetch_events()
++    cids = {m.condition_id for m in markets}
++    assert "from-tag" in cids
++    assert "from-series" in cids
++    # Verify a request used series_id parameter
++    series_calls = [c for c in http.call_args_list if "series_id" in str(c)]
++    assert len(series_calls) >= 1
++
++
++def test_fetch_events_series_id_invalid_value_skipped() -> None:
++    """Non-numeric series field on a sport entry is ignored (no /events call)."""
++    http = MagicMock()
++    http.side_effect = [
++        _resp(200, [{"sport": "x", "tags": "100", "series": "not-a-number"}]),
++        _resp(200, []),  # tag=100
++        _resp(200, []),  # parent sports
++        _resp(200, []),  # parent esports
++    ]
++    client = GammaClient(http_get=http)
++    client.fetch_events()
++    series_calls = [c for c in http.call_args_list if "series_id" in str(c)]
++    assert len(series_calls) == 0

@@ -1,0 +1,324 @@
+16ea777 fix(tennis): restore fetch_tennis_odds method lost in pre-T11 merge
+9ffad67 chore(tennis): T13 delete Sackmann scripts + data caches + final cleanup
+27869d2 chore(tennis): T12 delete Sackmann/Glicko source + diagnostic modules + tests
+0b68ffd chore(tennis): T11 strip TennisDeps + TennisConfig of Sackmann fields
+4f15cd9 fix(tennis): T10 review — comment polish + restore force_close defense-in-depth + negative sizing test
+ad43cbb chore(tennis): T10 config — moneyline-only scanner + active_odds_endpoints + drop bimodal caps
+a2e83c3 fix(tennis): T9 review — ops visibility + stale Sackmann print cleanup
+4e5b9ab feat(tennis): T9 wire odds_client + polish T7/T8 review items
+1dbb1f8 feat(tennis): FAZ 2 — Odds API consensus enricher replaces Sackmann (T7+T8)
+commit 16ea7779e2fba184b1af39391efde247daf887c8
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 22:48:14 2026 +0300
+
+    fix(tennis): restore fetch_tennis_odds method lost in pre-T11 merge
+    
+    OddsAPIClient.fetch_tennis_odds was added in the T5 work but stashed
+    before T11 and never made it into the linear feature branch history.
+    tennis_agent.run_one_cycle.fetch_tennis_odds call therefore raised
+    AttributeError at runtime; per-endpoint try/except masked it as a
+    WARNING + empty cache, so the bot would produce zero candidates each
+    cycle silently. test_tennis_agent_odds_wiring.py mocked the method
+    via MagicMock and missed the regression.
+    
+    This restores the method with adaptive TTL caching (h2h+totals) and
+    adds 3 unit tests in test_odds_client.py (success/error/unavailable
+    paths) so the missing-method scenario is now a CI-detectable failure.
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ src/infrastructure/apis/odds_client.py             | 19 +++++++++++++++++
+ tests/unit/infrastructure/apis/test_odds_client.py | 24 ++++++++++++++++++++++
+ 2 files changed, 43 insertions(+)
+
+commit 9ffad677a7abbf2ba14abca940d73e58d5b891dd
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 22:26:20 2026 +0300
+
+    chore(tennis): T13 delete Sackmann scripts + data caches + final cleanup
+    
+    Scripts deleted:
+    - scripts/build_tennis_ratings.py (Glicko-2 rating builder)
+    - scripts/download_sackmann.py (Sackmann CSV fetcher)
+    - scripts/diagnose.py (read Sackmann diagnostic JSONL — surface/tier/feature)
+    - tests/unit/scripts/test_diagnose.py (companion tests)
+    
+    Data caches removed (filesystem-only — all gitignored):
+    - data/sackmann_cache/ (.gitkeep tracked, removed; CSV contents ignored)
+    - data/tml_cache/ (.gitkeep tracked, removed; CSV contents ignored)
+    - data/tennis_ratings.json (~15MB, untracked)
+    - data/tennis_data_uk/ (untracked)
+    - logs/tennis_diagnostics/ (stale jsonl, untracked)
+    
+    Reference cleanup:
+    - .gitignore: drop tennis-lab specific Sackmann/TML/ratings entries
+    - scripts/reboot_tennis.py: drop logs/tennis_diagnostics/ from wipe list
+      (diagnostic_logger gone — directory never repopulated)
+    
+    Retained:
+    - scripts/diag_tennis_enrich.py — verified NOT Sackmann-coupled; uses Odds
+      API pair_matcher + odds_client (current diagnostic for no_bookmaker_data)
+    - scripts/refresh_sackmann.py — already absent
+    
+    Final repo-wide grep across src/ + scripts/: zero live references to
+    Sackmann/Glicko/tennis_ratings_store/tennis_data_uk/tml_csv/tennis_player_*/
+    tennis_diagnostic*/klaassen_magnus/feature_extractor. Surviving matches are
+    all explanatory retirement comments and the regression-guard test
+    (test_tennis_config_has_no_sackmann_fields) — both intentional.
+    
+    Test suite: 1235 unit + 158 integration/domain = 1393 passed, 0 failed.
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ .gitignore                          |   6 +-
+ data/sackmann_cache/.gitkeep        |   0
+ data/tml_cache/.gitkeep             |   0
+ scripts/build_tennis_ratings.py     | 283 ------------------------------------
+ scripts/diagnose.py                 | 207 --------------------------
+ scripts/download_sackmann.py        |  81 -----------
+ scripts/reboot_tennis.py            |   1 -
+ tests/unit/scripts/test_diagnose.py | 102 -------------
+ 8 files changed, 1 insertion(+), 679 deletions(-)
+
+commit 27869d28af1cc220ec97f5ba49e646289418ffed
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 22:17:32 2026 +0300
+
+    chore(tennis): T12 delete Sackmann/Glicko source + diagnostic modules + tests
+    
+    Source deletes (live tree):
+    - src/domain/prediction/: glicko2, feature_extractor, klaassen_magnus,
+      tennis_predictor, __init__
+    - src/domain/matching/: tennis_player_resolver, tennis_player_matcher
+    - src/infrastructure/data/: sackmann_csv_client, tennis_data_uk_client,
+      tennis_ratings_store, tml_csv_client
+    - src/orchestration/: tennis_diagnostic_logger, tennis_diagnostic_writer
+    - src/strategy/enrichment/tennis_question_parser (no remaining live caller —
+      enricher had only a stale comment reference)
+    
+    Test deletes:
+    - tests/unit/domain/prediction/ (whole dir)
+    - tests/unit/domain/matching/test_tennis_player_{resolver,matcher}.py
+    - tests/unit/infrastructure/data/test_{sackmann_csv_client,tennis_data_uk_client,tennis_ratings_store,tml_csv_client}.py
+    - tests/unit/orchestration/test_tennis_diagnostic_logger.py
+    - tests/unit/orchestration/test_tennis_agent.py, test_tennis_agent_entry_wiring.py,
+      test_tennis_equity_snapshot.py, test_tennis_full_cycle.py (15 baseline-failing
+      tests — all asserted call order/mocks on the deleted Sackmann pipeline)
+    - tests/unit/scripts/test_{build_tennis_ratings,download_sackmann}.py
+    - tests/unit/strategy/enrichment/test_tennis_question_parser.py
+    
+    Retained orchestration tests cleaned up (Sackmann-free TennisDeps helpers):
+    - test_tennis_agent_odds_wiring.py (FAZ 2 Odds API wiring — primary coverage)
+    - test_tennis_agent_exit_wiring.py (run_light_cycle behaviour)
+    - test_tennis_espn_wiring.py (score_enricher path)
+    - test_tennis_price_feed_wiring.py (WS callback)
+    - tests/integration/test_tennis_end_to_end.py (minimal config build smoke)
+    - tests/unit/strategy/entry/test_tennis_entry.py (dead MarketPrediction import dropped)
+    
+    Live tree cleanup:
+    - tennis_agent.py: drop stale "Ratings and Sackmann matches are reloaded"
+      docstring note + the "TODO Task 11-13 deletes diag writer" marker
+    - tennis_market_enricher.py: rewrite stale tennis_question_parser comment
+    
+    After this commit there are zero from-imports of the deleted modules in src/,
+    scripts/, or tests/ live tree.
+    
+    Test suite: 1239 passed, 0 failed (baseline 1424 passed + 15 failed → 185
+    Sackmann-only tests deleted, 0 deferred failures).
+
+ src/domain/matching/tennis_player_matcher.py       | 175 ---------
+ src/domain/matching/tennis_player_resolver.py      | 158 ---------
+ src/domain/prediction/__init__.py                  |   0
+ src/domain/prediction/feature_extractor.py         | 160 ---------
+ src/domain/prediction/glicko2.py                   | 135 -------
+ src/domain/prediction/klaassen_magnus.py           | 135 -------
+ src/domain/prediction/tennis_predictor.py          | 207 -----------
+ src/infrastructure/data/sackmann_csv_client.py     | 287 ---------------
+ src/infrastructure/data/tennis_data_uk_client.py   | 129 -------
+ src/infrastructure/data/tennis_ratings_store.py    | 103 ------
+ src/infrastructure/data/tml_csv_client.py          | 101 ------
+ src/orchestration/tennis_agent.py                  |   9 +-
+ src/orchestration/tennis_diagnostic_logger.py      |  96 -----
+ src/orchestration/tennis_diagnostic_writer.py      |  88 -----
+ src/strategy/enrichment/tennis_market_enricher.py  |   7 +-
+ src/strategy/enrichment/tennis_question_parser.py  | 203 -----------
+ tests/integration/test_tennis_end_to_end.py        |   5 +-
+ .../domain/matching/test_tennis_player_matcher.py  | 274 --------------
+ .../domain/matching/test_tennis_player_resolver.py | 100 ------
+ tests/unit/domain/prediction/__init__.py           |   0
+ .../domain/prediction/test_feature_extractor.py    |  99 ------
+ tests/unit/domain/prediction/test_glicko2.py       |  82 -----
+ .../unit/domain/prediction/test_klaassen_magnus.py |  68 ----
+ .../domain/prediction/test_tennis_predictor.py     | 155 --------
+ .../data/test_sackmann_csv_client.py               | 296 ----------------
+ .../data/test_tennis_data_uk_client.py             |  96 -----
+ .../data/test_tennis_ratings_store.py              | 183 ----------
+ .../infrastructure/data/test_tml_csv_client.py     |  66 ----
+ tests/unit/orchestration/test_tennis_agent.py      | 194 ----------
+ .../test_tennis_agent_entry_wiring.py              | 392 ---------------------
+ .../orchestration/test_tennis_agent_exit_wiring.py |   6 -
+ .../orchestration/test_tennis_agent_odds_wiring.py |   7 -
+ .../orchestration/test_tennis_diagnostic_logger.py |  82 -----
+ .../orchestration/test_tennis_equity_snapshot.py   | 276 ---------------
+ .../unit/orchestration/test_tennis_espn_wiring.py  |   6 -
+ tests/unit/orchestration/test_tennis_full_cycle.py | 332 -----------------
+ .../orchestration/test_tennis_price_feed_wiring.py |   5 +-
+ tests/unit/scripts/test_build_tennis_ratings.py    | 172 ---------
+ tests/unit/scripts/test_download_sackmann.py       |  62 ----
+ .../enrichment/test_tennis_question_parser.py      | 308 ----------------
+ tests/unit/strategy/entry/test_tennis_entry.py     |   3 -
+ 41 files changed, 13 insertions(+), 5249 deletions(-)
+
+commit 0b68ffd10a5e33d2ff2251a0493ba7240e079039
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 22:11:17 2026 +0300
+
+    chore(tennis): T11 strip TennisDeps + TennisConfig of Sackmann fields
+    
+    - TennisDeps: drop ratings_store, sackmann_client, diagnostic_logger
+    - build_tennis_deps: remove Sackmann instantiations + _anchor_tennis_path helper
+      (only consumers were the three retired fields)
+    - TennisConfig: drop data_dir, tml_dir, ratings_cache, diagnostic_log_dir,
+      sackmann_* year lists, glicko_* params, confidence_tier_a/b + the
+      TennisConfidenceTier class itself
+    - config_tennis.yaml: drop DEAD CONFIG block under tennis:
+    - verify_tennis_isolation.py + test_tennis_isolation.py: drop the three
+      retired Sackmann path entries from the audit map
+    - test_tennis_settings.py: rewritten to assert minimal post-FAZ-2 surface
+      and guard against Sackmann field re-introduction
+    
+    Spec: docs/superpowers/specs/2026-05-28-odds-api-tennis-design.md
+
+ config_tennis.yaml                                |  27 ------
+ scripts/verify_tennis_isolation.py                |   6 +-
+ src/config/settings.py                            |  48 ++--------
+ src/orchestration/tennis_factory.py               |  67 ++-----------
+ tests/unit/config/test_tennis_settings.py         | 112 ++++++++--------------
+ tests/unit/orchestration/test_tennis_isolation.py |  12 +--
+ 6 files changed, 63 insertions(+), 209 deletions(-)
+
+commit 4f15cd9e30567065304a693bb17e3c559b8c915d
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 21:58:19 2026 +0300
+
+    fix(tennis): T10 review — comment polish + restore force_close defense-in-depth + negative sizing test
+    
+    - exclude_combos comment: kill-switch reactivation possibility documented
+    - force_close_timeouts: restore sub-market entries as defense-in-depth (positions stuck in failure mode close faster)
+    - Sackmann config block: inline DEAD CONFIG marker (T11-13 removes)
+    - active_odds_endpoints comment: explicit seasonal curation note
+    - Negative test: assert deleted bimodal cap keys stay out of YAML
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ config_tennis.yaml                      | 22 ++++++++++++++++++----
+ tests/unit/config/test_tennis_sizing.py | 19 +++++++++++++++++++
+ 2 files changed, 37 insertions(+), 4 deletions(-)
+
+commit ad43cbbfee5394205de40230b3782a4bb8ad3fc4
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 21:52:00 2026 +0300
+
+    chore(tennis): T10 config — moneyline-only scanner + active_odds_endpoints + drop bimodal caps
+    
+    - allowed_sports_market_types: moneyline only (sub-markets retired with Sackmann)
+    - exclude_combos: emptied (enricher rejects non-A non-moneyline)
+    - max_positions_per_event: 3 -> 1
+    - Removed: set_totals_max_usdc, set_handicap_max_usdc, stop_loss_exempt_market_types
+    - force_close_timeouts: pruned to moneyline + default
+    - tennis.active_odds_endpoints: [tennis_atp_french_open, tennis_wta_french_open]
+    - Header: spec ref updated to FAZ 2 design doc
+    - Sackmann config keys retained (T11-13 strips together with factory wiring)
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ config_tennis.yaml                        | 58 +++++++++++--------------------
+ tests/unit/config/test_tennis_settings.py | 11 +++---
+ tests/unit/config/test_tennis_sizing.py   | 46 +++++-------------------
+ 3 files changed, 36 insertions(+), 79 deletions(-)
+
+commit a2e83c3181d8f4309c359c9acdb0989bddf81d1d
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 21:44:12 2026 +0300
+
+    fix(tennis): T9 review — ops visibility + stale Sackmann print cleanup
+    
+    - tennis_agent: WARNING log when odds_client unwired/unavailable/no endpoints
+    - tennis_main status: report Odds API health + active endpoints
+    - tennis_main status: drop stale ratings_cache/diagnostic_logs/build_ratings refs
+    - tennis_agent: dict[str, list[dict]] type tightened
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ scripts/tennis_main.py                             | 10 ++++++---
+ src/orchestration/tennis_agent.py                  | 19 ++++++++++++++--
+ .../orchestration/test_tennis_agent_odds_wiring.py | 26 ++++++++++++++++++++++
+ 3 files changed, 50 insertions(+), 5 deletions(-)
+
+commit 4e5b9ab658f555ddc072515c851d50f620302474
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 21:27:43 2026 +0300
+
+    feat(tennis): T9 wire odds_client + polish T7/T8 review items
+    
+    - TennisDeps: add odds_client field (OddsAPIClient | None)
+    - tennis_agent: fetch odds per active_odds_endpoints, build cache, drop sackmann_matches loader
+    - tennis_main: drop _maybe_refresh_sackmann_on_startup (Sackmann pipeline retired)
+    - TennisConfig: active_odds_endpoints field (default [], YAML override in T10)
+    - tennis_odds_matcher: rename _token_prefix_match -> token_prefix_match (sibling import)
+    - tennis_odds_matcher: split match_parsed_slug_to_odds() helper (eliminate N+1 parse)
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ scripts/tennis_main.py                             |   5 +
+ src/config/settings.py                             |   4 +
+ src/domain/matching/tennis_odds_matcher.py         | 137 +++++++++++++
+ src/orchestration/tennis_agent.py                  |  80 ++++----
+ src/orchestration/tennis_factory.py                |  12 ++
+ src/strategy/enrichment/tennis_market_enricher.py  |  11 +-
+ .../domain/matching/test_tennis_odds_matcher.py    | 218 ++++++++++++++++++++
+ tests/unit/orchestration/test_tennis_agent.py      |  10 +-
+ .../test_tennis_agent_entry_wiring.py              |  16 +-
+ .../orchestration/test_tennis_agent_odds_wiring.py | 222 +++++++++++++++++++++
+ .../orchestration/test_tennis_equity_snapshot.py   |   4 +-
+ tests/unit/orchestration/test_tennis_full_cycle.py |   4 +-
+ 12 files changed, 655 insertions(+), 68 deletions(-)
+
+commit 1dbb1f8b3fa348bef22f9f756d2551b2ea6134f1
+Author: Erim Cakir <senin@email.com>
+Date:   Thu May 28 18:43:13 2026 +0300
+
+    feat(tennis): FAZ 2 — Odds API consensus enricher replaces Sackmann (T7+T8)
+    
+    Rewrites tennis_market_enricher to consume pre-fetched Odds API bookmaker
+    events instead of Sackmann/Glicko-2 predictions. Scope this task: h2h /
+    moneyline only — confidence A gate (>=5 weighted bookmakers + sharp present)
+    mirrors the main basket bot pattern. Sub-markets (set_totals,
+    first_set_winner, set_handicap, match_totals) return None pending Task 10
+    config cleanup; matching helpers (_weighted_average, etc.) are reused from
+    odds_enricher to keep ARCH_GUARD DRY.
+    
+    Surface changes:
+    - EdgeCandidate gains bookmaker_prob / num_bookmakers / has_sharp /
+      confidence audit fields (all defaulted for back-compat).
+    - tennis_signal_adapter now flows those audit fields into the Signal
+      instead of hardcoding zeros.
+    - tennis_agent.run_one_cycle calls enrich(market, cfg,
+      odds_matches_by_endpoint={}). odds cache wiring is deferred to Task 9;
+      empty cache → safe no-trade fallback. Sackmann diagnostic log_candidate
+      call is bypassed pending Task 11-13 cleanup.
+    
+    Tests: 18 enricher cases (skip + happy path + audit + edge + vig outlier);
+    signal_adapter gains flow-through assertions. Sackmann-coupled mock-patch
+    orchestration tests (15 in test_tennis_agent*/test_tennis_full_cycle.py)
+    fail by patching the now-removed tennis_diagnostic_writer — cleanup in T11-T13.
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ src/orchestration/tennis_agent.py                  |  54 +--
+ src/strategy/enrichment/tennis_market_enricher.py  | 319 +++++--------
+ src/strategy/entry/tennis_entry.py                 |   6 +
+ src/strategy/entry/tennis_signal_adapter.py        |  25 +-
+ .../enrichment/test_tennis_market_enricher.py      | 496 ++++++++++++---------
+ .../strategy/entry/test_tennis_signal_adapter.py   |  28 +-
+ 6 files changed, 448 insertions(+), 480 deletions(-)
