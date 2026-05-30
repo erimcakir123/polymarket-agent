@@ -76,6 +76,33 @@ class PaperExecutor:
         )
         return self._record_and_return(token_id, "SELL", strategy, target_price, notional, result, book, shares_in=shares)
 
+    def partial_sell(self, token_id: str, shares: float, target_price: float, reason: str = "scale_out") -> dict:
+        """Scale-out partial sell — gerçek bid book walk, slippage-aware fill.
+
+        Tennis-paper-lab paritesi (2026-05-30 fix): scale-out partial exit'in
+        gerçek defter karşılığı. Bid book yeterli değilse REJECTED → caller
+        pozisyonu küçültmemeli, defter kaydı yapmamalı.
+        """
+        target_price = round(target_price, 2)
+        notional = shares * target_price
+        if notional < self.cfg.min_order_usdc:
+            return self._rejected(token_id, "SELL", target_price, notional, "below_min_order_usdc", {})
+        book = self._book.fetch(token_id)
+        strategy = choose_order_strategy(book, "SELL", target_price, notional)
+        result = walk_sell(
+            bids=book.get("bids", []),
+            target_price=strategy["price"],
+            shares=shares,
+            max_slippage_pct=self.cfg.max_sell_slippage_pct,
+        )
+        rec = self._record_and_return(
+            token_id, "SELL", strategy, target_price, notional, result, book,
+            shares_in=shares,
+        )
+        rec["reason"] = reason
+        rec["kind"] = "partial_sell"
+        return rec
+
     def _record_and_return(
         self, token_id: str, side: str, strategy: dict,
         target_price: float, target_size_usdc: float, result, book: dict,

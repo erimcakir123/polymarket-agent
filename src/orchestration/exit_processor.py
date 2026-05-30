@@ -323,20 +323,55 @@ class ExitProcessor:
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
         """Scale-out partial exit.
 
-        Basis payı (`old_size × sell_pct`) pozisyon küçültülmeden ÖNCE yakalanır
-        ve bankroll'a geri kredilenir — identity `bankroll + invested = initial +
-        realized_pnl` korunur (DECISIONS §5.7.7).
+        2026-05-30 fix (tennis-paper-lab parity): GERÇEK satım YAPILMADAN
+        defter mutate edilmiyordu — paper'da hayali +$334 kazanç yazıyordu,
+        live'da Polymarket'e emir gitmeden bankroll yazılırdı.
+
+        Akış:
+          1. executor.partial_sell çağrılır (paper'da real book walk, live'da
+             gerçek Polymarket market sell, dry_run'da sahte fill).
+          2. status REJECTED → satım yapılamadı, pozisyon AYNEN kalır, defter
+             kaydı YAPILMAZ. Live davranışıyla birebir.
+          3. status FILLED/PARTIAL_FILL/simulated → gerçek filled_shares ile
+             pozisyon küçültülür, gerçek avg_price ile PnL hesaplanır.
+
+        Basis payı identity korunur: `bankroll + invested = initial + realized_pnl`.
         """
-        shares_to_sell = pos.shares * signal.sell_pct
-        realized = pos.unrealized_pnl_usdc * signal.sell_pct
-        basis_returned = pos.size_usdc * signal.sell_pct
-        pos.shares -= shares_to_sell
-        pos.size_usdc *= (1 - signal.sell_pct)
+        intended_shares = pos.shares * signal.sell_pct
+        order = self.deps.executor.partial_sell(
+            token_id=pos.token_id,
+            shares=intended_shares,
+            target_price=pos.current_price,
+            reason="scale_out",
+        )
+        status = order.get("status", "REJECTED")
+        success = status in ("simulated", "placed", "FILLED", "PARTIAL_FILL")
+        if not success:
+            logger.warning(
+                "SCALE-OUT REJECTED %s: %s — pozisyon korunur, defter kaydı yok",
+                pos.slug[:40], order.get("reason", "?"),
+            )
+            return
+
+        # GERÇEK filled_shares ve avg_price kullan (executor döndü)
+        actual_shares = float(order.get("filled_shares") or intended_shares)
+        actual_price = float(order.get("avg_price") or pos.current_price)
+        if actual_shares <= 0:
+            logger.warning(
+                "SCALE-OUT FILLED ama filled_shares=0: %s — kayıt yapılmıyor",
+                pos.slug[:40],
+            )
+            return
+
+        # Gerçek satım miktarına göre defter güncelle
+        actual_sell_pct = actual_shares / pos.shares if pos.shares > 0 else 0.0
+        basis_returned = pos.size_usdc * actual_sell_pct
+        # Realized PnL = actual sold shares × (sell_price - entry_price)
+        realized = actual_shares * (actual_price - pos.entry_price)
+        pos.shares -= actual_shares
+        pos.size_usdc *= (1 - actual_sell_pct)
         pos.scale_out_tier = signal.tier or pos.scale_out_tier
         pos.scale_out_realized_usdc += realized
-        # State mutation'ı (shares, size) BURADAN önce yapıldı.
-        # apply_partial_exit ValueError fırlatırsa pozisyon arada silinmiş demek
-        # → mutation'ı rollback edip uyarı log'la (full exit zaten state'i temizledi).
         try:
             self.deps.state.portfolio.apply_partial_exit(
                 pos.condition_id,
@@ -344,10 +379,9 @@ class ExitProcessor:
                 realized_usdc=realized,
             )
         except ValueError as e:
-            # Rollback pozisyon mutation'ı (scale_out_tier monotonik forward-only, skip).
-            pos.shares += shares_to_sell
-            if signal.sell_pct < 1.0:
-                pos.size_usdc /= (1 - signal.sell_pct)
+            pos.shares += actual_shares
+            if actual_sell_pct < 1.0:
+                pos.size_usdc /= (1 - actual_sell_pct)
             pos.scale_out_realized_usdc -= realized
             logger.warning(
                 "Partial exit aborted (race): %s — %s; mutation rolled back",
@@ -357,10 +391,10 @@ class ExitProcessor:
         logged = self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
             tier=signal.tier or pos.scale_out_tier,
-            sell_pct=signal.sell_pct,
+            sell_pct=actual_sell_pct,         # gerçek satılan oran
             realized_pnl_usdc=realized,
             timestamp=datetime.now(timezone.utc).isoformat(),
-            price=pos.current_price,
+            price=actual_price,                # gerçek satım fiyatı
         )
         if not logged:
             # SPEC-D: log_partial_exit False → audit'te matching entry yok (orphan).
@@ -371,6 +405,6 @@ class ExitProcessor:
                 pos.slug[:35],
             )
         logger.info(
-            "SCALE-OUT %s: tier=%d sold=%.1f shares realized=$%.2f remaining=$%.2f",
-            pos.slug[:35], signal.tier, shares_to_sell, realized, pos.size_usdc,
+            "SCALE-OUT %s: tier=%d sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
+            pos.slug[:35], signal.tier, actual_shares, actual_price, realized, pos.size_usdc,
         )

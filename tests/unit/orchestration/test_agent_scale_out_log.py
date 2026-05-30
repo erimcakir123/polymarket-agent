@@ -36,11 +36,21 @@ def _make_deps_with_position():
     state.portfolio.positions = {"cid": pos}
     state.portfolio.bankroll = 1000.0
     state.portfolio.add_position.return_value = True
+    # 2026-05-30 fix: partial exit artık executor.partial_sell çağırır
+    # (gerçek defter satımı). Mock FILLED dönmeli ki defter mantığı çalışsın.
+    executor = MagicMock()
+    executor.partial_sell.return_value = {
+        "status": "FILLED",
+        "mode": "dry_run",
+        "filled_shares": 200.0 * 0.4,  # sell_pct=0.4 × shares=200
+        "avg_price": 0.6,
+        "reason": "scale_out",
+    }
     return AgentDeps(
         state=state,
         scanner=MagicMock(),
         cycle_manager=MagicMock(),
-        executor=MagicMock(),
+        executor=executor,
         odds_client=MagicMock(),
         trade_logger=MagicMock(),
         gate=MagicMock(),
