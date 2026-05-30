@@ -158,7 +158,24 @@ class EntryProcessor:
             self.deps.stock.remove(market.condition_id)
 
     def _execute_entry(self, market: MarketData, signal) -> None:
-        """Sim/live order → position open → trade record."""
+        """Sim/live order → position open → trade record.
+
+        2026-05-30 KRİTİK fix: place_order'dan ÖNCE condition_id duplicate
+        check. Eski davranış: pozisyon zaten varsa _persist_filled_position
+        defter kaydı yapmıyordu AMA executor.place_order ZATEN çağrılmıştı —
+        paper'da görünmez ama live'da Polymarket'e gerçek emir gider, wallet
+        boşalır, defter "duplicate, skip" der → wallet ve defter çelişir.
+        """
+        if market.condition_id in self.deps.state.portfolio.positions:
+            # Defter zaten bu pazara pozisyon kaydetmiş — yeni emir GÖNDERME
+            detail = f"condition_id={market.condition_id[:20]}..."
+            operational_writers.log_skip(
+                self.deps.skipped_logger, market,
+                "duplicate_condition_id", detail=detail,
+            )
+            self.deps.stock.add(market, "duplicate_condition_id")
+            return
+
         token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id
         side = "BUY"
         price = market.yes_price if signal.direction.value == "BUY_YES" else market.no_price
