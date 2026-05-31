@@ -1,12 +1,17 @@
 """Basketball market'ler için model-anchored enrichment.
 
 Sport_tag basketball ise odds_enricher (bookmaker h2h) yerine bu modül çağrılır.
-Tennis_anchor_enricher pattern'inin birebir kopyası (Plan 1.C Task 3).
+Tennis_anchor_enricher pattern'inin birebir kopyası (Plan 1.C Task 3 + 1.D Task 3+5).
 
-Model çıktısı BookmakerProbability'ye sarılır — confidence grading mevcut
-pipeline ile uyumlu kalır. Plan 1.B model layer hazır → A confidence
-(5 bookmaker eşdeğeri + sharp), Plan 1.C backtest sonrası kalibrasyon
-eğrisi eklenebilir.
+Akış:
+  1. ratings + efficiencies eksik → fail_reason
+  2. compute_model_anchor → ham model_p
+  3. calibration_curves["{league}:{market_type}"] varsa apply_calibration
+  4. cliprange [%5, %95] güvenlik kemeri (Plan 1.D)
+  5. calculate_bookmaker_probability sarmal → A confidence
+
+Calibration eğrisi key biçimi "{league}:{market_type}" — örn "nba:moneyline",
+"wnba:totals". Lig-başına ayrı kalibrasyon (NBA vs WNBA hücum profili farklı).
 """
 from __future__ import annotations
 
@@ -14,6 +19,8 @@ from typing import Optional
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import calculate_bookmaker_probability
+from src.domain.calibration.curve import CalibrationCurve, apply_calibration
+from src.domain.calibration.sanity import cliprange
 from src.domain.pricing.basketball.pace_efficiency import TeamEfficiency
 from src.domain.pricing.basketball.team_elo import EloRating
 from src.strategy.enrichment.basketball_model_anchor import compute_model_anchor
@@ -29,11 +36,13 @@ def enrich_basketball_from_model(
     efficiencies: dict[str, TeamEfficiency],
     home_advantage: float, blend_elo: float,
     line: Optional[float] = None,
+    calibration_curves: Optional[dict[str, CalibrationCurve]] = None,
 ) -> EnrichResult:
     """Basketball market → model probability → EnrichResult.
 
-    Eksik takım veya eksik veri → fail_reason. Plan 1.C kalibrasyon eğrisi
-    sonraki faza ertelenmiş (Plan 1.B sonu kanıt sonrası).
+    Eksik takım veya eksik veri → fail_reason. Calibration eğrisi varsa
+    "{league}:{market_type}" anahtarı kullanılır. Son adımda cliprange
+    güvenlik kemeri ile P(YES) [%5, %95] aralığına kırpılır.
     """
     home_elo = ratings.get(home_team)
     away_elo = ratings.get(away_team)
@@ -60,6 +69,12 @@ def enrich_basketball_from_model(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_BASKETBALL_DATA_MISSING,
         )
+    if calibration_curves:
+        key = f"{league.lower()}:{market_type.lower()}"
+        curve = calibration_curves.get(key)
+        if curve is not None:
+            model_p = apply_calibration(model_p, curve)
+    model_p = cliprange(model_p)
     prob = calculate_bookmaker_probability(
         bookmaker_prob=model_p,
         num_bookmakers=_MODEL_EQUIV_BOOKMAKERS,
