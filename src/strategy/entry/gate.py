@@ -21,6 +21,7 @@ from src.domain.guards.blacklist import Blacklist
 from src.domain.guards.manipulation import ManipulationCheck, adjust_position_size
 from src.domain.portfolio.exposure import at_or_over_cap
 from src.domain.portfolio.manager import PortfolioManager
+from src.domain.pricing.kelly import bet_size as kelly_bet_size
 from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
 from src.domain.risk.position_sizer import POLYMARKET_MIN_ORDER_USDC, confidence_position_size
@@ -87,6 +88,11 @@ class GateConfig:
     # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
     # zaten anında tetikleneceği için baştan reddedilir.
     bimodal_min_entry_price: float = 0.20
+    # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre edilmiş model olduğu için
+    # dinamik stake. Default off; tennis için True iken Kelly devreye girer.
+    kelly_enabled_tennis: bool = True
+    kelly_multiplier: float = 0.25  # fractional Kelly (variance ↓)
+    kelly_max_pct: float = 0.05  # bankroll güvenlik kapağı
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
@@ -218,17 +224,16 @@ class EntryGate:
                 manipulation=manip,
             )
 
-        # 7. Position sizing (SPEC-P sabit-tier + SPEC-U bimodal-aware).
-        # Bimodal = totals + spreads (SL muaf, anlık çakılma riski) → küçük cap.
-        # Non-bimodal = moneyline → eski sizing.
-        bet_dict = (
-            self.config.bimodal_bet_usdc
-            if _is_bimodal_market(market)
-            else self.config.fixed_bet_usdc
-        )
-        raw_size = confidence_position_size(
-            confidence=signal.confidence,
-            fixed_bet_usdc=bet_dict,
+        # 7. Position sizing — tennis için Kelly (Adım 5 2026-05-31), diğerleri
+        # SPEC-P sabit-tier + SPEC-U bimodal-aware.
+        # Tennis: kalibre edilmiş model var → dinamik stake. multiplier=0.25 (variance ↓),
+        # max_pct güvenlik kapağı. Calibration yoksa Kelly güvenilmez → fixed fallback.
+        raw_size = _compute_position_size(
+            market=market,
+            signal=signal,
+            bm_prob=bm_prob,
+            cfg=self.config,
+            bankroll=self.portfolio.bankroll,
         )
 
         # Manipulation medium risk → halve
@@ -277,3 +282,46 @@ class EntryGate:
 
         # 3. Normal — bookmaker P(YES) vs market YES, edge ≥6%
         return normal_entry.evaluate(market, bm_prob, min_edge=self.config.min_edge)
+
+
+def _compute_position_size(
+    market: MarketData,
+    signal: Signal,
+    bm_prob: BookmakerProbability,
+    cfg: GateConfig,
+    bankroll: float,
+) -> float:
+    """Sport-aware position sizing.
+
+    Tennis + kelly_enabled_tennis → fractional Kelly (calibrated model).
+    Diğer sporlar / kelly off → fixed-tier (confidence_position_size).
+
+    Kelly direction-aware:
+      BUY_YES → p = bm_prob.probability,         price = market.yes_price
+      BUY_NO  → p = 1 - bm_prob.probability,     price = market.no_price
+    """
+    is_tennis = (market.sport_tag or "").lower() == "tennis"
+    if is_tennis and cfg.kelly_enabled_tennis:
+        direction = (signal.direction or "").upper()
+        if direction == "BUY_NO":
+            p = 1.0 - bm_prob.probability
+            price = market.no_price
+        else:
+            p = bm_prob.probability
+            price = market.yes_price
+        kelly_size = kelly_bet_size(
+            p=p, price=price, bankroll=bankroll,
+            kelly_multiplier=cfg.kelly_multiplier,
+            max_pct=cfg.kelly_max_pct,
+        )
+        # Kelly 0 ise (edge yok) fixed-tier fallback (signal zaten edge ≥ min)
+        if kelly_size > 0:
+            return kelly_size
+
+    bet_dict = (
+        cfg.bimodal_bet_usdc if _is_bimodal_market(market) else cfg.fixed_bet_usdc
+    )
+    return confidence_position_size(
+        confidence=signal.confidence,
+        fixed_bet_usdc=bet_dict,
+    )

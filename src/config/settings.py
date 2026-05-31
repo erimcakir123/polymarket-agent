@@ -87,6 +87,10 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
+    # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre model için dinamik stake.
+    kelly_enabled_tennis: bool = True
+    kelly_multiplier: float = 0.25
+    kelly_max_pct: float = 0.05
     # 2026-05-27 (SPEC-force-close): market_type → max dakika; süre dolarsa pozisyon
     # zorla kapatılır. Boş dict → feature devre dışı (mevcut SL/TP zincirine etki yok).
     force_close_timeouts: dict[str, int] = Field(default_factory=dict)

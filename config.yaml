@@ -99,6 +99,11 @@ risk:
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   stop_loss_pct: 0.30
+  # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre model + fractional Kelly.
+  # multiplier 0.25 (variance düşür), max_pct 0.05 (bankroll güvenlik kapağı).
+  kelly_enabled_tennis: true
+  kelly_multiplier: 0.25
+  kelly_max_pct: 0.05
   # 2026-05-27 (SPEC-force-close): market_type -> max dakika.
   # ESPN bittigini gosterirse veya sure dolduğunda pozisyon zorla bid'den satilir,
   # bid yoksa 0 ile realize. Saf guvenlik agi — normal SL/TP zincirine etki yok.
