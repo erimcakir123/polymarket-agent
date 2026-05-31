@@ -138,6 +138,10 @@ def build_agent(state: RuntimeState) -> Agent:
     # blocking, ratings.json'ı agent'ın taze yüklemesi için). Stale değilse skip.
     _maybe_invoke_sackmann_refresh(cfg)
 
+    # SPEC 2026-06-01 Faz 1: basketball aktif iken refresh hook (tennis paraleli).
+    # Plan 1.A foundation — Plan 1.B'de team rating wiring tamamlanır.
+    _maybe_invoke_basketball_refresh(cfg)
+
     gamma = GammaClient()
     odds = OddsAPIClient()
     espn = ESPNClient(athlete_cache_ttl_sec=cfg.scanner.tennis_athlete_cache_ttl_sec)
@@ -351,6 +355,55 @@ def _maybe_invoke_sackmann_refresh(cfg: AppConfig) -> None:
     if not ({"atp", "wta"} & tags_lc):
         return
     maybe_refresh_sackmann_on_startup(Path("data/sackmann_cache"))
+
+
+def _maybe_invoke_basketball_refresh(cfg: AppConfig) -> None:
+    """Basketball aktif iken refresh hook çağır.
+
+    Plan 1.A foundation: Yapısal wiring + yedek (ESPN) path kanıtı.
+    Birincil (nba_api) rating update Plan 1.B'de team_ratings_store + endpoint
+    factory ile eklenir. Şu an primary boş liste döner (degrade test pattern).
+    Stale cache veya bot reboot tetikleyicisi.
+    """
+    tags_lc = {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])}
+    enabled = [lg for lg in cfg.basketball.enabled_leagues if lg in tags_lc]
+    if not enabled:
+        logger.info("basketball refresh skipped — no enabled league in whitelist")
+        return
+    from datetime import datetime, timezone
+
+    import requests
+
+    from src.infrastructure.data.basketball.espn_pbp_refresher import (
+        fetch_game_log_via_espn,
+    )
+    from src.infrastructure.data.basketball.refresh_runner import (
+        BasketballRefreshRunner,
+    )
+
+    health_path = Path(cfg.basketball.health_file)
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    for league in enabled:
+        def _primary() -> list:
+            # Plan 1.B wiring noktası: nba_api endpoint factory + delta-fetch
+            return []
+
+        def _secondary(_league: str = league, _date: str = today) -> list:
+            return fetch_game_log_via_espn(
+                league=_league, date_utc=_date, http_get=requests.get,
+            )
+
+        runner = BasketballRefreshRunner(
+            league=league, health_path=health_path,
+            primary_fetch=_primary, secondary_fetch=_secondary,
+            now_utc_str=lambda: datetime.now(timezone.utc).isoformat(),
+        )
+        outcome = runner.run()
+        logger.info(
+            "basketball refresh: league=%s source=%s games=%d",
+            league, outcome.source_used, len(outcome.games),
+        )
 
 
 def _build_executor(cfg: AppConfig) -> Executor:

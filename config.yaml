@@ -238,6 +238,17 @@ price_feed:
   # Near-resolve spread sanity: ask-bid > 10¢ → likidite yok, sahte tetikleme
   max_spread_for_near_resolve: 0.10
 
+basketball:
+  # SPEC Faz 1 (2026-06-01): NBA + WNBA model foundation.
+  # WNBA Plan 1.A spike testi sonrası eklenir/çıkarılır.
+  enabled_leagues:
+    - nba
+    # - wnba  (Plan 1.A WNBA spike testi sonrası kararla aktive edilir)
+  cache_dir: data/basketball_cache
+  health_file: data/basketball_cache/_health/sources_status.json
+  primary_source: nba_api
+  secondary_source: espn
+
 mlb_submarket:
   enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin
                               # 25+ API call (lineup/people/weather) yapip heavy cycle'i blokluyor.

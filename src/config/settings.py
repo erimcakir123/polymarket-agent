@@ -117,6 +117,20 @@ class MlbSubmarketConfig(BaseModel):
     rate_cache_path: str = "data/mlb_rate_cache.jsonl"
 
 
+class BasketballConfig(BaseModel):
+    """Basketball model foundation — veri katmanı config (SPEC 2026-06-01 Faz 1).
+
+    enabled_leagues: hangi ligler için refresh hook tetiklensin (NBA + WNBA Faz 1).
+    primary/secondary: çift-kaynak fallback için.
+    """
+    model_config = ConfigDict(extra="ignore")
+    enabled_leagues: List[str] = Field(default_factory=lambda: ["nba"])
+    cache_dir: str = "data/basketball_cache"
+    health_file: str = "data/basketball_cache/_health/sources_status.json"
+    primary_source: str = "nba_api"
+    secondary_source: str = "espn"
+
+
 class EarlyEntryConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     enabled: bool = True
@@ -344,6 +358,7 @@ class AppConfig(BaseModel):
     price_feed: PriceFeedConfig = PriceFeedConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
     mlb_submarket: MlbSubmarketConfig = Field(default_factory=MlbSubmarketConfig)
+    basketball: BasketballConfig = Field(default_factory=BasketballConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
 
 
