@@ -249,6 +249,19 @@ basketball:
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
   secondary_source: espn
+  # Lig-spesifik model parametreleri (FiveThirtyEight + KenPom referansları).
+  # home_advantage: rating puanı (NBA 100, WNBA 95).
+  # k_factor: Elo update hızı (yüksek = volatile, düşük = stabil).
+  # blend_elo: moneyline harmanı ağırlığı (0.55 = %55 Elo + %45 Pace).
+  leagues:
+    nba:
+      home_advantage: 100.0
+      k_factor: 20.0
+      blend_elo: 0.55
+    wnba:
+      home_advantage: 95.0
+      k_factor: 22.0
+      blend_elo: 0.55
 
 mlb_submarket:
   enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin

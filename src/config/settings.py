@@ -117,11 +117,25 @@ class MlbSubmarketConfig(BaseModel):
     rate_cache_path: str = "data/mlb_rate_cache.jsonl"
 
 
+class BasketballLeagueParams(BaseModel):
+    """Lig-spesifik model parametreleri (Plan 1.B Task 7).
+
+    home_advantage: rating puanı (NBA 100, WNBA 95 — FiveThirtyEight referans).
+    k_factor: Elo update hızı.
+    blend_elo: moneyline blend ağırlığı (Elo vs Pace×Efficiency).
+    """
+    model_config = ConfigDict(extra="ignore")
+    home_advantage: float = 100.0
+    k_factor: float = 20.0
+    blend_elo: float = Field(0.55, ge=0.0, le=1.0)
+
+
 class BasketballConfig(BaseModel):
-    """Basketball model foundation — veri katmanı config (SPEC 2026-06-01 Faz 1).
+    """Basketball model foundation — veri + model katmanı config (SPEC 2026-06-01 Faz 1).
 
     enabled_leagues: hangi ligler için refresh hook tetiklensin (NBA + WNBA Faz 1).
     primary/secondary: çift-kaynak fallback için.
+    leagues: lig-başına model tuning (Plan 1.B Task 7).
     """
     model_config = ConfigDict(extra="ignore")
     enabled_leagues: List[str] = Field(default_factory=lambda: ["nba"])
@@ -129,6 +143,12 @@ class BasketballConfig(BaseModel):
     health_file: str = "data/basketball_cache/_health/sources_status.json"
     primary_source: str = "nba_api"
     secondary_source: str = "espn"
+    leagues: dict[str, BasketballLeagueParams] = Field(
+        default_factory=lambda: {
+            "nba": BasketballLeagueParams(home_advantage=100.0, k_factor=20.0),
+            "wnba": BasketballLeagueParams(home_advantage=95.0, k_factor=22.0),
+        }
+    )
 
 
 class EarlyEntryConfig(BaseModel):
