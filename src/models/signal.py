@@ -20,6 +20,8 @@ class Signal(BaseModel):
     bookmaker_prob: float
     num_bookmakers: float = 0.0
     has_sharp: bool = False
+    # K4 (2026-05-31): "bookmaker" veya "model" — bookmaker_prob alanı paylaşımlı.
+    source: str = "bookmaker"
     sport_tag: str = ""
     event_id: str = ""
 

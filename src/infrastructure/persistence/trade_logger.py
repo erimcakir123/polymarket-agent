@@ -63,8 +63,11 @@ class TradeRecord(BaseModel):
     anchor_probability: float
     num_bookmakers: float = 0.0
     has_sharp: bool = False
-    entry_reason: str
-    entry_timestamp: str
+    # K4 (2026-05-31): "bookmaker" veya "model" — model çıktısı bookmaker_prob
+    # alanını paylaştığı için dashboard/audit'te ayırt etmek gerek.
+    source: str = "bookmaker"
+    entry_reason: str = ""
+    entry_timestamp: str = ""
 
     # ── Maç ilerleyişi (Faz 4+'te doldurulur) ──
     match_timeline: list[dict] = []

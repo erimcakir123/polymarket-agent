@@ -75,6 +75,29 @@ def _resolve_player_name(
     return None
 
 
+def _infer_market_type(market: MarketData) -> str:
+    """Polymarket bazen sports_market_type'ı boş bırakır; slug'tan çıkar.
+
+    Boş market_type cascade bug riski — moneyline sanıp h2h modeli ile
+    yanlış market fiyatlanır. Slug keyword'leri ile doğru pricer'a yönlendir.
+    """
+    declared = (market.sports_market_type or "").strip().lower()
+    if declared:
+        return declared
+    slug = (market.slug or "").lower()
+    if "set-handicap" in slug:
+        return "tennis_set_handicap"
+    if "first-set" in slug and any(k in slug for k in ("over", "under", "total")):
+        return "tennis_first_set_totals"
+    if "first-set" in slug:
+        return "tennis_first_set_winner"
+    if "set-total" in slug or "number-of-sets" in slug or "total-sets" in slug:
+        return "tennis_set_totals"
+    if "match-total" in slug or "match-o-u" in slug or "over" in slug or "under" in slug:
+        return "tennis_match_totals"
+    return ""
+
+
 def _infer_surface(question: str) -> str:
     q_low = (question or "").lower()
     if any(k in q_low for k in _CLAY_KEYWORDS):
@@ -133,7 +156,7 @@ def enrich_with_tennis_dispatch(
     if sport != "tennis":
         return bookmaker_enricher(market)
 
-    market_type = (market.sports_market_type or "").lower()
+    market_type = _infer_market_type(market)
     is_moneyline = market_type in _MONEYLINE_TYPES
 
     if not ratings:

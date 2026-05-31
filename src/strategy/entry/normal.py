@@ -48,6 +48,7 @@ def evaluate(
         bookmaker_prob=bm_prob.bookmaker_prob,
         num_bookmakers=bm_prob.num_bookmakers,
         has_sharp=bm_prob.has_sharp,
+        source=bm_prob.source,
         sport_tag=market.sport_tag,
         event_id=market.event_id or "",
     )

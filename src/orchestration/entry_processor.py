@@ -287,6 +287,7 @@ class EntryProcessor:
             anchor_probability=signal.anchor_probability,
             num_bookmakers=signal.num_bookmakers,
             has_sharp=signal.has_sharp,
+            source=signal.source,
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
@@ -406,6 +407,7 @@ class EntryProcessor:
             anchor_probability=signal.anchor_probability,
             num_bookmakers=0.0,
             has_sharp=False,
+            source=signal.source,
             entry_reason=signal.entry_reason.value,
             entry_timestamp=datetime.now(timezone.utc).isoformat(),
         )
