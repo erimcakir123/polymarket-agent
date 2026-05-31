@@ -22,6 +22,9 @@ class EnrichFailReason(str, Enum):
     MODEL_PLAYER_NOT_IN_RATINGS = "model_player_not_in_ratings"
     MODEL_DATA_MISSING = "model_data_missing"  # surface yok, line/handicap parse fail
     MODEL_MARKET_UNSUPPORTED = "model_market_unsupported"
+    # Basketball model anchor (Plan 1.C):
+    MODEL_TEAM_NOT_IN_RATINGS = "model_team_not_in_ratings"
+    MODEL_BASKETBALL_DATA_MISSING = "model_basketball_data_missing"
 
 
 @dataclass(frozen=True)

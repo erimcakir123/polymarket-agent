@@ -357,6 +357,27 @@ def _maybe_invoke_sackmann_refresh(cfg: AppConfig) -> None:
     maybe_refresh_sackmann_on_startup(Path("data/sackmann_cache"))
 
 
+_TENNIS_SPORT_TAGS = frozenset({"tennis", "atp", "wta"})
+_BASKETBALL_SPORT_TAGS = frozenset({
+    "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
+})
+
+
+def _select_enricher_for_sport(sport_tag: str) -> str:
+    """Sport_tag → enricher tipi seçimi.
+
+    'tennis_model'    → Sackmann-anchored (Adım 3-5, tenis paper lab).
+    'basketball_model' → Elo + Pace×Efficiency (Plan 1.C).
+    'bookmaker'       → Odds API h2h fallback (diğer sporlar).
+    """
+    s = sport_tag.lower()
+    if s in _TENNIS_SPORT_TAGS:
+        return "tennis_model"
+    if s in _BASKETBALL_SPORT_TAGS:
+        return "basketball_model"
+    return "bookmaker"
+
+
 def _maybe_invoke_basketball_refresh(cfg: AppConfig) -> None:
     """Basketball aktif iken refresh hook çağır.
 
