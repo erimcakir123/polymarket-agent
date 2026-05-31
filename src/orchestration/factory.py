@@ -36,6 +36,7 @@ from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
+from src.infrastructure.data.calibration_store import load_calibration as load_tennis_calibration
 from src.infrastructure.data.tennis_ratings_store import load_ratings as load_tennis_ratings
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
@@ -191,8 +192,12 @@ def build_agent(state: RuntimeState) -> Agent:
     # Build script tarafından üretilir (scripts/build_tennis_ratings.py).
     # Yok ise dispatch boş dict ile çağrılır → moneyline bookmaker'a düşer.
     tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
+    tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
     if tennis_ratings:
-        logger.info("Tennis model anchor aktif: %d oyuncu reytingi yüklü", len(tennis_ratings))
+        logger.info(
+            "Tennis model anchor aktif: %d oyuncu reytingi, calibration curves=%d",
+            len(tennis_ratings), len(tennis_calibration),
+        )
     else:
         logger.info("Tennis ratings yok — alt market'lerde model devre dışı (cascade bug kapalı)")
 
@@ -201,7 +206,9 @@ def build_agent(state: RuntimeState) -> Agent:
 
     # Gate: enricher + manipulation_check closure'ları
     def _enricher(market):
-        return enrich_with_tennis_dispatch(market, _bookmaker_enrich, tennis_ratings)
+        return enrich_with_tennis_dispatch(
+            market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
+        )
 
     def _manip(question: str, liquidity: float) -> ManipulationCheck:
         return manipulation_check(

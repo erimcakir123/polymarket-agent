@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.analysis.probability import calculate_bookmaker_probability
+from src.domain.pricing.tennis.calibration import CalibrationCurve, apply_calibration
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.strategy.enrichment.tennis_model_anchor import compute_model_anchor
 
@@ -27,12 +28,14 @@ def enrich_tennis_from_model(
     surface: str,
     best_of: int,
     ratings: dict[str, PlayerSnapshot],
+    calibration_curves: dict[str, CalibrationCurve] | None = None,
     line: float | None = None,
     handicap: float | None = None,
 ) -> EnrichResult:
-    """Tennis market → model probability → EnrichResult.
+    """Tennis market → model probability → calibration → EnrichResult.
 
     Eksik oyuncu, eksik veri veya bilinmeyen market → fail_reason.
+    Calibration curve verilirse model çıktısı eğriyle düzeltilir.
     """
     a_snap = ratings.get(player_a)
     b_snap = ratings.get(player_b)
@@ -50,6 +53,11 @@ def enrich_tennis_from_model(
     )
     if model_p is None:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
+
+    if calibration_curves:
+        curve = calibration_curves.get(market_type.lower())
+        if curve is not None:
+            model_p = apply_calibration(model_p, curve)
 
     prob = calculate_bookmaker_probability(
         bookmaker_prob=model_p,

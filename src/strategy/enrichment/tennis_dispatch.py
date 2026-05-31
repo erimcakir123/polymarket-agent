@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Callable
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
+from src.domain.pricing.tennis.calibration import CalibrationCurve
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.models.market import MarketData
 from src.strategy.enrichment.question_parser import extract_teams
@@ -47,6 +48,7 @@ def enrich_with_tennis_dispatch(
     market: MarketData,
     bookmaker_enricher: Callable[[MarketData], EnrichResult],
     ratings: dict[str, PlayerSnapshot],
+    calibration_curves: dict[str, CalibrationCurve] | None = None,
 ) -> EnrichResult:
     """Tennis ise model, değilse veya yetersiz veri ise bookmaker fallback.
 
@@ -79,6 +81,7 @@ def enrich_with_tennis_dispatch(
         surface=_DEFAULT_SURFACE,
         best_of=best_of,
         ratings=ratings,
+        calibration_curves=calibration_curves,
     )
     if model_result.probability is not None:
         return model_result
