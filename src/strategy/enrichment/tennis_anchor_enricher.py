@@ -4,9 +4,10 @@ Sport_tag tennis ise odds_enricher (bookmaker h2h) yerine bu modül çağrılır
 Model çıktısı BookmakerProbability'ye sarılır — confidence grading mevcut
 pipeline ile uyumlu kalır.
 
-Model çıktısının "kalitesi" num_bookmakers=2, has_sharp=False olarak
-modellenir → B confidence. A-only entry modunda bot trade yapmaz; calibration
-curve (Adım 4) sonrası kanıt geldikçe artırılır.
+Confidence: kullanıcı kararı 2026-05-31 — Sackmann modeli sharp-equivalent
+sayılır (PLOS One 2022 %73 doğruluk). num_bookmakers=5, has_sharp=True →
+A confidence (canlı trade aktif). Adım 4 kalibrasyon sonrası kanıta göre
+revize edilir.
 """
 from __future__ import annotations
 
@@ -15,8 +16,8 @@ from src.domain.analysis.probability import calculate_bookmaker_probability
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.strategy.enrichment.tennis_model_anchor import compute_model_anchor
 
-_MODEL_EQUIV_BOOKMAKERS = 2.0
-_MODEL_HAS_SHARP = False
+_MODEL_EQUIV_BOOKMAKERS = 5.0
+_MODEL_HAS_SHARP = True
 
 
 def enrich_tennis_from_model(

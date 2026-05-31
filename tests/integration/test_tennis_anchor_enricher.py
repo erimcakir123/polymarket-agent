@@ -29,6 +29,8 @@ def test_h2h_returns_probability():
     assert result.probability is not None
     assert result.fail_reason is None
     assert result.probability.probability > 0.6
+    # Kullanıcı kararı: Sackmann sharp-equivalent → A confidence (canlı trade aktif)
+    assert result.probability.confidence == "A"
 
 
 def test_missing_player_returns_fail():
