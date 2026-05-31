@@ -82,3 +82,15 @@ def test_notify_circuit_breaker() -> None:
     text = http.call_args.kwargs["json"]["text"]
     assert "CIRCUIT BREAKER" in text
     assert "Daily loss hit" in text
+
+
+def test_notify_model_degraded_formats_message() -> None:
+    http = MagicMock(return_value=_resp(200))
+    n = TelegramNotifier(enabled=True, bot_token="t", chat_id="c", http_post=http)
+    ok = n.notify_model_degraded(sport="tennis", accuracy=0.48, n_trades=50)
+    assert ok is True
+    text = http.call_args.kwargs["json"]["text"]
+    assert "Model" in text
+    assert "TENNIS" in text
+    assert "48" in text  # accuracy 48%
+    assert "50" in text  # n_trades

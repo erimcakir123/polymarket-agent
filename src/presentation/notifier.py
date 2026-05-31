@@ -83,3 +83,12 @@ class TelegramNotifier:
         if active_until:
             msg += f"\nUntil: {active_until}"
         return self.send(msg)
+
+    def notify_model_degraded(self, sport: str, accuracy: float, n_trades: int) -> bool:
+        """Plan 1.D Task 4: branş modeli isabet eşik altına düştü uyarısı.
+        Caller rate-limit (per-sport 24h) yönetir — bu metod yalnız iletim.
+        """
+        msg = (f"⚠️ <b>Model sağlık uyarısı</b>\n"
+               f"{sport.upper()} son {n_trades} maç isabet: {accuracy:.1%}\n"
+               f"Kalibrasyon eğrisi update gerekebilir.")
+        return self.send(msg)

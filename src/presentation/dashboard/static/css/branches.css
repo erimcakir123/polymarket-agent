@@ -97,3 +97,24 @@
   opacity: 0.75;
   white-space: nowrap;
 }
+
+/* Plan 1.D Task 4: branş kartı isabet alt-satırı + alarm.
+   accuracy < 0.55 → kart kırmızı kenarlık + accuracy yazısı parlak kırmızı. */
+.tree-block-accuracy {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.tree-block.alarm {
+  outline: 2px solid #ff4d5e;
+  outline-offset: -2px;
+}
+
+.tree-block-accuracy.alarm {
+  color: #ff4d5e;
+  opacity: 1;
+  font-weight: 700;
+}

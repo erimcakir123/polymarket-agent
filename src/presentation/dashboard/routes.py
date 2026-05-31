@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 from src.config.settings import AppConfig
-from src.presentation.dashboard import computed, readers
+from src.presentation.dashboard import computed, computed_sport_health, readers
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,12 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     @app.route("/api/sport_roi")
     def api_sport_roi():
         trades = readers.read_trades(logs_dir, n=5000)
-        return jsonify(computed.sport_roi_treemap(trades))
+        # Plan 1.D Task 4: branş kartına isabet alt-satırı için model_health
+        # JSON'unu ekle. Dosya yoksa sport_health boş dict olur (graceful).
+        health_blob = readers.read_model_health(logs_dir)
+        payload = computed.sport_roi_treemap(trades)
+        payload["sport_health"] = computed_sport_health.compute_sport_health_for_dashboard(health_blob)
+        return jsonify(payload)
 
     @app.route("/api/trades/history")
     def api_trades_history():

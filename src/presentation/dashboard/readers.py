@@ -68,6 +68,15 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
     return _read_json(logs_dir.parent / "data" / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
 
 
+def read_model_health(logs_dir: Path) -> dict[str, Any]:
+    """data/model_health.json → {computed_at_utc, sports} ya da {} (yok/bozuk).
+
+    Plan 1.D Task 4. `scripts/calibration_health_report.py` üretir; dashboard
+    cycle başına okur, branş kartı isabet alt-satırını oluşturur.
+    """
+    return _read_json(logs_dir.parent / "data" / "model_health.json", {})
+
+
 def read_session_start(logs_dir: Path) -> str:
     """data/session_start.json -> ISO timestamp string ("" if missing/corrupt).
 

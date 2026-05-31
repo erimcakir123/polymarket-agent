@@ -208,3 +208,35 @@ def test_stock_returns_entries(tmp_path: Path) -> None:
     data = _client(tmp_path).get("/api/stock").get_json()
     assert len(data) == 1
     assert data[0]["slug"] == "q1"
+
+
+# ── /api/sport_roi (Plan 1.D Task 4) ──
+
+def test_sport_roi_empty_returns_zero_payload(tmp_path: Path) -> None:
+    """No trades + no model_health → boş leagues + boş sport_health."""
+    data = _client(tmp_path).get("/api/sport_roi").get_json()
+    assert "leagues" in data
+    assert "sport_health" in data
+    assert data["sport_health"] == {}
+
+
+def test_sport_roi_includes_health_when_file_present(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "model_health.json").write_text(json.dumps({
+        "computed_at_utc": "2026-06-01T00:00:00+00:00",
+        "sports": {"tennis": {"accuracy": 0.72, "n_trades": 47}},
+    }), encoding="utf-8")
+    data = _client(tmp_path).get("/api/sport_roi").get_json()
+    assert data["sport_health"]["tennis"]["accuracy"] == 0.72
+    assert data["sport_health"]["tennis"]["alarm"] is False
+
+
+def test_sport_roi_alarm_flagged_when_degraded(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    (data_dir / "model_health.json").write_text(json.dumps({
+        "sports": {"nba": {"accuracy": 0.48, "n_trades": 50}},
+    }), encoding="utf-8")
+    data = _client(tmp_path).get("/api/sport_roi").get_json()
+    assert data["sport_health"]["nba"]["alarm"] is True

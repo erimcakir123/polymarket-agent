@@ -12,10 +12,10 @@
 
   const BRANCHES = {
     render(data) {
-      this._renderTree(data.leagues || []);
+      this._renderTree(data.leagues || [], data.sport_health || {});
     },
 
-    _renderTree(leagues) {
+    _renderTree(leagues, sportHealth) {
       const tree = document.getElementById("branches-tree");
       if (!tree) return;
       if (leagues.length === 0) {
@@ -26,11 +26,12 @@
       const sorted = [...leagues].sort((a, b) => Math.abs(b.roi || 0) - Math.abs(a.roi || 0));
       tree.innerHTML = sorted.map((l) => {
         const share = totalInvested > 0 ? (l.invested / totalInvested) : 0;
-        return this._block(l, share);
+        const sportKey = String(l.league || "").toLowerCase();
+        return this._block(l, share, sportHealth[sportKey] || null);
       }).join("");
     },
 
-    _block(l, share) {
+    _block(l, share, health) {
       const roi = l.roi || 0;
       const roiStr = (roi >= 0 ? "+" : "") + (roi * 100).toFixed(0) + "%";
       const pnlSign = l.net_pnl >= 0 ? "+" : "-";
@@ -42,12 +43,21 @@
         `Win rate: ${wr}% · ${l.wins}W / ${l.losses}L` + (ties > 0 ? ` / ${ties}T` : "")
       );
       const grow = roi > 0 ? roi * 100 : 1;
-      return `<div class="tree-block ${cls}" style="flex-grow:${grow}" data-tip="${tip}">
+      const blockCls = health && health.alarm ? `${cls} alarm` : cls;
+      return `<div class="tree-block ${blockCls}" style="flex-grow:${grow}" data-tip="${tip}">
         <div class="tree-block-label">${FMT.escapeHtml(l.league || "—")}</div>
         <div class="tree-block-roi">${roiStr}</div>
         <div class="tree-block-sub">${pnlStr}</div>
         <div class="tree-block-sub">${l.trades || 0} trades</div>
+        ${this._accuracyLine(health)}
       </div>`;
+    },
+
+    _accuracyLine(health) {
+      if (!health) return "";
+      const pct = (health.accuracy * 100).toFixed(1);
+      const cls = health.alarm ? "tree-block-accuracy alarm" : "tree-block-accuracy";
+      return `<div class="${cls}">${pct}% isabet (${health.n_trades} maç)</div>`;
     },
 
     _classFor(roi) {

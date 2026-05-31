@@ -334,3 +334,26 @@ def test_bot_is_alive_nonexistent_pid(tmp_path: Path) -> None:
     logs_dir, _ = _mk_logs(tmp_path)
     (logs_dir / "agent.pid").write_text("999999", encoding="utf-8")
     assert readers.bot_is_alive(logs_dir) is False
+
+
+# ── read_model_health (Plan 1.D Task 4) ──
+
+def test_read_model_health_missing_file_returns_empty(tmp_path: Path) -> None:
+    logs_dir, _ = _mk_logs(tmp_path)
+    assert readers.read_model_health(logs_dir) == {}
+
+
+def test_read_model_health_valid_json(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    payload = {
+        "computed_at_utc": "2026-06-01T00:00:00+00:00",
+        "sports": {"tennis": {"accuracy": 0.72, "n_trades": 47}},
+    }
+    (data_dir / "model_health.json").write_text(json.dumps(payload), encoding="utf-8")
+    assert readers.read_model_health(logs_dir) == payload
+
+
+def test_read_model_health_corrupt_json_returns_empty(tmp_path: Path) -> None:
+    logs_dir, data_dir = _mk_logs(tmp_path)
+    (data_dir / "model_health.json").write_text("{not valid", encoding="utf-8")
+    assert readers.read_model_health(logs_dir) == {}
