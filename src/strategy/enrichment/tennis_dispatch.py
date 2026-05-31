@@ -54,6 +54,27 @@ def _infer_best_of(question: str) -> int:
     return _DEFAULT_BEST_OF
 
 
+def _resolve_player_name(
+    name: str,
+    ratings: dict[str, PlayerSnapshot],
+) -> str | None:
+    """Polymarket name → Sackmann full name eşleme.
+
+    Sıra: exact → case-insensitive exact → last-name substring (tek eşleşme).
+    Ambiguous (2+ aynı soyad) → None (güvenli, atla).
+    """
+    if name in ratings:
+        return name
+    name_low = name.lower().strip()
+    ci_match = [k for k in ratings if k.lower() == name_low]
+    if ci_match:
+        return ci_match[0]
+    parts_match = [k for k in ratings if name_low in k.lower().split()]
+    if len(parts_match) == 1:
+        return parts_match[0]
+    return None
+
+
 def _infer_surface(question: str) -> str:
     q_low = (question or "").lower()
     if any(k in q_low for k in _CLAY_KEYWORDS):
@@ -124,6 +145,16 @@ def enrich_with_tennis_dispatch(
         if is_moneyline:
             return bookmaker_enricher(market)
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.TEAM_EXTRACT_FAILED)
+
+    # Polymarket genelde soyadı gönderir ("Hurkacz"), Sackmann full name
+    # ("Hubert Hurkacz") saklar. Soyadı substring + ambiguity safety ile çöz.
+    resolved_a = _resolve_player_name(player_a, ratings)
+    resolved_b = _resolve_player_name(player_b, ratings)
+    if resolved_a is None or resolved_b is None:
+        if is_moneyline:
+            return bookmaker_enricher(market)
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EVENT_NO_MATCH)
+    player_a, player_b = resolved_a, resolved_b
 
     best_of = _infer_best_of(market.question)
     surface = _infer_surface(market.question)

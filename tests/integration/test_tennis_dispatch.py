@@ -106,6 +106,28 @@ def test_extract_market_params_no_match_returns_none():
     assert line is None
 
 
+def test_resolve_player_name_lastname_substring():
+    """Polymarket soyadı → Sackmann full name eşlemesi."""
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Hubert Hurkacz": _snap(1700, 0.65), "Taylor Fritz": _snap(1750, 0.67)}
+    assert _resolve_player_name("Hurkacz", ratings) == "Hubert Hurkacz"
+    assert _resolve_player_name("Fritz", ratings) == "Taylor Fritz"
+    assert _resolve_player_name("hurkacz", ratings) == "Hubert Hurkacz"
+
+
+def test_resolve_player_name_ambiguous_returns_none():
+    """Aynı soyadı 2+ oyuncuda var → None (güvenli)."""
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Alex Alvarez": _snap(1600, 0.60), "Jorge Alvarez": _snap(1500, 0.58)}
+    assert _resolve_player_name("Alvarez", ratings) is None
+
+
+def test_resolve_player_name_unknown_returns_none():
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Roger Federer": _snap(1900, 0.70)}
+    assert _resolve_player_name("Nadal", ratings) is None
+
+
 def test_surface_inferred_for_grand_slam():
     """K3 regression: question'da 'Wimbledon' geçerse Grass surface kullanılır.
 
