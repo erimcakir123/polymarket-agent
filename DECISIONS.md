@@ -2949,3 +2949,65 @@ work begins.
 
 **Spec:** docs/superpowers/specs/2026-05-27-force-close-design.md
 **Plan:** docs/superpowers/plans/2026-05-27-force-close.md
+
+---
+
+## SPEC-Tennis-Per-Market (2026-05-31) — DONE
+
+**Sorun:** Polymarket tenis alt market'lerinde (set_handicap, totals, first_set, set_totals) bahisçi yok — Odds API tenis için sadece h2h veriyor. Bot, h2h olasılığını alt market'lere yapıştırarak (cascade bug) yanlış anchor üretiyor → yanlış edge → yanlış trade. Kullanıcı verisi: Sackmann moneyline %70 isabetli AMA -$62 kayıp; anchor <%30 deep dog %81 isabetli AMA -$29 kayıp. Sebep: tahmin doğru AMA SL fire + bimodal fiyat sıçraması, kâr realize edilemiyor.
+
+**Çözüm — 5 adımlık altyapı:**
+
+**Adım 1: Tennis SL gevşek + bimodal flat-SL muaf**
+- `sport_rules.tennis.stop_loss_pct`: 0.30 → 0.50 (fiyat dalgalanması %30 aralığından büyük → erken fire engelleme)
+- `stop_loss.compute_stop_loss_pct()`: bimodal market'ler (set_handicap, set_totals, match_totals, first_set_totals) flat SL'den muaf — set bittiğinde fiyat 99¢/1¢ sıçrar, %50 SL fire eder → bot satar → fiyat geri uçar → kâr kaybedilir. Graduated SL ve sport-level kontrol aktif kalır.
+- `sport_rules.tennis.bimodal_market_types`: Polymarket prefix'li doğru isimler (`tennis_set_handicap` vs. eski yanlış `set_handicap`). Mismatch yüzünden bimodal sizing $15 cap çalışmıyordu, bot $50 fixed kullanıyordu = 3.3× risk.
+
+**Adım 2: Hold-to-resolve (anchor güveni yüksekse SL muaf)**
+- `stop_loss.compute_stop_loss_pct()`: tennis için `abs(anchor - 0.50) > 0.20` → flat SL muaf, resolve'a tutulur. anchor < 30% (deep dog) veya > 70% (strong favorite) yüksek güven kabul edilir. Sebep: tahmin doğru çıktığında SL fire → bot satar → kâr kaybedilir; resolve'a tutmak %81 isabetli durumda pozitif EV.
+
+**Adım 3: Per-market Sackmann motoru (Glicko + Markov)**
+- **Domain**: `src/domain/pricing/tennis/` altında 8 modül — Glicko-2 reyting (Glickman 2013, PLOS One 2022 %73 doğruluk), Newton-Keller closed-form Markov (game/set/match), serve_metrics (Bartoš-Cohen point-win), 5 pricer (h2h, set_handicap, totals, first_set, set_totals).
+- **Infrastructure**: `sackmann_csv_loader`, `tennis_ratings_store` (atomic JSON). `MatchRecord` saf dataclass → domain'de (`match_record.py`), infra import etmez (ARCH_GUARD Kural 1).
+- **Orchestration**: `scripts/build_tennis_ratings.py` — 77K Sackmann maçı → 6848 oyuncu reytingi → `data/tennis_ratings.json` (gitignored runtime cache).
+- **Strategy**: `tennis_model_anchor` market_type → pricer dispatch; `tennis_anchor_enricher` model çıktısını BookmakerProbability'ye sarar (num=5, has_sharp=True → A confidence); `tennis_dispatch` factory'de `_enricher` closure'ına bağlı.
+- **Player matching**: `_resolve_player_name` Polymarket soyadı ("Hurkacz") → Sackmann full name ("Hubert Hurkacz") exact → case-insensitive → last-name substring; ambiguous (2+ aynı soyad) → None (safe skip).
+- **Market type infer**: `_infer_market_type` `sports_market_type` boş gelirse slug'tan keyword-based (set-handicap/match-total/first-set/...) doğru pricer'a yönlendir.
+- **Surface infer**: `_infer_surface` Grand Slam keyword'lerinden (Clay = French Open/Madrid/Rome/..., Grass = Wimbledon/Queen's/...). Default Hard.
+- **Best_of infer**: Grand Slam keyword'leri → 5, default 3.
+- **Alt market fallback YASAK**: sport==tennis ve market alt ise, model fail durumunda bookmaker'a düşmez (cascade bug'ı geri açar). Sadece moneyline'da fallback.
+
+**Adım 4: Walk-forward calibration**
+- Domain: `CalibrationCurve` (bin midpoint + observed freq), `fit_calibration` (n_bins=10), `apply_calibration` (linear interp, [0,1] clamp).
+- Infrastructure: `calibration_store` (JSON round-trip).
+- Script: `calibrate_tennis_model.py` — 77K maç walk-forward (predict önce, update sonra, `_MIN_HISTORY=1000` warm-up, i%2 perspective swap winner-bias düzeltir). `data/tennis_calibration.json` çıktı.
+- Sonuç: orta aralık (0.35-0.55) çok iyi kalibre; uç değerlerde overconfidence (%85→%77, %95→%84); düşük tahminlerde under (%5→%17). Eğri devrede; deep favori/underdog raw model çıktısı düzeltilir.
+
+**Adım 5: Tennis Kelly sizing**
+- Domain: `kelly_fraction(p, price)` = (p - price)/(1 - price) clamped at 0; `bet_size(p, price, bankroll, multiplier, max_pct)` = min(bankroll × fraction × multiplier, bankroll × max_pct).
+- Strategy: `gate._compute_position_size()` — tennis ise Kelly, değilse fixed-tier (`confidence_position_size`). BUY_NO direction'da p ve price invert: p = 1 - bm_prob.probability, price = market.no_price.
+- Config: `kelly_enabled_tennis=true`, `kelly_multiplier=0.25` (variance düşürme), `kelly_max_pct=0.05` (bankroll güvenlik kapağı), `tennis_h2h_glicko_weight=0.6` (PLOS One referansı).
+
+**K4: Source field (model vs bookmaker ayrımı)**
+- `BookmakerProbability.source: str = "bookmaker"` ("bookmaker" | "model"). Tennis enricher source="model" geçer.
+- `Signal.source` + `TradeRecord.source` uçtan uca akar (consensus/early/normal entry stratejileri + entry_processor).
+
+**Entry cap sıkılaştırma (Rublev 89¢ öğreticisi)**
+- `max_entry_price` 0.88 → 0.80 + `entry_price_slippage_buffer` 0.01. R/R 8:1 → 4:1 ile sınırlı. Gate `effective_price + buffer >= cap` ile executor 1¢ slippage cap'i delemez.
+
+**Bot davranış değişikliği (özetle):**
+- Tenis alt market'lerde **bahisçi yapıştırma SON** — kendi modelimizden anchor.
+- Tenis tahminlerinde Glicko + Markov harman (config %60/%40 Glicko ağır).
+- Yüksek güvenli tenis (anchor uç değer) SL muaf, resolve'a tutulur.
+- Kalibrasyon eğrisi raw model çıktısını düzeltir.
+- Kelly direction-aware dinamik sizing; tenis dışı sporlarda fixed-tier korunur.
+
+**Glossary (yanılgı önleme):**
+- **Glicko** = Mark Glickman'ın matematik reyting sistemi. Sackmann'dan bizim kendi modelimiz. **Bahisçi değil.**
+- **Markov** = Newton-Keller bizim kendi maç simülasyonumuz (serve % → game → set → match).
+- `tennis_h2h_glicko_weight` = bu iki **kendi** modelimizin harmanı, bahisçi ile alakası yok.
+- **Bahisçi (Odds API)** = sadece h2h fallback için (model fail olursa). Alt market'lerde **HİÇ** kullanılmaz çünkü Odds API tenis için alt market vermiyor.
+
+**Test:** 1717 unit + integration GREEN; 8 domain pricer modülü + 5 strategy/infra dispatcher + 1 build script + 1 calibration script.
+
+**Plan:** docs/superpowers/plans/2026-05-31-tennis-per-market-models.md
