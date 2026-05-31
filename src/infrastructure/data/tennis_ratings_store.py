@@ -7,19 +7,13 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 from src.domain.pricing.tennis.glicko import Rating
+from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PlayerSnapshot:
-    rating: Rating
-    serve_by_surface: dict[str, PlayerServeStats]
 
 
 def save_ratings(snapshot: dict[str, PlayerSnapshot], path: Path) -> None:

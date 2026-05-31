@@ -77,6 +77,18 @@ SPORT_RULES: dict[str, dict] = {
         "start_source": "espn",
         "espn_sport": "tennis",
         "espn_leagues": ("atp", "wta"),
+        # 2026-05-31 Adım 3: per-market Sackmann pricer'lar aktif. Anchor
+        # bookmaker yerine model'den gelir — odds_enricher h2h fiyatını alt
+        # marketlere kopyalama cascade bug'ı çözüldü. Eksik veride pricer
+        # None döner → entry skip.
+        "submarket_anchor": {
+            "moneyline": "model",
+            "tennis_set_handicap": "model",
+            "tennis_match_totals": "model",
+            "tennis_first_set_winner": "model",
+            "tennis_first_set_totals": "model",
+            "tennis_set_totals": "model",
+        },
         # SPEC-W: empirical — set_totals/set_handicap WTA ambiguous (bimodal),
         # match_totals ATP %53 no_sig_drop. ATP set_totals %60 kademeli
         # (non-bimodal). Tenis lab kendi worktree'sinde ayrı yapı kullanır.

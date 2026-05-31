@@ -10,12 +10,10 @@ from collections import defaultdict
 from pathlib import Path
 
 from src.domain.pricing.tennis.glicko import Rating, update_rating
+from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import aggregate_serve_stats
 from src.infrastructure.data.sackmann_csv_loader import load_matches_from_path
-from src.infrastructure.data.tennis_ratings_store import (
-    PlayerSnapshot,
-    save_ratings,
-)
+from src.infrastructure.data.tennis_ratings_store import save_ratings
 
 logger = logging.getLogger(__name__)
 

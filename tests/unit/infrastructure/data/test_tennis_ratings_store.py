@@ -1,8 +1,8 @@
 """tennis_ratings.json read/write — round-trip ve missing file."""
 from src.domain.pricing.tennis.glicko import Rating
+from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
 from src.infrastructure.data.tennis_ratings_store import (
-    PlayerSnapshot,
     load_ratings,
     save_ratings,
 )
