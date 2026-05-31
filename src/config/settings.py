@@ -84,6 +84,8 @@ class RiskConfig(BaseModel):
     # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi).
     max_entry_price: float = 0.80
     entry_price_slippage_buffer: float = 0.01
+    # Belirsizlik filtresi — tenis modeli "fifty-fifty" derken trade etme.
+    model_min_anchor_distance_from_half: float = 0.10
     # SPEC-X (2026-05-24): bimodal market'ler için entry alt sınır.
     bimodal_min_entry_price: float = 0.20
     consecutive_loss_cooldown: int = 3

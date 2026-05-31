@@ -233,6 +233,7 @@ def build_agent(state: RuntimeState) -> Agent:
         bimodal_bet_usdc=cfg.risk.bimodal_bet_usdc,
         max_entry_price=cfg.risk.max_entry_price,
         entry_price_slippage_buffer=cfg.risk.entry_price_slippage_buffer,
+        model_min_anchor_distance_from_half=cfg.risk.model_min_anchor_distance_from_half,
         bimodal_min_entry_price=cfg.risk.bimodal_min_entry_price,
         kelly_enabled_tennis=cfg.risk.kelly_enabled_tennis,
         kelly_multiplier=cfg.risk.kelly_multiplier,

@@ -89,6 +89,11 @@ class GateConfig:
     # Gate ile executor arası slippage buffer — order book delik olmasın.
     # effective_price + buffer >= cap ise reddet.
     entry_price_slippage_buffer: float = 0.01
+    # 2026-05-31 belirsizlik filtresi (5w3l veri analizinden): tenis model anchor
+    # bu aralıkta ise ("fifty-fifty" iddiası, bilgi yok) trade etme. 3 kaybın 3'ü
+    # de anchor 0.40-0.60 arasındaydı. uç değerlerde (deep dog veya deep fav)
+    # model gerçek bilgi taşıyor — orada trade aktif. Sadece source="model".
+    model_min_anchor_distance_from_half: float = 0.10
     # SPEC-X (2026-05-24): bimodal market'lerde (totals + spreads) entry alt sınır.
     # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
     # zaten anında tetikleneceği için baştan reddedilir.
@@ -195,7 +200,19 @@ class EntryGate:
             return GateResult(cid, None, "confidence_C",
                               skip_detail=f"num_bookmakers={bm_prob.num_bookmakers:.1f}")
 
-        # 5. Strateji önceliği — ilk Signal üreten kazanır
+        # 5. Belirsizlik filtresi — model anchor "fifty-fifty" iddiasında trade
+        # etme (5w3l veri analizi). Sadece source="model" (tenis), bahisçide
+        # uygulanmaz çünkü 5+ bahisçi konsensüsü zaten bilgi taşır.
+        if bm_prob.source == "model":
+            anchor_dist = abs(bm_prob.probability - 0.50)
+            if anchor_dist < self.config.model_min_anchor_distance_from_half:
+                detail = (
+                    f"anchor={bm_prob.probability:.3f} dist={anchor_dist:.3f} "
+                    f"< min={self.config.model_min_anchor_distance_from_half}"
+                )
+                return GateResult(cid, None, "model_anchor_uncertain", skip_detail=detail)
+
+        # 6. Strateji önceliği — ilk Signal üreten kazanır
         signal = self._evaluate_strategies(market, bm_prob)
         if signal is None:
             edge_raw = abs(bm_prob.probability - market.yes_price)
