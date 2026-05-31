@@ -240,10 +240,11 @@ price_feed:
 
 basketball:
   # SPEC Faz 1 (2026-06-01): NBA + WNBA model foundation.
-  # WNBA Plan 1.A spike testi sonrası eklenir/çıkarılır.
+  # WNBA Plan 1.A spike testi sonucu (2026-06-01): PASS — 240 maç, 12 takım,
+  # her takım 40 maç, possessions kolonları dolu. WNBA Faz 1 kapsamında.
   enabled_leagues:
     - nba
-    # - wnba  (Plan 1.A WNBA spike testi sonrası kararla aktive edilir)
+    - wnba
   cache_dir: data/basketball_cache
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
