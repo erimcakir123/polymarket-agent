@@ -32,6 +32,9 @@ def test_enrich_fail_reason_values_match_spec() -> None:
         "model_player_not_in_ratings",
         "model_data_missing",
         "model_market_unsupported",
+        # Basketball model anchor (Plan 1.C):
+        "model_team_not_in_ratings",
+        "model_basketball_data_missing",
     }
     actual = {r.value for r in EnrichFailReason}
     assert actual == expected
