@@ -81,7 +81,9 @@ class RiskConfig(BaseModel):
     # Soft cap: exposure < cap iken tam trade alınır (sonuç cap'i geçse de OK).
     # Hard blok: exposure ≥ cap → yeni trade reddedilir. Clipping uygulanmaz.
     max_exposure_pct: float = 0.50
-    max_entry_price: float = 0.88
+    # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi).
+    max_entry_price: float = 0.80
+    entry_price_slippage_buffer: float = 0.01
     # SPEC-X (2026-05-24): bimodal market'ler için entry alt sınır.
     bimodal_min_entry_price: float = 0.20
     consecutive_loss_cooldown: int = 3

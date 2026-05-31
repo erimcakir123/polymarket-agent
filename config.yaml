@@ -92,7 +92,13 @@ risk:
   # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).
   # Exposure ≥ %50 → yeni trade reddedilir. Clipping yok.
   max_exposure_pct: 0.50
-  max_entry_price: 0.88    # 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
+  # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi —
+  # $15 risk / max $1.65 kâr = 8:1 oran çok kötü). 80¢ üstü = max kâr 20¢
+  # × shares → R/R 4:1 ile sınırlı.
+  max_entry_price: 0.80
+  # Gate ile executor arası slippage buffer — order book delik olmasın.
+  # effective_price + buffer >= cap ise reddet.
+  entry_price_slippage_buffer: 0.01
   # SPEC-X (2026-05-24): bimodal (totals + spreads) entry alt sınır — ultra-low fiyat
   # bu market'lerde "piyasa kararını vermiş" sayılır.
   bimodal_min_entry_price: 0.20

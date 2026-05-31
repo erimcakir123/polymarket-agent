@@ -83,7 +83,12 @@ class GateConfig:
     # Non-bimodal (moneyline) = fixed_bet_usdc; bimodal (totals + spreads) = bimodal_bet_usdc.
     fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
     bimodal_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
-    max_entry_price: float = 0.88
+    # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi).
+    # 80¢ üstü = max kâr 20¢ × shares → R/R en kötü 4:1 ile sınırlı.
+    max_entry_price: float = 0.80
+    # Gate ile executor arası slippage buffer — order book delik olmasın.
+    # effective_price + buffer >= cap ise reddet.
+    entry_price_slippage_buffer: float = 0.01
     # SPEC-X (2026-05-24): bimodal market'lerde (totals + spreads) entry alt sınır.
     # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
     # zaten anında tetikleneceği için baştan reddedilir.
@@ -200,10 +205,16 @@ class EntryGate:
             )
             return GateResult(cid, None, "no_edge", skip_detail=no_edge_detail)
 
-        # 6. Entry price cap — 88¢+ girişlerde R/R kötü (max payout 0.99-entry)
+        # 6. Entry price cap — slippage-aware. 80¢ üstü R/R korkunç (8:1+).
+        # buffer (1¢): gate gevşek geçirip executor cap'i delmesin (89¢ Rublev
+        # trade öğreticisi — 2026-05-31).
         entry_price = effective_price(signal.market_price, signal.direction)
-        if entry_price >= self.config.max_entry_price:
-            detail = f"price={entry_price:.3f}, cap={self.config.max_entry_price}"
+        cap_with_buffer = self.config.max_entry_price - self.config.entry_price_slippage_buffer
+        if entry_price >= cap_with_buffer:
+            detail = (
+                f"price={entry_price:.3f}, cap={self.config.max_entry_price}, "
+                f"buffer={self.config.entry_price_slippage_buffer}"
+            )
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
 
         # 6b. Bimodal entry floor (SPEC-X 2026-05-24) — totals/spread market'lerde

@@ -207,9 +207,10 @@ def test_entry_price_cap_blocks_high_favorite() -> None:
 
 
 def test_entry_price_cap_allows_under_threshold() -> None:
-    # 0.87 eşiğin altında → geçer
+    # 2026-05-31: cap 0.88 → 0.80 + 0.01 buffer → effective cap 0.79.
+    # 0.75 < 0.79 → geçer.
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.80, conf="A")))
-    results = gate.run([_market(yp=0.87)])
+    results = gate.run([_market(yp=0.75)])
     assert results[0].signal is not None
 
 
@@ -352,14 +353,15 @@ def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
 
 
 def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
-    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX'."""
-    # anchor=0.85(A) + market=0.90 → consensus signal at 0.90 > 0.88 cap
+    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX, buffer=X.XX'."""
+    # anchor=0.85(A) + market=0.90 → consensus signal at 0.90 > 0.80 cap (2026-05-31)
     bm = _bm(prob=0.85, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "entry_price_cap"
     assert "price=0.900" in result.skip_detail
-    assert "cap=0.88" in result.skip_detail
+    assert "cap=0.8" in result.skip_detail
+    assert "buffer=0.01" in result.skip_detail
 
 
 def test_evaluate_one_size_below_min_raw_sets_skip_detail_size_min() -> None:
