@@ -297,6 +297,11 @@ class PaperConfig(BaseModel):
     maker_fee_pct: float = 0.0
     taker_fee_pct: float = 0.0
     polygon_gas_usdc: float = 0.01
+    # 2026-05-31: Entry-time bid-depth guard. Polymarket alt market (totals,
+    # spreads, tennis set_handicap) bid book çoğunlukla çok ince — pozisyon
+    # açılır ama çıkış yapılamaz. Bot %82 SELL reject gördü. Eğer top-3 bid
+    # toplam USDC değeri bu eşiğin altında ise giriş REJECTED.
+    min_bid_depth_usdc: float = 50.0
 
 
 class AppConfig(BaseModel):

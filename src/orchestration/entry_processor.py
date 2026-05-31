@@ -176,6 +176,30 @@ class EntryProcessor:
             self.deps.stock.add(market, "duplicate_condition_id")
             return
 
+        # 2026-05-31 KORELASYON guard: aynı event + aynı market_type + aynı
+        # yön birden fazla pozisyon = positively correlated bet, profesyonel
+        # literatür "AVOID" diyor (Spurs 3-totals zincir kaybı kanıtı: -$60).
+        # Farklı yön (over/under hedge) veya farklı market_type (moneyline +
+        # totals bağımsız) izinli.
+        if market.event_id:
+            same_combo = [
+                p for p in self.deps.state.portfolio.positions.values()
+                if p.event_id == market.event_id
+                and p.sports_market_type == market.sports_market_type
+                and p.direction == signal.direction.value
+            ]
+            if same_combo:
+                detail = (
+                    f"event={market.event_id} type={market.sports_market_type} "
+                    f"direction={signal.direction.value} existing={len(same_combo)}"
+                )
+                operational_writers.log_skip(
+                    self.deps.skipped_logger, market,
+                    "correlated_bet_guard", detail=detail,
+                )
+                self.deps.stock.add(market, "correlated_bet_guard")
+                return
+
         token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id
         side = "BUY"
         price = market.yes_price if signal.direction.value == "BUY_YES" else market.no_price

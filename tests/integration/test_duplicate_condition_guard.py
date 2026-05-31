@@ -67,17 +67,23 @@ def test_duplicate_condition_id_skips_place_order():
 
 
 def test_new_condition_id_proceeds_to_place_order():
-    """Defterde olmayan condition_id için place_order ÇAĞRILMALI."""
+    """Defterde olmayan condition_id + farklı event için place_order ÇAĞRILMALI.
+
+    NOT: Sadece condition_id farklı yetmiyor — 2026-05-31 correlated_bet_guard
+    aynı (event_id, market_type, direction) de bloklar. Yeni event_id veya
+    farklı direction lazım ki normal akış işlesin.
+    """
     deps = MagicMock()
-    other_pos = _mk_position("0xother")
+    other_pos = _mk_position("0xother")  # event_id=evt1
     deps.state.portfolio.positions = {"0xother": other_pos}
-    # Order mock — başarısız status, sonraki state mutation'lara girmesin
     deps.executor.place_order.return_value = {"status": "error", "reason": "test"}
 
     ep = EntryProcessor.__new__(EntryProcessor)
     ep.deps = deps
 
-    market = _mk_market("0xnew")  # FARKLI condition_id
+    # Farklı event_id ki correlated_bet_guard bloklamasın
+    market = _mk_market("0xnew")
+    market.event_id = "evt_DIFFERENT"
     signal = MagicMock()
     signal.direction.value = "BUY_YES"
     signal.size_usdc = 50.0

@@ -51,6 +51,18 @@ class PaperExecutor:
         if target_size_usdc < self.cfg.min_order_usdc:
             return self._rejected(token_id, "BUY", target_price, target_size_usdc, "below_min_order_usdc", {})
         book = self._book.fetch(token_id)
+        # 2026-05-31: Entry-time exit-likidite guard. Top-3 bid USDC değeri
+        # eşiğin altında ise pozisyon AÇILMAZ (satılamaz pozisyon riski).
+        bid_depth_usdc = sum(
+            float(b.get("price", 0)) * float(b.get("size", 0))
+            for b in (book.get("bids") or [])[-3:]
+        )
+        if bid_depth_usdc < self.cfg.min_bid_depth_usdc:
+            return self._rejected(
+                token_id, "BUY", target_price, target_size_usdc,
+                f"insufficient_exit_liquidity (top3_bid=${bid_depth_usdc:.2f}<${self.cfg.min_bid_depth_usdc:.0f})",
+                book,
+            )
         strategy = choose_order_strategy(book, "BUY", target_price, target_size_usdc)
         result = walk_buy(
             asks=book.get("asks", []),
