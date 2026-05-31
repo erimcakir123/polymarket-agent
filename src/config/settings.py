@@ -91,6 +91,9 @@ class RiskConfig(BaseModel):
     kelly_enabled_tennis: bool = True
     kelly_multiplier: float = 0.25
     kelly_max_pct: float = 0.05
+    # Tennis H2H pricer: Glicko prob + Markov serve prob blend ağırlığı.
+    # 0.6 = Glicko'ya daha çok güven (PLOS One 2022 referansı).
+    tennis_h2h_glicko_weight: float = 0.6
     # 2026-05-27 (SPEC-force-close): market_type → max dakika; süre dolarsa pozisyon
     # zorla kapatılır. Boş dict → feature devre dışı (mevcut SL/TP zincirine etki yok).
     force_close_timeouts: dict[str, int] = Field(default_factory=dict)

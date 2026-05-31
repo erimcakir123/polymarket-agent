@@ -208,6 +208,7 @@ def build_agent(state: RuntimeState) -> Agent:
     def _enricher(market):
         return enrich_with_tennis_dispatch(
             market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
+            glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
         )
 
     def _manip(question: str, liquidity: float) -> ManipulationCheck:

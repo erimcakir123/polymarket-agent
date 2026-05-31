@@ -1,7 +1,7 @@
-"""Total games over/under — Markov game/set DP ile beklenen + dağılım.
+"""Total games over/under — Markov set outcome distribution → beklenen + dağılım.
 
-Bir set kaç oyun sürer? p_a ve p_b'e bağlı. Düşük hold → çok break → kısa setler.
-Yüksek hold → uzun setler + tiebreak. Normal approx ile over/under fiyatı.
+set_outcome_distribution (markov.py) tek doğruluk kaynağı; bu modül onu
+oyun-sayısı marjinaline çevirir, sonra normal approx ile over/under fiyatlar.
 """
 from __future__ import annotations
 
@@ -9,41 +9,19 @@ import math
 from functools import lru_cache
 from math import comb
 
-from src.domain.pricing.tennis.markov import game_win_prob, set_win_prob
+from src.domain.pricing.tennis.markov import set_outcome_distribution, set_win_prob
 
 
 @lru_cache(maxsize=4096)
 def _set_game_distribution(p_a: float, p_b: float) -> tuple[tuple[int, float], ...]:
-    """Bir setin toplam oyun dağılımı (frozen tuple for hashability)."""
-    g_a = game_win_prob(p_a)
-    g_b = game_win_prob(p_b)
+    """Bir setin toplam oyun dağılımı (frozen tuple, lru_cache-uyumlu).
+
+    set_outcome_distribution'dan (a+b)'e marginalize.
+    """
     dist: dict[int, float] = {}
-
-    def recurse(a: int, b: int, server_idx: int, prob: float) -> None:
-        if a == 6 and b <= 4:
-            total = a + b
-            dist[total] = dist.get(total, 0.0) + prob
-            return
-        if b == 6 and a <= 4:
-            total = a + b
-            dist[total] = dist.get(total, 0.0) + prob
-            return
-        if a == 7 and b == 5:
-            dist[12] = dist.get(12, 0.0) + prob
-            return
-        if b == 7 and a == 5:
-            dist[12] = dist.get(12, 0.0) + prob
-            return
-        if a == 6 and b == 6:
-            # Tiebreak counted as one extra "game" → 13 total
-            dist[13] = dist.get(13, 0.0) + prob
-            return
-        a_serves = server_idx % 2 == 0
-        p_a_wins_game = g_a if a_serves else (1.0 - g_b)
-        recurse(a + 1, b, server_idx + 1, prob * p_a_wins_game)
-        recurse(a, b + 1, server_idx + 1, prob * (1.0 - p_a_wins_game))
-
-    recurse(0, 0, 0, 1.0)
+    for a, b, p in set_outcome_distribution(p_a, p_b):
+        total = a + b
+        dist[total] = dist.get(total, 0.0) + p
     return tuple(sorted(dist.items()))
 
 

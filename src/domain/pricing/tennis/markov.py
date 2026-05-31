@@ -72,34 +72,52 @@ def tiebreak_win_prob(p_a: float, p_b: float) -> float:
 
 
 @lru_cache(maxsize=4096)
-def _set_dp(g_a: float, g_b: float, p_a: float, p_b: float) -> float:
-    """Set via state DP. State: (A games, B games, server idx)."""
-    def recurse(a: int, b: int, server_idx: int) -> float:
+def set_outcome_distribution(
+    p_a_serve: float,
+    p_b_serve: float,
+) -> tuple[tuple[int, int, float], ...]:
+    """Tek bir setin (a_games, b_games, probability) terminal dağılımı.
+
+    Single source of truth — set_win_prob, totals_pricer ve totals_pricer
+    içindeki _set_game_distribution buradan türer (DRY).
+
+    Tiebreak 6-6: setin sonucu A 7-6 veya B 6-7. Tiebreak içi P(A) tiebreak_dp.
+    """
+    g_a = game_win_prob(p_a_serve)
+    g_b = game_win_prob(p_b_serve)
+    tb_p_a = _tiebreak_dp(p_a_serve, p_b_serve)
+
+    outcomes: dict[tuple[int, int], float] = {}
+
+    def recurse(a: int, b: int, server_idx: int, prob: float) -> None:
         if a == 6 and b <= 4:
-            return 1.0
+            outcomes[(a, b)] = outcomes.get((a, b), 0.0) + prob
+            return
         if b == 6 and a <= 4:
-            return 0.0
+            outcomes[(a, b)] = outcomes.get((a, b), 0.0) + prob
+            return
         if a == 7 and b == 5:
-            return 1.0
+            outcomes[(7, 5)] = outcomes.get((7, 5), 0.0) + prob
+            return
         if b == 7 and a == 5:
-            return 0.0
+            outcomes[(5, 7)] = outcomes.get((5, 7), 0.0) + prob
+            return
         if a == 6 and b == 6:
-            return _tiebreak_dp(p_a, p_b)
+            outcomes[(7, 6)] = outcomes.get((7, 6), 0.0) + prob * tb_p_a
+            outcomes[(6, 7)] = outcomes.get((6, 7), 0.0) + prob * (1.0 - tb_p_a)
+            return
         a_serves = server_idx % 2 == 0
         p_a_wins_game = g_a if a_serves else (1.0 - g_b)
-        return (
-            p_a_wins_game * recurse(a + 1, b, server_idx + 1)
-            + (1.0 - p_a_wins_game) * recurse(a, b + 1, server_idx + 1)
-        )
+        recurse(a + 1, b, server_idx + 1, prob * p_a_wins_game)
+        recurse(a, b + 1, server_idx + 1, prob * (1.0 - p_a_wins_game))
 
-    return recurse(0, 0, 0)
+    recurse(0, 0, 0, 1.0)
+    return tuple((a, b, p) for (a, b), p in sorted(outcomes.items()))
 
 
 def set_win_prob(p_a_serve: float, p_b_serve: float) -> float:
     """6-game set — A ve B alterne serve. Tiebreak 6-6'da."""
-    g_a = game_win_prob(p_a_serve)
-    g_b = game_win_prob(p_b_serve)
-    return _set_dp(g_a, g_b, p_a_serve, p_b_serve)
+    return sum(p for a, b, p in set_outcome_distribution(p_a_serve, p_b_serve) if a > b)
 
 
 def match_win_prob(set_prob: float, best_of: int) -> float:

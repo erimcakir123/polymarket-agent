@@ -122,6 +122,7 @@ def enrich_with_tennis_dispatch(
     bookmaker_enricher: Callable[[MarketData], EnrichResult],
     ratings: dict[str, PlayerSnapshot],
     calibration_curves: dict[str, CalibrationCurve] | None = None,
+    glicko_weight: float = 0.6,
 ) -> EnrichResult:
     """Tennis ise model, değilse veya yetersiz veri ise bookmaker fallback.
 
@@ -169,6 +170,7 @@ def enrich_with_tennis_dispatch(
         calibration_curves=calibration_curves,
         line=line,
         handicap=handicap,
+        glicko_weight=glicko_weight,
     )
     if model_result.probability is not None:
         return model_result

@@ -31,6 +31,7 @@ def enrich_tennis_from_model(
     calibration_curves: dict[str, CalibrationCurve] | None = None,
     line: float | None = None,
     handicap: float | None = None,
+    glicko_weight: float = 0.6,
 ) -> EnrichResult:
     """Tennis market → model probability → calibration → EnrichResult.
 
@@ -50,6 +51,7 @@ def enrich_tennis_from_model(
         best_of=best_of,
         line=line,
         handicap=handicap,
+        glicko_weight=glicko_weight,
     )
     if model_p is None:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)

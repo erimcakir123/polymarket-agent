@@ -11,7 +11,11 @@ from pathlib import Path
 
 from src.domain.pricing.tennis.glicko import Rating
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
-from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
+from src.domain.pricing.tennis.serve_metrics import (
+    DEFAULT_RETURN_PCT,
+    DEFAULT_SERVE_PCT,
+    PlayerServeStats,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +62,8 @@ def load_ratings(path: Path) -> dict[str, PlayerSnapshot]:
         serve: dict[str, PlayerServeStats] = {}
         for surface, stats in payload.get("serve", {}).items():
             serve[surface] = PlayerServeStats(
-                serve_pts_won_pct=float(stats.get("serve_pts_won_pct", 0.6)),
-                return_pts_won_pct=float(stats.get("return_pts_won_pct", 0.35)),
+                serve_pts_won_pct=float(stats.get("serve_pts_won_pct", DEFAULT_SERVE_PCT)),
+                return_pts_won_pct=float(stats.get("return_pts_won_pct", DEFAULT_RETURN_PCT)),
                 n_points=int(stats.get("n_points", 0)),
             )
         out[name] = PlayerSnapshot(rating=rating, serve_by_surface=serve)

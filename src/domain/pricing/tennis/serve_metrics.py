@@ -12,6 +12,11 @@ from dataclasses import dataclass
 
 from src.domain.pricing.tennis.match_record import MatchRecord
 
+# ATP/WTA tour-level ortalama serve/return % — boş data fallback.
+# tennis_ratings_store load fallback ile aynı kaynak (DRY).
+DEFAULT_SERVE_PCT = 0.6
+DEFAULT_RETURN_PCT = 0.35
+
 
 @dataclass(frozen=True)
 class PlayerServeStats:
@@ -28,8 +33,8 @@ class _Accumulator:
     return_total: int = 0
 
     def to_stats(self) -> PlayerServeStats:
-        s_pct = self.serve_won / self.serve_total if self.serve_total else 0.6
-        r_pct = self.return_won / self.return_total if self.return_total else 0.35
+        s_pct = self.serve_won / self.serve_total if self.serve_total else DEFAULT_SERVE_PCT
+        r_pct = self.return_won / self.return_total if self.return_total else DEFAULT_RETURN_PCT
         return PlayerServeStats(
             serve_pts_won_pct=s_pct,
             return_pts_won_pct=r_pct,

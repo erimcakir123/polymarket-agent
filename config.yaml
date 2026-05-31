@@ -104,6 +104,8 @@ risk:
   kelly_enabled_tennis: true
   kelly_multiplier: 0.25
   kelly_max_pct: 0.05
+  # Tennis H2H Glicko/Markov blend ağırlığı (0.6 = Glicko ağır).
+  tennis_h2h_glicko_weight: 0.6
   # 2026-05-27 (SPEC-force-close): market_type -> max dakika.
   # ESPN bittigini gosterirse veya sure dolduğunda pozisyon zorla bid'den satilir,
   # bid yoksa 0 ile realize. Saf guvenlik agi — normal SL/TP zincirine etki yok.

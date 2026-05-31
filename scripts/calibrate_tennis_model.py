@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CACHE_DIR = Path("data/sackmann_cache")
 _DEFAULT_OUTPUT = Path("data/tennis_calibration.json")
 _MIN_HISTORY = 1000  # ilk N maç sadece training (predict skip)
-_GLICKO_WEIGHT = 0.6
 _N_BINS = 10
 
 
@@ -45,6 +44,7 @@ def _predict_h2h(
     a_serve: PlayerServeStats | None,
     b_serve: PlayerServeStats | None,
     best_of: int,
+    glicko_weight: float,
 ) -> float:
     glicko_p = win_probability(a_rating, b_rating)
     if a_serve is None or b_serve is None:
@@ -53,7 +53,7 @@ def _predict_h2h(
     p_b = point_win_on_serve(b_serve, a_serve)
     set_p = set_win_prob(p_a, p_b)
     serve_p = match_win_prob(set_p, best_of=best_of)
-    return _GLICKO_WEIGHT * glicko_p + (1.0 - _GLICKO_WEIGHT) * serve_p
+    return glicko_weight * glicko_p + (1.0 - glicko_weight) * serve_p
 
 
 def _update_serve(stats: dict, key: tuple[str, str], pts_won: int, pts_total: int,
@@ -72,7 +72,11 @@ def _stats_to_serve(raw: list[int]) -> PlayerServeStats:
     return PlayerServeStats(s_pct, r_pct, raw[1] + raw[3])
 
 
-def calibrate_h2h(cache_dir: Path, output_path: Path) -> None:
+def calibrate_h2h(
+    cache_dir: Path,
+    output_path: Path,
+    glicko_weight: float = 0.6,
+) -> None:
     csv_files = sorted(Path(cache_dir).glob("*.csv"))
     all_matches = []
     for csv in csv_files:
@@ -96,7 +100,9 @@ def calibrate_h2h(cache_dir: Path, output_path: Path) -> None:
             b_serve_raw = serve_stats.get((m.loser_name, m.surface))
             a_serve = _stats_to_serve(a_serve_raw) if a_serve_raw else None
             b_serve = _stats_to_serve(b_serve_raw) if b_serve_raw else None
-            p_a_wins = _predict_h2h(a_rating, b_rating, a_serve, b_serve, m.best_of)
+            p_a_wins = _predict_h2h(
+                a_rating, b_rating, a_serve, b_serve, m.best_of, glicko_weight,
+            )
             predictions.append(p_a_wins)
             outcomes.append(1)  # winner truly won
 

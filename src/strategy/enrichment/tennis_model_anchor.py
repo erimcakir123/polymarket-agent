@@ -23,6 +23,7 @@ def compute_model_anchor(
     best_of: int,
     line: float | None = None,
     handicap: float | None = None,
+    glicko_weight: float = 0.6,
 ) -> float | None:
     """P(YES) from model. Eksik veri (surface yok, market_type bilinmiyor) → None."""
     a_serve = a_snapshot.serve_by_surface.get(surface)
@@ -34,7 +35,10 @@ def compute_model_anchor(
 
     mt = market_type.lower()
     if mt in ("moneyline", "h2h"):
-        return price_h2h(a_snapshot.rating, b_snapshot.rating, a_serve, b_serve, best_of=best_of)
+        return price_h2h(
+            a_snapshot.rating, b_snapshot.rating, a_serve, b_serve,
+            best_of=best_of, glicko_weight=glicko_weight,
+        )
     if mt == "tennis_set_handicap" and handicap is not None:
         set_p = set_win_prob(p_a, p_b)
         return price_set_handicap(set_p, best_of, handicap)
