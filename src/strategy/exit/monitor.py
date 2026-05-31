@@ -191,6 +191,7 @@ def evaluate(
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
     high_entry_threshold: float = 0.70,
+    high_entry_upper: float = 0.80,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
@@ -209,7 +210,8 @@ def evaluate(
         scale_out_tiers = ScaleOutConfig().tiers
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
-    is_high_entry = pos.entry_price >= high_entry_threshold
+    # Yalnızca 0.70-0.80 (kullanıcı kararı). Aralık dışı → standart davranış.
+    is_high_entry = high_entry_threshold <= pos.entry_price < high_entry_upper
 
     # 1. Near-resolve — en yüksek öncelik. High-entry trade'lerde devre dışı
     # → kalan %30 resolve'a tutulur (tier 1+2 zaten %70'i lock'ladı).

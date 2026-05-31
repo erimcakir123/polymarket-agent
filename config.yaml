@@ -174,9 +174,10 @@ scale_out:
     - threshold: 0.70    # 70% of way -> sell 50% of remaining
       sell_pct: 0.50
   # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
-  # AMA near_resolve disable. Üst sınır max_entry_price cap (0.80) ile kapalı.
-  # 0.70: net favori (R/R 2.3:1+).
+  # AMA near_resolve disable. Aralık dışı → standart davranış.
+  # 0.70: net favori (R/R 2.3:1+). 0.80: max_entry_price cap üst sınır.
   high_entry_threshold: 0.70
+  high_entry_upper: 0.80
 
 circuit_breaker:
   # TEST MODU: CB devre dısı (2026-05-13). Multi-SL (graduated + flat + market_flip)

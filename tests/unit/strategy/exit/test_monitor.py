@@ -241,8 +241,18 @@ def test_high_entry_tier1_and_tier2_still_fire() -> None:
 
 
 def test_low_entry_keeps_full_scale_out_and_near_resolve() -> None:
-    """Entry < 0.65 → eski davranış: tier1 + tier2 + near_resolve aktif."""
+    """Entry < 0.70 → eski davranış: tier1 + tier2 + near_resolve aktif."""
     p = _pos(entry_price=0.40, current_price=0.95, size_usdc=15, shares=37.5, confidence="A",
+             match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r = evaluate(p)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.NEAR_RESOLVE
+
+
+def test_above_upper_keeps_near_resolve() -> None:
+    """Entry >= 0.80 (üst sınır) → near_resolve aktif (kapsam dışı)."""
+    # Pratikte 0.80+ entry gate cap reddeder, ama monitor robust olmalı.
+    p = _pos(entry_price=0.82, current_price=0.95, size_usdc=15, shares=18.3, confidence="A",
              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
     r = evaluate(p)
     assert r.exit_signal is not None

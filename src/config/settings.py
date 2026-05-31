@@ -171,9 +171,10 @@ class ScaleOutConfig(BaseModel):
         ScaleOutTier(threshold=0.70, sell_pct=0.50),
     ]
     # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
-    # AMA near_resolve disable. Üst sınır max_entry_price cap (0.80) ile kapalı.
-    # 0.70: net favori (R/R 2.3:1+).
+    # AMA near_resolve disable. Aralık dışı (entry < 0.70 veya >= 0.80) → standart.
+    # 0.70: net favori (R/R 2.3:1+). 0.80: max_entry_price cap üst sınır.
     high_entry_threshold: float = 0.70
+    high_entry_upper: float = 0.80
 
 
 class CircuitBreakerConfig(BaseModel):

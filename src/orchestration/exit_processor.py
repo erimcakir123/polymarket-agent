@@ -71,6 +71,7 @@ class ExitProcessor:
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
                 scale_out_tiers=self.deps.state.config.scale_out.tiers,
                 high_entry_threshold=self.deps.state.config.scale_out.high_entry_threshold,
+                high_entry_upper=self.deps.state.config.scale_out.high_entry_upper,
             )
             self._apply_fav_transition(pos, result.fav_transition)
 
