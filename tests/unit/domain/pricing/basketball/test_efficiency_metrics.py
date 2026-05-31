@@ -49,3 +49,26 @@ def test_compute_team_efficiency_team_not_in_games_returns_none():
 
 def test_compute_team_efficiency_empty_games_returns_none():
     assert compute_team_efficiency([], team="LAL") is None
+
+
+def test_outlier_low_pace_filtered_out():
+    """Anormal düşük possessions (10) içeren maç AdjO hesabına dahil edilmez."""
+    games = [
+        _game("LAL", "GSW", 110, 100, 100.0, 100.0),  # normal
+        _game("LAL", "PHX", 110, 100, 10.0, 10.0),    # outlier
+    ]
+    eff = compute_team_efficiency(games, team="LAL")
+    assert eff is not None
+    assert abs(eff.adj_pace - 100.0) < 0.01
+    assert abs(eff.adj_o - 110.0) < 0.01
+
+
+def test_outlier_high_pace_filtered_out():
+    """200 possessions = tarihsel olarak imkansız, filtre."""
+    games = [
+        _game("LAL", "GSW", 110, 100, 100.0, 100.0),
+        _game("LAL", "PHX", 250, 100, 200.0, 200.0),  # outlier
+    ]
+    eff = compute_team_efficiency(games, team="LAL")
+    assert eff is not None
+    assert abs(eff.adj_pace - 100.0) < 0.01

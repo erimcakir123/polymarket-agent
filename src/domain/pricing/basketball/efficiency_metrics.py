@@ -4,18 +4,27 @@ Saf domain — I/O yok. Tarihsel maç verisini alır, takım başına
 ortalama offensive / defensive / pace değerleri üretir.
 
 Plan 1.B Faz 1 basit ortalama (NBA için ~%85 doğruluk veriyor).
+Plan 1.D: outlier guard (possessions 60-130 dışı tarihsel imkansız → atla).
 Strength-of-schedule (SoS) adjustment Faz 2'de planlanır (KenPom
 gerçek "Adj"ı SoS ile düzeltir, biz şimdilik raw).
 """
 from __future__ import annotations
 
+import logging
 from typing import Iterable, Optional
 
 from src.domain.pricing.basketball.pace_efficiency import TeamEfficiency
 from src.infrastructure.data.basketball.schemas import GameRecord
 
 
+logger = logging.getLogger(__name__)
+
 _POSS_PER_100 = 100.0
+
+# Tarihsel NBA possessions sınırları — bu aralık dışı = veri hatası
+# (50+ yıl NBA verisinde hiçbir maç bu aralık dışına çıkmadı).
+_POSS_MIN = 60.0
+_POSS_MAX = 130.0
 
 
 def _raw_efficiency_per_game(g: GameRecord, team: str) -> tuple[float, float, float]:
@@ -52,6 +61,12 @@ def compute_team_efficiency(
         if team not in (g.home_team, g.away_team):
             continue
         off, dfn, pace = _raw_efficiency_per_game(g, team)
+        if pace < _POSS_MIN or pace > _POSS_MAX:
+            logger.warning(
+                "outlier game skipped: %s team=%s pace=%.1f (range %.0f-%.0f)",
+                g.game_id, team, pace, _POSS_MIN, _POSS_MAX,
+            )
+            continue
         off_vals.append(off)
         def_vals.append(dfn)
         pace_vals.append(pace)
