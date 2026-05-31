@@ -425,4 +425,9 @@ def _resolve_market_meta(
         return SportsMarketType.TOTALS, line, TotalSide(side)
     if market_type_raw == SportsMarketType.SPREADS.value:
         return SportsMarketType.SPREADS, None, None
-    return SportsMarketType.MONEYLINE, None, None
+    # 2026-05-31: tennis tipleri (tennis_set_handicap vs.) artık olduğu gibi
+    # korunur. Enum'da tanımlı olmayan tipler MONEYLINE fallback (forward-compat).
+    try:
+        return SportsMarketType(market_type_raw), None, None
+    except ValueError:
+        return SportsMarketType.MONEYLINE, None, None

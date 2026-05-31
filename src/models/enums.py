@@ -51,6 +51,16 @@ class SportsMarketType(str, Enum):
     MONEYLINE = "moneyline"
     SPREADS = "spreads"
     TOTALS = "totals"
+    # 2026-05-31: Polymarket tennis market_type'ları. Eski kod sadece
+    # moneyline/totals/spreads tanıyıp geri kalanı MONEYLINE'a fallback
+    # ediyordu → bimodal sizing yanlış, korelasyon guard yanlış, dashboard
+    # yanlış etiket. Kanıt: ATP series'te 6 farklı tennis tipi geliyor.
+    TENNIS_SET_HANDICAP = "tennis_set_handicap"
+    TENNIS_SET_TOTALS = "tennis_set_totals"
+    TENNIS_MATCH_TOTALS = "tennis_match_totals"
+    TENNIS_FIRST_SET_WINNER = "tennis_first_set_winner"
+    TENNIS_FIRST_SET_TOTALS = "tennis_first_set_totals"
+    TENNIS_COMPLETED_MATCH = "tennis_completed_match"
 
 
 class TotalSide(str, Enum):

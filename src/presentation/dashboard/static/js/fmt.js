@@ -212,10 +212,22 @@
       return code.length <= 4 ? code.toUpperCase()
         : code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
     },
-    // Market type kısa etiketi — kart badge'inde "SPREAD"/"ML"/"TOTAL"/"DRAW"
-    // gibi gösterilir. Question prefix'i öncelikli (backend canonical), slug
-    // suffix'i fallback. Tanınmazsa "" döner → caller badge render etmez.
-    marketType(question, slug) {
+    // Market type kısa etiketi — kart badge'inde gösterilir.
+    // 2026-05-31: sports_market_type field'i öncelikli (backend canonical),
+    // sonra question prefix'i, en son slug suffix'i.
+    // Tennis 6 ek tipi: set_handicap, set_totals, match_totals, first_set_winner,
+    // first_set_totals, completed_match.
+    marketType(question, slug, sportsMarketType) {
+      const smt = String(sportsMarketType || "").toLowerCase();
+      if (smt === "moneyline") return "ML";
+      if (smt === "spreads") return "SPREAD";
+      if (smt === "totals") return "TOTAL";
+      if (smt === "tennis_set_handicap") return "SET HCP";
+      if (smt === "tennis_set_totals") return "SET O/U";
+      if (smt === "tennis_match_totals") return "MATCH O/U";
+      if (smt === "tennis_first_set_winner") return "1ST SET";
+      if (smt === "tennis_first_set_totals") return "1ST SET O/U";
+      if (smt === "tennis_completed_match") return "FULL";
       const q = String(question || "");
       if (/^Spread\b/i.test(q)) return "SPREAD";
       if (/^Total\b/i.test(q)) return "TOTAL";

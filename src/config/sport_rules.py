@@ -73,10 +73,17 @@ SPORT_RULES: dict[str, dict] = {
         "espn_sport": "tennis",
         "espn_leagues": ("atp", "wta"),
         # SPEC-W: empirical — set_totals/set_handicap WTA ambiguous (bimodal),
-        # match_total_games ATP %53 no_sig_drop. ATP set_totals %60 kademeli
+        # match_totals ATP %53 no_sig_drop. ATP set_totals %60 kademeli
         # (non-bimodal). Tenis lab kendi worktree'sinde ayrı yapı kullanır.
+        # 2026-05-31: ÖNCEKİ isimler ("set_totals", "set_handicap",
+        # "match_total_games") YANLIŞTI — Polymarket prefix'li dönüyor
+        # ("tennis_set_totals" vs.). Mismatch yüzünden bimodal sizing $15 cap
+        # ÇALIŞMIYORDU, bot $50 fixed kullanıyordu = 3.3x risk.
         "bimodal_market_types": [
-            "set_totals", "set_handicap", "match_total_games",
+            "tennis_set_totals",
+            "tennis_set_handicap",
+            "tennis_match_totals",
+            "tennis_first_set_totals",
         ],
     },
     "golf": {
