@@ -44,7 +44,7 @@ def test_missing_player_returns_fail():
         ratings=ratings,
     )
     assert result.probability is None
-    assert result.fail_reason == EnrichFailReason.EVENT_NO_MATCH
+    assert result.fail_reason == EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS
 
 
 def test_unsupported_market_returns_fail():

@@ -28,6 +28,10 @@ def test_enrich_fail_reason_values_match_spec() -> None:
         "empty_events",
         "event_no_match",
         "empty_bookmakers",
+        # Tennis model anchor (Adım 3-5):
+        "model_player_not_in_ratings",
+        "model_data_missing",
+        "model_market_unsupported",
     }
     actual = {r.value for r in EnrichFailReason}
     assert actual == expected

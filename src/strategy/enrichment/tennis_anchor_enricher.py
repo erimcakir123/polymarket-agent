@@ -41,7 +41,10 @@ def enrich_tennis_from_model(
     a_snap = ratings.get(player_a)
     b_snap = ratings.get(player_b)
     if a_snap is None or b_snap is None:
-        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EVENT_NO_MATCH)
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
+        )
 
     model_p = compute_model_anchor(
         market_type=market_type,
@@ -54,7 +57,7 @@ def enrich_tennis_from_model(
         glicko_weight=glicko_weight,
     )
     if model_p is None:
-        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
 
     if calibration_curves:
         curve = calibration_curves.get(market_type.lower())
@@ -65,5 +68,6 @@ def enrich_tennis_from_model(
         bookmaker_prob=model_p,
         num_bookmakers=_MODEL_EQUIV_BOOKMAKERS,
         has_sharp=_MODEL_HAS_SHARP,
+        source="model",
     )
     return EnrichResult(probability=prob, fail_reason=None)

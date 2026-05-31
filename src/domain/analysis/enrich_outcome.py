@@ -12,12 +12,16 @@ from src.domain.analysis.probability import BookmakerProbability
 
 
 class EnrichFailReason(str, Enum):
-    """Odds API enrichment sırasında başarısız olunan adım."""
+    """Odds API + tennis model enrichment sırasında başarısız olunan adım."""
     SPORT_KEY_UNRESOLVED = "sport_key_unresolved"
     TEAM_EXTRACT_FAILED = "team_extract_failed"
     EMPTY_EVENTS = "empty_events"
     EVENT_NO_MATCH = "event_no_match"
     EMPTY_BOOKMAKERS = "empty_bookmakers"
+    # Tennis model anchor (Adım 3-5):
+    MODEL_PLAYER_NOT_IN_RATINGS = "model_player_not_in_ratings"
+    MODEL_DATA_MISSING = "model_data_missing"  # surface yok, line/handicap parse fail
+    MODEL_MARKET_UNSUPPORTED = "model_market_unsupported"
 
 
 @dataclass(frozen=True)

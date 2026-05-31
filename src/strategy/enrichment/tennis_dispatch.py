@@ -139,7 +139,7 @@ def enrich_with_tennis_dispatch(
     if not ratings:
         if is_moneyline:
             return bookmaker_enricher(market)
-        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
 
     player_a, player_b = extract_teams(market.question)
     if not player_a or not player_b:
@@ -154,7 +154,10 @@ def enrich_with_tennis_dispatch(
     if resolved_a is None or resolved_b is None:
         if is_moneyline:
             return bookmaker_enricher(market)
-        return EnrichResult(probability=None, fail_reason=EnrichFailReason.EVENT_NO_MATCH)
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
+        )
     player_a, player_b = resolved_a, resolved_b
 
     best_of = _infer_best_of(market.question)

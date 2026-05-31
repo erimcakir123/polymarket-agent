@@ -193,13 +193,20 @@ def build_agent(state: RuntimeState) -> Agent:
     # Yok ise dispatch boş dict ile çağrılır → moneyline bookmaker'a düşer.
     tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
+    tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
     if tennis_ratings:
         logger.info(
             "Tennis model anchor aktif: %d oyuncu reytingi, calibration curves=%d",
             len(tennis_ratings), len(tennis_calibration),
         )
+    elif tennis_active:
+        logger.warning(
+            "Tennis allowed_sport_tags'te AMA tennis_ratings.json yok — "
+            "alt market'ler tamamen skip, h2h bookmaker fallback. "
+            "Çözüm: python -m scripts.build_tennis_ratings",
+        )
     else:
-        logger.info("Tennis ratings yok — alt market'lerde model devre dışı (cascade bug kapalı)")
+        logger.info("Tennis ratings yok ve tennis pasif — sorun yok")
 
     def _bookmaker_enrich(market):
         return enrich_market(market, odds)
