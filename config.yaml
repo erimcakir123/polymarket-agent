@@ -173,10 +173,10 @@ scale_out:
       sell_pct: 0.40
     - threshold: 0.70    # 70% of way -> sell 50% of remaining
       sell_pct: 0.50
-  # 2026-06-01: "Kesin gibi" yüksek-fiyat entry'lerde (entry >= eşik) sadece
-  # tier 1 sat (kâr lock'la) + near_resolve disable. Kalan %60 resolve'a tutulur.
-  # 0.55: 50¢ hâlâ "yarı yarıya" pazar, 55¢+ "biraz favori" → kesin gibi başlar.
-  high_entry_threshold: 0.55
+  # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
+  # AMA near_resolve disable. Üst sınır max_entry_price cap (0.80) ile kapalı.
+  # 0.70: net favori (R/R 2.3:1+).
+  high_entry_threshold: 0.70
 
 circuit_breaker:
   # TEST MODU: CB devre dısı (2026-05-13). Multi-SL (graduated + flat + market_flip)

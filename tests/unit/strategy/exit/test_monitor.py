@@ -200,21 +200,22 @@ def test_no_exit_when_position_calm() -> None:
     assert r.exit_signal is None
 
 
-# ── 2026-06-01: High-entry hold-to-resolve (kullanıcı kararı, Rublev öğreticisi) ──
+# ── 2026-06-01: High-entry hold-to-resolve (kullanıcı kararı, edge case analizi) ──
 
 def test_high_entry_skips_near_resolve() -> None:
-    """Entry >= 0.55 → near_resolve devre dışı, pozisyon 95¢'de açık kalır."""
-    p = _pos(entry_price=0.65, current_price=0.95, size_usdc=15, shares=23.08, confidence="A",
+    """Entry >= 0.65 → near_resolve devre dışı, kalan resolve'a tutulur."""
+    p = _pos(entry_price=0.70, current_price=0.95, size_usdc=15, shares=21.43, confidence="A",
+             scale_out_tier=2,  # tier 1+2 zaten yapılmış
              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
     r = evaluate(p)
     # near_resolve normalde tetiklenirdi (0.95 >= 0.94), ama high entry → disable
     assert r.exit_signal is None or r.exit_signal.reason != ExitReason.NEAR_RESOLVE
 
 
-def test_high_entry_tier1_fires_then_no_more_scale_out() -> None:
-    """Entry 0.70, current 0.88 → tier1 (progress 0.6) fire. tier2 skip → tier1 sonrası near_resolve da skip."""
-    # entry 0.70, distance 0.30. progress (0.88-0.70)/0.30 = 0.60 → tier1 (≥0.40) fires
-    p = _pos(entry_price=0.70, current_price=0.88, size_usdc=15, shares=21.43, confidence="A",
+def test_high_entry_tier1_and_tier2_still_fire() -> None:
+    """Entry 0.70 → tier 1+2 hâlâ aktif (whipsaw güvenliği), sadece near_resolve disable."""
+    # Tier 1: entry 0.70, progress 40% → fiyat 0.82. current 0.85 → tier 1 fire.
+    p = _pos(entry_price=0.70, current_price=0.85, size_usdc=15, shares=21.43, confidence="A",
              scale_out_tier=0,
              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
     r = evaluate(p)
@@ -222,18 +223,25 @@ def test_high_entry_tier1_fires_then_no_more_scale_out() -> None:
     assert r.exit_signal.reason == ExitReason.SCALE_OUT
     assert r.exit_signal.tier == 1
 
-    # Tier1 yapıldı, fiyat 0.94'e geldi. Normal mantıkla tier2 (progress 0.80) fire ederdi
-    # AMA high entry'de tier2 disable. Ayrıca near_resolve da disable. → no exit.
-    p2 = _pos(entry_price=0.70, current_price=0.94, size_usdc=15, shares=21.43, confidence="A",
+    # Tier 2: entry 0.70, progress 70% → fiyat 0.91. current 0.93 → tier 2 fire.
+    p2 = _pos(entry_price=0.70, current_price=0.93, size_usdc=15, shares=21.43, confidence="A",
               scale_out_tier=1,
               match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
     r2 = evaluate(p2)
-    assert r2.exit_signal is None  # hold-to-resolve
+    assert r2.exit_signal is not None
+    assert r2.exit_signal.reason == ExitReason.SCALE_OUT
+    assert r2.exit_signal.tier == 2
+
+    # Tier 1+2 yapıldı, fiyat 0.96 → near_resolve normalde tetiklerdi, high entry'de disable.
+    p3 = _pos(entry_price=0.70, current_price=0.96, size_usdc=15, shares=21.43, confidence="A",
+              scale_out_tier=2,
+              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r3 = evaluate(p3)
+    assert r3.exit_signal is None  # near_resolve disable, kalan %30 resolve'a
 
 
 def test_low_entry_keeps_full_scale_out_and_near_resolve() -> None:
-    """Entry < 0.55 → eski davranış: tier1 + tier2 + near_resolve aktif."""
-    # Entry 0.40, distance 0.60. progress (0.94-0.40)/0.60 = 0.90 → near_resolve önce
+    """Entry < 0.65 → eski davranış: tier1 + tier2 + near_resolve aktif."""
     p = _pos(entry_price=0.40, current_price=0.95, size_usdc=15, shares=37.5, confidence="A",
              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
     r = evaluate(p)

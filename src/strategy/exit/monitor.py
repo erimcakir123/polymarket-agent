@@ -190,7 +190,7 @@ def evaluate(
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
-    high_entry_threshold: float = 0.55,
+    high_entry_threshold: float = 0.70,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
@@ -198,10 +198,11 @@ def evaluate(
     SPEC-M: near_resolve_max_spread sahte ask spike koruması (KBO bug 2026-05-19).
     scale_out_tiers: None → ScaleOutConfig() defaults (distance-based 0.40/0.70).
 
-    2026-06-01 (kullanıcı kararı): "kesin gibi" yüksek-fiyat entry'lerde
-    (entry >= high_entry_threshold) hold-to-resolve. Tier 1 ile kısmi kâr lock,
-    near_resolve disable, tier 2 disable → kalan %60 resolve'a kadar tutulur.
-    Rublev 89¢ tipi mikro-kazanç patterni böyle önlenir.
+    2026-06-01 (kullanıcı kararı, edge case analizi): 0.70-0.80 entry aralığında
+    tier 1+2 aktif AMA near_resolve disable → kalan %30 resolve'a tutulur.
+    Whipsaw kayıp senaryosunda tier 2 lock güvenliği korunur (sirf tier 1 olsa
+    -$9 olabilir). Üst sınır cap (0.80) ile zaten kapalı, alt sınır 0.70:
+    net favori (R/R 2.3:1+).
     """
     score_info = score_info or {}
     if scale_out_tiers is None:
@@ -211,7 +212,7 @@ def evaluate(
     is_high_entry = pos.entry_price >= high_entry_threshold
 
     # 1. Near-resolve — en yüksek öncelik. High-entry trade'lerde devre dışı
-    # (kalan kâr potansiyeli zaten dar, resolve'a tutmak daha yüksek beklenen kâr).
+    # → kalan %30 resolve'a tutulur (tier 1+2 zaten %70'i lock'ladı).
     if not is_high_entry and near_resolve.check(
         pos, near_resolve_threshold_cents, near_resolve_guard_min,
         max_spread=near_resolve_max_spread,
@@ -223,14 +224,12 @@ def evaluate(
         )
 
     # 2. Scale-out (partial exit) — distance-based: progress = (cur-entry)/(1-entry).
-    # High-entry trade'lerde sadece tier 1 (small kâr lock); tier 2 yok →
-    # kalan pay resolve'a kadar tutulur.
-    active_tiers = scale_out_tiers[:1] if is_high_entry else scale_out_tiers
+    # High entry'de de tier 1+2 ikisi de aktif (whipsaw güvenliği için).
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         entry_price=pos.entry_price,
         current_price=pos.current_price,
-        tiers=active_tiers,
+        tiers=scale_out_tiers,
     )
     if so is not None:
         return MonitorResult(
