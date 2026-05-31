@@ -142,6 +142,9 @@ def build_agent(state: RuntimeState) -> Agent:
     # Plan 1.A foundation — Plan 1.B'de team rating wiring tamamlanır.
     _maybe_invoke_basketball_refresh(cfg)
 
+    # Plan 1.D Task 6: haftalık calibration eğrisi update (FiveThirtyEight paterni).
+    _maybe_invoke_calibration_refresh()
+
     gamma = GammaClient()
     odds = OddsAPIClient()
     espn = ESPNClient(athlete_cache_ttl_sec=cfg.scanner.tennis_athlete_cache_ttl_sec)
@@ -355,6 +358,19 @@ def _maybe_invoke_sackmann_refresh(cfg: AppConfig) -> None:
     if not ({"atp", "wta"} & tags_lc):
         return
     maybe_refresh_sackmann_on_startup(Path("data/sackmann_cache"))
+
+
+def _maybe_invoke_calibration_refresh() -> None:
+    """Plan 1.D Task 6: haftalık calibration eğrisi update hook.
+
+    Stale değilse skip. Bot başlangıçta blocking değil — fit hızlı,
+    save atomic, yarım dosya riski yok.
+    """
+    from src.orchestration.calibration_refresher import refresh_calibration_if_stale
+    refresh_calibration_if_stale(
+        calibration_path=Path("data/calibration_curves.json"),
+        trades_path=Path("logs/audit/trade_history.jsonl"),
+    )
 
 
 _TENNIS_SPORT_TAGS = frozenset({"tennis", "atp", "wta"})
