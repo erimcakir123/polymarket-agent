@@ -8,9 +8,9 @@ Bartoš-Cohen point-win formula (common-opponent uyumlu):
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from src.infrastructure.data.sackmann_csv_loader import MatchRecord
+from src.domain.pricing.tennis.match_record import MatchRecord
 
 
 @dataclass(frozen=True)

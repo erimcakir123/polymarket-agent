@@ -11,14 +11,14 @@ Karar matrisi:
 Alt market fallback YASAK — eski cascade bug (h2h fiyatını yapıştırma) bu modülün
 çözdüğü asıl sorundur.
 
-Surface/best_of tahmini Polymarket veri yetersizliği nedeniyle default:
-- Surface: "Hard" (Polymarket genelde belirtmez)
-- Best_of: 3 (Grand Slam keyword'ü ile 5'e yükseltilir)
-
-Bu defaults Adım 4 (calibration) sonrası rafine edilir.
+Tahminler (Polymarket veri yetersizliği nedeniyle question stringinden):
+- Surface: Hard default; Clay/Grass keyword'leri turnuva ismi geçerse
+- Best_of: 3 default; Grand Slam keyword'ü ile 5
+- line/handicap: market_type'a göre question regex (set/games/handicap)
 """
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
@@ -34,6 +34,16 @@ _GRAND_SLAM_KEYWORDS = (
     "grand slam", "us open", "australian open", "wimbledon",
     "french open", "roland garros", "rolandgarros",
 )
+# Surface inference — turnuva keyword → kort tipi. Sackmann naming convention.
+_CLAY_KEYWORDS = (
+    "french open", "roland garros", "rolandgarros", "monte carlo",
+    "madrid open", "rome", "italian open", "barcelona", "hamburg",
+    "estoril", "houston",
+)
+_GRASS_KEYWORDS = (
+    "wimbledon", "queen's", "queens club", "halle", "eastbourne",
+    "stuttgart", "mallorca", "newport",
+)
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
 
 
@@ -42,6 +52,48 @@ def _infer_best_of(question: str) -> int:
     if any(k in q_low for k in _GRAND_SLAM_KEYWORDS):
         return 5
     return _DEFAULT_BEST_OF
+
+
+def _infer_surface(question: str) -> str:
+    q_low = (question or "").lower()
+    if any(k in q_low for k in _CLAY_KEYWORDS):
+        return "Clay"
+    if any(k in q_low for k in _GRASS_KEYWORDS):
+        return "Grass"
+    return _DEFAULT_SURFACE
+
+
+_HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)
+_OVER_LINE_RE = re.compile(r"(?:over|under|total|totals)\s+(\d+\.?\d*)", re.IGNORECASE)
+
+
+def _extract_market_params(
+    question: str,
+    market_type: str,
+) -> tuple[float | None, float | None]:
+    """Question stringinden line + handicap çıkar (market_type'a göre).
+
+    Returns: (line, handicap). Bulamazsa None.
+    """
+    q = question or ""
+    mt = market_type.lower()
+    if mt == "tennis_set_handicap":
+        m = _HANDICAP_RE.search(q)
+        if m:
+            try:
+                return None, float(m.group(0))
+            except ValueError:
+                return None, None
+        return None, None
+    if mt in ("tennis_match_totals", "tennis_first_set_totals", "tennis_set_totals"):
+        m = _OVER_LINE_RE.search(q)
+        if m:
+            try:
+                return float(m.group(1)), None
+            except ValueError:
+                return None, None
+        return None, None
+    return None, None
 
 
 def enrich_with_tennis_dispatch(
@@ -74,14 +126,18 @@ def enrich_with_tennis_dispatch(
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.TEAM_EXTRACT_FAILED)
 
     best_of = _infer_best_of(market.question)
+    surface = _infer_surface(market.question)
+    line, handicap = _extract_market_params(market.question, market_type)
     model_result = enrich_tennis_from_model(
         player_a=player_a,
         player_b=player_b,
         market_type=market_type,
-        surface=_DEFAULT_SURFACE,
+        surface=surface,
         best_of=best_of,
         ratings=ratings,
         calibration_curves=calibration_curves,
+        line=line,
+        handicap=handicap,
     )
     if model_result.probability is not None:
         return model_result

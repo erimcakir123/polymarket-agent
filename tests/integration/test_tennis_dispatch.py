@@ -68,3 +68,52 @@ def test_tennis_alt_market_no_fallback():
     result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings={})
     assert result.probability is None
     assert result.fail_reason is not None
+
+
+def test_extract_market_params_handicap():
+    """K1 regression: tennis_set_handicap question'dan handicap parse edilir."""
+    from src.strategy.enrichment.tennis_dispatch import _extract_market_params
+    line, handicap = _extract_market_params(
+        "Alice -1.5 sets win", "tennis_set_handicap",
+    )
+    assert handicap == -1.5
+    assert line is None
+
+
+def test_extract_market_params_total():
+    """K1 regression: tennis_match_totals question'dan line parse edilir."""
+    from src.strategy.enrichment.tennis_dispatch import _extract_market_params
+    line, handicap = _extract_market_params(
+        "Over 22.5 games", "tennis_match_totals",
+    )
+    assert line == 22.5
+    assert handicap is None
+
+
+def test_extract_market_params_unknown_type_returns_none():
+    """K1 regression: bilinmeyen market_type → None tuple, exception YOK."""
+    from src.strategy.enrichment.tennis_dispatch import _extract_market_params
+    line, handicap = _extract_market_params("anything", "unknown_market")
+    assert line is None
+    assert handicap is None
+
+
+def test_extract_market_params_no_match_returns_none():
+    """K1 regression: handicap market'te handicap value yok → None (not crash)."""
+    from src.strategy.enrichment.tennis_dispatch import _extract_market_params
+    line, handicap = _extract_market_params("Alice vs Bob", "tennis_set_handicap")
+    assert handicap is None
+    assert line is None
+
+
+def test_surface_inferred_for_grand_slam():
+    """K3 regression: question'da 'Wimbledon' geçerse Grass surface kullanılır.
+
+    Eski sürümde her zaman Hard → Grass-spesifik serve stat'ları kullanılmazdı.
+    """
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    assert _infer_surface("Wimbledon final: Alice vs Bob") == "Grass"
+    assert _infer_surface("French Open R3: X vs Y") == "Clay"
+    assert _infer_surface("Roland Garros QF") == "Clay"
+    assert _infer_surface("US Open R1") == "Hard"
+    assert _infer_surface("ATP 250 generic") == "Hard"

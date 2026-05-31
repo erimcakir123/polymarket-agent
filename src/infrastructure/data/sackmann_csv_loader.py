@@ -7,31 +7,11 @@ from __future__ import annotations
 
 import csv
 import logging
-from dataclasses import dataclass
 from typing import TextIO
 
+from src.domain.pricing.tennis.match_record import MatchRecord
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class MatchRecord:
-    tourney_id: str
-    tourney_date: str  # YYYYMMDD
-    surface: str
-    winner_name: str
-    loser_name: str
-    w_svpt: int
-    w_1st_in: int
-    w_1st_won: int
-    w_2nd_won: int
-    w_sv_gms: int
-    l_svpt: int
-    l_1st_in: int
-    l_1st_won: int
-    l_2nd_won: int
-    l_sv_gms: int
-    best_of: int
-    score: str
 
 
 def _parse_int(val) -> int | None:
