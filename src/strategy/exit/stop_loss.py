@@ -45,6 +45,15 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     if is_bimodal_market(pos.sport_tag or "", market_type):
         return None
 
+    # 2.5. Hold-to-resolve (2026-05-31 Adım 2): tennis için yüksek-güven
+    # pozisyonları SL muaf. Kullanıcı verisi: anchor < %30 deep dog'lar
+    # %81 doğru çıkıyor AMA SL fire → tahmin paraya çevrilmiyor.
+    # Eşik: |anchor - 0.50| > 0.20 → güvenli → resolve'a tut.
+    if (pos.sport_tag or "").lower() == "tennis":
+        anchor = pos.anchor_probability or 0.50
+        if abs(anchor - 0.50) > 0.20:
+            return None
+
     # entry_price zaten token-native (owned side).
     eff_entry = pos.entry_price
 
