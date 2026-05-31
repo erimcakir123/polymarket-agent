@@ -176,6 +176,31 @@ class EntryProcessor:
             self.deps.stock.add(market, "duplicate_condition_id")
             return
 
+        # 2026-05-31 exclude_combos guard: config'de tanımlı negatif-EV
+        # kombinasyonları (tennis_set_totals + tennis_first_set_winner, paper
+        # lab kanıtı -$63 ve -$162). Phase 3'te config eklendi AMA kod check
+        # YAPMIYORDU — bot yine bu tipleri alıyordu. Şimdi entry'de bloklanır.
+        combos = (
+            getattr(self.deps.state.config, "edge", None)
+            and getattr(self.deps.state.config.edge, "exclude_combos", [])
+            or []
+        )
+        if combos and market.slug:
+            tour = market.slug.split("-")[0].lower()  # atp/wta prefix
+            mt = market.sports_market_type
+            conf = getattr(signal, "confidence", None)
+            for combo in combos:
+                if (combo.get("tour") == tour
+                        and combo.get("market_type") == mt
+                        and (combo.get("confidence") == conf or combo.get("confidence") is None)):
+                    detail = f"tour={tour} type={mt} confidence={conf}"
+                    operational_writers.log_skip(
+                        self.deps.skipped_logger, market,
+                        "exclude_combo_negative_ev", detail=detail,
+                    )
+                    self.deps.stock.add(market, "exclude_combo_negative_ev")
+                    return
+
         # 2026-05-31 KORELASYON guard: aynı event + aynı market_type + aynı
         # yön birden fazla pozisyon = positively correlated bet, profesyonel
         # literatür "AVOID" diyor (Spurs 3-totals zincir kaybı kanıtı: -$60).
