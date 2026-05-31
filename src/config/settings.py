@@ -170,6 +170,11 @@ class ScaleOutConfig(BaseModel):
         ScaleOutTier(threshold=0.40, sell_pct=0.40),
         ScaleOutTier(threshold=0.70, sell_pct=0.50),
     ]
+    # 2026-06-01: "Kesin gibi" yüksek-fiyat entry'lerde (entry >= eşik)
+    # sadece tier 1 + near_resolve disable. Kalan %60 resolve'a tutulur.
+    # Rublev 89¢ mikro-kazanç patterni böyle önlenir.
+    # 0.55: 50¢ hâlâ "yarı yarıya" pazar, 55¢+ "biraz favori" başlangıcı.
+    high_entry_threshold: float = 0.55
 
 
 class CircuitBreakerConfig(BaseModel):

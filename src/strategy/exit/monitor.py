@@ -190,20 +190,29 @@ def evaluate(
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
+    high_entry_threshold: float = 0.55,
 ) -> MonitorResult:
     """Pozisyonu tüm exit kontrollerinden geçir. İlk tetiklenen exit kazanır.
 
     FAV transition ayrı (exit değil, pos.favored state update).
     SPEC-M: near_resolve_max_spread sahte ask spike koruması (KBO bug 2026-05-19).
     scale_out_tiers: None → ScaleOutConfig() defaults (distance-based 0.40/0.70).
+
+    2026-06-01 (kullanıcı kararı): "kesin gibi" yüksek-fiyat entry'lerde
+    (entry >= high_entry_threshold) hold-to-resolve. Tier 1 ile kısmi kâr lock,
+    near_resolve disable, tier 2 disable → kalan %60 resolve'a kadar tutulur.
+    Rublev 89¢ tipi mikro-kazanç patterni böyle önlenir.
     """
     score_info = score_info or {}
     if scale_out_tiers is None:
         scale_out_tiers = ScaleOutConfig().tiers
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
-    # 1. Near-resolve — en yüksek öncelik
-    if near_resolve.check(
+    is_high_entry = pos.entry_price >= high_entry_threshold
+
+    # 1. Near-resolve — en yüksek öncelik. High-entry trade'lerde devre dışı
+    # (kalan kâr potansiyeli zaten dar, resolve'a tutmak daha yüksek beklenen kâr).
+    if not is_high_entry and near_resolve.check(
         pos, near_resolve_threshold_cents, near_resolve_guard_min,
         max_spread=near_resolve_max_spread,
     ):
@@ -213,12 +222,15 @@ def evaluate(
             elapsed_pct=elapsed_pct,
         )
 
-    # 2. Scale-out (partial exit) — distance-based: progress = (cur-entry)/(1-entry)
+    # 2. Scale-out (partial exit) — distance-based: progress = (cur-entry)/(1-entry).
+    # High-entry trade'lerde sadece tier 1 (small kâr lock); tier 2 yok →
+    # kalan pay resolve'a kadar tutulur.
+    active_tiers = scale_out_tiers[:1] if is_high_entry else scale_out_tiers
     so = scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         entry_price=pos.entry_price,
         current_price=pos.current_price,
-        tiers=scale_out_tiers,
+        tiers=active_tiers,
     )
     if so is not None:
         return MonitorResult(

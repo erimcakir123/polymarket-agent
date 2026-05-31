@@ -198,3 +198,44 @@ def test_no_exit_when_position_calm() -> None:
     p = _pos(entry_price=0.50, current_price=0.52, size_usdc=40, shares=80, confidence="B")
     r = evaluate(p)
     assert r.exit_signal is None
+
+
+# ── 2026-06-01: High-entry hold-to-resolve (kullanıcı kararı, Rublev öğreticisi) ──
+
+def test_high_entry_skips_near_resolve() -> None:
+    """Entry >= 0.55 → near_resolve devre dışı, pozisyon 95¢'de açık kalır."""
+    p = _pos(entry_price=0.65, current_price=0.95, size_usdc=15, shares=23.08, confidence="A",
+             match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r = evaluate(p)
+    # near_resolve normalde tetiklenirdi (0.95 >= 0.94), ama high entry → disable
+    assert r.exit_signal is None or r.exit_signal.reason != ExitReason.NEAR_RESOLVE
+
+
+def test_high_entry_tier1_fires_then_no_more_scale_out() -> None:
+    """Entry 0.70, current 0.88 → tier1 (progress 0.6) fire. tier2 skip → tier1 sonrası near_resolve da skip."""
+    # entry 0.70, distance 0.30. progress (0.88-0.70)/0.30 = 0.60 → tier1 (≥0.40) fires
+    p = _pos(entry_price=0.70, current_price=0.88, size_usdc=15, shares=21.43, confidence="A",
+             scale_out_tier=0,
+             match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r = evaluate(p)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCALE_OUT
+    assert r.exit_signal.tier == 1
+
+    # Tier1 yapıldı, fiyat 0.94'e geldi. Normal mantıkla tier2 (progress 0.80) fire ederdi
+    # AMA high entry'de tier2 disable. Ayrıca near_resolve da disable. → no exit.
+    p2 = _pos(entry_price=0.70, current_price=0.94, size_usdc=15, shares=21.43, confidence="A",
+              scale_out_tier=1,
+              match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r2 = evaluate(p2)
+    assert r2.exit_signal is None  # hold-to-resolve
+
+
+def test_low_entry_keeps_full_scale_out_and_near_resolve() -> None:
+    """Entry < 0.55 → eski davranış: tier1 + tier2 + near_resolve aktif."""
+    # Entry 0.40, distance 0.60. progress (0.94-0.40)/0.60 = 0.90 → near_resolve önce
+    p = _pos(entry_price=0.40, current_price=0.95, size_usdc=15, shares=37.5, confidence="A",
+             match_start_iso=_iso(datetime.now(timezone.utc) - timedelta(minutes=30)))
+    r = evaluate(p)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.NEAR_RESOLVE
