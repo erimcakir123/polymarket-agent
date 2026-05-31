@@ -14,7 +14,7 @@ SL aktif — anlık çakılma riski bimodal sizing cap'i ile sınırlanır (SPEC
 """
 from __future__ import annotations
 
-from src.config.sport_rules import get_stop_loss
+from src.config.sport_rules import get_stop_loss, is_bimodal_market
 from src.models.position import Position
 
 _ULTRA_LOW_THRESHOLD = 0.09
@@ -32,6 +32,17 @@ def compute_stop_loss_pct(pos: Position) -> float | None:
     """
     # 1. Stale price — WS tick hiç gelmemiş gibi
     if pos.current_price <= 0.001 and pos.current_price != pos.entry_price:
+        return None
+
+    # 2. Bimodal market'ler flat SL'den MUAF (2026-05-31 fix).
+    # Set bittiğinde fiyat 99¢/1¢ sıçrar — %50 SL fire eder, bot satar, sonra
+    # fiyat geri uçar → kâr kaybedilir. Tennis-paper-lab raporu pattern.
+    # Graduated SL (low entry) ve sport-level kontrol AKTİF KALIR; flat SL kapanır.
+    market_type = ""
+    smt = getattr(pos, "sports_market_type", None)
+    if smt is not None:
+        market_type = getattr(smt, "value", None) or str(smt)
+    if is_bimodal_market(pos.sport_tag or "", market_type):
         return None
 
     # entry_price zaten token-native (owned side).

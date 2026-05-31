@@ -80,19 +80,18 @@ def test_flat_stop_loss_triggers() -> None:
 # ── Universal flat SL + graduated SL (Faz 2 rollback: A-conf hold dalı kaldırıldı) ──
 
 def test_a_conf_high_entry_now_triggers_flat_sl() -> None:
-    """Faz 2 rollback regression: A-conf yüksek-entry artık flat SL'den muaf değil.
+    """Faz 2 rollback regression: A-conf yüksek-entry flat SL'den muaf değil.
 
-    Veri: eski hold dalı kaldırıldı (14 trade 0W/14L katil pattern). Tüm
-    pozisyonlar graduated_sl + flat SL altına alındı (19 Apr peak pattern).
+    2026-05-31: NHL whitelist'ten çıkarıldı, NBA'a çevrildi. NBA SL %35.
+    entry 0.65 → current 0.40 = -38.5% → flat SL fire.
     """
-    # A-conf, entry 0.65, NHL SL %30. pnl = -30.8% < -30% → flat SL fire.
     start = datetime.now(timezone.utc) - timedelta(minutes=45)
     p = _pos(
-        confidence="A", entry_price=0.65, current_price=0.45,
+        confidence="A", entry_price=0.65, current_price=0.40,
         size_usdc=40, shares=61.5, match_start_iso=_iso(start),
-        sport_tag="nhl",
+        sport_tag="nba",
     )
-    # pnl = (61.5*0.45 - 40)/40 = -30.8% — flat SL eşiği (%30) aşıldı, artık fire eder.
+    # pnl = (61.5*0.40 - 40)/40 = -38.5% — NBA flat SL eşiği (%35) aşıldı.
     r = evaluate(p)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.STOP_LOSS

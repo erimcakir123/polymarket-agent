@@ -67,7 +67,12 @@ SPORT_RULES: dict[str, dict] = {
         "bimodal_market_types": [],
     },
     "tennis": {
-        "stop_loss_pct": 0.30,
+        # 2026-05-31: 0.30 → 0.50. Kullanıcı analizinde Sackmann moneyline %70
+        # doğru AMA -$62 kayıp. Anchor < %30 (deep dog) → %81 doğru AMA -$29.
+        # Sebep: tennis fiyat dalgalanması %30 SL aralığından büyük → erken
+        # SL fire → bot satar → fiyat geri kâra döner → kaçırır. Gevşek SL
+        # tahmini paraya çevirme şansı verir.
+        "stop_loss_pct": 0.50,
         "match_duration_hours": 2.0,
         "start_source": "espn",
         "espn_sport": "tennis",
