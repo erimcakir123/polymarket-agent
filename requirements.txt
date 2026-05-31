@@ -10,3 +10,6 @@ flask>=3.0.0
 pytest>=8.0.0
 numpy>=1.24  # MLB submarket probability vectors (SPEC-R Plan 2)
 pybaseball>=2.2  # Statcast pitch-by-pitch event data (SPEC-R Plan 3 T2)
+# Basketball — NBA + WNBA stats (birincil veri kaynağı)
+# nba_api: stats.nba.com wrapper, ESPN'e göre daha zengin advanced stats sağlar
+nba_api>=1.11.0,<2.0
