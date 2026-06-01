@@ -146,6 +146,10 @@ def build_agent(state: RuntimeState) -> Agent:
     # Plan 1.A foundation — Plan 1.B'de team rating wiring tamamlanır.
     _maybe_invoke_basketball_refresh(cfg)
 
+    # YAYINA ALMA (2026-06-01): basket ratings cache build hook.
+    # Cache yoksa/eskimişse NBA/WNBA otomatik build; diğer ligler manuel script.
+    _maybe_build_basketball_ratings(cfg)
+
     # Plan 1.D Task 6: haftalık calibration eğrisi update (FiveThirtyEight paterni).
     _maybe_invoke_calibration_refresh()
 
@@ -491,6 +495,81 @@ def _make_basketball_fetchers(
         return _empty_list, _empty_list
     # Bilinmeyen lig — sessizce empty (mantıken buraya gelmez, enabled_leagues filtreliyor)
     return _empty_list, _empty_list
+
+
+def _maybe_build_basketball_ratings(cfg: AppConfig) -> None:
+    """Bot başlangıçta basket ratings cache build (Sackmann paralel).
+
+    Her enabled lig için:
+      - Cache yoksa veya 24sa+ eskiyse: scripts/build_basketball_ratings.py paterni
+      - NBA/WNBA: nba_api bulk fetch (hızlı, 1 API call)
+      - NCAAB/WNCAAB/Euroleague: scripts/build_basketball_ratings.py manuel önerisi
+        (boot'ta blocking çağrı çok yavaş olur — 90 gün ESPN scrape)
+    """
+    tags_lc = {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])}
+    enabled = [lg for lg in cfg.basketball.enabled_leagues if lg in tags_lc]
+    if not enabled:
+        return
+    import time  # noqa: PLC0415
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    cache_dir = Path(cfg.basketball.cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    fast_build_leagues = {"nba", "wnba"}
+
+    for league in enabled:
+        cache_path = cache_dir / f"{league}_ratings.json"
+        if cache_path.exists():
+            age_h = (time.time() - cache_path.stat().st_mtime) / 3600.0
+            if age_h < 24.0:
+                logger.info(
+                    "Basketball ratings fresh: %s (age=%.1fh, skip)",
+                    league, age_h,
+                )
+                continue
+        if league not in fast_build_leagues:
+            logger.warning(
+                "Basketball ratings cache yok/eski: %s. "
+                "Manuel build: python scripts/build_basketball_ratings.py --league %s",
+                league, league,
+            )
+            continue
+        # NBA / WNBA — nba_api bulk (hızlı)
+        params = cfg.basketball.leagues.get(league)
+        if params is None:
+            continue
+        try:
+            from nba_api.stats.endpoints import leaguegamelog  # noqa: PLC0415
+
+            from src.infrastructure.data.basketball.nba_api_refresher import (  # noqa: PLC0415
+                fetch_game_log_via_nba_api,
+            )
+            from src.orchestration.basketball_ratings_builder import (  # noqa: PLC0415
+                build_and_persist_snapshots,
+            )
+            current = datetime.now(timezone.utc).year
+            season = str(current - 1)
+            logger.info("Basketball ratings build: %s season=%s", league, season)
+            games = fetch_game_log_via_nba_api(
+                league=league, season=season,
+                endpoint_factory=lambda **kw: leaguegamelog.LeagueGameLog(
+                    season=kw["season"], league_id=kw["league_id"],
+                    season_type_all_star="Regular Season",
+                ),
+            )
+            n = build_and_persist_snapshots(
+                games=games, league=league,
+                k_factor=params.k_factor, home_advantage=params.home_advantage,
+                output_path=cache_path,
+            )
+            logger.info(
+                "Basketball ratings built: %s — %d takım, %d maç",
+                league, n, len(games),
+            )
+        except Exception as exc:  # noqa: BLE001 — infra boundary
+            logger.warning(
+                "Basketball ratings build skipped %s: %s", league, exc,
+            )
 
 
 def _maybe_invoke_basketball_refresh(cfg: AppConfig) -> None:
