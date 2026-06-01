@@ -407,6 +407,8 @@ def _maybe_invoke_calibration_refresh() -> None:
 _TENNIS_SPORT_TAGS = frozenset({"tennis", "atp", "wta"})
 _BASKETBALL_SPORT_TAGS = frozenset({
     "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
+    # Task 5: yeni ligler
+    "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
 })
 
 
@@ -425,9 +427,10 @@ def _select_enricher_for_sport(sport_tag: str) -> str:
     return "bookmaker"
 
 
-_PRO_BASKET_LEAGUES = frozenset({"nba", "wnba"})
+_PRO_BASKET_LEAGUES = frozenset({"nba", "wnba", "g_league", "summer_league"})
 _COLLEGE_BASKET_LEAGUES = frozenset({"ncaab", "wncaab"})
-_EUROPE_BASKET_LEAGUES = frozenset({"euroleague"})
+_EUROPE_BASKET_LEAGUES = frozenset({"euroleague", "eurocup"})
+_EUROPE_LOCAL_LEAGUES = frozenset({"bsl", "acb", "lega"})
 
 
 def _load_basketball_caches(cfg: AppConfig) -> tuple[dict, dict]:
