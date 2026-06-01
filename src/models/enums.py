@@ -26,6 +26,7 @@ class EntryReason(str, Enum):
 class ExitReason(str, Enum):
     STOP_LOSS = "stop_loss"
     SCALE_OUT = "scale_out"
+    PARTIAL_SL = "partial_sl"
     GRADUATED_SL = "graduated_sl"
     NEVER_IN_PROFIT = "never_in_profit"
     MARKET_FLIP = "market_flip"

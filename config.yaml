@@ -174,17 +174,38 @@ stock:
   pre_match_cutoff_min: 30.0    # match_start'a bu dk kala düş
   max_no_edge_attempts: 3       # peş peşe bu kadar no_edge → düş
 
+graduated_sl:
+  # 2026-06-01: ESPN ile dogrulanmis 27 trade analizi → graduated_sl bize $359 NET
+  # KURTARMIS. 17 trade'de tutsaydık tamamen yanacaktık (WNBA + NBA totals — skorca
+  # acık, geri dönüş yok), 10 trade'de moneyline favorisi sonradan kazandığı için
+  # erken cikis yaptırdı. Net pozitif → KORUNUR. partial_sl ile beraber çalışır
+  # (partial önce parçalı sat, graduated tactical full exit).
+  enabled: true
+
+partial_sl:
+  # 2026-06-01: Loss-side partial exits (scale-out'un simetriği).
+  # Eski tam SL: %30 düşünce hepsini sat → geçici dipte tüm pozisyonu kaybediyoruz.
+  # Yeni 3-tier: erken küçük çıkış, sonra escalate, son çare tam çıkış.
+  # Geri dönüş ihtimali olan dipi tolere ederiz, dipten çıkamayanı parça parça satarız.
+  enabled: true
+  tiers:
+    - loss_threshold: 0.20    # %20 düşünce -> %30 sat (suları test et)
+      sell_pct: 0.30
+    - loss_threshold: 0.35    # %35 düşünce -> kalanın %50 sat (escalate)
+      sell_pct: 0.50
+    - loss_threshold: 0.50    # %50 düşünce -> kalanı tamamen sat (kabul et)
+      sell_pct: 1.00
+
 scale_out:
   enabled: true
-  # 2026-05-25: profit-percentage thresholds (0.25/0.50) -> distance-to-resolution.
-  # threshold = fraction of distance from entry to 1.0. progress = (cur-entry)/(1-entry).
-  # Tier fires when progress >= threshold. Scale-invariant: 19c entry and 80c entry
-  # both fire tier1 at ~40% of their respective journeys, locking meaningful $.
-  # Sim across 10 edge cases (Model D): +$26 better than profit-pct thresholds.
+  # 2026-06-01: 0.40/0.70 → 0.25/0.50 RESTORE. Lab-ERKEN dönemi (22-24 Mayıs)
+  # tier 0.25/0.50 ile +$1700 net kazandı. 25 Mayıs'ta 0.40/0.70'e çıkartıldı,
+  # avg win $88 → $11 çöktü (62 trade'de -$252). Hedef geri çekme: erken parça
+  # satışı güvenlik ağı görevi görsün, pozisyon hedefe ulaşmadan SL'de yanmasın.
   tiers:
-    - threshold: 0.40    # 40% of way from entry to $1 -> sell 40%
+    - threshold: 0.25    # 25% yol kat et -> %40 sat
       sell_pct: 0.40
-    - threshold: 0.70    # 70% of way -> sell 50% of remaining
+    - threshold: 0.50    # 50% yol kat et -> %50 sat (kalanın)
       sell_pct: 0.50
   # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
   # AMA near_resolve disable. Aralık dışı → standart davranış.

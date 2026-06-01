@@ -168,6 +168,44 @@ class StockConfig(BaseModel):
     max_no_edge_attempts: int = 3
 
 
+class GraduatedSlConfig(BaseModel):
+    """Eski dinamik (elapsed+score-aware) tam exit SL. 2026-06-01: DEVRE DISI.
+
+    ESPN ile dogrulanan 10 trade analizi: graduated_sl kurtardigi $148, kaybettirdigi
+    $382. Net $234 zarar. partial_sl tier sistemi (3 asamali) yeterli loss mgmt saglar.
+    enabled=True → eski davranis (test/regression icin tutuldu).
+    """
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = False
+
+
+class PartialSlTier(BaseModel):
+    """Partial SL tier: at -loss_threshold loss, sell sell_pct of remaining shares.
+
+    Symmetric loss-side counterpart of ScaleOutTier. Replaces flat full-exit
+    stop loss with graduated partial exits (lab-ERKEN strateji paraleli).
+    """
+    model_config = ConfigDict(extra="ignore")
+    loss_threshold: float = Field(gt=0.0, le=1.0)  # 0.20 = -%20 loss eşiği
+    sell_pct: float = Field(gt=0.0, le=1.0)        # 0.30 = kalanın %30'u
+
+
+class PartialSlConfig(BaseModel):
+    """Loss-side partial exit config (yeni — scale_out simetriği).
+
+    enabled=False ise eski flat/graduated SL davranışı korunur.
+    """
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    tiers: List[PartialSlTier] = Field(
+        default_factory=lambda: [
+            PartialSlTier(loss_threshold=0.20, sell_pct=0.30),
+            PartialSlTier(loss_threshold=0.35, sell_pct=0.50),
+            PartialSlTier(loss_threshold=0.50, sell_pct=1.00),
+        ]
+    )
+
+
 class ScaleOutTier(BaseModel):
     """Scale-out tier: at threshold (distance-to-resolution), sell sell_pct of remaining.
 
@@ -315,6 +353,8 @@ class AppConfig(BaseModel):
     consensus: ConsensusConfig = ConsensusConfig()
     stock: StockConfig = StockConfig()
     scale_out: ScaleOutConfig = ScaleOutConfig()
+    partial_sl: PartialSlConfig = Field(default_factory=PartialSlConfig)
+    graduated_sl: GraduatedSlConfig = Field(default_factory=GraduatedSlConfig)
     circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
     manipulation: ManipulationConfig = ManipulationConfig()
     liquidity: LiquidityConfig = LiquidityConfig()

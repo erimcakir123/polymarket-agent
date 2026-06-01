@@ -69,6 +69,9 @@ class Position(BaseModel):
     partial_exits: list[dict] = []
     scale_out_tier: int = 0
     scale_out_realized_usdc: float = 0.0
+    # Partial SL state (loss-side, scale-out simetriği). 2026-06-01.
+    partial_sl_tier: int = 0
+    partial_sl_realized_usdc: float = 0.0
 
     # Bookmaker metadata
     bookmaker_prob: float = 0.0

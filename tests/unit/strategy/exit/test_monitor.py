@@ -71,8 +71,10 @@ def test_scale_out_tier2_after_tier1() -> None:
 
 def test_flat_stop_loss_triggers() -> None:
     # entry 0.40 → nba sl 0.35; current 0.20 → pnl -50% < -35%
+    # partial_sl_enabled=False ile yeni partial_sl katmanını devre dışı bırakıp
+    # eski flat SL davranışını izole et.
     p = _pos(current_price=0.20, entry_price=0.40)
-    r = evaluate(p)
+    r = evaluate(p, partial_sl_enabled=False)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.STOP_LOSS
 
@@ -92,7 +94,7 @@ def test_a_conf_high_entry_now_triggers_flat_sl() -> None:
         sport_tag="nba",
     )
     # pnl = (61.5*0.40 - 40)/40 = -38.5% — NBA flat SL eşiği (%35) aşıldı.
-    r = evaluate(p)
+    r = evaluate(p, partial_sl_enabled=False)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.STOP_LOSS
 
@@ -120,7 +122,7 @@ def test_graduated_sl_triggers_late_match() -> None:
         confidence="B", entry_price=0.40, current_price=0.30,
         size_usdc=40, shares=100, match_start_iso=_iso(start),
     )
-    r = evaluate(p)
+    r = evaluate(p, partial_sl_enabled=False)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.GRADUATED_SL
 
@@ -135,7 +137,7 @@ def test_ultra_low_guard_triggers() -> None:
         size_usdc=40, shares=800, match_start_iso=_iso(start),
     )
     # Flat SL: ultra-low entry → 50% SL; pnl = (800*0.03-40)/40 = -40% > -50% → flat atlar
-    r = evaluate(p)
+    r = evaluate(p, partial_sl_enabled=False)
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.ULTRA_LOW_GUARD
 

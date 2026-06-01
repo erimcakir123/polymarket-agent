@@ -77,6 +77,9 @@ class ExitProcessor:
                 near_resolve_max_spread=self.deps.state.config.price_feed.max_spread_for_near_resolve,
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
                 scale_out_tiers=self.deps.state.config.scale_out.tiers,
+                partial_sl_tiers=self.deps.state.config.partial_sl.tiers,
+                partial_sl_enabled=self.deps.state.config.partial_sl.enabled,
+                graduated_sl_enabled=self.deps.state.config.graduated_sl.enabled,
                 high_entry_threshold=self.deps.state.config.scale_out.high_entry_threshold,
                 high_entry_upper=self.deps.state.config.scale_out.high_entry_upper,
             )
@@ -252,7 +255,10 @@ class ExitProcessor:
         )
 
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
-        """Scale-out partial exit.
+        """Scale-out + Partial-SL parçalı çıkış (her ikisi de partial=True).
+
+        Reason-aware: SCALE_OUT (kâr tarafı tier) vs PARTIAL_SL (kayıp tarafı tier)
+        ayrı sayaçlarda tutulur (pos.scale_out_tier vs pos.partial_sl_tier).
 
         2026-05-30 fix (tennis-paper-lab parity): GERÇEK satım YAPILMADAN
         defter mutate edilmiyordu — paper'da hayali +$334 kazanç yazıyordu,
@@ -301,8 +307,14 @@ class ExitProcessor:
         realized = actual_shares * (actual_price - pos.entry_price)
         pos.shares -= actual_shares
         pos.size_usdc *= (1 - actual_sell_pct)
-        pos.scale_out_tier = signal.tier or pos.scale_out_tier
-        pos.scale_out_realized_usdc += realized
+        # Reason-aware tier increment (SCALE_OUT vs PARTIAL_SL ayrı sayaçlarda).
+        is_partial_sl = signal.reason == ExitReason.PARTIAL_SL
+        if is_partial_sl:
+            pos.partial_sl_tier = signal.tier or pos.partial_sl_tier
+            pos.partial_sl_realized_usdc += realized
+        else:
+            pos.scale_out_tier = signal.tier or pos.scale_out_tier
+            pos.scale_out_realized_usdc += realized
         try:
             self.deps.state.portfolio.apply_partial_exit(
                 pos.condition_id,
@@ -313,29 +325,34 @@ class ExitProcessor:
             pos.shares += actual_shares
             if actual_sell_pct < 1.0:
                 pos.size_usdc /= (1 - actual_sell_pct)
-            pos.scale_out_realized_usdc -= realized
+            if is_partial_sl:
+                pos.partial_sl_realized_usdc -= realized
+            else:
+                pos.scale_out_realized_usdc -= realized
             logger.warning(
                 "Partial exit aborted (race): %s — %s; mutation rolled back",
                 pos.slug[:35], e,
             )
             return
+        current_tier = (
+            pos.partial_sl_tier if is_partial_sl else pos.scale_out_tier
+        )
         logged = self.deps.trade_logger.log_partial_exit(
             condition_id=pos.condition_id,
-            tier=signal.tier or pos.scale_out_tier,
+            tier=signal.tier or current_tier,
             sell_pct=actual_sell_pct,         # gerçek satılan oran
             realized_pnl_usdc=realized,
             timestamp=datetime.now(timezone.utc).isoformat(),
             price=actual_price,                # gerçek satım fiyatı
         )
+        label = "PARTIAL-SL" if is_partial_sl else "SCALE-OUT"
         if not logged:
-            # SPEC-D: log_partial_exit False → audit'te matching entry yok (orphan).
-            # Bakiye in-memory dogru ama defter eksik — gorunur uyari at.
             logger.warning(
-                "SCALE-OUT %s: trade_history defter kayit yapilamadi "
+                "%s %s: trade_history defter kayit yapilamadi "
                 "(orphan?) - bakiye in-memory dogru ama audit eksik",
-                pos.slug[:35],
+                label, pos.slug[:35],
             )
         logger.info(
-            "SCALE-OUT %s: tier=%d sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
-            pos.slug[:35], signal.tier, actual_shares, actual_price, realized, pos.size_usdc,
+            "%s %s: tier=%d sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
+            label, pos.slug[:35], signal.tier, actual_shares, actual_price, realized, pos.size_usdc,
         )

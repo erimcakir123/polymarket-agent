@@ -58,6 +58,7 @@ def test_monitor_basketball_totals_dispatch_called() -> None:
         p,
         score_info=_score_q4_totals_dead(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.SCORE_EXIT
@@ -77,6 +78,7 @@ def test_monitor_basketball_moneyline_skips_dispatch() -> None:
         p,
         score_info=_score_q4_totals_dead(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     # Dispatch atlanır, normal flow → calm pozisyon (pnl<25%, eff<0.94, SL korunur)
     assert r.exit_signal is None
@@ -94,6 +96,7 @@ def test_monitor_basketball_spreads_skips_dispatch() -> None:
         p,
         score_info=_score_q4_totals_dead(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     # Dispatch atlanır, normal flow → calm pozisyon (pnl<25%, eff<0.94, SL korunur)
     assert r.exit_signal is None
@@ -106,6 +109,7 @@ def test_monitor_non_basketball_skips_dispatch() -> None:
         p,
         score_info=_score_q4_totals_dead(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     # Dispatch atlanır → normal flow → SCORE_EXIT yerine None
     assert r.exit_signal is None
@@ -120,6 +124,7 @@ def test_monitor_basketball_no_exit_falls_through() -> None:
         p,
         score_info=_score_q1_safe(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     # Dispatch None → flow devam → SL tetiklenmez (pnl ~ -4%)
     assert r.exit_signal is None
@@ -137,6 +142,7 @@ def test_monitor_basketball_dispatch_runs_after_scale_out() -> None:
         p,
         score_info=_score_q4_totals_dead(),
         basketball_exit_cfg=BasketballExitConfig(),
+        partial_sl_enabled=False,
     )
     assert r.exit_signal is not None
     assert r.exit_signal.reason == ExitReason.SCALE_OUT

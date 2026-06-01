@@ -14,11 +14,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from src.config.settings import BasketballExitConfig, ScaleOutConfig, ScaleOutTier
+from src.config.settings import BasketballExitConfig, PartialSlTier, ScaleOutConfig, ScaleOutTier
 from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
-from src.strategy.exit import favored, graduated_sl, near_resolve, scale_out, stop_loss
+from src.strategy.exit import favored, graduated_sl, near_resolve, partial_sl, scale_out, stop_loss
 from src.strategy.exit._nba_dispatch import check_nba_exit
 
 
@@ -190,6 +190,9 @@ def evaluate(
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
+    partial_sl_tiers: list[PartialSlTier] | None = None,
+    partial_sl_enabled: bool = True,
+    graduated_sl_enabled: bool = True,
     high_entry_threshold: float = 0.70,
     high_entry_upper: float = 0.80,
 ) -> MonitorResult:
@@ -208,6 +211,9 @@ def evaluate(
     score_info = score_info or {}
     if scale_out_tiers is None:
         scale_out_tiers = ScaleOutConfig().tiers
+    if partial_sl_tiers is None:
+        from src.config.settings import PartialSlConfig
+        partial_sl_tiers = PartialSlConfig().tiers
     elapsed_pct = compute_elapsed_pct(pos, score_info=score_info)
 
     # Yalnızca 0.70-0.80 (kullanıcı kararı). Aralık dışı → standart davranış.
@@ -243,6 +249,29 @@ def evaluate(
             fav_transition=_fav_transition(pos),
             elapsed_pct=elapsed_pct,
         )
+
+    # 2.2 Partial SL — scale-out'un simetriği, kayıp tarafında parçalı çıkış.
+    # Lab-ERKEN paterni: %30 düşünce hepsini sat yerine 3 aşamalı.
+    # Geçici dipte tüm pozisyonu kaybetmeyelim, geri dönüş şansını koruyalım.
+    if partial_sl_enabled:
+        psl = partial_sl.check_partial_sl(
+            partial_sl_tier=pos.partial_sl_tier,
+            unrealized_pnl_pct=pos.unrealized_pnl_pct,
+            tiers=partial_sl_tiers,
+        )
+        if psl is not None:
+            is_final = (psl.tier >= len(partial_sl_tiers)) and (psl.sell_pct >= 1.0)
+            return MonitorResult(
+                exit_signal=ExitSignal(
+                    reason=ExitReason.PARTIAL_SL,
+                    partial=not is_final,
+                    sell_pct=psl.sell_pct,
+                    tier=psl.tier,
+                    detail=f"tier {psl.tier} (loss-based)",
+                ),
+                fav_transition=_fav_transition(pos),
+                elapsed_pct=elapsed_pct,
+            )
 
     # 2.5 Basketball totals dispatch (SPEC-J — SPREADS 2026-05-15 rollback ile kaldırıldı)
     sport_tag_lc = (pos.sport_tag or "").lower()
@@ -284,7 +313,7 @@ def evaluate(
                 elapsed_pct=elapsed_pct,
             )
         exit_grad, max_loss = graduated_sl.check(pos, elapsed_pct, pos.entry_price, score_info)
-        if exit_grad:
+        if exit_grad and graduated_sl_enabled:
             return MonitorResult(
                 exit_signal=ExitSignal(
                     reason=ExitReason.GRADUATED_SL,
