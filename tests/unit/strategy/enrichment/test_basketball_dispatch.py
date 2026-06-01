@@ -56,7 +56,10 @@ def test_moneyline_no_ratings_falls_to_bookmaker():
 def test_basketball_with_ratings_returns_model():
     bm = MagicMock()
     market = _market(sport_tag="nba", market_type="moneyline")
-    ratings = {"nba": {"LAL": EloRating(rating=1600.0), "GSW": EloRating(rating=1400.0)}}
+    ratings = {"nba": {
+        "LAL": EloRating(rating=1600.0, games=20),
+        "GSW": EloRating(rating=1400.0, games=20),
+    }}
     eff = {"nba": {
         "LAL": TeamEfficiency(adj_o=115.0, adj_d=108.0, adj_pace=100.0),
         "GSW": TeamEfficiency(adj_o=108.0, adj_d=115.0, adj_pace=100.0),
@@ -73,7 +76,10 @@ def test_cbb_alias_routes_to_ncaab():
     """Polymarket 'cbb' sport_tag NCAAB ile aynı lig."""
     bm = MagicMock(return_value=EnrichResult(probability=None, fail_reason=None))
     market = _market(sport_tag="cbb", slug="cbb-duke-unc-2024-12-01")
-    ratings = {"ncaab": {"DUKE": EloRating(rating=1600.0), "UNC": EloRating(rating=1500.0)}}
+    ratings = {"ncaab": {
+        "DUKE": EloRating(rating=1600.0, games=20),
+        "UNC": EloRating(rating=1500.0, games=20),
+    }}
     eff = {"ncaab": {
         "DUKE": TeamEfficiency(adj_o=115.0, adj_d=108.0, adj_pace=72.0),
         "UNC": TeamEfficiency(adj_o=110.0, adj_d=110.0, adj_pace=72.0),

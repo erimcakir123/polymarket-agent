@@ -26,6 +26,10 @@ from src.strategy.enrichment.basketball_anchor_enricher import (
 
 _BASKETBALL_LEAGUES = frozenset({
     "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague",
+    # 2026-06-01 yetki genişletme: gerçek veri kaynağı doğrulandı.
+    # nba_api: g_league + summer_league. euroleague-api: eurocup.
+    # bsl/acb/lega kapsam dışı (veri kaynağı placeholder).
+    "g_league", "summer_league", "eurocup",
 })
 _CBB_ALIAS = "ncaab"  # Polymarket "cbb" tag NCAAB ile aynı lig
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
@@ -40,6 +44,15 @@ _NON_MATCH_SLUG_KEYWORDS = frozenset({
     "block-leader", "postseason", "will-anthony", "will-stephen",
     "will-victor", "will-lebron", "cover-athlete", "2k-cover",
 })
+# Tennis ITF paterni paralel — preseason/exhibition rating güvenilmez (roster
+# henüz oturmamış, K-factor yüksek volatilite). Ekim NBA preseason + Kasım NCAAB
+# exhibition öncesi yetki filtresi aktif. Slug'da bu pattern varsa model SUS.
+_LOW_TIER_SLUG_KEYWORDS = frozenset({
+    "preseason", "exhibition", "play-in-tournament",
+})
+# Elo "phi" karşılığı: yeterli maç oynamamış takım = güvenilmez rating.
+# Sezon başı (ilk 2 hafta) volatilite yüksek; ~10+ maç sonrası rating sabitlenir.
+_MIN_GAMES_FOR_TRADE = 10
 
 
 def _is_non_match_market(slug: str, question: str) -> bool:
@@ -47,6 +60,13 @@ def _is_non_match_market(slug: str, question: str) -> bool:
     s = (slug or "").lower()
     q = (question or "").lower()
     return any(k in s or k in q for k in _NON_MATCH_SLUG_KEYWORDS)
+
+
+def _is_low_tier_basket(slug: str, question: str) -> bool:
+    """Preseason/exhibition/play-in market'i mi? Yetki dışı (rating güvenilmez)."""
+    s = (slug or "").lower()
+    q = (question or "").lower()
+    return any(k in s or k in q for k in _LOW_TIER_SLUG_KEYWORDS)
 
 _OVER_LINE_RE = re.compile(
     r"(?:over|under|total|totals)\s+(\d+\.?\d*)", re.IGNORECASE,
@@ -149,6 +169,13 @@ def enrich_with_basketball_dispatch(
             fail_reason=EnrichFailReason.MODEL_BASKETBALL_DATA_MISSING,
         )
 
+    # Tennis ITF paralel — preseason/exhibition rating güvenilmez. Yetki dışı.
+    if _is_low_tier_basket(market.slug or "", market.question or ""):
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
+        )
+
     league = _normalize_league(sport)
     market_type = _infer_market_type(market)
     is_moneyline = market_type in _MONEYLINE_TYPES
@@ -165,6 +192,26 @@ def enrich_with_basketball_dispatch(
 
     resolved = resolve_team_pair(market.slug or "", league=league)
     if not resolved.ok or resolved.home is None or resolved.away is None:
+        if is_moneyline:
+            return bookmaker_enricher(market)
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
+        )
+
+    # Yetki filtresi — tennis phi paralel. Yetersiz maç oynamış takım rating
+    # güvenilmez (sezon başı, expansion, yeni promosyon). Pratik eşik: 10+ maç.
+    home_rating = league_ratings.get(resolved.home)
+    away_rating = league_ratings.get(resolved.away)
+    if home_rating is None or away_rating is None:
+        if is_moneyline:
+            return bookmaker_enricher(market)
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
+        )
+    if (home_rating.games < _MIN_GAMES_FOR_TRADE
+            or away_rating.games < _MIN_GAMES_FOR_TRADE):
         if is_moneyline:
             return bookmaker_enricher(market)
         return EnrichResult(
