@@ -75,17 +75,27 @@ def is_cache_stale(
     cache_dir: Path,
     max_age_days: int = _DEFAULT_MAX_AGE_DAYS,
 ) -> bool:
-    """True if the current-year ATP main CSV is missing or older than threshold.
+    """True if the current-year ATP main CSV is missing/old OR any expected file
+    (per _SOURCES, including doubles) is missing for the current year.
 
-    Uses the ATP main file as canary — if it's stale, the whole cache is too
-    (Sackmann updates all files in lockstep). Missing file → stale.
+    Canary file = ATP main + age check (Sackmann updates in lockstep).
+    Coverage check = expected files all present (Task 2 doubles fix: yeni source
+    eklendi ama canary fresh diye skip oluyordu).
     """
     current_year = datetime.utcnow().year
     canary = cache_dir / f"atp_matches_{current_year}.csv"
     if not canary.exists():
         return True
     age_days = (time.time() - canary.stat().st_mtime) / 86400.0
-    return age_days > max_age_days
+    if age_days > max_age_days:
+        return True
+    # 2026-06-01: missing-file detection — _SOURCES'a yeni kategori eklenince
+    # eski cache canary'yi fresh sayıp yeni dosyaları indirmeyebilir.
+    for spec in _SOURCES.values():
+        expected = cache_dir / spec["file"].format(year=current_year)
+        if not expected.exists():
+            return True
+    return False
 
 
 def _download_one(

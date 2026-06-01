@@ -26,12 +26,14 @@ def test_is_cache_stale_when_dir_empty(tmp_path: Path) -> None:
 
 
 def test_is_cache_stale_when_current_year_file_fresh(tmp_path: Path) -> None:
-    """Current-year file mtime within max_age_days → not stale."""
+    """All expected files present + canary mtime within max_age_days → not stale."""
     from datetime import datetime
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
     current = datetime.utcnow().year
-    f = tmp_path / f"atp_matches_{current}.csv"
-    f.write_text("header\n", encoding="utf-8")
-    # mtime is now → 0 days old → fresh
+    # Tüm beklenen dosyaları yarat (canary + diğerleri — missing-file fix sonrası gerek).
+    for spec in _SOURCES.values():
+        f = tmp_path / spec["file"].format(year=current)
+        f.write_text("header\n", encoding="utf-8")
     assert is_cache_stale(tmp_path, max_age_days=3) is False
 
 
@@ -84,6 +86,19 @@ def test_sackmann_sources_includes_doubles():
     assert "doubles" in _SOURCES["wta_doubles"]["url"]
 
 
+def test_is_cache_stale_when_expected_file_missing(tmp_path: Path) -> None:
+    """Task 2 fix: canary fresh ama yeni source eklenmiş (doubles) → stale dön."""
+    from datetime import datetime
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
+    current = datetime.utcnow().year
+    # Canary fresh
+    (tmp_path / f"atp_matches_{current}.csv").write_text("h\n", encoding="utf-8")
+    # Ama atp_doubles dosyası YOK → stale dönmeli
+    assert "atp_doubles" in _SOURCES
+    from src.infrastructure.data.sackmann_refresher import is_cache_stale
+    assert is_cache_stale(tmp_path, max_age_days=3) is True
+
+
 def test_refresh_cache_downloads_doubles_files(tmp_path: Path) -> None:
     """Task 2: doubles CSV dosyaları cache'e yazılmalı."""
     http = _mock_http()
@@ -129,10 +144,12 @@ def test_refresh_cache_continues_on_partial_failure(tmp_path: Path) -> None:
 
 
 def test_refresh_if_stale_skips_when_fresh(tmp_path: Path) -> None:
-    """Fresh cache → no downloads, returns False."""
+    """All expected files present + fresh canary → no downloads."""
     from datetime import datetime
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
     current = datetime.utcnow().year
-    (tmp_path / f"atp_matches_{current}.csv").write_text("h\n", encoding="utf-8")
+    for spec in _SOURCES.values():
+        (tmp_path / spec["file"].format(year=current)).write_text("h\n", encoding="utf-8")
     http = _mock_http()
     refreshed = refresh_if_stale(tmp_path, max_age_days=3, http_get=http)
     assert refreshed is False
