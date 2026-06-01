@@ -431,13 +431,14 @@ html, body {
 
 /* Header: title (left) + score & last-updated (right) */
 .calib-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.calib-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.calib-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.02em; }
 .calib-title-text { line-height: 1; }
 .calib-header-right { display: flex; align-items: baseline; gap: 14px; }
 .calib-score-block { display: flex; align-items: baseline; gap: 2px; }
 .calib-score-num { font-family: "Inter", system-ui, sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
 .calib-score-suffix { font-size: 13px; font-weight: 600; color: var(--muted); }
-.calib-updated { font-size: 11px; color: var(--muted); opacity: 0.7; }
+/* Last-calculated date — small, low opacity, sits next to title (like "0.0d" beside PolyAgent) */
+.calib-updated { font-size: 11px; color: var(--muted); opacity: 0.5; font-weight: 400; letter-spacing: 0.01em; margin-left: 6px; }
 
 /* Body: matrix + bins, vertically centered */
 .calib-wide-body { display: grid; grid-template-columns: minmax(440px, 1fr) minmax(380px, 1.2fr); gap: 32px; align-items: center; }

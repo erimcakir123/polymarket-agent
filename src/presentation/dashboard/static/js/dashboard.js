@@ -354,13 +354,16 @@
       } else {
         scoreEl.textContent = "—";
       }
-      // Last updated
+      // Last calculated — format "2 Jun 15:30" (low opacity, beside title)
       const updEl = document.getElementById("calib-updated");
       if (data.last_updated_ts) {
-        const ago = (Date.now() / 1000 - data.last_updated_ts) / 3600;
-        if (ago < 1) updEl.textContent = "Updated just now";
-        else if (ago < 24) updEl.textContent = "Updated " + Math.floor(ago) + "h ago";
-        else updEl.textContent = "Updated " + Math.floor(ago / 24) + "d ago";
+        const d = new Date(data.last_updated_ts * 1000);
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const day = d.getDate();
+        const mon = months[d.getMonth()];
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        updEl.textContent = "Last calculated " + day + " " + mon + " " + hh + ":" + mm;
       } else {
         updEl.textContent = "Not yet computed";
       }
