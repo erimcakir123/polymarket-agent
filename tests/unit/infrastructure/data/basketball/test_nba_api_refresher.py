@@ -61,3 +61,25 @@ def test_fetch_unknown_league_raises_value_error():
         fetch_game_log_via_nba_api(
             league="cricket", season="2024-25", endpoint_factory=MagicMock(),
         )
+
+
+def test_fetch_supports_g_league_with_league_id_20():
+    """Task 4: G League nba_api league_id=20."""
+    fake = MagicMock()
+    fake.return_value.get_dict.return_value = {"resultSets": [{"rowSet": [], "headers": []}]}
+    games = fetch_game_log_via_nba_api(
+        league="g_league", season="2024-25", endpoint_factory=fake,
+    )
+    assert games == []
+    fake.assert_called_once_with(season="2024-25", league_id="20")
+
+
+def test_fetch_supports_summer_league_with_league_id_15():
+    """Task 4: Summer League nba_api league_id=15."""
+    fake = MagicMock()
+    fake.return_value.get_dict.return_value = {"resultSets": [{"rowSet": [], "headers": []}]}
+    games = fetch_game_log_via_nba_api(
+        league="summer_league", season="2024-25", endpoint_factory=fake,
+    )
+    assert games == []
+    fake.assert_called_once_with(season="2024-25", league_id="15")

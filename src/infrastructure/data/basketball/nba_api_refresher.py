@@ -18,7 +18,16 @@ from src.infrastructure.data.basketball.schemas import GameRecord
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_LEAGUES = ("nba", "wnba")
+_SUPPORTED_LEAGUES = ("nba", "wnba", "g_league", "summer_league")
+
+# nba_api league_id mapping (resmi NBA stats convention):
+#   "00" NBA, "10" WNBA, "20" G League, "15" Summer League
+_LEAGUE_ID_MAP: dict[str, str] = {
+    "nba": "00",
+    "wnba": "10",
+    "g_league": "20",
+    "summer_league": "15",
+}
 
 # Dean Oliver possessions katsayısı — FTA'nın olası possessions sayısına katkısı.
 _FTA_POSS_FACTOR = 0.44
@@ -77,7 +86,7 @@ def fetch_game_log_via_nba_api(
     """
     if league not in _SUPPORTED_LEAGUES:
         raise ValueError(f"Unsupported league: {league}")
-    endpoint = endpoint_factory(season=season, league_id="00" if league == "nba" else "10")
+    endpoint = endpoint_factory(season=season, league_id=_LEAGUE_ID_MAP[league])
     payload = endpoint.get_dict()
     rows = _rows_from_payload(payload)
     return list(_pair_and_convert(rows, league))

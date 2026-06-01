@@ -170,6 +170,19 @@ class BasketballConfig(BaseModel):
                 home_advantage=90.0, k_factor=20.0, blend_elo=0.50,
                 margin_std=10.0, total_std=16.0,
             ),
+            # Task 4-6: NBA G League, Summer League, EuroCup
+            "g_league": BasketballLeagueParams(
+                home_advantage=80.0, k_factor=22.0, blend_elo=0.50,
+                margin_std=13.0, total_std=22.0,
+            ),
+            "summer_league": BasketballLeagueParams(
+                home_advantage=70.0, k_factor=30.0, blend_elo=0.45,
+                margin_std=14.0, total_std=22.0,
+            ),
+            "eurocup": BasketballLeagueParams(
+                home_advantage=85.0, k_factor=22.0, blend_elo=0.50,
+                margin_std=10.0, total_std=16.0,
+            ),
         }
     )
 

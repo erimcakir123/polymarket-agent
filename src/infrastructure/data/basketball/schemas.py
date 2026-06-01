@@ -30,7 +30,10 @@ class GameRecord(BaseModel):
     home_possessions: float = Field(gt=0)
     away_possessions: float = Field(gt=0)
     is_final: bool
-    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
+    league: Literal[
+        "nba", "wnba", "ncaab", "wncaab", "euroleague",
+        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+    ]
 
 
 class TeamSnapshot(BaseModel):
@@ -41,7 +44,10 @@ class TeamSnapshot(BaseModel):
     """
 
     team: str = Field(min_length=2, max_length=4)
-    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
+    league: Literal[
+        "nba", "wnba", "ncaab", "wncaab", "euroleague",
+        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+    ]
     elo_rating: float
     elo_games: int = Field(ge=0)
     adj_o: float = Field(gt=0)
@@ -54,7 +60,10 @@ class RefresherResult(BaseModel):
     """Bir refresh çağrısının özet sonucu."""
 
     source: Literal["nba_api", "espn", "euroleague_api"]
-    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
+    league: Literal[
+        "nba", "wnba", "ncaab", "wncaab", "euroleague",
+        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+    ]
     games_fetched: int = Field(ge=0)
     games_persisted: int = Field(ge=0)
     ok: bool
