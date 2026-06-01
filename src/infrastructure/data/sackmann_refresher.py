@@ -61,9 +61,8 @@ _SOURCES: dict[str, dict[str, str]] = {
     # 2026-06-01: Sackmann doubles güncellemesi 2020 sonrası DURMUŞ (resmi).
     # https://github.com/JeffSackmann/tennis_atp: "Doubles updates are temporarily
     # suspended as of late 2020." → 2025+ için kaynak YOK.
-    # Doubles pricer (doubles_pricer.py) ve config dispatch hazır ama veri olmadan
-    # bot doubles maçlarına bahis açamaz (yetki filtresi phi guard zaten elliyor).
-    # Bu source'lar disabled — alternatif kaynak bulunca tekrar aktive edilir.
+    # Doubles pricer kodu dead code olduğu için silindi (2026-06-01).
+    # Alternatif kaynak (TML-Database, SportRadar) bulunduğunda taze yazılır.
 }
 
 
