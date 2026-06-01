@@ -518,7 +518,9 @@ def _maybe_build_basketball_ratings(cfg: AppConfig) -> None:
 
     cache_dir = Path(cfg.basketball.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    fast_build_leagues = {"nba", "wnba"}
+    # Task 9: nba_api destekli liglerin hepsi hızlı bulk build (NBA + WNBA + G League + Summer League).
+    # EuroCup, BSL/ACB/Lega manuel script (scripts/build_basketball_ratings.py --league X).
+    fast_build_leagues = {"nba", "wnba", "g_league", "summer_league"}
 
     for league in enabled:
         cache_path = cache_dir / f"{league}_ratings.json"
