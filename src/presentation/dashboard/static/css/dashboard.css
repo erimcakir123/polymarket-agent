@@ -284,8 +284,7 @@ html, body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--gap);
-  flex: 1;
-  min-height: 0;
+  min-height: 280px;
 }
 
 /* ── Charts ── */
@@ -427,7 +426,7 @@ html, body {
 }
 
 /* === Calibration kartı (full-width, en altta) === */
-.calibration-row { margin-top: 16px; }
+.calibration-row { margin-top: 0; min-height: 360px; }
 .card.calibration-wide { padding: 14px 18px; }
 .card.calibration-wide .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .calib-meta { display: flex; align-items: center; gap: 12px; }
