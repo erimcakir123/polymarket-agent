@@ -50,6 +50,26 @@ _MONEYLINE_TYPES = ("moneyline", "h2h", "")
 # 2026-06-01 kullanıcı kararı: yetkimiz olmayan oyuncuya bahis YOK.
 _MAX_PHI_FOR_TRADE = 100.0
 
+# 2026-06-01 BUG FIX: phi filtresi tek başına yetersiz. ITF'de düzenli
+# oynayan oyuncuların maç sayısı 30+, phi düşük → "güvenilir" sayıldı
+# ama lig kalitesi düşük (Sackmann ITF/Challenger için %50-60 doğruluk).
+# Polymarket slug prefix ile düşük-tier turnuvaları ELE.
+_LOW_TIER_SLUG_PREFIXES = ("itf-", "challenger-", "futures-")
+# Question metninde geçerse low-tier — bazen Polymarket slug "atp-" / "wta-"
+# yazıp question'da gerçek tier'ı belirtiyor.
+_LOW_TIER_QUESTION_KEYWORDS = (
+    "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
+)
+
+
+def _is_low_tier_tennis(slug: str, question: str) -> bool:
+    """ITF/Challenger/Futures market'i mi? Yetki dışı."""
+    s = (slug or "").lower()
+    if any(s.startswith(p) for p in _LOW_TIER_SLUG_PREFIXES):
+        return True
+    q = question or ""
+    return any(k in q for k in _LOW_TIER_QUESTION_KEYWORDS)
+
 
 def _infer_best_of(question: str) -> int:
     q_low = (question or "").lower()
@@ -159,6 +179,15 @@ def enrich_with_tennis_dispatch(
     sport = (market.sport_tag or "").lower()
     if sport != "tennis":
         return bookmaker_enricher(market)
+
+    # YETKİ FİLTRESİ (2026-06-01 bug fix): ITF/Challenger/Futures → SUS.
+    # phi tek başına yetersizdi (ITF düzenli oyuncuların maç sayısı yüksek
+    # ama lig kalitesi düşük). Slug + question keyword bazlı filtre.
+    if _is_low_tier_tennis(market.slug or "", market.question or ""):
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
+        )
 
     market_type = _infer_market_type(market)
     is_moneyline = market_type in _MONEYLINE_TYPES
