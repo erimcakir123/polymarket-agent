@@ -32,7 +32,7 @@ class GameRecord(BaseModel):
     is_final: bool
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
-        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+        "g_league", "summer_league", "eurocup",
     ]
 
 
@@ -46,7 +46,7 @@ class TeamSnapshot(BaseModel):
     team: str = Field(min_length=2, max_length=4)
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
-        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+        "g_league", "summer_league", "eurocup",
     ]
     elo_rating: float
     elo_games: int = Field(ge=0)
@@ -62,7 +62,7 @@ class RefresherResult(BaseModel):
     source: Literal["nba_api", "espn", "euroleague_api"]
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
-        "g_league", "summer_league", "eurocup", "bsl", "acb", "lega",
+        "g_league", "summer_league", "eurocup",
     ]
     games_fetched: int = Field(ge=0)
     games_persisted: int = Field(ge=0)

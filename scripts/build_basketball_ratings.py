@@ -65,7 +65,11 @@ def _fetch_espn_college(league: str) -> list[GameRecord]:
 
 
 def _fetch_euroleague(league: str) -> list[GameRecord]:
-    """Euroleague + EuroCup — euroleague-api opsiyonel, paket yoksa boş."""
+    """Euroleague + EuroCup — euroleague-api opsiyonel, paket yoksa boş.
+
+    Gerçek API: GameStats(competition='E') constructor + get_game_stats_single_season(season=).
+    Refresher endpoint_factory pattern: factory(season, competition_code) → has .get_game_stats().
+    """
     try:
         from euroleague_api.game_stats import GameStats  # noqa: PLC0415
     except ImportError:
@@ -76,33 +80,26 @@ def _fetch_euroleague(league: str) -> list[GameRecord]:
     )
     current = datetime.now(timezone.utc).year
     season = str(current - 1)
+
+    class _Adapter:
+        """Refresher'ın beklediği .get_game_stats() interface — gerçek API'ye sarmal."""
+        def __init__(self, competition_code: str, season_int: int) -> None:
+            self._gs = GameStats(competition=competition_code)
+            self._season = season_int
+
+        def get_game_stats(self) -> list[dict]:
+            df = self._gs.get_game_stats_single_season(season=self._season)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+
     return fetch_game_log_via_euroleague_api(
         season=season,
-        endpoint_factory=lambda **kw: GameStats(season=int(kw["season"])),
+        endpoint_factory=lambda season, competition_code: _Adapter(
+            competition_code=competition_code, season_int=int(season),
+        ),
         competition=league,
     )
-
-
-def _fetch_brscraper_european(league: str) -> list[GameRecord]:
-    """BSL/ACB/Lega — BRScraper opsiyonel, paket yoksa boş."""
-    try:
-        import BRScraper  # noqa: PLC0415, F401
-    except ImportError:
-        logger.warning("BRScraper paketi yüklü değil — %s skip", league)
-        return []
-    from src.infrastructure.data.basketball.brscraper_refresher import (  # noqa: PLC0415
-        fetch_european_league_games,
-    )
-    current = datetime.now(timezone.utc).year
-    season = f"{current - 1}-{current % 100:02d}"
-
-    def _fetcher(lg: str, sn: str) -> list[dict]:
-        # BRScraper API wrapper — gerçek paket installed olunca burada
-        # BRScraper.NBA.get_box_scores benzeri çağrı yapılır.
-        # Şu an placeholder: paket yüklü değil senaryosu fail-safe boş döner.
-        return []
-
-    return fetch_european_league_games(league=league, season=season, fetcher=_fetcher)
 
 
 _FETCHERS = {
@@ -117,10 +114,6 @@ _FETCHERS = {
     # euroleague-api (Avrupa #1 + #2)
     "euroleague": _fetch_euroleague,
     "eurocup": _fetch_euroleague,
-    # BRScraper Avrupa yerel ligler
-    "bsl": _fetch_brscraper_european,
-    "acb": _fetch_brscraper_european,
-    "lega": _fetch_brscraper_european,
 }
 
 

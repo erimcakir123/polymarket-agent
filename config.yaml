@@ -262,13 +262,13 @@ basketball:
     - ncaab
     - wncaab
     - euroleague
-    # 2026-06-01 yetki genişletme — Task 4-8 yeni ligler:
+    # 2026-06-01 yetki genişletme — gerçek veri kaynağı doğrulanan ligler:
     - g_league       # NBA gelişim ligi (yaz aktif, nba_api)
     - summer_league  # NBA yaz ligi (temmuz aktif, nba_api)
     - eurocup        # Avrupa #2 lig (euroleague-api built-in)
-    - bsl            # Türkiye basketbol (BRScraper, scrape)
-    - acb            # İspanya basketbol (BRScraper, scrape)
-    - lega           # İtalya basketbol (BRScraper, scrape)
+    # NOT: bsl/acb/lega kapsam dışı — BRScraper Python paketi gerçek European
+    # league scraper sağlamıyor, placeholder return [] dönerdi. Veri kaynağı
+    # bulunduğunda tekrar aktive edilir.
   cache_dir: data/basketball_cache
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
@@ -322,24 +322,6 @@ basketball:
       total_std: 22.0
     eurocup:
       home_advantage: 85.0   # Euroleague benzeri, hafif düşük
-      k_factor: 22.0
-      blend_elo: 0.50
-      margin_std: 10.0
-      total_std: 16.0
-    bsl:
-      home_advantage: 95.0   # Türkiye seyirci tutkulu, ev avantajı yüksek
-      k_factor: 22.0
-      blend_elo: 0.50
-      margin_std: 11.0
-      total_std: 17.0
-    acb:
-      home_advantage: 90.0
-      k_factor: 22.0
-      blend_elo: 0.50
-      margin_std: 10.0
-      total_std: 16.0
-    lega:
-      home_advantage: 90.0
       k_factor: 22.0
       blend_elo: 0.50
       margin_std: 10.0

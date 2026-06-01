@@ -38,8 +38,9 @@ def test_eurocup_routes_to_basketball_model():
     assert _select_enricher_for_sport("eurocup") == "basketball_model"
 
 
-def test_bsl_acb_lega_route_to_basketball_model():
+def test_bsl_acb_lega_route_to_bookmaker():
+    """2026-06-01: BRScraper placeholder kaldırıldı — bu ligler bookmaker'a düşer."""
     from src.orchestration.factory import _select_enricher_for_sport
-    assert _select_enricher_for_sport("bsl") == "basketball_model"
-    assert _select_enricher_for_sport("acb") == "basketball_model"
-    assert _select_enricher_for_sport("lega") == "basketball_model"
+    assert _select_enricher_for_sport("bsl") == "bookmaker"
+    assert _select_enricher_for_sport("acb") == "bookmaker"
+    assert _select_enricher_for_sport("lega") == "bookmaker"
