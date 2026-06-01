@@ -58,16 +58,12 @@ _SOURCES: dict[str, dict[str, str]] = {
         "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_qual_itf_{year}.csv",
         "file": "wta_futures_{year}.csv",
     },
-    # Task 2 (2026-06-01): Doubles maçları — Wimbledon Doubles, Roland Garros Doubles
-    # gibi Grand Slam doubles market'leri için. Pricer src/domain/pricing/tennis/doubles_pricer.py.
-    "atp_doubles": {
-        "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_doubles_{year}.csv",
-        "file": "atp_matches_doubles_{year}.csv",
-    },
-    "wta_doubles": {
-        "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_doubles_{year}.csv",
-        "file": "wta_matches_doubles_{year}.csv",
-    },
+    # 2026-06-01: Sackmann doubles güncellemesi 2020 sonrası DURMUŞ (resmi).
+    # https://github.com/JeffSackmann/tennis_atp: "Doubles updates are temporarily
+    # suspended as of late 2020." → 2025+ için kaynak YOK.
+    # Doubles pricer (doubles_pricer.py) ve config dispatch hazır ama veri olmadan
+    # bot doubles maçlarına bahis açamaz (yetki filtresi phi guard zaten elliyor).
+    # Bu source'lar disabled — alternatif kaynak bulunca tekrar aktive edilir.
 }
 
 

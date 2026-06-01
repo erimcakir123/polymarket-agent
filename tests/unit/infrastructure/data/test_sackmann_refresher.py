@@ -77,34 +77,28 @@ def test_refresh_cache_downloads_all_categories(tmp_path: Path) -> None:
     assert (tmp_path / "wta_futures_2026.csv").exists()
 
 
-def test_sackmann_sources_includes_doubles():
-    """Task 2: Doubles CSV (atp_doubles, wta_doubles) _SOURCES dict'inde tanımlı."""
+def test_sackmann_doubles_disabled_2020_suspended():
+    """2026-06-01: Sackmann doubles güncellemesi 2020 sonrası DURMUŞ.
+
+    Doubles source _SOURCES'tan kaldırıldı. Doubles pricer + dispatch wiring
+    kod olarak korunur (alternatif kaynak bulunduğunda aktive edilir).
+    """
     from src.infrastructure.data.sackmann_refresher import _SOURCES
-    assert "atp_doubles" in _SOURCES
-    assert "wta_doubles" in _SOURCES
-    assert "doubles" in _SOURCES["atp_doubles"]["url"]
-    assert "doubles" in _SOURCES["wta_doubles"]["url"]
+    assert "atp_doubles" not in _SOURCES
+    assert "wta_doubles" not in _SOURCES
 
 
 def test_is_cache_stale_when_expected_file_missing(tmp_path: Path) -> None:
-    """Task 2 fix: canary fresh ama yeni source eklenmiş (doubles) → stale dön."""
+    """Missing-file detection: bir source dosyası yoksa stale dön."""
     from datetime import datetime
     from src.infrastructure.data.sackmann_refresher import _SOURCES
     current = datetime.utcnow().year
-    # Canary fresh
+    # Sadece canary yarat (atp_main), diğerleri YOK → stale
     (tmp_path / f"atp_matches_{current}.csv").write_text("h\n", encoding="utf-8")
-    # Ama atp_doubles dosyası YOK → stale dönmeli
-    assert "atp_doubles" in _SOURCES
+    # Diğer source'lar mevcut olmalı (en az 3 var)
+    assert len(_SOURCES) >= 3
     from src.infrastructure.data.sackmann_refresher import is_cache_stale
     assert is_cache_stale(tmp_path, max_age_days=3) is True
-
-
-def test_refresh_cache_downloads_doubles_files(tmp_path: Path) -> None:
-    """Task 2: doubles CSV dosyaları cache'e yazılmalı."""
-    http = _mock_http()
-    refresh_cache(tmp_path, years=[2026], http_get=http)
-    assert (tmp_path / "atp_matches_doubles_2026.csv").exists()
-    assert (tmp_path / "wta_matches_doubles_2026.csv").exists()
 
 
 def test_refresh_cache_atomic_write_skips_partial_on_error(tmp_path: Path) -> None:
