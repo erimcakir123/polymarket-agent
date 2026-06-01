@@ -152,19 +152,25 @@
       <!-- Calibration row (full-width, matrix left + info right) -->
       <section class="calibration-row">
         <div class="card calibration-wide">
-          <div class="panel-header">
-            <span><span class="card-icon">🎯</span> Model Doğruluğu</span>
-            <span class="calib-meta">
-              <span class="calib-score-inline"><span id="calib-score">—</span>/100</span>
+          <div class="calib-header">
+            <div class="calib-title">
+              <span class="card-icon">🎯</span>
+              <span class="calib-title-text">Model Accuracy</span>
+            </div>
+            <div class="calib-header-right">
+              <div class="calib-score-block">
+                <span class="calib-score-num" id="calib-score">—</span>
+                <span class="calib-score-suffix">/100</span>
+              </div>
               <span class="calib-updated" id="calib-updated"></span>
-            </span>
+            </div>
           </div>
           <div class="calib-wide-body">
             <div class="calib-matrix-wrap">
-              <canvas id="calib-matrix" width="480" height="320"></canvas>
+              <canvas id="calib-matrix" width="520" height="360"></canvas>
             </div>
             <div class="calib-bins" id="calib-bins">
-              <div class="calib-empty">Yetersiz veri — ilk eğri için trade biriksin</div>
+              <div class="calib-empty">Not enough data — waiting for trades to resolve</div>
             </div>
           </div>
         </div>

@@ -354,45 +354,67 @@
       } else {
         scoreEl.textContent = "—";
       }
-      // Son güncelleme
+      // Last updated
       const updEl = document.getElementById("calib-updated");
       if (data.last_updated_ts) {
         const ago = (Date.now() / 1000 - data.last_updated_ts) / 3600;
-        if (ago < 1) updEl.textContent = "(az önce)";
-        else if (ago < 24) updEl.textContent = "(" + Math.floor(ago) + " saat önce)";
-        else updEl.textContent = "(" + Math.floor(ago / 24) + " gün önce)";
+        if (ago < 1) updEl.textContent = "Updated just now";
+        else if (ago < 24) updEl.textContent = "Updated " + Math.floor(ago) + "h ago";
+        else updEl.textContent = "Updated " + Math.floor(ago / 24) + "d ago";
       } else {
-        updEl.textContent = "(henüz)";
+        updEl.textContent = "Not yet computed";
       }
       // Bin satırları — YETERSIZ VERIDE DE iskelet göster, bar'lar dolar
       const binsEl = document.getElementById("calib-bins");
+      // English labels mapping
+      const LABELS = {
+        underdog:     "Underdog call",
+        hafif_favori: "Slight favorite",
+        net_favori:   "Clear favorite",
+        ezici_favori: "Heavy favorite",
+      };
+      const NOTES = {
+        "Dogru tahmin": "On target",
+        "Henuz veri yok": "Awaiting data",
+      };
+
       binsEl.innerHTML = data.bins.map((b) => {
+        const label = LABELS[b.bin] || b.label;
         if (b.status === "pending") {
-          // İskelet: bin label + bar (boş) + "X/10 trade" alt yazı
           const progressPct = Math.min(100, (b.n / data.min_trades_per_bin) * 100);
           return '<div class="calib-bin pending">' +
             '<div class="calib-bin-row">' +
-              '<span class="calib-bin-label">' + b.label + ' <span class="calib-bin-range">(%' + b.range_pct + ')</span></span>' +
-              '<span class="calib-bin-note">' + b.note + '</span>' +
+              '<span class="calib-bin-label">' + label +
+                ' <span class="calib-bin-range">(' + b.range_pct + '%)</span></span>' +
+              '<span class="calib-bin-note">' + b.n + '/' + data.min_trades_per_bin + ' trades</span>' +
             '</div>' +
             '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + progressPct + '%"></div></div>' +
-            '<div class="calib-bin-detail">Henüz tahmin doğrulanmadı</div>' +
+            '<div class="calib-bin-detail">Waiting for predictions to resolve</div>' +
           '</div>';
         }
-        const icon = b.status === "green" ? "✓" : b.status === "yellow" ? "⚠" : "✗";
+        const icon = b.status === "green" ? "●" : b.status === "yellow" ? "●" : "●";
+        let note = b.note.replace("Dogru tahmin", "On target")
+          .replace(/(\d+) puan iyimser — buyuk sapma/, "$1pp optimistic — large gap")
+          .replace(/(\d+) puan temkinli — buyuk sapma/, "$1pp cautious — large gap")
+          .replace(/(\d+) puan iyimser/, "$1pp optimistic")
+          .replace(/(\d+) puan temkinli/, "$1pp cautious");
         const predictedPct = Math.min(100, Math.max(0, b.predicted_pct));
         const actualPct = Math.min(100, Math.max(0, b.actual_pct));
         return '<div class="calib-bin ' + b.status + '">' +
           '<div class="calib-bin-row">' +
-            '<span class="calib-bin-label">' + b.label + '</span>' +
-            '<span class="calib-bin-note">' + icon + ' ' + b.note + '</span>' +
+            '<span class="calib-bin-label">' + label +
+              ' <span class="calib-bin-range">(' + b.range_pct + '%)</span></span>' +
+            '<span class="calib-bin-note">' + icon + ' ' + note + '</span>' +
           '</div>' +
           '<div class="calib-double-bar">' +
-            '<div class="calib-bar"><div class="calib-bar-fill predicted" style="width:' + predictedPct + '%"></div></div>' +
-            '<div class="calib-bar"><div class="calib-bar-fill actual" style="width:' + actualPct + '%"></div></div>' +
+            '<div class="calib-bar-row"><span class="calib-bar-name">Predicted</span>' +
+              '<div class="calib-bar"><div class="calib-bar-fill predicted" style="width:' + predictedPct + '%"></div></div>' +
+              '<span class="calib-bar-val">' + b.predicted_pct + '%</span></div>' +
+            '<div class="calib-bar-row"><span class="calib-bar-name">Actual</span>' +
+              '<div class="calib-bar"><div class="calib-bar-fill actual" style="width:' + actualPct + '%"></div></div>' +
+              '<span class="calib-bar-val">' + b.actual_pct + '%</span></div>' +
           '</div>' +
-          '<div class="calib-bin-detail">Model dedi <strong>%' + b.predicted_pct +
-            '</strong> → Gerçek <strong>%' + b.actual_pct + '</strong> (' + b.n + ' trade)</div>' +
+          '<div class="calib-bin-detail">' + b.n + ' trades</div>' +
           '</div>';
       }).join("");
     },
@@ -403,23 +425,29 @@
     const canvas = document.getElementById("calib-matrix");
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    const W = canvas.clientWidth || 480;
-    const H = canvas.clientHeight || 320;
+    const W = canvas.clientWidth || 520;
+    const H = canvas.clientHeight || 360;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
-    const padL = 44, padR = 16, padT = 18, padB = 36;
+    // Generous spacing for hierarchy
+    const padL = 62, padR = 24, padT = 32, padB = 56;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
 
-    // Eksen ve grid
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    const FONT_AXIS = '11px "Inter", system-ui, sans-serif';
+    const FONT_TICK = '10.5px "Inter", system-ui, sans-serif';
+    const FONT_LEGEND = '10px "Inter", system-ui, sans-serif';
+    const FONT_LABEL = 'bold 10px "Inter", system-ui, sans-serif';
+
+    // Grid + ticks
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
     ctx.lineWidth = 1;
-    ctx.font = "11px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.font = FONT_TICK;
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
     for (let i = 0; i <= 4; i++) {
       const pct = i * 25;
       const x = padL + (i / 4) * plotW;
@@ -431,33 +459,37 @@
       ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y);
       ctx.stroke();
       ctx.textAlign = "center";
-      ctx.fillText("%" + pct, x, padT + plotH + 14);
+      ctx.fillText(pct + "%", x, padT + plotH + 18);
       ctx.textAlign = "right";
-      ctx.fillText("%" + pct, padL - 6, y + 3);
+      ctx.fillText(pct + "%", padL - 10, y + 4);
     }
 
-    // İdeal çizgi (diagonal)
-    ctx.strokeStyle = "rgba(120, 180, 255, 0.5)";
-    ctx.setLineDash([4, 4]);
+    // Ideal diagonal line
+    ctx.strokeStyle = "rgba(96, 165, 250, 0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
     ctx.beginPath();
     ctx.moveTo(padL, padT + plotH);
     ctx.lineTo(padL + plotW, padT);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Eksen etiketleri
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "11px sans-serif";
+    // Axis labels — well-spaced from ticks
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = FONT_AXIS;
     ctx.textAlign = "center";
-    ctx.fillText("Model tahmini", padL + plotW / 2, H - 8);
+    ctx.fillText("Predicted probability", padL + plotW / 2, H - 14);
     ctx.save();
-    ctx.translate(12, padT + plotH / 2);
+    ctx.translate(18, padT + plotH / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText("Gerçek kazanma", 0, 0);
+    ctx.fillText("Actual win rate", 0, 0);
     ctx.restore();
 
-    // Bin merkezleri (predicted = bin orta, actual = data)
-    const colors = { green: "#4ade80", yellow: "#fbbf24", red: "#f87171", pending: "rgba(255,255,255,0.3)" };
+    // Bin dots
+    const colors = {
+      green: "#4ade80", yellow: "#fbbf24", red: "#f87171",
+      pending: "rgba(255,255,255,0.3)",
+    };
     data.bins.forEach((b) => {
       const lo = parseInt(b.range_pct.split("-")[0]);
       const hi = parseInt(b.range_pct.split("-")[1]);
@@ -466,26 +498,31 @@
       const x = padL + (predicted / 100) * plotW;
       const y = padT + plotH - (actual / 100) * plotH;
       const isPending = b.status === "pending";
-      const r = isPending ? 6 : 8 + Math.min(6, b.n / 5);
+      const r = isPending ? 7 : 9 + Math.min(7, b.n / 5);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = colors[b.status] || colors.pending;
-      ctx.globalAlpha = isPending ? 0.4 : 0.9;
+      ctx.globalAlpha = isPending ? 0.35 : 0.92;
       ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
       ctx.globalAlpha = 1;
-      if (!isPending) {
-        ctx.fillStyle = "rgba(0,0,0,0.7)";
-        ctx.font = "bold 10px sans-serif";
+      if (!isPending && b.n >= 10) {
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.font = FONT_LABEL;
         ctx.textAlign = "center";
-        ctx.fillText(b.n, x, y + 3);
+        ctx.textBaseline = "middle";
+        ctx.fillText(b.n, x, y);
+        ctx.textBaseline = "alphabetic";
       }
     });
 
-    // Legend (sol üst köşe)
-    ctx.font = "10px sans-serif";
+    // Legend — top, well-spaced
+    ctx.font = FONT_LEGEND;
     ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.fillText("─ ─ İdeal (model = gerçek)", padL + 6, padT + 12);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillText("- - -  Ideal calibration (model = actual)", padL + 4, padT - 12);
   }
 
   // ── Session start (topbar opasite 0.6) ──

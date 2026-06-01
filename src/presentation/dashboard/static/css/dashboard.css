@@ -425,41 +425,57 @@ html, body {
 }
 
 /* === Calibration kartı (full-width, en altta) === */
-.calibration-row { margin-top: 0; min-height: 360px; }
-.card.calibration-wide { padding: 14px 18px; }
-.card.calibration-wide .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.calib-meta { display: flex; align-items: center; gap: 12px; }
-.calib-score-inline { font-size: 1.1rem; font-weight: 700; color: var(--text-strong); }
-.calib-updated { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
-.calib-wide-body { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(360px, 1.2fr); gap: 24px; align-items: center; }
-.calib-matrix-wrap { background: var(--bg-card); border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; min-height: 320px; }
+/* Layout: section spacing + card matches metric card system */
+.calibration-row { margin-top: 0; }
+.card.calibration-wide { padding: 18px 20px; gap: 16px; min-height: 0; }
+
+/* Header: title (left) + score & last-updated (right) */
+.calib-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.calib-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.calib-title-text { line-height: 1; }
+.calib-header-right { display: flex; align-items: baseline; gap: 14px; }
+.calib-score-block { display: flex; align-items: baseline; gap: 2px; }
+.calib-score-num { font-family: "Inter", system-ui, sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+.calib-score-suffix { font-size: 13px; font-weight: 600; color: var(--muted); }
+.calib-updated { font-size: 11px; color: var(--muted); opacity: 0.7; }
+
+/* Body: matrix + bins, vertically centered */
+.calib-wide-body { display: grid; grid-template-columns: minmax(440px, 1fr) minmax(380px, 1.2fr); gap: 32px; align-items: center; }
+.calib-matrix-wrap { display: flex; align-items: center; justify-content: center; min-height: 360px; padding: 0; background: transparent; }
 .calib-matrix-wrap canvas { max-width: 100%; height: auto; }
-.calib-bins { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
-.calib-empty { font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 24px 8px; line-height: 1.5; }
-.calib-bin { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-soft); }
-.calib-bin.green { border-left: 3px solid var(--green); }
-.calib-bin.yellow { border-left: 3px solid var(--orange); }
-.calib-bin.red { border-left: 3px solid var(--red); }
-.calib-bin.pending { border-left: 3px solid var(--text-muted); opacity: 0.85; }
-.calib-bin-row { display: flex; justify-content: space-between; align-items: center; }
-.calib-bin-label { font-size: 0.78rem; color: var(--text-strong); font-weight: 500; }
-.calib-bin-note { font-size: 0.72rem; }
-.calib-bin.green .calib-bin-note { color: var(--green); }
-.calib-bin.yellow .calib-bin-note { color: var(--orange); }
-.calib-bin.red .calib-bin-note { color: var(--red); }
-.calib-bin.pending .calib-bin-note { color: var(--text-muted); font-style: italic; }
-.calib-bin-range { color: var(--text-muted); font-weight: 400; font-size: 0.7rem; }
-.calib-bar { margin-top: 4px; height: 5px; background: var(--border-soft); border-radius: 3px; overflow: hidden; }
+
+/* Bins list: spacious hierarchy */
+.calib-bins { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+.calib-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 32px 8px; line-height: 1.5; }
+
+.calib-bin { padding: 12px 14px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); }
+.calib-bin.green   { border-left: 2px solid var(--green); }
+.calib-bin.yellow  { border-left: 2px solid var(--orange); }
+.calib-bin.red     { border-left: 2px solid var(--red); }
+.calib-bin.pending { border-left: 2px solid rgba(255,255,255,0.15); }
+
+/* Bin row 1: label + note */
+.calib-bin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.calib-bin-label { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+.calib-bin-range { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 4px; opacity: 0.75; }
+.calib-bin-note { font-size: 11px; font-weight: 500; white-space: nowrap; }
+.calib-bin.green .calib-bin-note    { color: var(--green); }
+.calib-bin.yellow .calib-bin-note   { color: var(--orange); }
+.calib-bin.red .calib-bin-note      { color: var(--red); }
+.calib-bin.pending .calib-bin-note  { color: var(--muted); opacity: 0.65; font-weight: 400; }
+
+/* Bin row 2: dual bars (predicted + actual) with labels */
+.calib-double-bar { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; }
+.calib-bar-row { display: grid; grid-template-columns: 64px 1fr 40px; gap: 8px; align-items: center; }
+.calib-bar-name { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; opacity: 0.75; }
+.calib-bar-val { font-size: 11px; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.calib-bar { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
 .calib-bar-fill { height: 100%; transition: width 0.4s ease; border-radius: 3px; }
-.calib-bin.green .calib-bar-fill { background: var(--green); }
-.calib-bin.yellow .calib-bar-fill { background: var(--orange); }
-.calib-bin.red .calib-bar-fill { background: var(--red); }
-.calib-bin.pending .calib-bar-fill { background: var(--text-muted); opacity: 0.5; }
-.calib-double-bar { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.calib-double-bar .calib-bar { margin-top: 0; }
-.calib-bar-fill.predicted { background: var(--text-muted); opacity: 0.6; }
-.calib-bin.green .calib-bar-fill.actual { background: var(--green); opacity: 1; }
-.calib-bin.yellow .calib-bar-fill.actual { background: var(--orange); opacity: 1; }
-.calib-bin.red .calib-bar-fill.actual { background: var(--red); opacity: 1; }
-.calib-bin-detail { font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; line-height: 1.3; }
-.calib-bin-detail strong { color: var(--text-strong); font-weight: 600; }
+.calib-bar-fill.predicted { background: rgba(255,255,255,0.35); }
+.calib-bin.green .calib-bar-fill.actual    { background: var(--green); }
+.calib-bin.yellow .calib-bar-fill.actual   { background: var(--orange); }
+.calib-bin.red .calib-bar-fill.actual      { background: var(--red); }
+.calib-bin.pending .calib-bar-fill         { background: rgba(255,255,255,0.18); }
+
+/* Bin detail (footer) */
+.calib-bin-detail { font-size: 11px; color: var(--muted); margin-top: 6px; opacity: 0.65; }
