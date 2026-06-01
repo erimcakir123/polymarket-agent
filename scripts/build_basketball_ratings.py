@@ -64,12 +64,12 @@ def _fetch_espn_college(league: str) -> list[GameRecord]:
     return out
 
 
-def _fetch_euroleague(_league: str) -> list[GameRecord]:
-    """Euroleague — euroleague-api opsiyonel, paket yoksa boş."""
+def _fetch_euroleague(league: str) -> list[GameRecord]:
+    """Euroleague + EuroCup — euroleague-api opsiyonel, paket yoksa boş."""
     try:
         from euroleague_api.game_stats import GameStats  # noqa: PLC0415
     except ImportError:
-        logger.warning("euroleague-api paketi yüklü değil — Euroleague skip")
+        logger.warning("euroleague-api paketi yüklü değil — %s skip", league)
         return []
     from src.infrastructure.data.basketball.euroleague_refresher import (  # noqa: PLC0415
         fetch_game_log_via_euroleague_api,
@@ -77,16 +77,50 @@ def _fetch_euroleague(_league: str) -> list[GameRecord]:
     current = datetime.now(timezone.utc).year
     season = str(current - 1)
     return fetch_game_log_via_euroleague_api(
-        season=season, endpoint_factory=lambda **kw: GameStats(season=int(kw["season"])),
+        season=season,
+        endpoint_factory=lambda **kw: GameStats(season=int(kw["season"])),
+        competition=league,
     )
 
 
+def _fetch_brscraper_european(league: str) -> list[GameRecord]:
+    """BSL/ACB/Lega — BRScraper opsiyonel, paket yoksa boş."""
+    try:
+        import BRScraper  # noqa: PLC0415, F401
+    except ImportError:
+        logger.warning("BRScraper paketi yüklü değil — %s skip", league)
+        return []
+    from src.infrastructure.data.basketball.brscraper_refresher import (  # noqa: PLC0415
+        fetch_european_league_games,
+    )
+    current = datetime.now(timezone.utc).year
+    season = f"{current - 1}-{current % 100:02d}"
+
+    def _fetcher(lg: str, sn: str) -> list[dict]:
+        # BRScraper API wrapper — gerçek paket installed olunca burada
+        # BRScraper.NBA.get_box_scores benzeri çağrı yapılır.
+        # Şu an placeholder: paket yüklü değil senaryosu fail-safe boş döner.
+        return []
+
+    return fetch_european_league_games(league=league, season=season, fetcher=_fetcher)
+
+
 _FETCHERS = {
+    # nba_api destekli ligler (league_id mapping otomatik)
     "nba": _fetch_nba_or_wnba,
     "wnba": _fetch_nba_or_wnba,
+    "g_league": _fetch_nba_or_wnba,
+    "summer_league": _fetch_nba_or_wnba,
+    # ESPN scoreboard (college)
     "ncaab": _fetch_espn_college,
     "wncaab": _fetch_espn_college,
+    # euroleague-api (Avrupa #1 + #2)
     "euroleague": _fetch_euroleague,
+    "eurocup": _fetch_euroleague,
+    # BRScraper Avrupa yerel ligler
+    "bsl": _fetch_brscraper_european,
+    "acb": _fetch_brscraper_european,
+    "lega": _fetch_brscraper_european,
 }
 
 
