@@ -440,13 +440,13 @@ html, body {
 /* Last-calculated date — small, low opacity, sits next to title (like "0.0d" beside PolyAgent) */
 .calib-updated { font-size: 11px; color: var(--muted); opacity: 0.5; font-weight: 400; letter-spacing: 0.01em; margin-left: 6px; }
 
-/* Body: matrix (larger, takes ~60% width) + bins (compact list ~40%) */
-.calib-wide-body { display: grid; grid-template-columns: minmax(460px, 1.5fr) minmax(280px, 1fr); gap: 28px; align-items: center; }
+/* Body: matrix (slightly larger) + bins (comfortable list, capped width) */
+.calib-wide-body { display: grid; grid-template-columns: minmax(460px, 1.2fr) minmax(360px, 1fr); gap: 30px; align-items: center; }
 .calib-matrix-wrap { display: flex; align-items: center; justify-content: center; min-height: 360px; padding: 0; background: transparent; }
 .calib-matrix-wrap canvas { max-width: 100%; height: auto; }
 
-/* Bins list: spacious hierarchy, capped width */
-.calib-bins { display: flex; flex-direction: column; gap: 10px; justify-content: center; max-width: 420px; }
+/* Bins list: spacious hierarchy, capped width to avoid stretching */
+.calib-bins { display: flex; flex-direction: column; gap: 10px; justify-content: center; max-width: 480px; }
 .calib-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 32px 8px; line-height: 1.5; }
 
 /* Filled bins match .feed-item card style (panel-raised bg + color marker on left).
