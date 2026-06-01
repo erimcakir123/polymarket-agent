@@ -95,6 +95,16 @@
   text-decoration: none;
 }
 
+/* 2026-06-01: force-close ALARM — kullanıcı manuel review yapsın.
+   Otomatik exit YOK; sadece görsel uyarı + Telegram bildirimi. */
+.feed-item-alert {
+  border: 2px solid #ff4d5e;
+  box-shadow: 0 0 8px rgba(255, 77, 94, 0.4);
+}
+.feed-item-alert:hover {
+  box-shadow: 0 0 12px rgba(255, 77, 94, 0.6);
+}
+
 .feed-item:hover .feed-market {
   color: var(--blue);
 }

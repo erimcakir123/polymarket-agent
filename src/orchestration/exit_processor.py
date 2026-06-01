@@ -12,10 +12,7 @@ from src.domain.portfolio.lifecycle import tick_position_state
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.orchestration import operational_writers
-from src.orchestration.force_close_executor import (
-    ForceCloseExecutor,
-    reason_to_exit_reason,
-)
+from src.orchestration.force_close_executor import ForceCloseExecutor
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit import polymarket_resolution
 from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResult
@@ -34,6 +31,12 @@ class ExitProcessor:
             espn_client=getattr(deps, "espn_client", None),
             executor=deps.executor,
         )
+        # 2026-06-01: force-close artık otomatik exit YAPMAZ — alarm + manuel review.
+        # Tek seferlik Telegram + dashboard kırmızı border (alert store flag).
+        from src.infrastructure.persistence.force_close_alerts import (  # noqa: PLC0415
+            ForceCloseAlertStore,
+        )
+        self._fc_alerts = ForceCloseAlertStore()
         # 2026-05-28: Polymarket resolution detector — light tick sayaci per pozisyon.
         # Her N tick'te bir gamma'ya sorgu; N=0 → devre disi. gamma_client deps'te
         # yoksa feature sessizce kapali (backwards-compat).
@@ -83,14 +86,15 @@ class ExitProcessor:
                 # Hiç fill olmadıysa (ana botta şu an için simulated her zaman FILLED)
                 # force-close safety net'i aşağıda çalıştır — pozisyon hâlâ açık demek.
 
-            # Force-close safety net (SPEC-force-close 2026-05-27) — deep-loss
-            # pozisyon + maç bitti senaryosu. ForceCloseExecutor pure-check döner,
-            # tetiklenirse aşağıda fill + finalize.
+            # Force-close ALARM (kullanıcı kararı 2026-06-01):
+            # Otomatik exit YAPILMAZ — sadece tek seferlik Telegram bildirimi
+            # + dashboard'da kırmızı border. Kullanıcı manuel karar verir.
+            # ForceCloseExecutor.check() hâlâ eşik testini yapar (deep-loss + timeout),
+            # signal varsa _emit_force_close_alert tetiklenir (no-op exit).
             timeouts = self.deps.state.config.risk.force_close_timeouts
             fc_signal = self._force_close.check(pos, timeouts)
             if fc_signal is not None:
-                self._execute_force_close(pos, fc_signal)
-                exits_processed += 1
+                self._emit_force_close_alert(pos, fc_signal)
 
         if exits_processed > 0:
             self.deps.cycle_manager.signal_exit_happened()
@@ -226,37 +230,49 @@ class ExitProcessor:
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], exit_reason_value, realized, detail)
 
-    def _execute_force_close(self, pos: Position, signal) -> None:
-        """Force-close execution — bid book walk full slippage bypass.
+    def _emit_force_close_alert(self, pos: Position, signal) -> None:
+        """Force-close eşik geçti — ALARM ÜRET, otomatik exit YAPMA.
 
-        Bid varsa: realize @ avg_price (FORCE_CLOSE_ESPN veya FORCE_CLOSE_TIME).
-        Bid yoksa: pozisyon HOLD (Polymarket resolve etsin), 0'a satmaz.
+        Kullanıcı kararı (2026-06-01):
+          'Belli saati geçince otomatik çık deme. Kırmızı border + bildirim
+           gelsin, ben karar veririm. Polymarket bug olsa yanlış exit yapmayalım.'
 
-        Kullanıcı kararı (2026-06-01): "Fiyat 0'a gitmediyse 0'a satmak aptal."
-        Bid yoksa Polymarket resolve detector eninde sonunda devreye girer
-        (kazandıysa $1, kaybettiyse $0 — aynı sonuç). Tüm modlarda (PAPER,
-        DRY_RUN, LIVE) aynı davranış: no_bids → stuck, sonraki cycle retry.
+        Akış:
+          1. Alert store'da tek-seferlik kontrol (aynı pozisyon için spam yok)
+          2. Telegram bildirimi (notifier opsiyonel, yoksa log only)
+          3. Alert store'a kaydet (dashboard kırmızı border için)
+          4. Pozisyon AÇIK kalır — manuel review veya Polymarket resolve bekler
         """
-        avg_price, filled_shares, no_bids = self._force_close.fill_via_book(pos)
-        if no_bids:
-            logger.warning(
-                "FORCE_CLOSE_STUCK %s no_bids — pozisyon acik, Polymarket "
-                "resolve veya bid donmesi bekleniyor. pnl_pct=%.2f",
-                (pos.slug or pos.token_id)[:40], pos.unrealized_pnl_pct,
+        cid = pos.condition_id
+        if self._fc_alerts.is_alerted(cid):
+            return  # zaten alarm verildi, spam yapma
+        elapsed_min = 0.0
+        try:
+            start = datetime.fromisoformat(
+                pos.match_start_iso.replace("Z", "+00:00"),
             )
-            return  # state mutation yok; pozisyon stuck kalır
-        else:
-            exit_reason_value = reason_to_exit_reason(signal.reason).value
-            # filled_shares < pos.shares ise yine "full close" semantik:
-            # bid'le satılabilen kadar realize, kalan share zarar yazılır.
-            realized = filled_shares * avg_price - pos.size_usdc
-            self._finalize_full_exit(
-                pos=pos, exit_price=avg_price, realized=realized,
-                exit_reason_value=exit_reason_value, audit_signal=None,
-            )
-        logger.info(
-            "FORCE_CLOSE %s reason=%s shares_filled=%.2f avg=%.3f",
-            (pos.slug or pos.token_id)[:40], exit_reason_value, filled_shares, avg_price,
+            elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
+        except (AttributeError, ValueError):
+            pass
+        now_iso = datetime.now(timezone.utc).isoformat()
+        notifier = getattr(self.deps, "notifier", None)
+        if notifier is not None:
+            try:
+                notifier.notify_force_close_alert(
+                    slug=pos.slug or pos.token_id,
+                    sport=pos.sport_tag or "?",
+                    pnl_pct=pos.unrealized_pnl_pct,
+                    elapsed_min=elapsed_min,
+                )
+            except Exception as exc:  # noqa: BLE001 — infra boundary
+                logger.warning("force_close telegram alert failed: %s", exc)
+        self._fc_alerts.mark_alerted(cid, now_iso)
+        logger.warning(
+            "FORCE_CLOSE_ALERT %s reason=%s pnl=%.2f elapsed=%.0fmin — manuel review",
+            (pos.slug or pos.token_id)[:40],
+            getattr(signal, "reason", "?"),
+            pos.unrealized_pnl_pct,
+            elapsed_min,
         )
 
     def _write_synth_exit_record(

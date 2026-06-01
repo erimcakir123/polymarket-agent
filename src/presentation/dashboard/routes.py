@@ -73,7 +73,12 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/positions")
     def api_positions():
-        return jsonify(readers.read_positions(logs_dir).get("positions", {}))
+        positions = readers.read_positions(logs_dir).get("positions", {})
+        alerted = readers.read_force_close_alerts(logs_dir)
+        for cid, pos in positions.items():
+            if isinstance(pos, dict):
+                pos["force_close_alert"] = cid in alerted
+        return jsonify(positions)
 
     @app.route("/api/trades")
     def api_trades():

@@ -15,8 +15,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.config.settings import AppConfig
 from src.models.position import Position
 from src.orchestration.exit_processor import ExitProcessor
@@ -112,37 +110,61 @@ def _stub_monitor_none(monkeypatch):
     monkeypatch.setattr(monitor_mod, "evaluate", fake_eval)
 
 
-def test_force_close_with_bids_realizes_at_bid_price(monkeypatch):
-    """T1: Bid var → realize @ bid avg_price, exit_reason=force_close_time_expired."""
+def test_force_close_emits_alert_no_automatic_exit_with_bids(monkeypatch, tmp_path):
+    """T1 (2026-06-01 revize): Bid var olsa BİLE otomatik exit YOK.
+
+    Kullanıcı kararı: 'Otomatik çık deme. Kırmızı border + bildirim
+    gelsin, ben karar veririm. Polymarket bug olsa yanlış exit yapmayalım.'
+    """
     _stub_monitor_none(monkeypatch)
+    from src.infrastructure.persistence import force_close_alerts
+    monkeypatch.setattr(
+        force_close_alerts, "_DEFAULT_PATH", tmp_path / "fc_alerts.json",
+    )
     bids = [{"price": 0.01, "size": 200}]
     deps, pos, captured = _make_deps_and_pos(orderbook_bids=bids)
 
     ep = ExitProcessor(deps)
     ep.run_light()
 
-    # Pozisyon portfolio'dan kaldırıldı.
-    assert "cid_fc1" not in deps.state.portfolio.positions
-    # Exit reason force-close time-expired.
-    assert captured["exit_reason"] == "force_close_time_expired"
-    # Realized = filled(100) * 0.01 - size(50) = 1 - 50 = -49.
-    assert captured["realized"] == pytest.approx(-49.0, abs=0.5)
-    assert captured["exit_price"] == pytest.approx(0.01, abs=0.001)
+    # Pozisyon AÇIK kalır — bid olsa bile satılmaz.
+    assert "cid_fc1" in deps.state.portfolio.positions
+    assert captured["exit_reason"] is None
+    assert captured["realized"] is None
+    # Alert store kaydı oluştu (dashboard kırmızı border için).
+    assert ep._fc_alerts.is_alerted("cid_fc1")
 
 
-def test_force_close_without_bids_holds_position(monkeypatch):
-    """T2 (2026-06-01 revize): Bid yok → pozisyon HOLD (0'a sıfırlamaz).
-
-    Kullanıcı kararı: fiyat 0'a gitmediyse 0'a satmak aptal.
-    Bid yoksa Polymarket resolve detector eninde sonunda devreye girer.
-    """
+def test_force_close_alert_idempotent(monkeypatch, tmp_path):
+    """T2: Aynı pozisyon için 2. cycle'da Telegram spam YOK (alert flag set)."""
     _stub_monitor_none(monkeypatch)
+    from src.infrastructure.persistence import force_close_alerts
+    monkeypatch.setattr(
+        force_close_alerts, "_DEFAULT_PATH", tmp_path / "fc_alerts.json",
+    )
+    deps, pos, _ = _make_deps_and_pos(orderbook_bids=[{"price": 0.05, "size": 200}])
+
+    ep = ExitProcessor(deps)
+    ep.run_light()  # 1. cycle — alarm fire
+    first_at = ep._fc_alerts._state["cid_fc1"]
+
+    ep.run_light()  # 2. cycle — flag set, idempotent
+    second_at = ep._fc_alerts._state["cid_fc1"]
+    assert first_at == second_at  # timestamp değişmedi
+
+
+def test_force_close_without_bids_also_alerts_no_exit(monkeypatch, tmp_path):
+    """T3: Bid yokken de davranış aynı — alarm + hold."""
+    _stub_monitor_none(monkeypatch)
+    from src.infrastructure.persistence import force_close_alerts
+    monkeypatch.setattr(
+        force_close_alerts, "_DEFAULT_PATH", tmp_path / "fc_alerts.json",
+    )
     deps, pos, captured = _make_deps_and_pos(orderbook_bids=[])
 
     ep = ExitProcessor(deps)
     ep.run_light()
 
-    # Pozisyon AÇIK kalır, finalize çağrılmaz (captured None'larla başlar, dolmaz).
     assert "cid_fc1" in deps.state.portfolio.positions
     assert captured["exit_reason"] is None
-    assert captured["realized"] is None
+    assert ep._fc_alerts.is_alerted("cid_fc1")

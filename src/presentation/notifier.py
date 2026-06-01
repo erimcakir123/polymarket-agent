@@ -92,3 +92,19 @@ class TelegramNotifier:
                f"{sport.upper()} son {n_trades} maç isabet: {accuracy:.1%}\n"
                f"Kalibrasyon eğrisi update gerekebilir.")
         return self.send(msg)
+
+    def notify_force_close_alert(
+        self, slug: str, sport: str, pnl_pct: float, elapsed_min: float,
+    ) -> bool:
+        """Force-close eşik geçti — KULLANICI manuel review yapsın.
+
+        Otomatik exit YAPILMIYOR. Pozisyon hold ediliyor.
+        Dashboard'da kırmızı border ile gösterilir.
+        """
+        msg = (f"🔴 <b>Force-close ALARMI — manuel review</b>\n"
+               f"<code>{slug[:50]}</code>\n"
+               f"Spor: {sport.upper()}\n"
+               f"PnL: {pnl_pct:+.1%}\n"
+               f"Geçen süre: {elapsed_min:.0f} dk\n"
+               f"<i>Otomatik çıkış YAPILMAZ. Dashboard'a bak, karar ver.</i>")
+        return self.send(msg)

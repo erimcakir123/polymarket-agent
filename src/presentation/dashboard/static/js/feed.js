@@ -128,9 +128,10 @@
       return `<span class="feed-countdown">${label}</span>`;
     },
 
-    _cardOpen(slug) {
+    _cardOpen(slug, forceCloseAlert) {
       const url = FMT.polyUrl(slug);
-      return `<a class="feed-item" href="${url}" target="_blank" rel="noopener noreferrer">`;
+      const cls = forceCloseAlert ? "feed-item feed-item-alert" : "feed-item";
+      return `<a class="${cls}" href="${url}" target="_blank" rel="noopener noreferrer">`;
     },
 
     _marketTypeBadge(question, slug, sportsMarketType) {
@@ -151,7 +152,7 @@
       const anchor = p.anchor_probability || 0;
       const oddsRaw = p.direction === "BUY_NO" ? (1 - anchor) : anchor;
       const odds = Math.round(oddsRaw * 1000) / 10;
-      return `${this._cardOpen(p.slug)}
+      return `${this._cardOpen(p.slug, p.force_close_alert)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
