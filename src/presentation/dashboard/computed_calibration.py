@@ -9,11 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+# Display order: heavy favorite at top, descending to underdog (high prob -> low prob).
 _BINS: list[tuple[str, float, float, str]] = [
-    ("underdog",     0.30, 0.45, "Underdog dedi"),
-    ("hafif_favori", 0.45, 0.65, "Hafif favori dedi"),
-    ("net_favori",   0.65, 0.80, "Net favori dedi"),
-    ("ezici_favori", 0.80, 1.01, "Ezici favori dedi"),
+    ("ezici_favori", 0.80, 1.01, "Heavy favorite"),
+    ("net_favori",   0.65, 0.80, "Clear favorite"),
+    ("hafif_favori", 0.45, 0.65, "Slight favorite"),
+    ("underdog",     0.30, 0.45, "Underdog call"),
 ]
 _MIN_TRADES_PER_BIN = 10
 _GREEN_DELTA = 0.05    # |predicted - actual| <= 5pp -> dogru
