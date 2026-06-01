@@ -130,16 +130,19 @@ def test_force_close_with_bids_realizes_at_bid_price(monkeypatch):
     assert captured["exit_price"] == pytest.approx(0.01, abs=0.001)
 
 
-def test_force_close_without_bids_realizes_at_zero(monkeypatch):
-    """T2: Bid yok → realize @ 0, exit_reason=force_close_no_bids (tam kayıp)."""
+def test_force_close_without_bids_holds_position(monkeypatch):
+    """T2 (2026-06-01 revize): Bid yok → pozisyon HOLD (0'a sıfırlamaz).
+
+    Kullanıcı kararı: fiyat 0'a gitmediyse 0'a satmak aptal.
+    Bid yoksa Polymarket resolve detector eninde sonunda devreye girer.
+    """
     _stub_monitor_none(monkeypatch)
     deps, pos, captured = _make_deps_and_pos(orderbook_bids=[])
 
     ep = ExitProcessor(deps)
     ep.run_light()
 
-    assert "cid_fc1" not in deps.state.portfolio.positions
-    assert captured["exit_reason"] == "force_close_no_bids"
-    # Realized = 0 - 50 = -50 (tam size kaybı).
-    assert captured["realized"] == pytest.approx(-50.0, abs=0.5)
-    assert captured["exit_price"] == pytest.approx(0.0, abs=0.001)
+    # Pozisyon AÇIK kalır, finalize çağrılmaz (captured None'larla başlar, dolmaz).
+    assert "cid_fc1" in deps.state.portfolio.positions
+    assert captured["exit_reason"] is None
+    assert captured["realized"] is None

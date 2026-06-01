@@ -124,21 +124,25 @@ risk:
   kelly_max_pct: 0.05
   # Tennis H2H Glicko/Markov blend ağırlığı (0.6 = Glicko ağır).
   tennis_h2h_glicko_weight: 0.6
-  # 2026-05-27 (SPEC-force-close): market_type -> max dakika.
-  # ESPN bittigini gosterirse veya sure dolduğunda pozisyon zorla bid'den satilir,
-  # bid yoksa 0 ile realize. Saf guvenlik agi — normal SL/TP zincirine etki yok.
+  # 2026-05-27 (SPEC-force-close) + 2026-06-01 (kullanıcı kararı):
+  # market_type -> max dakika.
+  # ESPN bittigini gosterirse veya sure dolduğunda pozisyon zorla bid'den satilir.
+  # 2026-06-01: bid yoksa POZISYON HOLD edilir (Polymarket resolve etsin),
+  # 0'a sıfırlamak yok. Timeout'lar uzatıldı (Polymarket resolve 1-2 saat
+  # gecikme normal — agresif force close kâr kaybına yol açıyordu).
+  # Saf guvenlik agi — normal SL/TP zincirine etki yok.
   force_close_timeouts:
-    nba_quarter_1_winner: 35
-    nba_match_winner: 180
-    nfl_quarter_1: 45
-    nfl_match_winner: 240
-    nhl_match_winner: 200
-    mlb_match_winner: 240
-    wnba_match_winner: 180
-    moneyline: 240
-    totals: 240
-    spread: 240
-    default: 300
+    nba_quarter_1_winner: 120     # 35 → 120 (Q1 12dk, kâr lock için cushion)
+    nba_match_winner: 480         # 180 → 480 (8 saat — Polymarket resolve gecikmesi normal)
+    nfl_quarter_1: 120            # 45 → 120
+    nfl_match_winner: 480         # 240 → 480
+    nhl_match_winner: 480         # 200 → 480
+    mlb_match_winner: 720         # 240 → 720 (12 saat — MLB uzatma + UMA dispute)
+    wnba_match_winner: 480        # 180 → 480
+    moneyline: 480                # 240 → 480
+    totals: 480                   # 240 → 480
+    spread: 480                   # 240 → 480
+    default: 480                  # 300 → 480
   # 2026-05-28: Polymarket otomatik resolution detector. Her N light tick'te bir
   # acik pozisyon gamma'da sorgulanir (closed + umaResolutionStatus=resolved →
   # exit @ owned-side payout). 5sn × 60 = 5dk per pozisyon. 0 → kapali.

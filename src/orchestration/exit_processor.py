@@ -230,30 +230,21 @@ class ExitProcessor:
         """Force-close execution — bid book walk full slippage bypass.
 
         Bid varsa: realize @ avg_price (FORCE_CLOSE_ESPN veya FORCE_CLOSE_TIME).
-        Bid yoksa: realize @ 0 (FORCE_CLOSE_NO_BIDS) — tam kayıp.
-        Hem fill hem finalize `_finalize_full_exit` üzerinden (DRY).
+        Bid yoksa: pozisyon HOLD (Polymarket resolve etsin), 0'a satmaz.
 
-        2026-05-29 (Phase 2): Paper modda no_bids → realize @ 0 YAPMAZ;
-        pozisyon "stuck" durumda açık kalır + log alarm. Sonraki cycle yeniden
-        dener (gerçek live davranışı). DRY_RUN/LIVE mevcut davranışı korur.
+        Kullanıcı kararı (2026-06-01): "Fiyat 0'a gitmediyse 0'a satmak aptal."
+        Bid yoksa Polymarket resolve detector eninde sonunda devreye girer
+        (kazandıysa $1, kaybettiyse $0 — aynı sonuç). Tüm modlarda (PAPER,
+        DRY_RUN, LIVE) aynı davranış: no_bids → stuck, sonraki cycle retry.
         """
-        from src.config.settings import Mode
         avg_price, filled_shares, no_bids = self._force_close.fill_via_book(pos)
-        executor_mode = getattr(self.deps.executor, "mode", Mode.DRY_RUN)
         if no_bids:
-            if executor_mode == Mode.PAPER:
-                logger.warning(
-                    "FORCE_CLOSE_STUCK_PAPER %s no_bids — pozisyon acik, "
-                    "sonraki cycle retry. pnl_pct=%.2f",
-                    (pos.slug or pos.token_id)[:40], pos.unrealized_pnl_pct,
-                )
-                return  # state mutation yok; pozisyon stuck kalır
-            exit_reason_value = ExitReason.FORCE_CLOSE_NO_BIDS.value
-            # Bid yok → realize @ 0, tam size kaybı (-size_usdc).
-            self._finalize_full_exit(
-                pos=pos, exit_price=0.0, realized=-pos.size_usdc,
-                exit_reason_value=exit_reason_value, audit_signal=None,
+            logger.warning(
+                "FORCE_CLOSE_STUCK %s no_bids — pozisyon acik, Polymarket "
+                "resolve veya bid donmesi bekleniyor. pnl_pct=%.2f",
+                (pos.slug or pos.token_id)[:40], pos.unrealized_pnl_pct,
             )
+            return  # state mutation yok; pozisyon stuck kalır
         else:
             exit_reason_value = reason_to_exit_reason(signal.reason).value
             # filled_shares < pos.shares ise yine "full close" semantik:
