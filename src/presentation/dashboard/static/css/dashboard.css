@@ -266,11 +266,10 @@ html, body {
 .metrics-row > :nth-child(4) { grid-column: 7 / 9; }   /* Locked */
 .metrics-row > :nth-child(5) { grid-column: 9 / 11; }  /* Peak */
 
-/* Middle-row: Loss = Balance genişliği; Positions, Realized P&L'in yarısına
-   kadar uzanır (col 6); Branches kalan alanı alır. */
-.middle-row > :nth-child(1) { grid-column: 1 / 3; }    /* Loss Protection */
-.middle-row > :nth-child(2) { grid-column: 3 / 6; }    /* Positions */
-.middle-row > :nth-child(3) { grid-column: 6 / 11; }   /* Branches */
+/* Middle-row: 2 kart kaldı (Positions silindi 2026-06-02).
+   Ratio 1:2 → Loss Protection ~1/3 (cols 1-3), Branches ~2/3 (cols 4-10). */
+.middle-row > :nth-child(1) { grid-column: 1 / 4; }    /* Loss Protection (1/3) */
+.middle-row > :nth-child(2) { grid-column: 4 / 11; }   /* Branches (2/3) */
 
 /* Grid intrinsic-sizing fix: içeriği geniş olan item (branches treemap vs)
    kolonları fr oranından büyütmesin → ilk render → data gelince layout kayması. */
