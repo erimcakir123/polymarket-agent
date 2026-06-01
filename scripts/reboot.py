@@ -377,24 +377,26 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
         print(f"  Cleared session log: {f.name}")
 
 
-def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool = False) -> None:
-    """REBOOT: state + session + runtime sıfırlanır. Audit varsayılan olarak
-    arşivlenir (kopya), orijinaller dashboard için durur.
+def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool = True) -> None:
+    """REBOOT: 0-noktaya sıfırlama. State + session + runtime + audit hepsi
+    arşivlenir ve orijinaller silinir. Yeni session boş başlar.
 
-    wipe_audit=True ise orijinal audit dosyaları da silinir (tam fabrika sıfır) —
-    arşiv kopyası zaten oluşturulduğu için veri kaybı yoktur, sadece dashboard
-    eski kayıtları göstermez.
+    Kullanıcı kuralı (2026-05-23 + 2026-06-01 reaffirm):
+      reload  → bot restart, hiçbir şey silinmez (state korunur)
+      reboot  → geçmiş arşivlenir, state/session/runtime/audit SIFIRLANIR,
+                bot scan'i baştan başlar (sıfır pozisyon, sıfır PnL grafiği)
+
+    wipe_audit=False ile çağrılırsa audit orijinalleri korunur (geriye uyumluluk
+    için, kullanıcı isteğine dışında kullanılmaz).
     """
-    print("=== REBOOT ===")
+    print("=== REBOOT (0-noktaya sıfırlama) ===")
     if not skip_confirm:
-        print("\n⚠️  UYARI: Bu işlem state + session + runtime log'ları SİLER.")
+        print("\n⚠️  UYARI: Bu işlem state + session + runtime + AUDIT log'ları SİLER.")
         print("   - data/positions.json, data/circuit_breaker_state.json (state)")
         print("   - logs/session/* (dashboard kaynağı)")
         print("   - logs/runtime/* (bot.log)")
-        if wipe_audit:
-            print("   - logs/audit/* SİLİNECEK (--wipe). Arşiv kopyası saklanır.")
-        else:
-            print("   AUDIT KORUNUR (logs/audit/* — tarihsel arşiv).\n")
+        print("   - logs/audit/trade_history.jsonl + equity_history.jsonl (dashboard tarihsel)")
+        print("   ARŞIV KOPYALARI logs/audit/*.archive.* olarak saklanır (recovery için).\n")
         try:
             answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -406,10 +408,9 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
     kill_processes()
     clear_runtime_logs()
     clear_session_logs()
-    # Audit kalıcı arşiv (SPEC-H 2026-05-10) — rename ile archive'lenir, veri
-    # kaybolmaz, yeni session boş audit'le başlar.
-    # 2026-05-22: open_condition_ids=None → FULL archive. reset_state() zaten
-    # positions.json'ı siliyor, açık pozisyon kaydı tutmanın anlamı yok.
+    # Audit önce arşivlenir (forensic kopya), sonra orijinaller silinir.
+    # 2026-05-22: open_condition_ids=None → FULL archive (reset_state pozisyonları
+    # zaten siliyor, açık-kapalı ayrımının anlamı yok).
     archive_audit_logs(open_condition_ids=None)
     if wipe_audit:
         clear_audit_logs()
@@ -417,7 +418,7 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
     start_dashboard()
     time.sleep(3)
     start_bot(mode)
-    print("Reboot complete.")
+    print("Reboot complete — 0-noktaya sıfırlandı, yeni session başladı.")
 
 
 if __name__ == "__main__":
@@ -426,11 +427,11 @@ if __name__ == "__main__":
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "paper", "live"])
     parser.add_argument("--yes", action="store_true",
                         help="Reboot onayını bypass et (audit silme uyarısını atla)")
-    parser.add_argument("--wipe", action="store_true",
-                        help="Reboot'a ek: orijinal audit dosyalarını da sil (arşiv kopya saklanır)")
+    parser.add_argument("--no-wipe", action="store_true",
+                        help="Reboot'ta orijinal audit dosyalarını KORU (varsayılan: sil)")
     args = parser.parse_args()
 
     if args.action == "reboot":
-        reboot(args.mode, skip_confirm=args.yes, wipe_audit=args.wipe)
+        reboot(args.mode, skip_confirm=args.yes, wipe_audit=not args.no_wipe)
     else:
         reload_bot(args.mode)
