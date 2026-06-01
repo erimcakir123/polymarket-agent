@@ -79,6 +79,44 @@ def test_fetch_uses_fiba_possessions_factor():
     assert abs(games[0].home_possessions - 81.2) < 0.01
 
 
+def test_fetch_eurocup_uses_competition_code_U():
+    """Task 6: EuroCup competition='eurocup' → competition_code='U'."""
+    fake = MagicMock()
+    fake.return_value.get_game_stats.return_value = []
+    fetch_game_log_via_euroleague_api(
+        season="2024", endpoint_factory=fake, competition="eurocup",
+    )
+    fake.assert_called_once_with(season="2024", competition_code="U")
+
+
+def test_fetch_euroleague_default_competition_code_E():
+    """Task 6: Euroleague default → competition_code='E'."""
+    fake = MagicMock()
+    fake.return_value.get_game_stats.return_value = []
+    fetch_game_log_via_euroleague_api(season="2024", endpoint_factory=fake)
+    fake.assert_called_once_with(season="2024", competition_code="E")
+
+
+def test_fetch_unknown_competition_raises():
+    """Task 6: Bilinmeyen competition → ValueError fail-fast."""
+    fake = MagicMock()
+    with pytest.raises(ValueError, match="competition"):
+        fetch_game_log_via_euroleague_api(
+            season="2024", endpoint_factory=fake, competition="basketball_champions_league",
+        )
+
+
+def test_eurocup_games_have_eurocup_league_field(fake_eul_home_row, fake_eul_away_row):
+    """Task 6: EuroCup oyunlarında GameRecord.league = 'eurocup' (Euroleague değil)."""
+    fake = MagicMock()
+    fake.return_value.get_game_stats.return_value = [fake_eul_home_row, fake_eul_away_row]
+    games = fetch_game_log_via_euroleague_api(
+        season="2024", endpoint_factory=fake, competition="eurocup",
+    )
+    assert len(games) == 1
+    assert games[0].league == "eurocup"
+
+
 def test_fetch_unpaired_game_skipped():
     """Tek satır (eksik away) → atla + warning."""
     fake_endpoint = MagicMock()

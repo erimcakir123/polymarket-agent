@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 # Sebep: 24sn shot clock, free throw kuralları farklı.
 _FIBA_FTA_POSS_FACTOR = 0.46
 
+# Task 6: Euroleague + EuroCup competition kodu (euroleague-api convention).
+_COMPETITION_CODES: dict[str, str] = {
+    "euroleague": "E",
+    "eurocup": "U",
+}
+
 
 def _row_possessions(row: dict) -> float:
     """Bir takım satırından possessions hesabı (FIBA katsayısı)."""
@@ -32,7 +38,7 @@ def _row_possessions(row: dict) -> float:
 
 
 def _convert_euroleague_row_to_game_record(
-    home_row: dict, away_row: dict,
+    home_row: dict, away_row: dict, league: str = "euroleague",
 ) -> GameRecord:
     """İki takım satırını GameRecord'a çevir. Euroleague API key isimleri farklı."""
     game_id = str(home_row.get("Gamecode", home_row.get("GameID", "")))
@@ -48,27 +54,32 @@ def _convert_euroleague_row_to_game_record(
         home_possessions=round(_row_possessions(home_row), 2) or 1.0,
         away_possessions=round(_row_possessions(away_row), 2) or 1.0,
         is_final=True,
-        league="euroleague",
+        league=league,  # type: ignore[arg-type]
     )
 
 
 def fetch_game_log_via_euroleague_api(
     season: str,
     endpoint_factory: Callable,
+    competition: str = "euroleague",
 ) -> list[GameRecord]:
     """euroleague-api üzerinden bir sezonun maç istatistiklerini çek.
 
-    endpoint_factory: euroleague_api.game_stats.GameStats benzeri callable.
+    Task 6: competition='euroleague' (default) veya 'eurocup'.
+    Endpoint factory `competition_code` parametresi alır (E veya U).
     Boş cevap → boş liste. Bilinmeyen format → ValidationError (Pydantic).
     """
-    endpoint = endpoint_factory(season=season)
-    rows = endpoint.get_game_stats()  # liste of dict
+    code = _COMPETITION_CODES.get(competition)
+    if code is None:
+        raise ValueError(f"Unsupported competition: {competition}")
+    endpoint = endpoint_factory(season=season, competition_code=code)
+    rows = endpoint.get_game_stats()
     if not rows:
         return []
-    return list(_pair_and_convert(rows))
+    return list(_pair_and_convert(rows, league=competition))
 
 
-def _pair_and_convert(rows: Iterable[dict]) -> Iterable[GameRecord]:
+def _pair_and_convert(rows: Iterable[dict], league: str = "euroleague") -> Iterable[GameRecord]:
     """Game_id (Gamecode) başına iki satırı (home + away) eşleştir."""
     by_game: dict[str, list[dict]] = {}
     for row in rows:
@@ -90,7 +101,7 @@ def _pair_and_convert(rows: Iterable[dict]) -> Iterable[GameRecord]:
         else:
             home, away = b, a
         try:
-            yield _convert_euroleague_row_to_game_record(home, away)
+            yield _convert_euroleague_row_to_game_record(home, away, league=league)
         except Exception as exc:  # noqa: BLE001 — infra boundary, log + skip
             logger.warning(
                 "euroleague_api row pair convert failed for game %s: %s",
