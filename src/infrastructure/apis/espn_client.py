@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -20,6 +19,16 @@ import httpx
 # MatchStatus 2026-05-27'de src/models/match_status.py'a tasindi (strategy + infra
 # arasi katman ihlalini gidermek icin). Geriye donuk import yolu korunur.
 from src.models.match_status import MatchStatus  # noqa: F401
+# Domain modelleri ve parse helper'ları ayrı modülde (ARCH_GUARD §3 split).
+# Re-export ile geriye dönük import yolu korunur.
+from src.infrastructure.apis.espn_models import (
+    ESPNMatchScore,
+    parse_clock_to_seconds as _parse_clock_to_seconds,
+    parse_inning_half as _parse_inning_half,
+    parse_score as _parse_score,
+)
+
+__all__ = ["ESPNClient", "ESPNMatchScore"]
 
 logger = logging.getLogger(__name__)
 
@@ -37,65 +46,6 @@ _LEAGUES_FOR_SPORT: dict[str, list[str]] = {
     "baseball": ["mlb"],
     "tennis": ["atp", "wta"],
 }
-
-
-@dataclass
-class ESPNMatchScore:
-    """ESPN scoreboard API'den gelen tek bir maçın skor bilgisi."""
-
-    event_id: str
-    home_name: str
-    away_name: str
-    home_team_id: str = ""
-    away_team_id: str = ""
-    home_score: int | None = None
-    away_score: int | None = None
-    period: str = ""
-    is_completed: bool = False
-    is_live: bool = False
-    last_updated: str = ""
-    commence_time: str = ""
-    inning: int | None = None
-    inning_half: str | None = None
-    period_number: int | None = None
-    clock_seconds: int | None = None
-    raw_status: dict[str, Any] = field(default_factory=dict)
-
-
-def _parse_clock_to_seconds(clock: str) -> int | None:
-    if not clock or not isinstance(clock, str):
-        return None
-    parts = clock.strip().split(":")
-    if len(parts) != 2:
-        return None
-    try:
-        minutes = int(parts[0])
-        seconds = int(parts[1])
-    except (ValueError, TypeError):
-        return None
-    if minutes < 0 or seconds < 0 or seconds >= 60:
-        return None
-    return minutes * 60 + seconds
-
-
-def _parse_inning_half(short_detail: str) -> str | None:
-    if not short_detail:
-        return None
-    s = short_detail.strip().lower()
-    if s.startswith("top"):
-        return "top"
-    if s.startswith("bot"):
-        return "bottom"
-    return None
-
-
-def _parse_score(raw: Any) -> int | None:
-    if raw is None or raw == "":
-        return None
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        return None
 
 
 class ESPNClient:

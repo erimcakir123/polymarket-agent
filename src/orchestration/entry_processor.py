@@ -8,14 +8,18 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from src.domain.matching.market_line_parser import parse_total_line
 from src.domain.portfolio.exposure import at_or_over_cap
 from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
-from src.models.enums import SportsMarketType, TotalSide
 from src.models.market import MarketData
 from src.models.position import Position
 from src.models.signal import Signal
 from src.orchestration import operational_writers
+from src.orchestration.entry_guards import (
+    check_correlated_bet,
+    check_duplicate_condition,
+    check_exclude_combo,
+    resolve_market_meta,
+)
 from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
 from src.orchestration.scanner import collect_model_signals
 
@@ -160,70 +164,17 @@ class EntryProcessor:
     def _execute_entry(self, market: MarketData, signal) -> None:
         """Sim/live order → position open → trade record.
 
-        2026-05-30 KRİTİK fix: place_order'dan ÖNCE condition_id duplicate
-        check. Eski davranış: pozisyon zaten varsa _persist_filled_position
-        defter kaydı yapmıyordu AMA executor.place_order ZATEN çağrılmıştı —
-        paper'da görünmez ama live'da Polymarket'e gerçek emir gider, wallet
-        boşalır, defter "duplicate, skip" der → wallet ve defter çelişir.
+        Pre-flight guards (entry_guards modülü):
+          - duplicate_condition: 2026-05-30 KRİTİK fix — aynı condition_id wallet/defter çelişkisi
+          - exclude_combo: 2026-05-31 negatif-EV kombinasyonları
+          - correlated_bet: 2026-05-31 aynı event+market+direction (chain loss)
         """
-        if market.condition_id in self.deps.state.portfolio.positions:
-            # Defter zaten bu pazara pozisyon kaydetmiş — yeni emir GÖNDERME
-            detail = f"condition_id={market.condition_id[:20]}..."
-            operational_writers.log_skip(
-                self.deps.skipped_logger, market,
-                "duplicate_condition_id", detail=detail,
-            )
-            self.deps.stock.add(market, "duplicate_condition_id")
+        if check_duplicate_condition(self.deps, market):
             return
-
-        # 2026-05-31 exclude_combos guard: config'de tanımlı negatif-EV
-        # kombinasyonları (tennis_set_totals + tennis_first_set_winner, paper
-        # lab kanıtı -$63 ve -$162). Phase 3'te config eklendi AMA kod check
-        # YAPMIYORDU — bot yine bu tipleri alıyordu. Şimdi entry'de bloklanır.
-        combos = (
-            getattr(self.deps.state.config, "edge", None)
-            and getattr(self.deps.state.config.edge, "exclude_combos", [])
-            or []
-        )
-        if combos and market.slug:
-            tour = market.slug.split("-")[0].lower()  # atp/wta prefix
-            mt = market.sports_market_type
-            conf = getattr(signal, "confidence", None)
-            for combo in combos:
-                if (combo.get("tour") == tour
-                        and combo.get("market_type") == mt
-                        and (combo.get("confidence") == conf or combo.get("confidence") is None)):
-                    detail = f"tour={tour} type={mt} confidence={conf}"
-                    operational_writers.log_skip(
-                        self.deps.skipped_logger, market,
-                        "exclude_combo_negative_ev", detail=detail,
-                    )
-                    self.deps.stock.add(market, "exclude_combo_negative_ev")
-                    return
-
-        # 2026-05-31 KORELASYON guard: aynı event + aynı market_type + aynı
-        # yön birden fazla pozisyon = positively correlated bet, profesyonel
-        # literatür "AVOID" diyor (Spurs 3-totals zincir kaybı kanıtı: -$60).
-        # Farklı yön (over/under hedge) veya farklı market_type (moneyline +
-        # totals bağımsız) izinli.
-        if market.event_id:
-            same_combo = [
-                p for p in self.deps.state.portfolio.positions.values()
-                if p.event_id == market.event_id
-                and p.sports_market_type == market.sports_market_type
-                and p.direction == signal.direction.value
-            ]
-            if same_combo:
-                detail = (
-                    f"event={market.event_id} type={market.sports_market_type} "
-                    f"direction={signal.direction.value} existing={len(same_combo)}"
-                )
-                operational_writers.log_skip(
-                    self.deps.skipped_logger, market,
-                    "correlated_bet_guard", detail=detail,
-                )
-                self.deps.stock.add(market, "correlated_bet_guard")
-                return
+        if check_exclude_combo(self.deps, market, signal):
+            return
+        if check_correlated_bet(self.deps, market, signal):
+            return
 
         token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id
         side = "BUY"
@@ -242,7 +193,7 @@ class EntryProcessor:
 
         # NBA totals exit (SPEC-J) için total_line/total_side market.question'dan
         # parse edilip Position'a yazılır. Moneyline/spreads market'lerinde hepsi None kalır.
-        sports_market_type, total_line, total_side = _resolve_market_meta(market)
+        sports_market_type, total_line, total_side = resolve_market_meta(market)
 
         pos = Position(
             condition_id=market.condition_id,
@@ -435,26 +386,6 @@ class EntryProcessor:
         return True
 
 
-def _resolve_market_meta(
-    market: MarketData,
-) -> tuple[SportsMarketType, float | None, TotalSide | None]:
-    """market.sports_market_type'a göre Position ek alanlarını çıkar.
-
-    Totals: question'dan (total_line, side); Polymarket YES = OVER.
-    Spreads/Moneyline veya tanımsız: total alanları None.
-    """
-    market_type_raw = market.sports_market_type or SportsMarketType.MONEYLINE.value
-    if market_type_raw == SportsMarketType.TOTALS.value:
-        parsed = parse_total_line(market.question)
-        if parsed is None:
-            return SportsMarketType.TOTALS, None, None
-        line, side = parsed
-        return SportsMarketType.TOTALS, line, TotalSide(side)
-    if market_type_raw == SportsMarketType.SPREADS.value:
-        return SportsMarketType.SPREADS, None, None
-    # 2026-05-31: tennis tipleri (tennis_set_handicap vs.) artık olduğu gibi
-    # korunur. Enum'da tanımlı olmayan tipler MONEYLINE fallback (forward-compat).
-    try:
-        return SportsMarketType(market_type_raw), None, None
-    except ValueError:
-        return SportsMarketType.MONEYLINE, None, None
+# _resolve_market_meta entry_guards.py'a taşındı (ARCH_GUARD §3 split).
+# Geri uyumluluk için re-export:
+_resolve_market_meta = resolve_market_meta
