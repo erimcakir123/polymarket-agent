@@ -381,6 +381,7 @@
       binsEl.innerHTML = data.bins.map((b) => {
         const label = LABELS[b.bin] || b.label;
         if (b.status === "pending") {
+          // Order: header → text → progress bar (bottom)
           const progressPct = Math.min(100, (b.n / data.min_trades_per_bin) * 100);
           return '<div class="calib-bin pending">' +
             '<div class="calib-bin-row">' +
@@ -388,11 +389,12 @@
                 ' <span class="calib-bin-range">(' + b.range_pct + '%)</span></span>' +
               '<span class="calib-bin-note">' + b.n + '/' + data.min_trades_per_bin + ' trades</span>' +
             '</div>' +
-            '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + progressPct + '%"></div></div>' +
             '<div class="calib-bin-detail">Waiting for predictions to resolve</div>' +
+            '<div class="calib-double-bar">' +
+              '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + progressPct + '%"></div></div>' +
+            '</div>' +
           '</div>';
         }
-        const icon = b.status === "green" ? "●" : b.status === "yellow" ? "●" : "●";
         let note = b.note.replace("Dogru tahmin", "On target")
           .replace(/(\d+) puan iyimser — buyuk sapma/, "$1pp optimistic — large gap")
           .replace(/(\d+) puan temkinli — buyuk sapma/, "$1pp cautious — large gap")
@@ -400,12 +402,14 @@
           .replace(/(\d+) puan temkinli/, "$1pp cautious");
         const predictedPct = Math.min(100, Math.max(0, b.predicted_pct));
         const actualPct = Math.min(100, Math.max(0, b.actual_pct));
+        // Order: header (label + note) → detail text → bars at bottom
         return '<div class="calib-bin ' + b.status + '">' +
           '<div class="calib-bin-row">' +
             '<span class="calib-bin-label">' + label +
               ' <span class="calib-bin-range">(' + b.range_pct + '%)</span></span>' +
-            '<span class="calib-bin-note">' + icon + ' ' + note + '</span>' +
+            '<span class="calib-bin-note">● ' + note + '</span>' +
           '</div>' +
+          '<div class="calib-bin-detail">' + b.n + ' trades resolved</div>' +
           '<div class="calib-double-bar">' +
             '<div class="calib-bar-row"><span class="calib-bar-name">Predicted</span>' +
               '<div class="calib-bar"><div class="calib-bar-fill predicted" style="width:' + predictedPct + '%"></div></div>' +
@@ -414,7 +418,6 @@
               '<div class="calib-bar"><div class="calib-bar-fill actual" style="width:' + actualPct + '%"></div></div>' +
               '<span class="calib-bar-val">' + b.actual_pct + '%</span></div>' +
           '</div>' +
-          '<div class="calib-bin-detail">' + b.n + ' trades</div>' +
           '</div>';
       }).join("");
     },
@@ -433,8 +436,8 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
-    // Generous spacing for hierarchy
-    const padL = 62, padR = 24, padT = 32, padB = 56;
+    // Generous spacing for hierarchy (extra left for rotated axis label)
+    const padL = 84, padR = 24, padT = 32, padB = 56;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
 
@@ -480,7 +483,7 @@
     ctx.textAlign = "center";
     ctx.fillText("Predicted probability", padL + plotW / 2, H - 14);
     ctx.save();
-    ctx.translate(18, padT + plotH / 2);
+    ctx.translate(20, padT + plotH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillText("Actual win rate", 0, 0);
     ctx.restore();

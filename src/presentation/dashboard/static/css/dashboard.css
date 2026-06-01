@@ -448,14 +448,22 @@ html, body {
 .calib-bins { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
 .calib-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 32px 8px; line-height: 1.5; }
 
-.calib-bin { padding: 12px 14px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); }
-.calib-bin.green   { border-left: 2px solid var(--green); }
-.calib-bin.yellow  { border-left: 2px solid var(--orange); }
-.calib-bin.red     { border-left: 2px solid var(--red); }
-.calib-bin.pending { border-left: 2px solid rgba(255,255,255,0.15); }
+/* Match .feed-item card style: panel-raised bg, no border, rounded */
+.calib-bin {
+  display: block;
+  background: var(--panel-raised);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  position: relative;
+}
+.calib-bin.green   { box-shadow: inset 2px 0 0 var(--green); }
+.calib-bin.yellow  { box-shadow: inset 2px 0 0 var(--orange); }
+.calib-bin.red     { box-shadow: inset 2px 0 0 var(--red); }
+.calib-bin.pending { box-shadow: inset 2px 0 0 rgba(255,255,255,0.15); }
 
-/* Bin row 1: label + note */
-.calib-bin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+/* Row order top→bottom: header (label + note) → text → bars */
+.calib-bin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .calib-bin-label { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
 .calib-bin-range { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 4px; opacity: 0.75; }
 .calib-bin-note { font-size: 11px; font-weight: 500; white-space: nowrap; }
@@ -464,8 +472,11 @@ html, body {
 .calib-bin.red .calib-bin-note      { color: var(--red); }
 .calib-bin.pending .calib-bin-note  { color: var(--muted); opacity: 0.65; font-weight: 400; }
 
-/* Bin row 2: dual bars (predicted + actual) with labels */
-.calib-double-bar { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; }
+/* Detail text — below the header row, ABOVE the bars */
+.calib-bin-detail { font-size: 11px; color: var(--muted); margin-top: 4px; opacity: 0.7; }
+
+/* Bars at the BOTTOM of the card */
+.calib-double-bar { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
 .calib-bar-row { display: grid; grid-template-columns: 64px 1fr 40px; gap: 8px; align-items: center; }
 .calib-bar-name { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; opacity: 0.75; }
 .calib-bar-val { font-size: 11px; font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
@@ -476,6 +487,3 @@ html, body {
 .calib-bin.yellow .calib-bar-fill.actual   { background: var(--orange); }
 .calib-bin.red .calib-bar-fill.actual      { background: var(--red); }
 .calib-bin.pending .calib-bar-fill         { background: rgba(255,255,255,0.18); }
-
-/* Bin detail (footer) */
-.calib-bin-detail { font-size: 11px; color: var(--muted); margin-top: 6px; opacity: 0.65; }
