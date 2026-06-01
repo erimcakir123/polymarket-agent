@@ -45,6 +45,10 @@ _GRASS_KEYWORDS = (
     "stuttgart", "mallorca", "newport",
 )
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
+# Glicko-2 phi (rating deviation) yetki eşiği. Default phi=350 (hiç maç),
+# 30+ maç sonrası phi ~50-80'e iner. 100 eşik = ~25+ maç = güvenilir.
+# 2026-06-01 kullanıcı kararı: yetkimiz olmayan oyuncuya bahis YOK.
+_MAX_PHI_FOR_TRADE = 100.0
 
 
 def _infer_best_of(question: str) -> int:
@@ -182,6 +186,20 @@ def enrich_with_tennis_dispatch(
             fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
         )
     player_a, player_b = resolved_a, resolved_b
+
+    # Yetki filtresi (2026-06-01 kullanıcı kararı):
+    # Glicko RD (phi) çok yüksekse oyuncu yeterince oynamamış → rating güvenilmez
+    # (Pieri-Bosio gibi ITF gençleri tarihçesi 5-15 maç → phi 150+). Pratik eşik:
+    # phi < 100 = güvenilir tanınıyor (~30+ maç). Aksi halde model konuşmamalı.
+    snap_a = ratings[player_a]
+    snap_b = ratings[player_b]
+    if snap_a.rating.phi >= _MAX_PHI_FOR_TRADE or snap_b.rating.phi >= _MAX_PHI_FOR_TRADE:
+        if is_moneyline:
+            return bookmaker_enricher(market)
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
+        )
 
     best_of = _infer_best_of(market.question)
     surface = _infer_surface(market.question)

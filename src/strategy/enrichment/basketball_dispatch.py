@@ -29,6 +29,24 @@ _BASKETBALL_LEAGUES = frozenset({
 })
 _CBB_ALIAS = "ncaab"  # Polymarket "cbb" tag NCAAB ile aynı lig
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
+# Yetki filtre (2026-06-01): bizim model maç-tipi market'ler için tasarlandı.
+# Futures (Champion, MVP), prop (player stats, head coach) modelimiz dışında.
+# Slug'da bu pattern'ler varsa model çalışmamalı (cascade bug yerine fail-fast).
+_NON_MATCH_SLUG_KEYWORDS = frozenset({
+    "champion", "mvp", "draft", "coach", "next-team", "next-coach",
+    "to-be-traded", "will-be-traded", "retire", "record-quadruple",
+    "rookie-of-the-year", "player-of-the-year", "defensive-player",
+    "all-star", "scoring-leader", "assist-leader", "rebound-leader",
+    "block-leader", "postseason", "will-anthony", "will-stephen",
+    "will-victor", "will-lebron", "cover-athlete", "2k-cover",
+})
+
+
+def _is_non_match_market(slug: str, question: str) -> bool:
+    """Slug veya question'da futures/prop pattern varsa True."""
+    s = (slug or "").lower()
+    q = (question or "").lower()
+    return any(k in s or k in q for k in _NON_MATCH_SLUG_KEYWORDS)
 
 _OVER_LINE_RE = re.compile(
     r"(?:over|under|total|totals)\s+(\d+\.?\d*)", re.IGNORECASE,
@@ -122,6 +140,14 @@ def enrich_with_basketball_dispatch(
     sport = (market.sport_tag or "").lower()
     if sport not in _BASKETBALL_LEAGUES:
         return bookmaker_enricher(market)
+
+    # Yetki filtre (2026-06-01): futures/prop market'lerde modelimiz konuşamaz.
+    # Sadece maç-tipi market'lerde (moneyline/totals/spread/quarter) bahis aç.
+    if _is_non_match_market(market.slug or "", market.question or ""):
+        return EnrichResult(
+            probability=None,
+            fail_reason=EnrichFailReason.MODEL_BASKETBALL_DATA_MISSING,
+        )
 
     league = _normalize_league(sport)
     market_type = _infer_market_type(market)

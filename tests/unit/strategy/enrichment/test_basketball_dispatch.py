@@ -129,6 +129,43 @@ def test_extract_line_integer_total_no_decimal():
     assert line == 168.0
 
 
+def test_non_match_market_futures_rejected():
+    """NBA Champion futures → model konuşmaz, MODEL_BASKETBALL_DATA_MISSING fail."""
+    bm = MagicMock()
+    market = _market(
+        sport_tag="nba",
+        slug="nba-2026-champion",
+        question="Will Lakers be 2026 NBA Champion?",
+        market_type="moneyline",
+    )
+    ratings = {"nba": {"LAL": EloRating()}}
+    eff = {"nba": {"LAL": TeamEfficiency(adj_o=110.0, adj_d=110.0, adj_pace=100.0)}}
+    res = enrich_with_basketball_dispatch(
+        market, bm, ratings=ratings, efficiencies=eff,
+        basketball_cfg=BasketballConfig(),
+    )
+    assert res.probability is None
+    assert res.fail_reason is not None
+    bm.assert_not_called()
+
+
+def test_non_match_market_player_prop_rejected():
+    """Wembanyama quadruple double → prop, model konuşmaz."""
+    bm = MagicMock()
+    market = _market(
+        sport_tag="nba",
+        slug="nba-wembanyama-record-quadruple-double",
+        question="Will Wembanyama record-quadruple-double this season?",
+        market_type="moneyline",
+    )
+    res = enrich_with_basketball_dispatch(
+        market, bm, ratings={"nba": {}}, efficiencies={"nba": {}},
+        basketball_cfg=BasketballConfig(),
+    )
+    assert res.probability is None
+    bm.assert_not_called()
+
+
 def test_extract_line_returns_none_when_no_pattern():
     from src.strategy.enrichment.basketball_dispatch import _extract_line
     line = _extract_line(question="", market_type="totals", slug="random-slug")
