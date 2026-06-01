@@ -20,11 +20,9 @@ from src.infrastructure.apis.espn_client import ESPNClient
 from src.infrastructure.apis.gamma_client import GammaClient
 from src.infrastructure.apis.odds_client import OddsAPIClient
 from src.infrastructure.executor import Executor
-from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
