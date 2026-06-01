@@ -91,16 +91,19 @@
           </div>
         </div>
 
-        <div class="card positions">
-          <div class="panel-header"><span class="card-icon">📍</span> Positions</div>
-          <div class="lp-body">
-            <div class="gauge-wrap">
-              <canvas id="slots-gauge" width="120" height="80"></canvas>
-              <div class="gauge-center">
-                <span class="gauge-num"><span id="slots-current">0</span>/<span id="slots-max">0</span></span>
-              </div>
+        <div class="card calibration">
+          <div class="panel-header">
+            <span class="card-icon">🎯</span> Model Doğruluğu
+            <span class="calib-updated" id="calib-updated"></span>
+          </div>
+          <div class="calib-body">
+            <div class="calib-score">
+              <span class="calib-score-num" id="calib-score">—</span>
+              <span class="calib-score-label">/100</span>
             </div>
-            <div class="slot-tags" id="slot-tags"></div>
+            <div class="calib-bins" id="calib-bins">
+              <div class="calib-empty">Yetersiz veri — ilk eğri için trade biriksin</div>
+            </div>
           </div>
         </div>
 

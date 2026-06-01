@@ -425,3 +425,28 @@ html, body {
   background: var(--border-soft);
   border-radius: 3px;
 }
+
+/* === Calibration kartı (Positions yerine) === */
+.card.calibration .panel-header { display: flex; align-items: center; gap: 6px; }
+.calib-updated { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; font-weight: 400; }
+.calib-body { display: flex; flex-direction: column; padding-top: 6px; gap: 8px; }
+.calib-score { display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 6px 0; }
+.calib-score-num { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
+.calib-score-label { font-size: 0.85rem; color: var(--text-muted); }
+.calib-bins { display: flex; flex-direction: column; gap: 6px; }
+.calib-empty { font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 16px 8px; line-height: 1.4; }
+.calib-bin { padding: 6px 0; border-top: 1px solid var(--border-soft); }
+.calib-bin:first-child { border-top: none; }
+.calib-bin-row { display: flex; justify-content: space-between; align-items: center; }
+.calib-bin-label { font-size: 0.78rem; color: var(--text-strong); font-weight: 500; }
+.calib-bin-note { font-size: 0.72rem; }
+.calib-bin.green .calib-bin-note { color: var(--green); }
+.calib-bin.yellow .calib-bin-note { color: var(--orange); }
+.calib-bin.red .calib-bin-note { color: var(--red); }
+.calib-bin.pending .calib-bin-note { color: var(--text-muted); font-style: italic; }
+.calib-bar { margin-top: 4px; height: 4px; background: var(--border-soft); border-radius: 2px; overflow: hidden; }
+.calib-bar-fill { height: 100%; transition: width 0.3s ease; }
+.calib-bin.green .calib-bar-fill { background: var(--green); }
+.calib-bin.yellow .calib-bar-fill { background: var(--orange); }
+.calib-bin.red .calib-bar-fill { background: var(--red); }
+.calib-bin-detail { font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; }

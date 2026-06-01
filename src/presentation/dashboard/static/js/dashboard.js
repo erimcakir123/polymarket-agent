@@ -44,6 +44,7 @@
     stock() { return this._json("/api/stock"); },
     stats() { return this._json("/api/stats"); },
     sportRoi() { return this._json("/api/sport_roi"); },
+    calibration() { return this._json("/api/calibration"); },
   };
 
   // ── CHARTS (Chart.js) — palette CSS'ten okunur, hex literal YASAK ──
@@ -78,12 +79,11 @@
   }
 
   const CHARTS = {
-    equity: null, waterfall: null, lp: null, slots: null,
+    equity: null, waterfall: null, lp: null,
     initAll() {
       this._initLine("equity-chart", "equity", COLORS.green, COLORS.greenFill);
       this._initBar("waterfall-chart", "waterfall");
       this._initGauge("lp-gauge", "lp", COLORS.green);
-      this._initGauge("slots-gauge", "slots", COLORS.blue);
     },
 
     _initLine(canvasId, key, border, fill) {
@@ -344,20 +344,50 @@
       CHARTS.setGauge("lp", data.risk_pct, color);
     },
 
-    slots(data) {
-      document.getElementById("slots-current").textContent = data.current;
-      document.getElementById("slots-max").textContent = data.max;
-      const pct = data.max > 0 ? (data.current / data.max) * 100 : 0;
-      CHARTS.setGauge("slots", pct, COLORS.blue);
-      const tags = [
-        { key: "normal", label: "NOR", cls: "tag-nor" },
-        { key: "consensus", label: "CON", cls: "tag-con" },
-        { key: "early", label: "EAR", cls: "tag-ear" },
-      ];
-      document.getElementById("slot-tags").innerHTML = tags.map((t) => {
-        const n = data.by_reason[t.key] || 0;
-        const activeCls = n > 0 ? " active" : "";
-        return '<span class="slot-tag ' + t.cls + activeCls + '">' + t.label + " " + n + "</span>";
+    calibration(data) {
+      // Skor
+      const scoreEl = document.getElementById("calib-score");
+      if (data.overall_score_pct !== null && data.overall_score_pct !== undefined) {
+        scoreEl.textContent = data.overall_score_pct.toFixed(0);
+      } else {
+        scoreEl.textContent = "—";
+      }
+      // Son güncelleme
+      const updEl = document.getElementById("calib-updated");
+      if (data.last_updated_ts) {
+        const ago = (Date.now() / 1000 - data.last_updated_ts) / 3600;
+        if (ago < 1) updEl.textContent = "(az önce)";
+        else if (ago < 24) updEl.textContent = "(" + Math.floor(ago) + " saat önce)";
+        else updEl.textContent = "(" + Math.floor(ago / 24) + " gün önce)";
+      } else {
+        updEl.textContent = "(henüz)";
+      }
+      // Bin satırları
+      const binsEl = document.getElementById("calib-bins");
+      const hasData = data.bins.some((b) => b.status !== "pending");
+      if (!hasData) {
+        binsEl.innerHTML =
+          '<div class="calib-empty">Yetersiz veri — ' + data.total_trades +
+          ' trade gerek; bin başına en az ' + data.min_trades_per_bin + '</div>';
+        return;
+      }
+      binsEl.innerHTML = data.bins.map((b) => {
+        if (b.status === "pending") {
+          return '<div class="calib-bin pending">' +
+            '<span class="calib-bin-label">' + b.label + ' (%' + b.range_pct + ')</span>' +
+            '<span class="calib-bin-note">' + b.note + '</span></div>';
+        }
+        const icon = b.status === "green" ? "✓" : b.status === "yellow" ? "⚠" : "✗";
+        const barPct = Math.min(100, Math.max(0, b.actual_pct));
+        return '<div class="calib-bin ' + b.status + '">' +
+          '<div class="calib-bin-row">' +
+            '<span class="calib-bin-label">' + b.label + '</span>' +
+            '<span class="calib-bin-note">' + icon + ' ' + b.note + '</span>' +
+          '</div>' +
+          '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + barPct + '%"></div></div>' +
+          '<div class="calib-bin-detail">Model dedi %' + b.predicted_pct +
+            ' → Gerçek %' + b.actual_pct + ' (' + b.n + ' trade)</div>' +
+          '</div>';
       }).join("");
     },
   };
@@ -391,16 +421,16 @@
       _renderSessionStart();  // Sure ilerlesin: 1.5h -> 2.3h -> 1.0 days ...
       try {
         const [status, summary,
-               positions, trades, skipped, stock, stats, sportRoi] = await Promise.all([
+               positions, trades, skipped, stock, stats, sportRoi, calibration] = await Promise.all([
           API.status(), API.summary(),
           API.positions(), API.trades(), API.skipped(), API.stock(),
-          API.stats(), API.sportRoi(),
+          API.stats(), API.sportRoi(), API.calibration(),
         ]);
         LAST.trades = Array.isArray(trades) ? trades : [];  // cache for tab clicks
         RENDER.status(status);
         RENDER.metrics(summary.equity);
         RENDER.wlStats(stats);
-        RENDER.slots(summary.slots);
+        RENDER.calibration(calibration);
         RENDER.lossProtection(summary.loss_protection);
         CHARTS.setEquity(LAST.trades, INITIAL_BANKROLL);
         CHARTS.setWaterfall(LAST.trades);
@@ -416,7 +446,6 @@
     init() {
       _initColors();
       global.COLORS = COLORS;  // modal JS needs palette access
-      document.getElementById("slots-max").textContent = MAX_POSITIONS;
       _renderSessionStart();
       CHARTS.initAll();
       global.CHART_TABS.bind({

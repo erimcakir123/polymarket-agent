@@ -111,6 +111,19 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
         payload["sport_health"] = computed_sport_health.compute_sport_health_for_dashboard(health_blob)
         return jsonify(payload)
 
+    @app.route("/api/calibration")
+    def api_calibration():
+        """Model dogruluk karnesi: bin basina (anchor, gercek win-rate, n).
+
+        4 sezgisel kova:
+          underdog (0.30-0.45) | hafif favori (0.45-0.65)
+          net favori (0.65-0.80) | ezici favori (0.80-1.00)
+        Yetersiz veri (< 10 trade) bin'leri "henuz veri yok" doner.
+        """
+        from src.presentation.dashboard import computed_calibration
+        trades = readers.read_trades(logs_dir, n=5000)
+        return jsonify(computed_calibration.calibration_report(trades))
+
     @app.route("/api/trades/history")
     def api_trades_history():
         offset = request.args.get("week_offset", 0, type=int)

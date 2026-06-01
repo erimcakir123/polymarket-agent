@@ -1,9 +1,9 @@
-"""Haftalık kalibrasyon eğrisi update orchestrator (Plan 1.D Task 6).
+"""Günlük kalibrasyon eğrisi update orchestrator (Plan 1.D Task 6).
 
 Sackmann refresh paralel: bot başlangıçta stale check → stale ise
 trade history'den fit_calibration → calibration_store'a yaz.
 
-Stale: dosya son 7 günden eski (FiveThirtyEight haftalık standardı).
+Stale: dosya son 24 saatten eski (2026-06-02: 7 gün → 1 gün, kullanıcı kararı).
 Bozulma/yokluk → graceful skip + log.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 from src.domain.calibration.curve import fit_calibration
 from src.infrastructure.data.calibration_store import save_calibration
 
-REFRESH_INTERVAL_DAYS = 7
+REFRESH_INTERVAL_DAYS = 1
 _MIN_TRADES_PER_BUCKET = 30
 
 logger = logging.getLogger(__name__)
