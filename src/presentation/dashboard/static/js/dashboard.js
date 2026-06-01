@@ -362,31 +362,35 @@
       } else {
         updEl.textContent = "(henüz)";
       }
-      // Bin satırları
+      // Bin satırları — YETERSIZ VERIDE DE iskelet göster, bar'lar dolar
       const binsEl = document.getElementById("calib-bins");
-      const hasData = data.bins.some((b) => b.status !== "pending");
-      if (!hasData) {
-        binsEl.innerHTML =
-          '<div class="calib-empty">Yetersiz veri — ' + data.total_trades +
-          ' trade gerek; bin başına en az ' + data.min_trades_per_bin + '</div>';
-        return;
-      }
       binsEl.innerHTML = data.bins.map((b) => {
         if (b.status === "pending") {
+          // İskelet: bin label + bar (boş) + "X/10 trade" alt yazı
+          const progressPct = Math.min(100, (b.n / data.min_trades_per_bin) * 100);
           return '<div class="calib-bin pending">' +
-            '<span class="calib-bin-label">' + b.label + ' (%' + b.range_pct + ')</span>' +
-            '<span class="calib-bin-note">' + b.note + '</span></div>';
+            '<div class="calib-bin-row">' +
+              '<span class="calib-bin-label">' + b.label + ' <span class="calib-bin-range">(%' + b.range_pct + ')</span></span>' +
+              '<span class="calib-bin-note">' + b.note + '</span>' +
+            '</div>' +
+            '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + progressPct + '%"></div></div>' +
+            '<div class="calib-bin-detail">Henüz tahmin doğrulanmadı</div>' +
+          '</div>';
         }
         const icon = b.status === "green" ? "✓" : b.status === "yellow" ? "⚠" : "✗";
-        const barPct = Math.min(100, Math.max(0, b.actual_pct));
+        const predictedPct = Math.min(100, Math.max(0, b.predicted_pct));
+        const actualPct = Math.min(100, Math.max(0, b.actual_pct));
         return '<div class="calib-bin ' + b.status + '">' +
           '<div class="calib-bin-row">' +
             '<span class="calib-bin-label">' + b.label + '</span>' +
             '<span class="calib-bin-note">' + icon + ' ' + b.note + '</span>' +
           '</div>' +
-          '<div class="calib-bar"><div class="calib-bar-fill" style="width:' + barPct + '%"></div></div>' +
-          '<div class="calib-bin-detail">Model dedi %' + b.predicted_pct +
-            ' → Gerçek %' + b.actual_pct + ' (' + b.n + ' trade)</div>' +
+          '<div class="calib-double-bar">' +
+            '<div class="calib-bar"><div class="calib-bar-fill predicted" style="width:' + predictedPct + '%"></div></div>' +
+            '<div class="calib-bar"><div class="calib-bar-fill actual" style="width:' + actualPct + '%"></div></div>' +
+          '</div>' +
+          '<div class="calib-bin-detail">Model dedi <strong>%' + b.predicted_pct +
+            '</strong> → Gerçek <strong>%' + b.actual_pct + '</strong> (' + b.n + ' trade)</div>' +
           '</div>';
       }).join("");
     },
