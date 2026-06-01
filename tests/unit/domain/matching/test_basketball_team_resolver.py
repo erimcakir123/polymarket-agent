@@ -1,9 +1,7 @@
 """Basketball team resolver — Polymarket slug ↔ NBA team abbreviation."""
 from __future__ import annotations
-import pytest
-from src.domain.matching.basketball_team_resolver import (
-    resolve_team_pair, ResolveResult,
-)
+
+from src.domain.matching.basketball_team_resolver import resolve_team_pair
 
 
 def test_resolve_nba_standard_slug():
@@ -54,3 +52,16 @@ def test_resolve_wncaab_top_programs():
 def test_resolve_ncaab_unknown_returns_not_ok():
     res = resolve_team_pair("ncaab-podunku-tinytown-2024-12-01", league="ncaab")
     assert res.ok is False
+
+
+def test_resolve_euroleague_top_teams():
+    """Euroleague slug — Türkçe + İngilizce varyasyonları."""
+    res = resolve_team_pair("euroleague-realmadrid-barcelona-2024-10-15", league="euroleague")
+    assert res.home == "RM"
+    assert res.away == "FCB"
+
+
+def test_resolve_euroleague_turkish_teams():
+    res = resolve_team_pair("euroleague-fenerbahce-efes-2024-11-01", league="euroleague")
+    assert res.home == "FB"
+    assert res.away == "EFES"

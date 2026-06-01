@@ -129,6 +129,30 @@ _NCAAB_TEAMS: dict[str, str] = {
     "virginiatech": "VT", "vt": "VT", "hokies": "VT",
 }
 
+# Euroleague 18 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.
+_EUROLEAGUE_TEAMS: dict[str, str] = {
+    "realmadrid": "RM", "rm": "RM",
+    "barcelona": "FCB", "barca": "FCB", "fcb": "FCB",
+    "fenerbahce": "FB", "fb": "FB",
+    "anadoluefes": "EFES", "efes": "EFES",
+    "panathinaikos": "PAO", "pao": "PAO",
+    "olympiacos": "OLY", "olympiakos": "OLY", "oly": "OLY",
+    "maccabi": "MAC", "maccabitelaviv": "MAC",
+    "cska": "CSKA", "moscow": "CSKA",
+    "zalgiris": "ZAL", "zal": "ZAL",
+    "bayern": "BAY", "bayernmunich": "BAY",
+    "alba": "ALBA", "berlin": "ALBA",
+    "asvel": "ASV", "lyon": "ASV",
+    "monaco": "MON",
+    "virtus": "VIRT", "virtusbologna": "VIRT", "bologna": "VIRT",
+    "milano": "MIL", "olimpiamilano": "MIL", "armani": "MIL",
+    "partizan": "PAR", "partizanbelgrade": "PAR",
+    "redstar": "RED", "crvenazvezda": "RED",
+    "valencia": "VAL", "valenciabasket": "VAL",
+    "baskonia": "BASK", "vitoria": "BASK",
+    "parisbasket": "PARI", "paris": "PARI",
+}
+
 # WNCAAB top-12 popüler takımlar (kolej kadın basket Polymarket).
 # Ayrı dict çünkü league=wncaab dispatch'le çağrılır — NCAAB ile çakışmaz.
 _WNCAAB_TEAMS: dict[str, str] = {
@@ -156,6 +180,8 @@ def _lookup(league: str) -> dict[str, str]:
         return _NCAAB_TEAMS
     if league == "wncaab":
         return _WNCAAB_TEAMS
+    if league == "euroleague":
+        return _EUROLEAGUE_TEAMS
     return {}
 
 

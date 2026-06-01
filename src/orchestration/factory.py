@@ -424,7 +424,9 @@ def _make_basketball_fetchers(
         # ESPN primary, yedek yok (degrade boş liste döner)
         return _espn, _empty_list
     if league in _EUROPE_BASKET_LEAGUES:
-        # Faz 3: euroleague-api primary wiring noktası
+        # Faz 3: euroleague-api primary. Endpoint factory bot başlangıçta
+        # opsiyonel (paket eksikse degrade boş list). Gerçek wiring sezon
+        # delta-fetch script'iyle eşleşir (gelecekte trade history beslenir).
         return _empty_list, _empty_list
     # Bilinmeyen lig — sessizce empty (mantıken buraya gelmez, enabled_leagues filtreliyor)
     return _empty_list, _empty_list
