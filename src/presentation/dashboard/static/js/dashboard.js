@@ -345,6 +345,8 @@
     },
 
     calibration(data) {
+      // Matrix canvas (sol taraf: predicted vs actual scatter)
+      _drawCalibrationMatrix(data);
       // Skor
       const scoreEl = document.getElementById("calib-score");
       if (data.overall_score_pct !== null && data.overall_score_pct !== undefined) {
@@ -395,6 +397,96 @@
       }).join("");
     },
   };
+
+  // ── Calibration matrix (canvas X-Y scatter) ──
+  function _drawCalibrationMatrix(data) {
+    const canvas = document.getElementById("calib-matrix");
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth || 480;
+    const H = canvas.clientHeight || 320;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 44, padR = 16, padT = 18, padB = 36;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // Eksen ve grid
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    for (let i = 0; i <= 4; i++) {
+      const pct = i * 25;
+      const x = padL + (i / 4) * plotW;
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+      ctx.textAlign = "center";
+      ctx.fillText("%" + pct, x, padT + plotH + 14);
+      ctx.textAlign = "right";
+      ctx.fillText("%" + pct, padL - 6, y + 3);
+    }
+
+    // İdeal çizgi (diagonal)
+    ctx.strokeStyle = "rgba(120, 180, 255, 0.5)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Eksen etiketleri
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Model tahmini", padL + plotW / 2, H - 8);
+    ctx.save();
+    ctx.translate(12, padT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("Gerçek kazanma", 0, 0);
+    ctx.restore();
+
+    // Bin merkezleri (predicted = bin orta, actual = data)
+    const colors = { green: "#4ade80", yellow: "#fbbf24", red: "#f87171", pending: "rgba(255,255,255,0.3)" };
+    data.bins.forEach((b) => {
+      const lo = parseInt(b.range_pct.split("-")[0]);
+      const hi = parseInt(b.range_pct.split("-")[1]);
+      const predicted = b.predicted_pct != null ? b.predicted_pct : (lo + hi) / 2;
+      const actual = b.actual_pct != null ? b.actual_pct : (lo + hi) / 2;
+      const x = padL + (predicted / 100) * plotW;
+      const y = padT + plotH - (actual / 100) * plotH;
+      const isPending = b.status === "pending";
+      const r = isPending ? 6 : 8 + Math.min(6, b.n / 5);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = colors[b.status] || colors.pending;
+      ctx.globalAlpha = isPending ? 0.4 : 0.9;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (!isPending) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(b.n, x, y + 3);
+      }
+    });
+
+    // Legend (sol üst köşe)
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.fillText("─ ─ İdeal (model = gerçek)", padL + 6, padT + 12);
+  }
 
   // ── Session start (topbar opasite 0.6) ──
   // Inline: sadece "1.5d" (uptime). Tam tarih hover tooltip'inde — diger

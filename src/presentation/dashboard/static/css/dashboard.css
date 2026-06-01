@@ -426,17 +426,23 @@ html, body {
   border-radius: 3px;
 }
 
-/* === Calibration kartı (Positions yerine) === */
-.card.calibration .panel-header { display: flex; align-items: center; gap: 6px; }
-.calib-updated { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; font-weight: 400; }
-.calib-body { display: flex; flex-direction: column; padding-top: 6px; gap: 8px; }
-.calib-score { display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 6px 0; }
-.calib-score-num { font-size: 1.75rem; font-weight: 700; color: var(--text-strong); }
-.calib-score-label { font-size: 0.85rem; color: var(--text-muted); }
-.calib-bins { display: flex; flex-direction: column; gap: 6px; }
-.calib-empty { font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 16px 8px; line-height: 1.4; }
-.calib-bin { padding: 6px 0; border-top: 1px solid var(--border-soft); }
-.calib-bin:first-child { border-top: none; }
+/* === Calibration kartı (full-width, en altta) === */
+.calibration-row { margin-top: 16px; }
+.card.calibration-wide { padding: 14px 18px; }
+.card.calibration-wide .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.calib-meta { display: flex; align-items: center; gap: 12px; }
+.calib-score-inline { font-size: 1.1rem; font-weight: 700; color: var(--text-strong); }
+.calib-updated { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
+.calib-wide-body { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(360px, 1.2fr); gap: 24px; align-items: start; }
+.calib-matrix-wrap { background: var(--bg-card); border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; min-height: 320px; }
+.calib-matrix-wrap canvas { max-width: 100%; height: auto; }
+.calib-bins { display: flex; flex-direction: column; gap: 10px; }
+.calib-empty { font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 24px 8px; line-height: 1.5; }
+.calib-bin { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-soft); }
+.calib-bin.green { border-left: 3px solid var(--green); }
+.calib-bin.yellow { border-left: 3px solid var(--orange); }
+.calib-bin.red { border-left: 3px solid var(--red); }
+.calib-bin.pending { border-left: 3px solid var(--text-muted); opacity: 0.85; }
 .calib-bin-row { display: flex; justify-content: space-between; align-items: center; }
 .calib-bin-label { font-size: 0.78rem; color: var(--text-strong); font-weight: 500; }
 .calib-bin-note { font-size: 0.72rem; }

@@ -91,21 +91,6 @@
           </div>
         </div>
 
-        <div class="card calibration">
-          <div class="panel-header">
-            <span class="card-icon">🎯</span> Model Doğruluğu
-            <span class="calib-updated" id="calib-updated"></span>
-          </div>
-          <div class="calib-body">
-            <div class="calib-score">
-              <span class="calib-score-num" id="calib-score">—</span>
-              <span class="calib-score-label">/100</span>
-            </div>
-            <div class="calib-bins" id="calib-bins">
-              <div class="calib-empty">Yetersiz veri — ilk eğri için trade biriksin</div>
-            </div>
-          </div>
-        </div>
 
         <div class="card branches">
           <div class="panel-header">
@@ -159,6 +144,27 @@
                   <canvas id="waterfall-chart" data-y-axis-target="pnl-y-axis"></canvas>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Calibration row (full-width, matrix left + info right) -->
+      <section class="calibration-row">
+        <div class="card calibration-wide">
+          <div class="panel-header">
+            <span><span class="card-icon">🎯</span> Model Doğruluğu</span>
+            <span class="calib-meta">
+              <span class="calib-score-inline"><span id="calib-score">—</span>/100</span>
+              <span class="calib-updated" id="calib-updated"></span>
+            </span>
+          </div>
+          <div class="calib-wide-body">
+            <div class="calib-matrix-wrap">
+              <canvas id="calib-matrix" width="480" height="320"></canvas>
+            </div>
+            <div class="calib-bins" id="calib-bins">
+              <div class="calib-empty">Yetersiz veri — ilk eğri için trade biriksin</div>
             </div>
           </div>
         </div>
