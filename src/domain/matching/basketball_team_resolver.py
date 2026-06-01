@@ -1,4 +1,4 @@
-"""Polymarket slug ↔ NBA/WNBA team abbreviation eşlemesi.
+"""Polymarket slug ↔ NBA/WNBA/NCAAB/WNCAAB/Euroleague team abbreviation eşlemesi.
 
 Tennis player resolver paraleli (src/domain/matching/tennis_player_resolver.py).
 Saf domain — I/O yok, sabit lookup tabloları.
@@ -6,11 +6,20 @@ Saf domain — I/O yok, sabit lookup tabloları.
 Polymarket slug pattern'leri:
   - "nba-lal-gsw-2024-11-01" (3-harf abbreviation)
   - "nba-lakers-vs-warriors-2024-11-01" (full team adı)
+  - "ncaab-duke-unc-2024-12-01"
+  - "euroleague-realmadrid-barcelona-2024-10-15"
+
+NCAAB / WNCAAB tam D1 listesi (~363 / ~351 takım) ayrı dosyalarda
+(_ncaab_teams.py, _wncaab_teams.py) — yayına alma için Polymarket'te
+trade edilebilecek tüm aktif programları kapsar.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+
+from src.domain.matching._ncaab_teams import NCAAB_TEAMS as _NCAAB_TEAMS_FULL
+from src.domain.matching._wncaab_teams import WNCAAB_TEAMS as _WNCAAB_TEAMS_FULL
 
 
 # NBA team abbreviations + alternate full-name kelimeleri.
@@ -63,73 +72,7 @@ _WNBA_TEAMS: dict[str, str] = {
     "was": "WAS", "mystics": "WAS",
 }
 
-
-@dataclass(frozen=True)
-class ResolveResult:
-    home: Optional[str]
-    away: Optional[str]
-    ok: bool
-    fail_reason: Optional[str] = None
-
-
-# NCAAB top-50 Polymarket aktif takımlar (popüler programlar).
-# Faz 2 — Polymarket'te en sık görülen kolej takımları (tournament + ACC/SEC/B12/B10/PAC).
-# Genişletilebilir liste — başka takım slug görülürse buraya eklenir.
-_NCAAB_TEAMS: dict[str, str] = {
-    "duke": "DUKE", "duk": "DUKE",
-    "unc": "UNC", "northcarolina": "UNC", "tarheels": "UNC",
-    "kentucky": "UK", "uk": "UK",
-    "kansas": "KU", "ku": "KU", "jayhawks": "KU",
-    "uconn": "CONN", "connecticut": "CONN", "huskies": "CONN",
-    "gonzaga": "GONZ", "zags": "GONZ",
-    "purdue": "PUR", "boilermakers": "PUR",
-    "michigan": "MICH", "wolverines": "MICH",
-    "michiganstate": "MSU", "msu": "MSU", "spartans": "MSU",
-    "ohio": "OSU", "ohiostate": "OSU", "buckeyes": "OSU",
-    "indiana": "IU", "hoosiers": "IU",
-    "illinois": "ILL", "illini": "ILL",
-    "wisconsin": "WIS", "badgers": "WIS",
-    "iowa": "IOWA", "hawkeyes": "IOWA",
-    "maryland": "MD", "terrapins": "MD", "terps": "MD",
-    "rutgers": "RUT", "scarletknights": "RUT",
-    "penn": "PSU", "pennstate": "PSU", "nittanylions": "PSU",
-    "alabama": "ALA", "crimsontide": "ALA",
-    "auburn": "AUB", "tigers": "AUB",
-    "tennessee": "TENN", "volunteers": "TENN", "vols": "TENN",
-    "florida": "FLA", "gators": "FLA",
-    "lsu": "LSU",
-    "arkansas": "ARK", "razorbacks": "ARK",
-    "texas": "TEX", "longhorns": "TEX",
-    "texasaandm": "TAMU", "tamu": "TAMU", "aggies": "TAMU",
-    "houston": "HOU", "cougars": "HOU",
-    "baylor": "BAY", "bears": "BAY",
-    "tcu": "TCU", "hornedfrogs": "TCU",
-    "okstate": "OKST", "oklahomastate": "OKST",
-    "oklahoma": "OU", "ou": "OU", "sooners": "OU",
-    "iowastate": "ISU", "cyclones": "ISU",
-    "ucla": "UCLA", "bruins": "UCLA",
-    "arizona": "ARIZ", "wildcats": "ARIZ",
-    "arizonastate": "ASU", "asu": "ASU", "sundevils": "ASU",
-    "oregon": "ORE", "ducks": "ORE",
-    "stanford": "STAN", "cardinal": "STAN",
-    "cal": "CAL", "california": "CAL", "goldenbears": "CAL",
-    "usc": "USC", "trojans": "USC",
-    "washington": "WASH", "huskies-wash": "WASH",
-    "memphis": "MEM", "memtigers": "MEM",
-    "cincinnati": "CIN", "bearcats": "CIN",
-    "creighton": "CREI", "bluejays": "CREI",
-    "marquette": "MARQ", "goldeneagles": "MARQ",
-    "villanova": "NOVA", "nova": "NOVA",
-    "stjohns": "STJ", "redstorm": "STJ",
-    "georgetown": "GTOWN", "hoyas": "GTOWN",
-    "syracuse": "SYR", "orange": "SYR",
-    "miami": "MIAH", "hurricanes-mia": "MIAH",
-    "louisville": "LOU", "cardinals-lou": "LOU",
-    "virginia": "UVA", "uva": "UVA", "cavaliers-uva": "UVA",
-    "virginiatech": "VT", "vt": "VT", "hokies": "VT",
-}
-
-# Euroleague 18 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.
+# Euroleague 20 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.
 _EUROLEAGUE_TEAMS: dict[str, str] = {
     "realmadrid": "RM", "rm": "RM",
     "barcelona": "FCB", "barca": "FCB", "fcb": "FCB",
@@ -153,22 +96,13 @@ _EUROLEAGUE_TEAMS: dict[str, str] = {
     "parisbasket": "PARI", "paris": "PARI",
 }
 
-# WNCAAB top-12 popüler takımlar (kolej kadın basket Polymarket).
-# Ayrı dict çünkü league=wncaab dispatch'le çağrılır — NCAAB ile çakışmaz.
-_WNCAAB_TEAMS: dict[str, str] = {
-    "southcarolina": "SC", "gamecocks": "SC",
-    "lsu": "LSU", "tigers": "LSU",
-    "uconn": "CONN", "connecticut": "CONN", "huskies": "CONN",
-    "iowa": "IOWA", "hawkeyes": "IOWA",
-    "stanford": "STAN", "cardinal": "STAN",
-    "tennessee": "TENN", "vols": "TENN", "ladyvols": "TENN",
-    "ucla": "UCLA", "bruins": "UCLA",
-    "notredame": "ND", "irish": "ND",
-    "louisville": "LOU",
-    "oregon": "ORE", "ducks": "ORE",
-    "maryland": "MD", "terps": "MD",
-    "baylor": "BAY",
-}
+
+@dataclass(frozen=True)
+class ResolveResult:
+    home: Optional[str]
+    away: Optional[str]
+    ok: bool
+    fail_reason: Optional[str] = None
 
 
 def _lookup(league: str) -> dict[str, str]:
@@ -177,9 +111,9 @@ def _lookup(league: str) -> dict[str, str]:
     if league == "wnba":
         return _WNBA_TEAMS
     if league == "ncaab":
-        return _NCAAB_TEAMS
+        return _NCAAB_TEAMS_FULL
     if league == "wncaab":
-        return _WNCAAB_TEAMS
+        return _WNCAAB_TEAMS_FULL
     if league == "euroleague":
         return _EUROLEAGUE_TEAMS
     return {}

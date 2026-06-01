@@ -34,10 +34,16 @@ from src.orchestration.score_enricher import ScoreEnricher
 from src.orchestration.startup import RuntimeState
 from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
+from src.infrastructure.data.basketball.team_ratings_store import (
+    load_team_snapshots,
+)
 from src.infrastructure.data.calibration_store import load_calibration as load_tennis_calibration
 from src.infrastructure.data.tennis_ratings_store import load_ratings as load_tennis_ratings
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
+from src.strategy.enrichment.basketball_dispatch import (
+    enrich_with_basketball_dispatch,
+)
 from src.strategy.enrichment.odds_enricher import enrich_market
 from src.strategy.enrichment.tennis_dispatch import enrich_with_tennis_dispatch
 
@@ -199,6 +205,13 @@ def build_agent(state: RuntimeState) -> Agent:
     tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
+
+    # Basketball ratings + efficiencies cache (Plan 1.A-D wiring tamamlanması).
+    # Lig-başına ayrı JSON dosyası (basketball_cache/{league}_ratings.json).
+    basket_ratings, basket_efficiencies = _load_basketball_caches(cfg)
+    basket_calibration = load_tennis_calibration(
+        Path("data/calibration_curves.json"),  # Plan 1.D generic location
+    )
     if tennis_ratings:
         logger.info(
             "Tennis model anchor aktif: %d oyuncu reytingi, calibration curves=%d",
@@ -216,12 +229,28 @@ def build_agent(state: RuntimeState) -> Agent:
     def _bookmaker_enrich(market):
         return enrich_market(market, odds)
 
-    # Gate: enricher + manipulation_check closure'ları
-    def _enricher(market):
+    def _tennis_dispatched(market):
         return enrich_with_tennis_dispatch(
             market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
             glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
         )
+
+    # Gate: enricher + manipulation_check closure'ları.
+    # Tri-dispatch: sport_tag basketball → basketball_dispatch (Plan 1.C wiring),
+    # tennis/diğer → tennis_dispatch → bookmaker fallback (mevcut).
+    _basket_sports = frozenset({"nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague"})
+
+    def _enricher(market):
+        sport = (market.sport_tag or "").lower()
+        if sport in _basket_sports:
+            return enrich_with_basketball_dispatch(
+                market, _tennis_dispatched,
+                ratings=basket_ratings,
+                efficiencies=basket_efficiencies,
+                basketball_cfg=cfg.basketball,
+                calibration_curves=basket_calibration,
+            )
+        return _tennis_dispatched(market)
 
     def _manip(question: str, liquidity: float) -> ManipulationCheck:
         return manipulation_check(
@@ -395,6 +424,40 @@ def _select_enricher_for_sport(sport_tag: str) -> str:
 _PRO_BASKET_LEAGUES = frozenset({"nba", "wnba"})
 _COLLEGE_BASKET_LEAGUES = frozenset({"ncaab", "wncaab"})
 _EUROPE_BASKET_LEAGUES = frozenset({"euroleague"})
+
+
+def _load_basketball_caches(cfg: AppConfig) -> tuple[dict, dict]:
+    """Lig-başına team_ratings_store JSON'larından ratings + efficiencies oku.
+
+    Returns: ({league: {team: EloRating}}, {league: {team: TeamEfficiency}}).
+    Eksik dosya → boş dict (degrade — basketball_dispatch bookmaker fallback).
+    """
+    from src.domain.pricing.basketball.pace_efficiency import TeamEfficiency
+    from src.domain.pricing.basketball.team_elo import EloRating
+
+    cache_dir = Path(cfg.basketball.cache_dir)
+    ratings: dict[str, dict[str, EloRating]] = {}
+    efficiencies: dict[str, dict[str, TeamEfficiency]] = {}
+    for league in cfg.basketball.enabled_leagues:
+        path = cache_dir / f"{league}_ratings.json"
+        snapshots = load_team_snapshots(path, league=league)
+        if not snapshots:
+            continue
+        ratings[league] = {
+            team: EloRating(rating=snap.elo_rating, games=snap.elo_games)
+            for team, snap in snapshots.items()
+        }
+        efficiencies[league] = {
+            team: TeamEfficiency(
+                adj_o=snap.adj_o, adj_d=snap.adj_d, adj_pace=snap.adj_pace,
+            )
+            for team, snap in snapshots.items()
+        }
+        logger.info(
+            "Basketball ratings yüklendi: %s — %d takım",
+            league, len(snapshots),
+        )
+    return ratings, efficiencies
 
 
 def _make_basketball_fetchers(
