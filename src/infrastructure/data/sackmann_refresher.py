@@ -58,6 +58,16 @@ _SOURCES: dict[str, dict[str, str]] = {
         "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_qual_itf_{year}.csv",
         "file": "wta_futures_{year}.csv",
     },
+    # Task 2 (2026-06-01): Doubles maçları — Wimbledon Doubles, Roland Garros Doubles
+    # gibi Grand Slam doubles market'leri için. Pricer src/domain/pricing/tennis/doubles_pricer.py.
+    "atp_doubles": {
+        "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_doubles_{year}.csv",
+        "file": "atp_matches_doubles_{year}.csv",
+    },
+    "wta_doubles": {
+        "url": "https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_doubles_{year}.csv",
+        "file": "wta_matches_doubles_{year}.csv",
+    },
 }
 
 

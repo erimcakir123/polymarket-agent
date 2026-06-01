@@ -59,19 +59,37 @@ def _mock_http(status: int = 200, body: str = "tourney_id,a,b\nx,1,2\n") -> Magi
     return MagicMock(return_value=resp)
 
 
-def test_refresh_cache_downloads_all_five_categories(tmp_path: Path) -> None:
-    """refresh_cache(years=[2026]) downloads 5 file categories per year."""
+def test_refresh_cache_downloads_all_categories(tmp_path: Path) -> None:
+    """refresh_cache(years=[2026]) downloads every category in _SOURCES per year."""
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
+    expected_count = len(_SOURCES)
     http = _mock_http()
     counts = refresh_cache(tmp_path, years=[2026], http_get=http)
-    # 5 categories × 1 year = 5 calls
-    assert http.call_count == 5
-    assert sum(counts.values()) == 5
-    # File names use cache convention (atp_futures, wta_futures — not URL paths)
+    assert http.call_count == expected_count
+    assert sum(counts.values()) == expected_count
+    # Core categories must be present (atomic write convention).
     assert (tmp_path / "atp_matches_2026.csv").exists()
     assert (tmp_path / "atp_matches_qual_chall_2026.csv").exists()
     assert (tmp_path / "atp_futures_2026.csv").exists()
     assert (tmp_path / "wta_matches_2026.csv").exists()
     assert (tmp_path / "wta_futures_2026.csv").exists()
+
+
+def test_sackmann_sources_includes_doubles():
+    """Task 2: Doubles CSV (atp_doubles, wta_doubles) _SOURCES dict'inde tanımlı."""
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
+    assert "atp_doubles" in _SOURCES
+    assert "wta_doubles" in _SOURCES
+    assert "doubles" in _SOURCES["atp_doubles"]["url"]
+    assert "doubles" in _SOURCES["wta_doubles"]["url"]
+
+
+def test_refresh_cache_downloads_doubles_files(tmp_path: Path) -> None:
+    """Task 2: doubles CSV dosyaları cache'e yazılmalı."""
+    http = _mock_http()
+    refresh_cache(tmp_path, years=[2026], http_get=http)
+    assert (tmp_path / "atp_matches_doubles_2026.csv").exists()
+    assert (tmp_path / "wta_matches_doubles_2026.csv").exists()
 
 
 def test_refresh_cache_atomic_write_skips_partial_on_error(tmp_path: Path) -> None:
@@ -84,26 +102,27 @@ def test_refresh_cache_atomic_write_skips_partial_on_error(tmp_path: Path) -> No
 
 
 def test_refresh_cache_multiple_years(tmp_path: Path) -> None:
-    """5 categories × 2 years = 10 calls."""
+    """All categories × 2 years = 2 × len(_SOURCES) calls."""
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
     http = _mock_http()
     refresh_cache(tmp_path, years=[2025, 2026], http_get=http)
-    assert http.call_count == 10
+    assert http.call_count == 2 * len(_SOURCES)
 
 
 def test_refresh_cache_continues_on_partial_failure(tmp_path: Path) -> None:
     """One category 404, others 200 → other files written, total < max."""
-    # Cycle: first call 404, rest 200
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
+    n = len(_SOURCES)
     seq = []
-    for i in range(5):
+    for i in range(n):
         r = MagicMock()
         r.status_code = 404 if i == 0 else 200
         r.text = "header\n"
         seq.append(r)
     http = MagicMock(side_effect=seq)
     counts = refresh_cache(tmp_path, years=[2026], http_get=http)
-    assert sum(counts.values()) == 4
-    # 4 of 5 files written
-    assert len(list(tmp_path.glob("*.csv"))) == 4
+    assert sum(counts.values()) == n - 1
+    assert len(list(tmp_path.glob("*.csv"))) == n - 1
 
 
 # ── refresh_if_stale ─────────────────────────────────────────────────────────
@@ -121,16 +140,17 @@ def test_refresh_if_stale_skips_when_fresh(tmp_path: Path) -> None:
 
 
 def test_refresh_if_stale_downloads_when_stale(tmp_path: Path) -> None:
-    """Empty cache → triggers download of recent years (5 categories × 2 = 10)."""
+    """Empty cache → triggers download of recent years (categories × 2 years)."""
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
     http = _mock_http()
     refreshed = refresh_if_stale(tmp_path, max_age_days=3, http_get=http)
     assert refreshed is True
-    # Default: last 2 years
-    assert http.call_count == 10
+    assert http.call_count == 2 * len(_SOURCES)
 
 
 def test_refresh_if_stale_custom_years(tmp_path: Path) -> None:
     """Override years parameter — refreshes specified years only."""
+    from src.infrastructure.data.sackmann_refresher import _SOURCES
     http = _mock_http()
     refresh_if_stale(tmp_path, max_age_days=3, years=[2026], http_get=http)
-    assert http.call_count == 5  # 1 year × 5 categories
+    assert http.call_count == len(_SOURCES)
