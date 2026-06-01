@@ -365,6 +365,28 @@ class BasketballExitConfig(BaseModel):
     predictive_exit: PredictiveExitConfig = Field(default_factory=PredictiveExitConfig)
 
 
+class TennisConfig(BaseModel):
+    """Tennis yetki filtresi config'i (ARCH_GUARD §6 — magic number yasağı).
+
+    max_phi_for_trade: Glicko phi (rating deviation) eşiği. phi >= bu → model
+      konuşmaz (~25+ maç oynamamış oyuncu = güvenilmez rating).
+    low_tier_slug_prefixes: Polymarket slug prefix bazlı low-tier filter.
+    low_tier_question_keywords: Question metni keyword bazlı filter (Polymarket
+      bazen "atp-" / "wta-" slug + question'da gerçek tier yazıyor).
+    """
+    model_config = ConfigDict(extra="ignore")
+    max_phi_for_trade: float = 100.0
+    low_tier_slug_prefixes: List[str] = Field(
+        default_factory=lambda: ["itf-", "challenger-", "futures-"]
+    )
+    low_tier_question_keywords: List[str] = Field(
+        default_factory=lambda: [
+            "ITF", "Futures", "Challenger",
+            "M15", "M25", "W15", "W25",
+        ]
+    )
+
+
 class PaperConfig(BaseModel):
     """Paper mode realism parameters (real Polymarket behavior, no synthetic).
 
@@ -415,6 +437,7 @@ class AppConfig(BaseModel):
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
     mlb_submarket: MlbSubmarketConfig = Field(default_factory=MlbSubmarketConfig)
     basketball: BasketballConfig = Field(default_factory=BasketballConfig)
+    tennis: TennisConfig = Field(default_factory=TennisConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
 
 

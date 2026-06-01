@@ -45,30 +45,31 @@ _GRASS_KEYWORDS = (
     "stuttgart", "mallorca", "newport",
 )
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
-# Glicko-2 phi (rating deviation) yetki eşiği. Default phi=350 (hiç maç),
-# 30+ maç sonrası phi ~50-80'e iner. 100 eşik = ~25+ maç = güvenilir.
-# 2026-06-01 kullanıcı kararı: yetkimiz olmayan oyuncuya bahis YOK.
-_MAX_PHI_FOR_TRADE = 100.0
-
-# 2026-06-01 BUG FIX: phi filtresi tek başına yetersiz. ITF'de düzenli
-# oynayan oyuncuların maç sayısı 30+, phi düşük → "güvenilir" sayıldı
-# ama lig kalitesi düşük (Sackmann ITF/Challenger için %50-60 doğruluk).
-# Polymarket slug prefix ile düşük-tier turnuvaları ELE.
-_LOW_TIER_SLUG_PREFIXES = ("itf-", "challenger-", "futures-")
-# Question metninde geçerse low-tier — bazen Polymarket slug "atp-" / "wta-"
-# yazıp question'da gerçek tier'ı belirtiyor.
-_LOW_TIER_QUESTION_KEYWORDS = (
+# Default'lar config.yaml > tennis altında override edilebilir. Module-level
+# sabitler sadece config geçirilmediği durumlarda (test, legacy) fallback.
+# Gerçek değerler factory.py'de config'den geçirilir.
+_DEFAULT_MAX_PHI_FOR_TRADE = 100.0
+_DEFAULT_LOW_TIER_SLUG_PREFIXES: tuple[str, ...] = ("itf-", "challenger-", "futures-")
+_DEFAULT_LOW_TIER_QUESTION_KEYWORDS: tuple[str, ...] = (
     "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
 )
 
 
-def _is_low_tier_tennis(slug: str, question: str) -> bool:
-    """ITF/Challenger/Futures market'i mi? Yetki dışı."""
+def _is_low_tier_tennis(
+    slug: str,
+    question: str,
+    slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
+    question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
+) -> bool:
+    """ITF/Challenger/Futures market'i mi? Yetki dışı.
+
+    Prefix/keyword listeleri config'den geçirilir; default'lar geri uyumluluk için.
+    """
     s = (slug or "").lower()
-    if any(s.startswith(p) for p in _LOW_TIER_SLUG_PREFIXES):
+    if any(s.startswith(p) for p in slug_prefixes):
         return True
     q = question or ""
-    return any(k in q for k in _LOW_TIER_QUESTION_KEYWORDS)
+    return any(k in q for k in question_keywords)
 
 
 def _infer_best_of(question: str) -> int:
@@ -170,11 +171,17 @@ def enrich_with_tennis_dispatch(
     ratings: dict[str, PlayerSnapshot],
     calibration_curves: dict[str, CalibrationCurve] | None = None,
     glicko_weight: float = 0.6,
+    max_phi_for_trade: float = _DEFAULT_MAX_PHI_FOR_TRADE,
+    low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
+    low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
 ) -> EnrichResult:
     """Tennis ise model, değilse veya yetersiz veri ise bookmaker fallback.
 
     Alt market'lerde fallback YASAK — cascade bug (h2h fiyatını her marketa
     yapıştırma) tam burada kapanır.
+
+    Yetki parametreleri (max_phi, low_tier_*) config.yaml > tennis altından
+    factory.py üzerinden geçirilir; default'lar geri uyumluluk için.
     """
     sport = (market.sport_tag or "").lower()
     if sport != "tennis":
@@ -183,7 +190,11 @@ def enrich_with_tennis_dispatch(
     # YETKİ FİLTRESİ (2026-06-01 bug fix): ITF/Challenger/Futures → SUS.
     # phi tek başına yetersizdi (ITF düzenli oyuncuların maç sayısı yüksek
     # ama lig kalitesi düşük). Slug + question keyword bazlı filtre.
-    if _is_low_tier_tennis(market.slug or "", market.question or ""):
+    if _is_low_tier_tennis(
+        market.slug or "", market.question or "",
+        slug_prefixes=low_tier_slug_prefixes,
+        question_keywords=low_tier_question_keywords,
+    ):
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
@@ -222,7 +233,7 @@ def enrich_with_tennis_dispatch(
     # phi < 100 = güvenilir tanınıyor (~30+ maç). Aksi halde model konuşmamalı.
     snap_a = ratings[player_a]
     snap_b = ratings[player_b]
-    if snap_a.rating.phi >= _MAX_PHI_FOR_TRADE or snap_b.rating.phi >= _MAX_PHI_FOR_TRADE:
+    if snap_a.rating.phi >= max_phi_for_trade or snap_b.rating.phi >= max_phi_for_trade:
         if is_moneyline:
             return bookmaker_enricher(market)
         return EnrichResult(

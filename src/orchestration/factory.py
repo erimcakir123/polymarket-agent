@@ -233,10 +233,16 @@ def build_agent(state: RuntimeState) -> Agent:
     def _bookmaker_enrich(market):
         return enrich_market(market, odds)
 
+    _tennis_low_tier_slug_prefixes = tuple(cfg.tennis.low_tier_slug_prefixes)
+    _tennis_low_tier_question_keywords = tuple(cfg.tennis.low_tier_question_keywords)
+
     def _tennis_dispatched(market):
         return enrich_with_tennis_dispatch(
             market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
             glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
+            max_phi_for_trade=cfg.tennis.max_phi_for_trade,
+            low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
+            low_tier_question_keywords=_tennis_low_tier_question_keywords,
         )
 
     # Gate: enricher + manipulation_check closure'ları.

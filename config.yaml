@@ -354,6 +354,28 @@ mlb_submarket:
   statsapi_timeout_sec: 10.0
   rate_cache_path: data/mlb_rate_cache.jsonl
 
+tennis:
+  # 2026-06-01: Yetki filtresi config'i (önce kod-level sabitti, ARCH_GUARD §6).
+  # Glicko phi (rating deviation) eşiği — düşük phi = güvenilir rating (~30+ maç).
+  # phi >= bu değer → model konuşmaz, market atlanır.
+  max_phi_for_trade: 100.0
+  # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
+  low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
+  # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).
+  # 2026-06-01: Challenger tournament isim pattern'leri için ek keyword'ler.
+  low_tier_question_keywords:
+    - "ITF"
+    - "Futures"
+    - "Challenger"
+    - "M15"
+    - "M25"
+    - "W15"
+    - "W25"
+    - "Prostejov"   # ATP Challenger (Krumich case)
+    - "Heraklion"   # ITF Futures
+    - "Antalya Challenger"
+    - "Cancun Challenger"
+
 paper:
   # 2026-05-29 (unified paper lab Phase 2): real Polymarket fill simulation.
   # tennis-paper-lab config_tennis.yaml ile birebir aynı ayarlar
