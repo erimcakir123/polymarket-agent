@@ -1,10 +1,16 @@
-"""ESPN scoreboard endpoint'inden basket maç sonuçları — yedek veri kaynağı.
+"""ESPN scoreboard endpoint'inden basket maç sonuçları.
 
 Endpoint örneği:
   https://site.api.espn.com/apis/site/v2/sports/basketball/{league}/scoreboard?dates=YYYYMMDD
 
-`nba_api` çökerse veya rate limit yerse buradan veri çekilir. ESPN HTML
-değil JSON döner — schema drift Pydantic ile yakalanır.
+Faz 1: NBA + WNBA (nba_api yedek).
+Faz 2: NCAAB (mens-college-basketball) + WNCAAB (womens-college-basketball) birincil.
+
+Lig-spesifik possessions katsayısı:
+  NBA / WNBA: 0.44 (Dean Oliver 2003-06 NBA)
+  NCAAB / WNCAAB: 0.475 (Dean Oliver college kabul)
+
+ESPN HTML değil JSON döner — schema drift Pydantic ile yakalanır.
 """
 from __future__ import annotations
 
@@ -15,11 +21,23 @@ from src.infrastructure.data.basketball.schemas import GameRecord
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_LEAGUES = ("nba", "wnba")
-_ESPN_LEAGUE_PATH = {"nba": "nba", "wnba": "wnba"}
-_ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball"
+# ESPN lig path eşlemesi (slug aynı olmayabilir — explicit map).
+_ESPN_LEAGUE_PATH = {
+    "nba": "nba",
+    "wnba": "wnba",
+    "ncaab": "mens-college-basketball",
+    "wncaab": "womens-college-basketball",
+}
 
-_FTA_POSS_FACTOR = 0.44
+# Lig-spesifik FTA → possessions katsayısı (Dean Oliver akademik).
+_FTA_POSS_FACTOR_BY_LEAGUE = {
+    "nba": 0.44,
+    "wnba": 0.44,
+    "ncaab": 0.475,
+    "wncaab": 0.475,
+}
+
+_ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball"
 
 
 def _stat(competitor: dict, name: str) -> float:
@@ -29,10 +47,10 @@ def _stat(competitor: dict, name: str) -> float:
     return 0.0
 
 
-def _possessions(competitor: dict) -> float:
+def _possessions(competitor: dict, fta_factor: float) -> float:
     return (
         _stat(competitor, "fieldGoalsAttempted")
-        + _FTA_POSS_FACTOR * _stat(competitor, "freeThrowsAttempted")
+        + fta_factor * _stat(competitor, "freeThrowsAttempted")
         - _stat(competitor, "offensiveRebounds")
         + _stat(competitor, "turnovers")
     )
@@ -40,6 +58,7 @@ def _possessions(competitor: dict) -> float:
 
 def _convert_espn_event_to_game_record(event: dict, league: str) -> GameRecord:
     """ESPN `event` JSON → GameRecord."""
+    fta_factor = _FTA_POSS_FACTOR_BY_LEAGUE[league]
     comp = event["competitions"][0]
     competitors = comp["competitors"]
     home = next(c for c in competitors if c.get("homeAway") == "home")
@@ -53,8 +72,8 @@ def _convert_espn_event_to_game_record(event: dict, league: str) -> GameRecord:
         away_team=str(away["team"]["abbreviation"]),
         home_score=int(home["score"]),
         away_score=int(away["score"]),
-        home_possessions=round(_possessions(home), 2) or 1.0,
-        away_possessions=round(_possessions(away), 2) or 1.0,
+        home_possessions=round(_possessions(home, fta_factor), 2) or 1.0,
+        away_possessions=round(_possessions(away, fta_factor), 2) or 1.0,
         is_final=True,
         league=league,  # type: ignore[arg-type]
     )
@@ -68,10 +87,10 @@ def fetch_game_log_via_espn(
 ) -> list[GameRecord]:
     """ESPN scoreboard endpoint'inden bir günün biten maçlarını çek.
 
-    Date format: 'YYYY-MM-DD'. Tamamlanmamış maçlar atlanır (status.completed=False).
+    Date format: 'YYYY-MM-DD'. Tamamlanmamış maçlar atlanır.
     HTTP/parse hatalarında boş liste + warning log.
     """
-    if league not in _SUPPORTED_LEAGUES:
+    if league not in _ESPN_LEAGUE_PATH:
         raise ValueError(f"Unsupported league: {league}")
     yyyymmdd = date_utc.replace("-", "")
     url = f"{_ESPN_BASE}/{_ESPN_LEAGUE_PATH[league]}/scoreboard?dates={yyyymmdd}"
@@ -81,7 +100,10 @@ def fetch_game_log_via_espn(
         logger.warning("ESPN scoreboard fetch failed: %s — %s", url, exc)
         return []
     if getattr(resp, "status_code", 0) != 200:
-        logger.warning("ESPN scoreboard non-200: %s -> %d", url, getattr(resp, "status_code", 0))
+        logger.warning(
+            "ESPN scoreboard non-200: %s -> %d",
+            url, getattr(resp, "status_code", 0),
+        )
         return []
     try:
         events = resp.json().get("events", [])

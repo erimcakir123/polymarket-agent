@@ -60,3 +60,30 @@ def test_fetch_skips_unfinished_games(fake_espn_event):
 def test_fetch_unknown_league_raises():
     with pytest.raises(ValueError):
         fetch_game_log_via_espn(league="cricket", date_utc="2024-10-22", http_get=MagicMock())
+
+
+def test_convert_ncaab_event_uses_college_possessions_factor(fake_espn_event):
+    """NCAAB possessions factor 0.475 (college standard) — 0.44 NBA'dan farklı."""
+    fake_espn_event["competitions"][0]["competitors"][0]["team"]["abbreviation"] = "DUK"
+    fake_espn_event["competitions"][0]["competitors"][1]["team"]["abbreviation"] = "UNC"
+    rec = _convert_espn_event_to_game_record(fake_espn_event, league="ncaab")
+    # NCAAB: 90 + 0.475 × 22 - 12 + 14 = 102.45
+    assert abs(rec.home_possessions - 102.45) < 0.01
+
+
+def test_convert_wncaab_event_uses_college_factor(fake_espn_event):
+    fake_espn_event["competitions"][0]["competitors"][0]["team"]["abbreviation"] = "SC"
+    fake_espn_event["competitions"][0]["competitors"][1]["team"]["abbreviation"] = "IOW"
+    rec = _convert_espn_event_to_game_record(fake_espn_event, league="wncaab")
+    assert abs(rec.home_possessions - 102.45) < 0.01
+
+
+def test_fetch_ncaab_url_uses_mens_college_basketball_path():
+    """ESPN endpoint path NCAAB için 'mens-college-basketball'."""
+    http_get = MagicMock()
+    http_get.return_value.json.return_value = {"events": []}
+    http_get.return_value.status_code = 200
+    fetch_game_log_via_espn(league="ncaab", date_utc="2024-12-01", http_get=http_get)
+    called_url = http_get.call_args[0][0]
+    assert "mens-college-basketball" in called_url
+    assert "20241201" in called_url

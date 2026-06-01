@@ -30,7 +30,7 @@ class GameRecord(BaseModel):
     home_possessions: float = Field(gt=0)
     away_possessions: float = Field(gt=0)
     is_final: bool
-    league: Literal["nba", "wnba"]
+    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
 
 
 class TeamSnapshot(BaseModel):
@@ -41,7 +41,7 @@ class TeamSnapshot(BaseModel):
     """
 
     team: str = Field(min_length=2, max_length=4)
-    league: Literal["nba", "wnba"]
+    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
     elo_rating: float
     elo_games: int = Field(ge=0)
     adj_o: float = Field(gt=0)
@@ -53,8 +53,8 @@ class TeamSnapshot(BaseModel):
 class RefresherResult(BaseModel):
     """Bir refresh çağrısının özet sonucu."""
 
-    source: Literal["nba_api", "espn"]
-    league: Literal["nba", "wnba"]
+    source: Literal["nba_api", "espn", "euroleague_api"]
+    league: Literal["nba", "wnba", "ncaab", "wncaab", "euroleague"]
     games_fetched: int = Field(ge=0)
     games_persisted: int = Field(ge=0)
     ok: bool
@@ -64,7 +64,7 @@ class RefresherResult(BaseModel):
 class SourceStatus(BaseModel):
     """Bir veri kaynağının sağlık durumu — health monitor satırı."""
 
-    source: Literal["nba_api", "espn"]
+    source: Literal["nba_api", "espn", "euroleague_api"]
     last_success_utc: Optional[str] = None
     last_fail_utc: Optional[str] = None
     consecutive_fails: int = Field(ge=0)

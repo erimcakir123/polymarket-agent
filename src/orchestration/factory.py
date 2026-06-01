@@ -394,13 +394,52 @@ def _select_enricher_for_sport(sport_tag: str) -> str:
     return "bookmaker"
 
 
+_PRO_BASKET_LEAGUES = frozenset({"nba", "wnba"})
+_COLLEGE_BASKET_LEAGUES = frozenset({"ncaab", "wncaab"})
+_EUROPE_BASKET_LEAGUES = frozenset({"euroleague"})
+
+
+def _make_basketball_fetchers(
+    league: str,
+    date_utc: str,
+    http_get,
+    espn_fetcher,
+):
+    """Lig-bazlı (primary_fetch, secondary_fetch) callable çifti üret.
+
+    NBA / WNBA: primary nba_api stub (Plan 1.B wiring noktası), secondary ESPN.
+    NCAAB / WNCAAB: primary ESPN, secondary boş (yedek kaynak yok).
+    Euroleague: primary euroleague-api stub (Faz 3 wiring), secondary boş.
+    """
+    def _empty_list() -> list:
+        return []
+
+    def _espn(_league: str = league, _date: str = date_utc) -> list:
+        return espn_fetcher(league=_league, date_utc=_date, http_get=http_get)
+
+    if league in _PRO_BASKET_LEAGUES:
+        # nba_api primary (Plan 1.B wiring), ESPN secondary
+        return _empty_list, _espn
+    if league in _COLLEGE_BASKET_LEAGUES:
+        # ESPN primary, yedek yok (degrade boş liste döner)
+        return _espn, _empty_list
+    if league in _EUROPE_BASKET_LEAGUES:
+        # Faz 3: euroleague-api primary wiring noktası
+        return _empty_list, _empty_list
+    # Bilinmeyen lig — sessizce empty (mantıken buraya gelmez, enabled_leagues filtreliyor)
+    return _empty_list, _empty_list
+
+
 def _maybe_invoke_basketball_refresh(cfg: AppConfig) -> None:
     """Basketball aktif iken refresh hook çağır.
 
-    Plan 1.A foundation: Yapısal wiring + yedek (ESPN) path kanıtı.
-    Birincil (nba_api) rating update Plan 1.B'de team_ratings_store + endpoint
-    factory ile eklenir. Şu an primary boş liste döner (degrade test pattern).
-    Stale cache veya bot reboot tetikleyicisi.
+    Lig-bazlı kaynak dispatch:
+      NBA / WNBA       → nba_api primary, ESPN secondary
+      NCAAB / WNCAAB   → ESPN primary (nba_api college yok), secondary yok
+      Euroleague       → euroleague_api primary (Faz 3 wiring), secondary yok
+
+    Plan 1.B wiring noktası: nba_api endpoint factory ile primary fetch
+    gerçek delta-fetch yapacak (şu an stub).
     """
     tags_lc = {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])}
     enabled = [lg for lg in cfg.basketball.enabled_leagues if lg in tags_lc]
@@ -422,18 +461,14 @@ def _maybe_invoke_basketball_refresh(cfg: AppConfig) -> None:
     today = datetime.now(timezone.utc).date().isoformat()
 
     for league in enabled:
-        def _primary() -> list:
-            # Plan 1.B wiring noktası: nba_api endpoint factory + delta-fetch
-            return []
-
-        def _secondary(_league: str = league, _date: str = today) -> list:
-            return fetch_game_log_via_espn(
-                league=_league, date_utc=_date, http_get=requests.get,
-            )
+        primary_fetch, secondary_fetch = _make_basketball_fetchers(
+            league=league, date_utc=today, http_get=requests.get,
+            espn_fetcher=fetch_game_log_via_espn,
+        )
 
         runner = BasketballRefreshRunner(
             league=league, health_path=health_path,
-            primary_fetch=_primary, secondary_fetch=_secondary,
+            primary_fetch=primary_fetch, secondary_fetch=secondary_fetch,
             now_utc_str=lambda: datetime.now(timezone.utc).isoformat(),
         )
         outcome = runner.run()

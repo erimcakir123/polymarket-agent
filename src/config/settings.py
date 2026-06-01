@@ -118,16 +118,21 @@ class MlbSubmarketConfig(BaseModel):
 
 
 class BasketballLeagueParams(BaseModel):
-    """Lig-spesifik model parametreleri (Plan 1.B Task 7).
+    """Lig-spesifik model parametreleri (Plan 1.B Task 7 + Faz 2/3).
 
-    home_advantage: rating puanı (NBA 100, WNBA 95 — FiveThirtyEight referans).
+    home_advantage: rating puanı.
+      NBA 100, WNBA 95, NCAAB 130, WNCAAB 120, EUL 90.
     k_factor: Elo update hızı.
     blend_elo: moneyline blend ağırlığı (Elo vs Pace×Efficiency).
+    margin_std: maç sonu skor farkı std (NBA 11, NCAAB 13, EUL 10).
+    total_std: toplam skor std (NBA 20, NCAAB 22, EUL 16).
     """
     model_config = ConfigDict(extra="ignore")
     home_advantage: float = 100.0
     k_factor: float = 20.0
     blend_elo: float = Field(0.55, ge=0.0, le=1.0)
+    margin_std: float = Field(11.0, gt=0.0)
+    total_std: float = Field(20.0, gt=0.0)
 
 
 class BasketballConfig(BaseModel):
@@ -145,8 +150,26 @@ class BasketballConfig(BaseModel):
     secondary_source: str = "espn"
     leagues: dict[str, BasketballLeagueParams] = Field(
         default_factory=lambda: {
-            "nba": BasketballLeagueParams(home_advantage=100.0, k_factor=20.0),
-            "wnba": BasketballLeagueParams(home_advantage=95.0, k_factor=22.0),
+            "nba": BasketballLeagueParams(
+                home_advantage=100.0, k_factor=20.0,
+                margin_std=11.0, total_std=20.0,
+            ),
+            "wnba": BasketballLeagueParams(
+                home_advantage=95.0, k_factor=22.0,
+                margin_std=9.5, total_std=16.0,
+            ),
+            "ncaab": BasketballLeagueParams(
+                home_advantage=130.0, k_factor=25.0, blend_elo=0.60,
+                margin_std=13.0, total_std=22.0,
+            ),
+            "wncaab": BasketballLeagueParams(
+                home_advantage=120.0, k_factor=25.0, blend_elo=0.60,
+                margin_std=12.0, total_std=20.0,
+            ),
+            "euroleague": BasketballLeagueParams(
+                home_advantage=90.0, k_factor=20.0, blend_elo=0.50,
+                margin_std=10.0, total_std=16.0,
+            ),
         }
     )
 

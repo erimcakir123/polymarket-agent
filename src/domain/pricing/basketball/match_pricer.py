@@ -5,7 +5,8 @@ Per-market pricer'lar:
   totals    → P(proj_total > line)  (normal approx, std dev sezon kalibrasyonu)
   spreads   → P(margin > line)
 
-Lig-spesifik parametreler config'den gelir (home_advantage, blend_elo).
+Lig-spesifik parametreler config'den gelir (home_advantage, blend_elo,
+margin_std, total_std). NBA/WNBA/NCAAB/WNCAAB/Euroleague farklı tuning'ler.
 Saf domain — I/O yok.
 """
 from __future__ import annotations
@@ -21,11 +22,10 @@ from src.domain.pricing.basketball.team_elo import (
 )
 
 
-# NBA empirik margin std dev (regular season, FiveThirtyEight): ~11
-# WNBA: ~9.5. Plan 1.C kalibrasyonunda lig-başına revize.
-_MARGIN_STD_DEFAULT = 11.0
-# NBA total std dev: ~20 (totals dağılımı margin'den daha geniş)
-_TOTAL_STD_DEFAULT = 20.0
+# Lig parametresi geçirilmezse default fallback (NBA empiriği).
+# Backward compat: Faz 1 testleri parametre vermeden çağırır.
+_MARGIN_STD_NBA_DEFAULT = 11.0
+_TOTAL_STD_NBA_DEFAULT = 20.0
 
 
 def _phi(z: float) -> float:
@@ -33,9 +33,9 @@ def _phi(z: float) -> float:
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
-def _moneyline_from_pace(proj: GameProjection) -> float:
+def _moneyline_from_pace(proj: GameProjection, margin_std: float) -> float:
     """Beklenen margin'in 0'dan büyük olma olasılığı (normal varsayım)."""
-    return _phi(proj.margin / _MARGIN_STD_DEFAULT)
+    return _phi(proj.margin / margin_std)
 
 
 def compute_market_anchor(
@@ -44,30 +44,32 @@ def compute_market_anchor(
     home_eff: TeamEfficiency, away_eff: TeamEfficiency,
     home_advantage: float, blend_elo: float,
     line: Optional[float],
+    margin_std: float = _MARGIN_STD_NBA_DEFAULT,
+    total_std: float = _TOTAL_STD_NBA_DEFAULT,
 ) -> Optional[float]:
     """Market type'a göre P(YES) anchor üret.
 
     line: totals için over/under sayısı, spreads için home spread (negatif = home favored).
     moneyline için None.
+    margin_std/total_std: lig-spesifik (NBA 11/20, WNBA 9.5/16, NCAAB 13/22, EUL 10/16).
     Bilinmeyen market_type veya gerekli parametre None → None.
     """
     mt = market_type.lower()
     proj = project_game(home_eff, away_eff)
     if mt == "moneyline":
         p_elo = expected_win_prob(home_elo, away_elo, home_advantage)
-        p_pace = _moneyline_from_pace(proj)
+        p_pace = _moneyline_from_pace(proj, margin_std)
         return blend_elo * p_elo + (1.0 - blend_elo) * p_pace
     if mt == "totals":
         if line is None:
             return None
-        z = (proj.total - line) / _TOTAL_STD_DEFAULT
+        z = (proj.total - line) / total_std
         return _phi(z)
     if mt == "spreads":
         if line is None:
             return None
-        # Home spread negatif = home favored. Cover için margin > -line gerekir.
-        # Örnek: line=-3.5 → home_cover ⇔ margin > 3.5.
+        # Home spread negatif = home favored. Cover için margin > -line.
         threshold = -line
-        z = (proj.margin - threshold) / _MARGIN_STD_DEFAULT
+        z = (proj.margin - threshold) / margin_std
         return _phi(z)
     return None

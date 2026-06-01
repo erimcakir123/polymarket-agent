@@ -37,6 +37,8 @@ def enrich_basketball_from_model(
     home_advantage: float, blend_elo: float,
     line: Optional[float] = None,
     calibration_curves: Optional[dict[str, CalibrationCurve]] = None,
+    margin_std: float = 11.0,
+    total_std: float = 20.0,
 ) -> EnrichResult:
     """Basketball market → model probability → EnrichResult.
 
@@ -63,6 +65,7 @@ def enrich_basketball_from_model(
         home_elo=home_elo, away_elo=away_elo,
         home_eff=home_eff, away_eff=away_eff,
         home_advantage=home_advantage, blend_elo=blend_elo, line=line,
+        margin_std=margin_std, total_std=total_std,
     )
     if model_p is None:
         return EnrichResult(

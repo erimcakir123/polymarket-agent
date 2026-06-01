@@ -102,6 +102,15 @@ risk:
   # Belirsizlik filtresi — tenis modeli "fifty-fifty" derken trade etme.
   # 5w3l veri analizi: 3 kaybın 3'ü de anchor 0.40-0.60 arasındaydı.
   model_min_anchor_distance_from_half: 0.10
+  # PLAN-001 (2026-06-01): Anti-edge guard. Consensus stratejisi edge'i
+  # "0.99 - entry_price" diye hesaplıyor — model-piyasa açıklığını umursamıyor.
+  # Cobolli (0.86 vs model 0.63) tipi negatif-EV trade'leri kesmek için 2 kural:
+  # A: paid_price ≥ threshold VE anti_edge > tolerance → SKIP (yüksek fiyat asimetri)
+  # B: anti_edge > absolute_max → SKIP (büyük model-fiyat uçurumu, fiyat fark etmez)
+  # anti_edge = paid_price - model_fair_for_chosen_side.
+  anti_edge_high_price_threshold: 0.80
+  anti_edge_high_price_tolerance: 0.00
+  anti_edge_absolute_max: 0.15
   # SPEC-X (2026-05-24): bimodal (totals + spreads) entry alt sınır — ultra-low fiyat
   # bu market'lerde "piyasa kararını vermiş" sayılır.
   bimodal_min_entry_price: 0.20
@@ -239,29 +248,54 @@ price_feed:
   max_spread_for_near_resolve: 0.10
 
 basketball:
-  # SPEC Faz 1 (2026-06-01): NBA + WNBA model foundation.
-  # WNBA Plan 1.A spike testi sonucu (2026-06-01): PASS — 240 maç, 12 takım,
-  # her takım 40 maç, possessions kolonları dolu. WNBA Faz 1 kapsamında.
+  # Faz 1 (2026-06-01): NBA + WNBA model foundation (PASS spike: 240 maç).
+  # Faz 2 (2026-06-01): NCAAB + WNCAAB eklendi (ESPN scrape, possessions 0.475).
+  # Faz 3 (2026-06-01): Euroleague eklendi (euroleague-api, FIBA possessions 0.46).
+  # NBL kapsam dışı (Python verisi yok).
   enabled_leagues:
     - nba
     - wnba
+    - ncaab
+    - wncaab
+    - euroleague
   cache_dir: data/basketball_cache
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
   secondary_source: espn
-  # Lig-spesifik model parametreleri (FiveThirtyEight + KenPom referansları).
-  # home_advantage: rating puanı (NBA 100, WNBA 95).
-  # k_factor: Elo update hızı (yüksek = volatile, düşük = stabil).
-  # blend_elo: moneyline harmanı ağırlığı (0.55 = %55 Elo + %45 Pace).
+  # Lig-spesifik model parametreleri (referanslar: FiveThirtyEight + KenPom + FIBA).
+  # home_advantage: rating puanı; k_factor: Elo update hızı; blend_elo: Elo↔Pace harmanı;
+  # margin_std/total_std: skor farkı / toplam skor std (P(YES) hesabında normal dağılım).
   leagues:
     nba:
       home_advantage: 100.0
       k_factor: 20.0
       blend_elo: 0.55
+      margin_std: 11.0
+      total_std: 20.0
     wnba:
       home_advantage: 95.0
       k_factor: 22.0
       blend_elo: 0.55
+      margin_std: 9.5
+      total_std: 16.0
+    ncaab:
+      home_advantage: 130.0  # College kalabalık seyirci, ev avantajı NBA'dan yüksek
+      k_factor: 25.0         # Roster yıllık değişim → daha hızlı update
+      blend_elo: 0.60        # Elo college'da daha güçlü sinyal
+      margin_std: 13.0
+      total_std: 22.0
+    wncaab:
+      home_advantage: 120.0
+      k_factor: 25.0
+      blend_elo: 0.60
+      margin_std: 12.0
+      total_std: 20.0
+    euroleague:
+      home_advantage: 90.0   # Avrupa salonları küçük, ev etkisi NBA'dan az
+      k_factor: 20.0
+      blend_elo: 0.50        # FIBA pace × eff daha güçlü
+      margin_std: 10.0
+      total_std: 16.0        # Avrupa toplam skor NBA'dan düşük (160 vs 220)
 
 mlb_submarket:
   enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin
