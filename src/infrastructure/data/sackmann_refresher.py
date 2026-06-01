@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -77,7 +77,7 @@ def is_cache_stale(
     Coverage check = expected files all present (Task 2 doubles fix: yeni source
     eklendi ama canary fresh diye skip oluyordu).
     """
-    current_year = datetime.utcnow().year
+    current_year = datetime.now(timezone.utc).year
     canary = cache_dir / f"atp_matches_{current_year}.csv"
     if not canary.exists():
         return True
@@ -161,7 +161,7 @@ def refresh_if_stale(
         )
         return False
     if years is None:
-        current = datetime.utcnow().year
+        current = datetime.now(timezone.utc).year
         years = [current - i for i in range(_RECENT_YEARS_TO_REFRESH)]
     logger.info("Sackmann cache stale — refreshing years=%s", years)
     counts = refresh_cache(cache_dir, years, http_get=http_get)

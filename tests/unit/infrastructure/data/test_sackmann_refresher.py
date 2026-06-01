@@ -27,9 +27,9 @@ def test_is_cache_stale_when_dir_empty(tmp_path: Path) -> None:
 
 def test_is_cache_stale_when_current_year_file_fresh(tmp_path: Path) -> None:
     """All expected files present + canary mtime within max_age_days → not stale."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from src.infrastructure.data.sackmann_refresher import _SOURCES
-    current = datetime.utcnow().year
+    current = datetime.now(timezone.utc).year
     # Tüm beklenen dosyaları yarat (canary + diğerleri — missing-file fix sonrası gerek).
     for spec in _SOURCES.values():
         f = tmp_path / spec["file"].format(year=current)
@@ -39,8 +39,8 @@ def test_is_cache_stale_when_current_year_file_fresh(tmp_path: Path) -> None:
 
 def test_is_cache_stale_when_current_year_file_old(tmp_path: Path) -> None:
     """Current-year file older than max_age_days → stale."""
-    from datetime import datetime
-    current = datetime.utcnow().year
+    from datetime import datetime, timezone
+    current = datetime.now(timezone.utc).year
     f = tmp_path / f"atp_matches_{current}.csv"
     f.write_text("header\n", encoding="utf-8")
     # Force mtime to 5 days ago
@@ -90,9 +90,9 @@ def test_sackmann_doubles_disabled_2020_suspended():
 
 def test_is_cache_stale_when_expected_file_missing(tmp_path: Path) -> None:
     """Missing-file detection: bir source dosyası yoksa stale dön."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from src.infrastructure.data.sackmann_refresher import _SOURCES
-    current = datetime.utcnow().year
+    current = datetime.now(timezone.utc).year
     # Sadece canary yarat (atp_main), diğerleri YOK → stale
     (tmp_path / f"atp_matches_{current}.csv").write_text("h\n", encoding="utf-8")
     # Diğer source'lar mevcut olmalı (en az 3 var)
@@ -139,9 +139,9 @@ def test_refresh_cache_continues_on_partial_failure(tmp_path: Path) -> None:
 
 def test_refresh_if_stale_skips_when_fresh(tmp_path: Path) -> None:
     """All expected files present + fresh canary → no downloads."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from src.infrastructure.data.sackmann_refresher import _SOURCES
-    current = datetime.utcnow().year
+    current = datetime.now(timezone.utc).year
     for spec in _SOURCES.values():
         (tmp_path / spec["file"].format(year=current)).write_text("h\n", encoding="utf-8")
     http = _mock_http()
