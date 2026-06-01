@@ -431,10 +431,10 @@ html, body {
 .calib-meta { display: flex; align-items: center; gap: 12px; }
 .calib-score-inline { font-size: 1.1rem; font-weight: 700; color: var(--text-strong); }
 .calib-updated { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
-.calib-wide-body { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(360px, 1.2fr); gap: 24px; align-items: start; }
+.calib-wide-body { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(360px, 1.2fr); gap: 24px; align-items: center; }
 .calib-matrix-wrap { background: var(--bg-card); border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; min-height: 320px; }
 .calib-matrix-wrap canvas { max-width: 100%; height: auto; }
-.calib-bins { display: flex; flex-direction: column; gap: 10px; }
+.calib-bins { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
 .calib-empty { font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 24px 8px; line-height: 1.5; }
 .calib-bin { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-soft); }
 .calib-bin.green { border-left: 3px solid var(--green); }
