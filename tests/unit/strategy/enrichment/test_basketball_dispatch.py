@@ -85,6 +85,56 @@ def test_cbb_alias_routes_to_ncaab():
     assert res.probability is not None
 
 
+def test_extract_line_from_polymarket_slug_total_pt_format():
+    """Polymarket slug pattern: '...-total-171pt5' → line=171.5 (Bug fix 2026-06-01)."""
+    from src.strategy.enrichment.basketball_dispatch import _extract_line
+    line = _extract_line(
+        question="Will Storm vs Wings total points be over 171.5?",
+        market_type="totals",
+        slug="wnba-sea-dal-2026-06-01-total-171pt5",
+    )
+    assert line == 171.5
+
+
+def test_extract_line_from_slug_only_no_question_decimal():
+    """Polymarket question yoksa bile slug'dan parse edebilmeli."""
+    from src.strategy.enrichment.basketball_dispatch import _extract_line
+    line = _extract_line(
+        question="",  # Polymarket bazen boş bırakır
+        market_type="totals",
+        slug="wnba-min-phx-2026-06-01-total-168pt5",
+    )
+    assert line == 168.5
+
+
+def test_extract_line_spread_from_slug():
+    """Spread slug pattern: '...-spread-7pt5' → 7.5."""
+    from src.strategy.enrichment.basketball_dispatch import _extract_line
+    line = _extract_line(
+        question="",
+        market_type="spreads",
+        slug="nba-lal-gsw-2024-11-01-spread-7pt5",
+    )
+    assert line == 7.5
+
+
+def test_extract_line_integer_total_no_decimal():
+    """'total-168' (decimal yok) → 168.0."""
+    from src.strategy.enrichment.basketball_dispatch import _extract_line
+    line = _extract_line(
+        question="",
+        market_type="totals",
+        slug="wnba-sea-dal-2026-06-01-total-168",
+    )
+    assert line == 168.0
+
+
+def test_extract_line_returns_none_when_no_pattern():
+    from src.strategy.enrichment.basketball_dispatch import _extract_line
+    line = _extract_line(question="", market_type="totals", slug="random-slug")
+    assert line is None
+
+
 def test_alt_market_unknown_team_no_bookmaker_fallback():
     """Totals market'te bilinmeyen takım → trade YASAK (cascade bug önleme)."""
     bm = MagicMock()

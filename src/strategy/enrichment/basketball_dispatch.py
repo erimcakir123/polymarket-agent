@@ -34,6 +34,18 @@ _OVER_LINE_RE = re.compile(
     r"(?:over|under|total|totals)\s+(\d+\.?\d*)", re.IGNORECASE,
 )
 _SPREAD_RE = re.compile(r"[+-]\d+\.?\d*")
+# Polymarket slug pattern: "wnba-sea-dal-2026-06-01-total-171pt5" (171.5)
+# Slug'da "pt" decimal separator olarak kullanılır (Polymarket convention).
+_SLUG_TOTAL_RE = re.compile(r"-total-(\d+)(?:pt(\d+))?", re.IGNORECASE)
+_SLUG_SPREAD_RE = re.compile(r"-spread-([+-]?\d+)(?:pt(\d+))?", re.IGNORECASE)
+
+
+def _slug_line_with_pt(int_part: str, frac_part: str | None) -> float | None:
+    """Polymarket 'pt' decimal'i parse et: ('171', '5') → 171.5."""
+    try:
+        return float(int_part) + (float(f"0.{frac_part}") if frac_part else 0.0)
+    except ValueError:
+        return None
 
 
 def _normalize_league(sport_tag: str) -> str:
@@ -57,11 +69,21 @@ def _infer_market_type(market: MarketData) -> str:
     return "moneyline"
 
 
-def _extract_line(question: str, market_type: str) -> float | None:
-    """Question stringinden totals/spreads line çıkar."""
+def _extract_line(
+    question: str, market_type: str, slug: str = "",
+) -> float | None:
+    """Totals/spreads line çıkar — önce slug (Polymarket pattern), sonra question fallback."""
     q = question or ""
+    s = slug or ""
     mt = market_type.lower()
     if mt == "totals":
+        # Önce slug: "...-total-171pt5" → 171.5
+        sm = _SLUG_TOTAL_RE.search(s)
+        if sm:
+            line = _slug_line_with_pt(sm.group(1), sm.group(2))
+            if line is not None:
+                return line
+        # Fallback question
         m = _OVER_LINE_RE.search(q)
         if m:
             try:
@@ -69,6 +91,12 @@ def _extract_line(question: str, market_type: str) -> float | None:
             except ValueError:
                 return None
     if mt == "spreads":
+        # Önce slug: "...-spread-7pt5" → 7.5
+        sm = _SLUG_SPREAD_RE.search(s)
+        if sm:
+            line = _slug_line_with_pt(sm.group(1), sm.group(2))
+            if line is not None:
+                return line
         m = _SPREAD_RE.search(q)
         if m:
             try:
@@ -128,7 +156,9 @@ def enrich_with_basketball_dispatch(
         m_std = params.margin_std
         t_std = params.total_std
 
-    line = _extract_line(market.question or "", market_type)
+    line = _extract_line(
+        market.question or "", market_type, slug=market.slug or "",
+    )
     model_result = enrich_basketball_from_model(
         home_team=resolved.home, away_team=resolved.away,
         market_type=market_type, league=league,
