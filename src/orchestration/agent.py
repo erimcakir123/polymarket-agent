@@ -27,6 +27,7 @@ from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
 from src.orchestration.exit_processor import ExitProcessor
+from src.orchestration.health_monitor import HealthMonitor
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
@@ -61,6 +62,7 @@ class AgentDeps:
     espn_client: ESPNClient | None = None  # SPEC-force-close 2026-05-27: get_match_status icin
     gamma_client: GammaClient | None = None  # 2026-05-28: ExitProcessor polymarket-resolution detector
     notifier: TelegramNotifier | None = None  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
+    health_monitor: HealthMonitor | None = None  # SPEC-TG-001 2026-06-02: periyodik health check
 
 
 class Agent:
@@ -72,6 +74,13 @@ class Agent:
         self._ws_started = False
         self._entry = EntryProcessor(deps)
         self._exit = ExitProcessor(deps)
+        # SPEC-TG-001 2026-06-02: health check tick sayacı (light interval × N)
+        self._health_tick: int = 0
+        cfg_alert = deps.state.config.telegram.alert
+        light_sec = max(1, deps.state.config.cycle.light_interval_sec)
+        self._health_check_every: int = max(
+            1, cfg_alert.health_check_interval_sec // light_sec,
+        )
         self._resilience = CycleResilience(
             max_consecutive=deps.state.config.agent.cycle_max_consecutive_errors
         )
@@ -124,6 +133,17 @@ class Agent:
                             )
                             score_map = {}
                     self._exit.run_light(score_map=score_map)
+                    # SPEC-TG-001 2026-06-02: periyodik health check (her N light tick).
+                    # check_all + dedupe + send — exception isolated, light cycle bozulmasin.
+                    if self.deps.health_monitor is not None:
+                        self._health_tick += 1
+                        if self._health_tick % self._health_check_every == 0:
+                            try:
+                                alerts = self.deps.health_monitor.check_all()
+                                if alerts:
+                                    self.deps.health_monitor.send_alerts(alerts)
+                            except Exception as e:
+                                logger.warning("HealthMonitor check failed: %s", e)
                 self._resilience.record_success()
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)

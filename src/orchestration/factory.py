@@ -19,6 +19,7 @@ from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
+from src.orchestration.health_monitor import HealthMonitor
 from src.presentation.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
@@ -270,6 +271,17 @@ def build_agent(state: RuntimeState) -> Agent:
             f"Mode: {cfg.mode.value}\n"
             f"Bankroll: ${cfg.initial_bankroll:.0f}"
         )
+    # SPEC-TG-001 Task 4: HealthMonitor — periyodik scraper/exposure/stale check
+    health_monitor = HealthMonitor(
+        notifier=notifier,
+        state_dir=Path("data"),
+        audit_dir=Path("logs/audit"),
+        runtime_dir=Path("logs/runtime"),
+        stale_price_threshold=tg.alert.stale_price_rate_threshold,
+        exposure_lockup_minutes=tg.alert.exposure_lockup_minutes,
+        consecutive_losses=tg.alert.consecutive_losses,
+        dedupe_window_minutes=tg.alert.dedupe_window_minutes,
+    )
 
     mlb_engine: MlbSubmarketEngineProtocol | None = None
     if cfg.mlb_submarket.enabled:
@@ -314,6 +326,7 @@ def build_agent(state: RuntimeState) -> Agent:
         espn_client=espn,  # SPEC-force-close 2026-05-27
         gamma_client=gamma,  # 2026-05-28: ExitProcessor polymarket-resolution detector
         notifier=notifier,  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
+        health_monitor=health_monitor,  # SPEC-TG-001 Task 4: periyodik health check
     )
     agent = Agent(deps)
 
