@@ -331,6 +331,7 @@ class EntryProcessor:
             anchor_probability=signal.anchor_probability,
             entry_reason=signal.entry_reason.value,
             confidence=signal.confidence,
+            source=signal.source,
             sport_tag=signal.sport_tag,
             event_id=market.event_id or "",
             match_start_iso=getattr(market, "match_start_iso", "") or "",
