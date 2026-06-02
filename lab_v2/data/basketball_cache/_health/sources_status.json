@@ -1,0 +1,9 @@
+[
+  {
+    "source": "nba_api",
+    "last_success_utc": "2026-06-02T00:01:58.852900+00:00",
+    "last_fail_utc": null,
+    "consecutive_fails": 0,
+    "active": true
+  }
+]
