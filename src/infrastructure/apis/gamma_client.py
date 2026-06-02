@@ -340,3 +340,30 @@ class GammaClient:
             self._league_sources = result
             self._league_sources_ts = time.time()
         return result
+
+    # ── SPEC-Z9 (2026-06-03 roster drift detector) ──
+
+    def fetch_sports_metadata(self) -> list[dict]:
+        """Polymarket /sports endpoint ham JSON döner.
+
+        Roster drift detector için: tüm aktif sport code'ları + adları.
+        Yeni 'bk*' (basket) lig'i tespit etmek için kullanılır.
+        """
+        resp = self._http(f"{GAMMA_BASE}/sports", params={}, timeout=_DEFAULT_TIMEOUT)
+        resp.raise_for_status()
+        return resp.json() or []
+
+    def fetch_teams_by_league_code(self, league_code: str, limit: int = 100) -> list[dict]:
+        """Polymarket /teams?league=<league_code> ham JSON döner.
+
+        Her takım: {id, name, abbreviation, alias, league}. Roster drift için
+        Polymarket'in resmi alias listesini bizim _<LIG>_TEAMS dict'leriyle
+        karşılaştırır.
+        """
+        resp = self._http(
+            f"{GAMMA_BASE}/teams",
+            params={"league": league_code, "limit": limit},
+            timeout=_DEFAULT_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json() or []

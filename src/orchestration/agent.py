@@ -29,6 +29,7 @@ from src.orchestration.cycle_manager import CycleManager
 from src.orchestration.entry_processor import EntryProcessor
 from src.orchestration.exit_processor import ExitProcessor
 from src.orchestration.health_monitor import HealthMonitor
+from src.orchestration.roster_drift_monitor import RosterDriftMonitor
 from src.orchestration.scanner import MarketScanner
 from src.orchestration.startup import RuntimeState, persist
 from src.orchestration.stock_queue import StockQueue
@@ -64,6 +65,7 @@ class AgentDeps:
     gamma_client: GammaClient | None = None  # 2026-05-28: ExitProcessor polymarket-resolution detector
     notifier: TelegramNotifier | None = None  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
     health_monitor: HealthMonitor | None = None  # SPEC-TG-001 2026-06-02: periyodik health check
+    roster_drift_monitor: RosterDriftMonitor | None = None  # SPEC-Z9 2026-06-03: günde 1 Polymarket /teams + /sports diff
 
 
 class Agent:
@@ -78,6 +80,9 @@ class Agent:
         # SPEC-TG-001 2026-06-02: health check tick sayacı (light interval × N).
         # MagicMock deps'lerde config attribute olmayabilir → güvenli default 60 tick.
         self._health_tick: int = 0
+        # SPEC-Z9 2026-06-03: roster drift check timestamp (time-based 12h throttle)
+        from datetime import datetime  # noqa: PLC0415 — type hint local
+        self._drift_last_check_at: datetime | None = None
         try:
             cfg_alert = deps.state.config.telegram.alert
             light_sec = max(1, int(deps.state.config.cycle.light_interval_sec))
@@ -161,6 +166,11 @@ class Agent:
                                     self.deps.health_monitor.send_alerts(alerts)
                             except Exception as e:
                                 logger.warning("HealthMonitor check failed: %s", e)
+                            # SPEC-Z9 2026-06-03: aynı tetiklemede roster drift de
+                            # kontrol et (günlük cadence). HealthMonitor ile aynı
+                            # dedupe pattern — DriftAlert → HealthMonitor.Alert
+                            # adapter (severity/category/message uyumlu).
+                            self._maybe_check_roster_drift()
                 self._resilience.record_success()
             except Exception as e:
                 logger.error("Cycle error (%s): %s", tick.reason, e, exc_info=True)
@@ -181,6 +191,40 @@ class Agent:
             if max_ticks is not None and ticks >= max_ticks:
                 break
             time.sleep(self.deps.cycle_manager.sleep_seconds())
+
+    def _maybe_check_roster_drift(self) -> None:
+        """SPEC-Z9 (2026-06-03): günde 1 Polymarket /teams + /sports diff.
+
+        Time-based throttle — health tick rate'inden bağımsız. İlk health
+        check'te bir kere çalışır, sonra her 12h'de 1. DriftAlert → HealthMonitor
+        Alert adapter (severity/category/message birebir uyumlu).
+        Exception isolated — drift check fail → light cycle bozulmaz.
+        """
+        if self.deps.roster_drift_monitor is None:
+            return
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        if self._drift_last_check_at is not None:
+            if now - self._drift_last_check_at < timedelta(hours=12):
+                return
+        self._drift_last_check_at = now
+        try:
+            drift_alerts = self.deps.roster_drift_monitor.check_all()
+        except Exception as e:
+            logger.warning("RosterDriftMonitor check failed: %s", e)
+            return
+        if not drift_alerts or self.deps.health_monitor is None:
+            return
+        # DriftAlert → HealthMonitor.Alert adapter
+        from src.orchestration.health_monitor import Alert as HMAlert
+        adapted = [
+            HMAlert(severity=d.severity, category=d.category, message=d.message)
+            for d in drift_alerts
+        ]
+        try:
+            self.deps.health_monitor.send_alerts(adapted)
+        except Exception as e:
+            logger.warning("RosterDrift send_alerts failed: %s", e)
 
     def _compute_nearest_match_hours(self) -> float | None:
         """SPEC-M: Acik pozisyon + stock'taki market'lerden en yakin maca saatleri.

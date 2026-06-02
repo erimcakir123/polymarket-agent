@@ -284,6 +284,9 @@ def build_agent(state: RuntimeState) -> Agent:
         calibration_stale_days=tg.alert.calibration_stale_days,
         scraper_stale_hours=tg.alert.scraper_stale_hours,
     )
+    # SPEC-Z9 (2026-06-03): Polymarket roster drift detector — günde 1 /teams + /sports diff
+    from src.orchestration.roster_drift_monitor import RosterDriftMonitor
+    roster_drift_monitor = RosterDriftMonitor(gamma_client=gamma)
 
     mlb_engine: MlbSubmarketEngineProtocol | None = None
     if cfg.mlb_submarket.enabled:
@@ -329,6 +332,7 @@ def build_agent(state: RuntimeState) -> Agent:
         gamma_client=gamma,  # 2026-05-28: ExitProcessor polymarket-resolution detector
         notifier=notifier,  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
         health_monitor=health_monitor,  # SPEC-TG-001 Task 4: periyodik health check
+        roster_drift_monitor=roster_drift_monitor,  # SPEC-Z9 2026-06-03: 12h drift check
     )
     agent = Agent(deps)
 
