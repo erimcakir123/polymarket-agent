@@ -19,6 +19,7 @@ from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
+from src.presentation.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
 from src.orchestration.agent import Agent, AgentDeps
@@ -253,13 +254,21 @@ def build_agent(state: RuntimeState) -> Agent:
         manipulation_checker=_manip,
     )
 
-    # Telegram command poller — /stop ile botu uzaktan durdurma
-    command_poller: TelegramCommandPoller | None = None
+    # Telegram: notifier (entry/exit/alert gönderici) + command poller (/stop alıcı)
     tg = cfg.telegram
+    notifier = TelegramNotifier(
+        enabled=tg.enabled, bot_token=tg.bot_token, chat_id=tg.chat_id,
+    )
+    command_poller: TelegramCommandPoller | None = None
     if tg.enabled and tg.bot_token and tg.chat_id:
-        # on_stop callback agent oluşturulduktan sonra bağlanır (aşağıda)
         command_poller = TelegramCommandPoller(
             bot_token=tg.bot_token, chat_id=tg.chat_id, on_stop=lambda: None,
+        )
+        # Boot mesajı: kullanıcı bağlantıyı doğrulasın (notifier.send rate-limit aware)
+        notifier.send(
+            f"🤖 <b>Bot başladı</b>\n"
+            f"Mode: {cfg.mode.value}\n"
+            f"Bankroll: ${cfg.initial_bankroll:.0f}"
         )
 
     mlb_engine: MlbSubmarketEngineProtocol | None = None
@@ -304,6 +313,7 @@ def build_agent(state: RuntimeState) -> Agent:
         tennis_start_enricher=tennis_enricher,
         espn_client=espn,  # SPEC-force-close 2026-05-27
         gamma_client=gamma,  # 2026-05-28: ExitProcessor polymarket-resolution detector
+        notifier=notifier,  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
     )
     agent = Agent(deps)
 

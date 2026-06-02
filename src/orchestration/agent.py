@@ -20,6 +20,7 @@ from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
+from src.presentation.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration._agent_resilience import CycleResilience
 from src.orchestration.bot_status_writer import BotStatusWriter
@@ -59,6 +60,7 @@ class AgentDeps:
     tennis_start_enricher: TennisStartEnricher | None = None  # SPEC: light cycle'da tennis pozisyonlarinin match_start_iso'sunu ESPN ile refresh eder
     espn_client: ESPNClient | None = None  # SPEC-force-close 2026-05-27: get_match_status icin
     gamma_client: GammaClient | None = None  # 2026-05-28: ExitProcessor polymarket-resolution detector
+    notifier: TelegramNotifier | None = None  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
 
 
 class Agent:
