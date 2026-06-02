@@ -15,10 +15,20 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 LOCK_FILE = Path("logs/agent.pid")
+_DEFAULT_PROCESS_MARKER = "src.main"
 
 
-def acquire_lock(lock_path: Path | None = None) -> None:
-    """Lock al. Başka instance aktifse sys.exit(1)."""
+def acquire_lock(
+    lock_path: Path | None = None,
+    process_marker: str = _DEFAULT_PROCESS_MARKER,
+) -> None:
+    """Lock al. Başka instance aktifse sys.exit(1).
+
+    SPEC-Z8 (2026-06-03): process_marker parametresi. Lab_v2 gibi farklı entry
+    point'ler kendi marker'ını ('lab_v2.start') geçer — yoksa _is_agent_alive
+    her zaman False döner ve stale detection bozulur (lab force-kill sonrası
+    lock kalır → bir sonraki başlatma çift-instance riski).
+    """
     path = lock_path or LOCK_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -27,7 +37,7 @@ def acquire_lock(lock_path: Path | None = None) -> None:
             old_pid = int(path.read_text(encoding="utf-8").strip())
             if old_pid == os.getpid():
                 return  # Same process re-acquiring
-            if _is_agent_alive(old_pid):
+            if _is_agent_alive(old_pid, marker=process_marker):
                 logger.error(
                     "Another agent already running (PID %d). Kill it or delete %s.",
                     old_pid, path,
@@ -53,15 +63,15 @@ def _release(path: Path) -> None:
         pass
 
 
-def _is_agent_alive(pid: int) -> bool:
-    """PID yaşıyor ve 'src.main' içeren komut satırı varsa True."""
+def _is_agent_alive(pid: int, marker: str = _DEFAULT_PROCESS_MARKER) -> bool:
+    """PID yaşıyor ve marker içeren komut satırı varsa True."""
     if sys.platform == "win32":
         try:
             result = subprocess.run(
                 ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine"],
                 capture_output=True, text=True, timeout=5,
             )
-            return "src.main" in result.stdout
+            return marker in result.stdout
         except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
             return False
     try:

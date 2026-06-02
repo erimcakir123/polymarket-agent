@@ -441,16 +441,21 @@ def test_archive_audit_logs_splits_open_positions(tmp_path: Path) -> None:
     assert open_cid not in archived_content
 
 
-def test_archive_audit_logs_all_closed_clears_audit(tmp_path: Path) -> None:
-    """Tüm trade'ler kapanmışsa (açık pozisyon yok) → audit boşaltılır, hepsi arşive."""
+def test_archive_audit_logs_all_closed_preserves_audit_spec_z8(tmp_path: Path) -> None:
+    """SPEC-Z8 (2026-06-03 TODO-007 Katman A): keep boş olsa bile AUDIT DOKUNULMAZ.
+
+    Eski davranış audit'i sıfırlardı; mistik scheduler stale open_cids ile
+    çağırınca defter yıkılırdı (orphan exit semptomu). Yeni davranış: audit
+    olduğu gibi korunur, archive kopyası ayrı yaratılır, pre-split backup alınır.
+    """
     from scripts.reboot import archive_audit_logs
 
     audit_file = tmp_path / "trade_history.jsonl"
-    audit_file.write_text(
+    original = (
         '{"condition_id": "0xa", "exit_price": 0.5}\n'
-        '{"condition_id": "0xb", "exit_price": 0.7}\n',
-        encoding="utf-8",
+        '{"condition_id": "0xb", "exit_price": 0.7}\n'
     )
+    audit_file.write_text(original, encoding="utf-8")
 
     archive_audit_logs(
         audit_files=[audit_file],
@@ -458,14 +463,18 @@ def test_archive_audit_logs_all_closed_clears_audit(tmp_path: Path) -> None:
         open_condition_ids={"0xnonexistent"},
     )
 
-    # Audit dosyası BOŞ
+    # SPEC-Z8: audit DOKUNULMADI — orijinal içerik korundu
     assert audit_file.exists()
-    assert audit_file.read_text(encoding="utf-8") == ""
-    # Archive hepsini içeriyor
+    assert audit_file.read_text(encoding="utf-8") == original
+    # Archive yine de yaratıldı (snapshot)
     archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
     assert archived.exists()
     assert "0xa" in archived.read_text(encoding="utf-8")
     assert "0xb" in archived.read_text(encoding="utf-8")
+    # Katman C: pre-split backup oluştu
+    backup = audit_file.with_suffix(".jsonl.bak.before_split_20260521_020000")
+    assert backup.exists()
+    assert backup.read_text(encoding="utf-8") == original
 
 
 def test_archive_audit_logs_open_cids_none_full_copy(tmp_path: Path) -> None:
@@ -487,6 +496,72 @@ def test_archive_audit_logs_open_cids_none_full_copy(tmp_path: Path) -> None:
     assert audit_file.exists()
     archived = tmp_path / "trade_history.archive.20260521_020000.jsonl"
     assert archived.exists()
+
+
+def test_archive_audit_logs_split_preserves_open_kept_records(tmp_path: Path) -> None:
+    """SPEC-Z8: keep dolu durumda audit sadece açık kayıtları içerir + backup alınır."""
+    from scripts.reboot import archive_audit_logs
+
+    audit_file = tmp_path / "trade_history.jsonl"
+    original = (
+        '{"condition_id": "0xopen", "entry_price": 0.4}\n'
+        '{"condition_id": "0xclosed", "exit_price": 0.6}\n'
+    )
+    audit_file.write_text(original, encoding="utf-8")
+
+    archive_audit_logs(
+        audit_files=[audit_file], timestamp="20260603_000000",
+        open_condition_ids={"0xopen"},
+    )
+
+    # Audit sadece açık kayıt
+    assert "0xopen" in audit_file.read_text(encoding="utf-8")
+    assert "0xclosed" not in audit_file.read_text(encoding="utf-8")
+    # Archive sadece kapanan
+    archived = tmp_path / "trade_history.archive.20260603_000000.jsonl"
+    assert "0xclosed" in archived.read_text(encoding="utf-8")
+    # Katman C: pre-split backup orijinali içerir
+    backup = audit_file.with_suffix(".jsonl.bak.before_split_20260603_000000")
+    assert backup.exists()
+    assert backup.read_text(encoding="utf-8") == original
+
+
+def test_archive_audit_logs_writes_forensic_jsonl(tmp_path: Path, monkeypatch) -> None:
+    """SPEC-Z8 Katman B: her archive_audit_logs çağrısı forensic JSONL yazar.
+
+    Stack zinciri + caller PID + open_cids sample + audit_files. Detached
+    subprocess'te print() kaybolduğu için kalıcı dosya zorunlu. Mistik
+    scheduler yakalandığında bu dosya kanıt olur.
+    """
+    from scripts import reboot as rb
+
+    forensic_path = tmp_path / "forensic.jsonl"
+    monkeypatch.setattr(rb, "_ARCHIVE_FORENSIC_LOG", forensic_path)
+
+    audit_file = tmp_path / "trade_history.jsonl"
+    audit_file.write_text('{"condition_id": "0xa"}\n', encoding="utf-8")
+
+    rb.archive_audit_logs(
+        audit_files=[audit_file], timestamp="20260603_000000",
+        open_condition_ids={"0xa"},
+    )
+
+    assert forensic_path.exists()
+    lines = forensic_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    import json as _json
+    entry = _json.loads(lines[0])
+    # Zorunlu alanlar
+    assert "ts_utc" in entry
+    assert entry["pid"] > 0
+    assert "parent" in entry
+    assert entry["open_cids_count"] == 1
+    assert entry["open_cids_sample"] == ["0xa"]
+    assert entry["audit_files"] == [str(audit_file)]
+    assert entry["stack_depth"] > 0
+    assert all("file" in f and "line" in f and "function" in f for f in entry["stack"])
+    # Caller frame test_ ile başlamalı (pytest)
+    assert any("test_" in f["function"] for f in entry["stack"])
 
 
 def test_read_open_condition_ids_returns_keys(tmp_path: Path) -> None:

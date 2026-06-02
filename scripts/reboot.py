@@ -251,6 +251,68 @@ def _read_open_condition_ids(positions_file: Path | None = None) -> set[str]:
     return {cid for cid in positions.keys() if cid}
 
 
+_ARCHIVE_FORENSIC_LOG = ROOT / "logs" / "runtime" / "archive_forensic.jsonl"
+
+
+def _write_archive_forensic(
+    audit_files: list[Path] | None,
+    open_condition_ids: set[str] | None,
+) -> None:
+    """SPEC-Z8 (TODO-007 Katman B): archive_audit_logs çağrısını JSONL'e yaz.
+
+    Detached subprocess'te print() stdout'a gitmiyor → kayboluyor. Forensic
+    sadece kalıcı dosyada anlamlı. Format: her çağrı 1 satır JSON, tüm stack
+    + parent process bilgisi (Windows tasklist). Bu dosya **mistik çağırıcı**
+    yakalandıktan sonra silinmeli (geçici teşhis aracı).
+    """
+    from datetime import datetime, timezone
+    import inspect  # noqa: PLC0415 — forensic, geçici
+    try:
+        stack = inspect.stack()
+        frames = [
+            {
+                "file": Path(f.filename).name,
+                "line": f.lineno,
+                "function": f.function,
+            }
+            for f in stack[1:]  # 0 = bu helper kendisi, dışla
+        ]
+        parent_info: dict = {}
+        try:
+            import psutil  # noqa: PLC0415 — opsiyonel dep, varsa zenginleştir
+            proc = psutil.Process(os.getpid())
+            parent = proc.parent()
+            if parent is not None:
+                parent_info = {
+                    "pid": parent.pid,
+                    "name": parent.name(),
+                    "cmdline": parent.cmdline(),
+                }
+        except Exception as exc:  # noqa: BLE001 — forensic best-effort
+            parent_info = {"error": f"psutil unavailable: {exc}"}
+        entry = {
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "pid": os.getpid(),
+            "parent": parent_info,
+            "open_cids_count": (
+                len(open_condition_ids) if open_condition_ids is not None else None
+            ),
+            "open_cids_sample": (
+                sorted(open_condition_ids)[:5] if open_condition_ids else []
+            ),
+            "audit_files": (
+                [str(p) for p in audit_files] if audit_files is not None else None
+            ),
+            "stack_depth": len(frames),
+            "stack": frames,
+        }
+        _ARCHIVE_FORENSIC_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with _ARCHIVE_FORENSIC_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as exc:  # noqa: BLE001 — forensic asla ana akışı kırmasın
+        print(f"  WARN: archive forensic write failed: {exc}")
+
+
 def archive_audit_logs(
     audit_files: list[Path] | None = None,
     timestamp: str | None = None,
@@ -271,10 +333,10 @@ def archive_audit_logs(
     — sadece açık kayıtlar). open_condition_ids None ise tüm audit kopyalanır.
     """
     from datetime import datetime, timezone
-    import inspect  # noqa: PLC0415 — TODO-007 forensic, geçici
-    # TODO-007 (2026-05-25): Gizli scheduler kim? Çağrı zincirini bas, sorun bulununca kaldır.
-    _trace = " ← ".join(f"{Path(f.filename).name}:{f.lineno}" for f in inspect.stack()[1:5])
-    print(f"  [TODO-007 forensic] archive_audit_logs called from: {_trace}")
+    # SPEC-Z8 (2026-06-03 TODO-007 Katman B): print() detached subprocess'te
+    # stdout=DEVNULL → kayboluyordu. Kalıcı JSONL'e yaz; uzun stack + parent
+    # process bilgisi (kim çağırdı kanıtı). Mistik çağırıcı yakalanınca kaldır.
+    _write_archive_forensic(audit_files, open_condition_ids)
 
     files = audit_files if audit_files is not None else _AUDIT_FILES_CLEAR
     stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -301,8 +363,26 @@ def _split_trade_history(
     audit_file: Path, archived: Path, open_cids: set[str],
 ) -> None:
     """trade_history.jsonl'i ikiye böl: açık pozisyonların kayıtları audit'te kalır,
-    kalanı archive'a taşınır. Bozuk satırlar archive'a gönderilir (forensic için).
+    kapanmış olanlar archive'a kopyalanır. Bozuk satırlar archive'a gönderilir.
+
+    SPEC-Z8 (2026-06-03 TODO-007 Katman A): KEEP BOŞ KALSA BİLE AUDIT'İ SİLME.
+    Eski davranış "tüm kayıtlar kapanmış → audit sıfırla" mistik scheduler
+    open_cids'i stale set geçince audit'i tamamen yok ediyordu (orphan exit
+    semptomu + dashboard "(orphan)" satırları). Yeni davranış: split öncesi
+    daima `.bak.before_split_<timestamp>` yedek + audit YENİDEN YAZILMAZ
+    eğer keep boşsa. Mistik scheduler hâlâ tetiklese bile defter ölmez.
+
+    Katman C (defansif): her split öncesi backup. Z6 paterni paralel.
     """
+    # Katman C: split öncesi daima backup (idempotent — varsa overwrite)
+    backup_path = audit_file.with_suffix(
+        audit_file.suffix + f".bak.before_split_{archived.stem.split('.')[-1]}"
+    )
+    try:
+        backup_path.write_bytes(audit_file.read_bytes())
+    except OSError as exc:
+        print(f"  WARN: pre-split backup failed: {exc}")
+
     keep: list[str] = []
     move: list[str] = []
     for line in audit_file.read_text(encoding="utf-8").splitlines(keepends=True):
@@ -324,9 +404,9 @@ def _split_trade_history(
               f"({len(move)} closed, {len(keep)} kept open)")
     if keep:
         audit_file.write_text("".join(keep), encoding="utf-8")
-    else:
-        # Tüm kayıtlar kapanmış → audit dosyasını sıfırla (yeni session boş başlar)
-        audit_file.write_text("", encoding="utf-8")
+    # ELSE (keep boş) → Katman A: AUDIT'E DOKUNMA. Eski "write_text('')" satırı
+    # SPEC-Z8'de kaldırıldı (TODO-007 kök neden: mistik scheduler stale open_cids
+    # ile çağırıyordu → defter yıkımı). Backup zaten yukarıda alındı.
 
 
 def start_dashboard(root: Path | None = None) -> None:

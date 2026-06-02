@@ -134,7 +134,9 @@ def main() -> None:
     cfg = load_config(Path("config.yaml"))  # → lab_v2/config.yaml (cwd)
     # Process lock under lab_v2/data/
     Path("data").mkdir(exist_ok=True)
-    acquire_lock(lock_path=Path("data/lab_v2.lock"))
+    # SPEC-Z8 (2026-06-03): process_marker zorunlu — lab "src.main" değil
+    # "lab_v2.start" ile çalışıyor; default marker stale detection bozar.
+    acquire_lock(lock_path=Path("data/lab_v2.lock"), process_marker="lab_v2.start")
     # Dashboard "bot_alive" göstergesi logs/agent.pid'i okur — ayrıca yaz
     Path("logs").mkdir(exist_ok=True)
     Path("logs/agent.pid").write_text(str(os.getpid()), encoding="utf-8")
