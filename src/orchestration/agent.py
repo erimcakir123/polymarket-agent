@@ -8,6 +8,7 @@ entry_processor/exit_processor + domain/strategy'de, I/O infrastructure'da.
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import time
 from dataclasses import dataclass
@@ -90,6 +91,18 @@ class Agent:
         )
         if self.deps.price_feed is not None:
             self.deps.price_feed.set_callback(self._on_price_update)
+        # SPEC-TG-001 Task 5: graceful exit telegram alert (SIGKILL muaf).
+        # atexit Python normal exit'te + Agent.request_stop sonrası çalışır.
+        atexit.register(self._on_exit_alert)
+
+    def _on_exit_alert(self) -> None:
+        """Process exit'te telegram'a kritik bildirim — kullanıcı bot kapandığını anlar."""
+        notifier = getattr(self.deps, "notifier", None)
+        if notifier is not None:
+            try:
+                notifier.send("🔴 <b>Bot kapandı</b>\nProcess exit detected (graceful).")
+            except Exception:  # noqa: BLE001 — atexit içinde exception bastırılır
+                pass
 
     def request_stop(self) -> None:
         self._stop_requested = True

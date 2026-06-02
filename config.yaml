@@ -250,9 +250,27 @@ dashboard:
   port: 5050
 
 telegram:
-  enabled: false
-  bot_token: ""
-  chat_id: ""
+  # 2026-06-02 SPEC-TG-001: alert sistemi aktif. Token/chat_id .env'den okunur
+  # (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID); ikisi de varsa enabled auto-True
+  # (settings.py:381-388). enabled=false bıraksak bile .env varsa yine açılır.
+  enabled: true
+  bot_token: ""       # .env override
+  chat_id: ""         # .env override
+  alert:
+    # Her trade için entry/exit telegram mesajı (yoğun trade'de sessize alabilirsin)
+    entry_exit: true
+    # HealthMonitor periyodik check sıklığı (saniye); 300 = 5dk
+    health_check_interval_sec: 300
+    # Son 1 saatte STALE_PRICE_REJECT >= bu eşik → warning
+    stale_price_rate_threshold: 5
+    # Exposure %90+ bu kadar dakikadır kilitli → warning
+    exposure_lockup_minutes: 60
+    # Ardışık zarar (audit'ten okunur) → warning
+    consecutive_losses: 5
+    # Günlük özet saati (UTC); 20 = 23:00 TR
+    daily_summary_hour_utc: 20
+    # Aynı alert N dk içinde tekrar gönderilmez (spam engellenir)
+    dedupe_window_minutes: 30
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)
