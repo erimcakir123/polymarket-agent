@@ -82,6 +82,9 @@ _WNBA_TEAMS: dict[str, str] = {
     # rating eklenince hazır olur; resolver kabul eder, basketball_dispatch
     # rating yokluğunda zaten MODEL_TEAM_NOT_IN_RATINGS fail döner)
     "por": "POR", "fire": "POR",
+    # 2026 ekspansiyon — Toronto Tempo (regression test ile yakalandı
+    # 2026-06-02 SPEC-AUDIT-001 Task 4 — Polymarket "wnba-tor-nyl-..." slug)
+    "tor": "TOR", "tempo": "TOR", "toronto": "TOR",
 }
 
 # Euroleague 20 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.
