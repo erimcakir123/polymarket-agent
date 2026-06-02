@@ -3038,3 +3038,22 @@ work begins.
 **Test:** 1717 unit + integration GREEN; 8 domain pricer modülü + 5 strategy/infra dispatcher + 1 build script + 1 calibration script.
 
 **Plan:** docs/superpowers/plans/2026-05-31-tennis-per-market-models.md
+
+---
+
+**SPEC-AUDIT-001: Yan Task Genel Pattern (2026-06-02 DONE)**
+
+Bugünkü 14 fix paketinin yan task atlama riski olan 4'ünü genel pattern olarak sağlamlaştırma. Spec: `docs/superpowers/specs/2026-06-02-yan-task-audit-design.md`. Plan: `docs/superpowers/plans/2026-06-02-yan-task-audit.md`.
+
+- **Task 1 — UI etiket PnL-aware** (`fmt.js`): `near_resolve` + `market_flip` da scale_out gibi PnL işaretine göre tone (kâr→pos, zarar→neg). Önceki fix sadece `scale_out_tier_N` için yapılmıştı, diğer "iki yönlü" exit_reason'lar atlanmıştı.
+- **Task 2 — Position.source coverage** (`tests/regression/test_position_source_coverage.py`): AST tarama ile `src/` altındaki TÜM `Position(...)` constructor'larda `source` kwarg kontrolü. **Yan task yakalandı**: `entry_processor.py:323` (`_persist_model_entry`, SPEC-R MLB submarket entry) `source` eksikti — `signal.source` eklendi. Gelecek constructor ekleyenler unutursa test FAIL.
+- **Task 3 — Lab auto-sync glob** (`lab_v2/start.py`): `_SYNC_FILES_FIXED` sabit liste + `_SYNC_GLOBS` glob pattern (`data/basketball_cache/*_ratings.json`). Yeni Avrupa basket scraper'ları (Plan 3 — SPEC-EUROBASKET-001) eklenince manuel listeye dokunmaya gerek yok — glob otomatik dahil. Test: `tests/integration/test_lab_sync.py` (3 senaryo).
+- **Task 4 — Team resolver alias coverage** (`tests/regression/test_team_resolver_coverage.py`): Polymarket gamma'dan çekilen bilinen NBA + WNBA slug listesi parametrize. **Yan task yakalandı**: Toronto Tempo (WNBA 2026 ekspansiyon) — `tor` alias eksikti, eklendi. NCAAB + Euroleague sezon dışı (skip), sezon başında reaktive.
+
+**Test:** 1916 passed (önceki 1894'ten +22; Task 2 +1 AST regression + Task 3 +3 sync test + Task 4 +18 parametrize), 0 fail. 4 yeni dosya (2 regression test + 1 integration test + 1 `__init__.py`).
+
+**Sonuç:** Bugünkü 14 fix'in yan task'ları kapatıldı. Yeni Position constructor / yeni rating dosyası / yeni basket lig takımı eklenirse regression test otomatik yakalar — drift'e karşı koruma.
+
+**Next plans (sırada):**
+- SPEC-TG-001 (Telegram alert sistemi) — `docs/superpowers/plans/2026-06-02-telegram-alert.md`
+- SPEC-EUROBASKET-001 (Avrupa basket scraper'lar) — `docs/superpowers/plans/2026-06-02-europe-basket-scraper.md`
