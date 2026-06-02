@@ -48,9 +48,13 @@ def test_tennis_match_totals_flat_sl_exempt():
 
 
 def test_basket_sl_unchanged():
-    """Basket SL DEĞERLERİ KORUNUR — hepsi 0.35 (NBA mirası, BASKETBALL_TAGS)."""
+    """Basket MONEYLINE SL DEĞERLERİ KORUNUR — hepsi 0.35 (NBA mirası).
+
+    NOT (2026-06-02): Universal bimodal — totals/spreads artık flat SL exempt
+    (partial_sl/graduated_sl yönetir). Bu test moneyline test eder.
+    """
     for sport in ("nba", "wnba", "ncaab", "cbb", "euroleague", "nbl"):
-        pos = _mk_pos(sport, "totals")
+        pos = _mk_pos(sport, "moneyline")
         sl = compute_stop_loss_pct(pos)
         assert sl == 0.35, f"{sport} SL bozulmuş: {sl}"
 

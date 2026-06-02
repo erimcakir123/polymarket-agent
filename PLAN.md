@@ -39,6 +39,3 @@
 ## Aktif Planlar
 
 *Şu an aktif plan yok — boş duruyor.*
-
-
-

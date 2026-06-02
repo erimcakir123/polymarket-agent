@@ -228,26 +228,27 @@ def anchor_source(sport_tag: str, market_type: str) -> str:
     return str(overrides.get(market_type, "bookmaker"))
 
 
+# 2026-06-02 (kullanıcı kararı): bimodal MARKET YAPISI gereği, sport bağımsız.
+# Polymarket'te tüm totals/spreads/handicaps binary resolve eder ($1 veya $0),
+# SL son anı yakalayamaz. Sport-bazlı liste kötü tasarımdı (MLB totals fixed $50
+# alıyordu, WNBA Min-Phx $50 yandı).
+_UNIVERSAL_BIMODAL_MARKET_TYPES = frozenset({
+    "totals", "total", "spread", "spreads", "handicap",
+    "tennis_set_handicap", "tennis_set_totals", "tennis_match_totals",
+    "tennis_first_set_totals", "tennis_first_set_winner",
+})
+
+
 def is_bimodal_market(sport_tag: str, market_type: str) -> bool:
-    """SPEC-W (2026-05-23): SL'in yakalayamadığı, anlık çakılan market mi?
+    """Bimodal market mi? Sport bağımsız — market yapısı belirler.
 
-    Empirical analiz (analysis/bimodal_classification_2026-05-23.md) ile
-    sport-bazlı liste belirlendi. Default: non-bimodal ($50 sizing).
-
-    Args:
-        sport_tag: Internal sport key (örn "nhl", "mlb"). Boş/bilinmeyen
-            → False (konservatif sport-yok varsayımı, default sizing).
-        market_type: Polymarket sports_market_type (örn "moneyline", "totals",
-            "spread"). Boş → False.
+    Tüm totals/spreads/handicaps Polymarket'te binary resolve eder. SL kayıt
+    altında değil — bu yüzden BÜYÜK risk, küçük cap ($15) ile sınırla.
 
     Returns:
         True → bimodal_bet_usdc ($15 cap) uygulanır.
-        False → fixed_bet_usdc ($50) uygulanır.
+        False → fixed_bet_usdc ($50) uygulanır (sadece moneyline).
     """
     if not market_type:
         return False
-    overrides = get_sport_rule(sport_tag, "bimodal_market_types", None)
-    if not isinstance(overrides, (list, tuple, set, frozenset)):
-        return False
-    mt = market_type.lower()
-    return mt in {str(m).lower() for m in overrides}
+    return market_type.lower() in _UNIVERSAL_BIMODAL_MARKET_TYPES

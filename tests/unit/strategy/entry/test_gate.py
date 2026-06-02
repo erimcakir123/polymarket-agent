@@ -67,8 +67,9 @@ def _make_gate(**kwargs) -> EntryGate:
     bl = kwargs.get("bl") or Blacklist()
     enricher = kwargs.get("enricher") or (lambda m: _enrich())
     manip = kwargs.get("manip") or (lambda question, liquidity: _safe_manip())
+    config = kwargs.get("config") or GateConfig()
     return EntryGate(
-        config=GateConfig(),
+        config=config,
         portfolio=portfolio, circuit_breaker=cb, cooldown=cd, blacklist=bl,
         odds_enricher=enricher, manipulation_checker=manip,
     )
@@ -212,6 +213,49 @@ def test_entry_price_cap_allows_under_threshold() -> None:
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.80, conf="A")))
     results = gate.run([_market(yp=0.75)])
     assert results[0].signal is not None
+
+
+# --- PLAN-001: Anti-edge guard (2026-06-01) ---
+
+def test_anti_edge_high_price_skips_cobolli_like_trade() -> None:
+    """PLAN-001 Rule A: paid >= 0.80 VE anti_edge > 0 → SKIP.
+
+    Cobolli senaryosu: market 0.86, model 0.63 → BUY_YES, anti_edge 0.23 > 0.
+    entry_price_cap'i geçici olarak gevşetip Rule A'yı izole test ediyoruz.
+    """
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.63, conf="A")))
+    gate.config = GateConfig(max_entry_price=0.95)
+    results = gate.run([_market(yp=0.86)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "anti_edge_high_price"
+    assert "anti_edge=+0.230" in results[0].skip_detail
+
+
+def test_anti_edge_absolute_skips_alkaya_like_trade() -> None:
+    """PLAN-001 Rule B: anti_edge > 0.15 → SKIP (fiyat fark etmez).
+
+    Alkaya senaryosu: market 0.74, model 0.56 → BUY_YES, anti_edge 0.18 > 0.15.
+    paid 0.74 < 0.80 → Rule A tetiklenmez; Rule B yakalar. Default cap (0.80)
+    de geçer (0.74 < 0.79) çünkü kontrol sıralaması: cap → A → B.
+    """
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.56, conf="A")))
+    results = gate.run([_market(yp=0.74)])
+    assert results[0].signal is None
+    assert results[0].skipped_reason == "anti_edge_absolute"
+    assert "anti_edge=+0.180" in results[0].skip_detail
+
+
+def test_anti_edge_does_not_block_when_model_agrees_or_supports() -> None:
+    """PLAN-001: anti_edge <= 0 (model 'ucuz aldık' diyor) → giriş geçer.
+
+    Market 0.65, model 0.85 → BUY_YES, anti_edge = -0.20. Hem A hem B kuralı
+    tetiklenmez. Consensus stratejisi sinyali üretir (her iki taraf YES favori,
+    paid >= consensus.min_price 0.65).
+    """
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.85, conf="A")))
+    results = gate.run([_market(yp=0.65)])
+    assert results[0].signal is not None
+    assert results[0].signal.size_usdc > 0
 
 
 def test_gate_allows_full_size_when_below_cap_even_if_crosses() -> None:
@@ -477,18 +521,22 @@ def _bimodal_market(
 
 
 def test_gate_bimodal_market_entry_below_floor_skipped() -> None:
-    """Bimodal (totals/spreads) market'e 4¢'den entry → bimodal_entry_below_floor."""
+    """Bimodal market'e 0.10 entry (floor 0.20) → bloklanır.
+
+    Consensus disabled (test isolation). Normal BUY_YES @ 0.10, < 0.20 → SKIP.
+    """
     market = _bimodal_market(
         slug="mlb-wsh-atl-2026-05-23-spread-home-3pt5",
-        yp=0.04,
+        yp=0.10,
         sport_tag="baseball",
         sports_market_type="spreads",
     )
     bm = BookmakerProbability(
-        probability=0.59, confidence="A",
-        bookmaker_prob=0.59, num_bookmakers=29.0, has_sharp=True,
+        probability=0.18, confidence="A",
+        bookmaker_prob=0.18, num_bookmakers=29.0, has_sharp=True,
     )
-    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    cfg = GateConfig(consensus_enabled=False)
+    gate = _make_gate(enricher=lambda m: _enrich(bm), config=cfg)
     result = gate._evaluate_one(market)
     assert result.signal is None
     assert result.skipped_reason == "bimodal_entry_below_floor"

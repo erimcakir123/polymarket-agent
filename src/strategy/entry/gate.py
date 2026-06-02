@@ -25,6 +25,7 @@ from src.domain.pricing.kelly import bet_size as kelly_bet_size
 from src.domain.risk.circuit_breaker import CircuitBreaker
 from src.domain.risk.cooldown import CooldownTracker
 from src.domain.risk.position_sizer import POLYMARKET_MIN_ORDER_USDC, confidence_position_size
+from src.models.enums import Direction
 from src.models.market import MarketData
 from src.models.position import effective_price
 from src.models.signal import Signal
@@ -94,6 +95,21 @@ class GateConfig:
     # de anchor 0.40-0.60 arasındaydı. uç değerlerde (deep dog veya deep fav)
     # model gerçek bilgi taşıyor — orada trade aktif. Sadece source="model".
     model_min_anchor_distance_from_half: float = 0.10
+    # PLAN-001 (2026-06-01): Anti-edge guard. Consensus stratejisi edge'i
+    # "0.99 - entry_price" diye hesaplıyor — model ile ödenen fiyat arasındaki
+    # açıklığı umursamıyor. İki kural ekleniyor:
+    # A: paid >= threshold VE anti_edge > tolerance → SKIP (yüksek fiyatta asimetri)
+    # B: anti_edge > absolute_max → SKIP (büyük açıklık, fiyat fark etmez)
+    # anti_edge = paid_price - model_fair_for_chosen_side.
+    anti_edge_high_price_threshold: float = 0.80
+    anti_edge_high_price_tolerance: float = 0.00
+    anti_edge_absolute_max: float = 0.15
+    # 2026-06-02: Extreme disagreement guard. Sea-Dal kanıtı: model %76,
+    # market %16 = 60 puan farkı. Bot büyük edge görüp aldı, market haklı
+    # çıktı → tam $50 yanma. Akademik gerçek: market 1000+ trader+sharp
+    # tarafından şekilleniyor, biz tek model ile alt etmek zor. 30 puan
+    # üstü disagreement → bizim model muhtemelen yanılıyor, SKIP.
+    extreme_disagreement_threshold: float = 0.30
     # SPEC-X (2026-05-24): bimodal market'lerde (totals + spreads) entry alt sınır.
     # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
     # zaten anında tetikleneceği için baştan reddedilir.
@@ -212,6 +228,18 @@ class EntryGate:
                 )
                 return GateResult(cid, None, "model_anchor_uncertain", skip_detail=detail)
 
+        # 5b. EXTREME DISAGREEMENT guard (2026-06-02): model market'ten 30+ puan
+        # uzaksa bizim model muhtemelen yanılıyor. Sea-Dal kanıtı:
+        # model %76 vs market %16 = 60 puan → -$50 yanma.
+        # Market 1000+ trader+sharp tarafından şekilleniyor, tek model alt edemez.
+        disagreement = abs(bm_prob.probability - market.yes_price)
+        if disagreement > self.config.extreme_disagreement_threshold:
+            detail = (
+                f"model={bm_prob.probability:.3f} market={market.yes_price:.3f} "
+                f"gap={disagreement:.3f} > {self.config.extreme_disagreement_threshold}"
+            )
+            return GateResult(cid, None, "extreme_disagreement", skip_detail=detail)
+
         # 6. Strateji önceliği — ilk Signal üreten kazanır
         signal = self._evaluate_strategies(market, bm_prob)
         if signal is None:
@@ -233,6 +261,40 @@ class EntryGate:
                 f"buffer={self.config.entry_price_slippage_buffer}"
             )
             return GateResult(cid, None, "entry_price_cap", skip_detail=detail, manipulation=manip)
+
+        # 6a. Anti-edge guard (PLAN-001 2026-06-01) — consensus stratejisi model-piyasa
+        # açıklığını umursamıyor (edge = 0.99 - paid). Bu kontrol o açıklığı bakar:
+        # A: paid >= 0.80 VE anti_edge > 0 → SKIP (yüksek fiyatta asimetri ölümcül)
+        # B: anti_edge > 0.15 → SKIP (büyük açıklık, fiyat fark etmez)
+        # entry_price_cap (step 6) çoğu yüksek-fiyat girişi zaten engelliyor; A kuralı
+        # cap loosened olursa savunma katmanıdır. B kuralı orta-fiyat girişleri (Alkaya
+        # 0.74 vs model 0.56 tipi) için tek koruyucu.
+        if signal.direction == Direction.BUY_YES:
+            model_fair = bm_prob.probability
+        else:
+            model_fair = 1.0 - bm_prob.probability
+        anti_edge = entry_price - model_fair
+        if (
+            entry_price >= self.config.anti_edge_high_price_threshold
+            and anti_edge > self.config.anti_edge_high_price_tolerance
+        ):
+            detail = (
+                f"paid={entry_price:.3f} model={model_fair:.3f} "
+                f"anti_edge={anti_edge:+.3f}"
+            )
+            return GateResult(
+                cid, None, "anti_edge_high_price",
+                skip_detail=detail, manipulation=manip,
+            )
+        if anti_edge > self.config.anti_edge_absolute_max:
+            detail = (
+                f"paid={entry_price:.3f} model={model_fair:.3f} "
+                f"anti_edge={anti_edge:+.3f}"
+            )
+            return GateResult(
+                cid, None, "anti_edge_absolute",
+                skip_detail=detail, manipulation=manip,
+            )
 
         # 6b. Bimodal entry floor (SPEC-X 2026-05-24) — totals/spread market'lerde
         # 20¢ altı entry "piyasa kararını vermiş" sayılır; ultra-low guard zaten

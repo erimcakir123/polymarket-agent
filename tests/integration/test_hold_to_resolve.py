@@ -62,10 +62,14 @@ def test_tennis_threshold_boundary_below_30():
 
 
 def test_basket_hold_to_resolve_disabled():
-    """Basket: hold-to-resolve YOK (sport-specific kuralı korunur)."""
-    pos = _mk_pos("wnba", "totals", anchor=0.85)
+    """Basket moneyline: hold-to-resolve YOK (sport-specific kuralı korunur).
+
+    NOT (2026-06-02): WNBA totals universal bimodal oldu → flat SL exempt.
+    Bu test moneyline kullanır (non-bimodal, SL korunur).
+    """
+    pos = _mk_pos("wnba", "moneyline", anchor=0.85)
     sl = compute_stop_loss_pct(pos)
-    assert sl == 0.35  # WNBA SL korunur
+    assert sl == 0.35  # WNBA moneyline SL korunur
 
 
 def test_basket_strong_dog_normal_sl():

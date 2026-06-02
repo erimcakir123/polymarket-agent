@@ -1,0 +1,60 @@
+"""LAB v2: Surface-aware tennis dispatch.
+
+Wraps main enrich_with_tennis_dispatch — selects per-surface ratings dict
+based on market surface (Hard/Clay/Grass), then delegates to main dispatch.
+
+Main bot is NOT touched. This is loaded only via lab_v2/start.py monkey-patch.
+"""
+from __future__ import annotations
+
+from typing import Callable
+
+from src.domain.analysis.enrich_outcome import EnrichResult
+from src.domain.pricing.tennis.calibration import CalibrationCurve
+from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
+from src.models.market import MarketData
+from src.strategy.enrichment.tennis_dispatch import (
+    _infer_surface,
+    enrich_with_tennis_dispatch as _main_dispatch,
+)
+
+
+def make_surface_aware_dispatch(
+    ratings_by_surface: dict[str, dict[str, PlayerSnapshot]],
+):
+    """Factory: returns enrich function that picks ratings dict by surface.
+
+    Usage:
+        dispatch_fn = make_surface_aware_dispatch(load_all_surfaces(...))
+        # monkey-patch:
+        import src.strategy.enrichment.tennis_dispatch as td
+        td.enrich_with_tennis_dispatch = dispatch_fn
+    """
+    fallback_ratings = ratings_by_surface.get("Hard", {})
+
+    def enrich(
+        market: MarketData,
+        bookmaker_enricher: Callable[[MarketData], EnrichResult],
+        ratings: dict[str, PlayerSnapshot],  # IGNORED — surface'a gore dict secilir
+        calibration_curves: dict[str, CalibrationCurve] | None = None,
+        glicko_weight: float = 0.6,
+        max_phi_for_trade: float = 100.0,
+        low_tier_slug_prefixes: tuple[str, ...] = ("itf-", "challenger-", "futures-"),
+        low_tier_question_keywords: tuple[str, ...] = (
+            "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
+        ),
+    ) -> EnrichResult:
+        surface = _infer_surface(market.question or "")
+        chosen = ratings_by_surface.get(surface, fallback_ratings)
+        return _main_dispatch(
+            market=market,
+            bookmaker_enricher=bookmaker_enricher,
+            ratings=chosen,
+            calibration_curves=calibration_curves,
+            glicko_weight=glicko_weight,
+            max_phi_for_trade=max_phi_for_trade,
+            low_tier_slug_prefixes=low_tier_slug_prefixes,
+            low_tier_question_keywords=low_tier_question_keywords,
+        )
+
+    return enrich

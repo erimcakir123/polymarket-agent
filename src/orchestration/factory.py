@@ -122,12 +122,31 @@ def build_agent(state: RuntimeState) -> Agent:
     # Build script tarafından üretilir (scripts/build_tennis_ratings.py).
     # Yok ise dispatch boş dict ile çağrılır → moneyline bookmaker'a düşer.
     tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
+    # 2026-06-02: Surface-specific Glicko (Hard/Clay/Grass) — eğer mevcutsa
+    # tennis dispatch yüzey bilinen rating dict'i kullanır (PLOS One 2022).
+    _surface_ratings_path = Path("data/tennis_ratings_surface.json")
+    tennis_surface_ratings = None
+    if _surface_ratings_path.exists():
+        from src.infrastructure.data.tennis_surface_ratings_store import load_all_surfaces
+        tennis_surface_ratings = load_all_surfaces(_surface_ratings_path)
+        logger.info(
+            "Tennis SURFACE-specific Glicko aktif: Hard=%d Clay=%d Grass=%d oyuncu",
+            len(tennis_surface_ratings.get("Hard", {})),
+            len(tennis_surface_ratings.get("Clay", {})),
+            len(tennis_surface_ratings.get("Grass", {})),
+        )
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
 
     # Basketball ratings + efficiencies cache (Plan 1.A-D wiring tamamlanması).
     # Lig-başına ayrı JSON dosyası (basketball_cache/{league}_ratings.json).
     basket_ratings, basket_efficiencies = _load_basketball_caches(cfg)
+    # 2026-06-02: NBA/WNBA rest-days adjustment — back-to-back -30 Elo.
+    # Schedule cache (data/basketball_schedule.json) varsa uygulanır.
+    from src.domain.pricing.basketball.rest_days import adjust_ratings_now
+    basket_ratings = adjust_ratings_now(
+        basket_ratings, Path("data/basketball_schedule.json"),
+    )
     basket_calibration = load_tennis_calibration(
         Path("data/calibration_curves.json"),  # Plan 1.D generic location
     )
@@ -151,14 +170,32 @@ def build_agent(state: RuntimeState) -> Agent:
     _tennis_low_tier_slug_prefixes = tuple(cfg.tennis.low_tier_slug_prefixes)
     _tennis_low_tier_question_keywords = tuple(cfg.tennis.low_tier_question_keywords)
 
-    def _tennis_dispatched(market):
-        return enrich_with_tennis_dispatch(
-            market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
-            glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
-            max_phi_for_trade=cfg.tennis.max_phi_for_trade,
-            low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
-            low_tier_question_keywords=_tennis_low_tier_question_keywords,
+    # 2026-06-02: Surface-aware tennis dispatch (yüzey-spesifik Glicko).
+    # Mevcutsa surface dict kullanılır, yoksa flat ratings (geriye uyumlu).
+    if tennis_surface_ratings is not None:
+        from src.strategy.enrichment.tennis_dispatch_surface import (
+            make_surface_aware_dispatch,
         )
+        _surface_aware = make_surface_aware_dispatch(tennis_surface_ratings)
+
+        def _tennis_dispatched(market):
+            return _surface_aware(
+                market, _bookmaker_enrich, tennis_ratings,
+                calibration_curves=tennis_calibration,
+                glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
+                max_phi_for_trade=cfg.tennis.max_phi_for_trade,
+                low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
+                low_tier_question_keywords=_tennis_low_tier_question_keywords,
+            )
+    else:
+        def _tennis_dispatched(market):
+            return enrich_with_tennis_dispatch(
+                market, _bookmaker_enrich, tennis_ratings, tennis_calibration,
+                glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
+                max_phi_for_trade=cfg.tennis.max_phi_for_trade,
+                low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
+                low_tier_question_keywords=_tennis_low_tier_question_keywords,
+            )
 
     # Gate: enricher + manipulation_check closure'ları.
     # Tri-dispatch: sport_tag basketball → basketball_dispatch (Plan 1.C wiring),

@@ -876,6 +876,33 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### PLAN-001 — Anti-edge guard (entry gate) (2026-06-01)
+
+**Karar:** Entry gate'e iki yeni guard eklendi (`src/strategy/entry/gate.py` `_evaluate_one` step 6a):
+
+- **Kural A (yüksek fiyat + anti-edge):** `paid_price >= 0.80` VE `anti_edge > 0` → SKIP `anti_edge_high_price`
+- **Kural B (mutlak anti-edge):** `anti_edge > 0.15` → SKIP `anti_edge_absolute` (fiyat fark etmez)
+
+`anti_edge = paid_price - model_fair_for_chosen_side`. BUY_YES için `model_fair = bm_prob.probability` (= P(YES)), BUY_NO için `1 - bm_prob.probability`.
+
+**Neden:** Consensus stratejisi (`src/strategy/entry/consensus.py`) edge'i `0.99 - entry_price` formülüyle hesaplıyor — model ile ödenen fiyat arasındaki açıklığı umursamıyor. Sonuç: 2026-05-31 oturumunda 14 açık tenis pozisyonun 7'si negatif anti-edge'le girmiş (örnek: Cobolli BUY_YES @ 0.86, model 0.63 → anti_edge +0.23). 0.86'da R/R 6:1, model %63 dese bile EV ≈ -0.23/hisse. 5W3L gözüken net görüntü: kazançlar tier-1 partial'den ($0-12), kayıplar graduated_sl'den ($-13 ile $-15) — asimetrik dağılım.
+
+**Eşik kararı:** Kullanıcı tartışmasıyla 0.80 (yüksek-fiyat sınırı) + 0.15 (mutlak anti-edge tavanı). Favorite-longshot bias literatürü göz önüne alındı: ağır favoriler hafif underpriced olabilir ama 0.86'da 0.23 puanlık açıklık literatür düzeltmesini aşar (`true_prob ≈ 0.75` varsayımıyla bile EV negatif).
+
+**Kontrol sıralaması:** `entry_price_cap` (0.79 effective) → `anti_edge_high_price` → `anti_edge_absolute` → bimodal floor. Mevcut cap çoğu yüksek-fiyat girişi zaten engelliyor; Kural A defense-in-depth (cap loosened olursa). Kural B orta-fiyat girişlerin tek koruyucusu (Alkaya 0.74 vs model 0.56 tipi).
+
+**Etki:**
+- `config.yaml` `risk:` — 3 yeni anahtar (`anti_edge_high_price_threshold/tolerance`, `anti_edge_absolute_max`)
+- `src/strategy/entry/gate.py` — `GateConfig` 3 yeni alan + `_evaluate_one` step 6a (Direction import eklendi)
+- `tests/unit/strategy/entry/test_gate.py` — 3 yeni test (Rule A izole, Rule B Alkaya, geçer-durum)
+- **1831 test yeşil (0 regresyon)** (önce 1828 → şimdi 1831, 3 yeni)
+- Mevcut 14 açık tenis pozisyon simülasyonu: Cobolli/Mayot/Alkaya **filtrelenir**, kalan 11 geçer
+- Mevcut açık 3 pozisyon (Cobolli/Mayot/Alkaya) doğal kapanışa bırakıldı (kullanıcı kararı) — kural sadece gelecekteki girişleri etkiler
+
+**Plan ref:** PLAN-001 (entegre olunca PLAN.md'den silindi).
+
+---
+
 ### 2026-05-23 — Tennis ana bot izin listesinden kaldırıldı (steril ayrım)
 
 **Karar:** `config.yaml` `scanner.allowed_sport_tags` listesinden `tennis`, `atp*`, `wta*` üç giriş silindi. Ana botun scanner'ı artık tenis maçlarını görmüyor.
