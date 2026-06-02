@@ -151,4 +151,36 @@ Bilinmeyen scheduler/script kaynağı tespit edilir. Belki Windows Task Schedule
 
 ---
 
-## TODO-008: [sonraki eklenecekler]
+## TODO-008: BSL/Lega/VTB HTML Parser İmplementasyonu (SPEC-EUROBASKET-001 kalan kısım)
+
+- **Durum**: DEFERRED — placeholder scraper'lar var (`src/infrastructure/data/basketball/{bsl,lega,vtb}_scraper.py`), HTML parse `NotImplementedError` fırlatır
+- **Tarih**: 2026-06-02
+- **Öncelik**: P2 — Liga Endesa scraper aktif, diğer 3 ligin Polymarket market hacmi gözlemlenince öncelik artar
+- **Önkoşul**: Her lig için sezon içi aktif market gözlemi + canlı HTML doğrulaması
+
+### Yapılacaklar (her lig için ayrı sprint)
+
+| Lig | Kaynak site | Slug prefix (tahmin) | Takım sayısı |
+|---|---|---|---|
+| Turkey BSL | tbf.org.tr veya tblstat.com | `bkbsl` | 16 |
+| Italy Lega | legabasket.it | `bklega` | 16 |
+| VTB | vtb-league.com | `bkvtb` | 12 |
+
+### Implementasyon adımları (referans: `acb_scraper.py`)
+1. Polymarket gamma API'den gerçek slug prefix doğrula (`tag_slug=turkey-bsl` vs)
+2. Resmi site calendario/results sayfasını curl ile çek (raw HTML)
+3. BeautifulSoup ile takım isimleri + skorlar + tarih CSS selector'larını bul
+4. `_fetch_html` + `_parse_teams` + `_parse_games` override et
+5. Tarih format helper (Türkçe/İtalyanca/Rusça aylar)
+6. `_NAME_TO_ABBR` dict (resolver `_BSL_TEAMS`/`_LEGA_TEAMS`/`_VTB_TEAMS` ile hizalı)
+7. Unit test: fixture HTML + parse doğrulaması (`test_acb_scraper.py` paralel)
+8. `config.yaml` `allowed_sport_tags` + `enabled_leagues`'a lig ekle
+9. `basketball.leagues.<lig>` parametreleri (Euroleague baseline)
+10. Bot reload + log doğrulama
+
+### NO_DATA_NO_TRADE devrede
+Şu an placeholder NotImplementedError fırlattığı için bu liglerin slug'ı dispatch'e gelirse model `MODEL_TEAM_NOT_IN_RATINGS` fail döner, trade YAPILMAZ. Telegram alert atılmaz çünkü scraper hiç çağrılmıyor — `enabled_leagues`'a eklenmemiş. Parser yazılınca aktive edildiğinde fail kayıtları başlar, 3-strike sonra critical alert.
+
+---
+
+## TODO-009: [sonraki eklenecekler]

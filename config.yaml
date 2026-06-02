@@ -48,6 +48,10 @@ scanner:
     - cbb
     - euroleague
     - nbl
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket. ACB scraper aktif.
+    # turkey_bsl/italy_lega/vtb sport_tag KAPALI — placeholder scraper var
+    # ama HTML parser TODO. Sezon devam edip parser yazılınca aktive edilir.
+    - liga_acb
     # Tennis (Phase 3 — paper realism + Sackmann refresher hazır)
     # FIX 2026-05-29: Polymarket gamma event-level sport_tag "tennis" döner
     # ("atp"/"wta" sadece /sports endpoint sport_code'unda, event tag'lerinde
@@ -307,9 +311,10 @@ basketball:
     - g_league       # NBA gelişim ligi (yaz aktif, nba_api)
     - summer_league  # NBA yaz ligi (temmuz aktif, nba_api)
     - eurocup        # Avrupa #2 lig (euroleague-api built-in)
-    # NOT: bsl/acb/lega kapsam dışı — BRScraper Python paketi gerçek European
-    # league scraper sağlamıyor, placeholder return [] dönerdi. Veri kaynağı
-    # bulunduğunda tekrar aktive edilir.
+    # SPEC-EUROBASKET-001 (2026-06-02): ACB Liga Endesa scraper aktif
+    # (kendi acb_scraper.py, acb.com HTML parse). turkey_bsl/italy_lega/vtb
+    # placeholder (HTML parser TODO) — şimdilik enabled_leagues'a EKLEMEZ.
+    - liga_acb
   cache_dir: data/basketball_cache
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
@@ -367,6 +372,14 @@ basketball:
       blend_elo: 0.50
       margin_std: 10.0
       total_std: 16.0
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket lig parametreleri
+    # Euroleague baseline'ından türetildi (Avrupa pace + ev avantajı benzer).
+    liga_acb:
+      home_advantage: 90.0   # ACB salonlar büyük, Euroleague seviyesi
+      k_factor: 22.0
+      blend_elo: 0.50
+      margin_std: 10.0
+      total_std: 17.0        # ACB skor Euroleague'den hafif yüksek
 
 mlb_submarket:
   enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin

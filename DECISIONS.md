@@ -3075,3 +3075,23 @@ Bot'un trade/health/exit aktivitesini canlı telegram bildirimleri olarak ileten
 **Telemetry akışı:** trade gerçekleşince entry/exit hook → notifier.send (HTML). Light cycle'da her N tick (default 300sn / 5sn light = 60 tick) HealthMonitor.check_all() → alerts → dedupe → notifier. Process exit'te atexit → kritik kapanma mesajı.
 
 **Sonuç:** Bot canlı durumu telefonda görünür. Scraper down / consecutive loss / stale price / calibration age / kapanma → telegram. Trade'ler entry+exit anında düşer.
+
+---
+
+**SPEC-EUROBASKET-001: Avrupa Basket Lig Scraper'ları (2026-06-02 PARTIAL DONE)**
+
+Polymarket'te aktif Avrupa basket lig market'leri (Liga Endesa, BSL, Lega, VTB) için kendi scraper iskeleti + ACB tam parser + 3 placeholder + NO_DATA_NO_TRADE pipeline. Spec: `docs/superpowers/specs/2026-06-02-europe-basket-scraper-design.md`. Plan: `docs/superpowers/plans/2026-06-02-europe-basket-scraper.md`.
+
+**Önkoşul fix — SPEC-TG-001 entegrasyon defect'i**: Plan 2 HealthMonitor dict-format JSON beklerken mevcut `data_source_health.py` array yazıyordu — production'da silent no-op. `_check_scraper_health` array format okur hale getirildi (active=False → critical, last_success > scraper_stale_hours → warning). `scraper_stale_hours: int = 24` config'e eklendi.
+
+- **Task 1 — Base scraper** (`src/infrastructure/data/basketball/base_scraper.py`, 135 satır): `EuropeanBasketScraper` ABC + `ScrapedGame`/`ScrapeResult` dataclass'lar. Common: retry (3 attempt, exponential backoff) + HealthTracker entegrasyonu (mevcut 3-strike fallback API kullanır — yeni format yok). 5 unit test. Schemas Literal'a 4 lig + 4 source eklendi.
+- **Task 2 — Slug + resolver mapping**: `gamma_client._SLUG_PREFIX_SPORT`'a 4 yeni prefix (`bkligend`→liga_acb DOĞRULANMIŞ gamma API, `bkbsl`/`bklega`/`bkvtb` tahmin). `basketball_team_resolver` → `_ACB_TEAMS` (18 takım, gerçek slug'lardan: `rea`/`bar`/`val`/`bil`/`la`/`bas2`/`cb2`), `_BSL_TEAMS` (16), `_LEGA_TEAMS` (16), `_VTB_TEAMS` (12). **Önemli çakışma çözümleri**: `bas2` (Basket Zaragoza) vs `bas` (Baskonia); `SASS` (Lega Sassari) vs NBA `SAS` (Spurs); `MIN` NBA Timberwolves vs VTB Minsk → `MNSK`; `MAN` (Manresa ACB) vs BSL Manisa → `MNS`. Regression test: ACB 4 gerçek slug PASS, BSL/Lega/VTB skip (runtime'da doğrulanır).
+- **Task 3-5 — Scraper class'lar**: `acb_scraper.py` (170 satır) GERÇEK parser (acb.com calendario, BeautifulSoup, çoklu CSS selector fallback, İspanyolca tarih). `bsl_scraper.py`/`lega_scraper.py`/`vtb_scraper.py` thin PLACEHOLDER — `_fetch_html` NotImplementedError fırlatır. **Karar gerekçesi**: WebFetch ile 4 farklı dilde 4 farklı site HTML keşfini yapamadığımız (markdown summary verir, raw selectors değil) için yarım yamalak parser yazmak NO_DATA_NO_TRADE prensibini ihlal ederdi. Her lig için canlı HTML doğrulaması ayrı sprint (TODO-005). 9 unit test (ACB fixture parse).
+- **Task 6 — factory + dispatch entegrasyon**: `basketball_dispatch._BASKETBALL_LEAGUES` + `factory_basketball._BASKETBALL_SPORT_TAGS` + `_EUROPE_BASKET_LEAGUES` set'lerine 4 yeni lig eklendi. `config.yaml`'da `scanner.allowed_sport_tags` ve `basketball.enabled_leagues`'a SADECE `liga_acb` eklendi (3 placeholder lig şimdilik kapalı, parser yazılınca aktive). `basketball.leagues.liga_acb` params (Euroleague baseline'ından türetildi: ev av. 90, k 22, blend 0.50, margin_std 10, total_std 17).
+- **Task 7 — NO_DATA_NO_TRADE integration test** (`tests/integration/test_european_basket_no_data_no_trade.py`, 4 senaryo): placeholder scraper'ların NotImplementedError propagate ettiği + HealthTracker.record_failure 3 kez → active=False → HealthMonitor critical alert üretimi.
+
+**Test:** 1946 passed (önceki 1928'den +18; Task 1 +5 + Task 2 +4 + Task 3 +9 + Task 7 +4), 0 fail.
+
+**Kısmi DONE:** Pipeline tamamen wired (slug detect → sport_tag override → enabled_leagues → factory refresh hook → basketball_dispatch). ACB için **gerçek scraper aktif**. BSL/Lega/VTB için **placeholder**: market gözlemi → HTML parser implementasyonu → config'e ekle → aktif. NO_DATA_NO_TRADE her aşamada devrede.
+
+**Sonraki adım:** TODO-005 (BSL/Lega/VTB HTML parser implementasyonu — her biri ayrı sprint).

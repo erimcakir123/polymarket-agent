@@ -25,10 +25,18 @@ _BASKETBALL_SPORT_TAGS = frozenset({
     "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
     # 2026-06-01 yetki genişletme — gerçek veri kaynaklı ligler.
     "g_league", "summer_league", "eurocup",
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket ligleri (basketball_dispatch
+    # bu sport_tag'leri tanır; ratings yoksa MODEL_TEAM_NOT_IN_RATINGS fail).
+    "liga_acb", "turkey_bsl", "italy_lega", "vtb",
 })
 _PRO_BASKET_LEAGUES = frozenset({"nba", "wnba", "g_league", "summer_league"})
 _COLLEGE_BASKET_LEAGUES = frozenset({"ncaab", "wncaab"})
-_EUROPE_BASKET_LEAGUES = frozenset({"euroleague", "eurocup"})
+# SPEC-EUROBASKET-001 (2026-06-02): 4 Avrupa lig eklendi.
+# liga_acb gerçek scraper (AcbScraper); turkey_bsl/italy_lega/vtb placeholder
+# (HTML parser TODO) — scraper "broken" döner, NO_DATA_NO_TRADE devrede.
+_EUROPE_BASKET_LEAGUES = frozenset({
+    "euroleague", "eurocup", "liga_acb", "turkey_bsl", "italy_lega", "vtb",
+})
 
 
 def _select_enricher_for_sport(sport_tag: str) -> str:

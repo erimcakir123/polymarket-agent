@@ -28,8 +28,12 @@ _BASKETBALL_LEAGUES = frozenset({
     "nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague",
     # 2026-06-01 yetki genişletme: gerçek veri kaynağı doğrulandı.
     # nba_api: g_league + summer_league. euroleague-api: eurocup.
-    # bsl/acb/lega kapsam dışı (veri kaynağı placeholder).
     "g_league", "summer_league", "eurocup",
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket ligleri.
+    # liga_acb gerçek scraper var; turkey_bsl/italy_lega/vtb placeholder
+    # (HTML parser TODO) — scraper "broken" döner, NO_DATA_NO_TRADE devrede,
+    # bu liglerin slug'ları dispatch'e gelirse model fail-fast skip eder.
+    "liga_acb", "turkey_bsl", "italy_lega", "vtb",
 })
 _CBB_ALIAS = "ncaab"  # Polymarket "cbb" tag NCAAB ile aynı lig
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
