@@ -1,8 +1,8 @@
 {
   "mode": "paper",
-  "cycle": "heavy",
-  "stage": "scanning",
-  "stage_at": "2026-06-02T10:18:33.803229+00:00",
-  "next_heavy_at": "2026-06-02T10:28:33.803205+00:00",
+  "cycle": "light",
+  "stage": "light",
+  "stage_at": "2026-06-02T13:32:58.161765+00:00",
+  "next_heavy_at": "2026-06-02T13:33:57.663271+00:00",
   "light_alive": true
 }

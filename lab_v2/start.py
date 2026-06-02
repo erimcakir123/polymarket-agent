@@ -1,6 +1,8 @@
 """LAB v2: Bagimsiz bot launcher (port 5051).
 
-Main bot UNTOUCHED. Tum override'lar import-time monkey-patch ile yapilir.
+Lab ana botla AYNI kodu calistirir — tek fark config.yaml ayarlari.
+Sport ratings (Glicko surface + basketball cache) factory.py icinde otomatik
+yuklenir; lab tarafinda monkey-patch YOK.
 
 Calistirma:
   python lab_v2/start.py [--mode paper]
@@ -11,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -29,6 +32,15 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(MAIN_REPO / ".env")
 
 
+# Lab'da olmasi gereken ama lab data'da uretilmeyen, ana bot data'sindan
+# senkronize edilen referans dosyalar. Bunlar gunluk veri degil — model
+# kalibrasyon egrisi ve yuzey-spesifik rating gibi proje-cap snapshots.
+_SYNC_FROM_MAIN = (
+    "tennis_calibration.json",
+    "tennis_ratings_surface.json",
+)
+
+
 def _setup_logging() -> None:
     Path("logs/runtime").mkdir(parents=True, exist_ok=True)
     fmt = "%(asctime)s [LAB] [%(levelname)s] %(name)s: %(message)s"
@@ -42,50 +54,26 @@ def _setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, handlers=[file_h, con_h])
 
 
-def _apply_surface_glicko_patch() -> None:
-    """Tennis dispatch'i surface-aware versiyonla degistir."""
+def _sync_reference_data() -> None:
+    """Ana bot data'sindan referans dosyalari lab'a kopyala (yoksa veya eskise).
+
+    Why: lab calibration/surface ratings olmadan ham model uretiyor → ana bot
+    ile farkli bookmaker_prob veriyor. Senkron tutarak iki bot ayni input
+    uretir, A/B testin temizligi korunur.
+    """
     log = logging.getLogger(__name__)
-    surface_path = LAB_ROOT / "data" / "tennis_ratings_surface.json"
-    if not surface_path.exists():
-        log.warning("[LAB] surface ratings missing — skipping tennis surface patch")
-        return
-    from lab_modules.surface_ratings_loader import load_all_surfaces
-    from lab_modules.tennis_dispatch_surface import make_surface_aware_dispatch
-    ratings_by_surface = load_all_surfaces(surface_path)
-    log.info(
-        "[LAB] loaded surface ratings: Hard=%d, Clay=%d, Grass=%d players",
-        len(ratings_by_surface.get("Hard", {})),
-        len(ratings_by_surface.get("Clay", {})),
-        len(ratings_by_surface.get("Grass", {})),
-    )
-    new_dispatch = make_surface_aware_dispatch(ratings_by_surface)
-    # Monkey-patch ana bot modulu (lab process icinde, main process etkilenmez)
-    import src.strategy.enrichment.tennis_dispatch as td
-    td.enrich_with_tennis_dispatch = new_dispatch
-    import src.orchestration.factory as fact
-    fact.enrich_with_tennis_dispatch = new_dispatch
-    log.info("[LAB] tennis_dispatch monkey-patched (surface-aware)")
-
-
-def _apply_rest_days_patch() -> None:
-    """Basketball ratings yuklenince rest-day adjustment uygula."""
-    log = logging.getLogger(__name__)
-    schedule_path = LAB_ROOT / "data" / "basketball_schedule.json"
-    from lab_modules.basketball_rest_days import adjust_ratings_now
-    import src.orchestration.factory_basketball as fb
-    original_loader = fb._load_basketball_caches
-
-    def wrapped(cfg):
-        ratings, eff = original_loader(cfg)
-        adjusted = adjust_ratings_now(ratings, schedule_path)
-        log.info(
-            "[LAB] basketball rest-day adjustment applied (%d leagues)",
-            len(adjusted),
-        )
-        return adjusted, eff
-
-    fb._load_basketball_caches = wrapped
-    log.info("[LAB] basketball rest-days monkey-patched")
+    main_data = MAIN_REPO / "data"
+    lab_data = LAB_ROOT / "data"
+    lab_data.mkdir(exist_ok=True)
+    for name in _SYNC_FROM_MAIN:
+        src = main_data / name
+        dst = lab_data / name
+        if not src.exists():
+            log.warning("[LAB] sync skip: %s (main yok)", name)
+            continue
+        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+            shutil.copy2(src, dst)
+            log.info("[LAB] synced: %s (%d bytes)", name, dst.stat().st_size)
 
 
 def _start_dashboard_subprocess(port: int) -> None:
@@ -112,14 +100,11 @@ def main() -> None:
     log.info("Main bot UNTOUCHED — delete lab_v2/ to remove without trace")
     log.info("=" * 60)
 
+    # Referans data'yi ana bottan senkronize et (calibration, surface ratings)
+    _sync_reference_data()
+
     # Launch dashboard first (so it's up before bot generates state)
     _start_dashboard_subprocess(port=5051)
-
-    # Apply all lab patches BEFORE main bot init
-    _apply_surface_glicko_patch()
-    _apply_rest_days_patch()
-    # Pinnacle filter: separate flag; default off (needs raw bookmaker stream)
-    log.info("[LAB] pinnacle filter: PENDING (Odds API raw stream wiring needed)")
 
     # Now boot main bot with lab config
     from src.config.settings import Mode, load_config
@@ -131,6 +116,9 @@ def main() -> None:
     # Process lock under lab_v2/data/
     Path("data").mkdir(exist_ok=True)
     acquire_lock(lock_path=Path("data/lab_v2.lock"))
+    # Dashboard "bot_alive" göstergesi logs/agent.pid'i okur — ayrıca yaz
+    Path("logs").mkdir(exist_ok=True)
+    Path("logs/agent.pid").write_text(str(os.getpid()), encoding="utf-8")
     state = bootstrap(cfg)
     agent = build_agent(state)
     log.info("[LAB] agent starting: mode=%s dashboard=http://127.0.0.1:%d",

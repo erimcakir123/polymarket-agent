@@ -214,6 +214,7 @@ class EntryProcessor:
             end_date_iso=market.end_date_iso,
             slug=market.slug,
             bookmaker_prob=signal.bookmaker_prob,
+            source=signal.source,
             sports_market_type=sports_market_type,
             total_line=total_line,
             total_side=total_side,

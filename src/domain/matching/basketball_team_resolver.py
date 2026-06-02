@@ -56,20 +56,32 @@ _NBA_TEAMS: dict[str, str] = {
     "uta": "UTA", "jazz": "UTA",
 }
 
-# WNBA 12 takım.
+# WNBA 14 takım (2026 sezonu — Golden State Valkyries 2025'te, Portland Fire 2026'da
+# eklendi). Polymarket slug convention: lig kısaltması + 3-4 harf takım kısaltması.
+# 2026-06-02 fix: gsv/por yeni takımlar; conn/wsh/la slug variantları alias olarak
+# eklendi (Polymarket "wnba-conn-atl", "wnba-chi-wsh", "wnba-las-la" pattern üretiyor
+# ama resolver eski sadece "con"/"was"/"las" tanıyordu → 111 maç skip alıyordu).
 _WNBA_TEAMS: dict[str, str] = {
     "atl": "ATL", "dream": "ATL",
     "chi": "CHI", "sky": "CHI",
-    "con": "CON", "sun": "CON", "connecticut": "CON",
+    "con": "CON", "conn": "CON", "sun": "CON", "connecticut": "CON",
     "dal": "DAL", "wings": "DAL",
     "ind": "IND", "fever": "IND",
-    "las": "LAS", "sparks": "LAS",
-    "lva": "LVA", "aces": "LVA", "vegas": "LVA",
+    # Polymarket convention (test kanıtı: "wnba-las-la-2026-06-02" question
+    # "Las Vegas Aces vs Los Angeles Sparks"): "las" = Las Vegas, "la" = LA Sparks
+    "las": "LVA", "lv": "LVA", "lva": "LVA", "aces": "LVA", "vegas": "LVA",
+    "la": "LAS", "sparks": "LAS",
     "min": "MIN", "lynx": "MIN",
     "nyl": "NYL", "liberty": "NYL",
     "phx": "PHX", "mercury": "PHX",
     "sea": "SEA", "storm": "SEA",
-    "was": "WAS", "mystics": "WAS",
+    "was": "WAS", "wsh": "WAS", "mystics": "WAS",
+    # 2025 ekspansiyon — Golden State Valkyries
+    "gsv": "GSV", "valkyries": "GSV",
+    # 2026 ekspansiyon — Portland Fire (rating cache 13 takım, POR henüz yok;
+    # rating eklenince hazır olur; resolver kabul eder, basketball_dispatch
+    # rating yokluğunda zaten MODEL_TEAM_NOT_IN_RATINGS fail döner)
+    "por": "POR", "fire": "POR",
 }
 
 # Euroleague 20 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.

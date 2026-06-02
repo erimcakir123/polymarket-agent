@@ -1,5 +1,5 @@
 """Tennis dispatch — sport_tag tennis ise model, değilse veya alt market fail ise fallback."""
-from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
+from src.domain.analysis.enrich_outcome import EnrichResult
 from src.domain.analysis.probability import calculate_bookmaker_probability
 from src.domain.pricing.tennis.glicko import Rating
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
@@ -54,9 +54,10 @@ def test_tennis_moneyline_uses_model_when_available():
 
 
 def test_tennis_moneyline_falls_back_when_ratings_missing():
+    """ML için ratings yoksa bookmaker fallback (simetri için 2026-06-02 geri açıldı).
+    Basketball'da zaten aktif → tenis'te de simetrik. Alt market'lerde fallback yok."""
     m = _market("Unknown vs Player")
     result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings={})
-    # Empty ratings → fall back to bookmaker
     assert result.probability is not None
     assert abs(result.probability.bookmaker_prob - 0.55) < 1e-6
 

@@ -117,11 +117,6 @@ risk:
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   stop_loss_pct: 0.30
-  # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre model + fractional Kelly.
-  # multiplier 0.25 (variance düşür), max_pct 0.05 (bankroll güvenlik kapağı).
-  kelly_enabled_tennis: true
-  kelly_multiplier: 0.25
-  kelly_max_pct: 0.05
   # Tennis H2H Glicko/Markov blend ağırlığı (0.6 = Glicko ağır).
   tennis_h2h_glicko_weight: 0.6
   # 2026-06-01 (kullanıcı sadeleştirme): lig fark etmiyor, market scope önemli.
@@ -187,6 +182,7 @@ partial_sl:
   # Eski tam SL: %30 düşünce hepsini sat → geçici dipte tüm pozisyonu kaybediyoruz.
   # Yeni 3-tier: erken küçük çıkış, sonra escalate, son çare tam çıkış.
   # Geri dönüş ihtimali olan dipi tolere ederiz, dipten çıkamayanı parça parça satarız.
+  # 2026-06-02: LAB tarafı — partial_sl AÇIK (ana bot KAPALI). A/B test ediliyor.
   enabled: true
   tiers:
     - loss_threshold: 0.20    # %20 düşünce -> %30 sat (suları test et)

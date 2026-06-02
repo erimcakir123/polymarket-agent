@@ -167,17 +167,38 @@ class GammaClient:
         event_live = bool(event.get("live", False))
         event_ended = bool(event.get("ended", False))
         sport_tag = category
-        # Sport-specific tag: 'sports'/'esports' parent'ı atla, ilk spesifik tag'i al
+        # Tag seçim önceliği (2026-06-02 fix): lig-spesifik tag > sport-level > category.
+        # Polymarket WNBA event'lerinin tag listesi `[basketball, wnba, sports, ...]`
+        # — ilk non-generic "basketball" alınırsa whitelist'te (wnba var, basketball yok)
+        # düşer ve 249 WNBA event scanner'a hiç ulaşmaz. Çözüm: sport-level tag'leri
+        # (basketball, baseball, hockey, tennis, soccer, football, rugby) atla,
+        # tag listesindeki lig-spesifik tag'i (wnba, nba, ahl, atp ...) tercih et.
+        # Lig-spesifik bulunamazsa sport-level fallback (basketball, vb.) kullan.
         tags = event.get("tags") or []
         if isinstance(tags, list):
-            _GENERIC = {"sports", "esports", "games", "all", ""}
+            _PARENT_GENERIC = {"sports", "esports", "games", "all", ""}
+            _SPORT_LEVEL = {
+                "basketball", "baseball", "hockey", "tennis",
+                "soccer", "football", "rugby", "mma", "boxing", "golf",
+            }
+            sport_level_fallback: str | None = None
             for t in tags:
                 if not isinstance(t, dict):
                     continue
                 slug = str(t.get("slug", "") or "").lower()
-                if slug and slug not in _GENERIC:
-                    sport_tag = slug
-                    break
+                if not slug or slug in _PARENT_GENERIC:
+                    continue
+                if slug in _SPORT_LEVEL:
+                    if sport_level_fallback is None:
+                        sport_level_fallback = slug
+                    continue
+                # Lig-spesifik tag (wnba, nba, ahl, atp ...) — tercih edilir
+                sport_tag = slug
+                break
+            else:
+                # for-else: hiç lig-spesifik bulunamadıysa sport-level fallback
+                if sport_level_fallback is not None:
+                    sport_tag = sport_level_fallback
         for raw in event.get("markets", []) or []:
             cid = raw.get("conditionId", "")
             if not cid or cid in seen:

@@ -20,14 +20,48 @@ _DEFAULT_VALID_SURFACES = ("Hard", "Clay", "Grass")
 
 
 def _build_serve_by_surface(serve_blob: dict) -> dict[str, PlayerServeStats]:
-    """Mevcut serve JSON yapisini PlayerServeStats'a cevir."""
-    out = {}
+    """Serve JSON yapisini PlayerServeStats'a cevir.
+
+    Surface key normalize: "clay"/"Clay" gibi case farkliliklari capitalize ile
+    birlestirilir; ayni surface icin birden fazla entry varsa n_points-agirlikli
+    ortalama alinir. Bu olmazsa (case-sensitive dict.get) Sackmann build'inden
+    lowercase/uppercase karisikligi alt market modelinin %44'unu fail ediyor.
+    """
+    merged: dict[str, list[dict]] = {}
     for surf, stats in (serve_blob or {}).items():
-        out[surf] = PlayerServeStats(
-            serve_pts_won_pct=float(stats.get("serve_pts_won_pct", 0.6)),
-            return_pts_won_pct=float(stats.get("return_pts_won_pct", 0.35)),
-            n_points=int(stats.get("n_points", 0)),
-        )
+        if not surf or not isinstance(stats, dict):
+            continue
+        key = surf.capitalize()  # "clay" → "Clay"
+        merged.setdefault(key, []).append(stats)
+    out: dict[str, PlayerServeStats] = {}
+    for key, entries in merged.items():
+        if len(entries) == 1:
+            s = entries[0]
+            out[key] = PlayerServeStats(
+                serve_pts_won_pct=float(s.get("serve_pts_won_pct", 0.6)),
+                return_pts_won_pct=float(s.get("return_pts_won_pct", 0.35)),
+                n_points=int(s.get("n_points", 0)),
+            )
+        else:
+            # n_points-weighted merge (varsa); pesin pesin sifir n_points ise basit ortalama
+            total_n = sum(int(s.get("n_points", 0)) for s in entries)
+            if total_n > 0:
+                serve_pct = sum(
+                    float(s.get("serve_pts_won_pct", 0.6)) * int(s.get("n_points", 0))
+                    for s in entries
+                ) / total_n
+                return_pct = sum(
+                    float(s.get("return_pts_won_pct", 0.35)) * int(s.get("n_points", 0))
+                    for s in entries
+                ) / total_n
+            else:
+                serve_pct = sum(float(s.get("serve_pts_won_pct", 0.6)) for s in entries) / len(entries)
+                return_pct = sum(float(s.get("return_pts_won_pct", 0.35)) for s in entries) / len(entries)
+            out[key] = PlayerServeStats(
+                serve_pts_won_pct=serve_pct,
+                return_pts_won_pct=return_pct,
+                n_points=total_n,
+            )
     return out
 
 

@@ -3010,10 +3010,10 @@ work begins.
 - Script: `calibrate_tennis_model.py` — 77K maç walk-forward (predict önce, update sonra, `_MIN_HISTORY=1000` warm-up, i%2 perspective swap winner-bias düzeltir). `data/tennis_calibration.json` çıktı.
 - Sonuç: orta aralık (0.35-0.55) çok iyi kalibre; uç değerlerde overconfidence (%85→%77, %95→%84); düşük tahminlerde under (%5→%17). Eğri devrede; deep favori/underdog raw model çıktısı düzeltilir.
 
-**Adım 5: Tennis Kelly sizing**
-- Domain: `kelly_fraction(p, price)` = (p - price)/(1 - price) clamped at 0; `bet_size(p, price, bankroll, multiplier, max_pct)` = min(bankroll × fraction × multiplier, bankroll × max_pct).
-- Strategy: `gate._compute_position_size()` — tennis ise Kelly, değilse fixed-tier (`confidence_position_size`). BUY_NO direction'da p ve price invert: p = 1 - bm_prob.probability, price = market.no_price.
-- Config: `kelly_enabled_tennis=true`, `kelly_multiplier=0.25` (variance düşürme), `kelly_max_pct=0.05` (bankroll güvenlik kapağı), `tennis_h2h_glicko_weight=0.6` (PLOS One referansı).
+**Adım 5: Tennis Kelly sizing — 2026-06-02 TAMAMEN KALDIRILDI**
+- Tarihsel kayıt: 2026-05-31'de tenis için fractional Kelly (multiplier 0.25, max_pct 0.05) eklenmişti — sadece tenis için `is_tennis` koşulu ile aktif, kalibre edilmiş model varsayımıyla.
+- Kaldırma sebebi: `fixed_bet_usdc` ($50/$30) + `bimodal_bet_usdc` ($15/$10) tier sistemi confidence + market tipine göre risk ayarını zaten yapıyor. Üstüne Kelly çift indirgeme → düşük edge'li tenis trade'lerinde stake $11-$28 arasına düşüyor → kazanan trade'de küçük kâr (Rocha #1, Hibino gözlemleri).
+- Yapılan temizlik: `kelly.py` + 2 test dosyası silindi; `gate.py` Kelly import + dalı + GateConfig alanları çıkarıldı; `settings.py` 3 alan çıkarıldı; `factory.py` 3 satır çıkarıldı; `config.yaml` + `lab_v2/config.yaml` Kelly blokları silindi. `_compute_position_size` artık tek path: bimodal kontrolü → `confidence_position_size`.
 
 **K4: Source field (model vs bookmaker ayrımı)**
 - `BookmakerProbability.source: str = "bookmaker"` ("bookmaker" | "model"). Tennis enricher source="model" geçer.

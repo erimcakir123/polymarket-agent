@@ -210,8 +210,8 @@
             : "@ —")
         : `Exit ${FMT.cents(t.exit_price || 0)}`;
 
-      // Humanized reason + tone class (active card'daki entry_reason row'unun yerine).
-      const label = FMT.exitReasonLabel(t.exit_reason);
+      // Humanized reason + tone class. PnL'i geçir → scale_out etiket kâr/zarara göre.
+      const label = FMT.exitReasonLabel(t.exit_reason, pnl);
       const reasonText = label.emoji
         ? `${label.emoji} ${FMT.escapeHtml(label.text)}`
         : FMT.escapeHtml(label.text);

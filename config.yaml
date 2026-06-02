@@ -117,11 +117,6 @@ risk:
   consecutive_loss_cooldown: 3
   cooldown_cycles: 2
   stop_loss_pct: 0.30
-  # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre model + fractional Kelly.
-  # multiplier 0.25 (variance düşür), max_pct 0.05 (bankroll güvenlik kapağı).
-  kelly_enabled_tennis: true
-  kelly_multiplier: 0.25
-  kelly_max_pct: 0.05
   # Tennis H2H Glicko/Markov blend ağırlığı (0.6 = Glicko ağır).
   tennis_h2h_glicko_weight: 0.6
   # 2026-06-01 (kullanıcı sadeleştirme): lig fark etmiyor, market scope önemli.
@@ -175,18 +170,21 @@ stock:
   max_no_edge_attempts: 3       # peş peşe bu kadar no_edge → düş
 
 graduated_sl:
-  # 2026-06-01: ESPN ile dogrulanmis 27 trade analizi → graduated_sl bize $359 NET
-  # KURTARMIS. 17 trade'de tutsaydık tamamen yanacaktık (WNBA + NBA totals — skorca
-  # acık, geri dönüş yok), 10 trade'de moneyline favorisi sonradan kazandığı için
-  # erken cikis yaptırdı. Net pozitif → KORUNUR. partial_sl ile beraber çalışır
-  # (partial önce parçalı sat, graduated tactical full exit).
-  enabled: true
+  # 2026-06-01: ESPN ile dogrulanmis 27 trade analizi notu vardi — ama bu botta
+  # dogrulanamadi (eski tennis-paper-lab arsivi mevcut degil). Watt-Wendelken 2.
+  # pozisyonu graduated_sl ile -$10.48 zarar ettirdi; partial_sl zaten kademeli
+  # kapatma yapiyor. Cifte loss management gereksiz.
+  # 2026-06-02 KAPATILDI: tek loss management = partial_sl (kademeli). graduated
+  # tam-cikis hatti silindi — eger yine ihtiyac olursa flag tekrar true yeterli.
+  enabled: false
 
 partial_sl:
   # 2026-06-01: Loss-side partial exits (scale-out'un simetriği).
   # Eski tam SL: %30 düşünce hepsini sat → geçici dipte tüm pozisyonu kaybediyoruz.
   # Yeni 3-tier: erken küçük çıkış, sonra escalate, son çare tam çıkış.
-  # Geri dönüş ihtimali olan dipi tolere ederiz, dipten çıkamayanı parça parça satarız.
+  # 2026-06-02: Tek-bot kararı — partial_sl AÇIK, graduated_sl KAPALI. Lab ayrı
+  # process olarak çalıştırılmıyor; iki konfig fark partial vs graduated A/B test
+  # gereği kalktı. Loss management = sadece kademeli partial_sl.
   enabled: true
   tiers:
     - loss_threshold: 0.20    # %20 düşünce -> %30 sat (suları test et)

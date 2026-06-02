@@ -110,10 +110,6 @@ class RiskConfig(BaseModel):
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30
-    # Adım 5 (2026-05-31): Tennis Kelly sizing — kalibre model için dinamik stake.
-    kelly_enabled_tennis: bool = True
-    kelly_multiplier: float = 0.25
-    kelly_max_pct: float = 0.05
     # Tennis H2H pricer: Glicko prob + Markov serve prob blend ağırlığı.
     # 0.6 = Glicko'ya daha çok güven (PLOS One 2022 referansı).
     tennis_h2h_glicko_weight: float = 0.6

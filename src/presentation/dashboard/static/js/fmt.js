@@ -248,14 +248,19 @@
     // Spor-specific bloklar: NHL (moneyline/puck-line/totals), Tennis, MLB (moneyline/run-line/totals).
     // Python tarafında yeni reason eklendiğinde bu map'e de branch eklenmeli.
     // tone ∈ { "pos", "neg", "neutral" } → CSS class seçimi.
-    exitReasonLabel(raw) {
+    exitReasonLabel(raw, pnl) {
       const r = String(raw || "");
       if (!r) return { text: "", emoji: "", tone: "neutral" };
-      // Partial scale-out: computed.py synth ediyor → scale_out_tier_N → Take Profit.
-      // Config'de şu an tek tier (sell_pct 0.40 @ midpoint) — rakam gereksiz.
-      // İleride tier sayısı artarsa bu dal tekrar genişletilir.
-      if (/^scale_out_tier_\d+$/.test(r)) return { text: "Take Profit", emoji: "🎯", tone: "pos" };
-      if (r === "scale_out") return { text: "Take Profit", emoji: "🎯", tone: "pos" };
+      // Scale-out: scale_out_tier_N synth ediyor computed.py'de. Etiket PnL'ye
+      // göre kâr ise "Take Profit", zarar ise "Partial sell" (kullanıcı talebi
+      // 2026-06-02: aynı pozisyonun zararlı kademe çıkışına "Take Profit" yazmak
+      // yanıltıcı — ekrana hangi anlamla satış yapıldığı PnL işaretiyle eşleşsin).
+      const isLoss = typeof pnl === "number" && pnl < 0;
+      if (/^scale_out_tier_\d+$/.test(r) || r === "scale_out") {
+        return isLoss
+          ? { text: "Partial sell", emoji: "🔻", tone: "neg" }
+          : { text: "Take Profit", emoji: "🎯", tone: "pos" };
+      }
       if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
       if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
       if (r === "score_exit") return { text: "Score against", emoji: "⚠️", tone: "neg" };

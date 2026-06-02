@@ -75,6 +75,11 @@ class Position(BaseModel):
 
     # Bookmaker metadata
     bookmaker_prob: float = 0.0
+    # 2026-06-02: Anchor source ("model" | "bookmaker"). Tennis için Odds API yedeği
+    # kaldırıldı → tüm tennis pozisyonları "model". Diğer sporlar bookmaker'dan gelir.
+    # Default "bookmaker" geriye uyum: eski state file'larında bu field yoksa eskiden
+    # bookmaker path'inden açılmış sayılır.
+    source: str = "bookmaker"
 
     # Basketbol totals (SPEC-J — NBA totals exit dispatch için).
     # sports_market_type ayrıca market filtering için kullanılır (scanner/exit).

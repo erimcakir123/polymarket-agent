@@ -133,20 +133,54 @@ def _infer_surface(question: str) -> str:
 
 
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)
-_OVER_LINE_RE = re.compile(r"(?:over|under|total|totals)\s+(\d+\.?\d*)", re.IGNORECASE)
+# Question regex: "Over 22.5", "Total 22.5", "O/U 22.5" (Polymarket convention).
+_OVER_LINE_RE = re.compile(
+    r"(?:over|under|total|totals|o/u)\s+(\d+\.?\d*)", re.IGNORECASE,
+)
+# Slug regex (primary): "match-total-22pt5" → 22.5; "set-totals-4pt5" → 4.5;
+# Polymarket "pt" decimal convention. 2026-06-02 fix — question'dan parse 1 Jun'da
+# bozulmuştu çünkü Polymarket format "Match O/U 22.5" idi, regex "over/under"
+# arıyordu → None → match-total/set-totals tüm trade'leri öldü (audit kanıtı).
+_SLUG_TOTAL_RE = re.compile(
+    r"-(?:match-total|set-totals?|first-set-total)-(\d+)(?:pt(\d+))?", re.IGNORECASE,
+)
+# Slug handicap: "set-handicap-away-1pt5" → 1.5; "set-handicap-home-2pt5" → 2.5
+_SLUG_HANDICAP_RE = re.compile(
+    r"-set-handicap-(?:away|home)-(\d+)(?:pt(\d+))?", re.IGNORECASE,
+)
+
+
+def _slug_decimal(int_part: str, frac_part: str | None) -> float | None:
+    """Polymarket 'pt' decimal parse: ('22', '5') → 22.5."""
+    try:
+        return float(int_part) + (float(f"0.{frac_part}") if frac_part else 0.0)
+    except ValueError:
+        return None
 
 
 def _extract_market_params(
     question: str,
     market_type: str,
+    slug: str = "",
 ) -> tuple[float | None, float | None]:
-    """Question stringinden line + handicap çıkar (market_type'a göre).
+    """Slug + question'dan line + handicap çıkar (market_type'a göre).
 
     Returns: (line, handicap). Bulamazsa None.
+
+    Öncelik: slug regex (Polymarket 'pt' decimal convention, daha güvenilir) →
+    question regex fallback. Slug yoksa veya pattern eşleşmiyorsa question'a düş.
     """
     q = question or ""
+    s = slug or ""
     mt = market_type.lower()
     if mt == "tennis_set_handicap":
+        # Önce slug: "-set-handicap-away-1pt5" → 1.5
+        sm = _SLUG_HANDICAP_RE.search(s)
+        if sm:
+            line = _slug_decimal(sm.group(1), sm.group(2))
+            if line is not None:
+                return None, line
+        # Question fallback
         m = _HANDICAP_RE.search(q)
         if m:
             try:
@@ -155,6 +189,13 @@ def _extract_market_params(
                 return None, None
         return None, None
     if mt in ("tennis_match_totals", "tennis_first_set_totals", "tennis_set_totals"):
+        # Önce slug: "match-total-22pt5" → 22.5
+        sm = _SLUG_TOTAL_RE.search(s)
+        if sm:
+            line = _slug_decimal(sm.group(1), sm.group(2))
+            if line is not None:
+                return line, None
+        # Question fallback (over/under/total/totals/o/u)
         m = _OVER_LINE_RE.search(q)
         if m:
             try:
@@ -187,9 +228,13 @@ def enrich_with_tennis_dispatch(
     if sport != "tennis":
         return bookmaker_enricher(market)
 
-    # YETKİ FİLTRESİ (2026-06-01 bug fix): ITF/Challenger/Futures → SUS.
-    # phi tek başına yetersizdi (ITF düzenli oyuncuların maç sayısı yüksek
-    # ama lig kalitesi düşük). Slug + question keyword bazlı filtre.
+    # 2026-06-02 (kullanıcı kararı): Simetri için tenis ML fallback'i geri açıldı.
+    # Basketball'da zaten Odds yedeği aktif → tenis'te de simetrik. Hipotez:
+    # "model doğru çalışıyorsa Odds gereksiz" — bunu test etmek için bir süre
+    # her iki sporda da Odds aktif çalışsın, yeterli trade biriksin, sonra
+    # source=model vs source=bookmaker kıyaslamasıyla karar verilir.
+    # Alt market'lerde fallback YASAK (cascade bug önleme — moneyline-only).
+
     if _is_low_tier_tennis(
         market.slug or "", market.question or "",
         slug_prefixes=low_tier_slug_prefixes,
@@ -227,10 +272,8 @@ def enrich_with_tennis_dispatch(
         )
     player_a, player_b = resolved_a, resolved_b
 
-    # Yetki filtresi (2026-06-01 kullanıcı kararı):
-    # Glicko RD (phi) çok yüksekse oyuncu yeterince oynamamış → rating güvenilmez
-    # (Pieri-Bosio gibi ITF gençleri tarihçesi 5-15 maç → phi 150+). Pratik eşik:
-    # phi < 100 = güvenilir tanınıyor (~30+ maç). Aksi halde model konuşmamalı.
+    # Yetki filtresi: Glicko RD (phi) çok yüksekse oyuncu yeterince oynamamış →
+    # rating güvenilmez. phi < 100 = güvenilir (~30+ maç).
     snap_a = ratings[player_a]
     snap_b = ratings[player_b]
     if snap_a.rating.phi >= max_phi_for_trade or snap_b.rating.phi >= max_phi_for_trade:
@@ -243,7 +286,9 @@ def enrich_with_tennis_dispatch(
 
     best_of = _infer_best_of(market.question)
     surface = _infer_surface(market.question)
-    line, handicap = _extract_market_params(market.question, market_type)
+    line, handicap = _extract_market_params(
+        market.question, market_type, slug=market.slug or "",
+    )
     model_result = enrich_tennis_from_model(
         player_a=player_a,
         player_b=player_b,
@@ -258,7 +303,6 @@ def enrich_with_tennis_dispatch(
     )
     if model_result.probability is not None:
         return model_result
-
     # Model fail — moneyline için bookmaker fallback OK; alt market için fail.
     if is_moneyline:
         return bookmaker_enricher(market)

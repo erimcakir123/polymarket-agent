@@ -12,7 +12,7 @@
   const CONFIG = {
     pollIntervalMs: 5000,
     // waterfallMaxBars kaldırıldı — period filter yeterli, cap gereksiz overlap yaratıyordu.
-    stageRecentSec: 180,        // stage_at kaç saniyeden yeniyse aktif sayılır (heavy cycle 1-2 dk)
+    stageRecentSec: 600,        // stage_at kaç saniyeden yeniyse aktif sayılır (tenis enrichment 5-10dk)
     idleTickMs: 1000,           // idle countdown re-render intervali
     msPerMin: 60000,            // dakika→ms dönüştürme sabiti
     barRadius: 4,               // bar chart köşe yuvarlaması
