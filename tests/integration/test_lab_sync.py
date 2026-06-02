@@ -6,7 +6,6 @@ vs.) eklenince manuel listeye eklemek gerekmesin.
 """
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 
@@ -18,13 +17,32 @@ def _setup_dirs(tmp_path: Path) -> tuple[Path, Path]:
     return main, lab
 
 
+# lab_v2/start.py import edilemez (modül-seviyesi os.chdir yan etkisi diğer
+# testlerin cwd'sini bozar) — değerleri parse edip taklit ediyoruz.
+def _read_sync_constants() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """lab_v2/start.py'dan _SYNC_FILES_FIXED ve _SYNC_GLOBS değerlerini parse et."""
+    import ast
+    src_text = (Path(__file__).parent.parent.parent / "lab_v2" / "start.py").read_text(encoding="utf-8")
+    tree = ast.parse(src_text)
+    fixed: tuple[str, ...] = ()
+    globs: tuple[str, ...] = ()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    if target.id == "_SYNC_FILES_FIXED" and isinstance(node.value, ast.Tuple):
+                        fixed = tuple(str(e.value) for e in node.value.elts if isinstance(e, ast.Constant))
+                    elif target.id == "_SYNC_GLOBS" and isinstance(node.value, ast.Tuple):
+                        globs = tuple(str(e.value) for e in node.value.elts if isinstance(e, ast.Constant))
+    return fixed, globs
+
+
 def _run_sync(main: Path, lab: Path) -> None:
-    """lab_v2.start._sync_reference_data taklit (LAB_ROOT/MAIN_REPO monkey-patch)."""
-    from lab_v2 import start as lab_start
+    """lab_v2.start._sync_reference_data taklit (modül import etmeden)."""
     import shutil
-    log = logging.getLogger("test")
+    fixed, globs = _read_sync_constants()
     # 1. Sabit dosyalar
-    for rel in lab_start._SYNC_FILES_FIXED:
+    for rel in fixed:
         src = main / rel
         dst = lab / rel
         if not src.exists():
@@ -33,7 +51,7 @@ def _run_sync(main: Path, lab: Path) -> None:
         if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
             shutil.copy2(src, dst)
     # 2. Glob — yeni dosyalar otomatik
-    for pattern in lab_start._SYNC_GLOBS:
+    for pattern in globs:
         for src in main.glob(pattern):
             dst = lab / src.relative_to(main)
             dst.parent.mkdir(parents=True, exist_ok=True)
