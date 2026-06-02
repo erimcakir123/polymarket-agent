@@ -33,11 +33,21 @@ load_dotenv(MAIN_REPO / ".env")
 
 
 # Lab'da olmasi gereken ama lab data'da uretilmeyen, ana bot data'sindan
-# senkronize edilen referans dosyalar. Bunlar gunluk veri degil — model
-# kalibrasyon egrisi ve yuzey-spesifik rating gibi proje-cap snapshots.
-_SYNC_FROM_MAIN = (
-    "tennis_calibration.json",
-    "tennis_ratings_surface.json",
+# senkronize edilen referans dosyalar. Model-level snapshots — state DEGIL.
+# 2026-06-02 SPEC-AUDIT-001 Task 3: sabit liste + glob pattern — yeni rating
+# dosyalari (Avrupa basket scraper'lari, yeni tenis modelleri, vs.) otomatik
+# dahil edilir, manuel listeye eklemek gerekmez.
+_SYNC_FILES_FIXED: tuple[str, ...] = (
+    # Kalibrasyon egrileri (proje-cap)
+    "data/tennis_calibration.json",
+    # Sackmann tenis ratings (3MB, lig-cap)
+    "data/tennis_ratings.json",
+    "data/tennis_ratings_surface.json",
+)
+_SYNC_GLOBS: tuple[str, ...] = (
+    # Basketball ratings — yeni ligler otomatik dahil (nba, wnba, g_league,
+    # summer_league + sonra eklenecek Avrupa ligleri liga_acb, turkey_bsl, vs.)
+    "data/basketball_cache/*_ratings.json",
 )
 
 
@@ -62,18 +72,27 @@ def _sync_reference_data() -> None:
     uretir, A/B testin temizligi korunur.
     """
     log = logging.getLogger(__name__)
-    main_data = MAIN_REPO / "data"
-    lab_data = LAB_ROOT / "data"
-    lab_data.mkdir(exist_ok=True)
-    for name in _SYNC_FROM_MAIN:
-        src = main_data / name
-        dst = lab_data / name
-        if not src.exists():
-            log.warning("[LAB] sync skip: %s (main yok)", name)
-            continue
-        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
-            shutil.copy2(src, dst)
-            log.info("[LAB] synced: %s (%d bytes)", name, dst.stat().st_size)
+    lab_root = LAB_ROOT
+    lab_root.mkdir(exist_ok=True)
+    # 1. Sabit liste — bilinen tek dosyalar
+    for rel in _SYNC_FILES_FIXED:
+        _sync_one(MAIN_REPO / rel, lab_root / rel, log)
+    # 2. Glob pattern — yeni rating dosyalari otomatik dahil
+    for pattern in _SYNC_GLOBS:
+        for src in MAIN_REPO.glob(pattern):
+            dst = lab_root / src.relative_to(MAIN_REPO)
+            _sync_one(src, dst, log)
+
+
+def _sync_one(src: Path, dst: Path, log) -> None:
+    """Tek dosya sync — yoksa kopya, eskise yenile."""
+    if not src.exists():
+        log.warning("[LAB] sync skip: %s (main yok)", src.name)
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+        shutil.copy2(src, dst)
+        log.info("[LAB] synced: %s (%d bytes)", src.name, dst.stat().st_size)
 
 
 def _start_dashboard_subprocess(port: int) -> None:
