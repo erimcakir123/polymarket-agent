@@ -3124,3 +3124,20 @@ Polymarket'te aktif Avrupa basket lig market'leri (Liga Endesa, BSL, Lega, VTB) 
 **Pipeline tamamen aktif:** 4 lig için config.yaml `allowed_sport_tags` + `enabled_leagues` + `basketball.leagues.*` params hepsi açık. Gamma slug detect → sport_tag override → enabled_leagues → factory refresh hook → basketball_dispatch → live scraper. NO_DATA_NO_TRADE her aşamada devrede (scraper fail → HealthTracker 3-strike → telegram critical alert → enabled_leagues kontrolü → basketball_dispatch MODEL_TEAM_NOT_IN_RATINGS skip).
 
 **TODO-008 KAPATILDI** (3 lig HTML parser yazıldı). Sonraki adım: market gözlemi + live HTML doğrulama (legabasket.it React-rendered olabilir → statik HTML boş dönerse healthcheck devrede).
+
+---
+
+**SPEC-Z8: Audit Yıkımı Kalıcı Çözüm + Lab Stale Lock Fix (2026-06-03 DONE)**
+
+İki ardışık problem çözüldü:
+
+**A) TODO-007 mistik scheduler audit yıkımı** — kanıtlanmış semptom: `logs/audit/trade_history.jsonl` silinmiş, bugün **20 adet** `trade_history.archive.20260602_*` üretilmiş (~30dk/bir), dashboard'da orphan exit + "Branches: UNKNOWN" + Realized PnL drift. Kök neden: `scripts/reboot.py:329` `audit_file.write_text("")` yıkıcı satır; mistik scheduler stale `open_condition_ids` set geçince keep boş kalıyor → audit tamamen siliniyor. **3 katman çözüm**:
+- Katman A: `write_text("")` satırı kaldırıldı — keep boş olsa bile audit dokunulmaz
+- Katman B: `_write_archive_forensic` — `logs/runtime/archive_forensic.jsonl`'e ts/pid/parent.cmdline (psutil)/open_cids sample/audit_files/tüm stack zinciri (inspect.stack filtresiz). print() detached subprocess'te kayboluyordu, JSONL kalıcı kanıt
+- Katman C: split öncesi `.bak.before_split_<timestamp>` defansif yedek
+
+**B) Lab v2 stale lock** — `process_lock._is_agent_alive` her zaman `"src.main"` cmdline marker arıyordu; lab `lab_v2.start` cmdline ile çalıştığı için lab process'i yaşıyor olsa bile "stale" sayardı → çift-instance riski (force-kill sonrası tekrar başlatma). Çözüm: `acquire_lock(process_marker=...)` parametresi (default `src.main`); `lab_v2/start.py` `process_marker="lab_v2.start"` geçer. Stale `lab_v2/data/lab_v2.lock` (PID 5800 hayatta değil, bot_status 8h donuk) backup alınıp silindi — lab gerçekten kapalı, diğer AI'ın "lab ayakta" teşhisi yanlıştı.
+
+**Test:** 2039 passed (önceki 2035'ten +4 net; mevcut all_closed test invert + 5 yeni: split_preserves + forensic_jsonl + custom_marker + marker_mismatch + Katman A regression).
+
+**Sonraki adım (forensic gözlem):** Bot 1-2 saat çalışınca `logs/runtime/archive_forensic.jsonl` incelenir → mistik çağırıcı (parent.cmdline + stack[0]) tespit edilir → kaynak kaldırılır → `_write_archive_forensic` ve forensic dosya silinir → TODO-007 tam kapanır.

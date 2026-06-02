@@ -132,22 +132,27 @@ Session başında `config.yaml` + `DECISIONS.md` + bazı kod dosyaları M durumd
 
 ---
 
-## TODO-007: archive_audit_logs trigger forensic logger
+## TODO-007: archive_audit_logs trigger forensic logger — ✅ KATMAN A+B+C DONE 2026-06-03
 
-- **Durum**: DEFERRED
-- **Tarih**: 2026-05-25
-- **Sebep**: SPEC-Z7 (copy mode) semptom çözdü; trigger kaynağı belirsiz
+- **Durum**: KATMAN A+B+C DONE (kalıcı çözüm uygulandı). Forensic gözlem aşaması açık.
+- **Tarih**: 2026-05-25 (başlangıç) → 2026-06-03 (kalıcı çözüm)
 
-### Bağlam
-2026-05-25 SPEC-Z7 araştırması: `archive_audit_logs` 3 yöntemle aratıldı (derin grep, Windows Task Scheduler, Registry Run) — kaynak BULUNAMADI. Yine de archive dosyaları periyodik oluşuyor (bot.log timestamp'leri ile uyumsuz). SPEC-Z7 (rename→copy) dashboard kaybını önledi, ama trigger hâlâ aktif.
+### Çözüm (SPEC-Z8 2026-06-03)
+**Katman A — yara bandı**: `scripts/reboot.py _split_trade_history` `write_text("")` yıkıcı satırı kaldırıldı. Keep boş olsa bile audit dokunulmaz. Mistik scheduler hâlâ tetiklese bile defter ölmez.
 
-### Yapılacak
-1. `archive_audit_logs` fonksiyonuna stack trace logger ekle (caller'ı `inspect.stack()` ile yakala)
-2. 24-48 saat gözlem
-3. Trigger bulunduğunda: kaldır veya kontrole bağla
+**Katman B — forensic JSONL logger**: print() detached subprocess'te kayboluyordu (stdout=DEVNULL). Yeni `_write_archive_forensic` `logs/runtime/archive_forensic.jsonl`'e yazar: ts_utc, pid, parent process (psutil), open_cids sample, audit_files, TÜM stack zinciri (inspect.stack filtresiz). 1-2 saat gözlem sonrası mistik çağırıcı belli olur → kaldırılır → tüm forensic temizliği yapılır.
+
+**Katman C — defansif**: Her split öncesi `.bak.before_split_<timestamp>` yedek.
+
+### Sonraki adım (forensic gözlem)
+1. Bot 1-2 saat çalışsın
+2. `logs/runtime/archive_forensic.jsonl` incelenir
+3. Mistik çağırıcı (parent.cmdline + stack[0]) tespit edilince:
+   - Çağrı kaynağı kaldırılır (cron / scheduler / bot içi gizli call)
+   - `_write_archive_forensic` ve forensic dosya silinir (TODO-007 tam kapanır)
 
 ### Etki
-Bilinmeyen scheduler/script kaynağı tespit edilir. Belki Windows Task Scheduler altındaki gizli task, IDE auto-formatter, veya bot içinde keşfedilemeyen subprocess çağrısı.
+Audit silinmesi kaynaklı orphan exit / "Branches: UNKNOWN" / Realized PnL drift dashboard semptomları KÖKÜNDEN durdu. Bot trade etmeye devam ediyor, defter sağlam. Lab v2 stale lock kalıntısı da temizlendi.
 
 ---
 
