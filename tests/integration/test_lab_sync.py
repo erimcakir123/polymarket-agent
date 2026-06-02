@@ -27,13 +27,22 @@ def _read_sync_constants() -> tuple[tuple[str, ...], tuple[str, ...]]:
     fixed: tuple[str, ...] = ()
     globs: tuple[str, ...] = ()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    if target.id == "_SYNC_FILES_FIXED" and isinstance(node.value, ast.Tuple):
-                        fixed = tuple(str(e.value) for e in node.value.elts if isinstance(e, ast.Constant))
-                    elif target.id == "_SYNC_GLOBS" and isinstance(node.value, ast.Tuple):
-                        globs = tuple(str(e.value) for e in node.value.elts if isinstance(e, ast.Constant))
+        # AnnAssign: "_SYNC_FILES_FIXED: tuple[str, ...] = (...)"
+        # Assign:    "_SYNC_FILES_FIXED = (...)"
+        target_name = None
+        value_node = None
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value_node = node.value
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value_node = node.value
+        if target_name and isinstance(value_node, ast.Tuple):
+            values = tuple(str(e.value) for e in value_node.elts if isinstance(e, ast.Constant))
+            if target_name == "_SYNC_FILES_FIXED":
+                fixed = values
+            elif target_name == "_SYNC_GLOBS":
+                globs = values
     return fixed, globs
 
 
