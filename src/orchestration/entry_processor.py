@@ -385,9 +385,11 @@ class EntryProcessor:
             )
             return False
         self.deps.trade_logger.log(trade_record)
-        # SPEC-TG-001 2026-06-02: telegram entry bildirimi (notifier disabled ise no-op)
-        if self.deps.notifier is not None:
-            self.deps.notifier.notify_entry(
+        # SPEC-TG-001 2026-06-02: telegram entry bildirimi (notifier disabled ise no-op).
+        # getattr ile güvenli — test SimpleNamespace deps'lerde notifier field olmayabilir.
+        notifier = getattr(self.deps, "notifier", None)
+        if notifier is not None:
+            notifier.notify_entry(
                 slug=position.slug,
                 direction=position.direction,
                 entry_price=position.entry_price,

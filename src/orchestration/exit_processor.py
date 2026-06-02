@@ -236,9 +236,11 @@ class ExitProcessor:
         detail = audit_signal.detail if audit_signal is not None else "force_close"
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], exit_reason_value, realized, detail)
-        # SPEC-TG-001 2026-06-02: telegram exit bildirimi (notifier disabled ise no-op)
-        if self.deps.notifier is not None:
-            self.deps.notifier.notify_exit(
+        # SPEC-TG-001 2026-06-02: telegram exit bildirimi (notifier disabled ise no-op).
+        # getattr ile güvenli — test SimpleNamespace deps'lerde notifier field olmayabilir.
+        notifier = getattr(self.deps, "notifier", None)
+        if notifier is not None:
+            notifier.notify_exit(
                 slug=pos.slug,
                 exit_price=exit_price,
                 realized_pnl=realized,
