@@ -3141,3 +3141,24 @@ Polymarket'te aktif Avrupa basket lig market'leri (Liga Endesa, BSL, Lega, VTB) 
 **Test:** 2039 passed (önceki 2035'ten +4 net; mevcut all_closed test invert + 5 yeni: split_preserves + forensic_jsonl + custom_marker + marker_mismatch + Katman A regression).
 
 **Sonraki adım (forensic gözlem):** Bot 1-2 saat çalışınca `logs/runtime/archive_forensic.jsonl` incelenir → mistik çağırıcı (parent.cmdline + stack[0]) tespit edilir → kaynak kaldırılır → `_write_archive_forensic` ve forensic dosya silinir → TODO-007 tam kapanır.
+
+---
+
+**SPEC-Z9: Polymarket Roster Drift Detector (2026-06-03 DONE)**
+
+Avrupa basket lig'leri scraper'ları aktif ama dict'lerimiz statik — sezon devam ettikçe yeni promosyon / takım rebrand / yeni lig açılışı **sessizce kaçırılırdı**. İki katman koruma:
+
+**A) Lig içi roster drift** — Her 12h `/teams?league=bk*` çekilir, Polymarket `abbreviation` (gerçek slug token) set'i ↔ resolver `_<LIG>_TEAMS.keys()` diff. Eksik slug → ROSTER_DRIFT_<lig> WARNING telegram alert. **OBSOLETE check KASTEN YOK** çünkü dict'lerimiz çoklu name variant ile zenginleştirildi (örn "rea"+"madrid"+"realmadrid"=RM) → Polymarket sadece kanonik abbr döner → obsolete diff her zaman büyük olur, false positive olur.
+
+**B) Yeni lig keşfi** — `/sports` endpoint'ten tüm `bk*` sport code'lar çekilir, `_SLUG_PREFIX_SPORT` ile diff. Bizim haritada olmayan basket lig → NEW_LEAGUE_DETECTED INFO. Resolution URL (örn `https://lnb.fr/`) detail gösterilir.
+
+**Wiring**: `gamma_client` 2 yeni method (`fetch_sports_metadata`, `fetch_teams_by_league_code`), `RosterDriftMonitor` class (~140 satır), `factory.py` instantiate + AgentDeps inject, `agent.py` health tick'i içinde time-based 12h throttle.
+
+**Canlı smoke bulgusu (2 düzeltme):**
+1. **False positive**: İlk implementasyonda hem `alias` (human-readable "Real Madrid") hem `abbreviation` (slug "rea") set'liyordum → "real madrid" dict'te yok diye yanlış MISSING alarm. Sadece `abbreviation` kullanılır artık.
+2. **/sports field**: `name` field YOK gerçek response'ta — `resolution` URL kullanıldı.
+3. **Şu anki canlı sonuç**: 4 lig drift YOK ✓ (dict'ler tam), 14 yeni basket lig keşfedildi (Pro A, ABA, Greek, German BBL, CBA, Korean, Japan B.League, Argentine, Champions League, 4 FIBA qualifier).
+
+**Test:** 2048 passed (önceki 2039'dan +9 unit), 0 fail. ARCH_GUARD §3 OK: monitor 140 satır, gamma_client 369 satır (<400).
+
+**Sonraki adım kullanıcı kararı:** 14 yeni lig'ten hangileri öncelikli (Pro A + Greek + German BBL Polymarket'te en aktif görünüyor). Her biri için scraper + resolver dict ekleme ~1-2 saat.
