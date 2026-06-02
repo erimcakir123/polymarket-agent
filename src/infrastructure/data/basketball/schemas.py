@@ -33,6 +33,7 @@ class GameRecord(BaseModel):
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
         "g_league", "summer_league", "eurocup",
+        "liga_acb", "turkey_bsl", "italy_lega", "vtb",
     ]
 
 
@@ -47,6 +48,7 @@ class TeamSnapshot(BaseModel):
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
         "g_league", "summer_league", "eurocup",
+        "liga_acb", "turkey_bsl", "italy_lega", "vtb",
     ]
     elo_rating: float
     elo_games: int = Field(ge=0)
@@ -59,10 +61,12 @@ class TeamSnapshot(BaseModel):
 class RefresherResult(BaseModel):
     """Bir refresh çağrısının özet sonucu."""
 
-    source: Literal["nba_api", "espn", "euroleague_api"]
+    source: Literal["nba_api", "espn", "euroleague_api",
+                    "acb_scraper", "bsl_scraper", "lega_scraper", "vtb_scraper"]
     league: Literal[
         "nba", "wnba", "ncaab", "wncaab", "euroleague",
         "g_league", "summer_league", "eurocup",
+        "liga_acb", "turkey_bsl", "italy_lega", "vtb",
     ]
     games_fetched: int = Field(ge=0)
     games_persisted: int = Field(ge=0)
@@ -73,7 +77,8 @@ class RefresherResult(BaseModel):
 class SourceStatus(BaseModel):
     """Bir veri kaynağının sağlık durumu — health monitor satırı."""
 
-    source: Literal["nba_api", "espn", "euroleague_api"]
+    source: Literal["nba_api", "espn", "euroleague_api",
+                    "acb_scraper", "bsl_scraper", "lega_scraper", "vtb_scraper"]
     last_success_utc: Optional[str] = None
     last_fail_utc: Optional[str] = None
     consecutive_fails: int = Field(ge=0)
