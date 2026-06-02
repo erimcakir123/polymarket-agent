@@ -16,7 +16,7 @@ from pathlib import Path
 
 from src.config.settings import load_config
 from src.domain.calibration.health_report import compute_health
-from src.presentation.notifier import TelegramNotifier
+from src.infrastructure.telegram.notifier import TelegramNotifier
 
 
 logger = logging.getLogger(__name__)

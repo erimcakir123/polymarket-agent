@@ -39,7 +39,6 @@ class HealthMonitor:
     _STALE_PRICE_LOG_PATTERN = re.compile(
         r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*STALE_PRICE_REJECT",
     )
-    _CALIBRATION_STALE_DAYS = 7
 
     def __init__(
         self,
@@ -51,6 +50,7 @@ class HealthMonitor:
         exposure_lockup_minutes: int = 60,
         consecutive_losses: int = 5,
         dedupe_window_minutes: int = 30,
+        calibration_stale_days: int = 7,
         now_fn=lambda: datetime.now(timezone.utc),
     ) -> None:
         self.notifier = notifier
@@ -61,6 +61,7 @@ class HealthMonitor:
         self.exposure_lockup_minutes = exposure_lockup_minutes
         self.consecutive_losses_threshold = consecutive_losses
         self.dedupe_window = dedupe_window_minutes
+        self.calibration_stale_days = calibration_stale_days
         self._now = now_fn
         self._sent_alerts: dict[tuple[str, str], datetime] = {}
 
@@ -207,18 +208,18 @@ class HealthMonitor:
         return []
 
     def _check_calibration_age(self) -> list[Alert]:
-        """tennis_calibration.json > _CALIBRATION_STALE_DAYS gün eski → info."""
+        """tennis_calibration.json > calibration_stale_days gün eski → info."""
         calib = self.state_dir / "tennis_calibration.json"
         if not calib.exists():
             return []
         age_days = (self._now().timestamp() - calib.stat().st_mtime) / 86400
-        if age_days > self._CALIBRATION_STALE_DAYS:
+        if age_days > self.calibration_stale_days:
             return [Alert(
                 severity="info",
                 category="CALIBRATION_AGE",
                 message=(
                     f"Tennis calibration {age_days:.0f} gün eski "
-                    f"(eşik: {self._CALIBRATION_STALE_DAYS} gün). Refresh önerilir."
+                    f"(eşik: {self.calibration_stale_days} gün). Refresh önerilir."
                 ),
             )]
         return []

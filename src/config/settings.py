@@ -277,24 +277,8 @@ class DashboardConfig(BaseModel):
     port: int = 5050
 
 
-class TelegramAlertConfig(BaseModel):
-    """SPEC-TG-001 2026-06-02: HealthMonitor alert eşikleri."""
-    model_config = ConfigDict(extra="ignore")
-    entry_exit: bool = True                        # her trade için entry/exit mesajı
-    health_check_interval_sec: int = 300           # 5dk: HealthMonitor.check_all sıklığı
-    stale_price_rate_threshold: int = 5            # /saat — bu sayının üstü warning
-    exposure_lockup_minutes: int = 60              # exposure %90+ bu kadar dakika → warning
-    consecutive_losses: int = 5                    # ardışık zarar → warning
-    daily_summary_hour_utc: int = 20               # 23:00 TR (UTC+3) günlük özet
-    dedupe_window_minutes: int = 30                # aynı alert N dk içinde tekrar atılmaz
-
-
-class TelegramConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    enabled: bool = False
-    bot_token: str = ""
-    chat_id: str = ""
-    alert: TelegramAlertConfig = TelegramAlertConfig()
+# TelegramConfig src/config/telegram.py'a tasindi (ARCH_GUARD Kural 3).
+from src.config.telegram import TelegramConfig  # noqa: E402,F401  # re-export (test_cli)
 
 
 class AgentConfig(BaseModel):

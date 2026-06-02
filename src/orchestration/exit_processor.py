@@ -12,6 +12,7 @@ from src.domain.portfolio.lifecycle import tick_position_state
 from src.models.enums import ExitReason
 from src.models.position import Position
 from src.orchestration import operational_writers
+from src.orchestration.notifier_hooks import notify_exit_safe
 from src.orchestration.exit_audit_writer import (
     emit_force_close_alert,
     write_synth_exit_record,
@@ -236,16 +237,10 @@ class ExitProcessor:
         detail = audit_signal.detail if audit_signal is not None else "force_close"
         logger.info("EXIT %s: reason=%s realized=$%.2f detail=%s",
                     pos.slug[:35], exit_reason_value, realized, detail)
-        # SPEC-TG-001 2026-06-02: telegram exit bildirimi (notifier disabled ise no-op).
-        # getattr ile güvenli — test SimpleNamespace deps'lerde notifier field olmayabilir.
-        notifier = getattr(self.deps, "notifier", None)
-        if notifier is not None:
-            notifier.notify_exit(
-                slug=pos.slug,
-                exit_price=exit_price,
-                realized_pnl=realized,
-                reason=exit_reason_value,
-            )
+        notify_exit_safe(
+            self.deps, slug=pos.slug, exit_price=exit_price,
+            realized_pnl=realized, reason=exit_reason_value,
+        )
 
     def _emit_force_close_alert(self, pos: Position, signal) -> None:
         emit_force_close_alert(self.deps, self._fc_alerts, pos, signal)

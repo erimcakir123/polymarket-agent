@@ -271,6 +271,8 @@ telegram:
     daily_summary_hour_utc: 20
     # Aynı alert N dk içinde tekrar gönderilmez (spam engellenir)
     dedupe_window_minutes: 30
+    # Tennis calibration N gün+ eski → info alert (refresh önerilir)
+    calibration_stale_days: 7
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)

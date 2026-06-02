@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from src.presentation.notifier import TelegramNotifier
+from src.infrastructure.telegram.notifier import TelegramNotifier
 
 
 def _resp(status: int = 200) -> MagicMock:

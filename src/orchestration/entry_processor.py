@@ -14,6 +14,7 @@ from src.models.market import MarketData
 from src.models.position import Position
 from src.models.signal import Signal
 from src.orchestration import operational_writers
+from src.orchestration.notifier_hooks import notify_entry_safe
 from src.orchestration.entry_guards import (
     check_correlated_bet,
     check_duplicate_condition,
@@ -385,19 +386,7 @@ class EntryProcessor:
             )
             return False
         self.deps.trade_logger.log(trade_record)
-        # SPEC-TG-001 2026-06-02: telegram entry bildirimi (notifier disabled ise no-op).
-        # getattr ile güvenli — test SimpleNamespace deps'lerde notifier field olmayabilir.
-        notifier = getattr(self.deps, "notifier", None)
-        if notifier is not None:
-            notifier.notify_entry(
-                slug=position.slug,
-                direction=position.direction,
-                entry_price=position.entry_price,
-                size_usdc=position.size_usdc,
-                confidence=position.confidence,
-                edge=trade_record.anchor_probability - position.entry_price,
-                entry_reason=position.entry_reason or "normal",
-            )
+        notify_entry_safe(self.deps, position, trade_record)
         return True
 
 

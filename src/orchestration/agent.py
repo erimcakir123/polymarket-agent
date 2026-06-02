@@ -21,7 +21,7 @@ from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
-from src.presentation.notifier import TelegramNotifier
+from src.infrastructure.telegram.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration._agent_resilience import CycleResilience
 from src.orchestration.bot_status_writer import BotStatusWriter

@@ -19,9 +19,9 @@ from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
-from src.orchestration.health_monitor import HealthMonitor
-from src.presentation.notifier import TelegramNotifier
+from src.infrastructure.telegram.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
+from src.orchestration.health_monitor import HealthMonitor
 from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
@@ -281,6 +281,7 @@ def build_agent(state: RuntimeState) -> Agent:
         exposure_lockup_minutes=tg.alert.exposure_lockup_minutes,
         consecutive_losses=tg.alert.consecutive_losses,
         dedupe_window_minutes=tg.alert.dedupe_window_minutes,
+        calibration_stale_days=tg.alert.calibration_stale_days,
     )
 
     mlb_engine: MlbSubmarketEngineProtocol | None = None
