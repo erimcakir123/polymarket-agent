@@ -23,7 +23,7 @@ from pathlib import Path
 
 from src.domain.pricing.basketball.team_elo import EloRating
 
-_BACK_TO_BACK_PENALTY = 30.0   # Elo points
+_BACK_TO_BACK_PENALTY = 35.0   # Elo (akademik: spread coverage %55 → ~%5 win prob ≈ 35 Elo)
 _TWO_DAY_PENALTY = 10.0
 _REST_DAY_THRESHOLD_HOURS = (24.0, 48.0)  # 0-24h=B2B, 24-48h=close, 48+ ok
 

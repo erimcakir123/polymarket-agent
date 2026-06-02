@@ -23,8 +23,12 @@ from pathlib import Path
 
 from src.domain.pricing.basketball.team_elo import EloRating
 
-_BACK_TO_BACK_PENALTY = 30.0   # Elo points
-_TWO_DAY_PENALTY = 10.0
+# 2026-06-02: 30 → 35 Elo. Ampirik akademik kaynak:
+# - Dinlenmiş takım vs back-to-back: spread coverage %55+ (NBAstuffer)
+# - %5 win prob farkı ≈ 35 Elo puanı (FiveThirtyEight Elo formülü)
+# - FiveThirtyEight ev avantajı 100 Elo → back-to-back ~1/3 oranı mantıklı
+_BACK_TO_BACK_PENALTY = 35.0   # Elo points (akademik kanıtla kalibre)
+_TWO_DAY_PENALTY = 10.0        # Proporsiyonel (24-48h ara)
 _REST_DAY_THRESHOLD_HOURS = (24.0, 48.0)  # 0-24h=B2B, 24-48h=close, 48+ ok
 
 
