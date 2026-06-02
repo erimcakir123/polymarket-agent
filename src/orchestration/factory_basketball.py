@@ -115,6 +115,99 @@ def _make_basketball_fetchers(
     return _empty_list, _empty_list
 
 
+_EUROPEAN_BASKET_POSSESSIONS_ESTIMATE: float = 75.0  # FIBA tipik (~75 poss/maç)
+
+
+def _build_european_basket_ratings(league: str, cache_dir: Path, cfg: AppConfig) -> None:
+    """SPEC-EUROBASKET-001 Task 7 (2026-06-03): Avrupa scraper → Glicko ratings.
+
+    Lig adından scraper class seç, refresh çağır, ScrapedGame → GameRecord
+    convert et (possessions FIBA tahmini = 75/maç çünkü EuropeanBasketScraper
+    sadece skor parse ediyor), build_and_persist_snapshots ile cache yaz.
+
+    NO_DATA_NO_TRADE: scraper fail / ZERO_PARSED_DATA → ratings cache yok →
+    basketball_dispatch MODEL_TEAM_NOT_IN_RATINGS skip → trade YOK.
+    """
+    from src.infrastructure.data.basketball.acb_scraper import AcbScraper  # noqa: PLC0415
+    from src.infrastructure.data.basketball.base_scraper import EuropeanBasketScraper  # noqa: PLC0415
+    from src.infrastructure.data.basketball.bsl_scraper import BslScraper  # noqa: PLC0415
+    from src.infrastructure.data.basketball.data_source_health import HealthTracker  # noqa: PLC0415
+    from src.infrastructure.data.basketball.lega_scraper import LegaScraper  # noqa: PLC0415
+    from src.infrastructure.data.basketball.schemas import GameRecord  # noqa: PLC0415
+    from src.infrastructure.data.basketball.vtb_scraper import VtbScraper  # noqa: PLC0415
+    from src.orchestration.basketball_ratings_builder import build_and_persist_snapshots  # noqa: PLC0415
+
+    scraper_cls: dict[str, type[EuropeanBasketScraper]] = {
+        "liga_acb": AcbScraper,
+        "turkey_bsl": BslScraper,
+        "italy_lega": LegaScraper,
+        "vtb": VtbScraper,
+    }
+    cls = scraper_cls.get(league)
+    if cls is None:
+        logger.warning("European basket scraper not registered for %s", league)
+        return
+    params = cfg.basketball.leagues.get(league)
+    if params is None:
+        logger.warning("European basket league params missing in config: %s", league)
+        return
+    from datetime import datetime, timezone  # noqa: PLC0415
+    current = datetime.now(timezone.utc).year
+    # Season string GameRecord pattern ^\d{4}-\d{2}$ — örn "2025-26"
+    season_str = f"{current - 1}-{str(current)[2:]}"
+    health = HealthTracker(Path(cfg.basketball.health_file))
+    scraper = cls(health=health)
+    result = scraper.refresh(season_str)
+    if not result.ok:
+        logger.warning(
+            "European basket scraper fail: league=%s source=%s error=%s",
+            league, result.source, result.error,
+        )
+        return
+    if not result.games:
+        logger.info(
+            "European basket scraper healthy ama 0 game (sezon disi?) league=%s",
+            league,
+        )
+        return
+    # ScrapedGame → GameRecord convert (possessions FIBA tahmini)
+    game_records: list[GameRecord] = []
+    for idx, g in enumerate(result.games):
+        try:
+            rec = GameRecord(
+                game_id=f"{league}_{g.date_utc.strftime('%Y%m%d')}_{g.home_team}_{g.away_team}_{idx}",
+                season=season_str,
+                game_date_utc=g.date_utc.isoformat(),
+                home_team=g.home_team,
+                away_team=g.away_team,
+                home_score=g.home_score,
+                away_score=g.away_score,
+                home_possessions=_EUROPEAN_BASKET_POSSESSIONS_ESTIMATE,
+                away_possessions=_EUROPEAN_BASKET_POSSESSIONS_ESTIMATE,
+                is_final=True,
+                league=league,  # type: ignore[arg-type]
+            )
+            game_records.append(rec)
+        except Exception as exc:  # noqa: BLE001 — schema validation fail, log + skip
+            logger.warning(
+                "European basket GameRecord validation skip: league=%s idx=%d err=%s",
+                league, idx, exc,
+            )
+    if not game_records:
+        logger.warning("European basket: 0 valid GameRecord after convert: %s", league)
+        return
+    cache_path = cache_dir / f"{league}_ratings.json"
+    n = build_and_persist_snapshots(
+        games=game_records, league=league,
+        k_factor=params.k_factor, home_advantage=params.home_advantage,
+        output_path=cache_path,
+    )
+    logger.info(
+        "European basket ratings built: league=%s — %d takim, %d mac",
+        league, n, len(game_records),
+    )
+
+
 def _maybe_build_basketball_ratings(cfg: AppConfig) -> None:
     """Bot başlangıçta basket ratings cache build (Sackmann paralel).
 
@@ -134,6 +227,10 @@ def _maybe_build_basketball_ratings(cfg: AppConfig) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     # nba_api destekli liglerin hepsi hızlı bulk build (NBA + WNBA + G League + Summer League).
     fast_build_leagues = {"nba", "wnba", "g_league", "summer_league"}
+    # SPEC-EUROBASKET-001 Task 7 (2026-06-03): Avrupa basket scraper'lar.
+    # Her birinin AcbScraper-pattern parser'ı var (acb_scraper.py vb). HealthTracker
+    # ile entegre, NO_DATA_NO_TRADE devrede.
+    european_scrapers = {"liga_acb", "turkey_bsl", "italy_lega", "vtb"}
 
     for league in enabled:
         cache_path = cache_dir / f"{league}_ratings.json"
@@ -145,6 +242,9 @@ def _maybe_build_basketball_ratings(cfg: AppConfig) -> None:
                     league, age_h,
                 )
                 continue
+        if league in european_scrapers:
+            _build_european_basket_ratings(league, cache_dir, cfg)
+            continue
         if league not in fast_build_leagues:
             logger.warning(
                 "Basketball ratings cache yok/eski: %s. "
