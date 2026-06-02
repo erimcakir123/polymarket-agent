@@ -385,6 +385,17 @@ class EntryProcessor:
             )
             return False
         self.deps.trade_logger.log(trade_record)
+        # SPEC-TG-001 2026-06-02: telegram entry bildirimi (notifier disabled ise no-op)
+        if self.deps.notifier is not None:
+            self.deps.notifier.notify_entry(
+                slug=position.slug,
+                direction=position.direction,
+                entry_price=position.entry_price,
+                size_usdc=position.size_usdc,
+                confidence=position.confidence,
+                edge=trade_record.anchor_probability - position.entry_price,
+                entry_reason=position.entry_reason or "normal",
+            )
         return True
 
 
