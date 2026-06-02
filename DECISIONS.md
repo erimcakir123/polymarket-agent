@@ -3078,7 +3078,7 @@ Bot'un trade/health/exit aktivitesini canlı telegram bildirimleri olarak ileten
 
 ---
 
-**SPEC-EUROBASKET-001: Avrupa Basket Lig Scraper'ları (2026-06-02 PARTIAL DONE)**
+**SPEC-EUROBASKET-001: Avrupa Basket Lig Scraper'ları (2026-06-03 DONE)**
 
 Polymarket'te aktif Avrupa basket lig market'leri (Liga Endesa, BSL, Lega, VTB) için kendi scraper iskeleti + ACB tam parser + 3 placeholder + NO_DATA_NO_TRADE pipeline. Spec: `docs/superpowers/specs/2026-06-02-europe-basket-scraper-design.md`. Plan: `docs/superpowers/plans/2026-06-02-europe-basket-scraper.md`.
 
@@ -3092,6 +3092,35 @@ Polymarket'te aktif Avrupa basket lig market'leri (Liga Endesa, BSL, Lega, VTB) 
 
 **Test:** 1946 passed (önceki 1928'den +18; Task 1 +5 + Task 2 +4 + Task 3 +9 + Task 7 +4), 0 fail.
 
-**Kısmi DONE:** Pipeline tamamen wired (slug detect → sport_tag override → enabled_leagues → factory refresh hook → basketball_dispatch). ACB için **gerçek scraper aktif**. BSL/Lega/VTB için **placeholder**: market gözlemi → HTML parser implementasyonu → config'e ekle → aktif. NO_DATA_NO_TRADE her aşamada devrede.
+**DONE (2026-06-03 second pass — 3 paralel subagent + /teams API doğrulama):**
 
-**Sonraki adım:** TODO-005 (BSL/Lega/VTB HTML parser implementasyonu — her biri ayrı sprint).
+İlk turda BSL/Lega/VTB placeholder bırakılmıştı ("WebFetch markdown verir, exact CSS selector çıkarılmaz" bahanesiyle). Kullanıcı haklı olarak (a) subagent ile paralelleştirme öneriyor (b) eski projedeki Polymarket guide'da `/teams` endpoint'i hatırlatıyor. İkisi de uygulandı.
+
+**3 paralel subagent — her biri lig sahibi:**
+- BSL agent: eurobasket.com Turkey scraper (Türkçe+İngilizce tarih) + 16/16 takım
+- Lega agent: legabasket.it scraper (İtalyanca tarih) + 16/16 takım + slug prefix `bklega`→`bkseriea` fix
+- VTB agent: eurobasket.com VTB scraper (English date) + 11 takım
+
+**/teams API endpoint cross-check (kritik doğrulama):**
+- `GET https://gamma-api.polymarket.com/teams?league=<bk*>` → name/abbreviation/alias/league JSON
+- **BSL 16/16, Lega 16/16 ✓** subagent dict'leri tam doğru çıktı
+- **ACB 7 EKSİK/YANLIŞ bulundu** (benim Task 2'de yazdığım dict — subagent suçu değil):
+  - `"bas": "BAS"` (Baskonia) YANLIŞ → API: "bas" = Basquet **GIRONA**
+  - `"sas"` eksik — API: "sas" = Saski Baskonia
+  - `"uni"` eksik — API: "uni" = Unicaja (eski tahmini "ucm" Polymarket'te YOK)
+  - `"cb"` eksik — Breogán Lugo (eski "btv" YOK)
+  - `"gra2"` eksik — Gran Canaria (eski "gca" YOK)
+  - `"bas3"` eksik — Andorra; `"bur"` eksik — Burgos; `"for"` eksik — Lleida
+- **VTB 2 hata**: `"parma": "PARMA"` → gerçek alias `"par"` / `"min": "MNSK"` (Minsk) Polymarket'te YOK, kaldırıldı
+
+**Test:** 2014 passed (önceki 1946'dan +68; 3 scraper test paketi + 31 regression slug). 18 ACB + 13 BSL + 9 Lega + 7 VTB slug parametrize doğrulanmış.
+
+**Çakışma çözümleri** (sport_tag bazlı dict lookup ile korunur):
+- BSL `sam`=Samsunspor vs VTB `sam`=SAMA Samara
+- Lega `uni`=Treviso vs VTB `uni`=UNICS vs ACB `uni`=Unicaja
+- BSL `tra`=Trabzonspor vs Lega `tra`=Trapani
+- BSL `tur`=Turk Telekom vs sport code "tur"
+
+**Pipeline tamamen aktif:** 4 lig için config.yaml `allowed_sport_tags` + `enabled_leagues` + `basketball.leagues.*` params hepsi açık. Gamma slug detect → sport_tag override → enabled_leagues → factory refresh hook → basketball_dispatch → live scraper. NO_DATA_NO_TRADE her aşamada devrede (scraper fail → HealthTracker 3-strike → telegram critical alert → enabled_leagues kontrolü → basketball_dispatch MODEL_TEAM_NOT_IN_RATINGS skip).
+
+**TODO-008 KAPATILDI** (3 lig HTML parser yazıldı). Sonraki adım: market gözlemi + live HTML doğrulama (legabasket.it React-rendered olabilir → statik HTML boş dönerse healthcheck devrede).

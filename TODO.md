@@ -151,9 +151,10 @@ Bilinmeyen scheduler/script kaynağı tespit edilir. Belki Windows Task Schedule
 
 ---
 
-## TODO-008: BSL/Lega/VTB HTML Parser İmplementasyonu (SPEC-EUROBASKET-001 kalan kısım)
+## TODO-008: BSL/Lega/VTB HTML Parser İmplementasyonu (SPEC-EUROBASKET-001 kalan kısım) — ✅ DONE 2026-06-03
 
-- **Durum**: DEFERRED — placeholder scraper'lar var (`src/infrastructure/data/basketball/{bsl,lega,vtb}_scraper.py`), HTML parse `NotImplementedError` fırlatır
+- **Durum**: DONE — 3 paralel subagent ile yazıldı, `/teams` API endpoint ile cross-check. Bkz DECISIONS SPEC-EUROBASKET-001 ikinci pass notu.
+- **Önceki tahmin**: DEFERRED — placeholder scraper'lar var (`src/infrastructure/data/basketball/{bsl,lega,vtb}_scraper.py`), HTML parse `NotImplementedError` fırlatır
 - **Tarih**: 2026-06-02
 - **Öncelik**: P2 — Liga Endesa scraper aktif, diğer 3 ligin Polymarket market hacmi gözlemlenince öncelik artar
 - **Önkoşul**: Her lig için sezon içi aktif market gözlemi + canlı HTML doğrulaması
