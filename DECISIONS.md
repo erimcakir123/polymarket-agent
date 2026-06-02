@@ -3055,5 +3055,23 @@ Bugünkü 14 fix paketinin yan task atlama riski olan 4'ünü genel pattern olar
 **Sonuç:** Bugünkü 14 fix'in yan task'ları kapatıldı. Yeni Position constructor / yeni rating dosyası / yeni basket lig takımı eklenirse regression test otomatik yakalar — drift'e karşı koruma.
 
 **Next plans (sırada):**
-- SPEC-TG-001 (Telegram alert sistemi) — `docs/superpowers/plans/2026-06-02-telegram-alert.md`
+- ~~SPEC-TG-001~~ ✅ DONE (aşağı bakın)
 - SPEC-EUROBASKET-001 (Avrupa basket scraper'lar) — `docs/superpowers/plans/2026-06-02-europe-basket-scraper.md`
+
+---
+
+**SPEC-TG-001: Telegram Alert Sistemi (2026-06-02 DONE)**
+
+Bot'un trade/health/exit aktivitesini canlı telegram bildirimleri olarak ileten sistem. Spec: `docs/superpowers/specs/2026-06-02-telegram-alert-design.md`. Plan: `docs/superpowers/plans/2026-06-02-telegram-alert.md`.
+
+- **Task 1 — Settings .env override** (`src/config/settings.py`): `TelegramAlertConfig` Pydantic modeli eklendi (entry_exit, health_check_interval_sec=300, stale_price_rate_threshold=5, exposure_lockup_minutes=60, consecutive_losses=5, daily_summary_hour_utc=20, dedupe_window_minutes=30). `.env`'de `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` varsa `telegram.enabled` otomatik true. Test: `tests/unit/config/test_telegram_env_override.py` (3 senaryo).
+- **Task 2 — Factory wire** (`factory.py`): `TelegramNotifier` ve boot mesajı (`✅ Bot başladı`) factory'de oluşturulur, `AgentDeps`'e injection.
+- **Task 3 — Entry/exit notify hooks** (`entry_processor.py`, `exit_processor.py`): `getattr(self.deps, "notifier", None)` guard ile her trade telegram'a düşer (SimpleNamespace test mock'lar için güvenli).
+- **Task 4 — HealthMonitor** (`src/orchestration/health_monitor.py`, 248 satır): 4 ayrı check (`_check_stale_price_rate`, `_check_scraper_health` data_source_health JSON'dan broken/stale state okur, `_check_consecutive_losses`, `_check_calibration_age`). Dedupe window 30 dk default. SPEC-EUROBASKET-001 entegrasyon noktası: tüm yeni scraper'lar `data/basketball_cache/_health/sources_status.json`'a state yazar → monitor critical alert atar. Test: `tests/unit/orchestration/test_health_monitor.py` (9 senaryo).
+- **Task 5 — Atexit + config aktif** (`agent.py`, `config.yaml`): `atexit.register` ile graceful exit'te `🔴 Bot kapandı` mesajı (SIGKILL muaf — Python normal exit hook'u). `config.yaml`'da `telegram.enabled=true` + alert config block aktif.
+
+**Test:** 1928 passed (önceki 1916'dan +12; Task 1 +3 env override + Task 4 +9 health monitor), 0 fail.
+
+**Telemetry akışı:** trade gerçekleşince entry/exit hook → notifier.send (HTML). Light cycle'da her N tick (default 300sn / 5sn light = 60 tick) HealthMonitor.check_all() → alerts → dedupe → notifier. Process exit'te atexit → kritik kapanma mesajı.
+
+**Sonuç:** Bot canlı durumu telefonda görünür. Scraper down / consecutive loss / stale price / calibration age / kapanma → telegram. Trade'ler entry+exit anında düşer.
