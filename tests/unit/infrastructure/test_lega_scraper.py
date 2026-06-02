@@ -111,8 +111,12 @@ def test_scraper_teams_extracted(tmp_path: Path) -> None:
     assert "SASS" in result.teams
 
 
-def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
-    """Bos HTML (sezon disi) → games=[], ok=True (silent skip)."""
+def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> None:
+    """ZERO_PARSED_DATA (2026-06-03): bos HTML → fail.
+
+    Lega icin onemli: legabasket.it React-rendered olabilir → statik HTML'de
+    game div bulamaz. Eski silent skip yutardi, yeni koruma yakalar.
+    """
     health = HealthTracker(tmp_path / "h.json")
     sc = LegaScraper(
         health=health,
@@ -120,8 +124,8 @@ def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
         sleep_fn=lambda s: None,
     )
     result = sc.refresh("2025-26")
-    assert result.ok is True
-    assert result.games == ()
+    assert result.ok is False
+    assert "ZERO_PARSED_DATA" in (result.error or "")
 
 
 def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:

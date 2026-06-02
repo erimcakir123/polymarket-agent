@@ -89,7 +89,14 @@ class EuropeanBasketScraper(ABC):
     # ── Public entry point ──
 
     def refresh(self, season: str) -> ScrapeResult:
-        """Retry + HealthTracker update + parse → ScrapeResult."""
+        """Retry + HealthTracker update + parse → ScrapeResult.
+
+        ZERO_PARSED_DATA koruması (2026-06-03): teams + games ikisi de boş
+        ise sessiz başarı yerine fail say. React-rendered sayfa / CSS selector
+        değişimi / empty response gibi silent fail'leri yakalar. Her ligin
+        takım sayfası takımları HER ZAMAN gösterir (sezon dışı bile) — 0 takım
+        kesin parser/site sorunu işareti.
+        """
         now_iso = self._now().isoformat()
         last_err: str | None = None
         for attempt in range(self.RETRY_COUNT):
@@ -97,6 +104,14 @@ class EuropeanBasketScraper(ABC):
                 html = self._fetch_html(season)
                 teams = self._parse_teams(html)
                 games = self._parse_games(html)
+                if not teams and not games:
+                    last_err = (
+                        "ZERO_PARSED_DATA: teams=[] AND games=[] — "
+                        "muhtemelen JS-rendered sayfa, CSS selector değişimi "
+                        "veya anti-bot karşılığı"
+                    )
+                    logger.error("%s: %s", self.SOURCE, last_err)
+                    break
                 self._health.record_success(self.SOURCE, at_utc=now_iso)
                 return ScrapeResult(
                     source=self.SOURCE,

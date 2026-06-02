@@ -124,8 +124,8 @@ def test_scraper_teams_extracted(tmp_path: Path) -> None:
     assert "URA" in result.teams
 
 
-def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
-    """Boş HTML (sezon dışı) → games=[], ok=True (silent skip)."""
+def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> None:
+    """ZERO_PARSED_DATA (2026-06-03): bos HTML → fail (silent skip kaldirildi)."""
     health = HealthTracker(tmp_path / "h.json")
     sc = VtbScraper(
         health=health,
@@ -133,5 +133,5 @@ def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
         sleep_fn=lambda s: None,
     )
     result = sc.refresh("2025-26")
-    assert result.ok is True
-    assert result.games == ()
+    assert result.ok is False
+    assert "ZERO_PARSED_DATA" in (result.error or "")

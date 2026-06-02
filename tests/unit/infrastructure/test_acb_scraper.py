@@ -97,8 +97,13 @@ def test_scraper_teams_extracted(tmp_path: Path) -> None:
     assert "BIL" in result.teams
 
 
-def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
-    """Bos HTML (sezon disi) → games=[], ok=True (silent skip)."""
+def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> None:
+    """ZERO_PARSED_DATA koruması (2026-06-03): bos HTML → teams=[]+games=[] → fail.
+
+    Eski davranis "silent skip" tehlikeli — React-rendered sayfa veya CSS
+    selector degisimi yutulurdu. Yeni davranis: base_scraper.refresh()
+    "hem teams hem games bos → fail" yapar.
+    """
     health = HealthTracker(tmp_path / "h.json")
     sc = AcbScraper(
         health=health,
@@ -106,8 +111,8 @@ def test_scraper_empty_html_no_games(tmp_path: Path) -> None:
         sleep_fn=lambda s: None,
     )
     result = sc.refresh("2025-26")
-    assert result.ok is True
-    assert result.games == ()
+    assert result.ok is False
+    assert "ZERO_PARSED_DATA" in (result.error or "")
 
 
 def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:
