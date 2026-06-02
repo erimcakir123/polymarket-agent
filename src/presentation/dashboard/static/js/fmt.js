@@ -261,8 +261,19 @@
           ? { text: "Partial sell", emoji: "🔻", tone: "neg" }
           : { text: "Take Profit", emoji: "🎯", tone: "pos" };
       }
-      if (r === "near_resolve") return { text: "Near resolve", emoji: "✅", tone: "pos" };
-      if (r === "market_flip") return { text: "Market flipped", emoji: "🔄", tone: "neg" };
+      // near_resolve + market_flip: PnL'ye göre tone — resolve_no veya market'in
+      // beklenmedik yöne dönmesi kâr da olabilir zarar da. Etiket ve renk PnL
+      // işaretini yansıtsın (2026-06-02 SPEC-AUDIT-001 Task 1).
+      if (r === "near_resolve") {
+        return isLoss
+          ? { text: "Closed (loss)", emoji: "❌", tone: "neg" }
+          : { text: "Near resolve", emoji: "✅", tone: "pos" };
+      }
+      if (r === "market_flip") {
+        return isLoss
+          ? { text: "Market flipped", emoji: "🔄", tone: "neg" }
+          : { text: "Market reversal", emoji: "🔄", tone: "pos" };
+      }
       if (r === "score_exit") return { text: "Score against", emoji: "⚠️", tone: "neg" };
       if (r === "hold_revoked") return { text: "Hold revoked", emoji: "🔓", tone: "neg" };
       if (r === "never_in_profit") return { text: "Never profited", emoji: "🥀", tone: "neg" };
