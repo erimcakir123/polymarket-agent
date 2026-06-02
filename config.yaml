@@ -48,10 +48,12 @@ scanner:
     - cbb
     - euroleague
     - nbl
-    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket. ACB scraper aktif.
-    # turkey_bsl/italy_lega/vtb sport_tag KAPALI — placeholder scraper var
-    # ama HTML parser TODO. Sezon devam edip parser yazılınca aktive edilir.
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket. ACB + BSL + Lega + VTB scraper aktif.
+    # VTB eurobasket.com'dan scrape edilir (vtb-league.com dinamik JS).
     - liga_acb
+    - turkey_bsl
+    - italy_lega
+    - vtb
     # Tennis (Phase 3 — paper realism + Sackmann refresher hazır)
     # FIX 2026-05-29: Polymarket gamma event-level sport_tag "tennis" döner
     # ("atp"/"wta" sadece /sports endpoint sport_code'unda, event tag'lerinde
@@ -311,10 +313,13 @@ basketball:
     - g_league       # NBA gelişim ligi (yaz aktif, nba_api)
     - summer_league  # NBA yaz ligi (temmuz aktif, nba_api)
     - eurocup        # Avrupa #2 lig (euroleague-api built-in)
-    # SPEC-EUROBASKET-001 (2026-06-02): ACB Liga Endesa scraper aktif
-    # (kendi acb_scraper.py, acb.com HTML parse). turkey_bsl/italy_lega/vtb
-    # placeholder (HTML parser TODO) — şimdilik enabled_leagues'a EKLEMEZ.
+    # SPEC-EUROBASKET-001 (2026-06-02): ACB + BSL + Lega + VTB scraper aktif
+    # (acb_scraper.py acb.com, bsl_scraper.py eurobasket.com,
+    # lega_scraper.py legabasket.it, vtb_scraper.py eurobasket.com VTB sayfası).
     - liga_acb
+    - turkey_bsl
+    - italy_lega
+    - vtb
   cache_dir: data/basketball_cache
   health_file: data/basketball_cache/_health/sources_status.json
   primary_source: nba_api
@@ -380,6 +385,24 @@ basketball:
       blend_elo: 0.50
       margin_std: 10.0
       total_std: 17.0        # ACB skor Euroleague'den hafif yüksek
+    turkey_bsl:
+      home_advantage: 90.0   # BSL salonları Euroleague benzeri
+      k_factor: 22.0
+      blend_elo: 0.50
+      margin_std: 10.0
+      total_std: 17.0        # BSL skor profili Euroleague baseline
+    italy_lega:
+      home_advantage: 90.0   # Lega salonları Euroleague benzeri (Milano/Bologna büyük)
+      k_factor: 22.0
+      blend_elo: 0.50
+      margin_std: 10.0
+      total_std: 17.0        # Lega skor profili Euroleague baseline
+    vtb:
+      home_advantage: 85.0   # VTB salonlar değişken (CSKA büyük, Krasnoyarsk küçük)
+      k_factor: 22.0
+      blend_elo: 0.50
+      margin_std: 10.0
+      total_std: 17.0        # VTB skor profili Euroleague baseline (Avrupa pace)
 
 mlb_submarket:
   enabled: false              # SPEC-Y7 (2026-05-24): GECICI KAPALI. MLB engine her market icin

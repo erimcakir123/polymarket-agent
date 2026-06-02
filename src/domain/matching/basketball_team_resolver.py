@@ -88,86 +88,117 @@ _WNBA_TEAMS: dict[str, str] = {
 }
 
 # SPEC-EUROBASKET-001 (2026-06-02): Liga Endesa (ACB) 18 takım.
-# Polymarket slug pattern: "bkligend-rea-la-2026-06-02" (DOĞRULANMIŞ gamma API).
-# Önemli: "bas" (Baskonia, Euroleague) vs "bas2" (Basket Zaragoza, ACB) ayrımı —
-# slug "bas2" Zaragoza'yı işaret eder, KARIŞMASIN.
+# Polymarket /teams?league=bkligend endpoint'ten DOĞRULANMIŞ (2026-06-03 fix).
+# CRITICAL: Polymarket alias'ları Euroleague convention'undan FARKLI.
+# Çakışma örnekleri (sport_tag bazlı dict lookup koruyor):
+#   "bas" → Polymarket'te Basquet GIRONA (Baskonia DEĞİL); Baskonia = "sas"
+#   "uni" → Polymarket'te UNICAJA (Treviso Lega'da, UNICS VTB'de — sport_tag ayrı)
+#   "cb"  → CB Breogán Lugo
+#   "gra" → Granada; "gra2" → Gran Canaria (eski "gca" Polymarket'te YOK)
+#   "bas2" → Basket Zaragoza; "bas3" → Andorra; "bas" → Girona (3 farklı kulüp)
 _ACB_TEAMS: dict[str, str] = {
+    # Polymarket alias → standart abbr (alias zorunlu, kalanı isim variantı)
     "rea": "RM", "madrid": "RM", "realmadrid": "RM",
     "bar": "FCB", "fcb": "FCB", "barcelona": "FCB", "barca": "FCB",
     "val": "VAL", "valencia": "VAL", "valenciabasket": "VAL",
-    "bas": "BAS", "baskonia": "BAS", "vitoria": "BAS",
-    "bas2": "ZAR", "zaragoza": "ZAR",  # Basket Zaragoza (NOT Baskonia)
-    "ucm": "UCM", "unicaja": "UCM", "malaga": "UCM",
-    "len": "LEN", "tenerife": "LEN",
-    "la": "LAL", "lalaguna": "LAL",  # La Laguna Tenerife (DOĞRULANMIŞ)
-    "gca": "GCA", "grancanaria": "GCA", "gc": "GCA",
+    "sas": "BAS", "baskonia": "BAS", "vitoria": "BAS",  # API: sas=Saski Baskonia
+    "bas2": "ZAR", "zaragoza": "ZAR",  # Basket Zaragoza
+    "bas3": "AND", "andorra": "AND", "basquetandorra": "AND",  # Bàsquet Club Andorra
+    "uni": "UCM", "unicaja": "UCM", "malaga": "UCM",  # API: uni=Unicaja
+    "la": "LAL", "lalaguna": "LAL", "tenerife": "LAL",  # La Laguna Tenerife
     "bil": "BIL", "bilbao": "BIL", "surne": "BIL",
-    "can": "CAN", "casademont": "CAN",  # Casademont Zaragoza
     "jov": "JOV", "joventut": "JOV", "badalona": "JOV",
     "man": "MAN", "manresa": "MAN",
-    "mur": "MUR", "murcia": "MUR",
-    "cb2": "MUR",  # CB Murcia alt slug (DOĞRULANMIŞ)
+    "cb2": "MUR", "mur": "MUR", "murcia": "MUR",  # CB Murcia
     "gra": "GRA", "granada": "GRA",
-    "zun": "ZUN", "palencia": "ZUN", "zunder": "ZUN",
-    "gir": "GIR", "girona": "GIR", "basquet": "GIR",
-    "btv": "BTV", "breogan": "BTV", "lugo": "BTV",
-    "rio": "RIO", "riobreogan": "RIO",
+    "gra2": "GCA", "grancanaria": "GCA",  # Gran Canaria (Polymarket gra2, NOT gca)
+    "bas": "GIR", "girona": "GIR", "basquetgirona": "GIR",  # Basquet Girona
+    "cb": "BTV", "breogan": "BTV", "lugo": "BTV",  # CB Breogán Lugo
+    "bur": "BUR", "burgos": "BUR", "sanpablo": "BUR",  # San Pablo Burgos
+    "for": "LLE", "lleida": "LLE", "forcalleida": "LLE",  # Força Lleida CE
 }
 
-# SPEC-EUROBASKET-001 (2026-06-02): Türkiye BSL 16 takım. Slug prefix bkbsl tahmin.
+# SPEC-EUROBASKET-001 (2026-06-02): Türkiye BSL 16 takım. Slug prefix bkbsl
+# DOĞRULANMIŞ — gamma API tag_id=104347 üzerinden tüm 16 takım kısaltması
+# Polymarket'in kullandığı haliyle çıkartıldı (örn: "bkbsl-fen-ana-2026-06-03").
+# Önemli ayrımlar:
+#   - "man" (Manisa BB, BSL) → "MNS" yapılır çünkü "MAN" Manresa (ACB) için ayrıldı
+#   - "mer2" (Merkezefendi) vs "mer" (Mersin BSB) — Polymarket "mer2" suffix
+#     ekleyerek zaten ayırmış, biz de aynı convention'ı izliyoruz
+#   - "tur" (Turk Telekom) Türkiye genel slug "turkey" ile çakışmaz çünkü
+#     resolver context-aware (league="turkey_bsl" parametresi)
 _BSL_TEAMS: dict[str, str] = {
-    "fb": "FB", "fenerbahce": "FB", "beko": "FB",
-    "efes": "EFES", "anadoluefes": "EFES",
-    "gs": "GS", "galatasaray": "GS", "nef": "GS",
-    "tt": "TT", "tf": "TT", "turktelekom": "TT",
-    "dar": "DAR", "darussafaka": "DAR",
+    "bes": "BES", "besiktas": "BES", "gain": "BES",
     "bah": "BAH", "bahcesehir": "BAH", "koleji": "BAH",
-    "bes": "BES", "besiktas": "BES", "emlakjet": "BES",
-    "mer": "MER", "merkezefendi": "MER",
-    "tof": "TOF", "tofas": "TOF",
-    "kar": "KAR", "karsiyaka": "KAR",
+    "fen": "FEN", "fenerbahce": "FEN", "beko": "FEN",
+    "ana": "ANA", "anadolu": "ANA", "anadoluefes": "ANA", "efes": "ANA",
+    "gal": "GAL", "galatasaray": "GAL", "mct": "GAL",
+    "tur": "TUR", "turktelekom": "TUR",
     "pet": "PET", "petkim": "PET", "petkimspor": "PET",
-    "man": "MNS", "manisa": "MNS",  # MNS (Manisa) vs MAN (Manresa ACB) ayrım için
-    "sam": "SAM", "samsunspor": "SAM",
-    "art": "ART", "aliaga": "ART",
-    "yil": "YIL", "yilmaz": "YIL",
-    "onv": "ONV", "buyukcekmece": "ONV", "onvo": "ONV",
+    "tof": "TOF", "tofas": "TOF",
+    "tra": "TRA", "trabzonspor": "TRA",
+    "man": "MNS", "manisa": "MNS", "glint": "MNS",  # MNS vs MAN (Manresa ACB) ayrım
+    "kar": "KAR", "karsiyaka": "KAR",
+    "bur": "BUR", "bursaspor": "BUR", "yorsan": "BUR",
+    "mer2": "MER2", "merkezefendi": "MER2", "yukatel": "MER2",  # Polymarket suffix
+    "ese": "ESE", "esenler": "ESE", "erokspor": "ESE", "safiport": "ESE",
+    "mer": "MER", "mersin": "MER", "msk": "MER",  # Mersin MSK/BSB
+    "buy": "BUY", "buyukcekmece": "BUY", "onvo": "BUY",
 }
 
-# SPEC-EUROBASKET-001 (2026-06-02): Lega Serie A (İtalya) 16 takım. Slug prefix bklega tahmin.
+# SPEC-EUROBASKET-001 (2026-06-02): Lega Serie A (Italya) 16 takım.
+# Slug prefix bkseriea-* DOĞRULANMIŞ — gamma series_id=10877 üzerinden tüm aktif
+# sezon slug'ları çekildi (100+ event) ve takım token'ları çıkartıldı.
+# Pallacanestro kümesi: Polymarket 5 farklı "Pallacanestro X" kulübünü
+# "pal", "pal2", "pal3", "pal4", "pal5" ile ayırıyor (aynı kelime çakışmasın diye).
+# Conflict önleme (diğer ligler çakışmasın):
+#   "milano" → MILA  (NBA mil=MIL Bucks ayrı; Euroleague "milano"=MIL ayrı dict)
+#   "sassari"/"dinamo" → SASS  (NBA sas=SAS Spurs ayrı)
+#   "cantu"/"pallacanestro" → CANT  (ACB can=CAN Casademont ayrı)
+#   "tor"/"torino" → TORI  (NBA tor=TOR Raptors ayrı) — şu an Lega'da Torino yok ama
+#                  rezerve, çıkarsa hazır
 _LEGA_TEAMS: dict[str, str] = {
-    "mil": "MILA", "milano": "MILA", "olimpia": "MILA", "armani": "MILA",
-    "virt": "VIRT", "virtus": "VIRT", "bologna": "VIRT",
-    "trt": "TRT", "trento": "TRT",
-    "ven": "VEN", "venezia": "VEN", "reyer": "VEN",
-    "tor": "TORI", "torino": "TORI", "reale": "TORI",  # Lega Torino, NBA tor=TOR Raptors ayrı
-    "bre": "BRE", "brescia": "BRE", "germani": "BRE",
-    "var": "VAR", "varese": "VAR", "openjobmetis": "VAR",
-    "sas": "SASS", "sassari": "SASS", "dinamo": "SASS",  # SASS (Sassari) vs NBA SAS (Spurs) ayrı
-    "trp": "TRP", "trapani": "TRP",
-    "scv": "SCV", "verona": "SCV", "scaligera": "SCV",
-    "can": "CANT", "cantu": "CANT", "pallacanestro": "CANT",
+    # Polymarket slug token'ları (zorunlu — slug parser bunlara birebir bakar)
+    "oli": "MILA", "olimpia": "MILA", "milano": "MILA", "armani": "MILA",
+    "vir": "VIRT", "virtus": "VIRT", "bologna": "VIRT",
+    "rey": "REY", "reyer": "REY", "venezia": "REY",
+    "aqu": "TRT", "aquila": "TRT", "trento": "TRT",
+    "din": "SASS", "dinamo": "SASS", "sassari": "SASS",  # SASS vs NBA SAS (Spurs)
     "nap": "NAP", "napoli": "NAP",
-    "cre": "CRE", "cremona": "CRE",
-    "tre": "TRE", "treviso": "TRE",
-    "pis": "PIS", "pistoia": "PIS",
-    "reg": "REG", "reggio": "REG", "emilia": "REG",
+    "tra": "TRP", "trapani": "TRP",
+    "der": "DER", "derthona": "DER", "tortona": "DER",
+    "van": "CRE", "vanoli": "CRE", "cremona": "CRE",
+    "ami": "UDI", "amici": "UDI", "udinese": "UDI",
+    "uni": "TRV", "universo": "TRV", "treviso": "TRV",
+    # Pallacanestro kümesi — "pal" + rakam Polymarket convention
+    "pal": "CANT", "cantu": "CANT", "pallacanestro": "CANT",  # CANT vs ACB CAN
+    "pal2": "BRE", "brescia": "BRE", "germani": "BRE",
+    "pal3": "VAR", "varese": "VAR", "openjobmetis": "VAR",
+    "pal4": "REG", "reggiana": "REG", "emilia": "REG", "reggio": "REG",
+    "pal5": "TRI", "trieste": "TRI",
+    # Rezerve (gelecek sezon hazır): Torino henüz Lega'da yok ama dönerse
+    "tor": "TORI", "torino": "TORI", "reale": "TORI",  # NBA tor=TOR Raptors ayrı
 }
 
-# SPEC-EUROBASKET-001 (2026-06-02): VTB United League 12 takım. Slug prefix bkvtb tahmin.
+# SPEC-EUROBASKET-001 (2026-06-02): VTB United League 11 aktif takım (2025-26 sezonu).
+# Slug prefix "bkvtb-" Polymarket gamma API'den DOĞRULANMIŞ
+# (bkvtb-zen-lok-2026-06-03, bkvtb-uni-csk-2026-06-08 vs).
+# DİKKAT: Polymarket "csk" kullanıyor — "cska" DEĞİL (3-harf konvansiyonu).
+# Minsk 2024-25 ayrıldı (Wikipedia/league listesinde yok); alias future-proof bırakıldı.
 _VTB_TEAMS: dict[str, str] = {
-    "cska": "CSKA", "moscow": "CSKA",
-    "zen": "ZEN", "zenit": "ZEN", "petersburg": "ZEN",
-    "uni": "UNI", "unics": "UNI", "kazan": "UNI",
-    "lok": "LOK", "lokomotiv": "LOK", "kuban": "LOK",
-    "parma": "PARMA", "pari": "PARMA",
-    "avt": "AVT", "avtodor": "AVT", "saratov": "AVT",
-    "mba": "MBA",
-    "ura": "URA", "uralmash": "URA",
-    "niz": "NIZ", "nizhny": "NIZ", "novgorod": "NIZ",
-    "sam": "SAMA", "samara": "SAMA",  # SAMA vs BSL SAM ayrım
-    "eni": "ENI", "enisey": "ENI", "krasnoyarsk": "ENI",
-    "min": "MNSK", "minsk": "MNSK",  # MNSK vs NBA MIN (Timberwolves) ayrım
+    # Polymarket /teams?league=bkvtb endpoint'ten 11 takım DOĞRULANMIŞ (2026-06-03).
+    # Minsk listede YOK — eski "min": "MNSK" entry'si kaldırıldı.
+    "csk": "CSKA", "cska": "CSKA", "moscow": "CSKA",   # CSKA Moscow
+    "zen": "ZEN", "zenit": "ZEN",                      # BC Zenit
+    "uni": "UNI", "unics": "UNI", "kazan": "UNI",      # Unics Kazan (Lega "uni"=Treviso, sport_tag ayrı)
+    "lok": "LOK", "lokomotiv": "LOK", "kuban": "LOK",  # Lokomotiv Kuban
+    "par": "PARMA", "parma": "PARMA", "perm": "PARMA", # Parma Perm (Polymarket alias "par", NOT "parma")
+    "avt": "AVT", "avtodor": "AVT",                    # Avtodor
+    "mba": "MBA",                                      # MBA Moscow
+    "ura": "URA", "uralmash": "URA",                   # Uralmash
+    "niz": "NIZ", "nizhny": "NIZ", "novgorod": "NIZ",  # BC Nizhny Novgorod
+    "sam": "SAMA", "samara": "SAMA",                   # BC Samara (BSL "sam"=Samsunspor, sport_tag ayrı)
+    "eni": "ENI", "enisey": "ENI", "krasnoyarsk": "ENI",  # Enisey Krasnoyarsk
 }
 
 

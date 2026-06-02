@@ -12,9 +12,11 @@ def test_mode_is_paper() -> None:
 
 def test_whitelist_contains_basket_and_tennis() -> None:
     tags = set(_cfg()["scanner"]["allowed_sport_tags"])
-    # SPEC-EUROBASKET-001 (2026-06-02): liga_acb whitelist'e eklendi
+    # SPEC-EUROBASKET-001 (2026-06-02): liga_acb + turkey_bsl + italy_lega + vtb
+    # whitelist'e eklendi (her dördünün de live scraper'ı var:
+    # acb.com + eurobasket.com BSL + legabasket.it + eurobasket.com VTB).
     expected = {"nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl",
-                "tennis", "atp", "wta", "liga_acb"}
+                "tennis", "atp", "wta", "liga_acb", "turkey_bsl", "italy_lega", "vtb"}
     assert tags == expected
 
 

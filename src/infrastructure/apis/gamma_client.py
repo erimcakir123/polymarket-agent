@@ -42,7 +42,7 @@ _SLUG_PREFIX_SPORT: dict[str, str] = {
     # Diger 3 lig prefix'i tahmin — uretimde dogrulanir, NO_DATA_NO_TRADE devrede
     "bkligend": "liga_acb",   # Liga Endesa (Ispanya) — DOGRULANDI
     "bkbsl": "turkey_bsl",    # Turkiye BSL — tahmin
-    "bklega": "italy_lega",   # Lega Serie A (Italya) — tahmin
+    "bkseriea": "italy_lega", # Lega Serie A (Italya) — DOGRULANDI (gamma series_id=10877)
     "bkvtb": "vtb",           # VTB United League (Rusya) — tahmin
     # Baseball (generic "baseball" whitelist'te)
     "mlb": "baseball", "milb": "baseball",

@@ -1,9 +1,11 @@
 """SPEC-EUROBASKET-001: Avrupa basket lig NO_DATA_NO_TRADE pipeline integration.
 
 Doğrulanan davranışlar:
-  - Placeholder scraper (BSL/Lega/VTB) NotImplementedError → HealthTracker fail
   - 3-strike sonra active=False → HealthMonitor critical alert üretir
   - Ratings yokken basketball_dispatch dispatcher fail-safe skip eder
+  - Tüm 4 Avrupa scraper (ACB/BSL/Lega/VTB) artık live (kendi *_scraper.py
+    parser testleri kapsıyor) — placeholder kalmadığı için placeholder
+    NotImplementedError testi kaldırıldı.
 """
 from __future__ import annotations
 
@@ -11,35 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
-
-from src.infrastructure.data.basketball.bsl_scraper import BslScraper
 from src.infrastructure.data.basketball.data_source_health import HealthTracker
-from src.infrastructure.data.basketball.lega_scraper import LegaScraper
-from src.infrastructure.data.basketball.vtb_scraper import VtbScraper
 from src.orchestration.health_monitor import HealthMonitor
-
-
-@pytest.mark.parametrize("scraper_cls,expected_source", [
-    (BslScraper, "bsl_scraper"),
-    (LegaScraper, "lega_scraper"),
-    (VtbScraper, "vtb_scraper"),
-])
-def test_placeholder_scrapers_record_failure(
-    tmp_path: Path, scraper_cls, expected_source: str,
-) -> None:
-    """NotImplementedError → base scraper yakalamaz (kasıtlı) — exception propagate."""
-    health = HealthTracker(tmp_path / "h.json")
-    sc = scraper_cls(health=health, sleep_fn=lambda s: None)
-    # Placeholder _fetch_html NotImplementedError firlatir — base scraper'in
-    # except listesi requests.RequestException + ValueError/KeyError/IndexError/
-    # AttributeError. NotImplementedError yakalanmaz, caller'a propagate eder.
-    # Bu KASITLI — placeholder enable edilirse caller fark eder.
-    with pytest.raises(NotImplementedError):
-        sc.refresh("2025-26")
-    # HealthTracker'a fail kaydedilmemis (exception propagate ettigi icin
-    # record_failure satirina ulaşılmadı). Health temiz kalir.
-    assert health.consecutive_fails(expected_source) == 0
 
 
 def test_three_strikes_triggers_health_monitor_critical(tmp_path: Path) -> None:
