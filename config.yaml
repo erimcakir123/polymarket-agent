@@ -273,6 +273,8 @@ telegram:
     dedupe_window_minutes: 30
     # Tennis calibration N gün+ eski → info alert (refresh önerilir)
     calibration_stale_days: 7
+    # Veri kaynağı (scraper) last_success N saat+ eski → warning
+    scraper_stale_hours: 24
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)

@@ -51,6 +51,7 @@ class HealthMonitor:
         consecutive_losses: int = 5,
         dedupe_window_minutes: int = 30,
         calibration_stale_days: int = 7,
+        scraper_stale_hours: int = 24,
         now_fn=lambda: datetime.now(timezone.utc),
     ) -> None:
         self.notifier = notifier
@@ -62,6 +63,7 @@ class HealthMonitor:
         self.consecutive_losses_threshold = consecutive_losses
         self.dedupe_window = dedupe_window_minutes
         self.calibration_stale_days = calibration_stale_days
+        self.scraper_stale_hours = scraper_stale_hours
         self._now = now_fn
         self._sent_alerts: dict[tuple[str, str], datetime] = {}
 
@@ -128,8 +130,16 @@ class HealthMonitor:
         return []
 
     def _check_scraper_health(self) -> list[Alert]:
-        """data_source_health JSON broken state varsa critical."""
-        # SPEC-EUROBASKET-001 entegrasyon noktası: tüm scraper'lar buraya yazar
+        """HealthTracker JSON array → broken/stale state derive + alert.
+
+        Mevcut HealthTracker (3-strike fallback) ile uyumlu okuma:
+        - active=False (3+ ardışık fail) → critical "broken"
+        - active=True + last_success_utc > scraper_stale_hours eski → warning "stale"
+        - else → healthy (alert yok)
+
+        SPEC-EUROBASKET-001 entegrasyon noktası: yeni scraper'lar mevcut
+        HealthTracker.record_success/record_failure API'sini kullanır.
+        """
         health_path = self.state_dir / "basketball_cache" / "_health" / "sources_status.json"
         if not health_path.exists():
             return []
@@ -138,35 +148,50 @@ class HealthMonitor:
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("health check scraper health JSON parse fail: %s", e)
             return []
-        if not isinstance(data, dict):
+        if not isinstance(data, list):
             return []
+        now = self._now()
         alerts: list[Alert] = []
-        for source, status in data.items():
-            if not isinstance(status, dict):
+        for row in data:
+            if not isinstance(row, dict):
                 continue
-            state = status.get("state", "")
-            if state == "broken":
+            source = str(row.get("source", "")).strip()
+            if not source:
+                continue
+            active = bool(row.get("active", True))
+            last_success = str(row.get("last_success_utc") or "")
+            last_fail = str(row.get("last_fail_utc") or "")
+            if not active:
                 alerts.append(Alert(
                     severity="critical",
                     category=f"SCRAPER_DOWN_{source}",
                     message=(
-                        f"Veri kaynağı '{source}' çalışmıyor. "
-                        f"Son fail: {status.get('last_fail', '')}. "
-                        f"Hata: {status.get('error', 'unknown')}. "
-                        f"Bu lig için trade YAPILMIYOR."
+                        f"Veri kaynağı '{source}' devre dışı (3+ ardışık fail). "
+                        f"Son fail: {last_fail or 'yok'}. "
+                        f"Bu kaynağa bağlı lig için trade YAPILMIYOR."
                     ),
                 ))
-            elif state == "stale":
+                continue
+            if last_success and self._is_stale(last_success, now):
                 alerts.append(Alert(
                     severity="warning",
                     category=f"SCRAPER_STALE_{source}",
                     message=(
-                        f"Veri kaynağı '{source}' eski (24h+). "
-                        f"Cache son güncelleme: {status.get('last_success', '')}. "
-                        f"Trade ediyor ama veri yenilenmedi."
+                        f"Veri kaynağı '{source}' eski "
+                        f"(> {self.scraper_stale_hours}h yenilenmedi). "
+                        f"Son success: {last_success}. Cache ile devam ediyor."
                     ),
                 ))
         return alerts
+
+    def _is_stale(self, last_success_iso: str, now: datetime) -> bool:
+        try:
+            ts = datetime.fromisoformat(last_success_iso.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return False
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return (now - ts).total_seconds() > self.scraper_stale_hours * 3600
 
     def _check_consecutive_losses(self) -> list[Alert]:
         """trade_history son N exit'in hepsi zarar → warning."""

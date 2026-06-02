@@ -26,33 +26,42 @@ def _make_monitor(tmp_path: Path, notifier=None, **kwargs) -> HealthMonitor:
 
 
 def test_scraper_broken_state_triggers_critical(tmp_path: Path) -> None:
+    """HealthTracker array — active=False (3+ ardisik fail) → critical."""
     monitor = _make_monitor(tmp_path)
     health_dir = monitor.state_dir / "basketball_cache" / "_health"
     health_dir.mkdir(parents=True)
     (health_dir / "sources_status.json").write_text(
-        '{"acb": {"state": "broken", "last_fail": "2026-06-02T17:00", "error": "HTTP 403"}}'
+        '[{"source":"acb","last_success_utc":"2026-06-01T10:00:00+00:00",'
+        '"last_fail_utc":"2026-06-02T17:00:00+00:00",'
+        '"consecutive_fails":3,"active":false}]'
     )
     alerts = monitor.check_all()
     assert any(a.severity == "critical" and "SCRAPER_DOWN_acb" in a.category for a in alerts)
 
 
 def test_scraper_stale_state_triggers_warning(tmp_path: Path) -> None:
+    """active=True ama last_success_utc > stale_hours → warning."""
     monitor = _make_monitor(tmp_path)
     health_dir = monitor.state_dir / "basketball_cache" / "_health"
     health_dir.mkdir(parents=True)
+    # fixed_now 2026-06-02 18:00; last_success 2026-06-01 10:00 = 32h once (> 24h)
     (health_dir / "sources_status.json").write_text(
-        '{"bsl": {"state": "stale", "last_success": "2026-06-01T10:00"}}'
+        '[{"source":"bsl","last_success_utc":"2026-06-01T10:00:00+00:00",'
+        '"last_fail_utc":null,"consecutive_fails":0,"active":true}]'
     )
     alerts = monitor.check_all()
     assert any(a.severity == "warning" and "SCRAPER_STALE_bsl" in a.category for a in alerts)
 
 
 def test_scraper_healthy_state_no_alert(tmp_path: Path) -> None:
+    """active=True + last_success_utc taze → alert YOK."""
     monitor = _make_monitor(tmp_path)
     health_dir = monitor.state_dir / "basketball_cache" / "_health"
     health_dir.mkdir(parents=True)
+    # fixed_now 2026-06-02 18:00; last_success 2026-06-02 17:30 = 30dk once (< 24h)
     (health_dir / "sources_status.json").write_text(
-        '{"acb": {"state": "healthy", "rating_count": 18}}'
+        '[{"source":"acb","last_success_utc":"2026-06-02T17:30:00+00:00",'
+        '"last_fail_utc":null,"consecutive_fails":0,"active":true}]'
     )
     alerts = monitor.check_all()
     scraper_alerts = [a for a in alerts if "SCRAPER" in a.category]
@@ -94,7 +103,8 @@ def test_dedupe_prevents_repeated_alert(tmp_path: Path) -> None:
     health_dir = monitor.state_dir / "basketball_cache" / "_health"
     health_dir.mkdir(parents=True)
     (health_dir / "sources_status.json").write_text(
-        '{"acb": {"state": "broken"}}'
+        '[{"source":"acb","last_success_utc":null,"last_fail_utc":"2026-06-02T17:00:00+00:00",'
+        '"consecutive_fails":5,"active":false}]'
     )
     alerts = monitor.check_all()
     monitor.send_alerts(alerts)
@@ -124,7 +134,8 @@ def test_dedupe_window_expires_resends(tmp_path: Path) -> None:
     )
     (monitor.state_dir / "basketball_cache" / "_health").mkdir(parents=True)
     (monitor.state_dir / "basketball_cache" / "_health" / "sources_status.json").write_text(
-        '{"acb": {"state": "broken"}}'
+        '[{"source":"acb","last_success_utc":null,"last_fail_utc":"2026-06-02T17:00:00+00:00",'
+        '"consecutive_fails":5,"active":false}]'
     )
     alerts = monitor.check_all()
     monitor.send_alerts(alerts)

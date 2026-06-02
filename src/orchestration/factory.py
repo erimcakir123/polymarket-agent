@@ -282,6 +282,7 @@ def build_agent(state: RuntimeState) -> Agent:
         consecutive_losses=tg.alert.consecutive_losses,
         dedupe_window_minutes=tg.alert.dedupe_window_minutes,
         calibration_stale_days=tg.alert.calibration_stale_days,
+        scraper_stale_hours=tg.alert.scraper_stale_hours,
     )
 
     mlb_engine: MlbSubmarketEngineProtocol | None = None
