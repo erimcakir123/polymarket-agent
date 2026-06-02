@@ -87,6 +87,90 @@ _WNBA_TEAMS: dict[str, str] = {
     "tor": "TOR", "tempo": "TOR", "toronto": "TOR",
 }
 
+# SPEC-EUROBASKET-001 (2026-06-02): Liga Endesa (ACB) 18 takım.
+# Polymarket slug pattern: "bkligend-rea-la-2026-06-02" (DOĞRULANMIŞ gamma API).
+# Önemli: "bas" (Baskonia, Euroleague) vs "bas2" (Basket Zaragoza, ACB) ayrımı —
+# slug "bas2" Zaragoza'yı işaret eder, KARIŞMASIN.
+_ACB_TEAMS: dict[str, str] = {
+    "rea": "RM", "madrid": "RM", "realmadrid": "RM",
+    "bar": "FCB", "fcb": "FCB", "barcelona": "FCB", "barca": "FCB",
+    "val": "VAL", "valencia": "VAL", "valenciabasket": "VAL",
+    "bas": "BAS", "baskonia": "BAS", "vitoria": "BAS",
+    "bas2": "ZAR", "zaragoza": "ZAR",  # Basket Zaragoza (NOT Baskonia)
+    "ucm": "UCM", "unicaja": "UCM", "malaga": "UCM",
+    "len": "LEN", "tenerife": "LEN",
+    "la": "LAL", "lalaguna": "LAL",  # La Laguna Tenerife (DOĞRULANMIŞ)
+    "gca": "GCA", "grancanaria": "GCA", "gc": "GCA",
+    "bil": "BIL", "bilbao": "BIL", "surne": "BIL",
+    "can": "CAN", "casademont": "CAN",  # Casademont Zaragoza
+    "jov": "JOV", "joventut": "JOV", "badalona": "JOV",
+    "man": "MAN", "manresa": "MAN",
+    "mur": "MUR", "murcia": "MUR",
+    "cb2": "MUR",  # CB Murcia alt slug (DOĞRULANMIŞ)
+    "gra": "GRA", "granada": "GRA",
+    "zun": "ZUN", "palencia": "ZUN", "zunder": "ZUN",
+    "gir": "GIR", "girona": "GIR", "basquet": "GIR",
+    "btv": "BTV", "breogan": "BTV", "lugo": "BTV",
+    "rio": "RIO", "riobreogan": "RIO",
+}
+
+# SPEC-EUROBASKET-001 (2026-06-02): Türkiye BSL 16 takım. Slug prefix bkbsl tahmin.
+_BSL_TEAMS: dict[str, str] = {
+    "fb": "FB", "fenerbahce": "FB", "beko": "FB",
+    "efes": "EFES", "anadoluefes": "EFES",
+    "gs": "GS", "galatasaray": "GS", "nef": "GS",
+    "tt": "TT", "tf": "TT", "turktelekom": "TT",
+    "dar": "DAR", "darussafaka": "DAR",
+    "bah": "BAH", "bahcesehir": "BAH", "koleji": "BAH",
+    "bes": "BES", "besiktas": "BES", "emlakjet": "BES",
+    "mer": "MER", "merkezefendi": "MER",
+    "tof": "TOF", "tofas": "TOF",
+    "kar": "KAR", "karsiyaka": "KAR",
+    "pet": "PET", "petkim": "PET", "petkimspor": "PET",
+    "man": "MNS", "manisa": "MNS",  # MNS (Manisa) vs MAN (Manresa ACB) ayrım için
+    "sam": "SAM", "samsunspor": "SAM",
+    "art": "ART", "aliaga": "ART",
+    "yil": "YIL", "yilmaz": "YIL",
+    "onv": "ONV", "buyukcekmece": "ONV", "onvo": "ONV",
+}
+
+# SPEC-EUROBASKET-001 (2026-06-02): Lega Serie A (İtalya) 16 takım. Slug prefix bklega tahmin.
+_LEGA_TEAMS: dict[str, str] = {
+    "mil": "MILA", "milano": "MILA", "olimpia": "MILA", "armani": "MILA",
+    "virt": "VIRT", "virtus": "VIRT", "bologna": "VIRT",
+    "trt": "TRT", "trento": "TRT",
+    "ven": "VEN", "venezia": "VEN", "reyer": "VEN",
+    "tor": "TORI", "torino": "TORI", "reale": "TORI",  # Lega Torino, NBA tor=TOR Raptors ayrı
+    "bre": "BRE", "brescia": "BRE", "germani": "BRE",
+    "var": "VAR", "varese": "VAR", "openjobmetis": "VAR",
+    "sas": "SASS", "sassari": "SASS", "dinamo": "SASS",  # SASS (Sassari) vs NBA SAS (Spurs) ayrı
+    "trp": "TRP", "trapani": "TRP",
+    "scv": "SCV", "verona": "SCV", "scaligera": "SCV",
+    "can": "CANT", "cantu": "CANT", "pallacanestro": "CANT",
+    "nap": "NAP", "napoli": "NAP",
+    "cre": "CRE", "cremona": "CRE",
+    "tre": "TRE", "treviso": "TRE",
+    "pis": "PIS", "pistoia": "PIS",
+    "reg": "REG", "reggio": "REG", "emilia": "REG",
+}
+
+# SPEC-EUROBASKET-001 (2026-06-02): VTB United League 12 takım. Slug prefix bkvtb tahmin.
+_VTB_TEAMS: dict[str, str] = {
+    "cska": "CSKA", "moscow": "CSKA",
+    "zen": "ZEN", "zenit": "ZEN", "petersburg": "ZEN",
+    "uni": "UNI", "unics": "UNI", "kazan": "UNI",
+    "lok": "LOK", "lokomotiv": "LOK", "kuban": "LOK",
+    "parma": "PARMA", "pari": "PARMA",
+    "avt": "AVT", "avtodor": "AVT", "saratov": "AVT",
+    "mba": "MBA",
+    "ura": "URA", "uralmash": "URA",
+    "niz": "NIZ", "nizhny": "NIZ", "novgorod": "NIZ",
+    "sam": "SAMA", "samara": "SAMA",  # SAMA vs BSL SAM ayrım
+    "eni": "ENI", "enisey": "ENI", "krasnoyarsk": "ENI",
+    "min": "MNSK", "minsk": "MNSK",  # MNSK vs NBA MIN (Timberwolves) ayrım
+}
+
+
 # Euroleague 20 takım (Polymarket aktif). Türkçe + İngilizce slug varyasyonları.
 _EUROLEAGUE_TEAMS: dict[str, str] = {
     "realmadrid": "RM", "rm": "RM",
@@ -131,6 +215,15 @@ def _lookup(league: str) -> dict[str, str]:
         return _WNCAAB_TEAMS_FULL
     if league == "euroleague":
         return _EUROLEAGUE_TEAMS
+    # SPEC-EUROBASKET-001 (2026-06-02): 4 yeni Avrupa lig
+    if league == "liga_acb":
+        return _ACB_TEAMS
+    if league == "turkey_bsl":
+        return _BSL_TEAMS
+    if league == "italy_lega":
+        return _LEGA_TEAMS
+    if league == "vtb":
+        return _VTB_TEAMS
     return {}
 
 

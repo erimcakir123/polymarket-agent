@@ -37,6 +37,13 @@ _SLUG_PREFIX_SPORT: dict[str, str] = {
     "nba": "nba", "wnba": "wnba",
     "ncaab": "ncaab", "wncaab": "wncaab", "cbb": "cbb",
     "euroleague": "euroleague", "nbl": "nbl",
+    # SPEC-EUROBASKET-001 (2026-06-02): Avrupa basket ligleri
+    # Polymarket slug pattern: bkligend-rea-la-2026-06-02 (Liga Endesa)
+    # Diger 3 lig prefix'i tahmin — uretimde dogrulanir, NO_DATA_NO_TRADE devrede
+    "bkligend": "liga_acb",   # Liga Endesa (Ispanya) — DOGRULANDI
+    "bkbsl": "turkey_bsl",    # Turkiye BSL — tahmin
+    "bklega": "italy_lega",   # Lega Serie A (Italya) — tahmin
+    "bkvtb": "vtb",           # VTB United League (Rusya) — tahmin
     # Baseball (generic "baseball" whitelist'te)
     "mlb": "baseball", "milb": "baseball",
     "npb": "baseball", "kbo": "baseball",
