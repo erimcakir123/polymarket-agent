@@ -20,9 +20,11 @@ SPORT_RULES: dict[str, dict] = {
         # mantığı yok (Faz 1 rollback Task 3 silindi) + veri yok (0 trade) →
         # scanner'da blokla. Faz 2'de kanıtla açma kararı verilir.
         "spread_blocked": True,
-        # SPEC-W (2026-05-23): empirical analiz — NBA totals %67, spread %100
-        # kademeli (n=8-9). Yüksek puan + küçük adım = SL yakalar. Bimodal yok.
-        "bimodal_market_types": [],
+        # 2026-06-02 (kullanıcı kararı): NBA totals + spread → BİMODAL ($15 cap).
+        # Eski varsayım (SL yakalar, küçük adım) YANLIŞTI: maç bittiğinde
+        # Polymarket binary çözer ($1 veya $0). SL son anı yakalayamaz.
+        # WNBA Min-Phx 167.5 OVER kanıtı: tek trade -$50 tam yanma. $50 → $15.
+        "bimodal_market_types": ["totals", "spread", "spreads"],
     },
     "nfl": {
         "stop_loss_pct": 0.30,
