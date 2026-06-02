@@ -74,13 +74,17 @@ class Agent:
         self._ws_started = False
         self._entry = EntryProcessor(deps)
         self._exit = ExitProcessor(deps)
-        # SPEC-TG-001 2026-06-02: health check tick sayacı (light interval × N)
+        # SPEC-TG-001 2026-06-02: health check tick sayacı (light interval × N).
+        # MagicMock deps'lerde config attribute olmayabilir → güvenli default 60 tick.
         self._health_tick: int = 0
-        cfg_alert = deps.state.config.telegram.alert
-        light_sec = max(1, deps.state.config.cycle.light_interval_sec)
-        self._health_check_every: int = max(
-            1, cfg_alert.health_check_interval_sec // light_sec,
-        )
+        try:
+            cfg_alert = deps.state.config.telegram.alert
+            light_sec = max(1, int(deps.state.config.cycle.light_interval_sec))
+            self._health_check_every: int = max(
+                1, int(cfg_alert.health_check_interval_sec) // light_sec,
+            )
+        except (AttributeError, TypeError, ValueError):
+            self._health_check_every = 60  # default: 5dk @ 5sec light tick
         self._resilience = CycleResilience(
             max_consecutive=deps.state.config.agent.cycle_max_consecutive_errors
         )
