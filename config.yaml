@@ -114,10 +114,11 @@ risk:
   # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).
   # Exposure ≥ %50 → yeni trade reddedilir. Clipping yok.
   max_exposure_pct: 0.50
-  # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi —
-  # $15 risk / max $1.65 kâr = 8:1 oran çok kötü). 80¢ üstü = max kâr 20¢
-  # × shares → R/R 4:1 ile sınırlı.
-  max_entry_price: 0.80
+  # 2026-06-03 (SPEC-Z12): 0.80 → 0.88 RESTORE. Kullanıcı 25 May config'inin
+  # büyük kazançlarını geri istiyor (avg win $17 vs bugün $5). 89¢ Rublev gibi
+  # marjinal trade'leri kabul ediyoruz, scale_out tier 0.40/0.70 erken parça
+  # satışıyla R/R'yi kurtarıyor.
+  max_entry_price: 0.88
   # Gate ile executor arası slippage buffer — order book delik olmasın.
   # effective_price + buffer >= cap ise reddet.
   entry_price_slippage_buffer: 0.01
@@ -218,20 +219,24 @@ partial_sl:
 
 scale_out:
   enabled: true
-  # 2026-06-01: 0.40/0.70 → 0.25/0.50 RESTORE. Lab-ERKEN dönemi (22-24 Mayıs)
-  # tier 0.25/0.50 ile +$1700 net kazandı. 25 Mayıs'ta 0.40/0.70'e çıkartıldı,
-  # avg win $88 → $11 çöktü (62 trade'de -$252). Hedef geri çekme: erken parça
-  # satışı güvenlik ağı görevi görsün, pozisyon hedefe ulaşmadan SL'de yanmasın.
+  # 2026-06-03 (SPEC-Z12): 0.25/0.50 → 0.40/0.70 (25 May config restore).
+  # Kullanıcı kararı: 25 Mayıs'ta avg win $17, MaxW $20, +$184 NET. Bugün config
+  # (0.25/0.50) avg win $5'e düştü — büyük kazançları kısıtlıyordu.
+  # 25 May'daki büyük loss günlerinin (24/30/31 May) kök sebebi tam SL'de yanma
+  # idi; partial_sl AÇIK bırakılarak bu risk azaltıldı (Azkara tipi pozisyon
+  # toparlanma şansı verir, tam loss yerine kademeli).
+  # distance-to-resolution: progress = (cur-entry)/(1-entry); tier fires when
+  # progress >= threshold. Scale-invariant (19¢ ve 80¢ entry'ler aynı oranda).
   tiers:
-    - threshold: 0.25    # 25% yol kat et -> %40 sat
+    - threshold: 0.40    # 40% of way from entry to $1 -> sell 40%
       sell_pct: 0.40
-    - threshold: 0.50    # 50% yol kat et -> %50 sat (kalanın)
+    - threshold: 0.70    # 70% of way -> sell 50% of remaining
       sell_pct: 0.50
-  # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
-  # AMA near_resolve disable. Aralık dışı → standart davranış.
-  # 0.70: net favori (R/R 2.3:1+). 0.80: max_entry_price cap üst sınır.
-  high_entry_threshold: 0.70
-  high_entry_upper: 0.80
+  # 2026-06-03 (SPEC-Z12 + kullanıcı "hepsi için olsun"): high_entry özel
+  # davranışı kaldırıldı. 25 May'da yoktu; tek tier seti tüm entry fiyatları
+  # için aynı. 0.70-0.88 entry de standart 0.40/0.70 tier'larıyla işler.
+  high_entry_threshold: 0.0
+  high_entry_upper: 0.0
 
 circuit_breaker:
   # TEST MODU: CB devre dısı (2026-05-13). Multi-SL (graduated + flat + market_flip)
