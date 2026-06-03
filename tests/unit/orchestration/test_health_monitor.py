@@ -157,6 +157,31 @@ def test_calibration_age_old_triggers_info(tmp_path: Path) -> None:
     assert any(a.severity == "info" and a.category == "CALIBRATION_AGE" for a in alerts)
 
 
+def test_muted_alert_categories_suppress_send(tmp_path: Path) -> None:
+    """SPEC-Z10 (2026-06-03): muted_alert_categories listesindeki kategori
+    send_alerts'te sessizce skip edilir, telegram'a düşmez."""
+    notifier = Mock()
+    monitor = _make_monitor(
+        tmp_path, notifier=notifier,
+        muted_alert_categories=["SCRAPER_DOWN_acb_scraper", "SCRAPER_STALE_lega_scraper"],
+    )
+    alerts = [
+        Alert(severity="critical", category="SCRAPER_DOWN_acb_scraper", message="x"),
+        Alert(severity="warning", category="SCRAPER_STALE_lega_scraper", message="y"),
+        Alert(severity="critical", category="SCRAPER_DOWN_vtb_scraper", message="z"),  # MUTED DEĞİL
+        Alert(severity="warning", category="CONSECUTIVE_LOSSES", message="w"),  # MUTED DEĞİL
+    ]
+    monitor.send_alerts(alerts)
+    # Sadece muted DEĞİL olanlar gönderildi
+    assert notifier.send.call_count == 2
+    sent_msgs = [call.args[0] for call in notifier.send.call_args_list]
+    assert any("SCRAPER_DOWN_vtb_scraper" in m for m in sent_msgs)
+    assert any("CONSECUTIVE_LOSSES" in m for m in sent_msgs)
+    # ACB ve Lega muted → notifier'a hiç gitmedi
+    assert not any("SCRAPER_DOWN_acb_scraper" in m for m in sent_msgs)
+    assert not any("SCRAPER_STALE_lega_scraper" in m for m in sent_msgs)
+
+
 def test_disabled_notifier_no_send(tmp_path: Path) -> None:
     """notifier=None → send_alerts no-op (crash yok)."""
     monitor = _make_monitor(tmp_path, notifier=None)

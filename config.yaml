@@ -297,6 +297,18 @@ telegram:
     calibration_stale_days: 7
     # Veri kaynağı (scraper) last_success N saat+ eski → warning
     scraper_stale_hours: 24
+    # SPEC-Z10 (2026-06-03): Kategori-bazli alert mute. ACB/BSL/Lega scraper
+    # broken/stale alarmları kullanıcıyı gereksiz gerer çünkü bu lig'ler ML-only
+    # (totals/spreads exclude_combos ile kapalı) ve cache yok zaten — broken
+    # olması beklenen davranış. VTB cache başarılı build edildi, alarm anlamlı
+    # → muted listede YOK. Yeni HTML parser yazılınca ilgili lig listeden çıkar.
+    muted_alert_categories:
+      - SCRAPER_DOWN_acb_scraper
+      - SCRAPER_STALE_acb_scraper
+      - SCRAPER_DOWN_bsl_scraper
+      - SCRAPER_STALE_bsl_scraper
+      - SCRAPER_DOWN_lega_scraper
+      - SCRAPER_STALE_lega_scraper
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)

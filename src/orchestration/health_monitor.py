@@ -52,6 +52,7 @@ class HealthMonitor:
         dedupe_window_minutes: int = 30,
         calibration_stale_days: int = 7,
         scraper_stale_hours: int = 24,
+        muted_alert_categories: list[str] | None = None,
         now_fn=lambda: datetime.now(timezone.utc),
     ) -> None:
         self.notifier = notifier
@@ -64,6 +65,8 @@ class HealthMonitor:
         self.dedupe_window = dedupe_window_minutes
         self.calibration_stale_days = calibration_stale_days
         self.scraper_stale_hours = scraper_stale_hours
+        # SPEC-Z10 (2026-06-03): kategori-bazli alert mute (config'den)
+        self.muted_alert_categories: set[str] = set(muted_alert_categories or [])
         self._now = now_fn
         self._sent_alerts: dict[tuple[str, str], datetime] = {}
 
@@ -78,11 +81,14 @@ class HealthMonitor:
         return alerts
 
     def send_alerts(self, alerts: list[Alert]) -> None:
-        """Throttle/dedupe ile telegram'a gönder."""
+        """Throttle/dedupe + kategori mute ile telegram'a gönder."""
         if self.notifier is None:
             return
         now = self._now()
         for alert in alerts:
+            # SPEC-Z10: kategori muted ise sessizce skip (telegram spam onleme)
+            if alert.category in self.muted_alert_categories:
+                continue
             key = (alert.severity, alert.category)
             last = self._sent_alerts.get(key)
             if last is not None and (now - last).total_seconds() < self.dedupe_window * 60:
