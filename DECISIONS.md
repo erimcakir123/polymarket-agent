@@ -3162,3 +3162,21 @@ Avrupa basket lig'leri scraper'ları aktif ama dict'lerimiz statik — sezon dev
 **Test:** 2048 passed (önceki 2039'dan +9 unit), 0 fail. ARCH_GUARD §3 OK: monitor 140 satır, gamma_client 369 satır (<400).
 
 **Sonraki adım kullanıcı kararı:** 14 yeni lig'ten hangileri öncelikli (Pro A + Greek + German BBL Polymarket'te en aktif görünüyor). Her biri için scraper + resolver dict ekleme ~1-2 saat.
+
+---
+
+**SPEC-Z14: Tennis ESPN otoriter — same_day guard kaldırıldı + lookahead penceresi (2026-06-03 DONE)**
+
+**Bağlam:** Wendelken-Lajal vakası — `atp-wendelk-lajal-2026-06-03` slug'ı + Polymarket gameStartTime "2026-06-03T09:30:00Z" → bot 06-03 sabahında pozisyon açtı (entry 0.34, BUY_NO). Gerçek maç **06-04 12:00** (Polymarket UI'de bile böyle). Sebep: `TennisStartEnricher._same_day` guard'ı Polymarket startTime ile ESPN commence_time aynı gün değilse override'ı iptal ediyordu. Polymarket'in tarihi yanlış olunca ESPN'in doğru tarihi guard tarafından reddedildi → bot yanlış tarihe güvendi.
+
+**Değişiklik (iki katman):**
+
+**A) Lookahead penceresi:** `TennisStartEnricher.__init__(lookahead_days=3)` parametresi eklendi. ESPN fetch tarihleri = `{bugün, bugün+1, bugün+2, bugün+3} ∪ {market_isoları'ndan çıkarılan günler}`. Polymarket startTime tamamen boş veya yanlış olsa bile ESPN penceresi gerçek maçı yakalar. Config: `scanner.tennis_espn_lookahead_days: 3`.
+
+**B) Same_day guard kaldırıldı:** Eskiden `if _same_day(market.match_start, espn.commence_time): override` idi. Şimdi `if espn match bulundu: override`. Slug-surname iki-taraflı eşleşmesi (`s1∈home AND s2∈away` veya tersi) yeterince spesifik — false-positive riski düşük (iki spesifik soyadın opposing-sides eşleşmesi başka turnuvada aynı günde olma şansı ~%0).
+
+**Uygulama:** `tennis_start_enricher.py` enrich() ve refresh_positions() ikisi de yeni `_collect_dates(market_isos)` helper'ına delege (DRY). `_same_day` helper kaldırıldı (tek kullanıcısı yoktu). `factory.py` enricher constructor'ına `lookahead_days=cfg.scanner.tennis_espn_lookahead_days` geçirildi.
+
+**Test:** 15/15 enricher test (eski 14 + yeni 1 lookahead testi + 1 override-even-if-dates-differ testi). Mevcut testler `lookahead_days=0` parametre alarak eski davranışı korur — yeni guard kaldırma davranışı `test_refresh_positions_overrides_even_if_dates_differ` ile doğrulanır.
+
+**Wendelken-Lajal pozisyonu:** Mevcut açık pozisyon (entry 06-03T05:40, current 0.33, -$1.47) bu fix'ten otomatik faydalanır — light cycle'da refresh_positions çalışınca match_start_iso 06-04T16:00'a (gerçek tarih) güncellenir, force_close doğru saatten başlar.

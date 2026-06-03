@@ -199,9 +199,11 @@ def test_size_below_min_skips_when_manipulation_halves_C_tier_floor() -> None:
 
 
 def test_entry_price_cap_blocks_high_favorite() -> None:
-    # Consensus 0.90'da sinyal üretir (min_price 0.60) ama gate 0.88 cap ile reddeder.
-    # anchor 0.85, market yes 0.90 → is_consensus True (ikisi de YES favori), entry=0.90
-    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.85, conf="A")))
+    # Consensus 0.90'da sinyal uretir (min_price 0.60) ama gate 0.88 cap ile reddeder.
+    # SPEC-Z13 (2026-06-03): anchor >= market gerekli (model_edge >= 0) yoksa
+    # consensus iptal. anchor 0.92, market yes 0.90 → model_edge=+0.02 → consensus
+    # gecer, sonra 0.88 cap reddeder.
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.92, conf="A")))
     results = gate.run([_market(yp=0.90)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "entry_price_cap"
@@ -222,9 +224,14 @@ def test_anti_edge_high_price_skips_cobolli_like_trade() -> None:
 
     Cobolli senaryosu: market 0.86, model 0.63 → BUY_YES, anti_edge 0.23 > 0.
     entry_price_cap'i geçici olarak gevşetip Rule A'yı izole test ediyoruz.
+
+    SPEC-Z13 (2026-06-03): consensus min_model_edge=0.0 default → anchor<market
+    olunca consensus None doner, anti_edge guard ulasilamaz. Defense-in-depth
+    olarak anti_edge guard hala kodda; test consensus_min_model_edge=-1.0 ile
+    Z13 bypass eder ki Rule A yolu test edilebilsin.
     """
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.63, conf="A")))
-    gate.config = GateConfig(max_entry_price=0.95)
+    gate.config = GateConfig(max_entry_price=0.95, consensus_min_model_edge=-1.0)
     results = gate.run([_market(yp=0.86)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "anti_edge_high_price"
@@ -235,10 +242,15 @@ def test_anti_edge_absolute_skips_alkaya_like_trade() -> None:
     """PLAN-001 Rule B: anti_edge > 0.15 → SKIP (fiyat fark etmez).
 
     Alkaya senaryosu: market 0.74, model 0.56 → BUY_YES, anti_edge 0.18 > 0.15.
-    paid 0.74 < 0.80 → Rule A tetiklenmez; Rule B yakalar. Default cap (0.80)
-    de geçer (0.74 < 0.79) çünkü kontrol sıralaması: cap → A → B.
+    paid 0.74 < 0.80 → Rule A tetiklenmez; Rule B yakalar.
+
+    SPEC-Z13 (2026-06-03): consensus_min_model_edge=-1.0 ile Z13 bypass —
+    yoksa consensus None doner ve Normal stratejisi BUY_NO uretir (0.56 vs
+    0.74 → NO ucuz). Defense-in-depth: anti_edge guard hala kod icinde,
+    test'i Z13'i atlatarak Rule B yolunu izole eder.
     """
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.56, conf="A")))
+    gate.config = GateConfig(consensus_min_model_edge=-1.0)
     results = gate.run([_market(yp=0.74)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "anti_edge_absolute"
@@ -397,9 +409,12 @@ def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
 
 
 def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
-    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX, buffer=X.XX'."""
-    # anchor=0.85(A) + market=0.90 → consensus signal at 0.90 > 0.80 cap (2026-05-31)
-    bm = _bm(prob=0.85, conf="A")
+    """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX, buffer=X.XX'.
+
+    SPEC-Z13 (2026-06-03): anchor>=market gerekli → anchor 0.92 vs market 0.90
+    → consensus gecer, sonra cap (0.88-0.01) reddeder.
+    """
+    bm = _bm(prob=0.92, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "entry_price_cap"

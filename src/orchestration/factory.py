@@ -81,6 +81,7 @@ def build_agent(state: RuntimeState) -> Agent:
     tennis_enricher = TennisStartEnricher(
         espn_client=espn,
         cache_ttl_sec=cfg.scanner.tennis_start_cache_ttl_sec,
+        lookahead_days=cfg.scanner.tennis_espn_lookahead_days,
     )
     scanner = MarketScanner(
         cfg.scanner,

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import time
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from src.config.sport_rules import get_sport_rule
@@ -58,13 +58,6 @@ def _iso_to_yyyymmdd(iso: str) -> str | None:
     if head[4] != "-" or head[7] != "-":
         return None
     return head[0:4] + head[5:7] + head[8:10]
-
-
-def _same_day(iso_a: str, iso_b: str) -> bool:
-    """Iki ISO timestamp ayni UTC gunde mi? Parse edemezse False (override iptal)."""
-    a = _iso_to_yyyymmdd(iso_a)
-    b = _iso_to_yyyymmdd(iso_b)
-    return bool(a) and a == b
 
 
 def _league_for_slug(slug: str) -> str | None:
@@ -143,9 +136,18 @@ class TennisStartEnricher:
     uretir. Scanner cycle basina bir kere kullanir.
     """
 
-    def __init__(self, espn_client: ESPNClient, cache_ttl_sec: int) -> None:
+    def __init__(
+        self,
+        espn_client: ESPNClient,
+        cache_ttl_sec: int,
+        lookahead_days: int = 3,
+    ) -> None:
         self._espn = espn_client
         self._ttl = cache_ttl_sec
+        # SPEC-Z14 (2026-06-03): bugun + N gun ESPN scoreboard pencere.
+        # Polymarket gameStartTime ±1 gun yanlis olabiliyor → ESPN penceresi
+        # genis tutulur, slug-surname eslesmesi otoriter kabul edilir.
+        self._lookahead_days = max(0, lookahead_days)
         # (league, date_yyyymmdd) -> (fetch_timestamp, events)
         self._cache: dict[tuple[str, str], tuple[float, list[ESPNMatchScore]]] = {}
 
@@ -160,17 +162,19 @@ class TennisStartEnricher:
         leagues = tuple(leagues_raw) if leagues_raw else _VALID_LEAGUES
 
         # 3) Tennis market'lerin ihtiyac duydugu ESPN gunlerini topla.
-        # Her market'in match_start_iso'sundan YYYYMMDD cikar; UTC bugun de eklenir
-        # (Polymarket startTime bos gelirse fallback). Her unique gun icin ESPN fetch.
-        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        dates: set[str] = {today_str}
-        for tm in tennis_markets:
-            d = _iso_to_yyyymmdd(tm.match_start_iso)
-            if d:
-                dates.add(d)
-        events_by_league = self._fetch_dates(leagues, tuple(sorted(dates)))
+        # Bugun + lookahead penceresi + her market'in Polymarket startTime gunu.
+        # Polymarket startTime ±1 gun yanlis olabilir; pencere genis tutulur.
+        dates = self._collect_dates(
+            (m.match_start_iso for m in tennis_markets),
+        )
+        events_by_league = self._fetch_dates(leagues, dates)
 
         # 4) Her tennis market icin eslesme dene, match_start_iso override et.
+        # SPEC-Z14: ESPN otoriter (docstring §). Eslesme bulundu → commence_time
+        # her durumda override edilir; slug-surname iki taraf eslesmesi yeterince
+        # spesifik (false-positive riski dusuk). Eski same_day guard kaldirildi —
+        # Polymarket'in yanlis gun gostermesi durumunda ESPN'in dogru tarihinin
+        # iptal edilmesini engelliyordu (Wendelken-Lajal 06-03 vs 06-04 vakasi).
         out: list[MarketData] = []
         for m in markets:
             if not _is_tennis(m):
@@ -180,13 +184,10 @@ class TennisStartEnricher:
             event = self._find_matching_event_by_slug(
                 m.slug, target_leagues, events_by_league,
             )
-            if event is not None and event.commence_time and _same_day(
-                m.match_start_iso, event.commence_time
-            ):
+            if event is not None and event.commence_time:
                 out.append(m.model_copy(update={"match_start_iso": event.commence_time}))
             else:
-                # Tarih uyumsuz ESPN eslesmesi false-positive sayilir (ayni soyad
-                # farkli turnuva). Sessizce Polymarket startTime'a fallback.
+                # Eslesme yok → Polymarket startTime fallback.
                 out.append(m)
         return out
 
@@ -209,14 +210,14 @@ class TennisStartEnricher:
         leagues_raw = get_sport_rule("tennis", "espn_leagues", default=_VALID_LEAGUES)
         leagues = tuple(leagues_raw) if leagues_raw else _VALID_LEAGUES
 
-        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        dates: set[str] = {today_str}
-        for tp in tennis_positions:
-            d = _iso_to_yyyymmdd(tp.match_start_iso)
-            if d:
-                dates.add(d)
-        events_by_league = self._fetch_dates(leagues, tuple(sorted(dates)))
+        dates = self._collect_dates(
+            (p.match_start_iso for p in tennis_positions),
+        )
+        events_by_league = self._fetch_dates(leagues, dates)
 
+        # SPEC-Z14: ESPN otoriter — same_day guard kaldirildi. Slug-surname
+        # eslesmesi bulundu → commence_time override (Polymarket'in yanlis
+        # gun gostermesi durumunda dogru tarihe duzelir).
         for p in tennis_positions:
             target_leagues = self._leagues_for_slug(p.slug, leagues)
             event = self._find_matching_event_by_slug(
@@ -224,9 +225,25 @@ class TennisStartEnricher:
             )
             if event is None or not event.commence_time:
                 continue
-            if not _same_day(p.match_start_iso, event.commence_time):
-                continue
             p.match_start_iso = event.commence_time
+
+    def _collect_dates(self, market_isos: Iterable[str]) -> tuple[str, ...]:
+        """ESPN fetch icin tarih kumesi: bugun + lookahead penceresi + market gunleri.
+
+        Polymarket gameStartTime ±1 gun yanlis olabiliyor (slug-tarihi/event
+        fallback). Pencere bugun..bugun+N gun arasi tum tarihleri kapsar; ek
+        olarak market'lerin kendi Polymarket gunu de eklenir (pencere disinda
+        kalmis gec maclari yakalamak icin)."""
+        today = datetime.now(timezone.utc)
+        dates: set[str] = set()
+        for offset in range(0, self._lookahead_days + 1):
+            d = (today + timedelta(days=offset)).strftime("%Y%m%d")
+            dates.add(d)
+        for iso in market_isos:
+            d = _iso_to_yyyymmdd(iso)
+            if d:
+                dates.add(d)
+        return tuple(sorted(dates))
 
     def _leagues_for_slug(
         self,

@@ -23,6 +23,9 @@ scanner:
   # Tennis match_start ESPN override icin cache TTL (saniye); 300 = 5dk.
   tennis_start_cache_ttl_sec: 300
   tennis_athlete_cache_ttl_sec: 86400
+  # SPEC-Z14 (2026-06-03): ESPN fetch lookahead (bugun + N gun). Polymarket
+  # gameStartTime ±1 gun yanlis olabiliyordu (Wendelken-Lajal 06-03 vs 06-04).
+  tennis_espn_lookahead_days: 3
   allowed_categories: ["sports"]
   # Gamma event.tags[*].slug formatı (Odds API key ≠ Gamma tag).
   # Odds API mapping domain/matching/odds_sport_keys.py'de ayrı yapılır.

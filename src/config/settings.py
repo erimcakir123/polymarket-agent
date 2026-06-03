@@ -76,6 +76,11 @@ class ScannerConfig(BaseModel):
     # TennisStartEnricher cycle basina bir kere ESPN tennis/atp+wta scoreboard ceker.
     tennis_start_cache_ttl_sec: int = 300
     tennis_athlete_cache_ttl_sec: int = 86400  # 24 saat — ESPN tennis athlete adi cache
+    # SPEC-Z14 (2026-06-03): ESPN fetch lookahead penceresi (bugun + N gun).
+    # Polymarket gameStartTime slug-tarihi/event-fallback nedeniyle bazen ±1 gun
+    # yanlis olur (Wendelken-Lajal vakasi: slug 06-03, gercek 06-04). ESPN
+    # otoriter, bu pencere ESPN scoreboard'unu daha genis kapsasin.
+    tennis_espn_lookahead_days: int = 3
 
 
 class EdgeConfig(BaseModel):
