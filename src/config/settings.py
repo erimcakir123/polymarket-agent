@@ -153,6 +153,11 @@ class ConsensusConfig(BaseModel):
     min_price: float = 0.60
     bet_pct: float = 0.05
     max_slots: int = 5
+    # SPEC-Z13 (2026-06-03): Consensus stratejisi model edge'ini umursamıyordu
+    # ("0.99 - entry_price" formülü). Azkara tipi -%5 model edge trade'leri
+    # bypass ediyordu. Model edge (direction-adjusted: anchor vs entry) bu
+    # eşiğin altıysa consensus iptal. 0.0 → negatif edge yasak (min).
+    min_model_edge: float = 0.0
 
 
 class StockConfig(BaseModel):

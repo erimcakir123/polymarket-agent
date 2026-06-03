@@ -116,6 +116,7 @@ class GateConfig:
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
+    consensus_min_model_edge: float = 0.0  # SPEC-Z13: model edge guard
     # Early entry
     early_enabled: bool = True
     early_min_edge: float = 0.10
@@ -341,7 +342,11 @@ class EntryGate:
         """
         # 1. Consensus — book + market aynı favori, ≥65¢
         if self.config.consensus_enabled:
-            sig = consensus_entry.evaluate(market, bm_prob, min_price=self.config.consensus_min_price)
+            sig = consensus_entry.evaluate(
+                market, bm_prob,
+                min_price=self.config.consensus_min_price,
+                min_model_edge=self.config.consensus_min_model_edge,
+            )
             if sig is not None:
                 return sig
 

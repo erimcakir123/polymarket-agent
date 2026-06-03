@@ -236,6 +236,7 @@ def build_agent(state: RuntimeState) -> Agent:
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
+        consensus_min_model_edge=cfg.consensus.min_model_edge,
         # Early entry
         early_enabled=cfg.early.enabled,
         early_min_edge=cfg.early.min_edge,

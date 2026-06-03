@@ -186,12 +186,17 @@ def test_clear_session_logs_audit_untouched(tmp_path: Path) -> None:
 
 
 def test_reboot_clears_session_and_audit() -> None:
-    """2026-05-23 politika: Reboot TAM WIPE — session + audit + runtime hepsi arşive."""
+    """2026-05-23 politika: Reboot TAM WIPE — session + audit + runtime hepsi arşive.
+
+    SPEC-Z13 (2026-06-03): archive_audit_logs MOCK ZORUNLU — yoksa test
+    production logs/audit/*.jsonl dosyalarını gerçekten arşive taşıyıp wipe eder.
+    """
     with (
         patch("scripts.reboot.kill_processes"),
         patch("scripts.reboot.clear_runtime_logs"),
         patch("scripts.reboot.clear_session_logs") as mock_session,
         patch("scripts.reboot.clear_audit_logs") as mock_audit,
+        patch("scripts.reboot.archive_audit_logs") as mock_archive,
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.start_dashboard"),
         patch("scripts.reboot.start_bot"),
@@ -201,6 +206,7 @@ def test_reboot_clears_session_and_audit() -> None:
 
     mock_session.assert_called_once()
     mock_audit.assert_called_once()
+    mock_archive.assert_called()  # production'a sızma testi
 
 
 def test_reload_does_not_clear_session_or_audit(tmp_path: Path) -> None:
@@ -308,6 +314,9 @@ def test_no_stacking(tmp_path: Path) -> None:
         patch("scripts.reboot.start_bot", side_effect=fake_start_bot),
         patch("scripts.reboot.start_dashboard", side_effect=fake_start_dashboard),
         patch("scripts.reboot.clear_runtime_logs"),
+        patch("scripts.reboot.clear_session_logs"),  # SPEC-Z13: prod log dokunma
+        patch("scripts.reboot.clear_audit_logs"),    # SPEC-Z13: prod audit dokunma
+        patch("scripts.reboot.archive_audit_logs"),  # SPEC-Z13: prod forensic dokunma
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.time.sleep"),
     ):

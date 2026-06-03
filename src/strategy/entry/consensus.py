@@ -22,8 +22,15 @@ def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
     min_price: float = 0.65,
+    min_model_edge: float = 0.0,
 ) -> Signal | None:
-    """Consensus entry kararı. None döner: koşullar uymuyor."""
+    """Consensus entry kararı. None döner: koşullar uymuyor.
+
+    SPEC-Z13 (2026-06-03): min_model_edge guard. Direction-adjusted model
+    edge (anchor vs entry) bu eşiğin altıysa consensus iptal — eski
+    "0.99 - entry_price" formülü modeli umursamıyordu, Azkara tipi -%5
+    edge trade'leri bypass ediyordu.
+    """
     if bm_prob.confidence == "C":
         return None  # Yetersiz veri
 
@@ -45,6 +52,15 @@ def evaluate(
     # min_price eşiği — 65¢+ "ciddi favori" göstergesi
     if entry_price < min_price:
         return None
+
+    # SPEC-Z13: Model edge direction-adjusted (BUY_YES: P(YES) - YES_price;
+    # BUY_NO: P(NO) - NO_price = (1-P(YES)) - (1-YES_price) = YES_price - P(YES)).
+    if direction == Direction.BUY_YES:
+        model_edge = bm_prob.probability - market.yes_price
+    else:  # BUY_NO
+        model_edge = market.yes_price - bm_prob.probability
+    if model_edge < min_model_edge:
+        return None  # Model "ucuz" demiyor → consensus iptal
 
     edge = max(0.0, 0.99 - entry_price)
 
