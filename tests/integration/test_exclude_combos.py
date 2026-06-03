@@ -108,6 +108,85 @@ def test_atp_moneyline_NOT_blocked():
     deps.executor.place_order.assert_called_once()
 
 
+# SPEC-Z10 (2026-06-03): Avrupa basket bimodal market'leri reddedilir.
+# Sebep: Avrupa scraper'lar possessions parse etmiyor → pace×eff dandık →
+# totals/spreads tahmin güvenilmez. Sadece ML (Elo) trade edilir.
+
+def test_acb_totals_blocked_by_exclude_combos():
+    """ACB (bkligend) + totals → SKIP, place_order çağrılmamalı."""
+    deps = _mk_deps([
+        {"tour": "bkligend", "market_type": "totals", "confidence": None},
+    ])
+    ep = EntryProcessor.__new__(EntryProcessor)
+    ep.deps = deps
+
+    market = _mk_market("bkligend-rea-la-2026-06-04-total-160pt5", "totals")
+    signal = MagicMock()
+    signal.direction.value = "BUY_YES"
+    signal.confidence = "A"  # confidence None=any → A da bloklu
+    signal.size_usdc = 15.0
+
+    ep._execute_entry(market, signal)
+    deps.executor.place_order.assert_not_called()
+
+
+def test_bsl_spreads_blocked_by_exclude_combos():
+    """BSL (bkbsl) + spreads → SKIP."""
+    deps = _mk_deps([
+        {"tour": "bkbsl", "market_type": "spreads", "confidence": None},
+    ])
+    ep = EntryProcessor.__new__(EntryProcessor)
+    ep.deps = deps
+
+    market = _mk_market("bkbsl-fen-ana-2026-06-03-spread-home-7pt5", "spreads")
+    signal = MagicMock()
+    signal.direction.value = "BUY_YES"
+    signal.confidence = "B"
+    signal.size_usdc = 10.0
+
+    ep._execute_entry(market, signal)
+    deps.executor.place_order.assert_not_called()
+
+
+def test_acb_moneyline_NOT_blocked():
+    """ACB moneyline → SADECE bimodal kapalı, ML AÇIK → place_order ÇAĞRILMALI."""
+    deps = _mk_deps([
+        {"tour": "bkligend", "market_type": "totals", "confidence": None},
+        {"tour": "bkligend", "market_type": "spreads", "confidence": None},
+    ])
+    ep = EntryProcessor.__new__(EntryProcessor)
+    ep.deps = deps
+
+    market = _mk_market("bkligend-rea-la-2026-06-04", "moneyline")
+    signal = MagicMock()
+    signal.direction.value = "BUY_YES"
+    signal.confidence = "A"
+    signal.size_usdc = 50.0
+
+    ep._execute_entry(market, signal)
+    deps.executor.place_order.assert_called_once()
+
+
+def test_euroleague_totals_NOT_blocked():
+    """Euroleague + totals → exclude'da YOK (box score var, model sağlam) → AÇIK."""
+    deps = _mk_deps([
+        {"tour": "bkligend", "market_type": "totals", "confidence": None},
+        {"tour": "bkbsl", "market_type": "totals", "confidence": None},
+        # euroleague exclude'da YOK
+    ])
+    ep = EntryProcessor.__new__(EntryProcessor)
+    ep.deps = deps
+
+    market = _mk_market("euroleague-rea-fb-2025-10-15-total-160pt5", "totals")
+    signal = MagicMock()
+    signal.direction.value = "BUY_YES"
+    signal.confidence = "A"
+    signal.size_usdc = 15.0
+
+    ep._execute_entry(market, signal)
+    deps.executor.place_order.assert_called_once()
+
+
 def test_wta_set_totals_atp_only_exclude_passes():
     """ATP-only exclude → WTA pazara izin verilmeli (tour ayrımı doğru)."""
     deps = _mk_deps([

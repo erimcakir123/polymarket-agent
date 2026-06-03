@@ -81,6 +81,22 @@ edge:
     - {tour: atp, market_type: tennis_first_set_winner, confidence: B}
     - {tour: wta, market_type: tennis_first_set_winner, confidence: A}
     - {tour: wta, market_type: tennis_first_set_winner, confidence: B}
+    # SPEC-Z10 (2026-06-03): 4 Avrupa basket lig için bimodal market'leri kapatıldı.
+    # Sebep: Avrupa scraper'lar sadece skor parse ediyor, possessions verisi YOK
+    # (NBA box score FGA/FTA/OREB/TOV gibi). Pace×Eff modeli sönük input alıyor
+    # (tüm takım sabit 75 poss) → totals/spreads tahmin DANDİK olur.
+    # Kullanıcı kararı (2026-06-03): "uydurma tahmin entegre etmek istemiyorum,
+    # NBA kadar iyi tahminler istiyorum, yapamıyorsak ML yeterli". Bu lig'lerde
+    # SADECE ML (Elo bazlı, sağlam) trade edilir. Euroleague + Eurocup için
+    # box score var (euroleague-api), bunlar etkilenmez.
+    - {tour: bkligend, market_type: totals, confidence: null}
+    - {tour: bkligend, market_type: spreads, confidence: null}
+    - {tour: bkbsl, market_type: totals, confidence: null}
+    - {tour: bkbsl, market_type: spreads, confidence: null}
+    - {tour: bkseriea, market_type: totals, confidence: null}
+    - {tour: bkseriea, market_type: spreads, confidence: null}
+    - {tour: bkvtb, market_type: totals, confidence: null}
+    - {tour: bkvtb, market_type: spreads, confidence: null}
 
 risk:
   # SPEC-P (2026-05-21): sabit-tier sizing. Bankroll dalgalanmasından bağımsız.

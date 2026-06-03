@@ -35,6 +35,16 @@ def test_exclude_combos_contains_tennis_first_set_winner() -> None:
 
 
 def test_edge_config_parses_exclude_combos() -> None:
+    # 8 tennis + 8 SPEC-Z10 Avrupa basket bimodal (4 lig × totals+spreads) = 16
     from src.config.settings import load_config
     cfg = load_config()
-    assert len(cfg.edge.exclude_combos) == 8
+    assert len(cfg.edge.exclude_combos) == 16
+
+
+def test_exclude_combos_blocks_european_basket_bimodal() -> None:
+    """SPEC-Z10 (2026-06-03): ACB/BSL/Lega/VTB için totals+spreads exclude."""
+    combos = _cfg()["edge"]["exclude_combos"]
+    tour_market = {(c["tour"], c["market_type"]) for c in combos}
+    for lig in ("bkligend", "bkbsl", "bkseriea", "bkvtb"):
+        assert (lig, "totals") in tour_market, f"{lig} totals exclude eksik"
+        assert (lig, "spreads") in tour_market, f"{lig} spreads exclude eksik"
