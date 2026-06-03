@@ -105,7 +105,11 @@ _ACB_TEAMS: dict[str, str] = {
     "bas2": "ZAR", "zaragoza": "ZAR",  # Basket Zaragoza
     "bas3": "AND", "andorra": "AND", "basquetandorra": "AND",  # Bàsquet Club Andorra
     "uni": "UCM", "unicaja": "UCM", "malaga": "UCM",  # API: uni=Unicaja
-    "la": "LAL", "lalaguna": "LAL", "tenerife": "LAL",  # La Laguna Tenerife
+    # 2026-06-03 SPEC-EUROBASKET-001 align: ACB scraper "Tenerife"/"La Laguna
+    # Tenerife"/"Lenovo Tenerife" → LEN üretir (Polymarket /teams API'de bu
+    # takım tek kayıt). Eski "LAL" yanlıştı (cache key mismatch → trade YOK).
+    "la": "LEN", "lalaguna": "LEN", "tenerife": "LEN",  # La Laguna Tenerife
+    "len": "LEN", "lenovo": "LEN",
     "bil": "BIL", "bilbao": "BIL", "surne": "BIL",
     "jov": "JOV", "joventut": "JOV", "badalona": "JOV",
     "man": "MAN", "manresa": "MAN",

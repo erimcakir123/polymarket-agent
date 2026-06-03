@@ -118,6 +118,18 @@ class Agent:
         """Ana döngü. max_ticks=None → sonsuza kadar; test için sayılı tick."""
         self._start_ws_if_needed()
         self._start_command_poller()
+        # SPEC-Z11 (2026-06-03): Initial equity snapshot — reload sonrası
+        # dashboard widget'ları (Balance/Locked/Peak) HEMEN doğru değer göstersin.
+        # Eski davranış: ilk equity tick sadece entry/exit anında yazılırdı; reload
+        # sonrası yeni trade olmadan dashboard 25dk+ "$0" gösteriyordu. Bu satır
+        # boot anında bir snapshot yazar → dashboard backend session/equity'i bulur.
+        try:
+            from src.orchestration import operational_writers  # noqa: PLC0415
+            operational_writers.log_equity_snapshot(
+                self.deps.state.portfolio, self.deps.equity_logger,
+            )
+        except Exception as e:  # noqa: BLE001 — boot snapshot fail → log + devam
+            logger.warning("Initial equity snapshot failed: %s", e)
         ticks = 0
         while not self._stop_requested:
             tick = self.deps.cycle_manager.tick(has_positions=self.deps.state.portfolio.count() > 0)

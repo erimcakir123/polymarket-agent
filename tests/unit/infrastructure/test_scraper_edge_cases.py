@@ -105,28 +105,29 @@ def test_acb_unknown_team_silently_skipped(tmp_path: Path) -> None:
 
     Yeni takım promosyonu olursa (örn ACB'ye yeni terfi eden kulüp),
     resolver dict'i güncellenene kadar bu satırlar görülmez.
+    Fixture eurobasket pattern (acb_scraper.py 2026-06-03 revize sonrası).
     """
     html = """
-    <html><body>
-      <div class="partido">
-        <a class="equipo">Yeni Promosyon Kulubu</a>
-        <span class="resultado">90 - 85</span>
-        <a class="equipo">Real Madrid</a>
-        <span class="fecha">3 de junio de 2026</span>
-      </div>
-      <div class="partido">
-        <a class="equipo">Valencia</a>
-        <span class="resultado">88 - 80</span>
-        <a class="equipo">Barcelona</a>
-        <span class="fecha">3 de junio de 2026</span>
-      </div>
-    </body></html>
+    <html><body><table>
+      <tr>
+        <td class="GamesDate">Jun.3:</td>
+        <td class="GamesTeam TextAlignRight">Yeni Promosyon Kulubu</td>
+        <td class="GamesResult TextAlignCenter">90-85</td>
+        <td class="GamesTeam TextAlignLeft">Real Mad.</td>
+      </tr>
+      <tr>
+        <td class="GamesDate">Jun.3:</td>
+        <td class="GamesTeam TextAlignRight">Valencia</td>
+        <td class="GamesResult TextAlignCenter">88-80</td>
+        <td class="GamesTeam TextAlignLeft">Barca</td>
+      </tr>
+    </table></body></html>
     """
     health = _health(tmp_path)
     sc = AcbScraper(health=health, http_get=lambda url: html, sleep_fn=lambda s: None)
     result = sc.refresh("2025-26")
     assert result.ok is True
-    # SADECE bilinen Valencia/Barcelona maçı parse edildi
+    # SADECE bilinen Valencia/Barca maçı parse edildi
     assert len(result.games) == 1
     assert result.games[0].home_team == "VAL"
     # Yeni takım sessizce dropped — log yok, alert yok
@@ -180,22 +181,28 @@ def test_acb_score_without_teams_triggers_zero_parsed_data(tmp_path: Path) -> No
 
 
 def test_acb_teams_without_score_skipped(tmp_path: Path) -> None:
-    """Takım var ama score yok (TBD/upcoming) → row skip."""
+    """Takım var ama score yok (TBD/upcoming "----") → row skip, teams kalır.
+
+    Eurobasket henüz oynanmamış maç için "----" döner. _parse_one_game None
+    döner ama _parse_teams takım hücrelerinden takımları alır → teams dolu
+    kalır → ZERO_PARSED_DATA tetiklenmez (teams>0). Bu beklenen davranış.
+    """
     html = """
-    <html><body>
-      <div class="partido">
-        <a class="equipo">Real Madrid</a>
-        <span class="resultado">vs.</span>
-        <a class="equipo">Barcelona</a>
-        <span class="fecha">10 de junio de 2026</span>
-      </div>
-    </body></html>
+    <html><body><table>
+      <tr>
+        <td class="GamesDate">Jun.10:</td>
+        <td class="GamesTeam TextAlignRight">Real Mad.</td>
+        <td class="GamesResult TextAlignCenter">----</td>
+        <td class="GamesTeam TextAlignLeft">Barca</td>
+      </tr>
+    </table></body></html>
     """
     health = _health(tmp_path)
     sc = AcbScraper(health=health, http_get=lambda url: html, sleep_fn=lambda s: None)
     result = sc.refresh("2025-26")
     assert result.ok is True
-    assert result.games == ()
+    assert result.games == ()  # henüz oynanmamış → skip
+    assert "RM" in result.teams  # takım sayfada var ama oyun yok
 
 
 # ── 6. Aynı takım kendisine karşı (data corruption) ──
@@ -206,14 +213,14 @@ def test_acb_team_vs_itself_skipped(tmp_path: Path) -> None:
     Mevcut acb parser: home_abbr != away_abbr şartı VAR → skip ✓
     """
     html = """
-    <html><body>
-      <div class="partido">
-        <a class="equipo">Real Madrid</a>
-        <span class="resultado">85 - 78</span>
-        <a class="equipo">Real Madrid</a>
-        <span class="fecha">1 de junio de 2026</span>
-      </div>
-    </body></html>
+    <html><body><table>
+      <tr>
+        <td class="GamesDate">Jun.1:</td>
+        <td class="GamesTeam TextAlignRight">Real Mad.</td>
+        <td class="GamesResult TextAlignCenter">85-78</td>
+        <td class="GamesTeam TextAlignLeft">Real Mad.</td>
+      </tr>
+    </table></body></html>
     """
     health = _health(tmp_path)
     sc = AcbScraper(health=health, http_get=lambda url: html, sleep_fn=lambda s: None)

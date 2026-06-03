@@ -1,4 +1,8 @@
-"""Lega Basket Serie A scraper: HTML parser test (mock fixture)."""
+"""Lega Basket Serie A scraper: HTML parser test (mock fixture).
+
+Kaynak: eurobasket.com Italy sayfasi (legabasket.it 404 + React-rendered;
+eurobasket VTB ile birebir GamesDate/GamesTeam/GamesResult patterni).
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,42 +11,77 @@ from src.infrastructure.data.basketball.data_source_health import HealthTracker
 from src.infrastructure.data.basketball.lega_scraper import (
     LegaScraper,
     _name_to_abbr,
+    _parse_english_short_date,
     _parse_italian_date,
 )
 
 
-# Mock HTML — gercek site yapisina yakin minimum fixture (legabasket.it
-# pattern: ".partita" container, ".nome-squadra" team, ".risultato" score,
-# ".data-partita" date — AcbScraper pattern paraleli, sadece dil farkli).
+# Mock HTML — eurobasket Italy gercek yapisindan (245+ row arasindan 2 ornek):
+# kisaltilmis takim isimleri ("Virtus BO", "Reggio Em."), "Jun.1:" tarih format.
 _FIXTURE_HTML = """
 <html><body>
-<div class="partita">
-  <a class="nome-squadra" href="/squadre/1">Olimpia Milano</a>
-  <span class="risultato">85 - 78</span>
-  <a class="nome-squadra" href="/squadre/2">Virtus Bologna</a>
-  <span class="data-partita">3 giugno 2026</span>
-</div>
-<div class="partita">
-  <a class="nome-squadra" href="/squadre/3">Reyer Venezia</a>
-  <span class="risultato">92 - 88</span>
-  <a class="nome-squadra" href="/squadre/4">Dinamo Sassari</a>
-  <span class="data-partita">4 giugno 2026</span>
-</div>
+<table>
+<tr class="gamesschedulegames-1-1">
+<td class="GamesDate">Jun.1:</td>
+<td class="GamesTeam TextAlignRight"><b>Virtus BO</b></td>
+<td class="GamesResult TextAlignCenter"><a>&nbsp;98-79&nbsp;</a></td>
+<td class="GamesTeam TextAlignLeft">Venezia</td>
+<td class="MediaGuide"></td>
+</tr>
+<tr class="gamesschedulegames-1-1">
+<td class="GamesDate">May 31:</td>
+<td class="GamesTeam TextAlignRight"><b>Brescia</b></td>
+<td class="GamesResult TextAlignCenter"><a>&nbsp;85-79&nbsp;</a></td>
+<td class="GamesTeam TextAlignLeft">Milano</td>
+<td class="MediaGuide"></td>
+</tr>
+<tr class="gamesschedulegames-1-1">
+<td class="GamesDate">May 28:</td>
+<td class="GamesTeam TextAlignRight"><b>Reggio Em.</b></td>
+<td class="GamesResult TextAlignCenter"><a>&nbsp;72-68&nbsp;</a></td>
+<td class="GamesTeam TextAlignLeft">Sassari</td>
+<td class="MediaGuide"></td>
+</tr>
+</table>
 </body></html>
 """
 
 
 def test_name_to_abbr_known() -> None:
+    # Eurobasket kisa formlari
+    assert _name_to_abbr("Milano") == "MILA"
+    assert _name_to_abbr("Virtus BO") == "VIRT"
+    assert _name_to_abbr("Venezia") == "REY"
+    assert _name_to_abbr("Reggio Em.") == "REG"  # trailing dot normalize
+    assert _name_to_abbr("Sassari") == "SASS"
+    # Uzun sponsor formlari
     assert _name_to_abbr("Olimpia Milano") == "MILA"
-    assert _name_to_abbr("olimpia milano") == "MILA"
     assert _name_to_abbr("Virtus Bologna") == "VIRT"
-    assert _name_to_abbr("Reyer Venezia") == "REY"
     assert _name_to_abbr("Pallacanestro Trieste") == "TRI"
 
 
 def test_name_to_abbr_unknown_returns_none() -> None:
     assert _name_to_abbr("Unknown Squadra XYZ") is None
     assert _name_to_abbr("") is None
+
+
+def test_parse_english_short_date_with_dot() -> None:
+    dt = _parse_english_short_date("Jun.1:", default_year=2026)
+    assert dt is not None
+    assert dt.year == 2026 and dt.month == 6 and dt.day == 1
+
+
+def test_parse_english_short_date_with_space() -> None:
+    dt = _parse_english_short_date("May 28:", default_year=2026)
+    assert dt is not None
+    assert dt.year == 2026 and dt.month == 5 and dt.day == 28
+
+
+def test_parse_english_short_date_invalid_returns_none() -> None:
+    assert _parse_english_short_date("not a date", default_year=2026) is None
+
+
+# ── Legacy Italian-date helper (eski legabasket.it fixture'lari icin korundu) ──
 
 
 def test_parse_italian_date_with_year() -> None:
@@ -78,6 +117,9 @@ def test_parse_italian_date_invalid_returns_none() -> None:
     assert _parse_italian_date("32 giugno 2026", default_year=2026) is None
 
 
+# ── Scraper end-to-end (eurobasket fixture) ──
+
+
 def test_scraper_parses_fixture_html(tmp_path: Path) -> None:
     health = HealthTracker(tmp_path / "h.json")
     sc = LegaScraper(
@@ -88,13 +130,13 @@ def test_scraper_parses_fixture_html(tmp_path: Path) -> None:
     result = sc.refresh("2025-26")
     assert result.ok is True
     assert result.source == "lega_scraper"
-    assert len(result.games) == 2
+    assert len(result.games) == 3
     g = result.games[0]
-    assert g.home_team == "MILA"
-    assert g.away_team == "VIRT"
-    assert g.home_score == 85
-    assert g.away_score == 78
-    assert g.date_utc.year == 2026 and g.date_utc.month == 6 and g.date_utc.day == 3
+    assert g.home_team == "VIRT"
+    assert g.away_team == "REY"
+    assert g.home_score == 98
+    assert g.away_score == 79
+    assert g.date_utc.month == 6 and g.date_utc.day == 1
 
 
 def test_scraper_teams_extracted(tmp_path: Path) -> None:
@@ -105,17 +147,21 @@ def test_scraper_teams_extracted(tmp_path: Path) -> None:
         sleep_fn=lambda s: None,
     )
     result = sc.refresh("2025-26")
-    assert "MILA" in result.teams
+    # Fixture'da 3 mac → 6 takim slot ama 5 unique (Virtus/Venezia/Brescia/
+    # Milano/Reggio/Sassari = 6 unique aslinda)
     assert "VIRT" in result.teams
     assert "REY" in result.teams
+    assert "BRE" in result.teams
+    assert "MILA" in result.teams
+    assert "REG" in result.teams
     assert "SASS" in result.teams
 
 
 def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> None:
     """ZERO_PARSED_DATA (2026-06-03): bos HTML → fail.
 
-    Lega icin onemli: legabasket.it React-rendered olabilir → statik HTML'de
-    game div bulamaz. Eski silent skip yutardi, yeni koruma yakalar.
+    Eski legabasket.it React-rendered yutmasini engelleyen koruma;
+    eurobasket icin de geçerli (CSS class degisirse parser kor olur).
     """
     health = HealthTracker(tmp_path / "h.json")
     sc = LegaScraper(
@@ -129,16 +175,21 @@ def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> No
 
 
 def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:
-    """Tek bozuk row (eksik takim) → o row skip, kalan games OK."""
+    """Tek bozuk row (eksik takim hucresi) → o row skip, kalan games OK."""
     bad_html = """
     <html><body>
-      <div class="partita"><span class="risultato">XX - YY</span></div>
-      <div class="partita">
-        <a class="nome-squadra">Olimpia Milano</a>
-        <span class="risultato">85 - 78</span>
-        <a class="nome-squadra">Virtus Bologna</a>
-        <span class="data-partita">1 giugno 2026</span>
-      </div>
+    <table>
+      <tr>
+        <td class="GamesDate">Jun.1:</td>
+        <td class="GamesResult"><a>XX-YY</a></td>
+      </tr>
+      <tr>
+        <td class="GamesDate">Jun.2:</td>
+        <td class="GamesTeam TextAlignRight"><b>Milano</b></td>
+        <td class="GamesResult"><a>85-78</a></td>
+        <td class="GamesTeam TextAlignLeft">Virtus BO</td>
+      </tr>
+    </table>
     </body></html>
     """
     health = HealthTracker(tmp_path / "h.json")
@@ -151,3 +202,4 @@ def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:
     assert result.ok is True
     assert len(result.games) == 1
     assert result.games[0].home_team == "MILA"
+    assert result.games[0].away_team == "VIRT"

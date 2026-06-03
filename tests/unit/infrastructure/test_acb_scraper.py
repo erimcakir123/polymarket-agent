@@ -1,35 +1,47 @@
-"""ACB scraper: HTML parser test (mock fixture)."""
+"""ACB scraper: HTML parser test (mock fixture).
+
+Fixture eurobasket.com Spain sayfasının gerçek HTML yapısını birebir taklit eder:
+GamesDate / GamesTeam (TextAlignRight=home, TextAlignLeft=away) / GamesResult.
+"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 from src.infrastructure.data.basketball.acb_scraper import (
     AcbScraper,
     _name_to_abbr,
+    _parse_english_short_date,
     _parse_spanish_date,
-    _parse_one_game,
 )
 from src.infrastructure.data.basketball.data_source_health import HealthTracker
 
 
-# Mock HTML — gercek site yapisina yakin minimum fixture.
+# Mock HTML — eurobasket.com Spain sayfasındaki gerçek satır yapısı.
 _FIXTURE_HTML = """
 <html><body>
-<div class="partido">
-  <a class="equipo" href="/equipo/1">Real Madrid</a>
-  <span class="resultado">85 - 78</span>
-  <a class="equipo" href="/equipo/2">La Laguna Tenerife</a>
-  <span class="fecha">2 de junio de 2026</span>
-</div>
-<div class="partido">
-  <a class="equipo" href="/equipo/3">Valencia</a>
-  <span class="resultado">92 - 88</span>
-  <a class="equipo" href="/equipo/4">Bilbao Basket</a>
-  <span class="fecha">3 de junio de 2026</span>
-</div>
+<table>
+<tr class="gamesschedulegames-2-1">
+  <td class="GamesDate">Jun.2:</td>
+  <td class="GamesTeam TextAlignRight">Real Mad.</td>
+  <td class="GamesResult TextAlignCenter"><a href="/box/1">85-78</a></td>
+  <td class="GamesTeam TextAlignLeft">Tenerife</td>
+  <td class="MediaGuide"></td>
+</tr>
+<tr class="gamesschedulegames-2-1">
+  <td class="GamesDate">Jun.3:</td>
+  <td class="GamesTeam TextAlignRight">Valencia</td>
+  <td class="GamesResult TextAlignCenter"><a href="/box/2">92-88</a></td>
+  <td class="GamesTeam TextAlignLeft"><b>Bilbao</b></td>
+  <td class="MediaGuide"></td>
+</tr>
+<tr class="gamesschedulegames-2-1">
+  <td class="GamesDate">Jun.5:</td>
+  <td class="GamesTeam TextAlignRight">Murcia</td>
+  <td class="GamesResult TextAlignCenter">----</td>
+  <td class="GamesTeam TextAlignLeft">Barca</td>
+  <td class="MediaGuide"></td>
+</tr>
+</table>
 </body></html>
 """
 
@@ -37,9 +49,14 @@ _FIXTURE_HTML = """
 def test_name_to_abbr_known() -> None:
     assert _name_to_abbr("Real Madrid") == "RM"
     assert _name_to_abbr("real madrid") == "RM"
+    assert _name_to_abbr("Real Mad.") == "RM"           # eurobasket short
     assert _name_to_abbr("FC Barcelona") == "FCB"
+    assert _name_to_abbr("Barca") == "FCB"              # eurobasket short
     assert _name_to_abbr("Bilbao Basket") == "BIL"
-    assert _name_to_abbr("La Laguna Tenerife") == "LAL"
+    assert _name_to_abbr("La Laguna Tenerife") == "LEN"
+    assert _name_to_abbr("Tenerife") == "LEN"           # eurobasket short
+    assert _name_to_abbr("Rio Breo.") == "BTV"          # noktalı kısaltma
+    assert _name_to_abbr("Gran Cana.") == "GCA"
 
 
 def test_name_to_abbr_unknown_returns_none() -> None:
@@ -47,7 +64,24 @@ def test_name_to_abbr_unknown_returns_none() -> None:
     assert _name_to_abbr("") is None
 
 
+def test_parse_english_short_date_basic() -> None:
+    dt = _parse_english_short_date("Jun.2:", default_year=2026)
+    assert dt is not None
+    assert dt.year == 2026 and dt.month == 6 and dt.day == 2
+
+
+def test_parse_english_short_date_with_space() -> None:
+    dt = _parse_english_short_date("May 28:", default_year=2026)
+    assert dt is not None
+    assert dt.year == 2026 and dt.month == 5 and dt.day == 28
+
+
+def test_parse_english_short_date_invalid_returns_none() -> None:
+    assert _parse_english_short_date("not a date", default_year=2026) is None
+
+
 def test_parse_spanish_date_with_year() -> None:
+    # Legacy acb.com format hâlâ destekleniyor (fallback için).
     dt = _parse_spanish_date("4 de octubre de 2025", default_year=2026)
     assert dt is not None
     assert dt.year == 2025 and dt.month == 10 and dt.day == 4
@@ -74,13 +108,14 @@ def test_scraper_parses_fixture_html(tmp_path: Path) -> None:
     result = sc.refresh("2025-26")
     assert result.ok is True
     assert result.source == "acb_scraper"
+    # 2 tamamlanmış maç + 1 "----" (henüz oynanmamış, skor yok → skip).
     assert len(result.games) == 2
     g = result.games[0]
     assert g.home_team == "RM"
-    assert g.away_team == "LAL"
+    assert g.away_team == "LEN"
     assert g.home_score == 85
     assert g.away_score == 78
-    assert g.date_utc.year == 2026 and g.date_utc.month == 6 and g.date_utc.day == 2
+    assert g.date_utc.month == 6 and g.date_utc.day == 2
 
 
 def test_scraper_teams_extracted(tmp_path: Path) -> None:
@@ -91,10 +126,13 @@ def test_scraper_teams_extracted(tmp_path: Path) -> None:
         sleep_fn=lambda s: None,
     )
     result = sc.refresh("2025-26")
+    # "----" satırı da team cell içerdiği için Murcia + FCB de listede.
     assert "RM" in result.teams
-    assert "LAL" in result.teams
+    assert "LEN" in result.teams
     assert "VAL" in result.teams
     assert "BIL" in result.teams
+    assert "MUR" in result.teams
+    assert "FCB" in result.teams
 
 
 def test_scraper_empty_html_triggers_zero_parsed_data_fail(tmp_path: Path) -> None:
@@ -119,13 +157,18 @@ def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:
     """Tek bozuk row (eksik takim) → o row skip, kalan games OK."""
     bad_html = """
     <html><body>
-      <div class="partido"><span class="resultado">XX - YY</span></div>
-      <div class="partido">
-        <a class="equipo">Real Madrid</a>
-        <span class="resultado">85 - 78</span>
-        <a class="equipo">Valencia</a>
-        <span class="fecha">1 de junio de 2026</span>
-      </div>
+    <table>
+      <tr>
+        <td class="GamesDate">Jun.1:</td>
+        <td class="GamesResult TextAlignCenter">XX-YY</td>
+      </tr>
+      <tr>
+        <td class="GamesDate">Jun.1:</td>
+        <td class="GamesTeam TextAlignRight">Real Mad.</td>
+        <td class="GamesResult TextAlignCenter">85-78</td>
+        <td class="GamesTeam TextAlignLeft">Valencia</td>
+      </tr>
+    </table>
     </body></html>
     """
     health = HealthTracker(tmp_path / "h.json")
@@ -138,3 +181,4 @@ def test_scraper_malformed_row_silently_skipped(tmp_path: Path) -> None:
     assert result.ok is True
     assert len(result.games) == 1
     assert result.games[0].home_team == "RM"
+    assert result.games[0].away_team == "VAL"

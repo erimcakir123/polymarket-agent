@@ -323,6 +323,25 @@ def test_agent_without_ws_works(tmp_path: Path, monkeypatch) -> None:
     assert deps.state.portfolio.count() == 1
 
 
+def test_agent_writes_initial_equity_snapshot_on_run(tmp_path: Path, monkeypatch) -> None:
+    """SPEC-Z11 (2026-06-03): Bot başlar başlamaz initial equity snapshot yazılır.
+
+    Önceki davranış: equity_snapshot sadece entry/exit anında yazılırdı —
+    reload sonrası yeni trade olmadan dashboard 25dk+ "$0" gösteriyordu.
+    Bu test boot anında dosyaya en az 1 satır yazıldığını doğrular.
+    """
+    deps = _build_deps(tmp_path, [], bm_result=None)  # market yok → trade yok
+    monkeypatch.setattr(time, "sleep", lambda *a: None)
+    agent = Agent(deps)
+    agent.run(max_ticks=1)
+    # equity_history.jsonl dosyasında en az 1 entry olmalı (initial snapshot)
+    equity_path = tmp_path / "equity_history.jsonl"
+    assert equity_path.exists(), "Initial equity snapshot dosyası oluşmalı"
+    content = equity_path.read_text(encoding="utf-8").strip()
+    assert content, "Initial equity snapshot içerik boş olmamalı"
+    assert "bankroll" in content, "Snapshot bankroll alanı içermeli"
+
+
 # ── Match-start priority ordering ──
 
 
