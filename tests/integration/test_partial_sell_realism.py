@@ -220,6 +220,9 @@ def test_exit_processor_partial_exit_filled_uses_actual_price(tmp_path):
     pos.scale_out_tier = 0
     pos.scale_out_realized_usdc = 0.0
     pos.slug = "test"
+    pos.question = ""
+    pos.sport_tag = ""
+    pos.source = "model"
 
     signal = ExitSignal(
         reason=ExitReason.SCALE_OUT, partial=True,
