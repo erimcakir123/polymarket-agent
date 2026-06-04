@@ -573,6 +573,40 @@ def test_archive_audit_logs_writes_forensic_jsonl(tmp_path: Path, monkeypatch) -
     assert any("test_" in f["function"] for f in entry["stack"])
 
 
+def test_reboot_archives_trade_events_jsonl(tmp_path: Path) -> None:
+    """SPEC-Z17 Task 9: reboot trade_events.jsonl'i arşivler (copy), sonra siler.
+
+    Intent: trade_events.jsonl `_AUDIT_FILES_CLEAR` listesinde olmalı →
+    archive_audit_logs default listede onu da kopyalar, clear_audit_logs siler.
+
+    Test pattern existing reboot tests'leriyle aynı (tmp_path + audit_files=[...]
+    injection — chdir+monkeypatch yerine).
+    """
+    from scripts.reboot import _AUDIT_FILES_CLEAR, clear_audit_logs
+
+    # 1) trade_events.jsonl default audit list'inde olmalı
+    audit_filenames = {p.name for p in _AUDIT_FILES_CLEAR}
+    assert "trade_events.jsonl" in audit_filenames, (
+        "SPEC-Z17: trade_events.jsonl _AUDIT_FILES_CLEAR'a eklenmemiş."
+    )
+
+    # 2) archive sonrası dosya kopyalanmış olmalı, orijinal korunur (SPEC-Z7 copy semantiği)
+    audit_file = tmp_path / "trade_events.jsonl"
+    audit_file.write_text(
+        '{"kind": "entry", "condition_id": "c1"}\n', encoding="utf-8",
+    )
+    archive_audit_logs(
+        audit_files=[audit_file], timestamp="20260604_120000",
+    )
+    archived = tmp_path / "trade_events.archive.20260604_120000.jsonl"
+    assert archived.exists(), "trade_events archive snapshot oluşmadı"
+    assert archived.read_text(encoding="utf-8").startswith('{"kind":')
+
+    # 3) clear sonrası orijinal silinmeli
+    clear_audit_logs(audit_files=[audit_file])
+    assert not audit_file.exists(), "clear_audit_logs trade_events'i silmedi"
+
+
 def test_read_open_condition_ids_returns_keys(tmp_path: Path) -> None:
     """positions.json'dan condition_id'leri çıkarır."""
     from scripts.reboot import _read_open_condition_ids

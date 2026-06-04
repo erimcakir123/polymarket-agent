@@ -57,6 +57,7 @@ _RUNTIME_LOG_FILES = [
 # REBOOT'ta temizlenen audit dosyaları (kullanıcı kararı 2026-05-05: gerçek factory reset)
 _AUDIT_FILES_CLEAR = [
     ROOT / "logs" / "audit" / "trade_history.jsonl",
+    ROOT / "logs" / "audit" / "trade_events.jsonl",   # SPEC-Z17 — event sourcing log
     ROOT / "logs" / "audit" / "equity_history.jsonl",
     ROOT / "logs" / "audit" / "exits.jsonl",
     ROOT / "logs" / "audit" / "score_events.jsonl",
@@ -168,7 +169,7 @@ def kill_processes(
             if _is_pid_alive(pid):
                 _kill_pid(pid, pid_file.name)
             else:
-                print(f"  Stale PID {pid} ({pid_file.name}) — process zaten durmuş")
+                print(f"  Stale PID {pid} ({pid_file.name}) - process already stopped")
             pid_file.unlink(missing_ok=True)
         time.sleep(_GRACEFUL_WAIT_SECONDS)
         return
@@ -469,21 +470,21 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
     wipe_audit=False ile çağrılırsa audit orijinalleri korunur (geriye uyumluluk
     için, kullanıcı isteğine dışında kullanılmaz).
     """
-    print("=== REBOOT (0-noktaya sıfırlama) ===")
+    print("=== REBOOT (0-point reset) ===")
     if not skip_confirm:
-        print("\n⚠️  UYARI: Bu işlem state + session + runtime + AUDIT log'ları SİLER.")
+        print("\nWARNING: This operation DELETES state + session + runtime + AUDIT logs.")
         print("   - data/positions.json, data/circuit_breaker_state.json (state)")
-        print("   - logs/session/* (dashboard kaynağı)")
+        print("   - logs/session/* (dashboard source)")
         print("   - logs/runtime/* (bot.log)")
-        print("   - logs/audit/trade_history.jsonl + equity_history.jsonl (dashboard tarihsel)")
-        print("   ARŞIV KOPYALARI logs/audit/*.archive.* olarak saklanır (recovery için).\n")
+        print("   - logs/audit/trade_history.jsonl + equity_history.jsonl (dashboard history)")
+        print("   ARCHIVE COPIES stored at logs/audit/*.archive.* (for recovery).\n")
         try:
-            answer = input("Onayla 'REBOOT' yaz (başka bir şey iptal eder): ").strip()
+            answer = input("Type 'REBOOT' to confirm (anything else cancels): ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("İptal edildi.")
+            print("Cancelled.")
             return
         if answer != "REBOOT":
-            print("İptal — state korundu. (`reload` istiyor olabilirsin?)")
+            print("Cancelled - state preserved. (Did you mean `reload`?)")
             return
     kill_processes()
     clear_runtime_logs()
@@ -498,7 +499,7 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
     start_dashboard()
     time.sleep(3)
     start_bot(mode)
-    print("Reboot complete — 0-noktaya sıfırlandı, yeni session başladı.")
+    print("Reboot complete - 0-point reset done, new session started.")
 
 
 if __name__ == "__main__":
