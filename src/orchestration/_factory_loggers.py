@@ -9,7 +9,6 @@ from __future__ import annotations
 from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.trade_event_log import TradeEventLog
-from src.infrastructure.persistence.trade_exits_log import TradeExitsLog
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 
 _AUDIT = "logs/audit"
@@ -20,14 +19,6 @@ def build_trade_logger() -> TradeHistoryLogger:
     return TradeHistoryLogger(
         f"{_AUDIT}/trade_history.jsonl",
         mirror_path=f"{_SESSION}/trade_history.jsonl",
-    )
-
-
-def build_trade_exits_log() -> TradeExitsLog:
-    """SPEC-Z16: append-only exit event log — atomic rewrite kaybına paralel kalkan."""
-    return TradeExitsLog(
-        f"{_AUDIT}/trade_exits.jsonl",
-        mirror_path=f"{_SESSION}/trade_exits.jsonl",
     )
 
 

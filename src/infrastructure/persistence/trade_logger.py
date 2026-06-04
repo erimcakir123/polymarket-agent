@@ -146,7 +146,11 @@ class TradeHistoryLogger:
             )
         return out
 
-    def _rewrite_matching(self, condition_id: str, mutator: Callable[[dict[str, Any]], None]) -> bool:
+    def _rewrite_matching(
+        self,
+        condition_id: str,
+        mutator: Callable[[dict[str, Any]], None],
+    ) -> bool:
         """En son açık (exit_price=None) kaydı bul, mutator(rec) çağır, atomic rewrite et.
 
         Atomic = tmp dosyaya yaz + replace. Crash-safe.
@@ -203,15 +207,22 @@ class TradeHistoryLogger:
             mirror_tmp.replace(self.mirror)
         return True
 
-    def update_on_exit(self, condition_id: str, exit_data: dict[str, Any]) -> bool:
+    def update_on_exit(
+        self,
+        condition_id: str,
+        exit_data: dict[str, Any],
+    ) -> bool:
         """condition_id için en son açık (exit_price=None) kaydı exit verisiyle günceller.
         Atomic rewrite. Return: güncellendi mi?
         """
-        return self._rewrite_matching(condition_id, lambda rec: rec.update(exit_data))
+        return self._rewrite_matching(
+            condition_id, lambda rec: rec.update(exit_data),
+        )
 
-    def log_partial_exit(self, condition_id: str, tier: int, sell_pct: float,
-                         realized_pnl_usdc: float, timestamp: str,
-                         price: float) -> bool:
+    def log_partial_exit(
+        self, condition_id: str, tier: int, sell_pct: float,
+        realized_pnl_usdc: float, timestamp: str, price: float,
+    ) -> bool:
         """En son açık trade kaydının partial_exits listesine bir partial ekle.
         Atomic rewrite. Return: kayıt bulundu mu.
         """

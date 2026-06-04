@@ -7,24 +7,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from src.domain.portfolio.lifecycle import tick_position_state
 from src.models.enums import ExitReason
 from src.models.position import Position
-
-
-def _orphan_meta(pos: Position) -> dict[str, Any]:
-    """SPEC-Z15.D (06-04): trade_logger orphan path tetiklendiğinde standalone
-    kaydı pos metadata'sıyla etiketle. Eski davranış: slug=(orphan), question boş.
-    Eksik field'lar için getattr defansif — partial mock'larda çökmez.
-    """
-    return {
-        "slug": getattr(pos, "slug", None) or "(orphan)",
-        "question": getattr(pos, "question", None) or "",
-        "sport_tag": getattr(pos, "sport_tag", None) or "",
-        "source": getattr(pos, "source", None) or "",
-    }
 from src.orchestration import operational_writers
 from src.orchestration.notifier_hooks import notify_exit_safe
 from src.orchestration.exit_audit_writer import (
@@ -242,17 +228,7 @@ class ExitProcessor:
                 "exit_pnl_pct": round(pnl_pct, 4),
                 "exit_timestamp": now_iso,
             },
-            orphan_metadata=_orphan_meta(pos),
         )
-        # SPEC-Z16: append-only event log (atomic rewrite kaybına paralel kalkan).
-        if self.deps.trade_exits_log is not None:
-            self.deps.trade_exits_log.append_final(
-                condition_id=pos.condition_id, **_orphan_meta(pos),
-                entry_price=pos.entry_price,
-                entry_timestamp=getattr(pos, "match_start_iso", "") or "",
-                exit_price=exit_price, exit_reason=exit_reason_value,
-                exit_pnl_usdc=round(realized, 2), exit_timestamp=now_iso,
-            )
         # SPEC-Z17: append-only event log (Z16'nın yerine geçecek tek truth)
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_final(
@@ -388,17 +364,7 @@ class ExitProcessor:
             realized_pnl_usdc=realized,
             timestamp=ts_iso,
             price=actual_price,                # gerçek satım fiyatı
-            orphan_metadata=_orphan_meta(pos),
         )
-        # SPEC-Z16: append-only event log.
-        if self.deps.trade_exits_log is not None:
-            self.deps.trade_exits_log.append_partial(
-                condition_id=pos.condition_id, **_orphan_meta(pos),
-                entry_price=pos.entry_price,
-                entry_timestamp=getattr(pos, "match_start_iso", "") or "",
-                tier=signal.tier or current_tier, sell_pct=actual_sell_pct,
-                realized_pnl_usdc=realized, timestamp=ts_iso, price=actual_price,
-            )
         # SPEC-Z17: append-only event log
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_partial(

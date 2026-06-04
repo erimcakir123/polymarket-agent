@@ -9,14 +9,13 @@ def test_final_exit_appends_event_log():
     deps = SimpleNamespace(
         state=SimpleNamespace(portfolio=MagicMock()),
         trade_logger=MagicMock(),
-        trade_exits_log=None,
         trade_event_log=MagicMock(),
         price_feed=None,
         notifier=None,
     )
     proc = ExitProcessor.__new__(ExitProcessor)
     proc.deps = deps
-    # Doğrudan _orphan_meta(pos) çağrısı + append testi için minimal pozisyon
+    # Minimal pozisyon — Z17 append_final wiring testi
     pos = MagicMock()
     pos.condition_id = "c1"
     pos.slug = "s"

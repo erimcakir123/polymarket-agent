@@ -364,3 +364,5 @@ def test_log_partial_exit_no_match_warns(tmp_path: Path, caplog) -> None:
     )
     assert result is True
     assert any("orphan" in rec.message.lower() for rec in caplog.records)
+
+

@@ -20,7 +20,6 @@ from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_event_log import TradeEventLog
-from src.infrastructure.persistence.trade_exits_log import TradeExitsLog
 from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.telegram.notifier import TelegramNotifier
@@ -59,7 +58,6 @@ class AgentDeps:
     stock: StockQueue
     bot_status_writer: BotStatusWriter
     price_feed: PriceFeed | None = None
-    trade_exits_log: TradeExitsLog | None = None  # SPEC-Z16: append-only event log
     trade_event_log: TradeEventLog | None = None  # SPEC-Z17: append-only event log (tek truth)
     command_poller: TelegramCommandPoller | None = None
     score_enricher: ScoreEnricher | None = None  # SPEC-B: light cycle score injector + SPEC-Z5 match_live refresh

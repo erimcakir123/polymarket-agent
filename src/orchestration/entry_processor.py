@@ -14,7 +14,6 @@ from src.models.market import MarketData
 from src.models.position import Position
 from src.models.signal import Signal
 from src.orchestration import operational_writers
-from src.orchestration.entry_recovery import write_entry_recovery
 from src.orchestration.notifier_hooks import notify_entry_safe
 from src.orchestration.entry_guards import (
     check_correlated_bet,
@@ -386,13 +385,7 @@ class EntryProcessor:
                 label, position.slug[:35], position.event_id, position.condition_id[:16],
             )
             return False
-        # SPEC-Z15 (06-04): log() fail → recovery file (orphan önleme).
-        try:
-            self.deps.trade_logger.log(trade_record)
-        except Exception as e:
-            logger.error("ENTRY LOG FAIL %s (cid=%s): %s — writing to recovery file",
-                         position.slug[:35], position.condition_id[:16], e, exc_info=True)
-            write_entry_recovery(trade_record)
+        self.deps.trade_logger.log(trade_record)
         # SPEC-Z17: append-only event log (paralel yazım; Task 12'de legacy temizlenecek)
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_entry(
