@@ -99,53 +99,43 @@ def read_session_start(logs_dir: Path) -> str:
 
 
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """Trade history — session + audit (sadece AKTİF dosyalar, archive YOK).
+    """SPEC-Z17 (2026-06-04): trade kayıtları event log replay sonucu.
 
-    Kaynaklar:
-      - logs/session/trade_history.jsonl     (reboot mirror, fresh)
-      - logs/audit/trade_history.jsonl       (aktif session audit'i, fresh)
+    Dosyalar: session/trade_events.jsonl + audit/trade_events.jsonl (mirror).
+    Event'ler signature ile dedupe edilir (kind + condition_id + timestamp +
+    pnl), sonra domain.trade.event_replay.replay_events ile trade record
+    listesine dönüştürülür.
 
-    Archive dosyaları (`trade_history.archive.*.jsonl`) BİLİNÇLİ atlanır
-    (2026-05-23 kullanıcı kararı): reboot = gerçek 0 nokta semantiği.
-    Eski SPEC-Q "archive'ları da oku" davranışı geri çevrildi çünkü reboot
-    sonrası dashboard hâlâ eski geçmişi gösteriyordu. Archive dosyaları forensic
-    için disk'te durur ama dashboard görmez.
-
-    Dedupe by (condition_id, entry_timestamp): aynı kayıt iki dosyada varsa
-    daha zengin exit data taşıyan kazanır.
+    Trade_history.jsonl artık OKUNMAZ (Z15/Z16 legacy).
     """
-    audit_dir = logs_dir / "audit"
+    from src.domain.trade.event_replay import replay_events
+
     paths = [
-        logs_dir / "session" / "trade_history.jsonl",
-        audit_dir / "trade_history.jsonl",
+        logs_dir / "session" / "trade_events.jsonl",
+        logs_dir / "audit" / "trade_events.jsonl",
     ]
-    by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    no_key: list[dict[str, Any]] = []
-    for path in paths:
-        if not path.exists():
+    seen: set[tuple] = set()
+    events: list[dict[str, Any]] = []
+    for p in paths:
+        if not p.exists():
             continue
-        for r in _read_jsonl_tail(path, n, _BYTES_TRADES):
-            cid = r.get("condition_id") or ""
-            ts = r.get("entry_timestamp") or ""
-            if not cid or not ts:
-                no_key.append(r)
+        for ev in _read_jsonl_tail(p, n, _BYTES_TRADES):
+            kind = ev.get("kind")
+            cid = ev.get("condition_id")
+            ts = (ev.get("timestamp") or ev.get("exit_timestamp")
+                  or ev.get("entry_timestamp") or "")
+            pnl_raw = (ev.get("realized_pnl_usdc")
+                       or ev.get("exit_pnl_usdc") or 0)
+            try:
+                pnl = round(float(pnl_raw), 4)
+            except (TypeError, ValueError):
+                pnl = 0.0
+            sig = (kind, cid, ts, pnl)
+            if sig in seen:
                 continue
-            key = (cid, ts)
-            existing = by_key.get(key)
-            if existing is None:
-                by_key[key] = r
-                continue
-            new_score = (
-                len(r.get("partial_exits") or []),
-                int(r.get("exit_price") is not None),
-            )
-            ex_score = (
-                len(existing.get("partial_exits") or []),
-                int(existing.get("exit_price") is not None),
-            )
-            if new_score > ex_score:
-                by_key[key] = r
-    return list(by_key.values()) + no_key
+            seen.add(sig)
+            events.append(ev)
+    return replay_events(events)
 
 
 def read_trades_by_week(
