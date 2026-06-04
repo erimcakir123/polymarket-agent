@@ -1,10 +1,15 @@
 """Günlük kalibrasyon eğrisi update orchestrator (Plan 1.D Task 6).
 
 Sackmann refresh paralel: bot başlangıçta stale check → stale ise
-trade history'den fit_calibration → calibration_store'a yaz.
+event log'dan fit_calibration → calibration_store'a yaz.
 
 Stale: dosya son 24 saatten eski (2026-06-02: 7 gün → 1 gün, kullanıcı kararı).
 Bozulma/yokluk → graceful skip + log.
+
+SPEC-Z17 (2026-06-04): kaynak artık trade_events.jsonl event log; entry event'ler
+calibration bucketing icin doğrudan kullanılır (sport_tag + anchor_probability +
+market_type + resolved_outcome). market_type/resolved_outcome alanları gelecekte
+event log'a eklenecek metadata — şu an placeholder.
 """
 from __future__ import annotations
 
@@ -31,7 +36,11 @@ def is_calibration_stale(path: Path) -> bool:
 
 
 def _read_trades(path: Path) -> list[dict]:
-    """Trade history JSONL'den oku — bozuk satırları atla."""
+    """Trade event log JSONL'den ham entry event'leri oku — bozuk satırları atla.
+
+    SPEC-Z17 sonrası tek truth = trade_events.jsonl. Calibration buckets entry
+    event'ler üzerinde çalışır; sadece kind="entry" event'leri filtrelenir.
+    """
     if not path.exists():
         return []
     trades: list[dict] = []
@@ -41,9 +50,14 @@ def _read_trades(path: Path) -> list[dict]:
             if not line:
                 continue
             try:
-                trades.append(json.loads(line))
+                obj = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            # Z17 event log → "entry" event'leri trade-record yerine geçer.
+            # Eski raw record formatı (kind alanı yok) backwards-compat kabul edilir.
+            kind = obj.get("kind")
+            if kind in (None, "entry"):
+                trades.append(obj)
     return trades
 
 

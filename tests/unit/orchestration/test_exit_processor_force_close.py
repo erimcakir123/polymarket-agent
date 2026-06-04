@@ -82,12 +82,12 @@ def _make_deps_and_pos(orderbook_bids: list[dict]):
 
     deps.state.portfolio.remove_position = MagicMock(side_effect=fake_remove)
 
-    def fake_update_on_exit(_cid, payload):
-        captured["exit_reason"] = payload.get("exit_reason")
-        captured["exit_price"] = payload.get("exit_price")
-        return True
+    # SPEC-Z17: tek truth = trade_event_log; exit verisini event'ten yakala.
+    def fake_append_final(condition_id, exit_price, exit_reason, **_kw):
+        captured["exit_reason"] = exit_reason
+        captured["exit_price"] = exit_price
 
-    deps.trade_logger.update_on_exit = MagicMock(side_effect=fake_update_on_exit)
+    deps.trade_event_log.append_final = MagicMock(side_effect=fake_append_final)
 
     return deps, pos, captured
 

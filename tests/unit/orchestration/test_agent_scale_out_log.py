@@ -1,4 +1,8 @@
-"""Agent scale-out branch — partial exit'te trade_logger.log_partial_exit çağrılmalı."""
+"""Agent scale-out branch — partial exit'te event log'a partial yazılmalı.
+
+SPEC-Z17 (2026-06-04): trade_logger.log_partial_exit kaldırıldı; tek truth
+artık trade_event_log.append_partial.
+"""
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -52,7 +56,6 @@ def _make_deps_with_position():
         cycle_manager=MagicMock(),
         executor=executor,
         odds_client=MagicMock(),
-        trade_logger=MagicMock(),
         gate=MagicMock(),
         cooldown=MagicMock(),
         equity_logger=MagicMock(),
@@ -60,11 +63,12 @@ def _make_deps_with_position():
         stock=MagicMock(),
         bot_status_writer=MagicMock(),
         price_feed=None,
+        trade_event_log=MagicMock(),
     ), pos
 
 
-def test_execute_partial_exit_calls_trade_logger_with_tier_and_pnl():
-    """Scale-out partial exit'te trade_logger.log_partial_exit doğru argümanlarla çağrılır."""
+def test_execute_partial_exit_calls_event_log_with_tier_and_pnl():
+    """SPEC-Z17: scale-out partial exit'te trade_event_log.append_partial doğru argümanlarla çağrılır."""
     deps, pos = _make_deps_with_position()
     agent = Agent(deps)
     signal = ExitSignal(
@@ -75,8 +79,8 @@ def test_execute_partial_exit_calls_trade_logger_with_tier_and_pnl():
     )
     agent._exit._execute_exit(pos, signal)
 
-    assert deps.trade_logger.log_partial_exit.called
-    kwargs = deps.trade_logger.log_partial_exit.call_args.kwargs
+    assert deps.trade_event_log.append_partial.called
+    kwargs = deps.trade_event_log.append_partial.call_args.kwargs
     assert kwargs["condition_id"] == "cid"
     assert kwargs["tier"] == 1
     assert kwargs["sell_pct"] == 0.4
@@ -127,5 +131,5 @@ def test_partial_exit_rollback_on_race():
     assert pos.shares == pytest.approx(shares_before)
     assert pos.size_usdc == pytest.approx(size_before)
     assert pos.scale_out_realized_usdc == pytest.approx(realized_before)
-    # trade_logger çağrılmadı (rollback'ten sonra return)
-    assert not deps.trade_logger.log_partial_exit.called
+    # event log çağrılmadı (rollback'ten sonra return)
+    assert not deps.trade_event_log.append_partial.called

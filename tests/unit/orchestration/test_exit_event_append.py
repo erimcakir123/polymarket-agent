@@ -8,7 +8,6 @@ def test_final_exit_appends_event_log():
 
     deps = SimpleNamespace(
         state=SimpleNamespace(portfolio=MagicMock()),
-        trade_logger=MagicMock(),
         trade_event_log=MagicMock(),
         price_feed=None,
         notifier=None,

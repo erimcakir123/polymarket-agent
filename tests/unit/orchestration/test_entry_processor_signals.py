@@ -136,11 +136,11 @@ def test_process_signals_passes_to_executor_when_clean() -> None:
     assert deps.executor.execute.call_count == 1
 
 
-def test_process_signals_persists_position_and_trade_record() -> None:
-    """Successful fill → portfolio.add_position called + trade_logger.log called."""
+def test_process_signals_persists_position_and_trade_event() -> None:
+    """SPEC-Z17: Successful fill → portfolio.add_position called + trade_event_log.append_entry called."""
     deps = _mk_deps()
     deps.state.portfolio.add_position.return_value = True
     processor = EntryProcessor(deps)
     processor.process_signals(markets=[_mk_market()], signals=[_mk_signal()])
     assert deps.state.portfolio.add_position.call_count == 1
-    assert deps.trade_logger.log.call_count == 1
+    assert deps.trade_event_log.append_entry.call_count == 1

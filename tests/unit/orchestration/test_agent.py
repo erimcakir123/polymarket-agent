@@ -18,7 +18,7 @@ from src.infrastructure.persistence.json_store import JsonStore
 from src.infrastructure.persistence.stock_snapshot import StockSnapshot
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
+from src.infrastructure.persistence.trade_event_log import TradeEventLog
 from src.models.market import MarketData
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.cycle_manager import CycleManager
@@ -107,7 +107,11 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
         odds_enricher=enricher, manipulation_checker=manip,
     )
 
-    trade_logger = TradeHistoryLogger(str(tmp_path / "trade_history.jsonl"))
+    # SPEC-Z17: tek truth = trade_event_log (audit + session mirror)
+    trade_event_log = TradeEventLog(
+        str(tmp_path / "audit" / "trade_events.jsonl"),
+        mirror_path=str(tmp_path / "session" / "trade_events.jsonl"),
+    )
     equity_logger = EquityHistoryLogger(str(tmp_path / "equity_history.jsonl"))
     skipped_logger = SkippedTradeLogger(str(tmp_path / "skipped_trades.jsonl"))
     stock_snapshot = StockSnapshot(str(tmp_path / "stock_queue.json"))
@@ -117,7 +121,8 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
 
     return AgentDeps(
         state=state, scanner=scanner, cycle_manager=cm,
-        executor=executor, odds_client=odds_client, trade_logger=trade_logger,
+        executor=executor, odds_client=odds_client,
+        trade_event_log=trade_event_log,
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
@@ -147,21 +152,22 @@ def test_heavy_cycle_no_enrichment_no_position(tmp_path: Path, monkeypatch) -> N
     assert deps.state.portfolio.count() == 0
 
 
-def test_trade_logger_records_entry(tmp_path: Path, monkeypatch) -> None:
+def test_trade_event_log_records_entry(tmp_path: Path, monkeypatch) -> None:
+    """SPEC-Z17: entry event log'a entry event yazılır."""
     deps = _build_deps(tmp_path, [_market(cid="m1", yes=0.50)], bm_result=_bm(prob=0.65, conf="A"))
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     agent = Agent(deps)
     agent.run(max_ticks=1)
-    rows = deps.trade_logger.read_all()
-    assert len(rows) == 1
-    assert rows[0]["slug"] == "nba-lal-bos-m1"
-    assert rows[0]["sport_category"] == "basketball"
-    assert rows[0]["league"] == "nba"
-    assert rows[0]["confidence"] == "A"
+    events = deps.trade_event_log.read_events()
+    entries = [e for e in events if e.get("kind") == "entry"]
+    assert len(entries) == 1
+    assert entries[0]["slug"] == "nba-lal-bos-m1"
+    assert entries[0]["sport_tag"] == "basketball_nba"
+    assert entries[0]["confidence"] == "A"
 
 
-def test_trade_record_carries_num_bookmakers_and_has_sharp(tmp_path: Path, monkeypatch) -> None:
-    """Entry kaydı bookmaker sayısını ve sharp flag'i gate'ten taşımalı."""
+def test_trade_event_carries_num_bookmakers_and_has_sharp(tmp_path: Path, monkeypatch) -> None:
+    """Entry event kaydı bookmaker sayısını ve sharp flag'i gate'ten taşımalı."""
     deps = _build_deps(
         tmp_path, [_market(cid="m1", yes=0.50)],
         bm_result=BookmakerProbability(
@@ -171,10 +177,11 @@ def test_trade_record_carries_num_bookmakers_and_has_sharp(tmp_path: Path, monke
     )
     monkeypatch.setattr(time, "sleep", lambda *a: None)
     Agent(deps).run(max_ticks=1)
-    rows = deps.trade_logger.read_all()
-    assert len(rows) == 1
-    assert rows[0]["num_bookmakers"] == 12.0
-    assert rows[0]["has_sharp"] is True
+    events = deps.trade_event_log.read_events()
+    entries = [e for e in events if e.get("kind") == "entry"]
+    assert len(entries) == 1
+    assert entries[0]["num_bookmakers"] == 12.0
+    assert entries[0]["has_sharp"] is True
 
 
 # ── Light cycle / exit ──

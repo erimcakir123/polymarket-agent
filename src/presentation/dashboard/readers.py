@@ -159,7 +159,8 @@ def read_trades_by_week(
 
     buffer_weeks = week_offset + 2
     n = 150 * buffer_weeks
-    all_trades = _read_jsonl_tail(logs_dir / "session" / "trade_history.jsonl", n, _BYTES_TRADES)
+    # SPEC-Z17: kaynak event log; read_trades replay sonucunu döndürür.
+    all_trades = read_trades(logs_dir, n=n)
 
     week_trades: list[dict[str, Any]] = []
     has_older = False

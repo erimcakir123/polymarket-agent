@@ -56,7 +56,8 @@ def _maybe_invoke_calibration_refresh() -> None:
     save atomic, yarım dosya riski yok.
     """
     from src.orchestration.calibration_refresher import refresh_calibration_if_stale
+    # SPEC-Z17 (2026-06-04): tek truth = event log; refresher dahili replay yapar.
     refresh_calibration_if_stale(
         calibration_path=Path("data/calibration_curves.json"),
-        trades_path=Path("logs/audit/trade_history.jsonl"),
+        trades_path=Path("logs/audit/trade_events.jsonl"),
     )

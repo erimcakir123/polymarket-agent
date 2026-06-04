@@ -1,10 +1,11 @@
-"""trade_logger.py için birim testler."""
+"""trade_logger.py için birim testler — sadece veri modeli + sport_tag ayrıştırıcı.
+
+SPEC-Z17 (2026-06-04): TradeHistoryLogger sınıfı kaldırıldığı için ona ait
+testler de silindi. Append-only event log testleri test_trade_event_log.py'de.
+"""
 from __future__ import annotations
 
-from pathlib import Path
-
 from src.infrastructure.persistence.trade_logger import (
-    TradeHistoryLogger,
     TradeRecord,
     _split_sport_tag,
 )
@@ -108,90 +109,8 @@ def test_trade_record_full_lifecycle_json_roundtrip() -> None:
     assert restored.we_were_right is True
 
 
-def test_logger_log_appends_jsonl_line(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "trade_history.jsonl"))
-    log.log(_valid_record(slug="a-b"))
-    log.log(_valid_record(slug="c-d"))
-    rows = log.read_recent(10)
-    assert len(rows) == 2
-    assert rows[0]["slug"] == "a-b"
-    assert rows[1]["slug"] == "c-d"
-
-
-def test_logger_read_recent_last_n(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
-    for i in range(20):
-        log.log(_valid_record(slug=f"m-{i}"))
-    recent = log.read_recent(5)
-    assert len(recent) == 5
-    assert recent[-1]["slug"] == "m-19"
-    assert recent[0]["slug"] == "m-15"
-
-
-def test_logger_read_all(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
-    log.log(_valid_record(slug="x"))
-    log.log(_valid_record(slug="y"))
-    rows = log.read_all()
-    assert len(rows) == 2
-
-
-def test_logger_missing_file_returns_empty(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "nope.jsonl"))
-    assert log.read_recent(10) == []
-    assert log.read_all() == []
-
-
-def test_logger_creates_parent_dir(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "deep" / "nested" / "t.jsonl"))
-    log.log(_valid_record())
-    assert (tmp_path / "deep" / "nested" / "t.jsonl").exists()
-
-
-def test_update_on_exit_fills_exit_fields(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
-    log.log(_valid_record(slug="match-1", condition_id="c1"))
-    ok = log.update_on_exit("c1", {
-        "exit_price": 0.72, "exit_reason": "scale_out",
-        "exit_pnl_usdc": 12.5, "exit_pnl_pct": 0.18,
-        "exit_timestamp": "2026-04-14T23:00:00Z",
-    })
-    assert ok is True
-    rows = log.read_all()
-    assert len(rows) == 1
-    assert rows[0]["exit_price"] == 0.72
-    assert rows[0]["exit_reason"] == "scale_out"
-
-
-def test_update_on_exit_only_touches_open_record(tmp_path: Path) -> None:
-    log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
-    # Aynı condition_id için kapalı + açık iki kayıt (re-entry senaryosu)
-    log.log(_valid_record(condition_id="c1"))
-    log.update_on_exit("c1", {"exit_price": 0.5, "exit_pnl_usdc": 1.0})
-    log.log(_valid_record(condition_id="c1"))  # ikinci (açık) pozisyon
-    log.update_on_exit("c1", {"exit_price": 0.8, "exit_pnl_usdc": 5.0})
-    rows = log.read_all()
-    assert rows[0]["exit_price"] == 0.5
-    assert rows[1]["exit_price"] == 0.8
-
-
-def test_update_on_exit_no_match_writes_standalone(tmp_path: Path) -> None:
-    """SPEC-Z6: orphan exit standalone record olarak yazılır, True döner."""
-    log = TradeHistoryLogger(str(tmp_path / "t.jsonl"))
-    log.log(_valid_record(condition_id="c1"))
-    assert log.update_on_exit("nonexistent", {"exit_price": 0.5, "exit_pnl_usdc": 7.5}) is True
-    records = log.read_all()
-    orphan = [r for r in records if r.get("condition_id") == "nonexistent"]
-    assert len(orphan) == 1
-    assert orphan[0]["exit_price"] == 0.5
-    assert orphan[0]["exit_pnl_usdc"] == 7.5
-    assert orphan[0]["slug"] == "(orphan)"
-    assert orphan[0]["entry_price"] is None
-
-
 def test_trade_record_default_partial_exits_is_empty_list():
     """Yeni TradeRecord oluşturulduğunda partial_exits varsayılan boş liste."""
-    from src.infrastructure.persistence.trade_logger import TradeRecord
     record = TradeRecord(
         slug="x", condition_id="cid", event_id="e", token_id="t",
         sport_tag="mlb", sport_category="mlb", league="",
@@ -204,7 +123,6 @@ def test_trade_record_default_partial_exits_is_empty_list():
 
 def test_trade_record_accepts_partial_exits():
     """TradeRecord partial_exits listesi kabul etmeli."""
-    from src.infrastructure.persistence.trade_logger import TradeRecord
     pe_data = [{"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
                 "timestamp": "2026-04-15T01:00:00Z"}]
     record = TradeRecord(
@@ -216,153 +134,3 @@ def test_trade_record_accepts_partial_exits():
         partial_exits=pe_data,
     )
     assert record.partial_exits == pe_data
-
-
-def test_log_partial_exit_appends_to_open_record(tmp_path):
-    """Açık trade kaydının partial_exits listesine yeni partial eklenir."""
-    from src.infrastructure.persistence.trade_logger import (
-        TradeHistoryLogger, TradeRecord,
-    )
-    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
-    open_rec = TradeRecord(
-        slug="x", condition_id="cid", event_id="e", token_id="t",
-        sport_tag="mlb", sport_category="mlb", league="",
-        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
-        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
-        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
-    )
-    logger.log(open_rec)
-
-    ok = logger.log_partial_exit(
-        condition_id="cid", tier=1, sell_pct=0.4,
-        realized_pnl_usdc=5.0, timestamp="2026-04-15T01:00:00Z",
-        price=0.62,
-    )
-    assert ok is True
-
-    records = logger.read_all()
-    assert len(records) == 1
-    assert records[0]["partial_exits"] == [
-        {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 5.0,
-         "timestamp": "2026-04-15T01:00:00Z", "price": 0.62}
-    ]
-
-
-def test_log_partial_exit_appends_to_open_trade(tmp_path):
-    """Partial exit acik trade record'una append edilir."""
-    from src.infrastructure.persistence.trade_logger import (
-        TradeHistoryLogger, TradeRecord,
-    )
-    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
-    logger.log(TradeRecord(
-        slug="x", condition_id="cid", event_id="e", token_id="t",
-        sport_tag="mlb", sport_category="mlb", league="",
-        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
-        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
-        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
-    ))
-    logger.log_partial_exit(condition_id="cid", tier=1, sell_pct=0.4,
-                            realized_pnl_usdc=5.0, timestamp="t1",
-                            price=0.62)
-    records = logger.read_all()
-    assert len(records[0]["partial_exits"]) == 1
-    assert records[0]["partial_exits"][0]["tier"] == 1
-    assert records[0]["partial_exits"][0]["sell_pct"] == 0.4
-    assert records[0]["partial_exits"][0]["price"] == 0.62
-
-
-def test_log_partial_exit_writes_standalone_if_no_open_record(tmp_path):
-    """SPEC-Z6: orphan partial standalone yazılır, True döner."""
-    from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
-    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
-    ok = logger.log_partial_exit(
-        condition_id="missing", tier=1, sell_pct=0.4,
-        realized_pnl_usdc=5.0, timestamp="t1", price=0.62,
-    )
-    assert ok is True
-    recs = logger.read_all()
-    assert len(recs) == 1
-    assert recs[0]["partial_exits"][0]["realized_pnl_usdc"] == 5.0
-
-
-def test_log_partial_exit_persists_price_field(tmp_path):
-    """Partial exit kaydında 'price' alanı tam olarak korunur (yuvarlama yok)."""
-    from src.infrastructure.persistence.trade_logger import (
-        TradeHistoryLogger, TradeRecord,
-    )
-    logger = TradeHistoryLogger(str(tmp_path / "trades.jsonl"))
-    logger.log(TradeRecord(
-        slug="x", condition_id="cid", event_id="e", token_id="t",
-        sport_tag="mlb", sport_category="mlb", league="",
-        direction="BUY_YES", entry_price=0.5, size_usdc=50.0, shares=100.0,
-        confidence="A", bookmaker_prob=0.6, anchor_probability=0.6,
-        entry_reason="consensus", entry_timestamp="2026-04-15T00:00:00Z",
-    ))
-    logger.log_partial_exit(condition_id="cid", tier=2, sell_pct=0.3,
-                            realized_pnl_usdc=9.0, timestamp="t2",
-                            price=0.7345)
-    records = logger.read_all()
-    assert records[0]["partial_exits"][0]["price"] == 0.7345
-
-
-def test_read_all_no_corrupt_no_flag(tmp_path: Path) -> None:
-    """Bozuk satır yoksa corrupt_lines = 0."""
-    p = tmp_path / "trade.jsonl"
-    p.write_text('{"a":1}\n{"b":2}\n', encoding="utf-8")
-    log = TradeHistoryLogger(str(p))
-    records = log.read_all()
-    assert len(records) == 2
-    assert log.corrupt_lines == 0
-    assert log.corrupt_threshold_exceeded is False
-
-
-def test_read_all_few_corrupt_warns_no_flag(tmp_path: Path) -> None:
-    """1-2 bozuk satır → continue + corrupt_lines artar (threshold altı)."""
-    p = tmp_path / "trade.jsonl"
-    p.write_text('{"a":1}\nNOT JSON\n{"b":2}\n', encoding="utf-8")
-    log = TradeHistoryLogger(str(p))
-    records = log.read_all()
-    assert len(records) == 2
-    assert log.corrupt_lines == 1
-    assert log.corrupt_threshold_exceeded is False
-
-
-def test_read_all_threshold_corrupt_raises_alarm(tmp_path: Path) -> None:
-    """3+ bozuk → corrupt_threshold_exceeded True."""
-    p = tmp_path / "trade.jsonl"
-    p.write_text('NOPE\n{not valid\n!!!\n{"valid":true}\n', encoding="utf-8")
-    log = TradeHistoryLogger(str(p))
-    records = log.read_all()
-    assert len(records) == 1
-    assert log.corrupt_lines == 3
-    assert log.corrupt_threshold_exceeded is True
-
-
-def test_update_on_exit_no_match_warns(tmp_path: Path, caplog) -> None:
-    """SPEC-Z6: orphan exit WARNING üretir + standalone yazar (True döner)."""
-    import logging
-    caplog.set_level(logging.WARNING)
-    p = tmp_path / "trade.jsonl"
-    p.write_text("", encoding="utf-8")
-    log = TradeHistoryLogger(str(p))
-    result = log.update_on_exit("orphan_cid_12345", {"exit_price": 0.5})
-    assert result is True
-    assert any("orphan" in rec.message.lower() for rec in caplog.records)
-    assert any("no matching open record" in rec.message for rec in caplog.records)
-
-
-def test_log_partial_exit_no_match_warns(tmp_path: Path, caplog) -> None:
-    """SPEC-Z6: orphan partial WARNING üretir + standalone yazar (True döner)."""
-    import logging
-    caplog.set_level(logging.WARNING)
-    p = tmp_path / "trade.jsonl"
-    p.write_text("", encoding="utf-8")
-    log = TradeHistoryLogger(str(p))
-    result = log.log_partial_exit(
-        condition_id="orphan_cid", tier=1, sell_pct=0.4,
-        realized_pnl_usdc=5.0, timestamp="2026-05-09T00:00:00Z", price=0.55,
-    )
-    assert result is True
-    assert any("orphan" in rec.message.lower() for rec in caplog.records)
-
-

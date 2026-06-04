@@ -80,7 +80,6 @@ def _make_deps(captured_positions: list):
         bot_status_writer=MagicMock(),
         equity_logger=MagicMock(),
         executor=MagicMock(),
-        trade_logger=MagicMock(),
         price_feed=None,
     )
     deps.gate.config = gate_config

@@ -200,14 +200,18 @@ class HealthMonitor:
         return (now - ts).total_seconds() > self.scraper_stale_hours * 3600
 
     def _check_consecutive_losses(self) -> list[Alert]:
-        """trade_history son N exit'in hepsi zarar → warning."""
-        history = self.audit_dir / "trade_history.jsonl"
-        if not history.exists():
+        """trade_events.jsonl son N exit'in hepsi zarar → warning.
+
+        SPEC-Z17 (2026-06-04): kaynak event log; sadece kind="final" event'ler
+        gerçek tam kapanışı temsil eder (entry/partial atlanır).
+        """
+        events_path = self.audit_dir / "trade_events.jsonl"
+        if not events_path.exists():
             return []
         try:
-            lines = history.read_text(encoding="utf-8").splitlines()
+            lines = events_path.read_text(encoding="utf-8").splitlines()
         except OSError as e:
-            logger.warning("health check trade_history read fail: %s", e)
+            logger.warning("health check trade_events read fail: %s", e)
             return []
         exits: list[float] = []
         for line in reversed(lines):
@@ -217,9 +221,11 @@ class HealthMonitor:
                 d = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if d.get("kind") != "final":
+                continue  # entry/partial event'leri sayma
             pnl = d.get("exit_pnl_usdc")
             if pnl is None or pnl == 0.0:
-                continue  # entry kayıt veya orphan
+                continue
             exits.append(float(pnl))
             if len(exits) >= self.consecutive_losses_threshold:
                 break

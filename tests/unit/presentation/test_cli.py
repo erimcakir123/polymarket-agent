@@ -87,17 +87,28 @@ def test_cli_trades_empty(capsys) -> None:
 
 
 def test_cli_trades_with_data(capsys, tmp_path: Path) -> None:
-    line = json.dumps({
-        "slug": "nba-lal-bos", "condition_id": "0x1", "event_id": "e1", "token_id": "t",
-        "sport_tag": "nba", "sport_category": "basketball", "league": "nba",
-        "direction": "BUY_YES", "entry_price": 0.40, "size_usdc": 40, "shares": 100,
-        "confidence": "A", "bookmaker_prob": 0.55, "anchor_probability": 0.55,
-        "num_bookmakers": 10.0, "has_sharp": True,
-        "entry_reason": "normal", "entry_timestamp": "2026-04-13T20:00:00Z",
-        "exit_price": 0.50, "exit_pnl_usdc": 10.0, "exit_reason": "scale_out",
-        "exit_timestamp": "2026-04-13T21:00:00Z",
-    })
-    (tmp_path / "trade_history.jsonl").write_text(line + "\n", encoding="utf-8")
+    """SPEC-Z17: kaynak event log (audit/trade_events.jsonl) — entry+final replay."""
+    audit = tmp_path / "audit"
+    audit.mkdir(parents=True, exist_ok=True)
+    events = [
+        {
+            "kind": "entry", "condition_id": "0x1",
+            "slug": "nba-lal-bos", "question": "", "sport_tag": "nba", "source": "bookmaker",
+            "direction": "BUY_YES", "entry_price": 0.40, "entry_timestamp": "2026-04-13T20:00:00Z",
+            "size_usdc": 40, "shares": 100, "confidence": "A",
+            "bookmaker_prob": 0.55, "anchor_probability": 0.55,
+            "num_bookmakers": 10.0, "has_sharp": True, "entry_reason": "normal",
+        },
+        {
+            "kind": "final", "condition_id": "0x1",
+            "slug": "nba-lal-bos", "question": "", "sport_tag": "nba", "source": "bookmaker",
+            "exit_price": 0.50, "exit_reason": "scale_out",
+            "exit_pnl_usdc": 10.0, "exit_timestamp": "2026-04-13T21:00:00Z",
+        },
+    ]
+    (audit / "trade_events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8",
+    )
     cli.main(["trades"])
     out = capsys.readouterr().out
     assert "nba-lal-bos" in out

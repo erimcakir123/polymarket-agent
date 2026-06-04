@@ -69,12 +69,13 @@ def test_scraper_healthy_state_no_alert(tmp_path: Path) -> None:
 
 
 def test_consecutive_losses_triggers_warning(tmp_path: Path) -> None:
+    """SPEC-Z17: kaynak trade_events.jsonl; kind='final' event'ler okunur."""
     monitor = _make_monitor(tmp_path, consecutive_losses=3)
-    history = monitor.audit_dir / "trade_history.jsonl"
+    history = monitor.audit_dir / "trade_events.jsonl"
     lines = [
-        '{"slug":"a","exit_pnl_usdc":-5.0,"exit_timestamp":"2026-06-02T17:00"}',
-        '{"slug":"b","exit_pnl_usdc":-3.0,"exit_timestamp":"2026-06-02T17:10"}',
-        '{"slug":"c","exit_pnl_usdc":-2.0,"exit_timestamp":"2026-06-02T17:20"}',
+        '{"kind":"final","slug":"a","exit_pnl_usdc":-5.0,"exit_timestamp":"2026-06-02T17:00"}',
+        '{"kind":"final","slug":"b","exit_pnl_usdc":-3.0,"exit_timestamp":"2026-06-02T17:10"}',
+        '{"kind":"final","slug":"c","exit_pnl_usdc":-2.0,"exit_timestamp":"2026-06-02T17:20"}',
     ]
     history.write_text("\n".join(lines))
     alerts = monitor.check_all()
@@ -84,11 +85,11 @@ def test_consecutive_losses_triggers_warning(tmp_path: Path) -> None:
 def test_consecutive_with_win_no_alert(tmp_path: Path) -> None:
     """Son N exit'in BİRİ kâr ise alert YOK."""
     monitor = _make_monitor(tmp_path, consecutive_losses=3)
-    history = monitor.audit_dir / "trade_history.jsonl"
+    history = monitor.audit_dir / "trade_events.jsonl"
     lines = [
-        '{"slug":"a","exit_pnl_usdc":-5.0}',
-        '{"slug":"b","exit_pnl_usdc":3.0}',   # kâr
-        '{"slug":"c","exit_pnl_usdc":-2.0}',
+        '{"kind":"final","slug":"a","exit_pnl_usdc":-5.0}',
+        '{"kind":"final","slug":"b","exit_pnl_usdc":3.0}',   # kâr
+        '{"kind":"final","slug":"c","exit_pnl_usdc":-2.0}',
     ]
     history.write_text("\n".join(lines))
     alerts = monitor.check_all()

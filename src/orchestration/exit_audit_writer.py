@@ -1,7 +1,9 @@
-"""Exit-side audit + alert helpers — ExitProcessor'dan ayrı modül (ARCH_GUARD §3).
+"""Exit-side alert helpers — ExitProcessor'dan ayrı modül (ARCH_GUARD §3).
 
   - emit_force_close_alert: force-close eşik geçti, alarm üret (otomatik exit YOK)
-  - write_synth_exit_record: orphan/phantom-yok exit'lerde audit gap kapatıcı
+
+SPEC-Z17 (2026-06-04): write_synth_exit_record kaldırıldı — event log append-only
+tek truth olduğu için orphan/phantom-yok exit fallback path'i artık gereksiz.
 """
 from __future__ import annotations
 
@@ -57,58 +59,3 @@ def emit_force_close_alert(deps, fc_alerts, pos: Position, signal) -> None:
         pos.unrealized_pnl_pct,
         elapsed_min,
     )
-
-
-def write_synth_exit_record(
-    deps,
-    pos: Position,
-    exit_reason_value: str,
-    exit_price: float,
-    realized: float,
-    pnl_pct: float,
-    now_iso: str,
-) -> None:
-    """SPEC-G: orphan/phantom-yok exit'lerde audit gap'i kapatmak icin
-    complete synth record yaz. Entry + exit aynı satirda, gercek pos verileriyle.
-
-    2026-05-27: signature signal yerine primitive — force-close path da
-    kullanır (signal nesnesi olmayabilir)."""
-    from src.infrastructure.persistence.trade_logger import TradeRecord, _split_sport_tag
-    category, league = _split_sport_tag(pos.sport_tag or "")
-    try:
-        record = TradeRecord(
-            slug=pos.slug or "",
-            condition_id=pos.condition_id,
-            event_id=pos.event_id or "",
-            token_id=pos.token_id or "",
-            question=pos.question or "",
-            sport_tag=pos.sport_tag or "",
-            sport_category=category,
-            league=league,
-            direction=pos.direction,
-            entry_price=pos.entry_price,
-            size_usdc=pos.size_usdc,
-            shares=pos.shares,
-            confidence=pos.confidence or "",
-            bookmaker_prob=pos.bookmaker_prob or 0.0,
-            anchor_probability=pos.anchor_probability,
-            num_bookmakers=0,
-            has_sharp=False,
-            entry_reason=f"synth-from-exit:{pos.entry_reason or 'unknown'}",
-            entry_timestamp=pos.match_start_iso or now_iso,
-            exit_price=exit_price,
-            exit_reason=exit_reason_value,
-            exit_pnl_usdc=round(realized, 2),
-            exit_pnl_pct=round(pnl_pct, 4),
-            exit_timestamp=now_iso,
-        )
-        deps.trade_logger.log(record)
-        logger.info(
-            "EXIT %s: synth-from-exit kaydi yazildi (orphan recovery, audit gap kapatildi)",
-            pos.slug[:35],
-        )
-    except Exception as e:
-        logger.warning(
-            "EXIT %s: synth-from-exit yazimi da basarisiz: %s — bakiye in-memory korunur",
-            pos.slug[:35], e,
-        )

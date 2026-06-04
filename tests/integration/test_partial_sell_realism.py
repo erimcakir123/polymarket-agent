@@ -134,13 +134,13 @@ def test_exit_processor_partial_exit_rejected_keeps_position(tmp_path):
 
     # Mock portfolio — apply_partial_exit ÇAĞRILMAMALI
     portfolio = MagicMock()
-    trade_logger = MagicMock()
+    trade_event_log = MagicMock()
 
     # Mock deps
     deps = MagicMock()
     deps.executor = rejecting_executor
     deps.state.portfolio = portfolio
-    deps.trade_logger = trade_logger
+    deps.trade_event_log = trade_event_log
 
     from src.orchestration.exit_processor import ExitProcessor
     ep = ExitProcessor.__new__(ExitProcessor)
@@ -172,8 +172,8 @@ def test_exit_processor_partial_exit_rejected_keeps_position(tmp_path):
     rejecting_executor.partial_sell.assert_called_once()
     # apply_partial_exit ÇAĞRILMAMIŞ olmalı (REJECTED → defter dokunmaz)
     portfolio.apply_partial_exit.assert_not_called()
-    # trade_logger.log_partial_exit ÇAĞRILMAMIŞ olmalı
-    trade_logger.log_partial_exit.assert_not_called()
+    # SPEC-Z17: trade_event_log.append_partial ÇAĞRILMAMIŞ olmalı
+    trade_event_log.append_partial.assert_not_called()
     # Pozisyon shares + size_usdc AYNI kalmalı
     assert pos.shares == 100.0
     assert pos.size_usdc == 50.0
@@ -197,13 +197,12 @@ def test_exit_processor_partial_exit_filled_uses_actual_price(tmp_path):
         "avg_price": 0.78,           # current_price 0.80'den slippage ile düşük
     }
     portfolio = MagicMock()
-    trade_logger = MagicMock()
-    trade_logger.log_partial_exit.return_value = True
+    trade_event_log = MagicMock()
 
     deps = MagicMock()
     deps.executor = executor
     deps.state.portfolio = portfolio
-    deps.trade_logger = trade_logger
+    deps.trade_event_log = trade_event_log
 
     from src.orchestration.exit_processor import ExitProcessor
     ep = ExitProcessor.__new__(ExitProcessor)
@@ -240,6 +239,6 @@ def test_exit_processor_partial_exit_filled_uses_actual_price(tmp_path):
     call_kw = portfolio.apply_partial_exit.call_args.kwargs
     # realized = 40 × (0.78 - 0.50) = 11.20
     assert abs(call_kw["realized_usdc"] - 11.20) < 0.01
-    # log_partial_exit gerçek price ile çağrıldı (0.78, current_price 0.80 değil)
-    log_kw = trade_logger.log_partial_exit.call_args.kwargs
+    # SPEC-Z17: event log gerçek price ile çağrıldı (0.78, current_price 0.80 değil)
+    log_kw = trade_event_log.append_partial.call_args.kwargs
     assert log_kw["price"] == 0.78

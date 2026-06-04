@@ -18,8 +18,8 @@ from pathlib import Path
 from src.config.settings import load_config
 from src.domain.portfolio.bankroll import compute_bankroll
 from src.infrastructure.persistence.json_store import JsonStore
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.presentation.dashboard.computed import _position_unrealized
+from src.presentation.dashboard.readers import read_trades
 
 _LOGS = Path("logs")
 
@@ -79,9 +79,8 @@ def cmd_config() -> int:
 
 
 def cmd_trades(limit: int = 20) -> int:
-    """Son N kapanan trade."""
-    logger = TradeHistoryLogger(str(_LOGS / "trade_history.jsonl"))
-    rows = [r for r in logger.read_recent(limit * 3)
+    """Son N kapanan trade. SPEC-Z17: event log replay sonucu okunur."""
+    rows = [r for r in read_trades(_LOGS, n=limit * 3)
             if r.get("exit_price") is not None][-limit:]
     if not rows:
         print("Kapanan trade yok.")

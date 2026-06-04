@@ -10,6 +10,10 @@ Akış:
   7. (Opsiyonel) Wallet bağla — LIVE/PAPER mode
 
 Bu modül state'i kurup döner; ana döngü agent.py'de.
+
+SPEC-Z17 (2026-06-04): legacy trade_history.jsonl reconciliation path tamamen
+kaldırıldı. Append-only event log (trade_events.jsonl) tek truth — atomic
+rewrite + phantom-restore + reconcile sınıfı bug'lar artık imkansız.
 """
 from __future__ import annotations
 
@@ -24,7 +28,6 @@ from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.manager import PortfolioManager
 from src.domain.risk.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
 from src.infrastructure.persistence.json_store import JsonStore
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger, TradeRecord
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +35,6 @@ _POSITIONS_FILE = "data/positions.json"
 _BREAKER_FILE = "data/circuit_breaker_state.json"
 _BLACKLIST_FILE = "data/blacklist.json"
 _SESSION_START_FILE = "session_start.json"  # logs_dir-relative
-# Trade history audit ground truth — reboot dokunmaz, crash recovery için.
-_TRADE_HISTORY_AUDIT = "logs/audit/trade_history.jsonl"
 
 
 @dataclass
@@ -51,7 +52,7 @@ class RuntimeState:
 def bootstrap(
     config: AppConfig,
     logs_dir: Path | str = "data",
-    trade_history_path: Path | str = _TRADE_HISTORY_AUDIT,
+    trade_history_path: Path | str | None = None,  # noqa: ARG001 — geri-uyumluluk
 ) -> RuntimeState:
     """State'i kur, restore et, RuntimeState döner.
 
@@ -62,9 +63,10 @@ def bootstrap(
         config: App config.
         logs_dir: State dosyaları (positions/breaker/blacklist) için dizin.
             Production: data/. Test: tmp_path.
-        trade_history_path: Realized PnL reconcile için ground-truth trade log.
-            Production: logs/audit/trade_history.jsonl. Test: tmp_path/trade_history.jsonl
-            (genelde dosya yok → reconcile no-op).
+        trade_history_path: SPEC-Z17 sonrası kullanılmıyor (geriye-uyumluluk için
+            kabul edilir, eski test çağrıları bozulmasın). Yeni truth kaynağı
+            logs/audit/trade_events.jsonl event log'udur, reconcile path tamamen
+            kaldırıldı.
     """
     logs = Path(logs_dir)
     logs.mkdir(parents=True, exist_ok=True)
@@ -75,24 +77,9 @@ def bootstrap(
     breaker_store = JsonStore(logs / "circuit_breaker_state.json")
     blacklist_store = JsonStore(logs / "blacklist.json")
 
-    # Portfolio restore
     portfolio = _restore_portfolio(positions_store, config.initial_bankroll)
-
-    # Circuit breaker restore
     breaker = _restore_breaker(breaker_store, config)
-
-    # Blacklist restore
     blacklist = _restore_blacklist(blacklist_store)
-
-    # Reconcile realized PnL — audit trade_history.jsonl ground truth (crash recovery)
-    trade_logger = TradeHistoryLogger(str(trade_history_path))
-
-    # SPEC-D: orphan pozisyon tespiti — data/positions.json'da olup audit'te
-    # entry'si olmayan pozisyonlar icin "phantom-restored" entry yaz; gelecek
-    # scale-out'lar matching bulsun. Reconcile'dan ONCE.
-    _detect_and_restore_orphans(portfolio, trade_logger)
-
-    _reconcile_realized_pnl(portfolio, trade_logger, config.initial_bankroll)
 
     logger.info(
         "Bootstrap complete: mode=%s bankroll=$%.2f positions=%d realized=$%.2f "
@@ -170,182 +157,6 @@ def _restore_blacklist(store: JsonStore) -> Blacklist:
         except Exception as e:
             logger.warning("Blacklist restore failed (%s), starting fresh", e)
     return Blacklist()
-
-
-def _detect_and_restore_orphans(
-    portfolio: PortfolioManager,
-    trade_logger: TradeHistoryLogger,
-) -> int:
-    """data/positions.json'da olup audit'te entry'si olmayan pozisyonlar icin
-    "phantom-restored" entry yaz. Gelecek scale-out'larin _rewrite_matching
-    çağrıları doğru kayda denk gelir.
-
-    Reset/reboot sonrası audit silinmiş ama positions.json hayatta kalmışsa
-    bu fonksiyon defteri yeniden açar. Geçmiş scale-out'lar geriye dönük
-    yazılmaz — sadece ilerideki kayıtlar tutulur.
-
-    Return: kaç orphan tespit edildi.
-    """
-    if not portfolio.positions:
-        return 0
-
-    records = trade_logger.read_all()
-    audit_open_cids = {
-        rec.get("condition_id") for rec in records
-        if rec.get("exit_price") is None and rec.get("condition_id")
-    }
-
-    orphans = [
-        (cid, pos) for cid, pos in portfolio.positions.items()
-        if cid not in audit_open_cids
-    ]
-
-    if not orphans:
-        return 0
-
-    logger.warning(
-        "Orphan positions detected: %d positions in data/positions.json have no "
-        "audit entry. Writing phantom-restored entries so future scale-outs match.",
-        len(orphans),
-    )
-
-    for cid, pos in orphans:
-        try:
-            original_reason = pos.entry_reason or "unknown"
-            record = TradeRecord(
-                slug=pos.slug or "",
-                condition_id=cid,
-                event_id=pos.event_id or "",
-                token_id=pos.token_id or "",
-                question=pos.question or "",
-                sport_tag=pos.sport_tag or "",
-                sport_category="",
-                league="",
-                direction=pos.direction,
-                entry_price=pos.entry_price,
-                size_usdc=pos.size_usdc,
-                shares=pos.shares,
-                confidence=pos.confidence or "",
-                bookmaker_prob=pos.bookmaker_prob or 0.0,
-                anchor_probability=pos.anchor_probability,
-                num_bookmakers=0.0,
-                has_sharp=False,
-                # SPEC-D: prefix ile phantom işareti — schema değişikliği yok.
-                entry_reason=f"phantom-restored:{original_reason}",
-                entry_timestamp=pos.match_start_iso or "",
-            )
-            trade_logger.log(record)
-            logger.info(
-                "Phantom-restored audit entry for orphan position: %s",
-                pos.slug[:35],
-            )
-        except Exception as e:
-            logger.error(
-                "Failed to write phantom-restored entry for %s: %s",
-                cid[:24], e,
-            )
-
-    return len(orphans)
-
-
-def _reconcile_realized_pnl(portfolio: PortfolioManager, trade_logger: TradeHistoryLogger,
-                            initial_bankroll: float) -> None:
-    """trade_history.jsonl'dan true realized hesapla, portfolio snapshot'ıyla
-    uyumsuzsa düzelt + bankroll'u yeniden türet (crash recovery sonrası).
-
-    True realized = sum(full_exit.exit_pnl_usdc) + sum(partial_exits.realized_pnl_usdc).
-
-    GUARD-1 (SPEC-A): trade_history boş + snapshot.realized > 0 → "logging gap" senaryosu.
-    Otomatik zerolama YAPMA (silent state corruption riski). Snapshot'a güven, WARN.
-
-    GUARD-2 (SPEC-A3): trade_history corrupt threshold geçtiyse reconcile abort,
-    snapshot'a güven (bozuk dosyadan eksik realized hesaplamak yerine).
-    """
-    records = trade_logger.read_all()
-
-    # GUARD-2 (SPEC-A3): corrupt threshold exceeded → abort, trust snapshot
-    if trade_logger.corrupt_threshold_exceeded:
-        logger.warning(
-            "Reconcile aborted: trade_history corrupt_lines=%d exceeded threshold; "
-            "trusting snapshot.realized=$%.2f.",
-            trade_logger.corrupt_lines, portfolio.realized_pnl,
-        )
-        return
-
-    if not records:
-        if abs(portfolio.realized_pnl) > 0.01:
-            logger.warning(
-                "Reconcile skipped: trade_history empty but snapshot.realized=$%.2f — "
-                "logging gap suspected; trusting snapshot. Investigate trade_logger silent failures.",
-                portfolio.realized_pnl,
-            )
-        return
-
-    # GUARD-3 (SPEC-D): records var ama hicbir exit verisi yok (hepsi phantom-restored
-    # entry, scale-out/full-exit henüz yazılmamış) → snapshot'a güven, otomatik zerolama yapma.
-    has_exit_data = any(
-        rec.get("exit_price") is not None or (rec.get("partial_exits") and len(rec["partial_exits"]) > 0)
-        for rec in records
-    )
-    if not has_exit_data:
-        if abs(portfolio.realized_pnl) > 0.01:
-            logger.warning(
-                "Reconcile skipped: %d records but no exit data (phantom-restored only) — "
-                "trusting snapshot.realized=$%.2f.",
-                len(records), portfolio.realized_pnl,
-            )
-        return
-
-    # GUARD-4 (SPEC-E / audit C4): Records var, exit data var, AMA phantom-restored
-    # entry'ler de var ve true_realized < snapshot → eski exit'ler kayıp.
-    # Snapshot'a güven (zerolama yapma) — phantom kayıtlar geçmişi temsil etmiyor.
-    has_phantom = any(
-        str(rec.get("entry_reason") or "").startswith("phantom-restored")
-        for rec in records
-    )
-
-    true_realized = 0.0
-    for rec in records:
-        for pe in rec.get("partial_exits") or []:
-            true_realized += float(pe.get("realized_pnl_usdc", 0.0))
-        if rec.get("exit_price") is not None:
-            true_realized += float(rec.get("exit_pnl_usdc", 0.0))
-
-    delta = true_realized - portfolio.realized_pnl
-    if abs(delta) < 0.01:  # floating noise — eşit kabul
-        return
-
-    # GUARD-4: phantom-restored entry'ler varsa AND log < snapshot → snapshot win
-    if has_phantom and delta < 0:
-        logger.warning(
-            "Reconcile skipped (GUARD-4 SPEC-E): %d phantom-restored entries detected; "
-            "audit log realized=$%.2f < snapshot=$%.2f (delta=$%+.2f). "
-            "Phantom entries don't carry historical PnL — trusting snapshot.",
-            sum(1 for rec in records if str(rec.get("entry_reason") or "").startswith("phantom-restored")),
-            true_realized, portfolio.realized_pnl, delta,
-        )
-        return
-
-    # GUARD-5 (SPEC-Z8 2026-05-25): snapshot.realized != 0 → snapshot her zaman win.
-    # positions.json single source of truth (kullanıcı kararı). Trade_history audit'i
-    # bizim cleanup/synthetic edit'lerden bozulabilir; snapshot bot'un net hesabı.
-    # Sadece snapshot.realized == 0 (fresh start, bot kripto-temiz) durumunda log'a güven.
-    if abs(portfolio.realized_pnl) > 0.01:
-        logger.warning(
-            "Reconcile skipped (GUARD-5 SPEC-Z8): snapshot.realized=$%.2f (non-zero, "
-            "ground truth) vs log=$%.2f (delta=$%+.2f) — trusting snapshot. "
-            "positions.json is single source of truth.",
-            portfolio.realized_pnl, true_realized, delta,
-        )
-        return
-
-    # snapshot.realized == 0 → fresh start, log'a güven (bot ilk başlatıldı, audit dolu)
-    logger.warning(
-        "Realized PnL reconciliation (fresh snapshot): snapshot=$0.00, log=$%.2f — using log",
-        true_realized,
-    )
-    portfolio.realized_pnl = true_realized
-    portfolio.recalculate_bankroll(initial_bankroll)
 
 
 def persist(state: RuntimeState) -> None:

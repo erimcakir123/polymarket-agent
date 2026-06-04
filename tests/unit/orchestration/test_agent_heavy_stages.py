@@ -22,7 +22,6 @@ def _make_deps() -> AgentDeps:
         cycle_manager=MagicMock(),
         executor=MagicMock(),
         odds_client=MagicMock(),
-        trade_logger=MagicMock(),
         gate=MagicMock(),
         cooldown=MagicMock(),
         equity_logger=MagicMock(),

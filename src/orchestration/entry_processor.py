@@ -385,8 +385,8 @@ class EntryProcessor:
                 label, position.slug[:35], position.event_id, position.condition_id[:16],
             )
             return False
-        self.deps.trade_logger.log(trade_record)
-        # SPEC-Z17: append-only event log (paralel yazım; Task 12'de legacy temizlenecek)
+        # SPEC-Z17 (2026-06-04): tek truth = append-only event log.
+        # Legacy trade_history.jsonl yazımı tamamen kaldırıldı (Task 12).
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_entry(
                 condition_id=trade_record.condition_id,

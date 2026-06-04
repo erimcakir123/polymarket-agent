@@ -83,7 +83,6 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
         bot_status_writer=MagicMock(),
         equity_logger=MagicMock(),
         executor=MagicMock(),
-        trade_logger=MagicMock(),
         price_feed=None,
     )
     deps.gate.config = gate_config
@@ -216,7 +215,6 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
         bot_status_writer=MagicMock(),
         equity_logger=MagicMock(),
         executor=MagicMock(),
-        trade_logger=MagicMock(),
         price_feed=None,
     )
     deps.gate.config = gate_config
@@ -296,7 +294,6 @@ def test_entry_processor_propagates_event_live_to_position():
         bot_status_writer=MagicMock(),
         equity_logger=MagicMock(),
         executor=MagicMock(),
-        trade_logger=MagicMock(),
         price_feed=None,
     )
     deps.gate.config = gate_config

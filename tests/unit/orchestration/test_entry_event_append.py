@@ -27,7 +27,6 @@ def test_entry_event_logged_alongside_trade_record():
     portfolio.add_position.return_value = True
     deps = SimpleNamespace(
         state=SimpleNamespace(portfolio=portfolio),
-        trade_logger=MagicMock(),
         trade_event_log=MagicMock(),
         notifier=None,
     )

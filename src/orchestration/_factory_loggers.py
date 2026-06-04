@@ -3,23 +3,18 @@
 3-tier dual-write:
 - audit/  → kalıcı (reboot dokunmaz, ground truth)
 - session/ → reboot mirror (dashboard kaynağı, reboot temizler)
+
+SPEC-Z17 (2026-06-04): legacy build_trade_logger kaldırıldı — tek truth
+trade_events.jsonl event log.
 """
 from __future__ import annotations
 
 from src.infrastructure.persistence.archive_logger import ArchiveLogger
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.trade_event_log import TradeEventLog
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 
 _AUDIT = "logs/audit"
 _SESSION = "logs/session"
-
-
-def build_trade_logger() -> TradeHistoryLogger:
-    return TradeHistoryLogger(
-        f"{_AUDIT}/trade_history.jsonl",
-        mirror_path=f"{_SESSION}/trade_history.jsonl",
-    )
 
 
 def build_trade_event_log() -> TradeEventLog:

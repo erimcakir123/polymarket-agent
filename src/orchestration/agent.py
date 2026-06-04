@@ -20,7 +20,6 @@ from src.infrastructure.executor import Executor
 from src.infrastructure.persistence.equity_history import EquityHistoryLogger
 from src.infrastructure.persistence.skipped_trade_logger import SkippedTradeLogger
 from src.infrastructure.persistence.trade_event_log import TradeEventLog
-from src.infrastructure.persistence.trade_logger import TradeHistoryLogger
 from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.telegram.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
@@ -50,7 +49,6 @@ class AgentDeps:
     cycle_manager: CycleManager
     executor: Executor
     odds_client: object
-    trade_logger: TradeHistoryLogger
     gate: EntryGate
     cooldown: CooldownTracker
     equity_logger: EquityHistoryLogger

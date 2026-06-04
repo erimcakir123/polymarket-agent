@@ -13,10 +13,7 @@ from src.models.enums import ExitReason
 from src.models.position import Position
 from src.orchestration import operational_writers
 from src.orchestration.notifier_hooks import notify_exit_safe
-from src.orchestration.exit_audit_writer import (
-    emit_force_close_alert,
-    write_synth_exit_record,
-)
+from src.orchestration.exit_audit_writer import emit_force_close_alert
 from src.orchestration.force_close_executor import ForceCloseExecutor
 from src.strategy.exit import monitor as exit_monitor
 from src.strategy.exit import polymarket_resolution
@@ -217,19 +214,11 @@ class ExitProcessor:
         if self.deps.price_feed is not None:
             self.deps.price_feed.unsubscribe([pos.token_id])
 
-        pnl_pct = realized / pos.size_usdc if pos.size_usdc > 0 else 0.0
         now_iso = datetime.now(timezone.utc).isoformat()
-        logged = self.deps.trade_logger.update_on_exit(
-            pos.condition_id,
-            {
-                "exit_price": exit_price,
-                "exit_reason": exit_reason_value,
-                "exit_pnl_usdc": round(realized, 2),
-                "exit_pnl_pct": round(pnl_pct, 4),
-                "exit_timestamp": now_iso,
-            },
-        )
-        # SPEC-Z17: append-only event log (Z16'nın yerine geçecek tek truth)
+        # SPEC-Z17 (2026-06-04): tek truth = append-only event log.
+        # Legacy trade_history.jsonl yazımı (update_on_exit + synth-from-exit
+        # fallback) tamamen kaldırıldı (Task 12). Event log her zaman append eder,
+        # matching open record gereksinimi yok → orphan/phantom path artık yok.
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_final(
                 condition_id=pos.condition_id,
@@ -239,13 +228,6 @@ class ExitProcessor:
                 source=pos.source or "",
                 exit_price=exit_price, exit_reason=exit_reason_value,
                 exit_pnl_usdc=round(realized, 2), exit_timestamp=now_iso,
-            )
-        if not logged:
-            # SPEC-G: matching open record yok (orphan / phantom recovery atlandı).
-            # Audit gap olusturmamak icin synth-from-exit complete record yaz —
-            # entry_price + exit_price ayni satirda, exit_reason "synth-from-exit".
-            self._write_synth_exit_record(
-                pos, exit_reason_value, exit_price, realized, pnl_pct, now_iso,
             )
 
         detail = audit_signal.detail if audit_signal is not None else "force_close"
@@ -258,20 +240,6 @@ class ExitProcessor:
 
     def _emit_force_close_alert(self, pos: Position, signal) -> None:
         emit_force_close_alert(self.deps, self._fc_alerts, pos, signal)
-
-    def _write_synth_exit_record(
-        self,
-        pos: Position,
-        exit_reason_value: str,
-        exit_price: float,
-        realized: float,
-        pnl_pct: float,
-        now_iso: str,
-    ) -> None:
-        write_synth_exit_record(
-            self.deps, pos, exit_reason_value, exit_price,
-            realized, pnl_pct, now_iso,
-        )
 
     def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
         """Scale-out + Partial-SL parçalı çıkış (her ikisi de partial=True).
@@ -357,15 +325,8 @@ class ExitProcessor:
             pos.partial_sl_tier if is_partial_sl else pos.scale_out_tier
         )
         ts_iso = datetime.now(timezone.utc).isoformat()
-        logged = self.deps.trade_logger.log_partial_exit(
-            condition_id=pos.condition_id,
-            tier=signal.tier or current_tier,
-            sell_pct=actual_sell_pct,         # gerçek satılan oran
-            realized_pnl_usdc=realized,
-            timestamp=ts_iso,
-            price=actual_price,                # gerçek satım fiyatı
-        )
-        # SPEC-Z17: append-only event log
+        # SPEC-Z17 (2026-06-04): tek truth = append-only event log.
+        # Legacy log_partial_exit + standalone orphan path tamamen kaldırıldı.
         if getattr(self.deps, "trade_event_log", None) is not None:
             self.deps.trade_event_log.append_partial(
                 condition_id=pos.condition_id,
@@ -379,12 +340,6 @@ class ExitProcessor:
                 price=actual_price,
             )
         label = "PARTIAL-SL" if is_partial_sl else "SCALE-OUT"
-        if not logged:
-            logger.warning(
-                "%s %s: trade_history defter kayit yapilamadi "
-                "(orphan?) - bakiye in-memory dogru ama audit eksik",
-                label, pos.slug[:35],
-            )
         logger.info(
             "%s %s: tier=%d sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
             label, pos.slug[:35], signal.tier, actual_shares, actual_price, realized, pos.size_usdc,

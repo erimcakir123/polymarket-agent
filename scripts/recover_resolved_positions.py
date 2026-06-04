@@ -39,7 +39,7 @@ from src.config.settings import load_config  # noqa: E402
 from src.domain.portfolio import snapshot as portfolio_snapshot  # noqa: E402
 from src.domain.portfolio.manager import PortfolioManager  # noqa: E402
 from src.infrastructure.persistence.json_store import JsonStore  # noqa: E402
-from src.orchestration._factory_loggers import build_trade_logger  # noqa: E402
+from src.orchestration._factory_loggers import build_trade_event_log  # noqa: E402
 
 logger = logging.getLogger("recover_resolved")
 
@@ -98,25 +98,14 @@ def _resolved_exit_price(market: dict, direction: str) -> float | None:
     return p
 
 
-def _build_exit_data(exit_price: float, entry_price: float, shares: float,
-                     size_usdc: float, now_iso: str) -> dict:
-    """trade_logger.update_on_exit'in beklediği exit alanları."""
-    pnl = (exit_price - entry_price) * shares
-    pnl_pct = (pnl / size_usdc) if size_usdc else 0.0
-    return {
-        "exit_price": round(exit_price, 4),
-        "exit_reason": "manual_recovery_resolved",
-        "exit_pnl_usdc": round(pnl, 2),
-        "exit_pnl_pct": round(pnl_pct, 4),
-        "exit_timestamp": now_iso,
-    }
-
-
 def _process_target(
     cid: str, name: str, portfolio: PortfolioManager,
-    trade_logger, dry_run: bool, now_iso: str,
+    trade_event_log, dry_run: bool, now_iso: str,
 ) -> tuple[bool, float]:
-    """Tek hedef için tüm akış. Return (success, pnl)."""
+    """Tek hedef için tüm akış. SPEC-Z17: event log'a 'final' event append eder.
+
+    Return (success, pnl).
+    """
     pos = portfolio.positions.get(cid)
     if pos is None:
         logger.info("SKIP %s — already closed (not in positions.json)", name)
@@ -134,10 +123,7 @@ def _process_target(
         )
         return False, 0.0
 
-    exit_data = _build_exit_data(
-        exit_price, pos.entry_price, pos.shares, pos.size_usdc, now_iso,
-    )
-    pnl = exit_data["exit_pnl_usdc"]
+    pnl = round((exit_price - pos.entry_price) * pos.shares, 2)
 
     if dry_run:
         logger.info(
@@ -146,10 +132,17 @@ def _process_target(
         )
         return True, pnl
 
-    ok = trade_logger.update_on_exit(cid, exit_data)
-    if not ok:
-        logger.warning("FAIL %s — no matching open audit record (orphan?)", name)
-        return False, 0.0
+    trade_event_log.append_final(
+        condition_id=cid,
+        slug=pos.slug or "",
+        question=pos.question or "",
+        sport_tag=pos.sport_tag or "",
+        source=pos.source or "",
+        exit_price=round(exit_price, 4),
+        exit_reason="manual_recovery_resolved",
+        exit_pnl_usdc=pnl,
+        exit_timestamp=now_iso,
+    )
 
     portfolio.remove_position(cid, realized_pnl_usdc=pnl)
     logger.info(
@@ -175,12 +168,12 @@ def main() -> int:
         return 1
 
     portfolio = portfolio_snapshot.from_dict(data, initial_bankroll=cfg.initial_bankroll)
-    trade_logger = build_trade_logger()
+    trade_event_log = build_trade_event_log()
     now_iso = datetime.now(timezone.utc).isoformat()
 
     summary: list[tuple[str, float]] = []
     for cid, name in RECOVERY_TARGETS.items():
-        ok, pnl = _process_target(cid, name, portfolio, trade_logger, args.dry_run, now_iso)
+        ok, pnl = _process_target(cid, name, portfolio, trade_event_log, args.dry_run, now_iso)
         if ok:
             summary.append((name, pnl))
 

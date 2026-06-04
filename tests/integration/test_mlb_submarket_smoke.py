@@ -1,7 +1,8 @@
 """End-to-end smoke test (SPEC-R Plan 1): mock MLB submarket engine →
-scanner dispatch → process_signals → executor.execute → trade_logger.log.
+scanner dispatch → process_signals → executor.execute → trade_event_log.append_entry.
 
 Plan 1 closure: pipeline çalışıyor mu (real model olmadan)?
+SPEC-Z17 (2026-06-04): trade_logger.log → trade_event_log.append_entry.
 """
 from unittest.mock import MagicMock
 
@@ -61,7 +62,7 @@ def _make_deps():
 
 
 def test_mlb_submarket_signal_flows_end_to_end() -> None:
-    """Mock engine → process_signals → executor.execute + portfolio.add_position + trade_logger.log."""
+    """SPEC-Z17: Mock engine → process_signals → executor.execute + portfolio.add_position + trade_event_log.append_entry."""
     market = _make_market()
     signal = _make_signal()
     deps = _make_deps()
@@ -71,7 +72,7 @@ def test_mlb_submarket_signal_flows_end_to_end() -> None:
 
     deps.executor.execute.assert_called_once()
     assert deps.state.portfolio.add_position.call_count == 1
-    assert deps.trade_logger.log.call_count == 1
+    assert deps.trade_event_log.append_entry.call_count == 1
 
 
 def test_mlb_submarket_signal_skipped_when_event_cap_full() -> None:
