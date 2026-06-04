@@ -876,6 +876,172 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z17 — Trade Event Sourcing (2026-06-04)
+
+**Karar:** trade_history.jsonl atomic-rewrite mimarisi event sourcing'e taşındı.
+
+Tek dosya `logs/audit/trade_events.jsonl` (mirror: `logs/session/trade_events.jsonl`)
+tüm bot aksiyonlarını kronolojik APPEND-ONLY tutar:
+- "entry" event: pozisyon açıldığında
+- "partial" event: scale-out / partial-SL
+- "final" event: tam kapanış
+
+Dashboard event log'u okur, `domain.trade.event_replay.replay_events` ile
+trade record listesine dönüştürür. Hiçbir rewrite yok, dedupe signature
+bazlı (kind + cid + timestamp + pnl).
+
+**Kaldırılan yamalar:**
+- Z15.A entry_recovery (artık event_log var)
+- Z15.B/E shrink-guard (atomic rewrite yok)
+- Z15.D orphan_metadata (sadece append, orphan yok)
+- Z16 TradeExitsLog + exit_events_merger (Z17 tek truth)
+- TradeHistoryLogger sınıfı + trade_history.jsonl yazımı tamamen kaldırıldı
+- startup._detect_and_restore_orphans + _reconcile_realized_pnl (phantom-restore yok)
+
+**Neden:**
+4 yama (Z15.B/D/E + Z16) trade_history veri kaybını engelleyemedi.
+Phase 4.5 architectural problem: yama yerine mimari değişim. Event sourcing
+proven pattern (financial systems). Append-only → veri kaybı imkansız.
+
+**Etki:**
+- Yeni: `src/domain/trade/event_replay.py` + `event_types.py` (pure domain)
+- Yeni: `src/infrastructure/persistence/trade_event_log.py` (append-only infra)
+- Değişen: entry/exit_processor (event append), readers (event replay),
+  startup (orphan/reconcile silindi), factory (legacy wiring kaldırıldı),
+  calibration_refresher + health_monitor (event log read)
+- Silinen: TradeExitsLog, exit_events_merger, entry_recovery, TradeHistoryLogger
+- Migration script: history + Z16 → trade_events.jsonl (one-shot, 81 event yazıldı)
+
+**Garanti:** Hiçbir cycle (heavy/light), reload, phantom-restore, mistik
+scheduler trade_events.jsonl içeriğini SİLEMEZ — append-only OS guarantee.
+
+**Commits:** eaf2f97 (event_types), 1c538ff (event_replay), 335305d (event_log),
+4ced83b (factory wiring), 2abede2 (entry append), 1bc7a68 (exit append),
+d5cce06 (dashboard readers), 80d042c (test update), 08027ea (test mock fix),
+0d47c6f (reboot archive), 1e62252 (migration script), 4853dff (Z15/Z16 cleanup),
+fcd23c5 (legacy trade_history write removal).
+
+---
+
+### SPEC-Z16 — Append-only exit event log (2026-06-04)
+
+**Karar:** trade_history.jsonl'a paralel bir **APPEND-ONLY** event log dosyası
+(`trade_exits.jsonl`) eklendi. Her exit/partial event sadece append edilir,
+asla rewrite olunmaz. Dashboard readers eventleri trade_history üzerine
+merge eder → trade_history bug/duplicate olsa bile event log truth kaynağı.
+
+**Neden (systematic debugging Phase 4.5 — Architectural Problem):**
+4 fix (Z15.B/D/E + restore script) trade_history veri kaybını engelleyemedi.
+- Z15.E shrink-guard atomic rewrite shrink'i yakalıyor ama tetiklenmedi
+- SRC'de hiç wipe pattern yok ama veri yine de düşüyor
+- Phantom-restore + restore script duplikat cid'ler yaratıyor
+- positions.json + trade_history sync uyumsuzluğu
+
+Yamalar yetersiz, mimari yanlış. Append-only event log → atomic rewrite ROOT
+CAUSE'unu **by-pass** eder, veri kaybı IMKANSIZ.
+
+**Etki:**
+- `src/infrastructure/persistence/trade_exits_log.py` — yeni infra (104 satır)
+- `src/orchestration/_factory_loggers.py` — `build_trade_exits_log()`
+- `src/orchestration/agent.py` — `AgentDeps.trade_exits_log: TradeExitsLog | None`
+- `src/orchestration/factory.py` — deps injection
+- `src/orchestration/exit_processor.py` — final + partial event yazımı
+- `src/presentation/dashboard/readers.py` — Z16 merge çağrısı
+- `src/presentation/dashboard/exit_events_merger.py` — yeni presentation modülü (119 satır)
+- `scripts/_z16_migrate_to_event_log.py` — one-shot migration (geçmiş 26 event)
+- 13 yeni test (trade_exits_log 6 + exit_events_merger 7)
+- **2095 test yeşil** (önce 2082)
+
+**Geri Kalan:** Z15.D (orphan metadata) + Z15.E (shrink-guard) defense-in-depth
+olarak KORUNUYOR. Z16 birincil truth, Z15.E trade_history için yedek koruma.
+
+---
+
+### SPEC-Z15.D — Orphan kayıtları metadata ile etiketle (2026-06-04, sonrası)
+
+**Karar:** `trade_logger._rewrite_matching` orphan path (standalone yazımı)
+tetiklendiğinde isteğe bağlı `orphan_metadata` parametresi uygulanır. Eski davranış:
+slug="(orphan)", question/sport_tag/source boş — dashboard "(orphan)" placeholder
+gösteriyordu. Yeni: `exit_processor` partial/full exit çağrılarında pos.slug,
+question, sport_tag, source bilgilerini metadata olarak geçirir → orphan kaydı
+gerçek maç bilgisiyle etiketli olur.
+
+**Etki:**
+- `src/infrastructure/persistence/trade_logger.py` — `_rewrite_matching`,
+  `update_on_exit`, `log_partial_exit` imzalarına opsiyonel `orphan_metadata` eklendi
+- `src/orchestration/exit_processor.py` — `_orphan_meta(pos)` helper, exit log
+  çağrılarına geçirildi
+- 2 mevcut test mock'ı (`fake_update_on_exit`) yeni kwarg kabul edecek şekilde güncellendi
+- 2 yeni unit test (`test_log_partial_exit_standalone_labeled_with_metadata`,
+  `test_update_on_exit_standalone_labeled_with_metadata`)
+- Mevcut Monnet orphan kaydı retroaktif olarak `wta-monnet-prozoro-2026-06-03` /
+  "Foggia: Carole Monnet vs Tatiana Prozorova" şeklinde etiketlendi
+- **2082 test yeşil** (önce 2080, +2 yeni)
+
+---
+
+### SPEC-Z15 — Entry log fail-safe + atomic rewrite shrink-guard + dashboard orphan dedup (2026-06-04)
+
+**Karar:** Üç bağlantılı güvenlik düzeltmesi:
+
+1. **Entry log recovery** — `entry_processor._persist_filled_position()` artık `trade_logger.log()` çağrısını try/except ile sarıyor. Fail durumunda `src/orchestration/entry_recovery.py:write_entry_recovery()` çağrılır → forensic kopya `logs/runtime/entry_log_recovery.jsonl`'e yazılır.
+
+2. **Atomic rewrite shrink-guard** — `trade_logger._rewrite_matching()` artık serileştirilmiş satır sayısı mevcut dosya satır sayısının yarısından az ise abort + critical log + False döner. Corrupt satırlar düşülür (legit), 5 satır buffer toleransı yeni-append'ler için.
+
+3. **Dashboard orphan dedup** — `presentation/dashboard/readers.read_trades()` orphan kayıtlar (entry_timestamp boş) için condition_id bazında dedup. Eski davranış: session + audit mirror'dan iki kez okunan orphan no_key listesinde duplikat → exited tab'da iki kart.
+
+**Neden (Kawa olayı, 2026-06-04):**
+- Bot 06:28'de wta-kawa-joint pozisyonunu açtı (model, $35, entry 65¢).
+- Gamma API bağlantı kopması (5 ardı ardına timeout 11:03-11:23) sırasında `trade_logger.log()` patladı veya bypass edildi → entry kaydı yazılmadı.
+- 10:24'te partial SL tetiklendi → orphan path → standalone kayıt.
+- Aynı gün sonra 5 closed trade (Tomljanovic, Toronto, Knicks ML, Knicks O/U, Mercury) atomic rewrite sırasında `read_all()` bozulması nedeniyle SİLİNDİ.
+- Dashboard orphan'ları iki kez göstermeye başladı (session+audit duplikasyonu).
+
+**Etki:**
+- `src/orchestration/entry_processor.py` — try/except + import
+- `src/orchestration/entry_recovery.py` — yeni modül (write_entry_recovery + path constant)
+- `src/infrastructure/persistence/trade_logger.py` — shrink-guard `_rewrite_matching` içinde
+- `src/presentation/dashboard/readers.py` — orphan dedup (`no_ts_by_cid` + `_is_richer` helper)
+- `tests/unit/orchestration/test_entry_recovery.py` — 3 yeni test
+- `tests/unit/infrastructure/persistence/test_trade_logger.py` — 2 yeni test (shrink abort + legit corrupt)
+- `tests/unit/presentation/dashboard/test_readers.py` — 2 yeni test (orphan dedup + zengin kazanır)
+- **2080 test yeşil (önce 2073, +7 yeni)**
+
+**Geri Alma:** Tüm değişiklikler defansif — geri alma anlamlı değil. Sadece kapatmak için: `write_entry_recovery` no-op yapılır, shrink-guard `expected_min = 0` yapılır, dashboard dedup için cid-anahtarlı dict yerine eski no_key listesi kullanılır.
+
+---
+
+### SPEC-Z14 — BM-first dispatch + favorite-band consensus exception (2026-06-03)
+
+**Karar:** İki bağlantılı değişim:
+
+1. **Tennis + Basketball dispatch'i BM-first'e çevrildi.** ML market'te `bookmaker_enricher` ÖNCE çağrılır; probability döndürürse o kullanılır. BM `None` döndürürse model'e fallback yapılır. Alt market'lerde (totals/spread/set_handicap) BM hiç çağrılmaz, sadece model — h2h dışı veri sahibi değil (cascade bug önleme).
+2. **Consensus stratejisinde `favorite_band` istisnası eklendi.** SPEC-Z13'ün `min_model_edge=0.0` guard'ı, **direction-adjusted model olasılığı** `[favorite_band_min_prob, favorite_band_max_prob)` (default `[0.60, 0.80)`) aralığında bypass edilir. **2026-06-04 revize:** önceki sürüm entry_price üzerinden kontrol ediyordu, kullanıcı "güven bandı" semantiğine çevrilmesini istedi (botun seçtiği taraf için tahmini olasılık). Anti-edge guard'lar ve entry cap aynen geçerli.
+
+**Neden (BM-first):** Phantom-restored `source='bookmaker'` bug'ı düzeltildikten sonra (önceki commit, [startup.py:233](src/orchestration/startup.py#L233)) gerçek 11 ML trade ayrımı:
+- source=bookmaker: 6 trade, %67 WR, +$28.03
+- source=model: 11 trade (5 phantom düzeltmesi dahil), %55 WR, +$3.77
+Küçük örneklem ama BM yön daha yüksek getiri. Veri olmadıkça riski azaltmak için **veri varsa BM, yoksa model** stratejisine geçildi. Geri alma kolay: `tennis_dispatch.py` / `basketball_dispatch.py` üst akışta BM-first bloğu tek parça.
+
+**Neden (favorite_band):** SPEC-Z13 Azkara senaryosunda (-%5 model edge, entry 0.67) bot'u durdurmak için eklendi. Ama aynı kural Shimabukuro (entry 0.73, -%9 model edge, +$17.89) ve Zhang (entry 0.64, -%3 model edge, +$15) tipi kazançları da bloklardı. Kullanıcı kararı: "60-80 favori bandında bu trade'ler kazandırıyor, hiç maç bulamazsak da kötü". Bant DIŞINDA (örn. entry 0.85 negatif edge) Z13 hâlâ aktif.
+
+**Etki:**
+- `config.yaml` `consensus:` — 3 yeni anahtar (`min_model_edge`, `favorite_band_min_prob`, `favorite_band_max_prob` — 06-04 revize: price→prob)
+- `src/config/settings.py` `ConsensusConfig` — 2 yeni alan
+- `src/strategy/entry/gate.py` `GateConfig` — 2 yeni alan + consensus invocation update
+- `src/orchestration/factory.py` — gate_cfg mapping
+- `src/strategy/entry/consensus.py` — `evaluate()` imzasına 2 parametre + band kontrolü
+- `src/strategy/enrichment/tennis_dispatch.py` — `enrich_with_tennis_dispatch()` refactor (5 `if is_moneyline: bookmaker_enricher` dağınık branch kaldırıldı, tek üst akış)
+- `src/strategy/enrichment/basketball_dispatch.py` — paralel refactor (6 branch kaldırıldı)
+- Test paketinde 4 mevcut test SPEC-Z14 semantiğine güncellendi, 4 yeni test eklendi
+- **2073 test yeşil (0 regresyon, önce 2071 → şimdi 2073)**
+
+**Kontrol noktası:** Hâlâ aktif guard'lar: `extreme_disagreement_threshold` (30pp gap), `anti_edge_absolute_max` (0.15), `entry_price_cap` (0.80), `bimodal_min_entry_price` (0.20). Favorite_band sadece SPEC-Z13'ün direction-adjusted edge eşiğini esnetiyor, başka koruma açmıyor.
+
+**Spec:** [docs/superpowers/specs/2026-06-03-bm-first-dispatch-and-favorite-band-design.md](docs/superpowers/specs/2026-06-03-bm-first-dispatch-and-favorite-band-design.md)
+
+---
+
 ### PLAN-001 — Anti-edge guard (entry gate) (2026-06-01)
 
 **Karar:** Entry gate'e iki yeni guard eklendi (`src/strategy/entry/gate.py` `_evaluate_one` step 6a):
