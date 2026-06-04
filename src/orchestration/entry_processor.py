@@ -14,6 +14,7 @@ from src.models.market import MarketData
 from src.models.position import Position
 from src.models.signal import Signal
 from src.orchestration import operational_writers
+from src.orchestration.entry_recovery import write_entry_recovery
 from src.orchestration.notifier_hooks import notify_entry_safe
 from src.orchestration.entry_guards import (
     check_correlated_bet,
@@ -385,11 +386,35 @@ class EntryProcessor:
                 label, position.slug[:35], position.event_id, position.condition_id[:16],
             )
             return False
-        self.deps.trade_logger.log(trade_record)
+        # SPEC-Z15 (06-04): log() fail → recovery file (orphan önleme).
+        try:
+            self.deps.trade_logger.log(trade_record)
+        except Exception as e:
+            logger.error("ENTRY LOG FAIL %s (cid=%s): %s — writing to recovery file",
+                         position.slug[:35], position.condition_id[:16], e, exc_info=True)
+            write_entry_recovery(trade_record)
+        # SPEC-Z17: append-only event log (paralel yazım; Task 12'de legacy temizlenecek)
+        if getattr(self.deps, "trade_event_log", None) is not None:
+            self.deps.trade_event_log.append_entry(
+                condition_id=trade_record.condition_id,
+                slug=trade_record.slug,
+                question=trade_record.question,
+                sport_tag=trade_record.sport_tag,
+                source=trade_record.source,
+                direction=trade_record.direction,
+                entry_price=trade_record.entry_price,
+                entry_timestamp=trade_record.entry_timestamp,
+                size_usdc=trade_record.size_usdc,
+                shares=trade_record.shares,
+                confidence=trade_record.confidence,
+                bookmaker_prob=trade_record.bookmaker_prob,
+                anchor_probability=trade_record.anchor_probability,
+                num_bookmakers=trade_record.num_bookmakers,
+                has_sharp=trade_record.has_sharp,
+                entry_reason=trade_record.entry_reason,
+            )
         notify_entry_safe(self.deps, position, trade_record)
         return True
 
-
-# _resolve_market_meta entry_guards.py'a taşındı (ARCH_GUARD §3 split).
-# Geri uyumluluk için re-export:
+# entry_guards.py'a taşındı (ARCH_GUARD §3 split) — geri uyumluluk re-export:
 _resolve_market_meta = resolve_market_meta
