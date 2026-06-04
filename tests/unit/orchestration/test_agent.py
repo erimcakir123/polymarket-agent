@@ -107,10 +107,9 @@ def _build_deps(tmp_path: Path, markets: list[MarketData], bm_result: BookmakerP
         odds_enricher=enricher, manipulation_checker=manip,
     )
 
-    # SPEC-Z17: tek truth = trade_event_log (audit + session mirror)
+    # SPEC-Z18: tek truth = trade_event_log (tek dosya, session aynası yok)
     trade_event_log = TradeEventLog(
         str(tmp_path / "audit" / "trade_events.jsonl"),
-        mirror_path=str(tmp_path / "session" / "trade_events.jsonl"),
     )
     equity_logger = EquityHistoryLogger(str(tmp_path / "equity_history.jsonl"))
     skipped_logger = SkippedTradeLogger(str(tmp_path / "skipped_trades.jsonl"))

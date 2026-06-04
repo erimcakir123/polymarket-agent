@@ -103,10 +103,11 @@ def equity_summary_from_session(
     initial_bankroll: float,
     trades: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Balance widget için session/equity_history.jsonl son entry'sinden türetme.
+    """Balance widget için audit/equity_history.jsonl son entry'sinden türetme.
 
-    session_balance = readers.read_balance_from_session() çıktısı.
-    has_data=False ise sıfır döner (reboot sonrası session yok).
+    session_balance = readers.read_balance_from_session() çıktısı (SPEC-Z18:
+    tek dosya audit/, session aynası yok). has_data=False ise sıfır döner
+    (reboot dosyayı arşive taşıdı → temiz 0 noktası).
 
     trades verilirse `realized_pnl` widget'ı trade_history.jsonl toplamından
     hesaplanır (reboot-scoped, exited tab ile tutarlı). Verilmezse session

@@ -876,6 +876,47 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z18 — Tek-defter sadeleştirmesi: audit/session çift-yazım kaldırıldı (2026-06-05)
+
+**Karar:** `trade_events.jsonl` ve `equity_history.jsonl` için `audit/` + `session/`
+çift kopyası TEK dosyaya (`audit/`) indirildi. Mirror (session aynası) yazımı/okuması
+tamamen kaldırıldı.
+
+**Forensic bulgu (mistik scheduler yoktu):** SPEC-Z8 "gizemli scheduler audit siliyor"
+hipotezi için `logs/runtime/archive_forensic.jsonl` kara kutusu kurmuştu. İçindeki 358
+kaydın 352'si pytest çalıştırması, 6'sı **gerçek elle reboot** (stack: `reboot.py:<module>
+→ reboot → archive_audit_logs`, `open_cids=None` = tam kopya). **Sıfır gizemli çağrı.**
+Bot'un çalışan kodunda (`src/`) `clear/archive/reboot` çağrısı yok — audit'i yalnızca
+elle onaylı reboot siler.
+
+**Audit kayıplarının gerçek 3 nedeni:**
+1. Eski TradeHistoryLogger atomic-rewrite bug'ı (SPEC-Z17 kaldırdı).
+2. audit/session çift kopyasının ayrışması (audit=4 vs session=113) — iki kopya = kayma riski.
+3. Tek-kullanımlık migration script'lerinin (`_z17_migrate`) `write_text` ile truth dosyasını
+   ezmesi (debug sırasında kendi açtığı yara).
+
+**Neden tek dosya:** reboot=tam-wipe kararı (2026-05-23) audit ("kalıcı") ile session
+("seansa özel ayna") arasındaki ayrımı öldürdü — reboot ikisini de siliyor. İki dosyanın
+hiçbir davranışsal farkı kalmadı; sadece ayrışıp karmaşa üretiyorlardı. Tek dosya →
+divergence sınıfı hata **imkânsız**.
+
+**Model (kullanıcı mantığı):**
+- **Reboot** → tek defter arşive TAŞINIR (copy+clear = move, korunur), canlı dosya boş →
+  dashboard 0'dan başlar. Yalnızca elle onaylı (`REBOOT` yazımı); bot asla tetiklemez.
+- **Reload** → defter dokunulmaz, sadece bot process kapat-aç → dashboard devam eder.
+
+**Etki:**
+- `trade_event_log.py` + `equity_history.py`: `mirror_path` parametresi kaldırıldı (tek `open(..,"a")`).
+- `_factory_loggers.py`: `build_trade_event_log` / `build_equity_logger` mirror argümanı kaldırıldı.
+- `readers.py`: `read_trades` + `read_equity_history` + `read_balance_from_session` tek audit dosyası okur (Z11 session+audit fallback kaldırıldı).
+- `reboot.py`: davranış değişmedi (zaten archive→clear = taşı); docstring güncellendi.
+- Testler: çift-yazım/çift-okuma + "session öncelik" assertion'ları tek-dosyaya hizalandı.
+
+**Garanti:** Tek dosya yalnızca elle onaylı reboot ile (önce arşive taşınarak) temizlenir;
+ayrışacak ikinci kopya yok. 2069 test geçer.
+
+---
+
 ### SPEC-Z17 — Trade Event Sourcing (2026-06-04)
 
 **Karar:** trade_history.jsonl atomic-rewrite mimarisi event sourcing'e taşındı.

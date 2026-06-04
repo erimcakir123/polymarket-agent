@@ -5,8 +5,11 @@ REBOOT: Graceful kill + runtime + session + state + AUDIT temizle + yeniden baş
 
 Dizin yapısı:
   logs/runtime/  — reboot'ta temizlenir (bot.log, dashboard.log, skipped_trades.jsonl)
-  logs/session/  — reboot'ta temizlenir (audit aynası — dashboard kaynağı)
-  logs/audit/    — REBOOT'ta temizlenir (kullanıcı kararı 2026-05-05); reload korur
+  logs/session/  — reboot'ta temizlenir (SPEC-Z18: trade_events + equity_history
+                   artık session aynası YAZMAZ; sadece ArchiveLogger kullanır)
+  logs/audit/    — REBOOT'ta arşive taşınır + temizlenir (kullanıcı kararı
+                   2026-05-05); reload korur. trade_events + equity_history tek
+                   truth burada (SPEC-Z18).
   data/          — state dosyaları (positions, circuit_breaker, stock_queue, bot_status, blacklist)
   logs/          — PID dosyaları (agent.pid, dashboard.pid)
 

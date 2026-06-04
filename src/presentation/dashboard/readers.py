@@ -101,7 +101,7 @@ def read_session_start(logs_dir: Path) -> str:
 def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     """SPEC-Z17 (2026-06-04): trade kayıtları event log replay sonucu.
 
-    Dosyalar: session/trade_events.jsonl + audit/trade_events.jsonl (mirror).
+    Dosya: audit/trade_events.jsonl (tek truth — SPEC-Z18, session aynası yok).
     Event'ler signature ile dedupe edilir (kind + condition_id + timestamp +
     pnl), sonra domain.trade.event_replay.replay_events ile trade record
     listesine dönüştürülür.
@@ -111,7 +111,6 @@ def read_trades(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
     from src.domain.trade.event_replay import replay_events
 
     paths = [
-        logs_dir / "session" / "trade_events.jsonl",
         logs_dir / "audit" / "trade_events.jsonl",
     ]
     seen: set[tuple] = set()
@@ -202,8 +201,8 @@ def read_trades_by_week(
 
 
 def read_equity_history(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
-    """equity_history.jsonl son N snapshot — session/ (reboot'a kadar olan veriler)."""
-    return _read_jsonl_tail(logs_dir / "session" / "equity_history.jsonl", n, _BYTES_EQUITY)
+    """equity_history.jsonl son N snapshot — audit/ (tek truth, SPEC-Z18)."""
+    return _read_jsonl_tail(logs_dir / "audit" / "equity_history.jsonl", n, _BYTES_EQUITY)
 
 
 def read_skipped(logs_dir: Path, n: int = 100) -> list[dict[str, Any]]:
@@ -259,17 +258,16 @@ def read_bot_status(logs_dir: Path) -> dict[str, Any]:
 
 
 def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
-    """session/equity_history.jsonl son entry'sinden balance widget metrikleri.
+    """audit/equity_history.jsonl son entry'sinden balance widget metrikleri.
 
     Dashboard balance, realized P&L, open P&L ve peak balance hesabı için
     kaynak. positions.json'a bakılmaz (lifetime kirlilik koruması —
     test_summary_reboot_scenario).
 
-    Z11 (2026-05-29): session bos/yoksa audit/equity_history.jsonl'a fallback
-    yapar — read_trades pattern'i (session + audit cift-yedek). Mid-run
-    session corruption (gizemli scheduler, manual_resolve script vs.)
-    karsisinda widget $0 yerine kanonik audit verisini gosterir. Reboot
-    --wipe gercek 0 noktasi icin audit'i de silmeli (kasıtli).
+    SPEC-Z18 (2026-06-05): tek dosya (audit). Z11 session+audit çift-yedek
+    fallback'i kaldırıldı — ayrışacak ikinci kopya yok. Reboot dosyayı arşive
+    taşır → widget gerçek 0 noktasından başlar. Fonksiyon ismi geriye-uyum
+    için korundu (çağıranlar + testler).
 
     Returns dict with keys:
       bankroll, realized_pnl, unrealized_pnl, invested,
@@ -284,9 +282,8 @@ def read_balance_from_session(logs_dir: Path) -> dict[str, Any]:
         "peak_bankroll": 0.0,
         "has_data": False,
     }
-    # Session oncelik, audit fallback (Z11). Var olan + dolu ilk path kazanir.
+    # SPEC-Z18: tek dosya (audit). Çift-yedek fallback kaldırıldı.
     candidate_paths = [
-        logs_dir / "session" / "equity_history.jsonl",
         logs_dir / "audit" / "equity_history.jsonl",
     ]
     path = None

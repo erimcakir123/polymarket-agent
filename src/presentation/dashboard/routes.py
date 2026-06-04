@@ -45,8 +45,8 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/summary")
     def api_summary():
-        # Balance/P&L/Peak/Risk → tek kaynak: session/equity_history.jsonl.
-        # positions.json'a BAKILMAZ — reboot sonrası session silinirse sıfır döner.
+        # Balance/P&L/Peak/Risk → tek kaynak: audit/equity_history.jsonl (SPEC-Z18).
+        # positions.json'a BAKILMAZ — reboot dosyayı arşive taşıyınca sıfır döner.
         # Slot sayısı açık pozisyon listesinden alınır (positions.json).
         session_balance = readers.read_balance_from_session(logs_dir)
         blob = readers.read_positions(logs_dir)

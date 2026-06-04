@@ -607,6 +607,20 @@ def test_reboot_archives_trade_events_jsonl(tmp_path: Path) -> None:
     assert not audit_file.exists(), "clear_audit_logs trade_events'i silmedi"
 
 
+def test_reboot_archives_equity_history_jsonl() -> None:
+    """SPEC-Z18: equity_history.jsonl de _AUDIT_FILES_CLEAR'da — reboot taşır.
+
+    Tek dosya (audit) modeli: trade_events gibi equity_history de reboot'ta
+    arşive taşınır (copy + clear). PnL grafiği yeni session'da 0'dan başlar.
+    """
+    from scripts.reboot import _AUDIT_FILES_CLEAR
+
+    audit_filenames = {p.name for p in _AUDIT_FILES_CLEAR}
+    assert "equity_history.jsonl" in audit_filenames, (
+        "SPEC-Z18: equity_history.jsonl _AUDIT_FILES_CLEAR'da olmalı."
+    )
+
+
 def test_read_open_condition_ids_returns_keys(tmp_path: Path) -> None:
     """positions.json'dan condition_id'leri çıkarır."""
     from scripts.reboot import _read_open_condition_ids

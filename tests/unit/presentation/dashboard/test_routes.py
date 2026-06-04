@@ -80,11 +80,11 @@ def test_summary_cold_state_has_three_sections(tmp_path: Path) -> None:
 
 
 def _write_session_equity(tmp_path: Path, entries: list[dict]) -> None:
-    """test/session/equity_history.jsonl yaz."""
+    """SPEC-Z18: tek dosya — audit/equity_history.jsonl yaz (session aynası yok)."""
     import json as _json
-    session_dir = tmp_path / "logs" / "session"
-    session_dir.mkdir(parents=True, exist_ok=True)
-    path = session_dir / "equity_history.jsonl"
+    audit_dir = tmp_path / "logs" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    path = audit_dir / "equity_history.jsonl"
     with open(path, "w", encoding="utf-8") as f:
         for e in entries:
             f.write(_json.dumps(e) + "\n")
@@ -161,8 +161,8 @@ def test_trades_returns_only_closed(tmp_path: Path) -> None:
     Event log: c-closed → entry + final, c-open → sadece entry.
     exit_events() yalnız exit_price dolu olanı (final almış) event'e çevirir.
     """
-    session_dir = _logs(tmp_path) / "session"
-    session_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir = _logs(tmp_path) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
     events = [
         # closed trade: entry + final
         {"kind": "entry", "condition_id": "cid-closed", "slug": "c-closed",
@@ -178,7 +178,7 @@ def test_trades_returns_only_closed(tmp_path: Path) -> None:
          "question": "q", "sport_tag": "tennis", "source": "model",
          "entry_timestamp": "2026-04-14T11:00:00Z", "entry_price": 0.30},
     ]
-    with open(session_dir / "trade_events.jsonl", "w", encoding="utf-8") as f:
+    with open(audit_dir / "trade_events.jsonl", "w", encoding="utf-8") as f:
         for ev in events:
             f.write(json.dumps(ev) + "\n")
     data = _client(tmp_path).get("/api/trades").get_json()
@@ -193,11 +193,11 @@ def test_equity_history_empty(tmp_path: Path) -> None:
 
 
 def test_equity_history_returns_snapshots(tmp_path: Path) -> None:
-    session_dir = _logs(tmp_path) / "session"
-    session_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir = _logs(tmp_path) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
     line = json.dumps({"timestamp": "t", "bankroll": 1000.0, "realized_pnl": 0.0,
                        "unrealized_pnl": 0.0, "invested": 0.0, "open_positions": 0})
-    (session_dir / "equity_history.jsonl").write_text(line + "\n", encoding="utf-8")
+    (audit_dir / "equity_history.jsonl").write_text(line + "\n", encoding="utf-8")
     data = _client(tmp_path).get("/api/equity_history").get_json()
     assert len(data) == 1
     assert data[0]["bankroll"] == 1000.0

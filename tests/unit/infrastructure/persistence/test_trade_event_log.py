@@ -66,10 +66,10 @@ def test_append_only_preserves_history(tmp_path: Path) -> None:
     assert len(log2.read_events()) == 6  # 5 eski + 1 yeni
 
 
-def test_mirror_dual_write(tmp_path: Path) -> None:
+def test_single_file_no_mirror(tmp_path: Path) -> None:
+    """SPEC-Z18: tek dosya — session aynası kaldırıldı, ikinci kopya oluşmaz."""
     primary = tmp_path / "audit" / "events.jsonl"
-    mirror = tmp_path / "session" / "events.jsonl"
-    log = TradeEventLog(str(primary), mirror_path=str(mirror))
+    log = TradeEventLog(str(primary))
     log.append_entry(
         condition_id="c", slug="s", question="q",
         sport_tag="tennis", source="model", direction="BUY_YES",
@@ -79,8 +79,8 @@ def test_mirror_dual_write(tmp_path: Path) -> None:
         num_bookmakers=5.0, has_sharp=False, entry_reason="normal",
     )
     assert primary.exists()
-    assert mirror.exists()
-    assert primary.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8")
+    assert not (tmp_path / "session" / "events.jsonl").exists()
+    assert len(primary.read_text(encoding="utf-8").strip().splitlines()) == 1
 
 
 def test_corrupt_line_skipped_on_read(tmp_path: Path) -> None:

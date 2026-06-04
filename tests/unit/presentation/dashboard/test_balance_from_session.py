@@ -32,8 +32,10 @@ def _mk_logs(tmp_path: Path) -> tuple[Path, Path]:
     return logs_dir, data_dir
 
 
+# SPEC-Z18: tek dosya (audit). session aynası kaldırıldı; bu helper artık
+# audit/equity_history.jsonl yazar (read_balance_from_session oradan okur).
 def _write_equity(logs_dir: Path, entries: list[dict]) -> None:
-    path = logs_dir / "session" / "equity_history.jsonl"
+    path = logs_dir / "audit" / "equity_history.jsonl"
     with open(path, "w", encoding="utf-8") as f:
         for e in entries:
             f.write(json.dumps(e) + "\n")
@@ -161,23 +163,12 @@ def test_read_balance_session_empty_audit_has_data_falls_back_to_audit(tmp_path:
     assert out["bankroll"] == 1100.0
 
 
-def test_read_balance_session_priority_over_audit(tmp_path: Path) -> None:
-    """Hem session hem audit dolu -> session oncelik (en taze veri)."""
-    logs_dir, _ = _mk_logs(tmp_path)
-    _write_equity(logs_dir, [
-        {"bankroll": 1050.0, "realized_pnl": 50.0, "unrealized_pnl": 0.0,
-         "invested": 0.0, "open_positions": 0},
-    ])
-    _write_audit_equity(logs_dir, [
-        {"bankroll": 999.0, "realized_pnl": -1.0, "unrealized_pnl": 0.0,
-         "invested": 0.0, "open_positions": 0},
-    ])
-    out = readers.read_balance_from_session(logs_dir)
-    assert out["bankroll"] == 1050.0  # session wins
+# SPEC-Z18: "session öncelik" testi kaldırıldı — tek dosya (audit), session
+# aynası yok. Ayrışacak ikinci kopya olmadığı için öncelik kavramı geçersiz.
 
 
 def test_read_balance_both_missing_returns_empty(tmp_path: Path) -> None:
-    """Ne session ne audit -> _EMPTY (true clean state, e.g. fresh reboot --wipe)."""
+    """audit yok -> _EMPTY (true clean state, e.g. fresh reboot --wipe)."""
     logs_dir, _ = _mk_logs(tmp_path)
     out = readers.read_balance_from_session(logs_dir)
     assert out["has_data"] is False
@@ -392,7 +383,7 @@ def test_summary_reboot_scenario_session_data_takes_priority(tmp_path: Path) -> 
     logs_dir, data_dir = _mk_logs(tmp_path)
     # positions.json'da kirli lifetime değer
     _write_positions(tmp_path, realized=107.37)
-    # session'da bankroll snapshot
+    # audit/equity_history.jsonl'de bankroll snapshot (SPEC-Z18 tek dosya)
     _write_equity(logs_dir, [
         {"bankroll": 1032.0, "realized_pnl": 32.0, "unrealized_pnl": 0.0,
          "invested": 0.0, "open_positions": 0},

@@ -143,7 +143,7 @@ def test_read_trades_tail(tmp_path: Path) -> None:
                entry_timestamp=f"2026-05-12T{i:02d}:00:00Z")
         for i in range(30)
     ]
-    _write_events(logs_dir / "session" / "trade_events.jsonl", events)
+    _write_events(logs_dir / "audit" / "trade_events.jsonl", events)
     out = readers.read_trades(logs_dir, n=10)
     assert len(out) == 10
     assert out[-1]["slug"] == "m-29"
@@ -199,14 +199,14 @@ def test_read_trades_archive_not_merged_with_current(tmp_path: Path) -> None:
     assert cids == {"cid-3"}
 
 
-def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
+def test_read_trades_duplicate_events_dedupe_by_signature(
     tmp_path: Path,
 ) -> None:
-    """Z17: aynı event hem session hem audit mirror'da → signature ile dedupe.
+    """SPEC-Z18: tek dosyada tekrarlı event → signature ile dedupe.
 
-    Senaryo: TradeEventLog (audit) + mirror (session) yazıyor.
-    Aynı entry event her iki dosyada bulunur; readers signature dedupe sonrası
-    replay tek trade record üretmeli. Partial event de aynı şekilde dedupe.
+    Tek dosya (audit) — session aynası kaldırıldı. Aynı entry/partial event
+    dosyada iki kez bulunsa bile (örn. çift append), readers signature dedupe
+    sonrası replay tek trade record üretmeli, partial da tekilleşmeli.
     """
     logs_dir, _ = _mk_logs(tmp_path)
     cid = "0xabc123"
@@ -220,9 +220,9 @@ def test_read_trades_session_and_audit_dedupe_by_entry_timestamp(
         tier=1, sell_pct=0.4, realized_pnl_usdc=5.0,
         timestamp="2026-05-12T20:30:00Z", price=0.70,
     )
-    # Hem audit hem session mirror aynı event sequence'i taşır.
-    _write_events(logs_dir / "audit" / "trade_events.jsonl", [entry, partial])
-    _write_events(logs_dir / "session" / "trade_events.jsonl", [entry, partial])
+    # Aynı event sequence tek dosyada iki kez (duplicate append senaryosu).
+    _write_events(logs_dir / "audit" / "trade_events.jsonl",
+                  [entry, partial, entry, partial])
 
     out = readers.read_trades(logs_dir, n=100)
     assert len(out) == 1
@@ -243,7 +243,7 @@ def test_read_trades_same_condition_different_entry_kept_separately(
     """
     logs_dir, _ = _mk_logs(tmp_path)
     cid = "0xabc123"
-    _write_events(logs_dir / "session" / "trade_events.jsonl", [
+    _write_events(logs_dir / "audit" / "trade_events.jsonl", [
         # 1. entry: SL ile kapandı
         _event("entry", condition_id=cid, slug="match-a",
                entry_timestamp="2026-05-12T20:00:00Z", entry_price=0.40),
@@ -275,7 +275,7 @@ def test_read_trades_includes_partial_exits_from_session(tmp_path: Path) -> None
         json.dumps({"positions": {}, "realized_pnl": 7.66, "high_water_mark": 1000.0}),
         encoding="utf-8",
     )
-    _write_events(logs_dir / "session" / "trade_events.jsonl", [
+    _write_events(logs_dir / "audit" / "trade_events.jsonl", [
         _event("entry", condition_id="cid-sabres", slug="sabres",
                entry_timestamp="2026-05-12T23:00:00Z", entry_price=0.40),
         _event("partial", condition_id="cid-sabres", slug="sabres",
@@ -293,7 +293,7 @@ def test_read_trades_includes_partial_exits_from_session(tmp_path: Path) -> None
 def test_read_equity_history_tail(tmp_path: Path) -> None:
     logs_dir, _ = _mk_logs(tmp_path)
     rows = [{"bankroll": 1000 + i} for i in range(5)]
-    _write_jsonl(logs_dir / "session" / "equity_history.jsonl", rows)
+    _write_jsonl(logs_dir / "audit" / "equity_history.jsonl", rows)
     out = readers.read_equity_history(logs_dir, n=100)
     assert len(out) == 5
     assert out[-1]["bankroll"] == 1004

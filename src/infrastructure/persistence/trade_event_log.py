@@ -31,14 +31,16 @@ class TradeEventLog:
 
     Tüm append çağrıları slug + question + sport_tag + source meta'sını
     da yazar — replay sırasında orphan path'e gerek kalmadan etiketler dolu.
+
+    SPEC-Z18 (2026-06-05): session aynası kaldırıldı. audit=session ayrımı
+    reboot=tam-wipe kararıyla (2026-05-23) anlamsızlaştı; iki kopya ayrışıp
+    (audit=4 vs session=113) karmaşaya yol açıyordu. Tek dosya = divergence
+    imkânsız.
     """
 
-    def __init__(self, file_path: str, mirror_path: str | None = None) -> None:
+    def __init__(self, file_path: str) -> None:
         self.path = Path(file_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.mirror = Path(mirror_path) if mirror_path else None
-        if self.mirror:
-            self.mirror.parent.mkdir(parents=True, exist_ok=True)
 
     def _write(self, event: dict[str, Any]) -> None:
         line = json.dumps(event, ensure_ascii=False) + "\n"
@@ -46,10 +48,6 @@ class TradeEventLog:
             with open(self.path, "a", encoding="utf-8") as f:
                 f.write(line)
                 f.flush()
-            if self.mirror is not None:
-                with open(self.mirror, "a", encoding="utf-8") as f:
-                    f.write(line)
-                    f.flush()
         except OSError as e:
             logger.error("TradeEventLog write failed: %s", e)
 

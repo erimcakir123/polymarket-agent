@@ -1,8 +1,9 @@
 """Logger helpers — extracted from factory.py to honour 400-line cap.
 
-3-tier dual-write:
-- audit/  → kalıcı (reboot dokunmaz, ground truth)
-- session/ → reboot mirror (dashboard kaynağı, reboot temizler)
+SPEC-Z18 (2026-06-05): trade_events + equity_history artık TEK dosya (audit/),
+session aynası yok. Reboot dosyayı arşive taşır → dashboard 0. Çift kopya
+ayrışması (audit=4 vs session=113) imkânsız. session mirror yalnızca
+ArchiveLogger (score_events/match_results) için kaldı.
 
 SPEC-Z17 (2026-06-04): legacy build_trade_logger kaldırıldı — tek truth
 trade_events.jsonl event log.
@@ -18,18 +19,13 @@ _SESSION = "logs/session"
 
 
 def build_trade_event_log() -> TradeEventLog:
-    """SPEC-Z17: append-only event log — tek truth kaynağı."""
-    return TradeEventLog(
-        f"{_AUDIT}/trade_events.jsonl",
-        mirror_path=f"{_SESSION}/trade_events.jsonl",
-    )
+    """SPEC-Z18: append-only event log — tek dosya, tek truth (mirror yok)."""
+    return TradeEventLog(f"{_AUDIT}/trade_events.jsonl")
 
 
 def build_equity_logger() -> EquityHistoryLogger:
-    return EquityHistoryLogger(
-        f"{_AUDIT}/equity_history.jsonl",
-        mirror_path=f"{_SESSION}/equity_history.jsonl",
-    )
+    """SPEC-Z18: tek dosya equity log (mirror yok)."""
+    return EquityHistoryLogger(f"{_AUDIT}/equity_history.jsonl")
 
 
 def build_archive_logger() -> ArchiveLogger:
