@@ -22,7 +22,10 @@ from src.infrastructure.telegram.command_poller import TelegramCommandPoller
 from src.infrastructure.telegram.notifier import TelegramNotifier
 from src.infrastructure.websocket.price_feed import PriceFeed
 from src.orchestration.health_monitor import HealthMonitor
-from src.orchestration._factory_loggers import build_equity_logger, build_trade_logger
+from src.orchestration._factory_loggers import (
+    build_equity_logger, build_trade_event_log,
+    build_trade_exits_log, build_trade_logger,
+)
 from src.orchestration.agent import Agent, AgentDeps
 from src.orchestration.bot_status_writer import BotStatusWriter
 from src.orchestration.cycle_manager import CycleManager
@@ -104,6 +107,8 @@ def build_agent(state: RuntimeState) -> Agent:
     # 3-tier log paths: audit (kalıcı) + session (reboot mirror) + runtime (reboot temizler).
     # State (positions/breaker/blacklist) startup.py'de data/'da; operasyonel state burada data/'da.
     trade_logger = build_trade_logger()
+    trade_exits_log = build_trade_exits_log()
+    trade_event_log = build_trade_event_log()
     equity_logger = build_equity_logger()
     skipped_logger = SkippedTradeLogger("logs/runtime/skipped_trades.jsonl")
     stock_snapshot = StockSnapshot("data/stock_queue.json")
@@ -238,6 +243,8 @@ def build_agent(state: RuntimeState) -> Agent:
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,
         consensus_min_model_edge=cfg.consensus.min_model_edge,
+        consensus_favorite_band_min_prob=cfg.consensus.favorite_band_min_prob,
+        consensus_favorite_band_max_prob=cfg.consensus.favorite_band_max_prob,
         # Early entry
         early_enabled=cfg.early.enabled,
         early_min_edge=cfg.early.min_edge,
@@ -323,6 +330,8 @@ def build_agent(state: RuntimeState) -> Agent:
     deps = AgentDeps(
         state=state, scanner=scanner, cycle_manager=cycle_manager,
         executor=executor, odds_client=odds, trade_logger=trade_logger,
+        trade_exits_log=trade_exits_log,
+        trade_event_log=trade_event_log,
         gate=gate, cooldown=cooldown,
         equity_logger=equity_logger, skipped_logger=skipped_logger,
         stock=stock, bot_status_writer=bot_status_writer,
