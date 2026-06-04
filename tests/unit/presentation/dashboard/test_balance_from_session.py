@@ -386,8 +386,8 @@ def test_summary_reboot_scenario_no_session_shows_zero(tmp_path: Path) -> None:
 def test_summary_reboot_scenario_session_data_takes_priority(tmp_path: Path) -> None:
     """Session varsa session değeri kullanılmalı — positions.json görmezden gelinmeli.
 
-    realized_pnl widget'ı trade_history.jsonl'den hesaplanır (reboot-scoped).
-    positions.json'daki kalıcı sayaç (lifetime) kullanılmaz.
+    SPEC-Z17: realized_pnl widget'ı trade_events.jsonl'den replay edilir
+    (reboot-scoped). positions.json'daki kalıcı sayaç (lifetime) kullanılmaz.
     """
     logs_dir, data_dir = _mk_logs(tmp_path)
     # positions.json'da kirli lifetime değer
@@ -397,12 +397,20 @@ def test_summary_reboot_scenario_session_data_takes_priority(tmp_path: Path) -> 
         {"bankroll": 1032.0, "realized_pnl": 32.0, "unrealized_pnl": 0.0,
          "invested": 0.0, "open_positions": 0},
     ])
-    # trade_history'de son reboot'tan beri biriken exit'ler (= 32.0)
-    with open(logs_dir / "audit" / "trade_history.jsonl", "w", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "condition_id": "c1", "entry_timestamp": "2026-05-20T00:00:00Z",
-            "exit_price": 0.80, "exit_pnl_usdc": 32.0, "partial_exits": [],
-        }) + "\n")
+    # trade_events.jsonl'de son reboot'tan beri biriken exit'ler (= 32.0)
+    events = [
+        {"kind": "entry", "condition_id": "c1", "slug": "s",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "entry_timestamp": "2026-05-20T00:00:00Z", "entry_price": 0.50},
+        {"kind": "final", "condition_id": "c1", "slug": "s",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "exit_price": 0.80, "exit_pnl_usdc": 32.0,
+         "exit_reason": "take_profit",
+         "exit_timestamp": "2026-05-20T01:00:00Z"},
+    ]
+    with open(logs_dir / "audit" / "trade_events.jsonl", "w", encoding="utf-8") as f:
+        for ev in events:
+            f.write(json.dumps(ev) + "\n")
 
     client = _client(tmp_path)
     data = client.get("/api/summary").get_json()

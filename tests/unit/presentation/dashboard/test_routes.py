@@ -91,20 +91,31 @@ def _write_session_equity(tmp_path: Path, entries: list[dict]) -> None:
 
 
 def test_summary_reflects_session_equity(tmp_path: Path) -> None:
-    """Balance widget session equity'den okumalı; realized_pnl ise trade_history'den."""
+    """Balance widget session equity'den okumalı; realized_pnl ise event log'dan.
+
+    SPEC-Z17: trade kayıtları artık trade_events.jsonl'dan replay edilir.
+    """
     _write_session_equity(tmp_path, [
         {"bankroll": 1042.0, "realized_pnl": 42.0, "unrealized_pnl": 8.0,
          "invested": 40.0, "open_positions": 1},
     ])
-    # realized_pnl widget'ı trade_history.jsonl'den hesaplanır (reboot-scoped)
+    # realized_pnl widget'ı trade_events.jsonl'dan hesaplanır (reboot-scoped)
     import json as _json
     audit_dir = tmp_path / "logs" / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
-    with open(audit_dir / "trade_history.jsonl", "w", encoding="utf-8") as f:
-        f.write(_json.dumps({
-            "condition_id": "c1", "entry_timestamp": "2026-05-20T00:00:00Z",
-            "exit_price": 0.50, "exit_pnl_usdc": 42.0, "partial_exits": [],
-        }) + "\n")
+    events = [
+        {"kind": "entry", "condition_id": "c1", "slug": "s",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "entry_timestamp": "2026-05-20T00:00:00Z", "entry_price": 0.30},
+        {"kind": "final", "condition_id": "c1", "slug": "s",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "exit_price": 0.50, "exit_pnl_usdc": 42.0,
+         "exit_reason": "take_profit",
+         "exit_timestamp": "2026-05-20T01:00:00Z"},
+    ]
+    with open(audit_dir / "trade_events.jsonl", "w", encoding="utf-8") as f:
+        for ev in events:
+            f.write(_json.dumps(ev) + "\n")
     data = _client(tmp_path).get("/api/summary").get_json()
     assert data["equity"]["bankroll"] == 1042.0
     assert data["equity"]["realized_pnl"] == 42.0
@@ -145,15 +156,31 @@ def test_trades_empty(tmp_path: Path) -> None:
 
 
 def test_trades_returns_only_closed(tmp_path: Path) -> None:
+    """SPEC-Z17: /api/trades sadece kapanmış pozisyonları döner (final event'i olan).
+
+    Event log: c-closed → entry + final, c-open → sadece entry.
+    exit_events() yalnız exit_price dolu olanı (final almış) event'e çevirir.
+    """
     session_dir = _logs(tmp_path) / "session"
     session_dir.mkdir(parents=True, exist_ok=True)
-    closed = json.dumps({"slug": "c-closed", "exit_price": 0.55,
-                         "exit_timestamp": "2026-04-14T12:00:00Z"})
-    open_trade = json.dumps({"slug": "c-open", "exit_price": None,
-                             "exit_timestamp": ""})
-    (session_dir / "trade_history.jsonl").write_text(
-        closed + "\n" + open_trade + "\n", encoding="utf-8",
-    )
+    events = [
+        # closed trade: entry + final
+        {"kind": "entry", "condition_id": "cid-closed", "slug": "c-closed",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "entry_timestamp": "2026-04-14T10:00:00Z", "entry_price": 0.40},
+        {"kind": "final", "condition_id": "cid-closed", "slug": "c-closed",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "exit_price": 0.55, "exit_pnl_usdc": 15.0,
+         "exit_reason": "take_profit",
+         "exit_timestamp": "2026-04-14T12:00:00Z"},
+        # open trade: sadece entry (final yok)
+        {"kind": "entry", "condition_id": "cid-open", "slug": "c-open",
+         "question": "q", "sport_tag": "tennis", "source": "model",
+         "entry_timestamp": "2026-04-14T11:00:00Z", "entry_price": 0.30},
+    ]
+    with open(session_dir / "trade_events.jsonl", "w", encoding="utf-8") as f:
+        for ev in events:
+            f.write(json.dumps(ev) + "\n")
     data = _client(tmp_path).get("/api/trades").get_json()
     assert len(data) == 1
     assert data[0]["slug"] == "c-closed"
