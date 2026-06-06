@@ -876,6 +876,29 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z20 — TODO-007 ÇÖZÜLDÜ: "mistik scheduler" = pytest (2026-06-06)
+
+**Kök neden (kesin, kanıtlanmış):** Aylardır kovalanan "audit'i kim siliyor" gizemi
+(TODO-007) bir scheduler/zamanlayıcı DEĞİLDİ — **pytest'ti.** İki reboot testi
+(`test_reboot_calls_archive_audit_logs`, `test_reboot_archives_full_audit_not_split`)
+`reboot()`'u çağırırken `clear_audit_logs`'u mock'lamıyordu → `reboot()` içindeki
+gerçek `clear_audit_logs()` argümansız çalışıp **production** `_AUDIT_FILES_CLEAR`'ı
+(trade_events.jsonl + equity_history.jsonl + ...) siliyordu. **Her `pytest` çalıştığında
+canlı audit uçuyordu.**
+
+**Kanıt:** Sentinel `logs/audit/trade_events.jsonl` oluşturuldu → o iki test çalıştırıldı
+→ sentinel SİLİNDİ. Fix sonrası tüm suite (2070 test) çalıştı → sentinel HAYATTA.
+Forensic log'un %98'i (358 kaydın 352'si) zaten pytest'ti — işaret hep oradaydı.
+
+**Fix:** İki teste `patch("scripts.reboot.clear_audit_logs")` eklendi (test 188 zaten
+doğru yapıyordu, bu ikisi unutmuştu). Production wipe önlendi, davranış testi korundu.
+
+**Etki:** `tests/integration/test_reboot.py` (2 test mock eklendi). TODO-007 KAPANDI.
+SPEC-Z7/Z8 forensic logger + `.bak` mekanizmaları artık gereksiz (gizem çözüldü) —
+temizlik ayrı işte yapılabilir.
+
+---
+
 ### SPEC-Z19 — Basketbol modeli kapatıldı, bahisçiye dönüş (2026-06-06)
 
 **Karar:** `basketball.model_enabled: false`. Basketbol artık kendi in-house modelini

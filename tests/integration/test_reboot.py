@@ -374,6 +374,11 @@ def test_reboot_calls_archive_audit_logs() -> None:
         patch("scripts.reboot.clear_runtime_logs"),
         patch("scripts.reboot.clear_session_logs"),
         patch("scripts.reboot.archive_audit_logs") as mock_archive,
+        # SPEC-Z20 (2026-06-06): clear_audit_logs MOCK ZORUNLU — yoksa reboot()
+        # gerçek clear_audit_logs() çağırır, production logs/audit/*.jsonl SİLER.
+        # TODO-007 "mistik scheduler" kök nedeni buydu: pytest production audit'i
+        # siliyordu (bu testin clear_audit_logs mock eksikliği).
+        patch("scripts.reboot.clear_audit_logs"),
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.start_bot"),
         patch("scripts.reboot.start_dashboard"),
@@ -396,6 +401,8 @@ def test_reboot_archives_full_audit_not_split() -> None:
         patch("scripts.reboot.clear_runtime_logs"),
         patch("scripts.reboot.clear_session_logs"),
         patch("scripts.reboot.archive_audit_logs") as mock_archive,
+        # SPEC-Z20 (2026-06-06): clear_audit_logs MOCK ZORUNLU — production wipe önle.
+        patch("scripts.reboot.clear_audit_logs"),
         patch("scripts.reboot.reset_state"),
         patch("scripts.reboot.start_bot"),
         patch("scripts.reboot.start_dashboard"),
