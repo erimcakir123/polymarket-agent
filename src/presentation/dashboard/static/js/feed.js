@@ -107,25 +107,33 @@
     },
 
     _countdownPill(matchStartIso, matchLive) {
-      // SPEC kuralı (SPEC-Z4 2026-05-24):
-      //   delta > 0                  → countdown ("Xh Ym" veya "Xm")
-      //   delta <= 0 + <= 8h geçti   → "LIVE" (match_live ne olursa olsun;
-      //                                Polymarket event.live gecikiyor olabilir)
-      //   delta <= -8h               → rozet gizlenir (maç çoktan bitti, max_post_start)
+      // SPEC-Z22 (2026-06-07): pill GERÇEK match_live'e dayalı (eski 8h zaman-hack
+      // değil — bitmiş maç "LIVE" gösteriyordu). Mantık:
+      //   delta > 0                         → countdown ("Xh Ym")
+      //   başladı + match_live=True         → "LIVE"
+      //   başladı + match_live=False + <3h  → "LIVE" (ESPN gecikme/kapsam yok,
+      //                                       tipik maç süresinde — şüpheden yararlanır)
+      //   başladı + match_live=False + >3h  → "Bitti" (maç kesin bitti, resolve bekliyor)
+      //   >8h geçti                          → gizle (çok eski)
+      const TYPICAL_MATCH_HOURS = 3;   // tenis/basket tipik üst maç süresi
+      const MAX_POST_START_HOURS = 8;
       if (!matchStartIso) return "";
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
       const diff = start - Date.now();
-      if (diff <= 0) {
-        const hoursPast = -diff / (MS_PER_MIN * 60);
-        if (hoursPast > 8) return "";  // tipik max maç süresi geçti
+      if (diff > 0) {
+        const mins = Math.floor(diff / MS_PER_MIN);
+        const hours = Math.floor(mins / 60);
+        const remMins = mins % 60;
+        const label = hours > 0 ? `${hours}h ${remMins}m` : `${mins}m`;
+        return `<span class="feed-countdown">${label}</span>`;
+      }
+      const hoursPast = -diff / (MS_PER_MIN * 60);
+      if (hoursPast > MAX_POST_START_HOURS) return "";
+      if (matchLive || hoursPast <= TYPICAL_MATCH_HOURS) {
         return `<span class="feed-countdown live">LIVE</span>`;
       }
-      const mins = Math.floor(diff / MS_PER_MIN);
-      const hours = Math.floor(mins / 60);
-      const remMins = mins % 60;
-      const label = hours > 0 ? `${hours}h ${remMins}m` : `${mins}m`;
-      return `<span class="feed-countdown">${label}</span>`;
+      return `<span class="feed-countdown ended">Bitti</span>`;
     },
 
     _cardOpen(slug, forceCloseAlert) {

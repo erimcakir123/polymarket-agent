@@ -299,6 +299,20 @@
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
 }
+/* SPEC-Z22: maç bitti, resolve bekliyor — gri, nabız yok (LIVE ile karışmasın) */
+.feed-countdown.ended {
+  color: var(--text-muted, #8a93a6);
+}
+.feed-countdown.ended::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted, #8a93a6);
+  margin-right: 5px;
+  vertical-align: middle;
+}
 
 /* Kart nefes alsın — padding + gap hafif artış; detay satırı sönük */
 .feed-item {
