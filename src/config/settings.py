@@ -12,9 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # Sport-specific config bölümleri (ARCH_GUARD §3 nedeniyle ayrı modüllerde).
 # Re-export ile dış import path'leri korunur (geri uyumluluk).
 from src.config.basketball_settings import (
-    BasketballConfig,
     BasketballExitConfig,
-    BasketballLeagueParams,
     OvertimeExitConfig,
     PredictiveExitConfig,
     TotalsEmpiricalConfig,
@@ -23,7 +21,7 @@ from src.config.tennis_settings import TennisConfig
 
 __all__ = [
     "AppConfig", "Mode", "load_config",
-    "BasketballConfig", "BasketballExitConfig", "BasketballLeagueParams",
+    "BasketballExitConfig",
     "OvertimeExitConfig", "PredictiveExitConfig", "TotalsEmpiricalConfig",
     "TennisConfig",
 ]
@@ -163,6 +161,9 @@ class ConsensusConfig(BaseModel):
     # bypass ediyordu. Model edge (direction-adjusted: anchor vs entry) bu
     # eşiğin altıysa consensus iptal. 0.0 → negatif edge yasak (min).
     min_model_edge: float = 0.0
+    # SPEC-Z14 (06-04): prob_for_side bandında min_model_edge bypass.
+    favorite_band_min_prob: float = 0.60
+    favorite_band_max_prob: float = 0.80
 
 
 class StockConfig(BaseModel):
@@ -370,7 +371,7 @@ class AppConfig(BaseModel):
     price_feed: PriceFeedConfig = PriceFeedConfig()
     exit_basketball: BasketballExitConfig = Field(default_factory=BasketballExitConfig)
     mlb_submarket: MlbSubmarketConfig = Field(default_factory=MlbSubmarketConfig)
-    basketball: BasketballConfig = Field(default_factory=BasketballConfig)
+    # SPEC-Z21 (2026-06-06): `basketball: BasketballConfig` (model) field'ı kaldırıldı.
     tennis: TennisConfig = Field(default_factory=TennisConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
 

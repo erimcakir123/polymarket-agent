@@ -37,9 +37,6 @@ from src.infrastructure.data.calibration_store import load_calibration as load_t
 from src.infrastructure.data.tennis_ratings_store import load_ratings as load_tennis_ratings
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
-from src.strategy.enrichment.basketball_dispatch import (
-    enrich_with_basketball_dispatch,
-)
 from src.strategy.enrichment.odds_enricher import enrich_market
 from src.strategy.enrichment.tennis_dispatch import enrich_with_tennis_dispatch
 
@@ -61,13 +58,8 @@ def build_agent(state: RuntimeState) -> Agent:
     # blocking, ratings.json'ı agent'ın taze yüklemesi için). Stale değilse skip.
     _maybe_invoke_sackmann_refresh(cfg)
 
-    # SPEC 2026-06-01 Faz 1: basketball aktif iken refresh hook (tennis paraleli).
-    # Plan 1.A foundation — Plan 1.B'de team rating wiring tamamlanır.
-    _maybe_invoke_basketball_refresh(cfg)
-
-    # YAYINA ALMA (2026-06-01): basket ratings cache build hook.
-    # Cache yoksa/eskimişse NBA/WNBA otomatik build; diğer ligler manuel script.
-    _maybe_build_basketball_ratings(cfg)
+    # SPEC-Z21 (2026-06-06): basketbol modeli kaldırıldı — refresh/ratings-build
+    # hook'ları silindi. Basketbol artık bahisçi konsensüsü (model verisi gerekmez).
 
     # Plan 1.D Task 6: haftalık calibration eğrisi update (FiveThirtyEight paterni).
     _maybe_invoke_calibration_refresh()
@@ -145,18 +137,8 @@ def build_agent(state: RuntimeState) -> Agent:
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
 
-    # Basketball ratings + efficiencies cache (Plan 1.A-D wiring tamamlanması).
-    # Lig-başına ayrı JSON dosyası (basketball_cache/{league}_ratings.json).
-    basket_ratings, basket_efficiencies = _load_basketball_caches(cfg)
-    # 2026-06-02: NBA/WNBA rest-days adjustment — back-to-back -30 Elo.
-    # Schedule cache (data/basketball_schedule.json) varsa uygulanır.
-    from src.domain.pricing.basketball.rest_days import adjust_ratings_now
-    basket_ratings = adjust_ratings_now(
-        basket_ratings, Path("data/basketball_schedule.json"),
-    )
-    basket_calibration = load_tennis_calibration(
-        Path("data/calibration_curves.json"),  # Plan 1.D generic location
-    )
+    # SPEC-Z21 (2026-06-06): basketbol ratings/efficiencies/rest-days/calibration
+    # yüklemesi kaldırıldı — model yok, basketbol bahisçiyle fiyatlanır.
     if tennis_ratings:
         logger.info(
             "Tennis model anchor aktif: %d oyuncu reytingi, calibration curves=%d",
@@ -205,20 +187,10 @@ def build_agent(state: RuntimeState) -> Agent:
             )
 
     # Gate: enricher + manipulation_check closure'ları.
-    # Tri-dispatch: sport_tag basketball → basketball_dispatch (Plan 1.C wiring),
-    # tennis/diğer → tennis_dispatch → bookmaker fallback (mevcut).
-    _basket_sports = frozenset({"nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague"})
-
+    # SPEC-Z21 (2026-06-06): basketbol modeli kaldırıldı. tennis kendi dispatch'i
+    # (model); diğer TÜM sporlar (basketbol dahil) tennis_dispatch'in non-tennis
+    # fallback'i ile bahisçiye düşer (enrich_market: ML + totals, kazanan dönem hali).
     def _enricher(market):
-        sport = (market.sport_tag or "").lower()
-        if sport in _basket_sports:
-            return enrich_with_basketball_dispatch(
-                market, _tennis_dispatched,
-                ratings=basket_ratings,
-                efficiencies=basket_efficiencies,
-                basketball_cfg=cfg.basketball,
-                calibration_curves=basket_calibration,
-            )
         return _tennis_dispatched(market)
 
     def _manip(question: str, liquidity: float) -> ManipulationCheck:
@@ -360,19 +332,7 @@ from src.orchestration.factory_refresh_hooks import (  # noqa: E402,F401
     maybe_refresh_sackmann_on_startup,
 )
 
-# Basketball wiring helpers ayrı modülde (ARCH_GUARD §3). Re-export geri uyumluluk.
-from src.orchestration.factory_basketball import (  # noqa: E402,F401
-    _BASKETBALL_SPORT_TAGS,
-    _COLLEGE_BASKET_LEAGUES,
-    _EUROPE_BASKET_LEAGUES,
-    _PRO_BASKET_LEAGUES,
-    _TENNIS_SPORT_TAGS,
-    _load_basketball_caches,
-    _make_basketball_fetchers,
-    _maybe_build_basketball_ratings,
-    _maybe_invoke_basketball_refresh,
-    _select_enricher_for_sport,
-)
+# SPEC-Z21 (2026-06-06): factory_basketball re-export'ları kaldırıldı (model yok).
 
 
 def _build_executor(cfg: AppConfig) -> Executor:

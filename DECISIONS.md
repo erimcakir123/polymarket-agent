@@ -876,6 +876,40 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z21 — Basketbol modeli TAMAMEN kaldırıldı + bahisçi totals geri (2026-06-06)
+
+**Karar:** Basketbol in-house modeli (Pace×Efficiency + Elo) tüm ayak iziyle silindi.
+Basketbol artık kazandığı dönemdeki gibi **bahisçi konsensüsü** ile fiyatlanır
+(moneyline + totals). Tenis kendi modelini korur. SPEC-Z19 config-gate yetersizdi
+(dead code bırakıyordu); model kodu sıfırlandı.
+
+**Faz A — bahisçi totals geri:** SPEC-K `_spread_totals_parser` git'ten restore +
+`odds_enricher`'a totals dalı (markets=totals fetch, `parse_total_line` ile çizgi,
+±0.5 tolerance, vig normalize, P(YES)=Over). Kazanan dönem totals'ı (num_bookmakers
+56) bahisçiyle fiyatlanıyordu — bu yetenek geri geldi.
+
+**Faz B — dispatch bypass:** `factory._enricher` artık basketbolu doğrudan
+`_tennis_dispatched`'in non-tennis bahisçi fallback'ine yönlendirir (enrich_market:
+ML + totals). basketball_dispatch çağrısı kaldırıldı.
+
+**Faz C — model tamamen sil (dead code yok):**
+- Silindi: `domain/pricing/basketball/*` (pace_efficiency, team_elo, match_pricer,
+  efficiency_metrics, rest_days, season_reset), `infrastructure/data/basketball/*`
+  (tüm scraper/refresher/store/schema), `basketball_anchor_enricher`,
+  `basketball_model_anchor`, `basketball_dispatch`, `basketball_ratings_builder`,
+  `factory_basketball` + tüm testleri (~26 dosya)
+- Config: `BasketballConfig` + `BasketballLeagueParams` (settings + config.yaml model
+  bölümü) kaldırıldı. **Korundu:** `BasketballExitConfig` (in-game exit, model-bağımsız),
+  `basketball_team_resolver` (roster drift monitör kullanıyor)
+- factory model wiring (ratings/efficiencies/rest-days/refresh hook) silindi
+
+**Kanıt:** Mayıs (model YOK) +$573 / Haziran (model) −$82. İlk model trade 1 Haz
+(sea-dal "%76 vs %16" → $50 yanma). 1900 test geçer (model testleri silindi).
+
+**Commit'ler:** Faz A ayrı; Faz B+C bu commit.
+
+---
+
 ### SPEC-Z20 — TODO-007 ÇÖZÜLDÜ: "mistik scheduler" = pytest (2026-06-06)
 
 **Kök neden (kesin, kanıtlanmış):** Aylardır kovalanan "audit'i kim siliyor" gizemi
