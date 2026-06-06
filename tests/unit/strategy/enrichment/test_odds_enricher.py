@@ -49,6 +49,43 @@ def _bookie(key: str, home_odds: float, away_odds: float, home: str, away: str) 
     }
 
 
+def _bookie_totals(key: str, over_odds: float, under_odds: float, line: float) -> dict:
+    return {
+        "key": key, "title": key.title(),
+        "markets": [{
+            "key": "totals",
+            "outcomes": [
+                {"name": "Over", "price": over_odds, "point": line},
+                {"name": "Under", "price": under_odds, "point": line},
+            ],
+        }],
+    }
+
+
+def test_enrich_totals_returns_over_probability() -> None:
+    """SPEC-Z21: totals market → bahisçi konsensüsü Over olasılığı (P(YES)=Over)."""
+    event = _event_with_bookmakers(
+        "Los Angeles Lakers", "Boston Celtics",
+        [
+            _bookie_totals("pinnacle", 1.91, 1.91, 215.5),
+            _bookie_totals("bet365", 1.95, 1.87, 215.5),
+            _bookie_totals("draftkings", 1.90, 1.92, 215.5),
+            _bookie_totals("fanduel", 1.93, 1.89, 215.5),
+        ],
+    )
+    client = _client_returning([event])
+    m = _market(
+        question="Los Angeles Lakers vs Boston Celtics: O/U 215.5",
+        slug="nba-lal-bos-2026-04-13-total-215pt5",
+        sports_market_type="totals",
+    )
+    r = enrich_market(m, client)
+    assert r.probability is not None
+    # Over @ ~1.91 → ~0.50 implied (vig-normalize sonrası)
+    assert 0.45 < r.probability.probability < 0.55
+    assert r.probability.has_sharp is True  # pinnacle
+
+
 def test_enrich_single_sharp_below_weight_threshold() -> None:
     # Pinnacle tek başına → weight 3.0 < 5 → C conf (yetersiz veri)
     # Probability hala döner ama confidence C (entry bloklanır)
