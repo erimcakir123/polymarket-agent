@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from src.config.settings import BasketballConfig
 from src.domain.analysis.enrich_outcome import EnrichResult
+from src.domain.analysis.probability import calculate_bookmaker_probability
 from src.domain.pricing.basketball.pace_efficiency import TeamEfficiency
 from src.domain.pricing.basketball.team_elo import EloRating
 from src.models.market import MarketData
@@ -53,8 +54,9 @@ def test_moneyline_no_ratings_falls_to_bookmaker():
     bm.assert_called_once()
 
 
-def test_basketball_with_ratings_returns_model():
-    bm = MagicMock()
+def test_basketball_ml_falls_back_to_model_when_bm_unavailable():
+    """SPEC-Z14: ML + BM None + ratings var → model devreye girer."""
+    bm = MagicMock(return_value=EnrichResult(probability=None, fail_reason=None))
     market = _market(sport_tag="nba", market_type="moneyline")
     ratings = {"nba": {
         "LAL": EloRating(rating=1600.0, games=20),
@@ -69,7 +71,61 @@ def test_basketball_with_ratings_returns_model():
         basketball_cfg=BasketballConfig(),
     )
     assert res.probability is not None
-    bm.assert_not_called()
+    assert res.probability.source == "model"
+    bm.assert_called_once()
+
+
+def test_model_disabled_routes_totals_to_bookmaker_not_model():
+    """SPEC-Z19: basketball.model_enabled=False → tüm basketbol (totals dahil)
+    bahisçiye gider, model ÇALIŞMAZ (kazandığımız döneme dönüş).
+
+    Ratings dolu olsa bile model_enabled=False → totals market bile bookmaker'a
+    yönlenir. Bahisçi h2h-only olduğu için totals'a None döner → trade açılmaz
+    (model burn'leri biter).
+    """
+    bm = MagicMock(return_value=EnrichResult(probability=None, fail_reason=None))
+    market = _market(
+        sport_tag="nba", market_type="totals",
+        slug="nba-lal-gsw-2024-11-01-total-220pt5",
+    )
+    ratings = {"nba": {
+        "LAL": EloRating(rating=1600.0, games=20),
+        "GSW": EloRating(rating=1400.0, games=20),
+    }}
+    eff = {"nba": {
+        "LAL": TeamEfficiency(adj_o=115.0, adj_d=108.0, adj_pace=100.0),
+        "GSW": TeamEfficiency(adj_o=108.0, adj_d=115.0, adj_pace=100.0),
+    }}
+    enrich_with_basketball_dispatch(
+        market, bm, ratings=ratings, efficiencies=eff,
+        basketball_cfg=BasketballConfig(model_enabled=False),
+    )
+    bm.assert_called_once_with(market)
+
+
+def test_basketball_ml_bm_first_when_bm_available():
+    """SPEC-Z14: ML + BM data var → model çağrılmadan BM döner."""
+    bm_prob = calculate_bookmaker_probability(
+        bookmaker_prob=0.58, num_bookmakers=5.0, has_sharp=True,
+    )
+    bm = MagicMock(return_value=EnrichResult(probability=bm_prob, fail_reason=None))
+    market = _market(sport_tag="nba", market_type="moneyline")
+    ratings = {"nba": {
+        "LAL": EloRating(rating=1600.0, games=20),
+        "GSW": EloRating(rating=1400.0, games=20),
+    }}
+    eff = {"nba": {
+        "LAL": TeamEfficiency(adj_o=115.0, adj_d=108.0, adj_pace=100.0),
+        "GSW": TeamEfficiency(adj_o=108.0, adj_d=115.0, adj_pace=100.0),
+    }}
+    res = enrich_with_basketball_dispatch(
+        market, bm, ratings=ratings, efficiencies=eff,
+        basketball_cfg=BasketballConfig(),
+    )
+    assert res.probability is not None
+    assert res.probability.source == "bookmaker"
+    assert abs(res.probability.bookmaker_prob - 0.58) < 1e-6
+    bm.assert_called_once()
 
 
 def test_cbb_alias_routes_to_ncaab():

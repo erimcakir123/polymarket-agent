@@ -156,13 +156,26 @@ def enrich_with_basketball_dispatch(
     basketball_cfg: BasketballConfig,
     calibration_curves: dict[str, CalibrationCurve] | None = None,
 ) -> EnrichResult:
-    """Basketball ise model, değilse veya yetersiz veri ise bookmaker fallback.
+    """Basketball market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
+
+    Akış:
+      - Non-basket   → bookmaker (h2h)
+      - Non-match    → fail (futures/prop yetki dışı)
+      - Low-tier     → fail (preseason/exhibition)
+      - ML + BM OK   → BM döner (BM-first)
+      - ML + BM fail → model fallback (ratings/eff/team-resolve tüm guard'lar)
+      - Alt market   → sadece model (BM h2h dışı veri vermiyor; cascade bug önleme)
 
     ratings/efficiencies: {league: {team: rating/efficiency}}.
-    Alt market'lerde fallback YASAK (cascade bug önleme).
     """
     sport = (market.sport_tag or "").lower()
     if sport not in _BASKETBALL_LEAGUES:
+        return bookmaker_enricher(market)
+
+    # SPEC-Z19 (2026-06-06): model kapalıysa basketbol tamamen bahisçiye gider
+    # (kazandığımız döneme dönüş). Bahisçi h2h-only → totals/spreads None döner,
+    # trade açılmaz; model burn'leri (örn. "%76 vs %16" yanlış kararları) biter.
+    if not basketball_cfg.model_enabled:
         return bookmaker_enricher(market)
 
     # Yetki filtre (2026-06-01): futures/prop market'lerde modelimiz konuşamaz.
@@ -184,11 +197,17 @@ def enrich_with_basketball_dispatch(
     market_type = _infer_market_type(market)
     is_moneyline = market_type in _MONEYLINE_TYPES
 
+    # SPEC-Z14: ML → BM-first. BM data varsa onu kullan, yoksa model fallback.
+    if is_moneyline:
+        bm_result = bookmaker_enricher(market)
+        if bm_result.probability is not None:
+            return bm_result
+        # BM yok → model fallback (aşağı düş).
+
+    # Model akışı (alt market'ler buradan başlar; ML için BM fail fallback'i).
     league_ratings = ratings.get(league, {})
     league_eff = efficiencies.get(league, {})
     if not league_ratings or not league_eff:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_BASKETBALL_DATA_MISSING,
@@ -196,8 +215,6 @@ def enrich_with_basketball_dispatch(
 
     resolved = resolve_team_pair(market.slug or "", league=league)
     if not resolved.ok or resolved.home is None or resolved.away is None:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
@@ -208,16 +225,12 @@ def enrich_with_basketball_dispatch(
     home_rating = league_ratings.get(resolved.home)
     away_rating = league_ratings.get(resolved.away)
     if home_rating is None or away_rating is None:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
         )
     if (home_rating.games < _MIN_GAMES_FOR_TRADE
             or away_rating.games < _MIN_GAMES_FOR_TRADE):
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_TEAM_NOT_IN_RATINGS,
@@ -236,7 +249,7 @@ def enrich_with_basketball_dispatch(
     line = _extract_line(
         market.question or "", market_type, slug=market.slug or "",
     )
-    model_result = enrich_basketball_from_model(
+    return enrich_basketball_from_model(
         home_team=resolved.home, away_team=resolved.away,
         market_type=market_type, league=league,
         ratings=league_ratings, efficiencies=league_eff,
@@ -244,8 +257,3 @@ def enrich_with_basketball_dispatch(
         line=line, calibration_curves=calibration_curves,
         margin_std=m_std, total_std=t_std,
     )
-    if model_result.probability is not None:
-        return model_result
-    if is_moneyline:
-        return bookmaker_enricher(market)
-    return model_result

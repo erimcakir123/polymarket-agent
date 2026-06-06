@@ -36,6 +36,11 @@ class BasketballConfig(BaseModel):
     leagues: lig-başına model tuning (Plan 1.B Task 7).
     """
     model_config = ConfigDict(extra="ignore")
+    # SPEC-Z19 (2026-06-06): False → basketbol kendi modelini KULLANMAZ, sadece
+    # bahisçi konsensüsü (moneyline). Kazandığımız dönem (21-30 May, +$573)
+    # bookmaker-driven idi; model (1-2 Haz) totals/ML yanlış kararlarıyla yaktı.
+    # Model olgunlaşınca True'ya alınır.
+    model_enabled: bool = True
     enabled_leagues: List[str] = Field(default_factory=lambda: ["nba"])
     cache_dir: str = "data/basketball_cache"
     health_file: str = "data/basketball_cache/_health/sources_status.json"

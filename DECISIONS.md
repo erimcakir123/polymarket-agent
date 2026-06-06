@@ -876,6 +876,31 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z19 — Basketbol modeli kapatıldı, bahisçiye dönüş (2026-06-06)
+
+**Karar:** `basketball.model_enabled: false`. Basketbol artık kendi in-house modelini
+KULLANMAZ — sadece bahisçi konsensüsü (moneyline, h2h). Tenis kendi modelini korur.
+
+**Neden (arşiv P&L analizi, dry_run sim):**
+- **21-30 May (model YOK, bahisçi):** +$573, 70 trade, %60 kazanma, +$8.2/trade
+- **1-6 Haz (model AÇIK):** −$82, 10 trade, %50 kazanma, −$8.2/trade — hacim %86 çöktü
+- Kırılma tam 1-2 Haz'da (commit `121bdc1` basketbol modeli + universal bimodal).
+- Katastrofik yanmalar model kaynaklı: model "%76" derken piyasa "%16" (sea-dal),
+  yanlış → $50 ML yanması. Backtest zaten vasattı (Brier 0.21).
+
+**Etki (tek temiz gate, dead code yok):**
+- `src/config/basketball_settings.py` — `BasketballConfig.model_enabled: bool = True`
+- `src/strategy/enrichment/basketball_dispatch.py` — sport basketbol + `model_enabled
+  False` → erken `return bookmaker_enricher(market)` (h2h-only). Totals/spreads None
+  döner → açılmaz (model burn'leri biter). Model kodu duruyor, config ile geri açılır.
+- `config.yaml` — `basketball.model_enabled: false`
+- Test: `test_model_disabled_routes_totals_to_bookmaker_not_model` (TDD, RED→GREEN)
+
+**Not:** Bahisçi (odds_enricher) şu an h2h-only — basketbol totals/spreads bahisçiden
+gelmez. İstenirse Odds API totals/spreads fetch ayrı feature olarak eklenir (TODO).
+
+---
+
 ### SPEC-Z18 — Tek-defter sadeleştirmesi: audit/session çift-yazım kaldırıldı (2026-06-05)
 
 **Karar:** `trade_events.jsonl` ve `equity_history.jsonl` için `audit/` + `session/`

@@ -187,6 +187,16 @@ consensus:
   min_price: 0.60
   bet_pct: 0.05
   max_slots: 5
+  # SPEC-Z13 (2026-06-03): direction-adjusted model edge guard. Default 0.0 =
+  # negatif model edge consensus yasak. SPEC-Z14 ile birlikte favorite_band
+  # aralığında bu kural bypass edilir.
+  min_model_edge: 0.0
+  # SPEC-Z14 (2026-06-04 revize): favorite-band, direction-adjusted MODEL OLASILIĞI
+  # üzerinden. Botun seçtiği taraf için tahmini kazanma olasılığı [min, max)
+  # aralığındaysa min_model_edge bypass. Önceki sürüm entry_price üzerindeydi —
+  # kullanıcı "güven bandı" semantiğini istedi (06-04). Anti_edge_absolute_max aktif.
+  favorite_band_min_prob: 0.60
+  favorite_band_max_prob: 0.80
 
 stock:
   enabled: true
@@ -335,6 +345,11 @@ price_feed:
   max_spread_for_near_resolve: 0.10
 
 basketball:
+  # SPEC-Z19 (2026-06-06): basketbol modeli KAPATILDI — sadece bahisçi (moneyline).
+  # Kazandığımız dönem (21-30 May, +$573) bookmaker-driven idi; model (1-2 Haz)
+  # totals/ML yanlış kararlarıyla yaktı (-$82, hacim de çöktü). Model olgunlaşınca
+  # true'ya alınır. Tenis kendi modelini korur (tennis_dispatch ayrı, etkilenmez).
+  model_enabled: false
   # Faz 1 (2026-06-01): NBA + WNBA model foundation (PASS spike: 240 maç).
   # Faz 2 (2026-06-01): NCAAB + WNCAAB eklendi (ESPN scrape, possessions 0.475).
   # Faz 3 (2026-06-01): Euroleague eklendi (euroleague-api, FIBA possessions 0.46).
