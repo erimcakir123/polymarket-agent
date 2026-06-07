@@ -82,10 +82,13 @@ def walk_sell(
     target_price: float,
     shares: float,
     max_slippage_pct: float,
+    market: bool = False,
 ) -> FillResult:
     """Walk bids descending, accumulate fill while price >= target * (1 - slippage).
 
-    Returns FILLED (all), PARTIAL_FILL (some), or REJECTED (zero).
+    market=True → kayma tabanı yok (gerçek piyasa emri): tüm gerçek bid
+    derinliği yürünür. Yalnız her seviyedeki gerçek `size` kadar doldurulur
+    (hayalet icat yok). Returns FILLED / PARTIAL_FILL / REJECTED.
     Zero shares input → FILLED with 0 (degenerate).
     """
     if shares <= 0:
@@ -93,7 +96,7 @@ def walk_sell(
     if not bids:
         return FillResult(FillStatus.REJECTED, 0.0, 0.0, 0.0, "empty_book")
 
-    min_acceptable = target_price * (1.0 - max_slippage_pct)
+    min_acceptable = 0.0 if market else target_price * (1.0 - max_slippage_pct)
     filled_shares = 0.0
     filled_usdc = 0.0
 

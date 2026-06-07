@@ -82,6 +82,31 @@ def test_walk_sell_zero_shares_is_filled_zero() -> None:
     assert r.filled_shares == 0.0
 
 
+def test_walk_sell_market_mode_fills_below_slippage_floor() -> None:
+    # Referans 0.30, alıcı 0.26'da derin — %5 kayma normalde reddederdi.
+    bids = [_bid(0.26, 6483.0)]
+    r = walk_sell(bids, 0.30, 29.0, 0.05, market=True)
+    assert r.status == FillStatus.FILLED
+    assert abs(r.filled_shares - 29.0) < 1e-9
+    assert abs(r.weighted_avg_price - 0.26) < 1e-9
+
+
+def test_walk_sell_non_market_still_rejects_below_slippage() -> None:
+    # Regresyon: market=False eski davranış (reddet).
+    bids = [_bid(0.26, 6483.0)]
+    r = walk_sell(bids, 0.30, 29.0, 0.05, market=False)
+    assert r.status == FillStatus.REJECTED
+    assert r.reason == "no_bids_above_slippage"
+
+
+def test_walk_sell_market_mode_only_fills_real_depth() -> None:
+    # Hayalet alıcı: 1¢'te 2 hisse → 29 istense de yalnız 2 dolar (gerçek derinlik).
+    bids = [_bid(0.01, 2.0)]
+    r = walk_sell(bids, 0.30, 29.0, 0.05, market=True)
+    assert r.status == FillStatus.PARTIAL_FILL
+    assert abs(r.filled_shares - 2.0) < 1e-9
+
+
 def test_walk_buy_weighted_avg_multiple_levels() -> None:
     asks = [_ask(0.67, 100.0), _ask(0.66, 10.0), _ask(0.65, 10.0)]  # DESC; best=0.65
     r = walk_buy(asks, 0.67, 50.0, 0.05, 0.95)
