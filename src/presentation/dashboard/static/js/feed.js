@@ -91,7 +91,7 @@
       let prevDay = null;
       scroll.innerHTML = items.slice(0, MAX_ITEMS).map((it) => {
         const day = (it.match_start_iso || "9999-12-31").slice(0, 10);
-        const sep = prevDay !== null && day !== prevDay
+        const sep = tab !== "active" && prevDay !== null && day !== prevDay
           ? '<div class="feed-day-sep" aria-hidden="true"></div>' : "";
         prevDay = day;
         return sep + this._card(tab, it);
