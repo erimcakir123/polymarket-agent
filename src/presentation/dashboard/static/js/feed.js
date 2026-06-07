@@ -197,6 +197,7 @@
             <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
           </div>
         </div>
+        ${p.realistic_exit ? `<div class="feed-realistic-note">${p.realistic_exit.note}: <b>${FMT.usdSignedHtml(p.realistic_exit.realistic_pnl_usdc)}</b></div>` : ""}
         <div class="feed-time">
           <span>$${p.size_usdc.toFixed(0)}</span>
           ${this._countdownPill(p.match_start_iso, p.match_live)}

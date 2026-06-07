@@ -78,6 +78,17 @@ def read_force_close_alerts(logs_dir: Path) -> set[str]:
     return set(raw.keys()) if isinstance(raw, dict) else set()
 
 
+def read_realistic_exit_estimates(logs_dir: Path) -> dict[str, Any]:
+    """data/realistic_exit_estimates.json → condition_id → {realistic_pnl_usdc, note}.
+
+    Takılı kalmış (zarar-kes likidite/donma yüzünden çalışamamış) pozisyonlar için
+    'gerçekçi satış olsaydı' tek-seferlik tahmin notu. Dashboard kartta gösterir.
+    Dosya yoksa {} → kart notu çizilmez.
+    """
+    raw = _read_json(logs_dir.parent / "data" / "realistic_exit_estimates.json", {})
+    return raw if isinstance(raw, dict) else {}
+
+
 def read_model_health(logs_dir: Path) -> dict[str, Any]:
     """data/model_health.json → {computed_at_utc, sports} ya da {} (yok/bozuk).
 
