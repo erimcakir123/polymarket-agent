@@ -7,6 +7,7 @@ rapidfuzz>=3.0.0
 py-clob-client>=0.15.0
 websockets>=12.0
 flask>=3.0.0
+gunicorn>=21.2.0  # Pano uretim WSGI sunucusu (Linux) — Flask dev server yerine (E3 server migration)
 pytest>=8.0.0
 numpy>=1.24  # MLB submarket probability vectors (SPEC-R Plan 2)
 pybaseball>=2.2  # Statcast pitch-by-pitch event data (SPEC-R Plan 3 T2)
