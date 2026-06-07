@@ -1,4 +1,4 @@
-"""SPEC-Z24 check_loss_reentry guard birim testleri."""
+"""SPEC-Z26 check_loss_reentry guard birim testleri."""
 from __future__ import annotations
 
 from types import SimpleNamespace

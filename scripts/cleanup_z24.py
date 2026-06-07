@@ -1,4 +1,4 @@
-"""SPEC-Z24 tek-seferlik temizlik: kural-dışı 5 işlemi defterden çıkar +
+"""SPEC-Z26 tek-seferlik temizlik: kural-dışı 5 işlemi defterden çıkar +
 equity eğrisini yeniden hesapla. Saf fonksiyonlar + I/O main().
 
 KULLANIM:

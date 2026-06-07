@@ -876,6 +876,41 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z26 — Zararla-çıkış sonrası tekrar-giriş yasağı + test verisi temizliği (2026-06-07)
+
+**Kural:** Bir markete (condition_id) girip **net zararla** kapanınca, o markete bu
+session bir daha girilmez. Kardeş guard'lar gibi her zaman açık.
+
+**Neden (kanıt):** Bot canlı maçta stop-loss'la (`partial_sl`) çıkıp, yavaş güncellenen
+bahisçi çapasına göre "fırsat büyüdü" sanıp aynı markete dakikalar içinde tekrar girip
+kaybı katlıyordu. `wnba-ind-nyl-2026-06-06` moneyline: 1. pozisyon −$10.56 → 6 dk sonra
+2. giriş −$24.93 (tek maçta −$35). Mevcut `cooldown` yakalayamaz (portföy-geneli +
+art-arda-3-kayıp eşikli; markete-özel değil).
+
+**Uygulama:**
+- `domain/trade/loss_tracking.closed_at_loss_cids(events)` — saf: net realized<0 +
+  final'i olan condition_id'ler.
+- `PortfolioManager.closed_at_loss: set[str]` — saf state.
+- `entry_processor.run_heavy` her cycle defterden türetip portfolio'ya yazar
+  (reload-safe; reboot'ta defter arşivlenince doğal sıfırlanır).
+- `entry_guards.check_loss_reentry` — `_execute_entry`'de place_order öncesi blok,
+  `skip_reason=loss_reentry_blocked`.
+- Kârlı çıkışta engel YOK (gereksiz: kazanan çıkış near_resolve/resolved = maç bitti,
+  market kalmaz; 0.75 cap da keser — 17/17 kazanan çıkış bunu doğruladı).
+
+**Veri temizliği (tek seferlik, `scripts/cleanup_z24.py`):** Bugünkü kurallarla
+(max_entry 0.75 + tekrar-giriş yasağı) hiç açılmayacak 5 işlem session defterinden
+silindi (kâr/zarar fark etmeksizin, kullanıcı kararı "tüm session tutarlı"): poling-ilagan
+(2 episode), vekic-monnet 0.79, wsh-atl moneyline 0.81, ind-nyl 2. giriş. trade_events +
+equity_history + `data/positions.json` realized hizalandı (202.60 → 225.30); yedekli,
+doğrulandı; reload ile aktif. Açık-pozisyon unrealized titremesi (kabul edilen sınır)
+bırakıldı.
+
+**Test:** loss_tracking (5) + entry_guards (3) + entry_processor entegrasyon (1) +
+portfolio (2) + cleanup saf fonksiyon (6). Toplam suite yeşil.
+
+---
+
 ### SPEC-Z25 — PAPER kilidi: paper-dışı mod açık onay ister (DEMİR KURAL) (2026-06-07)
 
 **Kullanıcı kuralı (kesin):** Bot ASLA kullanıcı izni olmadan paper-dışı moda

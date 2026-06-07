@@ -4,7 +4,7 @@ guard'lar:
   - check_duplicate_condition: aynı condition_id'ye 2. pozisyon
   - check_exclude_combo: config'de tanımlı negatif-EV kombinasyonları (tour+market+conf)
   - check_correlated_bet: aynı event + market_type + direction birden fazla
-  - check_loss_reentry: bu session'da zararla kapanan markete tekrar giriş (SPEC-Z24)
+  - check_loss_reentry: bu session'da zararla kapanan markete tekrar giriş (SPEC-Z26)
   - resolve_market_meta: market_type → (type, total_line, total_side)
 
 True döner: BLOCKED, entry akışı durur.
@@ -101,7 +101,7 @@ def check_correlated_bet(deps, market: MarketData, signal) -> bool:
 
 
 def check_loss_reentry(deps, market: MarketData) -> bool:
-    """SPEC-Z24: bu session'da zararla kapanan markete tekrar giriş yasağı.
+    """SPEC-Z26: bu session'da zararla kapanan markete tekrar giriş yasağı.
 
     True → bloke. Kardeş guard'lar (duplicate/correlated) gibi her zaman açık —
     config flag yok. Liste `run_heavy`'de defterden türetilir (closed_at_loss_cids).

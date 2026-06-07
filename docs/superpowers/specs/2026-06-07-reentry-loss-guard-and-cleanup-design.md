@@ -133,5 +133,5 @@ moddayken canlı session'da bulunan iki kusur.
 ---
 
 ## DECISIONS.md etkisi (uygulama sonrası)
-- §A'ya kısa kural notu + §B'ye SPEC-Z24 (tekrar-giriş yasağı) log girişi.
+- §A'ya kısa kural notu + §B'ye SPEC-Z26 (tekrar-giriş yasağı) log girişi.
 - config.yaml `block_reentry_after_loss` notu.

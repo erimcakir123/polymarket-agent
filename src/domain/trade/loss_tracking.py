@@ -1,4 +1,4 @@
-"""SPEC-Z24: zararla kapanan condition_id türetimi. Pure, I/O yok. Domain.
+"""SPEC-Z26: zararla kapanan condition_id türetimi. Pure, I/O yok. Domain.
 
 Tekrar-giriş yasağı için kullanılır: bir markete girip net zararla kapandıysa
 o market bu session bir daha açılmaz.

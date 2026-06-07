@@ -65,7 +65,7 @@ Expected: FAIL (ModuleNotFoundError: loss_tracking)
 
 ```python
 # src/domain/trade/loss_tracking.py
-"""SPEC-Z24: zararla kapanan condition_id türetimi. Pure, I/O yok. Domain."""
+"""SPEC-Z26: zararla kapanan condition_id türetimi. Pure, I/O yok. Domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -102,7 +102,7 @@ Expected: 4 passed
 
 ```bash
 git add src/domain/trade/loss_tracking.py tests/unit/domain/trade/test_loss_tracking.py
-git commit -m "feat(domain): SPEC-Z24 closed_at_loss_cids — zararla kapanan market türetimi"
+git commit -m "feat(domain): SPEC-Z26 closed_at_loss_cids — zararla kapanan market türetimi"
 ```
 
 ---
@@ -140,7 +140,7 @@ Expected: FAIL (AttributeError: closed_at_loss)
 
 ```python
     positions: dict[str, Position] = field(default_factory=dict)
-    closed_at_loss: set[str] = field(default_factory=set)  # SPEC-Z24: tekrar-giriş yasağı
+    closed_at_loss: set[str] = field(default_factory=set)  # SPEC-Z26: tekrar-giriş yasağı
 ```
 
 - [ ] **Step 4: Run, verify pass**
@@ -152,7 +152,7 @@ Expected: 2 passed
 
 ```bash
 git add src/domain/portfolio/manager.py tests/unit/domain/portfolio/test_manager.py
-git commit -m "feat(domain): SPEC-Z24 PortfolioManager.closed_at_loss state alanı"
+git commit -m "feat(domain): SPEC-Z26 PortfolioManager.closed_at_loss state alanı"
 ```
 
 ---
@@ -216,7 +216,7 @@ Expected: FAIL (ImportError: check_loss_reentry)
 
 ```python
 def check_loss_reentry(deps, market: MarketData) -> bool:
-    """SPEC-Z24: bu session'da zararla kapanan markete tekrar giriş yasağı.
+    """SPEC-Z26: bu session'da zararla kapanan markete tekrar giriş yasağı.
 
     True → bloke. Kardeş guard'lar gibi her zaman açık (config flag yok).
     """
@@ -232,7 +232,7 @@ def check_loss_reentry(deps, market: MarketData) -> bool:
     return True
 ```
 
-Modül docstring'indeki guard listesine bir satır ekle: `- check_loss_reentry: zararla kapanan markete tekrar giriş (SPEC-Z24)`.
+Modül docstring'indeki guard listesine bir satır ekle: `- check_loss_reentry: zararla kapanan markete tekrar giriş (SPEC-Z26)`.
 
 - [ ] **Step 4: Run, verify pass**
 
@@ -243,7 +243,7 @@ Expected: 3 passed
 
 ```bash
 git add src/orchestration/entry_guards.py tests/unit/orchestration/test_entry_guards.py
-git commit -m "feat(orchestration): SPEC-Z24 check_loss_reentry guard"
+git commit -m "feat(orchestration): SPEC-Z26 check_loss_reentry guard"
 ```
 
 ---
@@ -315,7 +315,7 @@ from src.domain.trade.loss_tracking import closed_at_loss_cids
 ```python
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
-        # SPEC-Z24: zararla kapanan condition_id'leri defterden türet (tekrar-giriş yasağı).
+        # SPEC-Z26: zararla kapanan condition_id'leri defterden türet (tekrar-giriş yasağı).
         # Her heavy cycle yenilenir → reload sonrası kendiliğinden dolar.
         if self.deps.trade_event_log is not None:
             self.deps.state.portfolio.closed_at_loss = closed_at_loss_cids(
@@ -346,7 +346,7 @@ Expected: tümü pass
 
 ```bash
 git add src/orchestration/entry_processor.py tests/unit/orchestration/test_entry_processor.py
-git commit -m "feat(orchestration): SPEC-Z24 tekrar-giriş guard'ını entry akışına bağla"
+git commit -m "feat(orchestration): SPEC-Z26 tekrar-giriş guard'ını entry akışına bağla"
 ```
 
 ---
@@ -416,7 +416,7 @@ Expected: FAIL (ModuleNotFoundError: scripts.cleanup_z24)
 
 ```python
 # scripts/cleanup_z24.py
-"""SPEC-Z24 tek-seferlik temizlik: kural-dışı 5 işlemi defterden çıkar +
+"""SPEC-Z26 tek-seferlik temizlik: kural-dışı 5 işlemi defterden çıkar +
 equity eğrisini yeniden hesapla. Saf fonksiyonlar + I/O main().
 
 KULLANIM: python scripts/cleanup_z24.py        (dry-run, sadece rapor)
@@ -540,7 +540,7 @@ Expected: 3 passed
 
 ```bash
 git add scripts/cleanup_z24.py tests/unit/scripts/test_cleanup_z24.py
-git commit -m "feat(scripts): SPEC-Z24 temizlik saf fonksiyonları (remove_events + rebuild_equity)"
+git commit -m "feat(scripts): SPEC-Z26 temizlik saf fonksiyonları (remove_events + rebuild_equity)"
 ```
 
 ---
@@ -645,7 +645,7 @@ Expected: çıktı BOŞ (poling-ilagan + vekic-monnet kalmadı).
 
 ```bash
 git add scripts/cleanup_z24.py
-git commit -m "feat(scripts): SPEC-Z24 temizlik main() — yedek + apply + doğrula"
+git commit -m "feat(scripts): SPEC-Z26 temizlik main() — yedek + apply + doğrula"
 ```
 
 ---
@@ -657,7 +657,7 @@ git commit -m "feat(scripts): SPEC-Z24 temizlik main() — yedek + apply + doğr
 - [ ] **Step 2:** Dashboard'da kontrol: basketbol kartı, realized PnL, exited sekmesi — 5 işlemin izi yok.
 
 - [ ] **Step 3:** DECISIONS.md güncelle:
-  - §B'ye **SPEC-Z24** girişi (tekrar-giriş yasağı kuralı + neden: ind-nyl falling-knife −$35).
+  - §B'ye **SPEC-Z26** girişi (tekrar-giriş yasağı kuralı + neden: ind-nyl falling-knife −$35).
   - §A'ya kısa kural notu.
   - SPEC.md/spec draft'ı temizle (kod+test bitti).
 
@@ -665,7 +665,7 @@ git commit -m "feat(scripts): SPEC-Z24 temizlik main() — yedek + apply + doğr
 
 ```bash
 git add DECISIONS.md
-git commit -m "docs: SPEC-Z24 tekrar-giriş yasağı + temizlik kaydı (DECISIONS)"
+git commit -m "docs: SPEC-Z26 tekrar-giriş yasağı + temizlik kaydı (DECISIONS)"
 ```
 
 ---

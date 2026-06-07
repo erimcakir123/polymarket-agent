@@ -393,7 +393,7 @@ def test_run_heavy_skips_process_signals_when_engine_none() -> None:
 
 
 def test_execute_entry_blocked_when_condition_closed_at_loss(monkeypatch):
-    """SPEC-Z24: closed_at_loss içindeki cid için place_order ÇAĞRILMAZ."""
+    """SPEC-Z26: closed_at_loss içindeki cid için place_order ÇAĞRILMAZ."""
     from types import SimpleNamespace
     import src.orchestration.entry_processor as ep
 

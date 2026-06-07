@@ -1,4 +1,4 @@
-"""SPEC-Z24 tek-seferlik temizlik saf fonksiyon testleri."""
+"""SPEC-Z26 tek-seferlik temizlik saf fonksiyon testleri."""
 from scripts.cleanup_z24 import remove_events, removed_events, rebuild_equity
 
 

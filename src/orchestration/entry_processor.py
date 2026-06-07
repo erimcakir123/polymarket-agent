@@ -43,7 +43,7 @@ class EntryProcessor:
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
-        # SPEC-Z24: zararla kapanan condition_id'leri defterden türet (tekrar-giriş
+        # SPEC-Z26: zararla kapanan condition_id'leri defterden türet (tekrar-giriş
         # yasağı). Her heavy cycle yenilenir → reload sonrası kendiliğinden dolar.
         if self.deps.trade_event_log is not None:
             self.deps.state.portfolio.closed_at_loss = closed_at_loss_cids(
