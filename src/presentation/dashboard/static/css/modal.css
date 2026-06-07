@@ -301,7 +301,7 @@
 /* Gün sınırı ayracı — exit tarihi değişince boşluk + çizgi (günler ayrışsın) */
 .trade-day-sep {
   height: 0;
-  margin: 8px 6px;
+  margin: 16px 6px;
   border-top: 1px solid var(--border);
 }
 
