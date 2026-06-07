@@ -23,7 +23,7 @@ def _mock_infra(monkeypatch) -> None:
     monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda **kwargs: MagicMock())
     monkeypatch.setattr(
         "src.orchestration.factory.PriceFeed",
-        lambda max_spike_pct: MagicMock(),
+        lambda **kw: MagicMock(),
     )
 
 

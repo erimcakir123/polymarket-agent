@@ -48,7 +48,7 @@ def test_factory_engine_none_when_disabled(tmp_path, monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "src.orchestration.factory.PriceFeed",
-        lambda max_spike_pct: MagicMock(),
+        lambda **kw: MagicMock(),
     )
 
     agent = build_agent(state)
@@ -72,7 +72,7 @@ def test_factory_engine_info_logged_when_enabled(tmp_path, monkeypatch, caplog) 
     monkeypatch.setattr("src.orchestration.factory.OddsAPIClient", lambda: MagicMock())
     monkeypatch.setattr("src.orchestration.factory.ESPNClient", lambda **kwargs: MagicMock())
     monkeypatch.setattr(
-        "src.orchestration.factory.PriceFeed", lambda max_spike_pct: MagicMock()
+        "src.orchestration.factory.PriceFeed", lambda **kw: MagicMock()
     )
     monkeypatch.setattr(
         "src.infrastructure.mlb_data.statsapi_client.StatsApiClient",
