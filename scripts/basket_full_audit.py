@@ -9,10 +9,11 @@ import sys
 import glob
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-ana_audit = r"c:/Users/erimc/OneDrive/Desktop/CLAUDE PROJELER/Polymarket Agent 2.0/logs/audit"
+ana_audit = str(Path(__file__).resolve().parent.parent / "logs" / "audit")
 
 # TUM audit dosyalari (recursive)
 all_files = []
