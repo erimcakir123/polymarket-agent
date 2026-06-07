@@ -109,6 +109,12 @@
 .feed-item-resolving {
   border-right: 3px solid rgba(255, 176, 32, 0.4);
 }
+/* Gün sınırı ayracı — günler arası boşluk + soluk çizgi (görsel ayrışma) */
+.feed-day-sep {
+  height: 0;
+  margin: 14px 10px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.07));
+}
 
 .feed-item:hover .feed-market {
   color: var(--blue);
