@@ -469,6 +469,35 @@ def test_scanner_uses_enricher_overridden_start_for_filter() -> None:
     assert result[0].slug == "atp-minaur-paul-2026-05-22"
 
 
+def test_scanner_drops_market_when_enricher_pushes_start_beyond_window() -> None:
+    """Polymarket 20h (filtre geçer) AMA ESPN 40h'ye düzeltir → enrich-SONRASI DÜŞMELİ.
+
+    Hanfmann olayı (2026-06-07): Polymarket maçı bir gün erken (06-08) listeledi →
+    ≤24h sanılıp filtreyi geçti; ESPN gerçek tarihe (06-09, 37h) düzeltti ama eskiden
+    24h tekrar uygulanmadığı için girilirdi. Fix: enrich sonrası 24h tekrar uygulanır.
+    """
+    now = datetime.now(timezone.utc)
+    m = _market(
+        cid="tennis-2", sport_tag="tennis_atp",
+        match_start=now + timedelta(hours=20),    # Polymarket: ≤24h → filtre geçer
+        end_date=now + timedelta(hours=72),
+    )
+    m.slug = "atp-hanfman-kovacev-2026-06-08"
+    overridden = m.model_copy(update={
+        "match_start_iso": (now + timedelta(hours=40)).strftime("%Y-%m-%dT%H:%M:%SZ"),  # ESPN: 40h
+    })
+    enricher = MagicMock()
+    enricher.enrich.return_value = [overridden]
+
+    sc = MarketScanner(
+        _config(max_hours_to_start=24, allowed_sport_tags=["tennis*"]),
+        gamma_client=_mock_gamma([m]),
+        tennis_start_enricher=enricher,
+    )
+    result = sc.scan()
+    assert result == []  # 40h > 24h → enrich sonrası düşürülmeli
+
+
 def test_scanner_works_without_enricher_backward_compat() -> None:
     """tennis_start_enricher=None ile geriye uyumlu calismali."""
     sc = MarketScanner(_config(), gamma_client=_mock_gamma([]))

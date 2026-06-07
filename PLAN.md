@@ -39,3 +39,11 @@
 ## Aktif Planlar
 
 *Şu an aktif plan yok — boş duruyor.*
+
+> NOT (2026-06-07): PLAN-DRYRUN-CLEANUP uygulandı AMA **GERİ ALINDI** — hatalıydı.
+> Watson moneyline'ı $50'lık (116 pay) gerçek bir kazanandı; dry-run penceresinde
+> yaptığı scale-out kâr-almaları (+$20.93 @88¢, +$17.09 @92¢) LİKİT fiyatlarda olduğu
+> için paper'da da gerçekleşirdi → gerçek kârdı. Yanlışlıkla "hayalî" sanılıp silindi.
+> Tüm dosyalar yedekten geri yüklendi (realized 259.16, Watson +$57.90). Ders: dry-run
+> satışı "hayalî" sadece paper'ın REDDEDECEĞİ fiyatlarda (0¢) geçerli; likit fiyatta
+> yapılan satış paper'da da dolardı → gerçek say.

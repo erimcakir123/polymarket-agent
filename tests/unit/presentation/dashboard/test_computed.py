@@ -294,6 +294,49 @@ def test_exit_events_full_exit_has_remaining_pct_zero() -> None:
     assert events[0]["anchor_probability"] == 0.58
 
 
+def test_exit_events_sold_pct_is_cumulative_original_fraction() -> None:
+    """sold_pct = orijinalin bu olayda satılan oranı (kart $ boyutu için).
+
+    Watson örneği ($50, 43¢→100¢, 2 kâr-al + final):
+      T1: sell 40% of original          → sold_pct 0.40 ($20)
+      T2: sell 50% of remaining 60%      → sold_pct 0.30 ($15)
+      final: leftover 30%               → sold_pct 0.30 ($15)
+    Toplam 0.40+0.30+0.30 = 1.0 → parçalar tam pozisyonu toplar (yanıltıcı $50 yok).
+    """
+    trades = [{
+        "slug": "watson", "condition_id": "cid", "sport_tag": "tennis",
+        "direction": "BUY_YES", "entry_price": 0.43, "size_usdc": 50.0,
+        "entry_timestamp": "2026-06-06T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.64,
+        "partial_exits": [
+            {"tier": 1, "sell_pct": 0.4, "realized_pnl_usdc": 20.93,
+             "timestamp": "2026-06-06T01:00:00Z", "price": 0.88},
+            {"tier": 2, "sell_pct": 0.5, "realized_pnl_usdc": 17.09,
+             "timestamp": "2026-06-06T02:00:00Z", "price": 0.92},
+        ],
+        "exit_price": 0.999, "exit_reason": "near_resolve",
+        "exit_pnl_usdc": 19.88, "exit_timestamp": "2026-06-06T03:00:00Z",
+    }]
+    events = computed.exit_events(trades)
+    sold = sorted(round(e["sold_pct"], 4) for e in events)
+    assert sold == [0.3, 0.3, 0.4]
+    assert abs(sum(e["sold_pct"] for e in events) - 1.0) < 1e-9
+
+
+def test_exit_events_full_exit_no_partials_sold_pct_one() -> None:
+    """Hiç partial yoksa final tüm pozisyonu satar → sold_pct = 1.0."""
+    trades = [{
+        "slug": "x", "condition_id": "cid", "sport_tag": "mlb",
+        "direction": "BUY_YES", "entry_price": 0.5, "size_usdc": 30.0,
+        "entry_timestamp": "2026-04-15T00:00:00Z", "question": "Q?",
+        "anchor_probability": 0.58, "partial_exits": [],
+        "exit_price": 0.7, "exit_reason": "near_resolve",
+        "exit_pnl_usdc": 20.0, "exit_timestamp": "2026-04-15T03:00:00Z",
+    }]
+    events = computed.exit_events(trades)
+    assert events[0]["sold_pct"] == 1.0
+
+
 # ── win_loss ──
 
 def test_win_loss_counts_partial_exits_as_separate_events() -> None:

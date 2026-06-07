@@ -124,6 +124,10 @@ class MarketScanner:
         filtered = [m for m in raw if self._passes_filters(m)]
         if self._tennis_enricher is not None:
             filtered = self._tennis_enricher.enrich(filtered)
+            # ESPN enrich match_start_iso'yu düzeltebilir (Polymarket ±1 gün hatası).
+            # 24h zaman penceresini DÜZELTİLMİŞ saatle TEKRAR uygula — yoksa yanlış-erken
+            # Polymarket tarihiyle filtreyi geçen maç, gerçek saat 24h'i aşsa da girilirdi.
+            filtered = [m for m in filtered if self._within_entry_time_window(m)]
         filtered.sort(key=_sort_key)
         top = filtered[: self.config.max_markets_per_cycle]
         logger.info("Scanner: %d raw → %d filtered → top %d",
@@ -193,18 +197,24 @@ class MarketScanner:
         if not self._within_duration(m):
             return False
 
-        # Odds API h2h penceresi — maç > max_hours_to_start sonraysa bookmaker verisi
-        # alamayacağız; stock'a eklenip boşa beklemesin.
-        if _hours_to_start(m) > self.config.max_hours_to_start:
-            return False
-
-        # Stale match_start: maç 8+ saat önce başlamışsa atla
-        # (sezon-uzunluğu futures'lar match_start=sezon başı çok eski tarih atar
-        # ve bucket-0 imminent'a düşer; bunu eler)
-        if not self._match_start_recent_or_future(m):
+        # Giriş zaman penceresi (Odds API h2h: ≤max_hours_to_start + stale guard).
+        # ESPN enrich match_start'ı değiştirebildiği için scan()'de filter-SONRASI tekrar uygulanır.
+        if not self._within_entry_time_window(m):
             return False
 
         return True
+
+    def _within_entry_time_window(self, m: MarketData) -> bool:
+        """Maç giriş zaman penceresinde mi: ≤max_hours_to_start ileride VE çok eski değil.
+
+        ESPN tennis enrich match_start_iso'yu düzeltebildiği (Polymarket ±1 gün hatası)
+        için hem _passes_filters'da hem scan()'de enrich SONRASI uygulanır — yoksa
+        yanlış-erken Polymarket tarihiyle 24h filtresini geçen maç, gerçek saat 24h'i
+        aşsa bile girilirdi (Hanfmann 06-08→06-09, 37h olayı).
+        """
+        if _hours_to_start(m) > self.config.max_hours_to_start:
+            return False
+        return self._match_start_recent_or_future(m)
 
     def _sport_tag_allowed(self, tag: str) -> bool:
         """Tag whitelist içinde mi? tennis_* joker karakter desteklenir."""

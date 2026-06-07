@@ -248,7 +248,10 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # Naive toplama yanlış sonuç verir (ör. T1=40%, T2=50% → naive %10, gerçek %30).
         remaining = 1.0
         for pe in (t.get("partial_exits") or []):
-            remaining = max(0.0, remaining * (1.0 - float(pe.get("sell_pct") or 0.0)))
+            # sell_pct = o anki KALANIN yüzdesi. sold_pct = ORİJİNALİN bu olayda
+            # satılan oranı (kart $ boyutu için): remaining_before × sell_pct.
+            sold_pct = remaining * float(pe.get("sell_pct") or 0.0)
+            remaining = max(0.0, remaining - sold_pct)
             events.append({
                 "slug": t.get("slug", ""),
                 "sport_tag": t.get("sport_tag", ""),
@@ -264,12 +267,15 @@ def exit_events(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "exit_timestamp": pe.get("timestamp", ""),
                 "partial": True,
                 "sell_pct": pe.get("sell_pct", 0.0),
+                "sold_pct": sold_pct,
                 "partial_price": pe.get("price"),
                 "remaining_pct": remaining,
             })
         if t.get("exit_price") is not None:
             ev = dict(t)
             ev["partial"] = False
+            # Final, partial'lardan SONRA kalan parçayı satar (partial yoksa 1.0).
+            ev["sold_pct"] = remaining
             ev["remaining_pct"] = 0.0
             events.append(ev)
     events.sort(key=lambda e: e.get("exit_timestamp", ""), reverse=True)

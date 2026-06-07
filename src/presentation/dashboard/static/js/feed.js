@@ -213,11 +213,13 @@
       const pnlCls = t.exit_reason === "voided" ? "pnl-void" : FMT.unrealizedClass(pnl);
       const isPartial = !!t.partial;
 
-      // Invested notional: partial'da orijinal tutarın payı, full'de tam size.
-      // Aynı denominator hem PnL % hem feed-time'da gösterilen $ için kullanılır.
-      const invested = isPartial
-        ? Number(t.size_usdc || 0) * Number(t.sell_pct || 0)
-        : Number(t.size_usdc || 0);
+      // Invested notional: her olayın ORİJİNALDEN satılan payı (sold_pct).
+      // sold_pct = kümülatif (T2 = kalanın değil orijinalin payı; final = leftover).
+      // Eski kayıtlarda sold_pct yoksa fallback: partial→sell_pct, full→tam size.
+      const soldFrac = (t.sold_pct !== undefined && t.sold_pct !== null)
+        ? Number(t.sold_pct)
+        : (isPartial ? Number(t.sell_pct || 0) : 1);
+      const invested = Number(t.size_usdc || 0) * soldFrac;
       const pnlPct = invested > 0 ? (pnl / invested) * 100 : 0;
 
       // Odds %: direction-adjusted render. anchor_probability = P(YES).
