@@ -150,8 +150,9 @@ def test_calibration_age_old_triggers_info(tmp_path: Path) -> None:
     monitor = _make_monitor(tmp_path)
     calib = monitor.state_dir / "tennis_calibration.json"
     calib.write_text("{}")
-    # 10 gün önce mtime
-    old = (datetime.now() - timedelta(days=10)).timestamp()
+    # mtime: monitörün KENDI saatine göre 10 gün önce (gerçek now ile karışmasın —
+    # _now sabit olduğu için datetime.now() kullanmak testi zamana bağımlı kılar).
+    old = (monitor._now() - timedelta(days=10)).timestamp()
     import os
     os.utime(calib, (old, old))
     alerts = monitor.check_all()
