@@ -1,4 +1,4 @@
-"""Tennis dispatch — sport_tag tennis ise model, değilse veya alt market fail ise fallback."""
+"""Tennis dispatch — SPEC-Z14 (2026-06-03) BM-first, model fallback (ML); alt market sadece model."""
 from src.domain.analysis.enrich_outcome import EnrichResult
 from src.domain.analysis.probability import calculate_bookmaker_probability
 from src.domain.pricing.tennis.glicko import Rating
@@ -26,7 +26,7 @@ def _snap(mu: float, serve: float) -> PlayerSnapshot:
 
 
 def _fake_bookmaker_enrich(market: MarketData) -> EnrichResult:
-    """Simulates the existing odds-API enrich path."""
+    """BM h2h enrich simülasyonu — başarılı sonuç (0.55)."""
     return EnrichResult(
         probability=calculate_bookmaker_probability(
             bookmaker_prob=0.55, num_bookmakers=5.0, has_sharp=True,
@@ -35,40 +35,68 @@ def _fake_bookmaker_enrich(market: MarketData) -> EnrichResult:
     )
 
 
-def test_non_tennis_uses_fallback():
+def _fake_bookmaker_enrich_none(market: MarketData) -> EnrichResult:
+    """BM h2h enrich simülasyonu — Odds API kapsama yok."""
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    return EnrichResult(
+        probability=None,
+        fail_reason=EnrichFailReason.SPORT_KEY_UNRESOLVED,
+    )
+
+
+def test_non_tennis_uses_bookmaker():
+    """Non-tennis sport_tag → doğrudan bookmaker (sport-agnostic h2h)."""
     m = _market("NBA Lakers vs Celtics", sport="nba")
     result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings={})
     assert result.probability is not None
-    # Came from fallback (bookmaker 0.55)
     assert abs(result.probability.bookmaker_prob - 0.55) < 1e-6
 
 
-def test_tennis_moneyline_uses_model_when_available():
+def test_tennis_moneyline_bm_first_when_bm_available():
+    """SPEC-Z14: ML + BM data var → BM döner (model'e bakılmaz)."""
     m = _market("Alice vs Bob")
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
     result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings=ratings)
     assert result.probability is not None
-    assert result.probability.confidence == "A"
-    # Model output > bookmaker (Alice strong favorite)
+    # BM çıktısı (0.55), model değil — model olsa Alice strong favori → > 0.6 olurdu.
+    assert abs(result.probability.bookmaker_prob - 0.55) < 1e-6
+    assert result.probability.source == "bookmaker"
+
+
+def test_tennis_moneyline_falls_back_to_model_when_bm_unavailable():
+    """SPEC-Z14: ML + BM yok + model OK → model devreye girer."""
+    m = _market("Alice vs Bob")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings)
+    assert result.probability is not None
+    assert result.probability.source == "model"
+    # Model output: Alice strong favorite → > 0.6.
     assert result.probability.probability > 0.6
 
 
-def test_tennis_moneyline_falls_back_when_ratings_missing():
-    """ML için ratings yoksa bookmaker fallback (simetri için 2026-06-02 geri açıldı).
-    Basketball'da zaten aktif → tenis'te de simetrik. Alt market'lerde fallback yok."""
+def test_tennis_moneyline_fails_when_both_bm_and_model_fail():
+    """SPEC-Z14: ML + BM yok + ratings yok → fail (silent fallback yok)."""
     m = _market("Unknown vs Player")
-    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings={})
-    assert result.probability is not None
-    assert abs(result.probability.bookmaker_prob - 0.55) < 1e-6
-
-
-def test_tennis_alt_market_no_fallback():
-    """Alt market'te model fail ise BOOKMAKER FALLBACK YOK — cascade bug kapanır."""
-    m = _market("Alice vs Bob", market_type="tennis_set_handicap")
-    # Empty ratings → model None
-    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings={})
+    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings={})
     assert result.probability is None
     assert result.fail_reason is not None
+
+
+def test_tennis_alt_market_no_bm_call():
+    """SPEC-Z14: Alt market'te BM hiç çağrılmaz — sadece model.
+
+    Cascade bug önleme: h2h fiyatı set_handicap fiyatı sanılmamalı.
+    """
+    m = _market("Alice vs Bob", market_type="tennis_set_handicap")
+    calls: list[MarketData] = []
+    def _spy_bookmaker(market: MarketData) -> EnrichResult:
+        calls.append(market)
+        return _fake_bookmaker_enrich(market)
+    result = enrich_with_tennis_dispatch(m, _spy_bookmaker, ratings={})
+    assert result.probability is None
+    assert result.fail_reason is not None
+    # Alt market'te BM hiç çağrılmamalı.
+    assert calls == []
 
 
 def test_extract_market_params_handicap():

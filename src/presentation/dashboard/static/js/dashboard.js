@@ -18,6 +18,7 @@
     barRadius: 4,               // bar chart köşe yuvarlaması
     equityBarMinPx: 18,         // Total Equity per-point min genişlik (scroll threshold)
     pnlBarMinPx: 14,            // Per Trade per-bar min genişlik (scroll threshold)
+    tradesFetchLimit: 5000,     // grafik veri çekme limiti — tüm session (reboot-scoped)
   };
 
   const MODE = document.body.dataset.mode || "dry_run";
@@ -25,13 +26,14 @@
   const INITIAL_BANKROLL = parseFloat(document.body.dataset.initialBankroll || "1000");
 
   // ── Chart state (tab selection + trades cache) ──
-  const CHART_STATE = { equityPeriod: "30d", pnlPeriod: "30d" };
+  const CHART_STATE = { equityPeriod: "all", pnlPeriod: "all", calibSport: "all" };
   const LAST = { trades: [] };
 
   // ── API (fetch wrappers) ──
   const API = {
     async _json(path) {
-      const r = await fetch(path + "?_=" + Date.now());
+      const sep = path.includes("?") ? "&" : "?";  // path zaten query taşıyorsa & ile ekle
+      const r = await fetch(path + sep + "_=" + Date.now());
       if (!r.ok) throw new Error(path + " " + r.status);
       return r.json();
     },
@@ -39,12 +41,12 @@
     summary() { return this._json("/api/summary"); },
     equityHistory() { return this._json("/api/equity_history"); },
     positions() { return this._json("/api/positions"); },
-    trades() { return this._json("/api/trades"); },
+    trades() { return this._json("/api/trades?n=" + CONFIG.tradesFetchLimit); },
     skipped() { return this._json("/api/skipped"); },
     stock() { return this._json("/api/stock"); },
     stats() { return this._json("/api/stats"); },
     sportRoi() { return this._json("/api/sport_roi"); },
-    calibration() { return this._json("/api/calibration"); },
+    calibration(sport) { return this._json("/api/calibration?sport=" + encodeURIComponent(sport || "all")); },
   };
 
   // ── CHARTS (Chart.js) — palette CSS'ten okunur, hex literal YASAK ──
@@ -345,6 +347,8 @@
     },
 
     calibration(data) {
+      // Spor sekmeleri (üst): "All" + veride bulunan branşlar
+      _renderCalibTabs(data.available_sports || [], data.selected_sport || "all");
       // Matrix canvas (sol taraf: predicted vs actual scatter)
       _drawCalibrationMatrix(data);
       // Skor
@@ -563,7 +567,7 @@
                positions, trades, skipped, stock, stats, sportRoi, calibration] = await Promise.all([
           API.status(), API.summary(),
           API.positions(), API.trades(), API.skipped(), API.stock(),
-          API.stats(), API.sportRoi(), API.calibration(),
+          API.stats(), API.sportRoi(), API.calibration(CHART_STATE.calibSport),
         ]);
         LAST.trades = Array.isArray(trades) ? trades : [];  // cache for tab clicks
         RENDER.status(status);

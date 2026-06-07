@@ -216,10 +216,17 @@ def enrich_with_tennis_dispatch(
     low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
 ) -> EnrichResult:
-    """Tennis ise model, değilse veya yetersiz veri ise bookmaker fallback.
+    """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
-    Alt market'lerde fallback YASAK — cascade bug (h2h fiyatını her marketa
-    yapıştırma) tam burada kapanır.
+    Akış:
+      - Non-tennis  → bookmaker (h2h)
+      - Low-tier    → fail (yetki dışı)
+      - ML + BM OK  → BM döner (BM-first)
+      - ML + BM fail → model fallback (oyuncu/phi/rating tüm guard'lar)
+      - Alt market  → sadece model (BM h2h dışı veri vermiyor; cascade bug önleme)
+
+    Veri kanıtı (2026-06-03, n=11 ML): source=bookmaker %83 WR / +$28,
+    source=model %40 WR / -$9 → BM önceliklendirildi.
 
     Yetki parametreleri (max_phi, low_tier_*) config.yaml > tennis altından
     factory.py üzerinden geçirilir; default'lar geri uyumluluk için.
@@ -227,13 +234,6 @@ def enrich_with_tennis_dispatch(
     sport = (market.sport_tag or "").lower()
     if sport != "tennis":
         return bookmaker_enricher(market)
-
-    # 2026-06-02 (kullanıcı kararı): Simetri için tenis ML fallback'i geri açıldı.
-    # Basketball'da zaten Odds yedeği aktif → tenis'te de simetrik. Hipotez:
-    # "model doğru çalışıyorsa Odds gereksiz" — bunu test etmek için bir süre
-    # her iki sporda da Odds aktif çalışsın, yeterli trade biriksin, sonra
-    # source=model vs source=bookmaker kıyaslamasıyla karar verilir.
-    # Alt market'lerde fallback YASAK (cascade bug önleme — moneyline-only).
 
     if _is_low_tier_tennis(
         market.slug or "", market.question or "",
@@ -248,15 +248,19 @@ def enrich_with_tennis_dispatch(
     market_type = _infer_market_type(market)
     is_moneyline = market_type in _MONEYLINE_TYPES
 
+    # SPEC-Z14: ML → BM-first. BM data varsa onu kullan, yoksa model fallback.
+    if is_moneyline:
+        bm_result = bookmaker_enricher(market)
+        if bm_result.probability is not None:
+            return bm_result
+        # BM yok → model fallback (aşağı düş).
+
+    # Model akışı (alt market'ler buradan başlar; ML için BM fail fallback'i).
     if not ratings:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
 
     player_a, player_b = extract_teams(market.question)
     if not player_a or not player_b:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.TEAM_EXTRACT_FAILED)
 
     # Polymarket genelde soyadı gönderir ("Hurkacz"), Sackmann full name
@@ -264,8 +268,6 @@ def enrich_with_tennis_dispatch(
     resolved_a = _resolve_player_name(player_a, ratings)
     resolved_b = _resolve_player_name(player_b, ratings)
     if resolved_a is None or resolved_b is None:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
@@ -277,8 +279,6 @@ def enrich_with_tennis_dispatch(
     snap_a = ratings[player_a]
     snap_b = ratings[player_b]
     if snap_a.rating.phi >= max_phi_for_trade or snap_b.rating.phi >= max_phi_for_trade:
-        if is_moneyline:
-            return bookmaker_enricher(market)
         return EnrichResult(
             probability=None,
             fail_reason=EnrichFailReason.MODEL_PLAYER_NOT_IN_RATINGS,
@@ -289,7 +289,7 @@ def enrich_with_tennis_dispatch(
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )
-    model_result = enrich_tennis_from_model(
+    return enrich_tennis_from_model(
         player_a=player_a,
         player_b=player_b,
         market_type=market_type,
@@ -301,9 +301,3 @@ def enrich_with_tennis_dispatch(
         handicap=handicap,
         glicko_weight=glicko_weight,
     )
-    if model_result.probability is not None:
-        return model_result
-    # Model fail — moneyline için bookmaker fallback OK; alt market için fail.
-    if is_moneyline:
-        return bookmaker_enricher(market)
-    return model_result

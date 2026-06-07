@@ -82,11 +82,28 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
 
     @app.route("/api/trades")
     def api_trades():
-        # Log modal "All" trades icin ?n=5000 verir; varsayilan 100 (feed).
+        # Feed exited tab + per-trade PnL chart source: full close + partial
+        # scale-out event'leri flatten (her exit ayri event). ?n=5000.
         n = request.args.get("n", 100, type=int)
         trades = readers.read_trades(logs_dir, n=n)
-        # Exited tab source: full close + partial scale-out event'leri flatten.
         return jsonify(computed.exit_events(trades))
+
+    @app.route("/api/trades/positions")
+    def api_trades_positions():
+        # Log modal source: pozisyon-bazli (her bahis = 1 kayit). partial/final
+        # ic ice (partial_exits) kalir — exit_events gibi flatten ETMEZ. Boylece
+        # modal her maci/market'i tek baslik, scale-out'lari alt-event gosterir.
+        n = request.args.get("n", 100, type=int)
+        trades = readers.read_trades(logs_dir, n=n)
+        closed = [
+            t for t in trades
+            if t.get("exit_price") is not None or (t.get("partial_exits") or [])
+        ]
+        closed.sort(
+            key=lambda t: t.get("exit_timestamp") or t.get("entry_timestamp") or "",
+            reverse=True,
+        )
+        return jsonify(closed)
 
     @app.route("/api/skipped")
     def api_skipped():
@@ -121,8 +138,9 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
         Yetersiz veri (< 10 trade) bin'leri "henuz veri yok" doner.
         """
         from src.presentation.dashboard import computed_calibration
+        sport = request.args.get("sport", "all")
         trades = readers.read_trades(logs_dir, n=5000)
-        return jsonify(computed_calibration.calibration_report(trades))
+        return jsonify(computed_calibration.calibration_report(trades, sport))
 
     @app.route("/api/trades/history")
     def api_trades_history():

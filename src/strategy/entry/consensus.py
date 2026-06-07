@@ -23,6 +23,8 @@ def evaluate(
     bm_prob: BookmakerProbability,
     min_price: float = 0.65,
     min_model_edge: float = 0.0,
+    favorite_band_min_prob: float = 0.60,
+    favorite_band_max_prob: float = 0.80,
 ) -> Signal | None:
     """Consensus entry kararı. None döner: koşullar uymuyor.
 
@@ -30,6 +32,12 @@ def evaluate(
     edge (anchor vs entry) bu eşiğin altıysa consensus iptal — eski
     "0.99 - entry_price" formülü modeli umursamıyordu, Azkara tipi -%5
     edge trade'leri bypass ediyordu.
+
+    SPEC-Z14 (2026-06-04 revize): Favorite-band exception, **direction-adjusted
+    model olasılığı** üzerinden. Botun seçtiği taraf için tahmini kazanma
+    olasılığı [favorite_band_min_prob, favorite_band_max_prob) aralığındaysa
+    min_model_edge bypass edilir. Önceki sürüm (06-03) entry_price üzerinden
+    bakıyordu; kullanıcı kararıyla "güven bandı" semantiğine çevrildi.
     """
     if bm_prob.confidence == "C":
         return None  # Yetersiz veri
@@ -57,10 +65,15 @@ def evaluate(
     # BUY_NO: P(NO) - NO_price = (1-P(YES)) - (1-YES_price) = YES_price - P(YES)).
     if direction == Direction.BUY_YES:
         model_edge = bm_prob.probability - market.yes_price
+        prob_for_side = bm_prob.probability
     else:  # BUY_NO
         model_edge = market.yes_price - bm_prob.probability
-    if model_edge < min_model_edge:
-        return None  # Model "ucuz" demiyor → consensus iptal
+        prob_for_side = 1.0 - bm_prob.probability
+    in_favorite_band = (
+        favorite_band_min_prob <= prob_for_side < favorite_band_max_prob
+    )
+    if model_edge < min_model_edge and not in_favorite_band:
+        return None  # Model "ucuz" demiyor + favori bandı dışı → consensus iptal
 
     edge = max(0.0, 0.99 - entry_price)
 

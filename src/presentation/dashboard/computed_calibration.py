@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from src.presentation.dashboard.computed import _sport_category
+
 # Display order: heavy favorite at top, descending to underdog (high prob -> low prob).
 _BINS: list[tuple[str, float, float, str]] = [
     ("ezici_favori", 0.80, 1.01, "Heavy favorite"),
@@ -16,7 +18,7 @@ _BINS: list[tuple[str, float, float, str]] = [
     ("hafif_favori", 0.45, 0.65, "Slight favorite"),
     ("underdog",     0.30, 0.45, "Underdog call"),
 ]
-_MIN_TRADES_PER_BIN = 10
+_MIN_TRADES_PER_BIN = 30
 _GREEN_DELTA = 0.05    # |predicted - actual| <= 5pp -> dogru
 _YELLOW_DELTA = 0.12   # 5-12pp -> hafif sapma; > 12pp -> kirmizi
 _CALIBRATION_PATH = Path("data/calibration_curves.json")
@@ -32,15 +34,26 @@ def _classify(delta: float) -> tuple[str, str]:
     return "red", f"{int(abs_delta*100)} puan {direction} — buyuk sapma"
 
 
-def calibration_report(trades: list[dict[str, Any]]) -> dict[str, Any]:
+def calibration_report(
+    trades: list[dict[str, Any]], sport: str = "all",
+) -> dict[str, Any]:
     """Model dogruluk karnesi.
 
     Her bin icin: avg prediction, gercek win-rate, n, status (green/yellow/red).
     Bot perspektifi: tahmin = direction'a gore model_for_side.
+
+    sport: "all" => tum brans; aksi halde sadece o brans (_sport_category ile).
+    available_sports: filtreden ONCE tum trade'lerden turetilir (sekme listesi).
     """
     last_updated_ts = (
         _CALIBRATION_PATH.stat().st_mtime if _CALIBRATION_PATH.exists() else None
     )
+
+    available_sports = sorted(
+        {c for t in trades if (c := _sport_category(t)) != "unknown"}
+    )
+    if sport != "all":
+        trades = [t for t in trades if _sport_category(t) == sport]
 
     bins: dict[str, list[tuple[float, int]]] = {b[0]: [] for b in _BINS}
     for t in trades:
@@ -101,4 +114,6 @@ def calibration_report(trades: list[dict[str, Any]]) -> dict[str, Any]:
         "overall_score_pct": overall,
         "last_updated_ts": last_updated_ts,
         "min_trades_per_bin": _MIN_TRADES_PER_BIN,
+        "available_sports": available_sports,
+        "selected_sport": sport,
     }
