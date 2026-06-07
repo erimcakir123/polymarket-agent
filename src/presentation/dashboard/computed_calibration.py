@@ -75,8 +75,6 @@ def calibration_report(
                 break
 
     report = []
-    total_trades = 0
-    weighted_score = 0.0
     for key, lo, hi, label in _BINS:
         samples = bins[key]
         n = len(samples)
@@ -102,16 +100,11 @@ def calibration_report(
             "delta": round(delta * 100, 1),
             "note": note,
         })
-        total_trades += n
-        weighted_score += (1.0 - abs(delta)) * n
 
-    overall = (
-        round((weighted_score / total_trades) * 100, 1) if total_trades else None
-    )
+    total_trades = sum(len(s) for s in bins.values())
     return {
         "bins": report,
         "total_trades": total_trades,
-        "overall_score_pct": overall,
         "last_updated_ts": last_updated_ts,
         "min_trades_per_bin": _MIN_TRADES_PER_BIN,
         "available_sports": available_sports,

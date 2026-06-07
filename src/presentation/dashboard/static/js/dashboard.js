@@ -351,13 +351,6 @@
       _renderCalibTabs(data.available_sports || [], data.selected_sport || "all");
       // Matrix canvas (sol taraf: predicted vs actual scatter)
       _drawCalibrationMatrix(data);
-      // Skor
-      const scoreEl = document.getElementById("calib-score");
-      if (data.overall_score_pct !== null && data.overall_score_pct !== undefined) {
-        scoreEl.textContent = data.overall_score_pct.toFixed(0);
-      } else {
-        scoreEl.textContent = "—";
-      }
       // Last calculated — format "2 Jun 15:30" (low opacity, beside title)
       const updEl = document.getElementById("calib-updated");
       if (data.last_updated_ts) {
@@ -385,7 +378,9 @@
         "Henuz veri yok": "Awaiting data",
       };
 
-      binsEl.innerHTML = data.bins.map((b) => {
+      const totalN = data.total_trades || 0;
+      const totalRow = '<div class="calib-bins-total">' + totalN + ' trades</div>';
+      binsEl.innerHTML = totalRow + data.bins.map((b) => {
         const label = LABELS[b.bin] || b.label;
         if (b.status === "pending") {
           // Order: header → text → progress bar (bottom)
@@ -430,7 +425,35 @@
     },
   };
 
+  // ── Calibration spor sekmeleri (dinamik: All + branşlar) ──
+  function _capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  async function _selectCalibSport(sport) {
+    if (CHART_STATE.calibSport === sport) return;
+    CHART_STATE.calibSport = sport;
+    try {
+      RENDER.calibration(await API.calibration(sport));
+    } catch (e) {
+      console.error("Calibration sport switch error:", e);
+    }
+  }
+
+  function _renderCalibTabs(available, selected) {
+    const el = document.getElementById("calib-tabs");
+    if (!el) return;
+    const tabs = ["all"].concat(available);
+    el.innerHTML = tabs.map((s) => {
+      const label = s === "all" ? "All" : _capitalize(s);
+      const cls = s === selected ? "chart-tab active" : "chart-tab";
+      return '<button class="' + cls + '" data-sport="' + s + '">' + label + '</button>';
+    }).join("");
+    el.querySelectorAll(".chart-tab").forEach((btn) => {
+      btn.addEventListener("click", () => _selectCalibSport(btn.dataset.sport));
+    });
+  }
+
   // ── Calibration matrix (canvas X-Y scatter) ──
+  let _calibFontFixed = false;  // font-ready tek-seferlik yeniden cizim bayragi
   function _drawCalibrationMatrix(data) {
     const canvas = document.getElementById("calib-matrix");
     if (!canvas) return;
@@ -533,6 +556,13 @@
     ctx.textAlign = "left";
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.fillText("- - -  Ideal calibration (model = actual)", padL + 4, padT - 12);
+
+    // Inter font async yuklenir; ilk cizim sistem fontuyla yanlis olcekte cikar.
+    // Font hazir olunca matrix'i BIR KEZ yeniden ciz (yazilar dogru boyuta oturur).
+    if (!_calibFontFixed && document.fonts && document.fonts.ready) {
+      _calibFontFixed = true;
+      document.fonts.ready.then(() => _drawCalibrationMatrix(data));
+    }
   }
 
   // ── Session start (topbar opasite 0.6) ──
