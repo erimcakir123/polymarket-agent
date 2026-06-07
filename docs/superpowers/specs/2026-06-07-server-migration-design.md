@@ -68,7 +68,7 @@ Bugün bot senin bilgisayarında çalışıyor; bilgisayar kapanınca/internet g
 | Karar | Seçim | Gerekçe |
 |---|---|---|
 | Sunucu tipi | Bulut VPS (sanal sunucu) | 7/24 stateful bot için en sağlam/öngörülebilir (PaaS değil — uyku/veri sorunları olur) |
-| Sağlayıcı (öneri) | Hetzner CX22 veya DigitalOcean Basic | Ucuz (~€4–6/ay), yüksek uptime, AB veri merkezi. **Karar kullanıcının** |
+| Sağlayıcı | **Hetzner CX22** (kullanıcı "sen karar ver" dedi) | Ucuz (~€4–6/ay), yüksek uptime, AB veri merkezi |
 | İşletim sistemi | Ubuntu 24.04 LTS | Uzun destek, Python 3.12 standart, en yaygın → en az sürpriz |
 | CPU/RAM | 2 vCPU / 4 GB | Bot + pano + ara sıra model üretimi (tennis ratings) için rahat |
 | Disk | 40 GB SSD (kalıcı) | `data/` + `logs/` + arşiv için fazlasıyla yeter |
@@ -180,10 +180,10 @@ Para riskine girmeden, davranış birebir doğrulanarak:
 3. **E1–E7 kod düzeltmeleri** uygulanmış sürümle başla.
 4. **PAPER modda** sunucuda çalıştır; aynı anda evdeki sistemle **yan yana** karşılaştır (1–2 gün): aynı maçlarda aynı kararlar mı?
 5. `pytest` sunucuda tam geçiyor + dry_run/paper temiz → yeşil ışık.
-6. **Canlıya al:** sunucuda LIVE moda geç (E1 ortam değişkeniyle güvenli onay), **evdeki botu kapat.** Artık tek otorite sunucu.
+6. **Otoriteyi devret:** sunucu **PAPER modda** evdekiyle aynı kararları verdiği doğrulanınca, **evdeki botu kapat** — sunucu tek otorite olur. (Mod PAPER kalır — şu an nasılsa öyle. Gelecekte LIVE istenirse E1 ortam değişkeniyle güvenli onay hazır olacak.)
 7. İlk 24 saat yakın izleme (Telegram + pano).
 
-> Kural: Sunucu LIVE olana kadar evdeki sistem dokunulmaz kalır. Bir aksilik → eve geri dön, kayıp yok.
+> Kural: Evdeki çalışan bota **cutover'a kadar el sürülmez**; tek otorite o kalır. Bir aksilik → eve geri dön, kayıp yok. (Bkz. memory: çalışan bota dokunma.)
 
 ---
 
@@ -221,13 +221,13 @@ Taşımada bug çıkarabilecek **tüm** noktalar ve durumu:
 
 ---
 
-## 12. Açık Kararlar (senin seçimin gereken birkaç şey)
+## 12. Kararlar (kullanıcı onayladı — 2026-06-07)
 
-1. **Sağlayıcı:** Hetzner (en ucuz, AB) mı, DigitalOcean (biraz daha pahalı, daha çok bölge) mı? *Öneri: Hetzner.*
-2. **Sunucudaki mod:** Taşıma sonrası **LIVE** (gerçek para, mevcut durumun) mu, bir süre **PAPER** mı kalsın? *Öneri: önce 1–2 gün PAPER doğrulama, sonra LIVE.*
-3. **Pano ikinci parola:** Tailscale yeterli; ek pano parolası ister misin? *Öneri: ekleyelim (zarar vermez).*
-4. **Dış yedek hedefi:** İkinci sunucu diski mi, nesne depolama (S3 benzeri) mı? *Öneri: başlangıçta sunucu içi + günlük indirme; sonra büyütülür.*
-5. **Günlük Telegram özeti** (`/status`'a ek otomatik günlük rapor) istiyor musun?
+1. **Sağlayıcı:** ✅ **Hetzner** (kullanıcı "sen karar ver" dedi).
+2. **Sunucudaki mod:** ✅ **PAPER** — şu an nasılsa öyle. Sunucu evdekini birebir mirror'lar, gerçek para yok. (Cutover'da da PAPER kalır.)
+3. **Pano ikinci parola:** ✅ **Eklenecek** (Tailscale'in üstüne basit parola — ekstra güvenlik, zararsız).
+4. **Dış yedek hedefi:** ✅ **Başlangıçta sunucu-içi + günlük indirme**; ihtiyaç olursa nesne depolamaya büyütülür.
+5. **Günlük Telegram özeti:** ❌ **İstenmedi** — sadece olay bazlı uyarılar + `/status`.
 
 ---
 
