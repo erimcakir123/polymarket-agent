@@ -384,18 +384,3 @@ def test_read_model_health_corrupt_json_returns_empty(tmp_path: Path) -> None:
     logs_dir, data_dir = _mk_logs(tmp_path)
     (data_dir / "model_health.json").write_text("{not valid", encoding="utf-8")
     assert readers.read_model_health(logs_dir) == {}
-
-
-def test_read_realistic_exit_estimates(tmp_path: Path) -> None:
-    logs_dir, data_dir = _mk_logs(tmp_path)
-    (data_dir / "realistic_exit_estimates.json").write_text(
-        json.dumps({"0xabc": {"realistic_pnl_usdc": -26.48, "note": "x"}}),
-        encoding="utf-8",
-    )
-    out = readers.read_realistic_exit_estimates(logs_dir)
-    assert out["0xabc"]["realistic_pnl_usdc"] == -26.48
-
-
-def test_read_realistic_exit_estimates_missing_returns_empty(tmp_path: Path) -> None:
-    logs_dir, _ = _mk_logs(tmp_path)
-    assert readers.read_realistic_exit_estimates(logs_dir) == {}

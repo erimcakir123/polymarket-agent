@@ -75,12 +75,9 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
     def api_positions():
         positions = readers.read_positions(logs_dir).get("positions", {})
         alerted = readers.read_force_close_alerts(logs_dir)
-        realistic = readers.read_realistic_exit_estimates(logs_dir)
         for cid, pos in positions.items():
             if isinstance(pos, dict):
                 pos["force_close_alert"] = cid in alerted
-                if cid in realistic:
-                    pos["realistic_exit"] = realistic[cid]
         return jsonify(positions)
 
     @app.route("/api/trades")
