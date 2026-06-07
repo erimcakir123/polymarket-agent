@@ -175,7 +175,11 @@
       // pozisyonun şu an piyasada gerçekten kaça satılacağını söyler.
       const realSell = p.shares * (Number(p.bid_price) || 0);
       const realSellPnl = realSell - p.size_usdc;
+      const MIN_ORDER_USDC = 1.0; // Polymarket minimum emir — altı satılamaz
       const showRealSell = Number(p.bid_price) > 0;
+      const realSellNote = realSell < MIN_ORDER_USDC
+        ? `Şu an satılamaz ($${realSell.toFixed(2)}, min $1 altı) — pratikte tam zarar`
+        : `Şu an gerçek satış değeri: <b>$${realSell.toFixed(2)}</b> (${FMT.usdSignedHtml(realSellPnl)})`;
       // Odds: direction-adjusted. BUY_NO → (1 − P(YES)). Entry/Now zaten
       // token-native saklanıyor (BUY_NO pozisyonunda NO fiyatı).
       const anchor = p.anchor_probability || 0;
@@ -203,7 +207,7 @@
             <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
           </div>
         </div>
-        ${showRealSell ? `<div class="feed-realistic-note">Şu an gerçek satış değeri: <b>$${realSell.toFixed(2)}</b> (${FMT.usdSignedHtml(realSellPnl)})</div>` : ""}
+        ${showRealSell ? `<div class="feed-realistic-note">${realSellNote}</div>` : ""}
         <div class="feed-time">
           <span>$${p.size_usdc.toFixed(0)}</span>
           ${this._countdownPill(p.match_start_iso, p.match_live)}
