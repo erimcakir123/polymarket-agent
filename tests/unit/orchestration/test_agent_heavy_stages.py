@@ -4,6 +4,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from src.config.settings import AppConfig
+from src.domain.control.trading_control import TradingControl
 from src.orchestration.agent import Agent, AgentDeps
 
 
@@ -16,6 +17,7 @@ def _make_deps() -> AgentDeps:
     state.portfolio.count_event.return_value = 0
     state.portfolio.bankroll = 1000.0
     state.portfolio.total_invested.return_value = 0.0
+    state.trading_control = TradingControl()
     return AgentDeps(
         state=state,
         scanner=MagicMock(),
