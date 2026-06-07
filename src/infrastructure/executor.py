@@ -110,7 +110,8 @@ class Executor:
         )
         return {**resp, "mode": "live", "size_usdc": size_usdc}
 
-    def partial_sell(self, token_id: str, shares: float, target_price: float, reason: str = "scale_out") -> dict:
+    def partial_sell(self, token_id: str, shares: float, target_price: float,
+                     reason: str = "scale_out", market: bool = False) -> dict:
         """Scale-out partial sell — N share (pozisyonun tamamı değil).
 
         2026-05-30 fix: tennis-paper-lab paritesi. Scale-out partial exit gerçek
@@ -135,7 +136,7 @@ class Executor:
             }
         if self.mode == Mode.PAPER:
             assert self._paper is not None
-            return self._paper.partial_sell(token_id, shares, target_price, reason=reason)
+            return self._paper.partial_sell(token_id, shares, target_price, reason=reason, market=market)
         # LIVE
         resp = self._clob.place_market_sell(token_id=token_id, shares=shares)
         return {
@@ -149,7 +150,7 @@ class Executor:
             "intended_shares": shares,
         }
 
-    def exit_position(self, pos: Any, reason: str = "") -> dict:
+    def exit_position(self, pos: Any, reason: str = "", market: bool = False) -> dict:
         slug = getattr(pos, "slug", "") or getattr(pos, "token_id", "")
         shares = getattr(pos, "shares", 0)
         logger.info("EXIT_POSITION: %s reason=%s mode=%s shares=%.2f",
@@ -166,7 +167,7 @@ class Executor:
             assert self._paper is not None
             token_id = getattr(pos, "token_id", "")
             bid_price = getattr(pos, "bid_price", None) or getattr(pos, "current_price", 0) or 0
-            res = self._paper.place_sell(token_id, target_price=float(bid_price), shares=float(shares))
+            res = self._paper.place_sell(token_id, target_price=float(bid_price), shares=float(shares), market=market)
             return {**res, "reason": reason}
 
         resp = self._clob.place_market_sell(token_id=pos.token_id, shares=shares)
