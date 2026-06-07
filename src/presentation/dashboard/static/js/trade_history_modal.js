@@ -144,7 +144,8 @@
 
   function _renderCard(t, idx) {
     const total = _totalPnl(t);
-    const cls = total >= 0 ? "pnl-pos" : "pnl-neg";
+    // SPEC-Z24: void/iade → nötr renk (para geri, ~başabaş; yeşil/kırmızı değil)
+    const cls = t.exit_reason === "voided" ? "pnl-zero" : (total >= 0 ? "pnl-pos" : "pnl-neg");
     const icon = global.ICONS ? global.ICONS.getSportEmoji(t.sport_tag, t.slug) : "";
     const partials = Array.isArray(t.partial_exits) ? t.partial_exits : [];
     const hasFinal = t.exit_price !== null && t.exit_price !== undefined;

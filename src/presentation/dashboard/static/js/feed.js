@@ -209,6 +209,8 @@
       const dir = FMT.sideCode(t.direction, t.slug);
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
+      // SPEC-Z24: void/iade → nötr renk (yeşil/kırmızı değil; para geri, ~başabaş)
+      const pnlCls = t.exit_reason === "voided" ? "pnl-zero" : FMT.unrealizedClass(pnl);
       const isPartial = !!t.partial;
 
       // Invested notional: partial'da orijinal tutarın payı, full'de tam size.
@@ -269,9 +271,9 @@
         </div>
         <div class="feed-impact">
           <div class="feed-impact-bar" style="--fill:${Math.min(100, Math.abs(pnlPct))}%">
-            <div class="feed-impact-bar-fill${pnl < 0 ? " neg" : ""}"></div>
-            <span class="feed-pnl-dollar ${FMT.unrealizedClass(pnl)}">${FMT.usdSignedHtml(pnl)}</span>
-            <span class="feed-pnl-pct ${FMT.unrealizedClass(pnl)}">(${FMT.pctSigned(pnlPct, 1)})</span>
+            <div class="feed-impact-bar-fill${pnl < 0 && t.exit_reason !== "voided" ? " neg" : ""}"></div>
+            <span class="feed-pnl-dollar ${pnlCls}">${FMT.usdSignedHtml(pnl)}</span>
+            <span class="feed-pnl-pct ${pnlCls}">(${FMT.pctSigned(pnlPct, 1)})</span>
           </div>
         </div>
         <div class="feed-time">
