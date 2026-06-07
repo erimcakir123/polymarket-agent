@@ -3,7 +3,8 @@
  * Namespace: TRADE_HISTORY (global) — public API geriye uyumlu.
  * Dependencies: FMT (fmt.js), ICONS (icons.js).
  *
- * Tum trade'leri /api/trades?n=5000 ile cekip kronolojik tabloda gosterir.
+ * Tum trade'leri /api/trades/positions?n=5000 ile cekip pozisyon-bazli
+ * (her bahis = 1 baslik, scale-out'lar alt-event) kart listesinde gosterir.
  * 2026-05-29: SPEC eski week-nav + chart/list tab'li modali sadelestirdi.
  */
 (function (global) {
@@ -58,10 +59,133 @@
     return `<span class="modal-reason modal-reason--${colorCls}">${prefix}${FMT.escapeHtml(label.text)}</span>`;
   }
 
-  function _dirBadge(direction) {
+  function _dirBadge(direction, slug) {
     const isYes = direction === "BUY_YES";
     const cls = isYes ? "modal-dir--yes" : "modal-dir--no";
-    return `<span class="modal-dir ${cls}">${isYes ? "YES" : "NO"}</span>`;
+    // Metin = oynanan taraf (takım/oyuncu kodu); slug çözülemezse YES/NO fallback.
+    return `<span class="modal-dir ${cls}">${FMT.escapeHtml(FMT.sideCode(direction, slug))}</span>`;
+  }
+
+  function _totalPnl(t) {
+    let total = Number(t.exit_pnl_usdc || 0);
+    const partials = Array.isArray(t.partial_exits) ? t.partial_exits : [];
+    for (const p of partials) total += Number(p.realized_pnl_usdc || 0);
+    return total;
+  }
+
+  function _formatDate(iso) {
+    if (!iso) return "--";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "--";
+    return `${d.getDate()} ${_MONTH[d.getMonth()]} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  }
+
+  // Giriş → çıkış fiyat akışı: "girdi 42¢ → sattı 51¢". Giriş fiyatı pozisyon
+  // boyunca sabit; her alt-satır o adımda kaça satıldığını gösterir.
+  function _priceFlow(entryPrice, exitPrice) {
+    const e = (entryPrice !== undefined && entryPrice !== null) ? FMT.cents(entryPrice) : "--";
+    const x = (exitPrice !== undefined && exitPrice !== null) ? FMT.cents(exitPrice) : "--";
+    // Etiketler ("entry"/"→ sold") muted; fiyatlar belirgin kalır.
+    return `<span class="trade-flow-lbl">entry</span> ${e} <span class="trade-flow-lbl">→ sold</span> ${x}`;
+  }
+
+  // Veri alanlarını ince dikey ayraçla birleştir (boş parçalar atlanır).
+  function _joinDiv(parts) {
+    return parts.filter(Boolean).join('<i class="trade-div"></i>');
+  }
+
+  // Market tipi etiketi (ML / TOTAL / SPREAD / tenis varyantları) — fmt.js tek kaynak.
+  function _marketBadge(question, slug, sportsMarketType) {
+    const m = FMT.marketType(question, slug, sportsMarketType);
+    return m ? `<span class="trade-card-mkt">${FMT.escapeHtml(m)}</span>` : "";
+  }
+
+  function _renderSubRow(p, idx, entryPrice) {
+    const pnl = Number(p.realized_pnl_usdc || 0);
+    const cls = pnl >= 0 ? "pnl-pos" : "pnl-neg";
+    // Partial exit = scale-out. Emoji + etiket tek kaynaktan (fmt.js scale_out
+    // branch'i PnL işaretine göre 🎯 Take Profit / 🔻 Partial sell döndürür).
+    const label = FMT.exitReasonLabel("scale_out", pnl);
+    const emoji = label.emoji ? label.emoji + " " : "";
+    const sellPct = (p.sell_pct !== undefined && p.sell_pct !== null && Number(p.sell_pct) > 0)
+      ? `%${(Number(p.sell_pct) * 100).toFixed(0)}` : "--";
+    const tier = p.tier ? `T${p.tier}` : `#${idx + 1}`;
+    const right = _joinDiv([
+      `<span class="trade-sub-pct">${sellPct}</span>`,
+      `<span class="trade-sub-flow">${_priceFlow(entryPrice, p.price)}</span>`,
+      `<span class="trade-sub-time">${_formatDate(p.timestamp)}</span>`,
+      `<span class="trade-sub-pnl ${cls}">${FMT.usdSignedHtml(pnl)}</span>`,
+    ]);
+    return `<div class="trade-sub-row">
+      <span class="trade-sub-tag">${emoji}${tier} · ${FMT.escapeHtml(label.text)}</span>
+      <span class="trade-sub-right">${right}</span>
+    </div>`;
+  }
+
+  function _renderFinalSubRow(t) {
+    if (t.exit_price === null || t.exit_price === undefined) return "";
+    const pnl = Number(t.exit_pnl_usdc || 0);
+    const cls = pnl >= 0 ? "pnl-pos" : "pnl-neg";
+    // Final çıkış: emoji'li sebep etiketi tek kaynaktan (fmt.js exitReasonLabel).
+    const label = FMT.exitReasonLabel(t.exit_reason, pnl);
+    const emoji = label.emoji ? label.emoji + " " : "";
+    const text = label.text || (t.exit_reason || "exit");
+    const right = _joinDiv([
+      `<span class="trade-sub-pct">--</span>`,
+      `<span class="trade-sub-flow">${_priceFlow(t.entry_price, t.exit_price)}</span>`,
+      `<span class="trade-sub-time">${_formatDate(t.exit_timestamp)}</span>`,
+      `<span class="trade-sub-pnl ${cls}">${FMT.usdSignedHtml(pnl)}</span>`,
+    ]);
+    return `<div class="trade-sub-row trade-sub-row--final">
+      <span class="trade-sub-tag">${emoji}final · ${FMT.escapeHtml(text)}</span>
+      <span class="trade-sub-right">${right}</span>
+    </div>`;
+  }
+
+  function _renderCard(t, idx) {
+    const total = _totalPnl(t);
+    const cls = total >= 0 ? "pnl-pos" : "pnl-neg";
+    const icon = global.ICONS ? global.ICONS.getSportEmoji(t.sport_tag, t.slug) : "";
+    const partials = Array.isArray(t.partial_exits) ? t.partial_exits : [];
+    const hasFinal = t.exit_price !== null && t.exit_price !== undefined;
+    const subCount = partials.length + (hasFinal ? 1 : 0);
+    const subRows = partials.map((p, i) => _renderSubRow(p, i, t.entry_price)).join("")
+      + _renderFinalSubRow(t);
+    // Açık pozisyon: "Opened: <giriş>". Kapanmış: "<giriş> → <çıkış>".
+    const entryT = _formatDate(t.entry_timestamp);
+    const timesText = t.exit_timestamp
+      ? `${entryT} → ${_formatDate(t.exit_timestamp)}`
+      : `Opened: ${entryT}`;
+    const right = _joinDiv([
+      t.direction ? _dirBadge(t.direction, t.slug) : "",
+      `<span class="trade-card-times">${timesText}</span>`,
+      _reasonBadge(t.exit_reason, total),
+      `<span class="trade-card-sub-count">${subCount} part${subCount === 1 ? "" : "s"}</span>`,
+      `<span class="trade-card-pnl ${cls}">${FMT.usdSignedHtml(total)}</span>`,
+    ]);
+    return `<div class="trade-card" data-idx="${idx}">
+      <button class="trade-card-head" type="button" aria-expanded="false">
+        <span class="trade-card-left">
+          <span class="trade-card-caret">▶</span>
+          <span class="trade-card-icon">${icon}</span>
+          <span class="trade-card-teams">${FMT.teamsText(t.question, t.slug)}</span>
+          ${_marketBadge(t.question, t.slug, t.sports_market_type)}
+        </span>
+        <span class="trade-card-right">${right}</span>
+      </button>
+      <div class="trade-card-body">${subRows || '<div class="trade-sub-empty">No sub-events</div>'}</div>
+    </div>`;
+  }
+
+  function _bindCardToggles(wrap) {
+    wrap.querySelectorAll(".trade-card-head").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const card = btn.closest(".trade-card");
+        if (!card) return;
+        const expanded = card.classList.toggle("expanded");
+        btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+      });
+    });
   }
 
   function _renderTable(trades) {
@@ -70,32 +194,25 @@
       wrap.innerHTML = '<div class="modal-empty">No trades yet.</div>';
       return;
     }
-    const rows = trades.map((t) => {
-      const d = new Date(t.exit_timestamp);
-      const dateStr = isNaN(d.getTime()) ? "--"
-        : `${d.getDate()} ${_MONTH[d.getMonth()]} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-      const icon = global.ICONS ? global.ICONS.getSportEmoji(t.sport_tag, t.slug) : "";
-      const pnl = Number(t.exit_pnl_usdc || 0);
-      const cls = pnl >= 0 ? "pnl-pos" : "pnl-neg";
-      return `<tr>
-        <td>${dateStr}</td>
-        <td>${icon}</td>
-        <td>${FMT.teamsText(t.question, t.slug)}</td>
-        <td>${_dirBadge(t.direction)}</td>
-        <td>${_holdTime(t.entry_timestamp, t.exit_timestamp)}</td>
-        <td class="${cls}">${FMT.usdSignedHtml(pnl)}</td>
-        <td>${_reasonBadge(t.exit_reason, pnl)}</td>
-      </tr>`;
+    // Gün sınırına ayraç: liste exit zamanına göre sıralı → exit tarihi değişince
+    // araya boşluklu çizgi koy ki günler görsel olarak ayrışsın (bitişik bloklar).
+    let prevDay = null;
+    const cards = trades.map((t, i) => {
+      const day = (t.exit_timestamp || t.entry_timestamp || "").slice(0, 10);
+      const sep = prevDay !== null && day && day !== prevDay
+        ? '<div class="trade-day-sep" aria-hidden="true"></div>' : "";
+      prevDay = day;
+      return sep + _renderCard(t, i);
     }).join("");
-    wrap.innerHTML =
-      `<table class="modal-table"><tbody>${rows}</tbody></table>`;
+    wrap.innerHTML = `<div class="trade-card-list">${cards}</div>`;
+    _bindCardToggles(wrap);
   }
 
   async function _load() {
     const wrap = document.getElementById("modal-table-wrap");
     if (wrap) wrap.innerHTML = '<div class="modal-empty">Loading...</div>';
     try {
-      const r = await fetch("/api/trades?n=" + _LOG_FETCH_LIMIT + "&_=" + Date.now());
+      const r = await fetch("/api/trades/positions?n=" + _LOG_FETCH_LIMIT + "&_=" + Date.now());
       if (!r.ok) throw new Error(r.status);
       const trades = await r.json();
       _renderTable(trades);

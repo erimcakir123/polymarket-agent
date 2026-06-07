@@ -291,3 +291,211 @@
   background: var(--border-soft);
   border-radius: 3px;
 }
+
+/* ── Trade card list (SPEC: header + collapsible sub-events) ── */
+.trade-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Gün sınırı ayracı — exit tarihi değişince boşluk + çizgi (günler ayrışsın) */
+.trade-day-sep {
+  height: 0;
+  margin: 8px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.trade-card {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.trade-card:hover { border-color: var(--border); }
+
+.trade-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.trade-card-head:hover { background: var(--panel-raised); }
+
+/* Sol grup: caret + ikon + takımlar + market etiketi (ellipsis için min-width:0). */
+.trade-card-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* Sağ grup: yön · zaman · sebep · adet · pnl — aralarında dikey ayraç. */
+.trade-card-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+/* İnce dikey ayraç — başlık ve alt-satır veri alanları arasında. */
+.trade-div {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+
+.trade-card-caret {
+  color: var(--muted);
+  font-size: 10px;
+  transition: transform 0.18s ease;
+  display: inline-block;
+}
+.trade-card.expanded .trade-card-caret { transform: rotate(90deg); }
+
+.trade-card-icon {
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Tennis <img> ikonu basketball emoji ile aynı boyda olsun. */
+.trade-card-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.trade-card-teams {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Market tipi etiketi — takım isminin hemen yanında, küçülmez. */
+.trade-card-mkt {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--blue);
+  background: var(--blue-dim);
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.trade-card-times,
+.trade-card-date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.trade-card-sub-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.trade-card-pnl {
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 70px;
+  text-align: right;
+}
+.trade-card-pnl.pnl-pos { color: var(--green); }
+.trade-card-pnl.pnl-neg { color: var(--red); }
+
+/* Collapsed body — slides open with max-height transition */
+.trade-card-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.22s ease;
+  background: var(--panel-raised);
+  border-top: 1px solid transparent;
+}
+.trade-card.expanded .trade-card-body {
+  max-height: 600px;
+  border-top-color: var(--border-soft);
+}
+
+/* Sub-rows — indented from header start */
+.trade-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 18px 10px 52px;  /* sol indent: caret + icon kolon hizalı */
+  font-size: 12px;
+  color: var(--text-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.trade-sub-row:last-child { border-bottom: none; }
+.trade-sub-row--final { background: rgba(255, 255, 255, 0.02); }
+
+/* Sağ veri kümesi: yüzde · giriş→çıkış · zaman · pnl (aralarında dikey ayraç). */
+.trade-sub-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.trade-sub-tag {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trade-sub-pct {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 34px;
+  text-align: right;
+}
+.trade-sub-flow {
+  font-size: 11px;
+  color: var(--text-soft);   /* fiyatlar belirgin */
+  white-space: nowrap;
+  min-width: 132px;
+}
+/* "entry" / "→ sold" etiketleri — genel muted seviyesinde, fiyatlardan soluk. */
+.trade-flow-lbl { color: var(--muted); }
+.trade-sub-time {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 88px;
+}
+.trade-sub-pnl {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+.trade-sub-pnl.pnl-pos { color: var(--green); }
+.trade-sub-pnl.pnl-neg { color: var(--red); }
+
+.trade-sub-empty {
+  padding: 12px 14px 12px 52px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
