@@ -288,3 +288,16 @@ def test_recalculate_bankroll_with_invested_positions() -> None:
     mgr.recalculate_bankroll(1000.0)
     # 1000 - 20 - 100 = 880
     assert mgr.bankroll == 880.0
+
+
+def test_portfolio_has_empty_closed_at_loss_by_default():
+    """SPEC-Z24: yeni portfolio'da zarar-listesi boş."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    assert pm.closed_at_loss == set()
+
+
+def test_portfolio_closed_at_loss_is_assignable():
+    """SPEC-Z24: zarar-listesi run_heavy'de yeniden atanabilir."""
+    pm = PortfolioManager(initial_bankroll=1000.0)
+    pm.closed_at_loss = {"A", "B"}
+    assert "A" in pm.closed_at_loss

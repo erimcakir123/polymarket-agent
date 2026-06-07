@@ -19,8 +19,10 @@ from src.orchestration.entry_guards import (
     check_correlated_bet,
     check_duplicate_condition,
     check_exclude_combo,
+    check_loss_reentry,
     resolve_market_meta,
 )
+from src.domain.trade.loss_tracking import closed_at_loss_cids
 from src.orchestration.portfolio_guards import check_global_halts, check_per_market_guards
 from src.orchestration.scanner import collect_model_signals
 
@@ -40,6 +42,13 @@ class EntryProcessor:
 
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
+
+        # SPEC-Z24: zararla kapanan condition_id'leri defterden türet (tekrar-giriş
+        # yasağı). Her heavy cycle yenilenir → reload sonrası kendiliğinden dolar.
+        if self.deps.trade_event_log is not None:
+            self.deps.state.portfolio.closed_at_loss = closed_at_loss_cids(
+                self.deps.trade_event_log.read_events()
+            )
 
         # Model-anchor path (SPEC-R MLB submarket). Engine None ise no-op.
         model_markets, model_signals = collect_model_signals(
@@ -175,6 +184,8 @@ class EntryProcessor:
         if check_exclude_combo(self.deps, market, signal):
             return
         if check_correlated_bet(self.deps, market, signal):
+            return
+        if check_loss_reentry(self.deps, market):
             return
 
         token_id = market.yes_token_id if signal.direction.value == "BUY_YES" else market.no_token_id

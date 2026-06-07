@@ -1,9 +1,10 @@
 """Pre-execution entry guards — EntryProcessor'dan ayrı modül (ARCH_GUARD §3).
 
-3 guard:
+guard'lar:
   - check_duplicate_condition: aynı condition_id'ye 2. pozisyon
   - check_exclude_combo: config'de tanımlı negatif-EV kombinasyonları (tour+market+conf)
   - check_correlated_bet: aynı event + market_type + direction birden fazla
+  - check_loss_reentry: bu session'da zararla kapanan markete tekrar giriş (SPEC-Z24)
   - resolve_market_meta: market_type → (type, total_line, total_side)
 
 True döner: BLOCKED, entry akışı durur.
@@ -96,6 +97,27 @@ def check_correlated_bet(deps, market: MarketData, signal) -> bool:
         "correlated_bet_guard", detail=detail,
     )
     deps.stock.add(market, "correlated_bet_guard")
+    return True
+
+
+def check_loss_reentry(deps, market: MarketData) -> bool:
+    """SPEC-Z24: bu session'da zararla kapanan markete tekrar giriş yasağı.
+
+    True → bloke. Kardeş guard'lar (duplicate/correlated) gibi her zaman açık —
+    config flag yok. Liste `run_heavy`'de defterden türetilir (closed_at_loss_cids).
+
+    Neden: bot canlı maçta stop'la çıkıp, yavaş bahisçi çapasına göre "fırsat
+    büyüdü" sanıp aynı markete tekrar girip kaybı katlıyordu (ind-nyl −$35).
+    """
+    closed = getattr(deps.state.portfolio, "closed_at_loss", None)
+    if not closed or market.condition_id not in closed:
+        return False
+    detail = f"condition_id={market.condition_id[:20]}..."
+    operational_writers.log_skip(
+        deps.skipped_logger, market,
+        "loss_reentry_blocked", detail=detail,
+    )
+    deps.stock.add(market, "loss_reentry_blocked")
     return True
 
 

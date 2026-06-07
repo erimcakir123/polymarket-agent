@@ -23,6 +23,7 @@ class PortfolioManager:
     realized_pnl: float = 0.0
     high_water_mark: float = field(init=False)
     positions: dict[str, Position] = field(default_factory=dict)
+    closed_at_loss: set[str] = field(default_factory=set)  # SPEC-Z24: tekrar-giriş yasağı
 
     def __post_init__(self) -> None:
         self.bankroll = self.initial_bankroll

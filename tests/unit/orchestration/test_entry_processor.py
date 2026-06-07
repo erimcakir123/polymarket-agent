@@ -390,3 +390,38 @@ def test_run_heavy_skips_process_signals_when_engine_none() -> None:
         processor.run_heavy()
 
     mock_ps.assert_not_called()
+
+
+def test_execute_entry_blocked_when_condition_closed_at_loss(monkeypatch):
+    """SPEC-Z24: closed_at_loss içindeki cid için place_order ÇAĞRILMAZ."""
+    from types import SimpleNamespace
+    import src.orchestration.entry_processor as ep
+
+    monkeypatch.setattr(ep, "check_duplicate_condition", lambda d, m: False)
+    monkeypatch.setattr(ep, "check_exclude_combo", lambda d, m, s: False)
+    monkeypatch.setattr(ep, "check_correlated_bet", lambda d, m, s: False)
+    monkeypatch.setattr(ep.operational_writers, "log_skip", lambda *a, **k: None)
+
+    placed = []
+    portfolio = SimpleNamespace(closed_at_loss={"LOST"}, positions={})
+    state = SimpleNamespace(
+        portfolio=portfolio,
+        config=SimpleNamespace(mode=SimpleNamespace(value="paper")),
+    )
+    deps = SimpleNamespace(
+        state=state,
+        executor=SimpleNamespace(
+            place_order=lambda **k: placed.append(k) or {"status": "simulated"}
+        ),
+        skipped_logger=SimpleNamespace(),
+        stock=SimpleNamespace(add=lambda m, r: None),
+    )
+    market = SimpleNamespace(
+        condition_id="LOST", slug="wnba-a-b", sport_tag="wnba",
+        sports_market_type="moneyline", question="A vs B", event_id="1",
+        yes_token_id="t", no_token_id="t", yes_price=0.5, no_price=0.5,
+    )
+    signal = SimpleNamespace(direction=SimpleNamespace(value="BUY_YES"), size_usdc=10.0)
+
+    ep.EntryProcessor(deps)._execute_entry(market, signal)
+    assert placed == []  # bloke edildi
