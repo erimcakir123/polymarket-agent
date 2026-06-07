@@ -97,10 +97,13 @@ class PriceFeed:
         self,
         on_price_update: PriceCallback | None = None,
         max_spike_pct: float = 0.50,
+        max_spike_corroboration_spread: float = 0.10,
     ) -> None:
         self._callback = on_price_update
         # SPEC-M: tek tick'te bu yüzdeden fazla fiyat atlama → reject (KBO bug 2026-05-19)
         self._max_spike_pct = max_spike_pct
+        # 2026-06-08: sıçrama iki-taraflı kotayla teyit edilirse kabul (gerçek çöküş donmaz)
+        self._max_spike_corroboration_spread = max_spike_corroboration_spread
         self._subscriptions: set[str] = set()
         self._sub_lock = threading.Lock()
         self._prices: dict[str, PriceSnapshot] = {}
@@ -320,13 +323,20 @@ class PriceFeed:
         if prev is not None and prev.yes_price > 0:
             pct_change = abs(yes_price - prev.yes_price) / prev.yes_price
             if pct_change > self._max_spike_pct:
-                self.stats["spikes_rejected"] += 1
-                logger.warning(
-                    "price_feed: spike reject %s: %.3f -> %.3f (%.0f%% change > %.0f%% limit)",
-                    token_id[:16], prev.yes_price, yes_price,
-                    pct_change * 100, self._max_spike_pct * 100,
+                # Gerçek çöküş mü, bayat tek-taraflı baskı mı? İki-taraflı kota
+                # tutarlıysa (ask-bid dar) piyasa gerçekten oraya gitmiş → kabul.
+                corroborated = (
+                    bid_price > 0
+                    and (yes_price - bid_price) <= self._max_spike_corroboration_spread
                 )
-                return
+                if not corroborated:
+                    self.stats["spikes_rejected"] += 1
+                    logger.warning(
+                        "price_feed: spike reject %s: %.3f -> %.3f (%.0f%% change > %.0f%% limit, bid=%.3f)",
+                        token_id[:16], prev.yes_price, yes_price,
+                        pct_change * 100, self._max_spike_pct * 100, bid_price,
+                    )
+                    return
         snap = PriceSnapshot(
             token_id=token_id, yes_price=yes_price,
             bid_price=bid_price, timestamp=time.time(),

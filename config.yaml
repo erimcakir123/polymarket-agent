@@ -343,6 +343,9 @@ price_feed:
   max_spike_pct: 0.50
   # Near-resolve spread sanity: ask-bid > 10¢ → likidite yok, sahte tetikleme
   max_spread_for_near_resolve: 0.10
+  # 2026-06-08: sıçrama gerçek mi? ask-bid spread bu altındaysa (iki-taraflı tutarlı
+  # kota) %50+ hareket KABUL edilir → maç bitince fiyat donmaz. Aksi tek-taraflı → ret.
+  max_spike_corroboration_spread: 0.10
 
 # SPEC-Z21 (2026-06-06): basketbol model config bolumu kaldirildi
 # (model yok, bahisci konsensusu). exit_basketball/scanner ayri.

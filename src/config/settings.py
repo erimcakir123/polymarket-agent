@@ -315,10 +315,13 @@ class PriceFeedConfig(BaseModel):
     near_resolve tetikledi. Bu config dört yapısal koruma sağlar:
     - max_spike_pct: tek tick'te %50+ atlama → reject
     - max_spread_for_near_resolve: ask-bid > 10¢ → near_resolve reddeder (sahte likidite)
+    - max_spike_corroboration_spread: %50+ sıçrama iki-taraflı kotayla (ask-bid bu
+      altında) teyit edilirse kabul (gerçek çöküş donmaz); aksi tek-taraflı bayat → reddet
     """
     model_config = ConfigDict(extra="ignore")
     max_spike_pct: float = 0.50
     max_spread_for_near_resolve: float = 0.10
+    max_spike_corroboration_spread: float = 0.10
 
 
 class PaperConfig(BaseModel):

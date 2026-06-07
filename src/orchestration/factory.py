@@ -90,7 +90,10 @@ def build_agent(state: RuntimeState) -> Agent:
     # WS price feed — agent entry/exit'te subscribe/unsubscribe yapacak,
     # callback agent.__init__'te bağlanır. Test senaryosunda None verilebilir;
     # production'da her zaman inşa edilir. SPEC-M: spike rejection threshold config'den.
-    price_feed = PriceFeed(max_spike_pct=cfg.price_feed.max_spike_pct)
+    price_feed = PriceFeed(
+        max_spike_pct=cfg.price_feed.max_spike_pct,
+        max_spike_corroboration_spread=cfg.price_feed.max_spike_corroboration_spread,
+    )
 
     # Executor: LIVE ise CLOB client gerekli — main.py LIVE confirm'dan sonra wire'lar
     executor = _build_executor(cfg)
