@@ -3557,3 +3557,17 @@ Avrupa basket lig'leri scraper'ları aktif ama dict'lerimiz statik — sezon dev
 **Test:** 15/15 enricher test (eski 14 + yeni 1 lookahead testi + 1 override-even-if-dates-differ testi). Mevcut testler `lookahead_days=0` parametre alarak eski davranışı korur — yeni guard kaldırma davranışı `test_refresh_positions_overrides_even_if_dates_differ` ile doğrulanır.
 
 **Wendelken-Lajal pozisyonu:** Mevcut açık pozisyon (entry 06-03T05:40, current 0.33, -$1.47) bu fix'ten otomatik faydalanır — light cycle'da refresh_positions çalışınca match_start_iso 06-04T16:00'a (gerçek tarih) güncellenir, force_close doğru saatten başlar.
+
+---
+
+**SPEC-ZL: Zarar-kes çıkışında gerçekçi piyasa davranışı (2026-06-08 DONE)**
+
+**Bağlam:** İki PAPER pozisyonu (Maria–Rakhimova ML, Zverev–Cobolli set handikabı) zarar-kes eşiklerini geçtiği halde kapanmadı. Audit kanıtı: Maria'da 17:39'da 26¢'te 6.483 hisse gerçek alıcı varken `walk_sell` %5 kayma tabanı (`max_sell_slippage_pct`) satışı reddetti (`no_bids_above_slippage`); reddedilince kademe ilerlemedi, pozisyon sıfıra sürüklendi. Zverev'de `price_feed` sıçrama reddi (`|Δ|>%50`) gerçek 48¢→~0 çöküşünü "sahte" sayıp fiyatı 48¢'te dondurdu → monitör -%25 görüp tier 2 (-%35) ateşleyemedi.
+
+**Karar (yön ilkesi):** PAPER bot gerçek bir Polymarket piyasa emrini birebir taklit eder. Spec: `docs/superpowers/specs/2026-06-08-stop-loss-exit-realism-design.md`. Plan: `docs/superpowers/plans/2026-06-08-stop-loss-exit-realism.md`.
+
+- **A) Zarar-kes = market emri:** `walk_sell(market=True)` → kayma tabanı yok, defterdeki gerçek derinliğe satar. Kayıp-tarafı çıkışlar (`STOP_LOSS, GRADUATED_SL, PARTIAL_SL, NEVER_IN_PROFIT, ULTRA_LOW_GUARD, HOLD_REVOKED`) bu modu kullanır (`exit_processor._is_loss_cut`). Kâr/lock tarafı (`NEAR_RESOLVE, SCALE_OUT`) ve giriş (`BUY`) kayma kuralını korur.
+- **B) Sıçrama teyidi:** `price_feed` `|Δ|>%50` hareketi iki-taraflı kotayla doğrular — `bid>0 ve (ask−bid) ≤ max_spike_corroboration_spread (0.10)` ise gerçek çöküş kabul; aksi tek-taraflı bayat (KBO) reddedilir.
+- **Korunan (gerçekçi):** `min_order_usdc=1.0` (Polymarket gerçek kuralı — $1 altı satılamaz, ders: erken kes), gerçek-derinlik dolumu (hayalet icat yok), reddedilince kademe ilerletmeme.
+
+**Etkilenen:** `paper_fill.walk_sell`, `paper_executor.{place_sell,partial_sell}`, `executor.{partial_sell,exit_position}`, `exit_processor`, `price_feed`, `settings.PriceFeedConfig`, `config.yaml`. **Kapsam dışı:** LIVE executor (bot PAPER kilitli), kademe eşikleri. **Test:** 1945 geçti; yeni birim+entegrasyon testleri (walk_sell market, paper_executor market, executor dispatch, _is_loss_cut, price_feed teyit).
