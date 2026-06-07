@@ -73,7 +73,8 @@ class PaperExecutor:
         )
         return self._record_and_return(token_id, "BUY", strategy, target_price, target_size_usdc, result, book)
 
-    def place_sell(self, token_id: str, target_price: float, shares: float) -> dict:
+    def place_sell(self, token_id: str, target_price: float, shares: float,
+                   market: bool = False) -> dict:
         target_price = round(target_price, 2)
         notional = shares * target_price
         if notional < self.cfg.min_order_usdc:
@@ -85,15 +86,20 @@ class PaperExecutor:
             target_price=strategy["price"],
             shares=shares,
             max_slippage_pct=self.cfg.max_sell_slippage_pct,
+            market=market,
         )
         return self._record_and_return(token_id, "SELL", strategy, target_price, notional, result, book, shares_in=shares)
 
-    def partial_sell(self, token_id: str, shares: float, target_price: float, reason: str = "scale_out") -> dict:
+    def partial_sell(self, token_id: str, shares: float, target_price: float,
+                     reason: str = "scale_out", market: bool = False) -> dict:
         """Scale-out partial sell — gerçek bid book walk, slippage-aware fill.
 
         Tennis-paper-lab paritesi (2026-05-30 fix): scale-out partial exit'in
         gerçek defter karşılığı. Bid book yeterli değilse REJECTED → caller
         pozisyonu küçültmemeli, defter kaydı yapmamalı.
+
+        market=True (zarar-kes): kayma tabanı bypass — gerçek piyasa emri gibi
+        defterdeki gerçek derinliğe satar.
         """
         target_price = round(target_price, 2)
         notional = shares * target_price
@@ -106,6 +112,7 @@ class PaperExecutor:
             target_price=strategy["price"],
             shares=shares,
             max_slippage_pct=self.cfg.max_sell_slippage_pct,
+            market=market,
         )
         rec = self._record_and_return(
             token_id, "SELL", strategy, target_price, notional, result, book,

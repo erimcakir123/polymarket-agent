@@ -72,6 +72,32 @@ def test_paper_partial_sell_rejected_no_bids(tmp_path):
     assert result["filled_shares"] == 0.0
 
 
+def test_paper_partial_sell_market_mode_fills_below_slippage(tmp_path):
+    """market=True → kayma tabanı altındaki derin alıcıya satış DOLAR (Maria fix)."""
+    book = _book_resp(asks=[], bids=[_bid(0.26, 6483)])
+    px = PaperExecutor(
+        config=PaperConfig(),
+        audit_path=tmp_path / "exec.jsonl",
+        http_get=MagicMock(return_value=book),
+    )
+    result = px.partial_sell(token_id="t", shares=29, target_price=0.30,
+                             reason="partial_sl", market=True)
+    assert result["status"] == "FILLED"
+    assert abs(result["avg_price"] - 0.26) < 1e-9
+
+
+def test_paper_partial_sell_non_market_rejects_below_slippage(tmp_path):
+    """market=False (default) → eski davranış: kayma altı reddedilir (regresyon)."""
+    book = _book_resp(asks=[], bids=[_bid(0.26, 6483)])
+    px = PaperExecutor(
+        config=PaperConfig(),
+        audit_path=tmp_path / "exec.jsonl",
+        http_get=MagicMock(return_value=book),
+    )
+    result = px.partial_sell(token_id="t", shares=29, target_price=0.30)
+    assert result["status"] == "REJECTED"
+
+
 # ─── Executor.partial_sell mode dispatch — 3 mode ────────────────────────
 
 def test_executor_dry_run_partial_sell_simulated():
