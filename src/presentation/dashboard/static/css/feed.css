@@ -104,6 +104,11 @@
 .feed-item-alert:hover {
   box-shadow: 0 0 12px rgba(255, 77, 94, 0.6);
 }
+/* SPEC-Z22: maç bitti, resolve bekliyor — düşük-opasiteli turuncu sağ border
+   (force-close kırmızısından ayrı; "limbo" pozisyonu görsel işaretler). */
+.feed-item-resolving {
+  border-right: 3px solid rgba(255, 176, 32, 0.4);
+}
 
 .feed-item:hover .feed-market {
   color: var(--blue);

@@ -106,39 +106,45 @@
       return `<span class="feed-conf ${cls}">${FMT.escapeHtml(c)}</span>`;
     },
 
-    _countdownPill(matchStartIso, matchLive) {
-      // SPEC-Z22 (2026-06-07): pill GERÇEK match_live'e dayalı (eski 8h zaman-hack
-      // değil — bitmiş maç "LIVE" gösteriyordu). Mantık:
-      //   delta > 0                         → countdown ("Xh Ym")
-      //   başladı + match_live=True         → "LIVE"
-      //   başladı + match_live=False + <3h  → "LIVE" (ESPN gecikme/kapsam yok,
-      //                                       tipik maç süresinde — şüpheden yararlanır)
-      //   başladı + match_live=False + >3h  → "Bitti" (maç kesin bitti, resolve bekliyor)
-      //   >8h geçti                          → gizle (çok eski)
-      const TYPICAL_MATCH_HOURS = 3;   // tenis/basket tipik üst maç süresi
+    // SPEC-Z22 (2026-06-07): maç fazı TEK kaynak (pill + border ortak kullanır).
+    // Eski 8h zaman-hack değil, gerçek match_live'e dayalı.
+    //   "future"    → henüz başlamadı (geri sayım)
+    //   "live"      → match_live=True VEYA <3h (ESPN gecikme/kapsam yok şüphesi)
+    //   "resolving" → başladı + match_live=False + 3-8h (maç bitti, resolve bekliyor)
+    //   ""          → bilinmiyor / >8h (çok eski)
+    _matchPhase(matchStartIso, matchLive) {
+      const TYPICAL_MATCH_HOURS = 3;     // tenis/basket tipik üst maç süresi
       const MAX_POST_START_HOURS = 8;
       if (!matchStartIso) return "";
       const start = new Date(matchStartIso).getTime();
       if (isNaN(start)) return "";
-      const diff = start - Date.now();
-      if (diff > 0) {
+      const hoursPast = (Date.now() - start) / (MS_PER_MIN * 60);
+      if (hoursPast < 0) return "future";
+      if (hoursPast > MAX_POST_START_HOURS) return "";
+      if (matchLive || hoursPast <= TYPICAL_MATCH_HOURS) return "live";
+      return "resolving";
+    },
+
+    _countdownPill(matchStartIso, matchLive) {
+      const phase = this._matchPhase(matchStartIso, matchLive);
+      if (phase === "live") return `<span class="feed-countdown live">LIVE</span>`;
+      if (phase === "resolving") return `<span class="feed-countdown ended">Bitti</span>`;
+      if (phase === "future") {
+        const diff = new Date(matchStartIso).getTime() - Date.now();
         const mins = Math.floor(diff / MS_PER_MIN);
         const hours = Math.floor(mins / 60);
         const remMins = mins % 60;
         const label = hours > 0 ? `${hours}h ${remMins}m` : `${mins}m`;
         return `<span class="feed-countdown">${label}</span>`;
       }
-      const hoursPast = -diff / (MS_PER_MIN * 60);
-      if (hoursPast > MAX_POST_START_HOURS) return "";
-      if (matchLive || hoursPast <= TYPICAL_MATCH_HOURS) {
-        return `<span class="feed-countdown live">LIVE</span>`;
-      }
-      return `<span class="feed-countdown ended">Bitti</span>`;
+      return "";
     },
 
-    _cardOpen(slug, forceCloseAlert) {
+    _cardOpen(slug, forceCloseAlert, resolving) {
       const url = FMT.polyUrl(slug);
-      const cls = forceCloseAlert ? "feed-item feed-item-alert" : "feed-item";
+      let cls = "feed-item";
+      if (forceCloseAlert) cls += " feed-item-alert";       // kırmızı (force-close)
+      if (resolving) cls += " feed-item-resolving";          // SPEC-Z22: turuncu (maç bitti, resolve bekliyor)
       return `<a class="${cls}" href="${url}" target="_blank" rel="noopener noreferrer">`;
     },
 
@@ -160,7 +166,8 @@
       const anchor = p.anchor_probability || 0;
       const oddsRaw = p.direction === "BUY_NO" ? (1 - anchor) : anchor;
       const odds = Math.round(oddsRaw * 1000) / 10;
-      return `${this._cardOpen(p.slug, p.force_close_alert)}
+      const resolving = this._matchPhase(p.match_start_iso, p.match_live) === "resolving";
+      return `${this._cardOpen(p.slug, p.force_close_alert, resolving)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(p.question, p.slug, p.match_title)}</div>
