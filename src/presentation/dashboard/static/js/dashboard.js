@@ -203,23 +203,25 @@
       const slots = Math.max(buckets.length, MIN_SLOTS);
       const labels = new Array(slots).fill("");
       const data = new Array(slots).fill(null);
+      const voids = new Array(slots).fill(false);  // SPEC-Z24: void bar → mavi
       const tooltips = new Array(slots).fill("");
       buckets.forEach((b, i) => {
         labels[i] = period === "1y" ? "W" + (i + 1) : global.FILTER.periodLabel(b.timestamp, period);
         data[i] = Number(b.pnl || 0);
+        voids[i] = !!b.void;
         if (resolution === "event" && chronTrades[i]) {
           tooltips[i] = FMT.teamsText(chronTrades[i].question, chronTrades[i].slug);
         } else if (resolution !== "event") {
           tooltips[i] = b.count + " trade";
         }
       });
+      const barColor = (v, i) =>
+        v == null ? "transparent" : (voids[i] ? COLORS.blue : (v >= 0 ? COLORS.green : COLORS.red));
       this.waterfall.data.labels = labels;
       this.waterfall.data.datasets[0].data = data;
       this.waterfall.data.datasets[0]._tooltips = tooltips;
-      this.waterfall.data.datasets[0].backgroundColor =
-        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
-      this.waterfall.data.datasets[0].hoverBackgroundColor =
-        data.map((v) => (v == null ? "transparent" : (v >= 0 ? COLORS.green : COLORS.red)));
+      this.waterfall.data.datasets[0].backgroundColor = data.map(barColor);
+      this.waterfall.data.datasets[0].hoverBackgroundColor = data.map(barColor);
 
       this.waterfall.canvas.parentElement.style.width = (slots * CONFIG.pnlBarMinPx) + "px";
       // Tooltip: event modunda takım adı, bucket modunda trade sayısı.

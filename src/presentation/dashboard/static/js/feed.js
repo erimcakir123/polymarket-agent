@@ -210,7 +210,7 @@
       const dirCls = t.direction === "BUY_YES" ? "badge-yes" : "badge-no";
       const pnl = Number(t.exit_pnl_usdc || 0);
       // SPEC-Z24: void/iade → nötr renk (yeşil/kırmızı değil; para geri, ~başabaş)
-      const pnlCls = t.exit_reason === "voided" ? "pnl-zero" : FMT.unrealizedClass(pnl);
+      const pnlCls = t.exit_reason === "voided" ? "pnl-void" : FMT.unrealizedClass(pnl);
       const isPartial = !!t.partial;
 
       // Invested notional: partial'da orijinal tutarın payı, full'de tam size.

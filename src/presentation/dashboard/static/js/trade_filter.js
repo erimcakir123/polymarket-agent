@@ -111,6 +111,7 @@
         timestamp: t.exit_timestamp,
         pnl: Number(t.exit_pnl_usdc || 0),
         count: 1,
+        void: t.exit_reason === "voided",  // SPEC-Z24: grafikte mavi bar
       }));
     }
     const byKey = new Map();

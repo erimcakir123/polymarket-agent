@@ -312,6 +312,7 @@ html, body {
 /* ── Number colors ── */
 /* Default rule: 0 → white; pozitif → yeşil; negatif → kırmızı. */
 .pnl-zero { color: var(--text); }
+.pnl-void { color: var(--blue); }  /* SPEC-Z24: void/iade — mavi (kazanç/kayıp değil) */
 .pnl-pos { color: var(--green); }
 .pnl-neg { color: var(--red); }
 
