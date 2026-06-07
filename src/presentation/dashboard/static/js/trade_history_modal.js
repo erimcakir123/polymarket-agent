@@ -188,17 +188,28 @@
     });
   }
 
+  // YEREL gün (YYYY-MM-DD) — display yerel saatte olduğu için gruplama da yerel
+  // olmalı (UTC dilim ham ISO'dan kesilirse gün yerelde ortadan bölünür).
+  function _localDay(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.getFullYear() + "-"
+      + String(d.getMonth() + 1).padStart(2, "0") + "-"
+      + String(d.getDate()).padStart(2, "0");
+  }
+
   function _renderTable(trades) {
     const wrap = document.getElementById("modal-table-wrap");
     if (!trades || !trades.length) {
       wrap.innerHTML = '<div class="modal-empty">No trades yet.</div>';
       return;
     }
-    // Gün sınırına ayraç: liste exit zamanına göre sıralı → exit tarihi değişince
-    // araya boşluklu çizgi koy ki günler görsel olarak ayrışsın (bitişik bloklar).
+    // Gün sınırına ayraç: liste exit zamanına göre sıralı → YEREL exit tarihi
+    // değişince araya çizgi (sadece exit_timestamp güvenilir; entry boş olabilir).
     let prevDay = null;
     const cards = trades.map((t, i) => {
-      const day = (t.exit_timestamp || t.entry_timestamp || "").slice(0, 10);
+      const day = _localDay(t.exit_timestamp || t.entry_timestamp);
       const sep = prevDay !== null && day && day !== prevDay
         ? '<div class="trade-day-sep" aria-hidden="true"></div>' : "";
       prevDay = day;
