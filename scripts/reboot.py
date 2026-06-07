@@ -427,8 +427,21 @@ def start_dashboard(root: Path | None = None) -> None:
     print("  Dashboard started")
 
 
-def start_bot(mode: str = "dry_run", root: Path | None = None) -> None:
-    """Bot'u ayrı process'te başlat."""
+def start_bot(mode: str = "paper", root: Path | None = None,
+              allow_non_paper: bool = False) -> None:
+    """Bot'u ayrı process'te başlat.
+
+    KULLANICI KURALI (2026-06-07, kesin): paper DIŞINA (dry_run/live) çıkmak
+    ASLA izin olmadan olmaz. mode != paper ise allow_non_paper=True ZORUNLU,
+    yoksa reddedilir (SystemExit). Default mode=paper — --mode verilmese bile
+    asla dry_run'a düşmez.
+    """
+    if mode != "paper" and not allow_non_paper:
+        raise SystemExit(
+            f"\n  REDDEDILDI: '{mode}' paper-disi bir mod.\n"
+            "  Kullanici kurali: paper disina cikmak ACIK onay ister.\n"
+            "  Eminseniz --allow-non-paper bayragi ile tekrar calistirin.\n"
+        )
     r = root or ROOT
     cmd = [sys.executable, "-m", "src.main", "--mode", mode]
     if sys.platform == "win32":
@@ -441,13 +454,13 @@ def start_bot(mode: str = "dry_run", root: Path | None = None) -> None:
     print(f"  Bot started (mode={mode})")
 
 
-def reload_bot(mode: str = "dry_run") -> None:
-    """RELOAD: State korunur, sadece process restart."""
+def reload_bot(mode: str = "paper", allow_non_paper: bool = False) -> None:
+    """RELOAD: State korunur, sadece process restart. Default paper."""
     print("=== RELOAD ===")
     kill_processes()
     start_dashboard()
     time.sleep(3)
-    start_bot(mode)
+    start_bot(mode, allow_non_paper=allow_non_paper)
     print("Reload complete.")
 
 
@@ -461,7 +474,8 @@ def clear_session_logs(session_dir: Path | None = None) -> None:
         print(f"  Cleared session log: {f.name}")
 
 
-def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool = True) -> None:
+def reboot(mode: str = "paper", skip_confirm: bool = False, wipe_audit: bool = True,
+           allow_non_paper: bool = False) -> None:
     """REBOOT: 0-noktaya sıfırlama. State + session + runtime + audit hepsi
     arşivlenir ve orijinaller silinir. Yeni session boş başlar.
 
@@ -501,21 +515,42 @@ def reboot(mode: str = "dry_run", skip_confirm: bool = False, wipe_audit: bool =
     reset_state()
     start_dashboard()
     time.sleep(3)
-    start_bot(mode)
+    start_bot(mode, allow_non_paper=allow_non_paper)
     print("Reboot complete - 0-point reset done, new session started.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bot reload/reboot kontrolü")
     parser.add_argument("action", choices=["reload", "reboot"])
-    parser.add_argument("--mode", default="dry_run", choices=["dry_run", "paper", "live"])
+    # KULLANICI KURALI (2026-06-07): default PAPER — --mode verilmese bile asla
+    # dry_run'a düşmez. Paper-dışı mod --allow-non-paper + "EMİN MİSİN" onayı ister.
+    parser.add_argument("--mode", default="paper", choices=["dry_run", "paper", "live"])
+    parser.add_argument("--allow-non-paper", action="store_true",
+                        help="Paper-disi mod (dry_run/live) icin ACIK onay — yoksa reddedilir")
     parser.add_argument("--yes", action="store_true",
                         help="Reboot onayını bypass et (audit silme uyarısını atla)")
     parser.add_argument("--no-wipe", action="store_true",
                         help="Reboot'ta orijinal audit dosyalarını KORU (varsayılan: sil)")
     args = parser.parse_args()
 
+    # Paper-dışı mod: bayrak verilse BİLE interaktif "EMİN MİSİN" onayı zorunlu.
+    if args.mode != "paper":
+        if not args.allow_non_paper:
+            raise SystemExit(
+                f"\n  REDDEDILDI: '{args.mode}' paper-disi mod.\n"
+                "  Kullanici kurali: paper disina cikmak ACIK onay ister.\n"
+                "  Eminseniz: --allow-non-paper bayragi ile tekrar calistirin.\n"
+            )
+        try:
+            ans = input(f"  EMIN MISIN? '{args.mode}' (paper-disi) baslatiliyor. "
+                        f"Onaylamak icin '{args.mode.upper()}' yazin: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            raise SystemExit("  Iptal — paper disina cikilmadi.")
+        if ans != args.mode.upper():
+            raise SystemExit("  Iptal — onay eslesmedi, paper disina cikilmadi.")
+
     if args.action == "reboot":
-        reboot(args.mode, skip_confirm=args.yes, wipe_audit=not args.no_wipe)
+        reboot(args.mode, skip_confirm=args.yes, wipe_audit=not args.no_wipe,
+               allow_non_paper=args.allow_non_paper)
     else:
-        reload_bot(args.mode)
+        reload_bot(args.mode, allow_non_paper=args.allow_non_paper)

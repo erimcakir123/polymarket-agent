@@ -876,6 +876,25 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z25 — PAPER kilidi: paper-dışı mod açık onay ister (DEMİR KURAL) (2026-06-07)
+
+**Kullanıcı kuralı (kesin):** Bot ASLA kullanıcı izni olmadan paper-dışı moda
+(dry_run/live) dönmez; paper-dışı talep edilse BİLE "EMİN MİSİN?" sorulur.
+
+**Kök sebep:** reboot.py `--mode` default'u `dry_run`'dı → `reboot.py reload`
+(--mode'suz) config'in paper'ını ezip dry_run başlatıyordu. Kullanıcının defalarca
+yaşadığı tuzak buydu.
+
+**Çözüm (reboot.py):**
+- Tüm default'lar `dry_run` → **`paper`** (start_bot, reload_bot, reboot, CLI --mode).
+- `start_bot`: `mode != paper` ve `allow_non_paper=False` → **SystemExit (reddet)**.
+- CLI: paper-dışı için `--allow-non-paper` bayrağı ZORUNLU + bayrak verilse bile
+  interaktif "EMİN MİSİN? <MODE> yazın" onayı. Non-interaktif → input başarısız → iptal.
+- TDD: 3 guard testi (reddet / paper-ok / allow-ile-ok), 1912 test yeşil.
+- config.yaml mode zaten `paper` (default fallback de paper).
+
+---
+
 ### SPEC-Z24 — Void/iade rozeti + dashboard timezone fix (2026-06-07)
 
 **Void rozeti:** Polymarket maçı iptal edince marketi 0.5/0.5 ile resolve eder (iade).

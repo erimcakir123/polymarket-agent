@@ -275,13 +275,42 @@ def test_reload_only_restarts() -> None:
         patch("scripts.reboot.reset_state") as mock_reset,
         patch("scripts.reboot.time.sleep"),
     ):
-        reload_bot("dry_run")
+        reload_bot("paper")
 
     mock_kill.assert_called_once()
     mock_dash.assert_called_once()
-    mock_bot.assert_called_once_with("dry_run")
+    mock_bot.assert_called_once_with("paper", allow_non_paper=False)
     mock_clear.assert_not_called()
     mock_reset.assert_not_called()
+
+
+# ─── paper guard (KULLANICI KURALI 2026-06-07) ────────────────────────────────
+
+def test_start_bot_refuses_non_paper_without_allow() -> None:
+    """Paper-disi mod (dry_run/live) allow_non_paper olmadan REDDEDILIR (SystemExit)."""
+    import pytest
+    with pytest.raises(SystemExit):
+        start_bot("dry_run")
+    with pytest.raises(SystemExit):
+        start_bot("live")
+
+
+def test_start_bot_paper_starts_without_allow(monkeypatch) -> None:
+    """Paper mod allow_non_paper olmadan sorunsuz baslar (Popen cagrilir)."""
+    called = {}
+    monkeypatch.setattr("scripts.reboot.subprocess.Popen",
+                        lambda *a, **k: called.setdefault("popen", True))
+    start_bot("paper")
+    assert called.get("popen") is True
+
+
+def test_start_bot_non_paper_with_allow_starts(monkeypatch) -> None:
+    """Paper-disi mod allow_non_paper=True ile (acik onay) baslar."""
+    called = {}
+    monkeypatch.setattr("scripts.reboot.subprocess.Popen",
+                        lambda *a, **k: called.setdefault("popen", True))
+    start_bot("dry_run", allow_non_paper=True)
+    assert called.get("popen") is True
 
 
 # ─── tekillik garantisi ───────────────────────────────────────────────────────
@@ -303,7 +332,7 @@ def test_no_stacking(tmp_path: Path) -> None:
                     pass
                 f.unlink(missing_ok=True)
 
-    def fake_start_bot(mode: str = "dry_run", root=None) -> None:
+    def fake_start_bot(mode: str = "paper", root=None, allow_non_paper: bool = False) -> None:
         agent_pid.write_text("7777", encoding="utf-8")
 
     def fake_start_dashboard(root=None) -> None:
