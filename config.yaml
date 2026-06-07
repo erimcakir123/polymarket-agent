@@ -117,11 +117,11 @@ risk:
   # Yumuşak cap: exposure < %50 iken tam trade alınır (cap'i geçebilir).
   # Exposure ≥ %50 → yeni trade reddedilir. Clipping yok.
   max_exposure_pct: 0.50
-  # 2026-06-03 (SPEC-Z12): 0.80 → 0.88 RESTORE. Kullanıcı 25 May config'inin
-  # büyük kazançlarını geri istiyor (avg win $17 vs bugün $5). 89¢ Rublev gibi
-  # marjinal trade'leri kabul ediyoruz, scale_out tier 0.40/0.70 erken parça
-  # satışıyla R/R'yi kurtarıyor.
-  max_entry_price: 0.88
+  # 2026-06-07 (SPEC-Z23): 0.88 → 0.75. Yüksek-fiyat favoriler asimetrik risk:
+  # 0.81 entry → ~%23 upside ama %100 downside ($50 riske ~$12 kazanç). Düşük
+  # entry'de upside büyük (0.99'a yol var, sorun yok); yüksek entry'de R/R kötü.
+  # Cap 0.75 (slippage buffer ile efektif ~0.74) → asimetrik favoriler kesilir.
+  max_entry_price: 0.75
   # Gate ile executor arası slippage buffer — order book delik olmasın.
   # effective_price + buffer >= cap ise reddet.
   entry_price_slippage_buffer: 0.01

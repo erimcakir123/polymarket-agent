@@ -210,10 +210,10 @@ def test_entry_price_cap_blocks_high_favorite() -> None:
 
 
 def test_entry_price_cap_allows_under_threshold() -> None:
-    # 2026-05-31: cap 0.88 → 0.80 + 0.01 buffer → effective cap 0.79.
-    # 0.75 < 0.79 → geçer.
+    # 2026-06-07 (SPEC-Z23): cap 0.80 → 0.75 + 0.01 buffer → effective cap 0.74.
+    # 0.70 < 0.74 → geçer.
     gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.80, conf="A")))
-    results = gate.run([_market(yp=0.75)])
+    results = gate.run([_market(yp=0.70)])
     assert results[0].signal is not None
 
 
@@ -241,17 +241,17 @@ def test_anti_edge_high_price_skips_cobolli_like_trade() -> None:
 def test_anti_edge_absolute_skips_alkaya_like_trade() -> None:
     """PLAN-001 Rule B: anti_edge > 0.15 → SKIP (fiyat fark etmez).
 
-    Alkaya senaryosu: market 0.74, model 0.56 → BUY_YES, anti_edge 0.18 > 0.15.
-    paid 0.74 < 0.80 → Rule A tetiklenmez; Rule B yakalar.
+    Alkaya senaryosu: market 0.72, model 0.54 → BUY_YES, anti_edge 0.18 > 0.15.
+    paid 0.72 < 0.74 (SPEC-Z23 efektif cap) → Rule A/cap tetiklenmez; Rule B yakalar.
 
     SPEC-Z13 (2026-06-03): consensus_min_model_edge=-1.0 ile Z13 bypass —
-    yoksa consensus None doner ve Normal stratejisi BUY_NO uretir (0.56 vs
-    0.74 → NO ucuz). Defense-in-depth: anti_edge guard hala kod icinde,
+    yoksa consensus None doner ve Normal stratejisi BUY_NO uretir (0.54 vs
+    0.72 → NO ucuz). Defense-in-depth: anti_edge guard hala kod icinde,
     test'i Z13'i atlatarak Rule B yolunu izole eder.
     """
-    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.56, conf="A")))
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.54, conf="A")))
     gate.config = GateConfig(consensus_min_model_edge=-1.0)
-    results = gate.run([_market(yp=0.74)])
+    results = gate.run([_market(yp=0.72)])
     assert results[0].signal is None
     assert results[0].skipped_reason == "anti_edge_absolute"
     assert "anti_edge=+0.180" in results[0].skip_detail
@@ -412,14 +412,14 @@ def test_evaluate_one_entry_price_cap_sets_skip_detail_price_cap() -> None:
     """entry_price_cap → skip_detail='price=X.XXX, cap=X.XX, buffer=X.XX'.
 
     SPEC-Z13 (2026-06-03): anchor>=market gerekli → anchor 0.92 vs market 0.90
-    → consensus gecer, sonra cap (0.88-0.01) reddeder.
+    → consensus gecer, sonra cap (SPEC-Z23: 0.75-0.01) reddeder.
     """
     bm = _bm(prob=0.92, conf="A")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.90))
     assert result.skipped_reason == "entry_price_cap"
     assert "price=0.900" in result.skip_detail
-    assert "cap=0.8" in result.skip_detail
+    assert "cap=0.75" in result.skip_detail
     assert "buffer=0.01" in result.skip_detail
 
 

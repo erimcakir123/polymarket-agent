@@ -876,6 +876,26 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z23 — max_entry_price 0.88 → 0.75 (asimetrik favori riski) (2026-06-07)
+
+**Karar:** Maksimum giriş fiyatı **0.88 → 0.75** (slippage buffer ile efektif ~0.74).
+
+**Neden:** Yüksek-fiyat favoriler asimetrik risk: 0.81 entry → ~%23 upside ama %100
+downside ($50 riske ~$12 kazanç). Düşük entry'de upside büyük (0.99'a yol var, sorun
+yok); yüksek entry'de R/R kötü ve −$50 ML yanmalarının kaynağı (sea-dal/marcink tipi).
+Kullanıcı kararı: edge olsa bile 0.75 üstü favorilere girme.
+
+**Etki (drift yok — ana cap her yerde 0.75):**
+- `config.yaml` max_entry_price 0.88 → 0.75 (aktif)
+- `settings.py` RiskConfig + `gate.py` GateConfig default 0.80 → 0.75
+- `test_gate.py` 3 sınır testi efektif cap 0.74'e göre güncellendi
+- Korundu: early/mlb_submarket ayrı 0.70 cap. test_executor mekanizma testi (parametreli).
+
+**Not (SPEC-Z22, 2026-06-07):** Dashboard LIVE etiketi gerçek match_live'e bağlandı
+(eski 8h zaman-hack bitmiş maçı "LIVE" gösteriyordu) — bitmiş maç "Bitti" (gri).
+
+---
+
 ### SPEC-Z21 — Basketbol modeli TAMAMEN kaldırıldı + bahisçi totals geri (2026-06-06)
 
 **Karar:** Basketbol in-house modeli (Pace×Efficiency + Elo) tüm ayak iziyle silindi.

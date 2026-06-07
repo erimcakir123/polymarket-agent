@@ -83,9 +83,9 @@ class GateConfig:
     # Non-bimodal (moneyline) = fixed_bet_usdc; bimodal (totals + spreads) = bimodal_bet_usdc.
     fixed_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 50.0, "B": 30.0})
     bimodal_bet_usdc: dict[str, float] = field(default_factory=lambda: {"A": 15.0, "B": 10.0})
-    # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi).
-    # 80¢ üstü = max kâr 20¢ × shares → R/R en kötü 4:1 ile sınırlı.
-    max_entry_price: float = 0.80
+    # 2026-06-07 (SPEC-Z23): 0.80 → 0.75. Yüksek-fiyat favori asimetrik risk
+    # (75¢ üstü = max kâr <25¢ → R/R kötü). Düşük entry'de upside büyük, sorun yok.
+    max_entry_price: float = 0.75
     # Gate ile executor arası slippage buffer — order book delik olmasın.
     # effective_price + buffer >= cap ise reddet.
     entry_price_slippage_buffer: float = 0.01
@@ -117,6 +117,9 @@ class GateConfig:
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
     consensus_min_model_edge: float = 0.0  # SPEC-Z13: model edge guard
+    # SPEC-Z14: favorite-band exception — direction-adjusted prob bandında bypass.
+    consensus_favorite_band_min_prob: float = 0.60
+    consensus_favorite_band_max_prob: float = 0.80
     # Early entry
     early_enabled: bool = True
     early_min_edge: float = 0.10
@@ -346,6 +349,8 @@ class EntryGate:
                 market, bm_prob,
                 min_price=self.config.consensus_min_price,
                 min_model_edge=self.config.consensus_min_model_edge,
+                favorite_band_min_prob=self.config.consensus_favorite_band_min_prob,
+                favorite_band_max_prob=self.config.consensus_favorite_band_max_prob,
             )
             if sig is not None:
                 return sig

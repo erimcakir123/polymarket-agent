@@ -103,8 +103,9 @@ class RiskConfig(BaseModel):
     # Soft cap: exposure < cap iken tam trade alınır (sonuç cap'i geçse de OK).
     # Hard blok: exposure ≥ cap → yeni trade reddedilir. Clipping uygulanmaz.
     max_exposure_pct: float = 0.50
-    # 2026-05-31: 0.88 → 0.80. R/R sıkılaştırma (89¢ Rublev trade öğreticisi).
-    max_entry_price: float = 0.80
+    # 2026-06-07 (SPEC-Z23): 0.80 → 0.75. Yüksek-fiyat favori asimetrik risk
+    # (75¢ üstü = max kâr <25¢ → R/R kötü). Düşük entry'de upside büyük, sorun yok.
+    max_entry_price: float = 0.75
     entry_price_slippage_buffer: float = 0.01
     # Belirsizlik filtresi — tenis modeli "fifty-fifty" derken trade etme.
     model_min_anchor_distance_from_half: float = 0.10
@@ -234,9 +235,9 @@ class ScaleOutConfig(BaseModel):
         ScaleOutTier(threshold=0.40, sell_pct=0.40),
         ScaleOutTier(threshold=0.70, sell_pct=0.50),
     ]
-    # 2026-06-01 (kullanıcı kararı): 0.70-0.80 entry aralığında tier 1+2 aktif
-    # AMA near_resolve disable. Aralık dışı (entry < 0.70 veya >= 0.80) → standart.
-    # 0.70: net favori (R/R 2.3:1+). 0.80: max_entry_price cap üst sınır.
+    # 2026-06-01 (kullanıcı kararı): high_entry tier davranışı. NOT: SPEC-Z12'de
+    # high_entry_threshold/upper=0.0 ile devre dışı; SPEC-Z23'te max_entry_price
+    # cap üst sınırı 0.80 → 0.75 (asimetrik favori riski). Bu alan legacy.
     high_entry_threshold: float = 0.70
     high_entry_upper: float = 0.80
 
