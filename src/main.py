@@ -12,6 +12,7 @@ from src.config.settings import Mode, load_config
 from src.orchestration.factory import build_agent
 from src.orchestration.live_confirmation import confirm_live_if_needed
 from src.orchestration.process_lock import acquire_lock
+from src.orchestration.signal_handlers import install_graceful_shutdown
 from src.orchestration.startup import bootstrap
 
 
@@ -38,6 +39,7 @@ def main() -> None:
     acquire_lock()
     state = bootstrap(cfg)
     agent = build_agent(state)
+    install_graceful_shutdown(agent.request_stop)
     logging.getLogger(__name__).info("Agent starting: mode=%s", cfg.mode.value)
     agent.run()
 
