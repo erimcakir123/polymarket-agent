@@ -169,6 +169,25 @@ def test_no_gamma_client_does_not_crash(monkeypatch) -> None:
     assert "cid_res1" in deps.state.portfolio.positions
 
 
+def test_voided_market_sets_voided_reason(monkeypatch) -> None:
+    """SPEC-Z24: Polymarket maçı iptal → outcomePrices ['0.5','0.5'] → payout 0.5
+    → exit_reason='voided' (iade, gerçek kayıp/kazanç değil)."""
+    _stub_monitor_none(monkeypatch)
+    deps, pos, captured = _make_deps_and_pos(every_n_ticks=1)
+    deps.gamma_client.fetch_closed_market_by_condition = MagicMock(return_value={
+        "closed": True,
+        "umaResolutionStatus": "resolved",
+        "outcomePrices": '["0.5", "0.5"]',
+    })
+
+    ep = ExitProcessor(deps)
+    ep.run_light()
+
+    assert "cid_res1" not in deps.state.portfolio.positions
+    assert captured["exit_reason"] == "voided"
+    assert captured["exit_price"] == pytest.approx(0.5, abs=0.001)
+
+
 def test_buy_no_won_resolution(monkeypatch) -> None:
     """BUY_NO + prices=['0','1'] → NO won → exit @ 1.0."""
     _stub_monitor_none(monkeypatch)

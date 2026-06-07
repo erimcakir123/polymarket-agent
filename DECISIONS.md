@@ -876,6 +876,20 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z24 — Void/iade rozeti + dashboard timezone fix (2026-06-07)
+
+**Void rozeti:** Polymarket maçı iptal edince marketi 0.5/0.5 ile resolve eder (iade).
+Eskiden "resolved" etiketiyle gerçek kazanç/kayıp gibi görünüyordu. Artık payout≈0.50
+ise `exit_reason=voided` (ExitReason.VOIDED) → dashboard'da nötr "↩️ İade" rozeti.
+exit_processor void tespiti + fmt.js etiketi. Başabaş (PnL ~0).
+
+**Timezone fix:** Dashboard gün-ayracı UTC tarihine göre grupluyordu ama display yerel
+saat (UTC+3) → UTC'de gün değişip yerelde aynı günken (23:50 UTC = 02:50 yerel) gün
+ortadan bölünüyordu. `FMT.localDay` paylaşımlı helper (feed.js + modal). Modal'daki
+kopya kaldırıldı (DRY).
+
+---
+
 ### SPEC-Z23 — max_entry_price 0.88 → 0.75 (asimetrik favori riski) (2026-06-07)
 
 **Karar:** Maksimum giriş fiyatı **0.88 → 0.75** (slippage buffer ile efektif ~0.74).

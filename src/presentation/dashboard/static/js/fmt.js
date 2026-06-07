@@ -334,8 +334,22 @@
       if (r === "mlb_totals_predictive_dead") return { text: "Predictive dead (MLB Totals)", emoji: "💀", tone: "neg" };
       if (r === "mlb_totals_structural_damage") return { text: "Structural damage (MLB Totals)", emoji: "📉", tone: "neg" };
 
+      // SPEC-Z24: void/iade (Polymarket maçı iptal → 0.5/0.5 iade) — nötr, kayıp değil
+      if (r === "voided") return { text: "İade", emoji: "↩️", tone: "neutral" };
+
       // Fallback — raw string, neutral
       return { text: r, emoji: "", tone: "neutral" };
+    },
+
+    // YEREL gün (YYYY-MM-DD) — display yerel saatte olduğundan gruplama da yerel
+    // olmalı (UTC ham ISO kesilirse gün yerelde ortadan bölünür).
+    localDay(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      return d.getFullYear() + "-"
+        + String(d.getMonth() + 1).padStart(2, "0") + "-"
+        + String(d.getDate()).padStart(2, "0");
     },
     // Label tone'u PnL ile overlay: reason doğası "pos" olsa bile (örn. Near
     // Resolve) gerçek PnL negatifse görsel kırmızı olsun. "neg"/"neutral"

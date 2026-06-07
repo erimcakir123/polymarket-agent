@@ -21,6 +21,11 @@ from src.strategy.exit.monitor import ExitSignal, FavoredTransition, MonitorResu
 
 logger = logging.getLogger(__name__)
 
+# SPEC-Z24: Polymarket void/iptal protokol payout'u (her iki outcome 0.50/0.50).
+# Bu payout'la resolve olan trade gerçek kazanç/kayıp değil → exit_reason=voided.
+_VOID_PAYOUT = 0.50
+_VOID_PAYOUT_TOL = 0.01  # float karşılaştırma toleransı
+
 
 class ExitProcessor:
     """Light cycle: tick state + exit evaluation + execution."""
@@ -144,15 +149,18 @@ class ExitProcessor:
         # Payout-based realized: shares × payout - basis (owned-side semantik,
         # BUY_NO için shares NO token'a aittir, payout NO resolution price).
         realized = pos.shares * signal.exit_price - pos.size_usdc
+        is_void = abs(signal.exit_price - _VOID_PAYOUT) < _VOID_PAYOUT_TOL
+        reason = ExitReason.VOIDED.value if is_void else ExitReason.RESOLVED.value
         logger.info(
-            "RESOLVED %s: payout=%.2f realized=$%.2f",
+            "RESOLVED %s: payout=%.2f realized=$%.2f%s",
             (pos.slug or pos.condition_id)[:40], signal.exit_price, realized,
+            " (void/iade)" if is_void else "",
         )
         self._finalize_full_exit(
             pos=pos,
             exit_price=signal.exit_price,
             realized=realized,
-            exit_reason_value=ExitReason.RESOLVED.value,
+            exit_reason_value=reason,
             audit_signal=None,
         )
         self._resolution_tick_counters.pop(pos.condition_id, None)
