@@ -16,3 +16,7 @@ build/
 .idea/
 .vscode/
 _backup_tennis_lab/
+
+# Gizli .env yedekleri ASLA git e girmesin (guvenlik)
+.env.bak*
+.env.*.bak
