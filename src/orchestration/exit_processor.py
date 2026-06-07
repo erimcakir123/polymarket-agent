@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 _VOID_PAYOUT = 0.50
 _VOID_PAYOUT_TOL = 0.01  # float karşılaştırma toleransı
 
+# Kayıp-tarafı çıkışlar — gerçek piyasa emri gibi satılır (kayma tabanı bypass).
+# Kâr/lock tarafı (NEAR_RESOLVE, SCALE_OUT) market modu KULLANMAZ: yüksek bid'e
+# satar, kayma kontrolü orada gerçekçidir.
+_LOSS_CUT_REASONS = frozenset({
+    ExitReason.STOP_LOSS, ExitReason.GRADUATED_SL, ExitReason.PARTIAL_SL,
+    ExitReason.NEVER_IN_PROFIT, ExitReason.ULTRA_LOW_GUARD, ExitReason.HOLD_REVOKED,
+})
+
+
+def _is_loss_cut(reason: ExitReason) -> bool:
+    return reason in _LOSS_CUT_REASONS
+
 
 class ExitProcessor:
     """Light cycle: tick state + exit evaluation + execution."""
@@ -187,7 +199,9 @@ class ExitProcessor:
             self._execute_partial_exit(pos, signal)
             return "FILLED"
 
-        self.deps.executor.exit_position(pos, reason=signal.reason.value)
+        self.deps.executor.exit_position(
+            pos, reason=signal.reason.value, market=_is_loss_cut(signal.reason),
+        )
         realized = pos.unrealized_pnl_usdc
 
         self._finalize_full_exit(
@@ -275,6 +289,7 @@ class ExitProcessor:
             shares=intended_shares,
             target_price=pos.current_price,
             reason="scale_out",
+            market=(signal.reason == ExitReason.PARTIAL_SL),
         )
         status = order.get("status", "REJECTED")
         success = status in ("simulated", "placed", "FILLED", "PARTIAL_FILL")
