@@ -105,6 +105,11 @@
 
     _initBar(canvasId, key) {
       const ctx = document.getElementById(canvasId).getContext("2d");
+      const opts = this._baseOpts(true);
+      // Tooltip SADECE bar'ın (mum) üstündeyken — x-yakınlığıyla değil, gerçek
+      // geometriyle (intersect). Aksi halde boş slotta/bar dışında da açılır ve
+      // mum sıklaştıkça kayıyormuş gibi görünür.
+      opts.interaction = { mode: "index", intersect: true };
       this[key] = new Chart(ctx, {
         type: "bar",
         data: { labels: [], datasets: [{
@@ -112,7 +117,7 @@
           borderRadius: CONFIG.barRadius, borderSkipped: false,
           maxBarThickness: 28,  // cap — padding yok, bar doğal slotunda
         }] },
-        options: this._baseOpts(true),
+        options: opts,
       });
     },
 

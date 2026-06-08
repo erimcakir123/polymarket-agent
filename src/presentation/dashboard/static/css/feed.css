@@ -351,12 +351,3 @@
   font-family: "Inter", system-ui, sans-serif;
   margin-bottom: 16px;  /* details ile 2x boşluk (feed-top'ın 8px'i → 16px) */
 }
-
-/* Gerçekçi 'satılsaydı' notu — takılı pozisyon kartında tek satır (zarar-kes likidite varken çalışsaydı tahmini). */
-.feed-realistic-note {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--muted);
-  font-style: italic;
-}
-.feed-realistic-note b { color: var(--text); font-style: normal; }
