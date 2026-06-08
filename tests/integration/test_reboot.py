@@ -5,6 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.reboot import (
+    _AUDIT_FILES_CLEAR,
+    _STATE_FILES_DELETE,
     archive_audit_logs,
     clear_runtime_logs,
     clear_session_logs,
@@ -15,6 +17,15 @@ from scripts.reboot import (
     start_bot,
     start_dashboard,
 )
+
+
+def test_reboot_wipes_contamination_files() -> None:
+    """2026-06-08: force_close_alerts + paper_executions reboot'ta temizlenmeli
+    (eski session alarmları/fill defteri temiz session'a sızmasın)."""
+    state_names = {p.name for p in _STATE_FILES_DELETE}
+    audit_names = {p.name for p in _AUDIT_FILES_CLEAR}
+    assert "force_close_alerts.json" in state_names
+    assert "paper_executions.jsonl" in audit_names
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────

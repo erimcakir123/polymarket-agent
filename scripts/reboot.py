@@ -44,6 +44,9 @@ _STATE_FILES_DELETE = [
     ROOT / "data" / "stock_queue.json",
     ROOT / "data" / "bot_status.json",
     ROOT / "data" / "blacklist.json",
+    # 2026-06-08: force_close_alerts.json reboot'ta KALIYORDU → eski session'ın
+    # kırmızı-border alarmları temiz session'a sızıyordu (test kontaminasyonu).
+    ROOT / "data" / "force_close_alerts.json",
     # session_start.json: reboot siler -> bootstrap yeniden olusturur (yeni session
     # zaman damgasi). Reload bu listeyi kullanmaz -> dashboard topbar'inda
     # gosterilen "session basladi" zamani reload boyunca sabit kalir.
@@ -65,6 +68,9 @@ _AUDIT_FILES_CLEAR = [
     ROOT / "logs" / "audit" / "exits.jsonl",
     ROOT / "logs" / "audit" / "score_events.jsonl",
     ROOT / "logs" / "audit" / "match_results.jsonl",
+    # 2026-06-08: paper_executions.jsonl reboot'ta KALIYORDU → önceki session'ın
+    # paper fill defteri "0-nokta" reset'te taşınıyordu (diag/forensic kontaminasyonu).
+    ROOT / "logs" / "audit" / "paper_executions.jsonl",
 ]
 
 _GRACEFUL_WAIT_SECONDS = 2
