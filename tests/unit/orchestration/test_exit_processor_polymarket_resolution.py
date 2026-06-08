@@ -186,6 +186,8 @@ def test_voided_market_sets_voided_reason(monkeypatch) -> None:
     assert "cid_res1" not in deps.state.portfolio.positions
     assert captured["exit_reason"] == "voided"
     assert captured["exit_price"] == pytest.approx(0.5, abs=0.001)
+    # SPEC-Z24: void = iade → BAŞABAŞ. 0.5×shares - basis sahte kâr/zarar DEĞİL.
+    assert captured["realized"] == pytest.approx(0.0, abs=0.001)
 
 
 def test_buy_no_won_resolution(monkeypatch) -> None:
