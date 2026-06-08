@@ -876,6 +876,37 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z27 — Void/iade GERÇEK kâr/zarar yazar (SPEC-Z24 başabaş varsayımı düzeltildi) (2026-06-09)
+
+**Karar:** Polymarket maçı iptal edip marketi 0.5/0.5 ile çözdüğünde, void = gerçek
+payout'tur. Her hisse **0.50 USDC** öder (cost-basis iadesi DEĞİL) → 0.50 üstünden
+girilen pozisyon **gerçek zarar**, altından girilen **gerçek kâr** eder. Realized =
+`shares × 0.50 − basis` (resolved ile aynı formül). `exit_reason=voided` yalnızca
+açıklayıcı etiket olarak kalır ("↩️ İade" rozeti).
+
+**Neden (SPEC-Z24 hatası):** SPEC-Z24 void'i "basis iadesi → başabaş (PnL 0)" sayıyordu;
+`0.50×shares − basis`'i "sahte" diye siliyordu. Polymarket dokümanı + canlı API + kendi
+kazanan işlemimiz (Dart/Samsonova O/U çözüm fiyatı 1.0 → shares×1.0 − basis) bunun yanlış
+olduğunu gösterdi: ödeme HER ZAMAN hisse başına çözüm fiyatından yapılır. 50/50 = hisse 0.50.
+Gerçek "kaçtan girdiysen iade" sadece market kusurlu/yanlış açılmışsa (faulty rules / geç
+açılış) olur — normal iptal maçta değil. Kanıt:
+help.polymarket.com (resolution + dispute), Paul-Perricard & Schoolkate-Harris marketleri
+(`umaResolutionStatus=resolved`, `outcomePrices=["0.5","0.5"]`, `is_50_50_outcome=true`).
+
+**Kullanıcı kararı (2026-06-09):** Tam gerçekçilik — void gerçek dolar sonucuna göre
+**W/L sayacına da girer** (negatif PnL'li void = mağlubiyet). Dashboard rengi de gerçek
+işarete göre (yeşil/kırmızı); "İade" etiketi sebebi açıklar.
+
+**Etki (drift yok):**
+- `exit_processor.py` — void realized özel-durumu kaldırıldı (resolved ile tek formül, DRY)
+- `computed.py` — void W/L + branş kırılımı dışlaması kaldırıldı
+- `feed.js` / `dashboard.js` / `trade_history_modal.js` / `trade_filter.js` — void nötr/mavi
+  renk → gerçek yeşil/kırmızı; kullanılmayan void bayrağı temizlendi
+- testler: `test_exit_processor_polymarket_resolution` (realized 0 → +20), `test_computed`
+  (void W/L'ye dahil)
+
+---
+
 ### SPEC-Z26 — Zararla-çıkış sonrası tekrar-giriş yasağı + test verisi temizliği (2026-06-07)
 
 **Kural:** Bir markete (condition_id) girip **net zararla** kapanınca, o markete bu
@@ -934,8 +965,12 @@ yaşadığı tuzak buydu.
 
 **Void rozeti:** Polymarket maçı iptal edince marketi 0.5/0.5 ile resolve eder (iade).
 Eskiden "resolved" etiketiyle gerçek kazanç/kayıp gibi görünüyordu. Artık payout≈0.50
-ise `exit_reason=voided` (ExitReason.VOIDED) → dashboard'da nötr "↩️ İade" rozeti.
-exit_processor void tespiti + fmt.js etiketi. Başabaş (PnL ~0).
+ise `exit_reason=voided` (ExitReason.VOIDED) → dashboard'da "↩️ İade" rozeti.
+exit_processor void tespiti + fmt.js etiketi.
+
+> ⚠️ DÜZELTME (SPEC-Z27, 2026-06-09): Buradaki "başabaş (PnL ~0)" varsayımı YANLIŞTI.
+> Polymarket 50/50'de her hisse 0.50 öder (basis iadesi değil) → void gerçek kâr/zarar
+> yazar. Bkz. SPEC-Z27.
 
 **Timezone fix:** Dashboard gün-ayracı UTC tarihine göre grupluyordu ama display yerel
 saat (UTC+3) → UTC'de gün değişip yerelde aynı günken (23:50 UTC = 02:50 yerel) gün

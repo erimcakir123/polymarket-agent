@@ -359,14 +359,15 @@ def test_win_loss_partial_plus_full_close_counts_both() -> None:
     assert computed.win_loss(trades) == {"wins": 1, "losses": 1}
 
 
-def test_win_loss_excludes_voided() -> None:
-    """SPEC-Z24: void/iade (exit_reason=voided) W/L sayımına girmez — ne kazanç ne kayıp."""
+def test_win_loss_includes_voided_by_real_pnl() -> None:
+    """SPEC-Z27: void/iade gerçek dolar sonucuna göre W/L'ye girer (0.50/hisse ödeme,
+    basis iadesi değil). Negatif PnL'li void = mağlubiyet sayılır."""
     trades = [
         {"slug": "v", "exit_price": 0.5, "exit_pnl_usdc": -0.2, "exit_reason": "voided"},
         {"slug": "w", "exit_price": 1.0, "exit_pnl_usdc": 50.0, "exit_reason": "resolved"},
         {"slug": "l", "exit_price": 0.0, "exit_pnl_usdc": -30.0, "exit_reason": "resolved"},
     ]
-    assert computed.win_loss(trades) == {"wins": 1, "losses": 1}
+    assert computed.win_loss(trades) == {"wins": 1, "losses": 2}
 
 
 def test_win_loss_open_position_with_no_exits_counted_as_nothing() -> None:

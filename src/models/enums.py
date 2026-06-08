@@ -46,8 +46,8 @@ class ExitReason(str, Enum):
     # 2026-05-28: previously bot couldn't detect resolved markets because fetch_events
     # queries closed=false; ExitProcessor now polls gamma per-position periodically.
     RESOLVED = "resolved"
-    # SPEC-Z24 (2026-06-07): Polymarket maçı iptal/void → 0.5/0.5 iade (payout 0.50).
-    # Gerçek kazanç/kayıp değil — dashboard'da nötr "İade" rozeti, başabaş.
+    # SPEC-Z27 (2026-06-09): Polymarket maçı iptal/void → 0.5/0.5 (her hisse 0.50 öder).
+    # GERÇEK kâr/zarar (basis iadesi değil) — "İade" sadece açıklayıcı etiket.
     VOIDED = "voided"
 
 

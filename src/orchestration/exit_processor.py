@@ -160,10 +160,11 @@ class ExitProcessor:
 
         # Payout-based realized: shares × payout - basis (owned-side semantik,
         # BUY_NO için shares NO token'a aittir, payout NO resolution price).
-        # SPEC-Z24: void/iade = basis iadesi → BAŞABAŞ (PnL 0). Polymarket void'de
-        # cost basis geri döner, 0.50×shares ödeme YAPILMAZ → realized 0 olmalı.
+        # SPEC-Z27: void/iade DE gerçek payout. Polymarket 0.5/0.5'te her hisse 0.50
+        # öder (basis iadesi DEĞİL) → 0.50 üstü girişte gerçek zarar, altı kâr.
+        # is_void yalnızca etiket (VOIDED) içindir; muhasebe resolved ile aynı formül.
         is_void = abs(signal.exit_price - _VOID_PAYOUT) < _VOID_PAYOUT_TOL
-        realized = 0.0 if is_void else (pos.shares * signal.exit_price - pos.size_usdc)
+        realized = pos.shares * signal.exit_price - pos.size_usdc
         reason = ExitReason.VOIDED.value if is_void else ExitReason.RESOLVED.value
         logger.info(
             "RESOLVED %s: payout=%.2f realized=$%.2f%s",

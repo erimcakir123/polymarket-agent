@@ -169,9 +169,10 @@ def test_no_gamma_client_does_not_crash(monkeypatch) -> None:
     assert "cid_res1" in deps.state.portfolio.positions
 
 
-def test_voided_market_sets_voided_reason(monkeypatch) -> None:
-    """SPEC-Z24: Polymarket maçı iptal → outcomePrices ['0.5','0.5'] → payout 0.5
-    → exit_reason='voided' (iade, gerçek kayıp/kazanç değil)."""
+def test_voided_market_books_real_pnl(monkeypatch) -> None:
+    """SPEC-Z27: Polymarket maçı iptal → outcomePrices ['0.5','0.5'] → payout 0.5.
+    Polymarket 50/50'de her hisse 0.50 öder (basis iadesi DEĞİL) → 0.50 üstü/altı
+    girişte GERÇEK kâr/zarar. exit_reason='voided' yalnızca etiket."""
     _stub_monitor_none(monkeypatch)
     deps, pos, captured = _make_deps_and_pos(every_n_ticks=1)
     deps.gamma_client.fetch_closed_market_by_condition = MagicMock(return_value={
@@ -186,8 +187,9 @@ def test_voided_market_sets_voided_reason(monkeypatch) -> None:
     assert "cid_res1" not in deps.state.portfolio.positions
     assert captured["exit_reason"] == "voided"
     assert captured["exit_price"] == pytest.approx(0.5, abs=0.001)
-    # SPEC-Z24: void = iade → BAŞABAŞ. 0.5×shares - basis sahte kâr/zarar DEĞİL.
-    assert captured["realized"] == pytest.approx(0.0, abs=0.001)
+    # SPEC-Z27: realized = shares*0.50 - basis = 100*0.50 - 30 = +20.0
+    # (entry 0.30 → 50¢ altından girince void KÂR yazar; 50¢ üstü girişte zarar).
+    assert captured["realized"] == pytest.approx(20.0, abs=0.5)
 
 
 def test_buy_no_won_resolution(monkeypatch) -> None:

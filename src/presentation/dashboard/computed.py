@@ -346,8 +346,8 @@ def sport_roi_treemap(trades: list[dict[str, Any]]) -> dict[str, Any]:
             tier_size = float(pe.get("sell_pct") or 0.0) * size
             tier_pnl = float(pe.get("realized_pnl_usdc") or 0.0)
             _bump(key, tier_size, tier_pnl)
-        # Full-close event (varsa) — SPEC-Z24: void/iade hariç (ne W ne L)
-        if t.get("exit_price") is not None and t.get("exit_reason") != "voided":
+        # Full-close event (varsa) — SPEC-Z27: void/iade dahil (gerçek 0.50/hisse PnL)
+        if t.get("exit_price") is not None:
             _bump(key, size, float(t.get("exit_pnl_usdc") or 0.0))
 
     leagues: list[dict[str, Any]] = []
@@ -389,8 +389,8 @@ def win_loss(trades: list[dict[str, Any]]) -> dict[str, int]:
                 wins += 1
             elif pnl < 0:
                 losses += 1
-        # SPEC-Z24: void/iade (0.5/0.5 iade) ne kazanç ne kayıp → W/L'ye girmez.
-        if t.get("exit_price") is not None and t.get("exit_reason") != "voided":
+        # SPEC-Z27: void/iade gerçek 0.50/hisse PnL'iyle W/L'ye girer.
+        if t.get("exit_price") is not None:
             pnl = float(t.get("exit_pnl_usdc") or 0.0)
             if pnl > 0:
                 wins += 1
