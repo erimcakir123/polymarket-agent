@@ -199,14 +199,42 @@ class ExitProcessor:
             self._execute_partial_exit(pos, signal)
             return "FILLED"
 
-        self.deps.executor.exit_position(
+        # GERÇEKÇİLİK: executor sonucunu onurlandır (partial exit deseniyle birebir).
+        # Eski hata: sonuç yok sayılıp her zaman current_price'tan "FILLED" yazılıyordu
+        # → boş defterde hayali kapanış + ask fiyatından şişkin realized.
+        order = self.deps.executor.exit_position(
             pos, reason=signal.reason.value, market=_is_loss_cut(signal.reason),
         )
-        realized = pos.unrealized_pnl_usdc
+        status = order.get("status", "REJECTED")
+        if status not in ("simulated", "placed", "FILLED", "PARTIAL_FILL"):
+            logger.warning(
+                "EXIT REJECTED %s: %s — pozisyon korunur, kapatma yok",
+                pos.slug[:35], order.get("reason", "?"),
+            )
+            return "REJECTED"
+        filled_shares = float(order.get("filled_shares") or pos.shares)
+        avg_price = float(order.get("avg_price") or pos.current_price)
+        if filled_shares <= 0:
+            logger.warning("EXIT filled_shares=0 %s — pozisyon korunur", pos.slug[:35])
+            return "REJECTED"
 
+        # Kısmi dolum (tam çıkış istendi ama defter tamamını alamadı): gerçek piyasada
+        # dolan kısım satılır, kalan elde kalır. Dolan kısmı işle, pozisyonu tut.
+        if status == "PARTIAL_FILL" and filled_shares < pos.shares - 1e-9:
+            ok, realized, _pct = self._book_sale(pos, filled_shares, avg_price)
+            if not ok:
+                return "REJECTED"
+            self._append_partial_event(pos, tier=0, sell_pct=_pct, realized=realized, price=avg_price)
+            logger.info(
+                "EXIT PARTIAL-FILL %s: %.1f hisse @ $%.3f realized=$%.2f — kalan tutuluyor",
+                pos.slug[:35], filled_shares, avg_price, realized,
+            )
+            return "PARTIAL"
+
+        realized = filled_shares * avg_price - pos.size_usdc
         self._finalize_full_exit(
             pos=pos,
-            exit_price=pos.current_price,
+            exit_price=avg_price,
             realized=realized,
             exit_reason_value=signal.reason.value,
             audit_signal=signal,
@@ -263,26 +291,57 @@ class ExitProcessor:
     def _emit_force_close_alert(self, pos: Position, signal) -> None:
         emit_force_close_alert(self.deps, self._fc_alerts, pos, signal)
 
-    def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
-        """Scale-out + Partial-SL parçalı çıkış (her ikisi de partial=True).
+    def _book_sale(self, pos: Position, shares: float, price: float) -> tuple[bool, float, float]:
+        """Pozisyonu `shares` kadar küçült + portfolio'ya realized işle (partial + tam-çıkış-kısmi-dolum ortak).
 
-        Reason-aware: SCALE_OUT (kâr tarafı tier) vs PARTIAL_SL (kayıp tarafı tier)
-        ayrı sayaçlarda tutulur (pos.scale_out_tier vs pos.partial_sl_tier).
-
-        2026-05-30 fix (tennis-paper-lab parity): GERÇEK satım YAPILMADAN
-        defter mutate edilmiyordu — paper'da hayali +$334 kazanç yazıyordu,
-        live'da Polymarket'e emir gitmeden bankroll yazılırdı.
-
-        Akış:
-          1. executor.partial_sell çağrılır (paper'da real book walk, live'da
-             gerçek Polymarket market sell, dry_run'da sahte fill).
-          2. status REJECTED → satım yapılamadı, pozisyon AYNEN kalır, defter
-             kaydı YAPILMAZ. Live davranışıyla birebir.
-          3. status FILLED/PARTIAL_FILL/simulated → gerçek filled_shares ile
-             pozisyon küçültülür, gerçek avg_price ile PnL hesaplanır.
-
-        Basis payı identity korunur: `bankroll + invested = initial + realized_pnl`.
+        Basis identity korunur (bankroll+invested = initial+realized). Race (ValueError)
+        → shares/size_usdc mutation rollback + (False, 0, 0). Tier sayaçları ve event log
+        ÇAĞIRANA ait (reason'a göre değişir).
+        Returns: (ok, realized_usdc, sell_pct).
         """
+        sell_pct = shares / pos.shares if pos.shares > 0 else 0.0
+        basis_returned = pos.size_usdc * sell_pct
+        realized = shares * (price - pos.entry_price)
+        pos.shares -= shares
+        pos.size_usdc *= (1 - sell_pct)
+        try:
+            self.deps.state.portfolio.apply_partial_exit(
+                pos.condition_id,
+                basis_returned_usdc=basis_returned,
+                realized_usdc=realized,
+            )
+        except ValueError as e:
+            pos.shares += shares
+            if sell_pct < 1.0:
+                pos.size_usdc /= (1 - sell_pct)
+            logger.warning(
+                "Sale aborted (race): %s — %s; mutation rolled back", pos.slug[:35], e,
+            )
+            return False, 0.0, 0.0
+        return True, realized, sell_pct
+
+    def _append_partial_event(
+        self, pos: Position, tier: int, sell_pct: float, realized: float, price: float,
+    ) -> None:
+        if getattr(self.deps, "trade_event_log", None) is None:
+            return
+        self.deps.trade_event_log.append_partial(
+            condition_id=pos.condition_id,
+            slug=pos.slug or "",
+            question=pos.question or "",
+            sport_tag=pos.sport_tag or "",
+            source=pos.source or "",
+            tier=tier,
+            sell_pct=sell_pct,
+            realized_pnl_usdc=realized,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            price=price,
+        )
+
+    def _execute_partial_exit(self, pos: Position, signal: ExitSignal) -> None:
+        """Scale-out + Partial-SL parçalı çıkış. Reason-aware tier sayaçları
+        (scale_out_tier vs partial_sl_tier). REJECTED → pozisyon korunur, defter
+        kaydı yok. Gerçek filled_shares/avg_price ile defter (_book_sale)."""
         intended_shares = pos.shares * signal.sell_pct
         order = self.deps.executor.partial_sell(
             token_id=pos.token_id,
@@ -310,13 +369,10 @@ class ExitProcessor:
             )
             return
 
-        # Gerçek satım miktarına göre defter güncelle
-        actual_sell_pct = actual_shares / pos.shares if pos.shares > 0 else 0.0
-        basis_returned = pos.size_usdc * actual_sell_pct
-        # Realized PnL = actual sold shares × (sell_price - entry_price)
-        realized = actual_shares * (actual_price - pos.entry_price)
-        pos.shares -= actual_shares
-        pos.size_usdc *= (1 - actual_sell_pct)
+        # Gerçek satım miktarına göre defter güncelle (ortak _book_sale).
+        ok, realized, actual_sell_pct = self._book_sale(pos, actual_shares, actual_price)
+        if not ok:
+            return
         # Reason-aware tier increment (SCALE_OUT vs PARTIAL_SL ayrı sayaçlarda).
         is_partial_sl = signal.reason == ExitReason.PARTIAL_SL
         if is_partial_sl:
@@ -325,45 +381,13 @@ class ExitProcessor:
         else:
             pos.scale_out_tier = signal.tier or pos.scale_out_tier
             pos.scale_out_realized_usdc += realized
-        try:
-            self.deps.state.portfolio.apply_partial_exit(
-                pos.condition_id,
-                basis_returned_usdc=basis_returned,
-                realized_usdc=realized,
-            )
-        except ValueError as e:
-            pos.shares += actual_shares
-            if actual_sell_pct < 1.0:
-                pos.size_usdc /= (1 - actual_sell_pct)
-            if is_partial_sl:
-                pos.partial_sl_realized_usdc -= realized
-            else:
-                pos.scale_out_realized_usdc -= realized
-            logger.warning(
-                "Partial exit aborted (race): %s — %s; mutation rolled back",
-                pos.slug[:35], e,
-            )
-            return
-        current_tier = (
-            pos.partial_sl_tier if is_partial_sl else pos.scale_out_tier
+        current_tier = pos.partial_sl_tier if is_partial_sl else pos.scale_out_tier
+        self._append_partial_event(
+            pos, tier=signal.tier or current_tier, sell_pct=actual_sell_pct,
+            realized=realized, price=actual_price,
         )
-        ts_iso = datetime.now(timezone.utc).isoformat()
-        # SPEC-Z17 (2026-06-04): tek truth = append-only event log.
-        # Legacy log_partial_exit + standalone orphan path tamamen kaldırıldı.
-        if getattr(self.deps, "trade_event_log", None) is not None:
-            self.deps.trade_event_log.append_partial(
-                condition_id=pos.condition_id,
-                slug=pos.slug or "",
-                question=pos.question or "",
-                sport_tag=pos.sport_tag or "",
-                source=pos.source or "",
-                tier=signal.tier or current_tier,
-                sell_pct=actual_sell_pct,
-                realized_pnl_usdc=realized, timestamp=ts_iso,
-                price=actual_price,
-            )
         label = "PARTIAL-SL" if is_partial_sl else "SCALE-OUT"
         logger.info(
-            "%s %s: tier=%d sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
+            "%s %s: tier=%s sold=%.1f shares @ $%.3f realized=$%.2f remaining=$%.2f",
             label, pos.slug[:35], signal.tier, actual_shares, actual_price, realized, pos.size_usdc,
         )
