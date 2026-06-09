@@ -12,6 +12,7 @@ SurfaceResolver save_fn=None ile kurulur → override dosyasına dahi yazmaz.
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -19,8 +20,11 @@ from src.domain.pricing.tennis.glicko import Rating, update_rating
 from src.domain.pricing.tennis.match_record import MatchRecord
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats, aggregate_serve_stats
+from src.strategy.enrichment.tennis_dispatch import _extract_location
 
 _SURFACES = ("Hard", "Clay", "Grass")
+# Slug tabanı: atp|wta - oyuncu token'ları - YYYY-MM-DD (sonrası market eki).
+_SLUG_MATCH_RE = re.compile(r"^(?:atp|wta)-(.+?)-(\d{4}-\d{2}-\d{2})")
 
 # Bugünkü kurallarda Match O/U tamamen kaldırıldı (SPEC-Z28).
 _REMOVED_MARKET_TYPES = ("tennis_match_totals",)
@@ -127,3 +131,32 @@ def build_cutoff_snapshots(
             for name, r in fitted.items()
         }
     return flat, by_surface
+
+
+def synth_event_links(entries: list[dict]) -> tuple[dict[int, str], dict[str, str]]:
+    """idx→sentetik event_id + event_id→turnuva adı (SPEC-SIM2 görev 3).
+
+    Botun cycle'daki karşılığı: moneyline marketlerden {event_id: turnuva} kurup
+    resolver.set_event_tournaments çağırması. Sim aynı haritayı arşivden sentezler.
+    Maç anahtarı sluglardan: oyuncu token'ları (sıra bağımsız) + tarih.
+    Turnuva: gruptaki lokasyon-önekli sorudan (_extract_location — market-tipi
+    öneklerini zaten reddeder, yani sadece moneyline'dan gelir).
+    """
+    idx_to_event: dict[int, str] = {}
+    event_tournaments: dict[str, str] = {}
+    for idx, e in enumerate(entries):
+        m = _SLUG_MATCH_RE.match((e.get("slug") or "").lower())
+        if not m:
+            continue
+        players, date = m.group(1), m.group(2)
+        event_id = "evt-" + "-".join(sorted(players.split("-"))) + "-" + date
+        idx_to_event[idx] = event_id
+        loc = _extract_location(e.get("question") or "")
+        if loc and event_id not in event_tournaments:
+            event_tournaments[event_id] = loc
+    return idx_to_event, event_tournaments
+
+
+def invert_series(series: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Sahip olunan taraf YES değilse fiyat serisi karşı tarafa çevrilir (1−p yaklaşımı)."""
+    return [(t, round(1.0 - p, 4)) for t, p in series]

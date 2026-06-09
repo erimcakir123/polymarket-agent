@@ -9,6 +9,8 @@ from scripts.sim_surface_counterfactual import (
     GateDecision,
     build_cutoff_snapshots,
     decide_gate,
+    invert_series,
+    synth_event_links,
 )
 
 
@@ -141,3 +143,29 @@ def test_cutoff_snapshots_surface_split_separate_ratings():
     assert by_surface["Clay"]["Bob B"].rating.mu > by_surface["Clay"]["Alice A"].rating.mu
     # Serve verisi her iki yüzeyde de oyuncuya bağlanmış (model fallback'i için)
     assert "Hard" in by_surface["Hard"]["Alice A"].serve_by_surface
+
+
+def test_event_link_set_handicap_gets_tournament_from_moneyline_same_players():
+    entries = [
+        {"question": "Birmingham: Alexandra Eala vs Rebeka Masarova",
+         "slug": "wta-eala-masarov-2026-06-06"},
+        {"question": "Set Handicap: Eala (-1.5) vs Masarova (+1.5)",
+         "slug": "wta-eala-masarov-2026-06-06-set-handicap-home-1pt5"},
+        # Slug'da oyuncu sırası ters olsa da aynı maça bağlanmalı
+        {"question": "Set Handicap: Masarova (-1.5) vs Eala (+1.5)",
+         "slug": "wta-masarov-eala-2026-06-06-set-handicap-away-1pt5"},
+        # Başka maç — moneyline'ı yok → turnuva eşlenmez
+        {"question": "Set Handicap: Sonego (-1.5) vs Alkaya (+1.5)",
+         "slug": "atp-sonego-alkaya-2026-06-06-set-handicap-home-1pt5"},
+    ]
+    idx_to_event, event_tournaments = synth_event_links(entries)
+    assert idx_to_event[0] == idx_to_event[1] == idx_to_event[2]
+    assert event_tournaments[idx_to_event[1]] == "Birmingham"
+    assert idx_to_event[3] != idx_to_event[0]
+    assert idx_to_event[3] not in event_tournaments
+
+
+def test_invert_series_no_side_prices_and_entry():
+    assert invert_series([(100.0, 0.61), (160.0, 0.97)]) == [
+        (100.0, 0.39), (160.0, 0.03),
+    ]
