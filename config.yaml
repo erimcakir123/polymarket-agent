@@ -147,25 +147,10 @@ risk:
   stop_loss_pct: 0.30
   # Tennis H2H Glicko/Markov blend ağırlığı (0.6 = Glicko ağır).
   tennis_h2h_glicko_weight: 0.6
-  # 2026-06-01 (kullanıcı sadeleştirme): lig fark etmiyor, market scope önemli.
-  # Quarter/period market'leri kısa scope → 120dk; full maç market'leri → 480dk.
-  # Bid yoksa pozisyon HOLD (no-bid 0-sat YASAK, Polymarket resolve etsin).
-  # MLB UMA dispute istisnası kaldırıldı — bid yoksa hold zaten otomatik koruyor.
-  # Saf güvenlik ağı — normal SL/TP zincirine etki yok.
-  force_close_timeouts:
-    # Quarter/period markets (kısa scope, ~12dk gerçek market süresi)
-    nba_quarter_1_winner: 120
-    nfl_quarter_1: 120
-    # Full maç markets (lig fark etmez — hepsi maç süresi + 5-6 saat buffer)
-    nba_match_winner: 480
-    nfl_match_winner: 480
-    nhl_match_winner: 480
-    mlb_match_winner: 480
-    wnba_match_winner: 480
-    moneyline: 480
-    totals: 480
-    spread: 480
-    default: 480
+  # 2026-06-09: force-close KAPALI (hiper-gerçekçi — gerçek cüzdandaki gibi pozisyon
+  # Polymarket resolve edene kadar tutulur, _check_polymarket_resolution kapatır).
+  # Eski 2026-06-01 "manuel review alarmı" davranışı kullanıcı kararıyla kaldırıldı.
+  force_close_timeouts: {}
   # 2026-05-28: Polymarket otomatik resolution detector. Her N light tick'te bir
   # acik pozisyon gamma'da sorgulanir (closed + umaResolutionStatus=resolved →
   # exit @ owned-side payout). 5sn × 60 = 5dk per pozisyon. 0 → kapali.
@@ -300,7 +285,8 @@ telegram:
   chat_id: ""         # .env override
   alert:
     # Her trade için entry/exit telegram mesajı (yoğun trade'de sessize alabilirsin)
-    entry_exit: true
+    # 2026-06-09 (PLAN-Z30 g6): kullanıcı isteğiyle KAPALI — per-trade gürültü susturuldu.
+    entry_exit: false
     # HealthMonitor periyodik check sıklığı (saniye); 300 = 5dk
     health_check_interval_sec: 300
     # Son 1 saatte STALE_PRICE_REJECT >= bu eşik → warning
@@ -320,18 +306,18 @@ telegram:
     # 2026-06-09: Odds API kalan kredi < bu eşik → warning telegram (bitince critical).
     # Bahisçi-fiyatlı marketler (asıl kazanan) bu krediye bağlı; bitmeden haber ver.
     odds_low_credit_threshold: 50
-    # SPEC-Z10 (2026-06-03): Kategori-bazli alert mute. ACB/BSL/Lega scraper
-    # broken/stale alarmları kullanıcıyı gereksiz gerer çünkü bu lig'ler ML-only
-    # (totals/spreads exclude_combos ile kapalı) ve cache yok zaten — broken
-    # olması beklenen davranış. VTB cache başarılı build edildi, alarm anlamlı
-    # → muted listede YOK. Yeni HTML parser yazılınca ilgili lig listeden çıkar.
+    # SPEC-Z10 (2026-06-03) + PLAN-Z30 g6 (2026-06-09): Kategori-bazli alert mute.
+    # Prefix wildcard (SCRAPER_*) tüm scraper down/stale alarmlarını susturur —
+    # kullanıcı isteğiyle 2026-06-09: per-trade entry/exit + calibration-age +
+    # TÜM scraper + stale-price + ardışık-zarar gürültüsü kapatıldı. Geriye sadece
+    # kritik alarmlar kalır: ODDS_QUOTA_*, FORCE_CLOSE, günlük özet + yeni
+    # SURFACE_UNKNOWN (zemin çözülemedi → elle çöz). Kritik bir scraper alarmı
+    # geri istenirse SCRAPER_* satırını daraltıp ilgili kaynağı listeden çıkar.
     muted_alert_categories:
-      - SCRAPER_DOWN_acb_scraper
-      - SCRAPER_STALE_acb_scraper
-      - SCRAPER_DOWN_bsl_scraper
-      - SCRAPER_STALE_bsl_scraper
-      - SCRAPER_DOWN_lega_scraper
-      - SCRAPER_STALE_lega_scraper
+      - "SCRAPER_*"
+      - CALIBRATION_AGE
+      - STALE_PRICE_RATE
+      - CONSECUTIVE_LOSSES
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)
@@ -368,6 +354,8 @@ tennis:
   # Glicko phi (rating deviation) eşiği — düşük phi = güvenilir rating (~30+ maç).
   # phi >= bu değer → model konuşmaz, market atlanır.
   max_phi_for_trade: 100.0
+  # UNKNOWN damgalı turnuva zemini bu kadar gün sonra Wikipedia'dan tekrar sorgulanır (TTL).
+  surface_unknown_recheck_days: 1
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).

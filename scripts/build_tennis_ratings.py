@@ -12,8 +12,10 @@ from pathlib import Path
 from src.domain.pricing.tennis.glicko import Rating, update_rating
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import aggregate_serve_stats
+from src.domain.pricing.tennis.surface_map import build_surface_map
 from src.infrastructure.data.sackmann_csv_loader import load_matches_from_path
 from src.infrastructure.data.tennis_ratings_store import save_ratings
+from src.infrastructure.data.tennis_surface_map_store import save_surface_map
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,10 @@ def build_ratings(cache_dir: Path, output_path: Path) -> None:
     if not all_matches:
         logger.warning("No matches loaded from %s", cache_dir)
         return
+
+    surface_map = build_surface_map(all_matches)
+    save_surface_map(surface_map, Path(output_path).parent / "tennis_surface_map.json")
+    logger.info("Saved surface map (%d tournaments)", len(surface_map))
 
     all_matches.sort(key=lambda m: m.tourney_date)
     logger.info("Building ratings from %d matches", len(all_matches))

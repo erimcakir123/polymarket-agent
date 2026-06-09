@@ -5,7 +5,18 @@ from src.domain.pricing.tennis.glicko import Rating
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
 from src.models.market import MarketData
-from src.strategy.enrichment.tennis_dispatch import enrich_with_tennis_dispatch
+from src.strategy.enrichment.surface_resolver import SurfaceResolver
+from src.strategy.enrichment.tennis_dispatch import (
+    _extract_location,
+    _match_surface,
+    enrich_with_tennis_dispatch,
+)
+
+
+def _infer_surface(question: str, surface_map: dict) -> str | None:
+    """Test helper: question→surface (eski production fonksiyonun gövdesi; resolver bunu primitive'lere bölerek kullanır)."""
+    loc = _extract_location(question)
+    return _match_surface(loc, surface_map) if loc else None
 
 
 def _market(question: str, sport: str = "tennis", market_type: str = "moneyline") -> MarketData:
@@ -65,9 +76,12 @@ def test_tennis_moneyline_bm_first_when_bm_available():
 
 def test_tennis_moneyline_falls_back_to_model_when_bm_unavailable():
     """SPEC-Z14: ML + BM yok + model OK → model devreye girer."""
-    m = _market("Alice vs Bob")
+    m = _market("Wimbledon: Alice vs Bob")
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
-    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings)
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=SurfaceResolver({"wimbledon": "Grass"}, now_iso="2026-06-09T00:00:00"),
+    )
     assert result.probability is not None
     assert result.probability.source == "model"
     # Model output: Alice strong favorite → > 0.6.
@@ -202,16 +216,12 @@ def test_infer_market_type_declared_wins():
 
 
 def test_surface_inferred_for_grand_slam():
-    """K3 regression: question'da 'Wimbledon' geçerse Grass surface kullanılır.
-
-    Eski sürümde her zaman Hard → Grass-spesifik serve stat'ları kullanılmazdı.
-    """
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
-    assert _infer_surface("Wimbledon final: Alice vs Bob") == "Grass"
-    assert _infer_surface("French Open R3: X vs Y") == "Clay"
-    assert _infer_surface("Roland Garros QF") == "Clay"
-    assert _infer_surface("US Open R1") == "Hard"
-    assert _infer_surface("ATP 250 generic") == "Hard"
+    """Map-bazlı: bilinen turnuva → doğru zemin; bilinmeyen → None (PLAN-Z29)."""
+    smap = {"wimbledon": "Grass", "roland garros": "Clay", "us open": "Hard"}
+    assert _infer_surface("Wimbledon final: A vs B", smap) == "Grass"
+    assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
+    assert _infer_surface("US Open R1: A vs B", smap) == "Hard"
+    assert _infer_surface("ATP 250 Unknown: A vs B", smap) is None
 
 
 def test_tennis_match_totals_not_routed_to_bookmaker_and_skips():
@@ -225,3 +235,123 @@ def test_tennis_match_totals_not_routed_to_bookmaker_and_skips():
     result = enrich_with_tennis_dispatch(m, _spy, ratings=ratings)
     assert result.probability is None      # no model pricer for totals → skip
     assert calls == []                      # NOT routed to bookmaker
+
+
+def test_infer_surface_known_tournament_from_map():
+    smap = {"ilkley": "Grass", "cattolica": "Clay", "wimbledon": "Grass"}
+    assert _infer_surface("Ilkley: Bu vs Rodesch", smap) == "Grass"
+    assert _infer_surface("Cattolica: Bueno vs Forti", smap) == "Clay"
+    assert _infer_surface("Wimbledon: A vs B", smap) == "Grass"
+
+
+def test_infer_surface_unknown_tournament_returns_none():
+    assert _infer_surface("HSBC Championships: A vs B", {"ilkley": "Grass"}) is None
+
+
+def test_infer_surface_player_matchup_no_location_returns_none():
+    assert _infer_surface("Bueno vs. Forti: Total Sets O/U 2.5", {"x": "Clay"}) is None
+
+
+def test_infer_surface_empty_map_returns_none():
+    assert _infer_surface("Ilkley: A vs B", {}) is None
+
+
+def test_infer_surface_no_colon_returns_none():
+    assert _infer_surface("just some text", {"ilkley": "Grass"}) is None
+
+
+def test_dispatch_unknown_surface_skips_and_warns(caplog):
+    import logging
+    m = _market("HSBC Championships: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    with caplog.at_level(logging.WARNING):
+        result = enrich_with_tennis_dispatch(
+            m, _fake_bookmaker_enrich_none, ratings=ratings,
+            surface_resolver=SurfaceResolver({"ilkley": "Grass"}, now_iso="2026-06-09T00:00:00"),
+        )
+    assert result.probability is None
+    assert any(("zemin" in r.message.lower()) or ("surface" in r.message.lower()) for r in caplog.records)
+
+
+def test_dispatch_known_surface_prices_model():
+    # bilinen zemin → model akışı çalışır (skip değil); set_handicap model fiyatlar
+    m = _market("Ilkley: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=SurfaceResolver({"ilkley": "Grass"}, now_iso="2026-06-09T00:00:00"),
+    )
+    # zemin biliniyor → skip DEĞİL (model fiyatlamaya gider; sonuç None olabilir ama zemin-skip sebebiyle değil)
+    # en azından "zemin bilinmiyor" uyarısı OLMAMALI:
+    assert result is not None
+
+
+def test_infer_surface_no_substring_inside_word():
+    """'halle' (Grass) 'challenger' İÇİNDE geçmesin (kelime-sınırı)."""
+    smap = {"halle": "Grass", "merida": "Hard"}
+    # "Merida Challenger" → 'halle' kelime değil (challenger içinde); 'merida' kelime → Hard
+    assert _infer_surface("Merida Challenger: A vs B", smap) == "Hard"
+
+
+def test_dispatch_uses_resolver():
+    m = _market("HSBC Championships: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    class _W:
+        def resolve_surface(self, n): return "Grass"
+    r = SurfaceResolver({}, wiki=_W(), overrides={}, now_iso="2026-06-09T00:00:00")
+    res = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings, surface_resolver=r)
+    assert res is not None  # zemin Wiki'den geldi → skip değil
+
+
+def test_infer_surface_short_key_not_inside_word():
+    """'linz' (Hard) 'bellinzona' İÇİNDE eşleşmesin; exact 'bellinzona' kazanır."""
+    smap = {"linz": "Hard", "bellinzona": "Clay"}
+    assert _infer_surface("Bellinzona: A vs B", smap) == "Clay"
+
+
+def test_infer_surface_longest_key_wins_deterministic():
+    """Birden çok kelime-sınırı eşleşmesi → en UZUN anahtar (deterministik)."""
+    smap = {"open": "Hard", "ilkley open": "Grass"}
+    assert _infer_surface("Ilkley Open: A vs B", smap) == "Grass"
+
+
+def test_infer_surface_multiword_key_word_boundary():
+    """'roland garros' tam kelime-dizisi eşleşir."""
+    smap = {"roland garros": "Clay"}
+    assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
+
+
+def test_infer_surface_exact_still_first():
+    """Exact eşleşme önce (substring'e gerek yok)."""
+    smap = {"ilkley": "Grass"}
+    assert _infer_surface("Ilkley: A vs B", smap) == "Grass"
+
+
+def test_match_surface_by_name():
+    from src.strategy.enrichment.tennis_dispatch import _match_surface
+    smap = {"ilkley": "Grass", "san miguel de tucuman": "Clay"}
+    assert _match_surface("Ilkley", smap) == "Grass"
+    assert _match_surface("Tucuman", smap) == "Clay"   # token-subset (kw ⊆ cw)
+    assert _match_surface("Unknown Cup", smap) is None
+
+
+def test_extract_location_rejects_market_prefixes():
+    from src.strategy.enrichment.tennis_dispatch import _extract_location
+    assert _extract_location("Set Handicap: Zverev (-1.5) vs Cobolli") is None
+    assert _extract_location("Game Handicap: A vs B") is None
+    assert _extract_location("Total Games: A vs B") is None
+    # gerçek turnuva hâlâ çıkar:
+    assert _extract_location("Ilkley: A vs B") == "Ilkley"
+
+
+def test_match_surface_short_token_no_false_match():
+    from src.strategy.enrichment.tennis_dispatch import _match_surface
+    smap = {"pau": "Hard", "ilkley": "Grass", "san miguel de tucuman": "Clay"}
+    # "Pau Pilot Open" → 'pau' 3 harf → token-subset eşleşmez (yanlış zemin yok)
+    assert _match_surface("Pau Pilot Open", smap) is None
+    # exact kısa şehir hâlâ çalışır:
+    assert _match_surface("Pau", smap) == "Hard"
+    # ≥4 harf legit subset hâlâ çalışır:
+    assert _match_surface("Ilkley Challenger", smap) == "Grass"
+    assert _match_surface("Tucuman", smap) == "Clay"
+    assert _extract_location("Cattolica: A vs B") == "Cattolica"

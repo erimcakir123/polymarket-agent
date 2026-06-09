@@ -18,9 +18,12 @@ class TennisConfig(BaseModel):
     low_tier_slug_prefixes: Polymarket slug prefix bazlı low-tier filter.
     low_tier_question_keywords: Question metni keyword bazlı filter (Polymarket
       bazen "atp-" / "wta-" slug + question'da gerçek tier yazıyor).
+    surface_unknown_recheck_days: UNKNOWN damgalı turnuva zemini bu kadar gün
+      sonra Wikipedia'dan tekrar sorgulanır (TTL — varsayılan günlük).
     """
     model_config = ConfigDict(extra="ignore")
     max_phi_for_trade: float = 100.0
+    surface_unknown_recheck_days: int = 1
     low_tier_slug_prefixes: List[str] = Field(
         default_factory=lambda: ["itf-", "challenger-", "futures-"]
     )

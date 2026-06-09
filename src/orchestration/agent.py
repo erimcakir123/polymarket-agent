@@ -66,6 +66,7 @@ class AgentDeps:
     notifier: TelegramNotifier | None = None  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
     health_monitor: HealthMonitor | None = None  # SPEC-TG-001 2026-06-02: periyodik health check
     roster_drift_monitor: RosterDriftMonitor | None = None  # SPEC-Z9 2026-06-03: günde 1 Polymarket /teams + /sports diff
+    tennis_surface_resolver: object | None = None  # PLAN-Z30 g5: per-cycle event→turnuva map için
 
 
 class Agent:

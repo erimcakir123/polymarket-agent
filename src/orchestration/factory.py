@@ -35,6 +35,7 @@ from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
 from src.infrastructure.data.calibration_store import load_calibration as load_tennis_calibration
 from src.infrastructure.data.tennis_ratings_store import load_ratings as load_tennis_ratings
+from src.infrastructure.data.tennis_surface_map_store import load_surface_map
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 from src.strategy.enrichment.odds_enricher import enrich_market
@@ -138,6 +139,19 @@ def build_agent(state: RuntimeState) -> Agent:
             len(tennis_surface_ratings.get("Grass", {})),
         )
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
+    tennis_surface_map = load_surface_map(Path("data/tennis_surface_map.json"))
+    # PLAN-Z30 g5: zemin çözücü (Sackmann harita → override TTL → Wikipedia → event-link).
+    from src.infrastructure.apis.wikipedia_surface_client import WikipediaSurfaceClient
+    from src.infrastructure.data.tennis_surface_override_store import load_overrides, save_overrides
+    from src.strategy.enrichment.surface_resolver import SurfaceResolver
+    _ovr_path = Path("data/tennis_surface_overrides.json")
+    tennis_surface_resolver = SurfaceResolver(
+        tennis_surface_map,
+        wiki=WikipediaSurfaceClient(),
+        overrides=load_overrides(_ovr_path),
+        save_fn=lambda ov: save_overrides(ov, _ovr_path),
+        ttl_days=cfg.tennis.surface_unknown_recheck_days,
+    )
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
 
     # SPEC-Z21 (2026-06-06): basketbol ratings/efficiencies/rest-days/calibration
@@ -178,6 +192,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 max_phi_for_trade=cfg.tennis.max_phi_for_trade,
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
+                surface_resolver=tennis_surface_resolver,
             )
     else:
         def _tennis_dispatched(market):
@@ -187,6 +202,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 max_phi_for_trade=cfg.tennis.max_phi_for_trade,
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
+                surface_resolver=tennis_surface_resolver,
             )
 
     # Gate: enricher + manipulation_check closure'ları.
@@ -269,6 +285,7 @@ def build_agent(state: RuntimeState) -> Agent:
         muted_alert_categories=tg.alert.muted_alert_categories,
         odds_client=odds,
         odds_low_credit_threshold=tg.alert.odds_low_credit_threshold,
+        surface_resolver=tennis_surface_resolver,  # PLAN-Z30 g6: SURFACE_UNKNOWN alert
     )
     # SPEC-Z9 (2026-06-03): Polymarket roster drift detector — günde 1 /teams + /sports diff
     from src.orchestration.roster_drift_monitor import RosterDriftMonitor
@@ -320,6 +337,7 @@ def build_agent(state: RuntimeState) -> Agent:
         notifier=notifier,  # SPEC-TG-001 2026-06-02: entry/exit/critical alert
         health_monitor=health_monitor,  # SPEC-TG-001 Task 4: periyodik health check
         roster_drift_monitor=roster_drift_monitor,  # SPEC-Z9 2026-06-03: 12h drift check
+        tennis_surface_resolver=tennis_surface_resolver,  # PLAN-Z30 g5: cycle event→turnuva map
     )
     agent = Agent(deps)
 

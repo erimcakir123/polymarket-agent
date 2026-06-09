@@ -22,6 +22,7 @@ def _mk(
 ) -> MatchRecord:
     return MatchRecord(
         tourney_id="x",
+        tourney_name="",
         tourney_date="20260101",
         surface=surface,
         winner_name=winner,

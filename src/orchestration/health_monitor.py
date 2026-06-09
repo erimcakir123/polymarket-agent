@@ -43,23 +43,25 @@ class HealthMonitor:
     def __init__(
         self,
         notifier,
-        state_dir: Path,
-        audit_dir: Path,
-        runtime_dir: Path,
+        state_dir: Path = Path("data"),
+        audit_dir: Path = Path("logs/audit"),
+        runtime_dir: Path = Path("logs/runtime"),
         stale_price_threshold: int = 5,
         exposure_lockup_minutes: int = 60,
         consecutive_losses: int = 5,
         dedupe_window_minutes: int = 30,
         calibration_stale_days: int = 7,
         scraper_stale_hours: int = 24,
-        muted_alert_categories: list[str] | None = None,
+        muted_alert_categories=None,
         odds_client=None,
         odds_low_credit_threshold: int = 50,
+        surface_resolver=None,
         now_fn=lambda: datetime.now(timezone.utc),
     ) -> None:
         self.notifier = notifier
         self.odds_client = odds_client
         self.odds_low_credit_threshold = odds_low_credit_threshold
+        self.surface_resolver = surface_resolver
         self.state_dir = state_dir
         self.audit_dir = audit_dir
         self.runtime_dir = runtime_dir
@@ -83,6 +85,7 @@ class HealthMonitor:
         alerts.extend(self._check_consecutive_losses())
         alerts.extend(self._check_calibration_age())
         alerts.extend(self._check_odds_quota())
+        alerts.extend(self._check_surface_unknown())
         return alerts
 
     def send_alerts(self, alerts: list[Alert]) -> None:
@@ -91,8 +94,9 @@ class HealthMonitor:
             return
         now = self._now()
         for alert in alerts:
-            # SPEC-Z10: kategori muted ise sessizce skip (telegram spam onleme)
-            if alert.category in self.muted_alert_categories:
+            # SPEC-Z10 + PLAN-Z30 g6: kategori muted ise sessizce skip (telegram
+            # spam onleme). Prefix wildcard (SCRAPER_*) veya tam eslesme.
+            if self._is_muted(alert.category):
                 continue
             key = (alert.severity, alert.category)
             last = self._sent_alerts.get(key)
@@ -102,6 +106,16 @@ class HealthMonitor:
             msg = f"{emoji} <b>{alert.category}</b>\n{alert.message}"
             self.notifier.send(msg)
             self._sent_alerts[key] = now
+
+    def _is_muted(self, category: str) -> bool:
+        """Muted kontrol: 'PREFIX_*' wildcard veya tam kategori eslesmesi."""
+        for pat in self.muted_alert_categories:
+            if pat.endswith("*"):
+                if category.startswith(pat[:-1]):
+                    return True
+            elif category == pat:
+                return True
+        return False
 
     # ── Check'ler ──
 
@@ -298,6 +312,19 @@ class HealthMonitor:
                 ),
             )]
         return []
+
+    def _check_surface_unknown(self) -> list[Alert]:
+        """Tenis turnuva zemini hiçbir kaynaktan çözülemedi → warning.
+
+        PLAN-Z30 g6: kullanıcı eline alıp Google AI ile çözüp override ekler.
+        Dedupe send_alerts'te (kategori+severity, 30dk) — tekrar spam yok.
+        """
+        r = self.surface_resolver
+        if r is None or not getattr(r, "unresolved", None):
+            return []
+        return [Alert("warning", f"SURFACE_UNKNOWN_{n}",
+                      f"Zemin bilinmiyor: {n} — Google AI ile elle çöz/ekle")
+                for n in sorted(r.unresolved)]
 
     # ── Daily summary (atexit veya cron'dan çağrılır) ──
 

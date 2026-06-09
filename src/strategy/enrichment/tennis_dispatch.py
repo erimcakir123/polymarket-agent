@@ -1,4 +1,4 @@
-"""Tennis market dispatch — model anchor öncelik, moneyline fallback.
+"""Tennis market dispatch — bookmaker-first (ML), model fallback; alt market sadece model.
 
 Karar matrisi:
   sport != tennis              → bookmaker fallback
@@ -11,40 +11,35 @@ Karar matrisi:
 Alt market fallback YASAK — eski cascade bug (h2h fiyatını yapıştırma) bu modülün
 çözdüğü asıl sorundur.
 
-Tahminler (Polymarket veri yetersizliği nedeniyle question stringinden):
-- Surface: Hard default; Clay/Grass keyword'leri turnuva ismi geçerse
+Surface (zemin): enjekte edilen SurfaceResolver'dan gelir (Sackmann harita →
+Wikipedia → event-link). Çözülemezse default YOK — market atlanır + warning
+loglanır (yanlış zemin riskini önlemek için). Diğer çıkarımlar question'dan:
 - Best_of: 3 default; Grand Slam keyword'ü ile 5
-- line/handicap: market_type'a göre question regex (set/games/handicap)
+- line/handicap: market_type'a göre slug + question regex (set/games/handicap)
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Callable
 
+logger = logging.getLogger(__name__)
+
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
+from src.domain.pricing.tennis.surface_map import core_name as _core_name  # DRY
 from src.domain.pricing.tennis.calibration import CalibrationCurve
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.models.market import MarketData
 from src.strategy.enrichment.question_parser import extract_teams
 from src.strategy.enrichment.tennis_anchor_enricher import enrich_tennis_from_model
 
-_DEFAULT_SURFACE = "Hard"
 _DEFAULT_BEST_OF = 3
 _GRAND_SLAM_KEYWORDS = (
     "grand slam", "us open", "australian open", "wimbledon",
     "french open", "roland garros", "rolandgarros",
 )
-# Surface inference — turnuva keyword → kort tipi. Sackmann naming convention.
-_CLAY_KEYWORDS = (
-    "french open", "roland garros", "rolandgarros", "monte carlo",
-    "madrid open", "rome", "italian open", "barcelona", "hamburg",
-    "estoril", "houston",
-)
-_GRASS_KEYWORDS = (
-    "wimbledon", "queen's", "queens club", "halle", "eastbourne",
-    "stuttgart", "mallorca", "newport",
-)
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
+_MIN_SUBSET_TOKEN_LEN = 4  # token-subset eşleşmede en az bu uzunlukta paylaşılan kelime (kısa şehir-token yanlış eşleşmesini önler)
 # Default'lar config.yaml > tennis altında override edilebilir. Module-level
 # sabitler sadece config geçirilmediği durumlarda (test, legacy) fallback.
 # Gerçek değerler factory.py'de config'den geçirilir.
@@ -121,13 +116,40 @@ def _infer_market_type(market: MarketData) -> str:
     return ""
 
 
-def _infer_surface(question: str) -> str:
-    q_low = (question or "").lower()
-    if any(k in q_low for k in _CLAY_KEYWORDS):
-        return "Clay"
-    if any(k in q_low for k in _GRASS_KEYWORDS):
-        return "Grass"
-    return _DEFAULT_SURFACE
+_NON_LOCATION_KEYWORDS = ("handicap", "total", "o/u", "over/under", "spread")
+
+
+def _extract_location(question: str) -> str | None:
+    """Başlıkta ilk ':' öncesi turnuva/şehir. 'X vs Y' veya market-tipi önekler → None."""
+    if ":" not in (question or ""):
+        return None
+    loc = question.split(":", 1)[0].strip()
+    low = loc.lower()
+    if not loc or " vs" in low or any(k in low for k in _NON_LOCATION_KEYWORDS):
+        return None
+    return loc
+
+
+def _match_surface(name: str, surface_map: dict[str, str]) -> str | None:
+    """Turnuva ADINDAN zemin (çekirdek-şehir + token-subset, en uzun). PLAN-Z29 mantığı."""
+    key = _core_name(name)
+    if not key:
+        return None
+    if key in surface_map:
+        return surface_map[key]
+    kw = set(key.split())
+    best_name = None
+    best_surf = None
+    for mname, surf in surface_map.items():
+        cw = set(mname.split())
+        if not cw or not (cw <= kw or kw <= cw):
+            continue
+        shared = cw & kw
+        if not shared or max(len(t) for t in shared) < _MIN_SUBSET_TOKEN_LEN:
+            continue
+        if best_name is None or len(mname) > len(best_name):
+            best_name, best_surf = mname, surf
+    return best_surf
 
 
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)
@@ -213,6 +235,7 @@ def enrich_with_tennis_dispatch(
     max_phi_for_trade: float = _DEFAULT_MAX_PHI_FOR_TRADE,
     low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
+    surface_resolver=None,
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -283,7 +306,10 @@ def enrich_with_tennis_dispatch(
         )
 
     best_of = _infer_best_of(market.question)
-    surface = _infer_surface(market.question)
+    surface = surface_resolver.resolve(market) if surface_resolver is not None else None
+    if surface is None:
+        logger.warning("Tenis zemin bilinmiyor, atlandı: %s", (market.question or "")[:60])
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )

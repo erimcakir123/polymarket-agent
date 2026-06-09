@@ -184,6 +184,59 @@ def test_muted_alert_categories_suppress_send(tmp_path: Path) -> None:
     assert not any("SCRAPER_STALE_lega_scraper" in m for m in sent_msgs)
 
 
+def test_muted_prefix_silences_scrapers():
+    """PLAN-Z30 g6: 'SCRAPER_*' wildcard tüm scraper kategorilerini susturur."""
+    sent = []
+    class _N:
+        def send(self, m): sent.append(m); return True
+    hm = HealthMonitor(notifier=_N(), muted_alert_categories={"SCRAPER_*"})
+    hm.send_alerts([Alert("warning", "SCRAPER_DOWN_vtb_scraper", "x"),
+                    Alert("warning", "ODDS_QUOTA_LOW", "y")])
+    assert not any("SCRAPER_DOWN_vtb" in m for m in sent)
+    assert any("ODDS_QUOTA_LOW" in m for m in sent)
+
+
+def test_muted_exact_match_still_works():
+    """PLAN-Z30 g6: yıldızsız (tam eşleşme) kategoriler hâlâ susturulur."""
+    sent = []
+    class _N:
+        def send(self, m): sent.append(m); return True
+    hm = HealthMonitor(notifier=_N(), muted_alert_categories={"CALIBRATION_AGE"})
+    hm.send_alerts([Alert("info", "CALIBRATION_AGE", "x"),
+                    Alert("warning", "ODDS_QUOTA_LOW", "y")])
+    assert not any("CALIBRATION_AGE" in m for m in sent)
+    assert any("ODDS_QUOTA_LOW" in m for m in sent)
+
+
+def test_surface_unknown_emits_alert():
+    """PLAN-Z30 g6: çözülemeyen tenis zemini SURFACE_UNKNOWN alert üretir."""
+    class _R:
+        unresolved = {"obscure cup"}
+    hm = HealthMonitor(notifier=None, surface_resolver=_R())
+    alerts = hm._check_surface_unknown()
+    assert any(
+        a.category.startswith("SURFACE_UNKNOWN") and "obscure cup" in a.message
+        for a in alerts
+    )
+
+
+def test_surface_unknown_distinct_categories_per_name():
+    from src.orchestration.health_monitor import HealthMonitor
+    class _R:
+        unresolved = {"birmingham", "obscure cup"}
+    alerts = HealthMonitor(notifier=None, surface_resolver=_R())._check_surface_unknown()
+    cats = {a.category for a in alerts}
+    assert len(cats) == 2  # her isim ayrı kategori → dedupe ikisini de geçirir
+
+
+def test_surface_unknown_no_resolver_no_alert():
+    """resolver yok veya unresolved boş → alert yok."""
+    assert HealthMonitor(notifier=None)._check_surface_unknown() == []
+    class _Empty:
+        unresolved = set()
+    assert HealthMonitor(notifier=None, surface_resolver=_Empty())._check_surface_unknown() == []
+
+
 def test_disabled_notifier_no_send(tmp_path: Path) -> None:
     """notifier=None → send_alerts no-op (crash yok)."""
     monitor = _make_monitor(tmp_path, notifier=None)

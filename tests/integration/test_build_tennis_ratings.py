@@ -16,11 +16,17 @@ SAMPLE_CSV = (
 
 
 def test_build_creates_ratings_json(tmp_path):
+    import os
+    from pathlib import Path
+
     from scripts.build_tennis_ratings import build_ratings
 
     csv_path = tmp_path / "atp_matches_2026.csv"
     csv_path.write_text(SAMPLE_CSV, encoding="utf-8")
     out = tmp_path / "ratings.json"
+
+    production_map = Path("data/tennis_surface_map.json")
+    before_mtime = production_map.stat().st_mtime if production_map.exists() else None
 
     build_ratings(tmp_path, out)
 
@@ -30,3 +36,35 @@ def test_build_creates_ratings_json(tmp_path):
     assert "Bob" in data
     assert data["Alice"]["rating"]["mu"] > 1500  # winner gained rating
     assert data["Bob"]["rating"]["mu"] < 1500
+
+    # surface map ratings'in yaninda (tmp) — production dosyasi KIRLENMEZ
+    smap_path = tmp_path / "tennis_surface_map.json"
+    assert smap_path.exists()
+    assert json.loads(smap_path.read_text(encoding="utf-8")) == {"x": "Hard"}
+
+    # production dosyasinin mtime degismemeli (test kirletmemeli)
+    after_mtime = production_map.stat().st_mtime if production_map.exists() else None
+    assert before_mtime == after_mtime, "Test production data/tennis_surface_map.json dosyasini kirletti!"
+
+
+def test_build_ratings_writes_surface_map(tmp_path, monkeypatch):
+    import scripts.build_tennis_ratings as _mod
+    from scripts.build_tennis_ratings import build_ratings
+
+    captured: list[dict] = []
+
+    def _fake_save(surface_map, _path=None):  # noqa: ANN001
+        captured.append(surface_map)
+
+    monkeypatch.setattr(_mod, "save_surface_map", _fake_save)
+
+    csv_path = tmp_path / "atp_matches_2026.csv"
+    csv_path.write_text(SAMPLE_CSV, encoding="utf-8")
+    out = tmp_path / "ratings.json"
+
+    build_ratings(tmp_path, out)
+
+    assert len(captured) == 1, "save_surface_map must be called exactly once"
+    surface_map = captured[0]
+    # SAMPLE_CSV tourney_name="X" → normalized key "x", surface="Hard"
+    assert surface_map == {"x": "Hard"}

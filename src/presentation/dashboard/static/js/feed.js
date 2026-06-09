@@ -149,10 +149,9 @@
       return "";
     },
 
-    _cardOpen(slug, forceCloseAlert, resolving) {
+    _cardOpen(slug, resolving) {
       const url = FMT.polyUrl(slug);
       let cls = "feed-item";
-      if (forceCloseAlert) cls += " feed-item-alert";       // kırmızı (force-close)
       if (resolving) cls += " feed-item-resolving";          // SPEC-Z22: turuncu (maç bitti, resolve bekliyor)
       return `<a class="${cls}" href="${url}" target="_blank" rel="noopener noreferrer">`;
     },
@@ -176,7 +175,7 @@
       const oddsRaw = p.direction === "BUY_NO" ? (1 - anchor) : anchor;
       const odds = Math.round(oddsRaw * 1000) / 10;
       const resolving = this._matchPhase(p.match_start_iso, p.match_live) === "resolving";
-      return `${this._cardOpen(p.slug, p.force_close_alert, resolving)}
+      return `${this._cardOpen(p.slug, resolving)}
         <div class="feed-top">
           <div class="feed-market-wrap"><span class="feed-tick">${icon}</span>
             ${this._marketTitle(p.question, p.slug, p.match_title)}</div>

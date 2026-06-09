@@ -43,6 +43,17 @@ class EntryProcessor:
         scan_fresh = self.deps.scanner.scan()
         scan_by_cid = {m.condition_id: m for m in scan_fresh}
 
+        # PLAN-Z30 g5: bu cycle'daki tenis maçları için event_id→turnuva adı haritası.
+        # Zemin çözücü, başlıkta turnuva geçmeyen alt market'lerde (örn "X vs Y")
+        # event_id üzerinden ana market'in turnuvasına bağlanır.
+        resolver = getattr(self.deps, "tennis_surface_resolver", None)
+        if resolver is not None:
+            from src.strategy.enrichment.tennis_dispatch import _extract_location
+            _ev = {m.event_id: _extract_location(m.question)
+                   for m in scan_fresh
+                   if getattr(m, "sport_tag", "") == "tennis" and m.event_id and _extract_location(m.question)}
+            resolver.set_event_tournaments(_ev)
+
         # SPEC-Z26: zararla kapanan condition_id'leri defterden türet (tekrar-giriş
         # yasağı). Her heavy cycle yenilenir → reload sonrası kendiliğinden dolar.
         if self.deps.trade_event_log is not None:

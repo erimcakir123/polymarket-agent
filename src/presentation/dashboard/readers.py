@@ -68,16 +68,6 @@ def read_positions(logs_dir: Path) -> dict[str, Any]:
     return _read_json(logs_dir.parent / "data" / "positions.json", {"positions": {}, "realized_pnl": 0.0, "high_water_mark": 0.0})
 
 
-def read_force_close_alerts(logs_dir: Path) -> set[str]:
-    """data/force_close_alerts.json → kırmızı border isteyen condition_id seti.
-
-    2026-06-01 kullanıcı kararı: force-close otomatik exit YAPMAZ — sadece
-    alarm + dashboard'da kırmızı border. Bu dosya alert flag'lerini tutar.
-    """
-    raw = _read_json(logs_dir.parent / "data" / "force_close_alerts.json", {})
-    return set(raw.keys()) if isinstance(raw, dict) else set()
-
-
 def read_model_health(logs_dir: Path) -> dict[str, Any]:
     """data/model_health.json → {computed_at_utc, sports} ya da {} (yok/bozuk).
 
