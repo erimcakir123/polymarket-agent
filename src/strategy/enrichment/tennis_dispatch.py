@@ -114,12 +114,16 @@ def _infer_market_type(market: MarketData) -> str:
     return ""
 
 
+_NON_LOCATION_KEYWORDS = ("handicap", "total", "o/u", "over/under", "spread")
+
+
 def _extract_location(question: str) -> str | None:
-    """Başlıkta ilk ':' öncesi turnuva/şehir. 'X vs Y' (oyuncu eşleşmesi) → None."""
+    """Başlıkta ilk ':' öncesi turnuva/şehir. 'X vs Y' veya market-tipi önekler → None."""
     if ":" not in (question or ""):
         return None
     loc = question.split(":", 1)[0].strip()
-    if not loc or " vs" in loc.lower():
+    low = loc.lower()
+    if not loc or " vs" in low or any(k in low for k in _NON_LOCATION_KEYWORDS):
         return None
     return loc
 

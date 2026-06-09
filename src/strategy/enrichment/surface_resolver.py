@@ -43,17 +43,7 @@ class SurfaceResolver:
         if not name:
             return None
         surf = _match_surface(name, self._map)
-        if surf:
-            return surf
-        # Set-handicap ve benzeri durumlarda question prefix yüzeyden bilgi taşımaz;
-        # event_id üzerinden turnuva bağlantısı varsa önce onu dene (Wiki'den önce).
-        if market.event_id:
-            event_name = self._event.get(market.event_id)
-            if event_name and event_name.lower().strip() != name.lower().strip():
-                event_surf = _match_surface(event_name, self._map)
-                if event_surf:
-                    return event_surf
-        return self._via_wiki(name)
+        return surf if surf else self._via_wiki(name)
 
     def _via_wiki(self, name: str) -> str | None:
         if self._wiki is None:

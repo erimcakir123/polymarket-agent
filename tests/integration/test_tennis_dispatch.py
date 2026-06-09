@@ -321,3 +321,13 @@ def test_match_surface_by_name():
     assert _match_surface("Ilkley", smap) == "Grass"
     assert _match_surface("Tucuman", smap) == "Clay"   # token-subset (kw ⊆ cw)
     assert _match_surface("Unknown Cup", smap) is None
+
+
+def test_extract_location_rejects_market_prefixes():
+    from src.strategy.enrichment.tennis_dispatch import _extract_location
+    assert _extract_location("Set Handicap: Zverev (-1.5) vs Cobolli") is None
+    assert _extract_location("Game Handicap: A vs B") is None
+    assert _extract_location("Total Games: A vs B") is None
+    # gerçek turnuva hâlâ çıkar:
+    assert _extract_location("Ilkley: A vs B") == "Ilkley"
+    assert _extract_location("Cattolica: A vs B") == "Cattolica"

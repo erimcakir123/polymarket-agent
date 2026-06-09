@@ -55,3 +55,12 @@ def test_resolve_unknown_not_rechecked_within_ttl():
     r = SurfaceResolver({}, wiki=w, overrides=overrides, ttl_days=3, now_iso="2026-06-09T00:00:00")
     assert r.resolve(_mkt("Late Cup: A vs B")) is None
     assert w.calls == 0  # TTL dolmadı → Wiki YOK
+
+
+def test_set_handicap_no_event_link_no_garbage_wiki():
+    w = _Wiki(None)
+    r = SurfaceResolver({}, wiki=w, overrides={}, now_iso="2026-06-09T00:00:00")
+    m = _mkt("Set Handicap: Zverev (-1.5) vs Cobolli", event_id="eX")  # eX not in event map
+    assert r.resolve(m) is None
+    assert w.calls == 0                      # NO garbage wiki query
+    assert "set handicap" not in r.unresolved  # no meaningless alert
