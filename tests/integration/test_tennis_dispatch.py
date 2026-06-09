@@ -202,16 +202,13 @@ def test_infer_market_type_declared_wins():
 
 
 def test_surface_inferred_for_grand_slam():
-    """K3 regression: question'da 'Wimbledon' geçerse Grass surface kullanılır.
-
-    Eski sürümde her zaman Hard → Grass-spesifik serve stat'ları kullanılmazdı.
-    """
+    """Map-bazlı: bilinen turnuva → doğru zemin; bilinmeyen → None (PLAN-Z29)."""
     from src.strategy.enrichment.tennis_dispatch import _infer_surface
-    assert _infer_surface("Wimbledon final: Alice vs Bob") == "Grass"
-    assert _infer_surface("French Open R3: X vs Y") == "Clay"
-    assert _infer_surface("Roland Garros QF") == "Clay"
-    assert _infer_surface("US Open R1") == "Hard"
-    assert _infer_surface("ATP 250 generic") == "Hard"
+    smap = {"wimbledon": "Grass", "roland garros": "Clay", "us open": "Hard"}
+    assert _infer_surface("Wimbledon final: A vs B", smap) == "Grass"
+    assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
+    assert _infer_surface("US Open R1: A vs B", smap) == "Hard"
+    assert _infer_surface("ATP 250 Unknown: A vs B", smap) is None
 
 
 def test_tennis_match_totals_not_routed_to_bookmaker_and_skips():
@@ -225,3 +222,31 @@ def test_tennis_match_totals_not_routed_to_bookmaker_and_skips():
     result = enrich_with_tennis_dispatch(m, _spy, ratings=ratings)
     assert result.probability is None      # no model pricer for totals → skip
     assert calls == []                      # NOT routed to bookmaker
+
+
+def test_infer_surface_known_tournament_from_map():
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"ilkley": "Grass", "cattolica": "Clay", "wimbledon": "Grass"}
+    assert _infer_surface("Ilkley: Bu vs Rodesch", smap) == "Grass"
+    assert _infer_surface("Cattolica: Bueno vs Forti", smap) == "Clay"
+    assert _infer_surface("Wimbledon: A vs B", smap) == "Grass"
+
+
+def test_infer_surface_unknown_tournament_returns_none():
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    assert _infer_surface("HSBC Championships: A vs B", {"ilkley": "Grass"}) is None
+
+
+def test_infer_surface_player_matchup_no_location_returns_none():
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    assert _infer_surface("Bueno vs. Forti: Total Sets O/U 2.5", {"x": "Clay"}) is None
+
+
+def test_infer_surface_empty_map_returns_none():
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    assert _infer_surface("Ilkley: A vs B", {}) is None
+
+
+def test_infer_surface_no_colon_returns_none():
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    assert _infer_surface("just some text", {"ilkley": "Grass"}) is None

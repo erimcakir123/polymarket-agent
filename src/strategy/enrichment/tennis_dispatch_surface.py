@@ -44,7 +44,7 @@ def make_surface_aware_dispatch(
             "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
         ),
     ) -> EnrichResult:
-        surface = _infer_surface(market.question or "")
+        surface = _infer_surface(market.question or "", {})  # TODO PLAN-Z29 g5: gerçek surface_map + None skip
         chosen = ratings_by_surface.get(surface, fallback_ratings)
         return _main_dispatch(
             market=market,

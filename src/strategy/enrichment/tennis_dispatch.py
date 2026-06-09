@@ -28,21 +28,10 @@ from src.models.market import MarketData
 from src.strategy.enrichment.question_parser import extract_teams
 from src.strategy.enrichment.tennis_anchor_enricher import enrich_tennis_from_model
 
-_DEFAULT_SURFACE = "Hard"
 _DEFAULT_BEST_OF = 3
 _GRAND_SLAM_KEYWORDS = (
     "grand slam", "us open", "australian open", "wimbledon",
     "french open", "roland garros", "rolandgarros",
-)
-# Surface inference — turnuva keyword → kort tipi. Sackmann naming convention.
-_CLAY_KEYWORDS = (
-    "french open", "roland garros", "rolandgarros", "monte carlo",
-    "madrid open", "rome", "italian open", "barcelona", "hamburg",
-    "estoril", "houston",
-)
-_GRASS_KEYWORDS = (
-    "wimbledon", "queen's", "queens club", "halle", "eastbourne",
-    "stuttgart", "mallorca", "newport",
 )
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
 # Default'lar config.yaml > tennis altında override edilebilir. Module-level
@@ -121,13 +110,29 @@ def _infer_market_type(market: MarketData) -> str:
     return ""
 
 
-def _infer_surface(question: str) -> str:
-    q_low = (question or "").lower()
-    if any(k in q_low for k in _CLAY_KEYWORDS):
-        return "Clay"
-    if any(k in q_low for k in _GRASS_KEYWORDS):
-        return "Grass"
-    return _DEFAULT_SURFACE
+def _extract_location(question: str) -> str | None:
+    """Başlıkta ilk ':' öncesi turnuva/şehir. 'X vs Y' (oyuncu eşleşmesi) → None."""
+    if ":" not in (question or ""):
+        return None
+    loc = question.split(":", 1)[0].strip()
+    if not loc or " vs" in loc.lower():
+        return None
+    return loc
+
+
+def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
+    """Turnuva adından zemin (Clay/Grass/Hard). Bilinmiyorsa None — caller skip+uyar.
+    Sessiz 'Hard' default YOK (eski keyword listesi kaldırıldı, PLAN-Z29)."""
+    loc = _extract_location(question)
+    if loc is None:
+        return None
+    key = loc.lower().strip()
+    if key in surface_map:
+        return surface_map[key]
+    for name, surf in surface_map.items():
+        if name and name in key:
+            return surf
+    return None
 
 
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)
@@ -283,7 +288,7 @@ def enrich_with_tennis_dispatch(
         )
 
     best_of = _infer_best_of(market.question)
-    surface = _infer_surface(market.question)
+    surface = _infer_surface(market.question, {}) or "Hard"  # TODO PLAN-Z29 g5: gerçek surface_map + None skip
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )
