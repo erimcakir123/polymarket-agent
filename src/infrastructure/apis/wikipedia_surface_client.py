@@ -28,12 +28,21 @@ class WikipediaSurfaceClient:
         self._timeout = timeout
 
     def resolve_surface(self, tournament_name: str) -> str | None:
+        """Aday turnuvaların HEPSİNİ dener; hepsi AYNI zemini derse o zemin,
+        ÇELİŞİRse (aynı şehir farklı zemin = belirsiz) None → caller skip+uyar."""
+        surfaces: list[str] = []
         for title in self._search_titles(tournament_name):
             wikitext = self._fetch_section0(title)
             if wikitext:
                 surf = self._parse_surface(wikitext)
                 if surf:
-                    return surf
+                    surfaces.append(surf)
+        distinct = set(surfaces)
+        if len(distinct) == 1:
+            return surfaces[0]
+        if len(distinct) > 1:
+            logger.warning("Wikipedia belirsiz (aynı isimde farklı zeminler): %s -> %s",
+                           tournament_name, sorted(distinct))
         return None
 
     def _search_titles(self, name: str) -> list[str]:

@@ -99,3 +99,23 @@ def test_search_all_filtered_returns_none():
         return _Resp(200, {"query": {"pages": {"1": {"revisions": [{"slots": {"main": {"*": "| surface = Clay"}}}]}}}})
 
     assert WikipediaSurfaceClient(http_get=fake_get).resolve_surface("Lyon") is None
+
+
+def test_resolve_surface_all_candidates_agree():
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if (params or {}).get("list") == "search":
+            return _Resp(200, {"query": {"search": [{"title": "2026 Birmingham Open"}, {"title": "Birmingham Classic"}]}})
+        return _Resp(200, {"query": {"pages": {"1": {"revisions": [{"slots": {"main": {"*": "| surface = [[Grass court|Grass]]"}}}]}}}})
+    assert WikipediaSurfaceClient(http_get=fake_get).resolve_surface("Birmingham") == "Grass"
+
+
+def test_resolve_surface_candidates_disagree_returns_none():
+    pages = {"Stuttgart Open": "| surface = [[Grass court|Grass]]",
+             "Porsche Tennis Grand Prix Stuttgart": "| surface = [[Clay court|Clay]]"}
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if (params or {}).get("list") == "search":
+            return _Resp(200, {"query": {"search": [{"title": "Stuttgart Open"}, {"title": "Porsche Tennis Grand Prix Stuttgart"}]}})
+        title = (params or {}).get("titles")
+        return _Resp(200, {"query": {"pages": {"1": {"revisions": [{"slots": {"main": {"*": pages.get(title, "no surface")}}}]}}}})
+    # iki Stuttgart turnuvası farklı zemin → belirsiz → None (skip+alert)
+    assert WikipediaSurfaceClient(http_get=fake_get).resolve_surface("Stuttgart") is None

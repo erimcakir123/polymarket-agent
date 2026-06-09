@@ -11,7 +11,7 @@ from src.strategy.enrichment.tennis_dispatch import _extract_location, _match_su
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TTL_DAYS = 3
+_DEFAULT_TTL_DAYS = 1
 
 
 def _is_stale(checked_at: str, now_iso: str, ttl_days: int) -> bool:
@@ -63,7 +63,7 @@ class SurfaceResolver:
         cached = self._overrides.get(key)
         if cached:
             # Bulunan zemin kalıcı kabul edilir (turnuva zemin değiştirirse — çok nadir,
-            # ör. Stuttgart 10 yılda bir — Sackmann harita yeniden-build'i yakalar). UNKNOWN ise TTL ile tekrar denenir.
+            # ör. Stuttgart 10 yılda bir — Sackmann harita yeniden-build'i yakalar). UNKNOWN ise GÜNLÜK tekrar denenir (TTL=1g).
             if cached["surface"] != "UNKNOWN":
                 return cached["surface"]
             if not _is_stale(cached.get("checked_at", ""), now, self._ttl):
