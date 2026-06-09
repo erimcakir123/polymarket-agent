@@ -147,3 +147,9 @@ class OddsAPIClient:
         if total <= 0:
             return None
         return self._last_used / total
+
+    @property
+    def remaining(self) -> int | None:
+        """Son başarılı çağrıdaki kalan kredi (x-requests-remaining). Henüz çağrı
+        yapılmadıysa None. HealthMonitor düşük-kredi alert'i için okur."""
+        return self._last_remaining

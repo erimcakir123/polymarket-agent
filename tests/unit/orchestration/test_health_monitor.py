@@ -190,3 +190,41 @@ def test_disabled_notifier_no_send(tmp_path: Path) -> None:
     monitor.notifier = None
     alerts = [Alert(severity="critical", category="TEST", message="x")]
     monitor.send_alerts(alerts)  # no crash beklenir
+
+
+class _StubOdds:
+    """odds_client stub — sadece remaining özelliği (2026-06-09 kota alert testi)."""
+    def __init__(self, remaining: int | None) -> None:
+        self.remaining = remaining
+
+
+def test_odds_quota_exhausted_triggers_critical(tmp_path: Path) -> None:
+    """remaining=0 → critical ODDS_QUOTA_EXHAUSTED."""
+    monitor = _make_monitor(tmp_path, odds_client=_StubOdds(0), odds_low_credit_threshold=50)
+    alerts = monitor._check_odds_quota()
+    assert len(alerts) == 1
+    assert alerts[0].severity == "critical"
+    assert alerts[0].category == "ODDS_QUOTA_EXHAUSTED"
+
+
+def test_odds_quota_low_triggers_warning(tmp_path: Path) -> None:
+    """remaining < eşik → warning ODDS_QUOTA_LOW."""
+    monitor = _make_monitor(tmp_path, odds_client=_StubOdds(30), odds_low_credit_threshold=50)
+    alerts = monitor._check_odds_quota()
+    assert len(alerts) == 1
+    assert alerts[0].severity == "warning"
+    assert alerts[0].category == "ODDS_QUOTA_LOW"
+
+
+def test_odds_quota_healthy_no_alert(tmp_path: Path) -> None:
+    """remaining >= eşik → alert yok."""
+    monitor = _make_monitor(tmp_path, odds_client=_StubOdds(500), odds_low_credit_threshold=50)
+    assert monitor._check_odds_quota() == []
+
+
+def test_odds_quota_no_data_or_no_client_no_alert(tmp_path: Path) -> None:
+    """remaining=None (henüz çağrı yok) veya odds_client=None → sessiz (alert yok)."""
+    assert _make_monitor(
+        tmp_path, odds_client=_StubOdds(None), odds_low_credit_threshold=50,
+    )._check_odds_quota() == []
+    assert _make_monitor(tmp_path)._check_odds_quota() == []  # odds_client=None default

@@ -317,6 +317,9 @@ telegram:
     calibration_stale_days: 7
     # Veri kaynağı (scraper) last_success N saat+ eski → warning
     scraper_stale_hours: 24
+    # 2026-06-09: Odds API kalan kredi < bu eşik → warning telegram (bitince critical).
+    # Bahisçi-fiyatlı marketler (asıl kazanan) bu krediye bağlı; bitmeden haber ver.
+    odds_low_credit_threshold: 50
     # SPEC-Z10 (2026-06-03): Kategori-bazli alert mute. ACB/BSL/Lega scraper
     # broken/stale alarmları kullanıcıyı gereksiz gerer çünkü bu lig'ler ML-only
     # (totals/spreads exclude_combos ile kapalı) ve cache yok zaten — broken

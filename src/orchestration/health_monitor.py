@@ -53,9 +53,13 @@ class HealthMonitor:
         calibration_stale_days: int = 7,
         scraper_stale_hours: int = 24,
         muted_alert_categories: list[str] | None = None,
+        odds_client=None,
+        odds_low_credit_threshold: int = 50,
         now_fn=lambda: datetime.now(timezone.utc),
     ) -> None:
         self.notifier = notifier
+        self.odds_client = odds_client
+        self.odds_low_credit_threshold = odds_low_credit_threshold
         self.state_dir = state_dir
         self.audit_dir = audit_dir
         self.runtime_dir = runtime_dir
@@ -78,6 +82,7 @@ class HealthMonitor:
         alerts.extend(self._check_scraper_health())
         alerts.extend(self._check_consecutive_losses())
         alerts.extend(self._check_calibration_age())
+        alerts.extend(self._check_odds_quota())
         return alerts
 
     def send_alerts(self, alerts: list[Alert]) -> None:
@@ -257,6 +262,39 @@ class HealthMonitor:
                 message=(
                     f"Tennis calibration {age_days:.0f} gün eski "
                     f"(eşik: {self.calibration_stale_days} gün). Refresh önerilir."
+                ),
+            )]
+        return []
+
+    def _check_odds_quota(self) -> list[Alert]:
+        """Odds API kalan kredi düşük/bitti → telegram alert (2026-06-09).
+
+        Bahisçi-fiyatlı marketler (asıl kazanan leg) Odds API kredisine bağlı.
+        Kredi bitince enrich 401 döner → bu marketler trade EDİLEMEZ. Bitmeden
+        haber ver ki yeni anahtar alınabilsin. odds_client henüz çağrı yapmadıysa
+        remaining=None → sessiz (alert yok). Dedupe send_alerts'te (30dk).
+        """
+        if self.odds_client is None:
+            return []
+        remaining = getattr(self.odds_client, "remaining", None)
+        if remaining is None:
+            return []
+        if remaining <= 0:
+            return [Alert(
+                severity="critical",
+                category="ODDS_QUOTA_EXHAUSTED",
+                message=(
+                    "Odds API kotası BİTTİ (kalan 0). Bahisçi-fiyatlı marketler "
+                    "(WNBA totals vb.) trade EDİLEMİYOR. Yeni Odds API anahtarı gerekli."
+                ),
+            )]
+        if remaining < self.odds_low_credit_threshold:
+            return [Alert(
+                severity="warning",
+                category="ODDS_QUOTA_LOW",
+                message=(
+                    f"Odds API kredisi azaldı (kalan {remaining}, eşik "
+                    f"{self.odds_low_credit_threshold}). Yakında yeni anahtar gerekecek."
                 ),
             )]
         return []

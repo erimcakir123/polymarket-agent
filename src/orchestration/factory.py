@@ -267,6 +267,8 @@ def build_agent(state: RuntimeState) -> Agent:
         calibration_stale_days=tg.alert.calibration_stale_days,
         scraper_stale_hours=tg.alert.scraper_stale_hours,
         muted_alert_categories=tg.alert.muted_alert_categories,
+        odds_client=odds,
+        odds_low_credit_threshold=tg.alert.odds_low_credit_threshold,
     )
     # SPEC-Z9 (2026-06-03): Polymarket roster drift detector — günde 1 /teams + /sports diff
     from src.orchestration.roster_drift_monitor import RosterDriftMonitor

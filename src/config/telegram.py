@@ -19,6 +19,7 @@ class TelegramAlertConfig(BaseModel):
     dedupe_window_minutes: int = 30                # ayni alert N dk icinde tekrar atilmaz
     calibration_stale_days: int = 7                # tennis_calibration.json N gun+ eski warning
     scraper_stale_hours: int = 24                  # data source last_success N saat+ eski warning
+    odds_low_credit_threshold: int = 50            # Odds API kalan kredi < bu → warning (bitince critical)
     # SPEC-Z10 (2026-06-03): Kategori bazli alert mute. Tam category match.
     # Avrupa basket scraper'lar (ACB/BSL/Lega) HTML parser revize bekliyor;
     # bu lig'ler ML-only (totals/spreads exclude_combos ile kapali) ve cache

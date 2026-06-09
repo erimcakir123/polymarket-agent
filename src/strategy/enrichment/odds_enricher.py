@@ -31,12 +31,18 @@ logger = logging.getLogger(__name__)
 _VIG_2WAY_MIN = 0.85
 _VIG_2WAY_MAX = 1.20
 
+# 2026-06-09: Odds API kredi tasarrufu — tek bölge. The Odds API her bölgeyi ayrı
+# kredi sayar (us,uk,eu = 3 kredi/sorgu). Tek bölge = 1 kredi → 3x daha uzun ömür.
+# 'eu' seçildi: Pinnacle + diğer keskin (sharp) kitaplar bu bölgede; konsensüs biraz
+# daralır ama sinyal kalitesi büyük ölçüde korunur.
+_ODDS_REGIONS = "eu"
+
 
 def _odds_query_params(markets: str = "h2h") -> dict:
     """24h içinde başlayan event'ler için market parametreleri (markets seçilebilir)."""
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     return {
-        "regions": "us,uk,eu",
+        "regions": _ODDS_REGIONS,
         "markets": markets,
         "oddsFormat": "decimal",
         "commenceTimeFrom": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
