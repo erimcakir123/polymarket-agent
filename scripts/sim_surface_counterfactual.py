@@ -12,7 +12,15 @@ SurfaceResolver save_fn=None ile kurulur → override dosyasına dahi yazmaz.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
+
+from src.domain.pricing.tennis.glicko import Rating, update_rating
+from src.domain.pricing.tennis.match_record import MatchRecord
+from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
+from src.domain.pricing.tennis.serve_metrics import PlayerServeStats, aggregate_serve_stats
+
+_SURFACES = ("Hard", "Clay", "Grass")
 
 # Bugünkü kurallarda Match O/U tamamen kaldırıldı (SPEC-Z28).
 _REMOVED_MARKET_TYPES = ("tennis_match_totals",)
@@ -73,3 +81,49 @@ def decide_gate(
     size = bimodal_size_a if is_bimodal else ml_size_a
     action = "SAME" if direction == actual_direction else "FLIP"
     return GateDecision(action, "", direction, eff_entry, size)
+
+
+def _fit_glicko(matches: list[MatchRecord]) -> dict[str, Rating]:
+    """Kronolojik Glicko fit (build_tennis_ratings.build_ratings ile aynı döngü)."""
+    ratings: dict[str, Rating] = defaultdict(Rating)
+    for m in matches:
+        w, loser_r = ratings[m.winner_name], ratings[m.loser_name]
+        ratings[m.winner_name] = update_rating(w, [loser_r], [1.0])
+        ratings[m.loser_name] = update_rating(loser_r, [w], [0.0])
+    return dict(ratings)
+
+
+def build_cutoff_snapshots(
+    matches: list[MatchRecord],
+    cutoff_yyyymmdd: str,
+    surface_phi_fallback: float,
+) -> tuple[dict[str, PlayerSnapshot], dict[str, dict[str, PlayerSnapshot]]]:
+    """Cutoff öncesi maçlarla flat + yüzeye-özgü PlayerSnapshot'lar (lookahead yok).
+
+    Yüzeye-özgü reyting phi >= surface_phi_fallback ise overall'a düşer
+    (tennis_surface_ratings_store.load_surface_ratings davranışının aynısı).
+    """
+    kept = sorted(
+        (m for m in matches if m.tourney_date and m.tourney_date < cutoff_yyyymmdd),
+        key=lambda m: m.tourney_date,
+    )
+    serve_by_player: dict[str, dict[str, PlayerServeStats]] = defaultdict(dict)
+    for (player, surface), stats in aggregate_serve_stats(kept).items():
+        serve_by_player[player][surface] = stats
+
+    overall = _fit_glicko(kept)
+    flat = {
+        name: PlayerSnapshot(rating=r, serve_by_surface=dict(serve_by_player.get(name, {})))
+        for name, r in overall.items()
+    }
+    by_surface: dict[str, dict[str, PlayerSnapshot]] = {}
+    for surf in _SURFACES:
+        fitted = _fit_glicko([m for m in kept if m.surface == surf])
+        by_surface[surf] = {
+            name: PlayerSnapshot(
+                rating=overall[name] if r.phi >= surface_phi_fallback else r,
+                serve_by_surface=dict(serve_by_player.get(name, {})),
+            )
+            for name, r in fitted.items()
+        }
+    return flat, by_surface

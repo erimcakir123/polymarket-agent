@@ -3,10 +3,23 @@ from __future__ import annotations
 
 import pytest
 
+from src.domain.pricing.tennis.match_record import MatchRecord
+
 from scripts.sim_surface_counterfactual import (
     GateDecision,
+    build_cutoff_snapshots,
     decide_gate,
 )
+
+
+def _match(date: str, surface: str, winner: str, loser: str) -> MatchRecord:
+    return MatchRecord(
+        tourney_id="t1", tourney_name="Test Open", tourney_date=date,
+        surface=surface, winner_name=winner, loser_name=loser,
+        w_svpt=80, w_1st_in=50, w_1st_won=40, w_2nd_won=15, w_sv_gms=12,
+        l_svpt=80, l_1st_in=48, l_1st_won=33, l_2nd_won=12, l_sv_gms=12,
+        best_of=3, score="6-4 6-4",
+    )
 
 
 def _gate(**over):
@@ -98,3 +111,33 @@ def test_decide_bimodal_size_used_for_set_handicap():
     d = _gate(market_type="tennis_set_handicap", new_prob=0.70, yes_price=0.45)
     assert d.action == "SAME"
     assert d.size_usdc == 15.0
+
+
+def test_ratings_cutoff_excludes_matches_on_or_after_date():
+    matches = [
+        _match("20260601", "Hard", "Alice A", "Bob B"),
+        _match("20260607", "Hard", "Carol C", "Dave D"),  # cutoff sonrası — fit'e girmez
+    ]
+    flat, by_surface = build_cutoff_snapshots(
+        matches, cutoff_yyyymmdd="20260606", surface_phi_fallback=1000.0,
+    )
+    assert "Alice A" in flat and "Bob B" in flat
+    assert "Carol C" not in flat and "Dave D" not in flat
+    assert "Carol C" not in by_surface["Hard"]
+    # Kazanan reytingi kaybedenden yüksek
+    assert flat["Alice A"].rating.mu > flat["Bob B"].rating.mu
+
+
+def test_cutoff_snapshots_surface_split_separate_ratings():
+    # Alice Hard'da kazanır, Clay'de kaybeder → yüzeye özgü reytingler zıt yönde
+    matches = [
+        _match("20260501", "Hard", "Alice A", "Bob B"),
+        _match("20260510", "Clay", "Bob B", "Alice A"),
+    ]
+    _, by_surface = build_cutoff_snapshots(
+        matches, cutoff_yyyymmdd="20260606", surface_phi_fallback=1000.0,
+    )
+    assert by_surface["Hard"]["Alice A"].rating.mu > by_surface["Hard"]["Bob B"].rating.mu
+    assert by_surface["Clay"]["Bob B"].rating.mu > by_surface["Clay"]["Alice A"].rating.mu
+    # Serve verisi her iki yüzeyde de oyuncuya bağlanmış (model fallback'i için)
+    assert "Hard" in by_surface["Hard"]["Alice A"].serve_by_surface
