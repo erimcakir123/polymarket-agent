@@ -86,9 +86,7 @@ SPORT_RULES: dict[str, dict] = {
         "submarket_anchor": {
             "moneyline": "model",
             "tennis_set_handicap": "model",
-            "tennis_match_totals": "model",
             "tennis_first_set_winner": "model",
-            "tennis_first_set_totals": "model",
             "tennis_set_totals": "model",
         },
         # SPEC-W: empirical — set_totals/set_handicap WTA ambiguous (bimodal),
@@ -102,7 +100,6 @@ SPORT_RULES: dict[str, dict] = {
             "tennis_set_totals",
             "tennis_set_handicap",
             "tennis_match_totals",
-            "tennis_first_set_totals",
         ],
     },
     "golf": {
@@ -235,7 +232,7 @@ def anchor_source(sport_tag: str, market_type: str) -> str:
 _UNIVERSAL_BIMODAL_MARKET_TYPES = frozenset({
     "totals", "total", "spread", "spreads", "handicap",
     "tennis_set_handicap", "tennis_set_totals", "tennis_match_totals",
-    "tennis_first_set_totals", "tennis_first_set_winner",
+    "tennis_first_set_winner",
 })
 
 

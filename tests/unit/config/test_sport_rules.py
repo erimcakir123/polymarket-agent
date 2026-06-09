@@ -202,3 +202,15 @@ def test_is_moneyline_only_unknown_returns_false() -> None:
 def test_is_moneyline_only_alias_icehockey_nhl_returns_true() -> None:
     """Odds API key alias 'icehockey_nhl' de NHL'e normalize olur."""
     assert is_moneyline_only("icehockey_nhl") is True
+
+
+def test_anchor_source_tennis_match_totals_is_bookmaker():
+    """SPEC-Z28: Match O/U artık bahisçi-kaynaklı (model değil)."""
+    from src.config.sport_rules import anchor_source
+    assert anchor_source("tennis", "tennis_match_totals") == "bookmaker"
+
+
+def test_match_totals_still_bimodal():
+    """SPEC-Z28: Match O/U binary çözülür → bimodal ($15) + SL muaf kalır."""
+    from src.config.sport_rules import is_bimodal_market
+    assert is_bimodal_market("tennis", "tennis_match_totals") is True
