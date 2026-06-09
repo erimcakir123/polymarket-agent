@@ -235,7 +235,7 @@ def enrich_with_tennis_dispatch(
     max_phi_for_trade: float = _DEFAULT_MAX_PHI_FOR_TRADE,
     low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
-    surface_map: dict[str, str] | None = None,
+    surface_resolver=None,
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -306,7 +306,7 @@ def enrich_with_tennis_dispatch(
         )
 
     best_of = _infer_best_of(market.question)
-    surface = _infer_surface(market.question, surface_map or {})
+    surface = surface_resolver.resolve(market) if surface_resolver is not None else None
     if surface is None:
         logger.warning("Tenis zemin bilinmiyor, atlandı: %s", (market.question or "")[:60])
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)

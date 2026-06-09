@@ -14,7 +14,6 @@ from src.domain.pricing.tennis.calibration import CalibrationCurve
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.models.market import MarketData
 from src.strategy.enrichment.tennis_dispatch import (
-    _infer_surface,
     enrich_with_tennis_dispatch as _main_dispatch,
 )
 
@@ -43,9 +42,9 @@ def make_surface_aware_dispatch(
         low_tier_question_keywords: tuple[str, ...] = (
             "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
         ),
-        surface_map: dict[str, str] | None = None,
+        surface_resolver=None,
     ) -> EnrichResult:
-        surface = _infer_surface(market.question or "", surface_map or {})
+        surface = surface_resolver.resolve(market) if surface_resolver is not None else None
         chosen = ratings_by_surface.get(surface, fallback_ratings) if surface else fallback_ratings
         return _main_dispatch(
             market=market,
@@ -56,7 +55,7 @@ def make_surface_aware_dispatch(
             max_phi_for_trade=max_phi_for_trade,
             low_tier_slug_prefixes=low_tier_slug_prefixes,
             low_tier_question_keywords=low_tier_question_keywords,
-            surface_map=surface_map,
+            surface_resolver=surface_resolver,
         )
 
     return enrich

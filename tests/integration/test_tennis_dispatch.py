@@ -5,6 +5,7 @@ from src.domain.pricing.tennis.glicko import Rating
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
 from src.models.market import MarketData
+from src.strategy.enrichment.surface_resolver import SurfaceResolver
 from src.strategy.enrichment.tennis_dispatch import enrich_with_tennis_dispatch
 
 
@@ -69,7 +70,7 @@ def test_tennis_moneyline_falls_back_to_model_when_bm_unavailable():
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
     result = enrich_with_tennis_dispatch(
         m, _fake_bookmaker_enrich_none, ratings=ratings,
-        surface_map={"wimbledon": "Grass"},
+        surface_resolver=SurfaceResolver({"wimbledon": "Grass"}, now_iso="2026-06-09T00:00:00"),
     )
     assert result.probability is not None
     assert result.probability.source == "model"
@@ -261,7 +262,8 @@ def test_dispatch_unknown_surface_skips_and_warns(caplog):
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
     with caplog.at_level(logging.WARNING):
         result = enrich_with_tennis_dispatch(
-            m, _fake_bookmaker_enrich_none, ratings=ratings, surface_map={"ilkley": "Grass"},
+            m, _fake_bookmaker_enrich_none, ratings=ratings,
+            surface_resolver=SurfaceResolver({"ilkley": "Grass"}, now_iso="2026-06-09T00:00:00"),
         )
     assert result.probability is None
     assert any(("zemin" in r.message.lower()) or ("surface" in r.message.lower()) for r in caplog.records)
@@ -272,7 +274,8 @@ def test_dispatch_known_surface_prices_model():
     m = _market("Ilkley: Alice vs Bob", market_type="tennis_set_handicap")
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
     result = enrich_with_tennis_dispatch(
-        m, _fake_bookmaker_enrich_none, ratings=ratings, surface_map={"ilkley": "Grass"},
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=SurfaceResolver({"ilkley": "Grass"}, now_iso="2026-06-09T00:00:00"),
     )
     # zemin biliniyor → skip DEĞİL (model fiyatlamaya gider; sonuç None olabilir ama zemin-skip sebebiyle değil)
     # en azından "zemin bilinmiyor" uyarısı OLMAMALI:
@@ -285,6 +288,16 @@ def test_infer_surface_no_substring_inside_word():
     smap = {"halle": "Grass", "merida": "Hard"}
     # "Merida Challenger" → 'halle' kelime değil (challenger içinde); 'merida' kelime → Hard
     assert _infer_surface("Merida Challenger: A vs B", smap) == "Hard"
+
+
+def test_dispatch_uses_resolver():
+    m = _market("HSBC Championships: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    class _W:
+        def resolve_surface(self, n): return "Grass"
+    r = SurfaceResolver({}, wiki=_W(), overrides={}, now_iso="2026-06-09T00:00:00")
+    res = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings, surface_resolver=r)
+    assert res is not None  # zemin Wiki'den geldi → skip değil
 
 
 def test_infer_surface_short_key_not_inside_word():
