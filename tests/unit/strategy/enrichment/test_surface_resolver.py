@@ -21,6 +21,13 @@ def test_resolve_from_map_no_wiki():
     assert w.calls == 0
 
 
+def test_via_wiki_calls_save_fn():
+    saved = []
+    r = SurfaceResolver({}, wiki=_Wiki("Grass"), overrides={}, save_fn=lambda ov: saved.append(dict(ov)), now_iso="2026-06-09T00:00:00")
+    r.resolve(_mkt("HSBC Championships: A vs B"))
+    assert saved and saved[-1]["hsbc championships"]["surface"] == "Grass"
+
+
 def test_resolve_wiki_fallback_and_cache():
     w = _Wiki("Grass")
     r = SurfaceResolver({}, wiki=w, overrides={}, now_iso="2026-06-09T00:00:00")

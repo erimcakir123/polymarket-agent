@@ -3,8 +3,9 @@ Tek enjekte bağımlılık; dispatch çağırır. _match_surface (pure) tekrar k
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from typing import Callable
 
-from src.infrastructure.data.tennis_surface_override_store import is_stale, save_overrides
 from src.models.market import MarketData
 from src.strategy.enrichment.tennis_dispatch import _extract_location, _match_surface
 
@@ -13,13 +14,21 @@ logger = logging.getLogger(__name__)
 _DEFAULT_TTL_DAYS = 3
 
 
+def _is_stale(checked_at: str, now_iso: str, ttl_days: int) -> bool:
+    """UNKNOWN kaydı TTL'den eski mi (pure). Bozuk damga → stale."""
+    try:
+        return (datetime.fromisoformat(now_iso) - datetime.fromisoformat(checked_at)).days >= ttl_days
+    except (ValueError, TypeError):
+        return True
+
+
 class SurfaceResolver:
     def __init__(
         self,
         surface_map: dict[str, str],
         wiki=None,
         overrides: dict[str, dict] | None = None,
-        override_path=None,
+        save_fn: Callable[[dict], None] | None = None,
         event_tournaments: dict[str, str] | None = None,
         ttl_days: int = _DEFAULT_TTL_DAYS,
         now_iso: str = "",
@@ -27,7 +36,7 @@ class SurfaceResolver:
         self._map = surface_map or {}
         self._wiki = wiki
         self._overrides = overrides if overrides is not None else {}
-        self._override_path = override_path
+        self._save_fn = save_fn
         self._event = event_tournaments or {}
         self._ttl = ttl_days
         self._now = now_iso
@@ -55,13 +64,13 @@ class SurfaceResolver:
         if cached:
             if cached["surface"] != "UNKNOWN":
                 return cached["surface"]
-            if not is_stale(cached.get("checked_at", ""), now, self._ttl):
+            if not _is_stale(cached.get("checked_at", ""), now, self._ttl):
                 self.unresolved.add(key)
                 return None
         surf = self._wiki.resolve_surface(name)
         self._overrides[key] = {"surface": surf or "UNKNOWN", "checked_at": now}
-        if self._override_path is not None:
-            save_overrides(self._overrides, self._override_path)
+        if self._save_fn is not None:
+            self._save_fn(self._overrides)
         if surf is None:
             self.unresolved.add(key)
             logger.warning("Tenis zemin çözülemedi (Wiki dahil): %s", name)
@@ -69,5 +78,4 @@ class SurfaceResolver:
 
     @staticmethod
     def _runtime_now() -> str:
-        from datetime import datetime
         return datetime.now().isoformat()
