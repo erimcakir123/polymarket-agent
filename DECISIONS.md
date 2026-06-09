@@ -3397,6 +3397,8 @@ work begins.
 
 ## SPEC-force-close (2026-05-27) — DONE
 
+> **2026-06-09 GÜNCELLEME:** force-close zaman-aşımı alarmı KAPATILDI (config boş) + dashboard kırmızı border kaldırıldı. Gerekçe: hiper-gerçekçi — pozisyon gerçek cüzdandaki gibi Polymarket resolution'a kadar tutulur (`_check_polymarket_resolution` kapatır); satış/manuel-review yok. 2026-06-01 'alarm+hold' kararını geri alır.
+
 **Sorun:** Bazı pozisyonlar -%99 zarara düşüp orderbook'ta alıcı kalmayınca SL bypass'a takılıp açık kalıyordu. Concrete: `atp-humbert-halys-2026-05-27-first-set-winner` entry 0.567 → current 0.0005, 162+ retry sonra hâlâ açık. `stop_loss.py:36-37`'deki "stale price" skip (`current_price <= 0.001`) gerçek -%99 düşüşü "WS tick gelmedi" sanıyordu.
 
 **Çözüm:** Hybrid time+ESPN force-close güvenlik ağı, normal SL/TP/scale-out zincirinden bağımsız:
