@@ -83,8 +83,9 @@ SPORT_RULES: dict[str, dict] = {
         # bookmaker yerine model'den gelir — odds_enricher h2h fiyatını alt
         # marketlere kopyalama cascade bug'ı çözüldü. Eksik veride pricer
         # None döner → entry skip.
-        # SPEC-Z28 (2026-06-09): tennis_match_totals istisnası — model %31
-        # isabet (−$45) → bahisçi totals konsensüsüne geçildi.
+        # SPEC-Z28 (2026-06-09): tennis_match_totals TAMAMEN KALDIRILDI
+        # (allowed_sports_market_types'tan çıkarıldı; model %38 isabet, -$45;
+        # bahisçi totals tenis akışının ~%8'ini kapsıyor).
         "submarket_anchor": {
             "moneyline": "model",
             "tennis_set_handicap": "model",
@@ -94,7 +95,6 @@ SPORT_RULES: dict[str, dict] = {
         # SPEC-W: empirical — set_totals/set_handicap WTA ambiguous (bimodal),
         # match_totals ATP %53 no_sig_drop. ATP set_totals %60 kademeli
         # (non-bimodal). Tenis lab kendi worktree'sinde ayrı yapı kullanır.
-        # SPEC-Z28 (2026-06-09): tennis_match_totals → bahisçi (model %31 isabet, -$45).
         # 2026-05-31: ÖNCEKİ isimler ("set_totals", "set_handicap",
         # "match_total_games") YANLIŞTI — Polymarket prefix'li dönüyor
         # ("tennis_set_totals" vs.). Mismatch yüzünden bimodal sizing $15 cap

@@ -222,7 +222,6 @@ def enrich_with_tennis_dispatch(
       - ML + BM OK  → BM döner (BM-first)
       - ML + BM fail → model fallback (oyuncu/phi/rating tüm guard'lar)
       - Alt market  → sadece model (BM h2h dışı veri vermiyor; cascade bug önleme)
-      - Match O/U   → allowed_types'ta YOK (SPEC-Z28 tam kaldırıldı)
 
     Veri kanıtı (2026-06-03, n=11 ML): source=bookmaker %83 WR / +$28,
     source=model %40 WR / -$9 → BM önceliklendirildi.

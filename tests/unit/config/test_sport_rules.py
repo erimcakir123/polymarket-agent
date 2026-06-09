@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from src.config.sport_rules import (
     DEFAULT_RULES,
-    anchor_source,
     get_sport_rule,
     get_stop_loss,
     is_bimodal_market,
@@ -204,11 +203,6 @@ def test_is_moneyline_only_unknown_returns_false() -> None:
 def test_is_moneyline_only_alias_icehockey_nhl_returns_true() -> None:
     """Odds API key alias 'icehockey_nhl' de NHL'e normalize olur."""
     assert is_moneyline_only("icehockey_nhl") is True
-
-
-def test_anchor_source_tennis_match_totals_is_bookmaker() -> None:
-    """SPEC-Z28: Match O/U artık bahisçi-kaynaklı (model değil)."""
-    assert anchor_source("tennis", "tennis_match_totals") == "bookmaker"
 
 
 def test_match_totals_no_longer_bimodal() -> None:

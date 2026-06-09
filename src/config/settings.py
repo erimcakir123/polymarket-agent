@@ -68,7 +68,7 @@ class ScannerConfig(BaseModel):
     # 2026-05-29 (Phase 3 follow-up): tennis-paper-lab parity. Eğer set edilirse
     # scanner sadece bu market_type'ları kabul eder; None/empty → legacy
     # (moneyline/spreads/totals). Tennis için: tennis_first_set_winner,
-    # tennis_set_handicap, tennis_set_totals, moneyline, tennis_match_totals.
+    # tennis_set_handicap, tennis_set_totals, moneyline.
     allowed_sports_market_types: List[str] = []
     # Tennis match_start ESPN override icin cache TTL (saniye).
     # TennisStartEnricher cycle basina bir kere ESPN tennis/atp+wta scoreboard ceker.
