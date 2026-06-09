@@ -285,3 +285,17 @@ def test_h2h_2way_normal_passes() -> None:
     )
     assert result is not None
     assert 0.4 < result.probability < 0.6  # normalized ~0.5
+
+
+def test_is_totals_market_recognizes_tennis_match_totals_by_type():
+    from src.strategy.enrichment.odds_enricher import _is_totals_market
+    from src.models.market import MarketData
+    m = MarketData(
+        condition_id="0xa", question="Sonego vs. Alkaya: Match O/U 23.5",
+        slug="atp-sonego-alkaya-2026-06-06",  # slug'da '-total-' YOK
+        yes_token_id="t1", no_token_id="t2",
+        yes_price=0.5, no_price=0.5, liquidity=100, volume_24h=100,
+        end_date_iso="2026-06-07T00:00:00Z",
+        sport_tag="tennis", sports_market_type="tennis_match_totals",
+    )
+    assert _is_totals_market(m) is True
