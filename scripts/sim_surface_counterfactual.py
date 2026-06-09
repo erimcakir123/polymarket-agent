@@ -144,13 +144,15 @@ def build_cutoff_snapshots(
     by_surface: dict[str, dict[str, PlayerSnapshot]] = {}
     for surf in _SURFACES:
         fitted = _fit_glicko([m for m in kept if m.surface == surf])
-        by_surface[surf] = {
-            name: PlayerSnapshot(
-                rating=overall[name] if r.phi >= surface_phi_fallback else r,
-                serve_by_surface=dict(serve_by_player.get(name, {})),
+        # Canlı parite (load_surface_ratings): TÜM oyuncular her yüzey listesinde;
+        # yüzey-reytingi yok/phi yüksek → overall reytinge düşer.
+        by_surface[surf] = {}
+        for name, overall_r in overall.items():
+            surf_r = fitted.get(name)
+            chosen = surf_r if (surf_r is not None and surf_r.phi < surface_phi_fallback) else overall_r
+            by_surface[surf][name] = PlayerSnapshot(
+                rating=chosen, serve_by_surface=dict(serve_by_player.get(name, {})),
             )
-            for name, r in fitted.items()
-        }
     return flat, by_surface
 
 
@@ -292,22 +294,38 @@ def evaluate_entries(entries: list[dict], cfg, resolver, enrich_model, calib) ->
         mtype = _infer_market_type(market) or "moneyline"
         surface = resolver.resolve(market)
         if e.get("source") == "bookmaker":
-            new_prob, surface_lbl = e.get("bookmaker_prob"), "(bahisçi)"
-        else:
-            res = enrich_model(
-                market, _bm_unavailable, {},  # ratings param dispatch'te surface'a göre seçilir
-                calibration_curves=calib,
-                glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
-                max_phi_for_trade=cfg.tennis.max_phi_for_trade,
-                low_tier_slug_prefixes=tuple(cfg.tennis.low_tier_slug_prefixes),
-                low_tier_question_keywords=tuple(cfg.tennis.low_tier_question_keywords),
-                surface_resolver=resolver,
+            # BM-first ML kuralları o gün = bugün → giriş kararı DEĞİŞMEZ (fill
+            # fiyatından edge'i yeniden hesaplamak sahte kayma üretir). Ölçülen
+            # tek fark bugünkü ÇIKIŞ beyni (replay).
+            decision = GateDecision(
+                "SAME", "", e.get("direction", ""),
+                float(e["entry_price"]), cfg.risk.fixed_bet_usdc["A"],
             )
-            new_prob = res.probability
-            surface_lbl = surface or "?"
+            event_positions[idx_to_event.get(idx, f"solo-{idx}")].add(mtype)
+            out.append({
+                "entry": e, "market_type": mtype, "yes_price": yes_price,
+                "new_prob": e.get("bookmaker_prob") or e.get("anchor_probability"),
+                "surface": "(bahisçi)", "decision": decision,
+            })
+            continue
+        # Model yolu (source=model: o gün BM verisi yoktu, zemin etkisi burada).
+        res = enrich_model(
+            market, _bm_unavailable, {},  # ratings param dispatch'te surface'a göre seçilir
+            calibration_curves=calib,
+            glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
+            max_phi_for_trade=cfg.tennis.max_phi_for_trade,
+            low_tier_slug_prefixes=tuple(cfg.tennis.low_tier_slug_prefixes),
+            low_tier_question_keywords=tuple(cfg.tennis.low_tier_question_keywords),
+            surface_resolver=resolver,
+        )
+        bp = res.probability  # BookmakerProbability | None — model kendi confidence üretir
+        new_prob = bp.probability if bp is not None else None
+        conf = bp.confidence if bp is not None else (e.get("confidence") or "")
+        sharp = bp.has_sharp if bp is not None else bool(e.get("has_sharp"))
+        surface_lbl = surface or "?"
         decision = decide_gate(
             market_type=mtype, new_prob=new_prob, yes_price=yes_price,
-            confidence=e.get("confidence", ""), has_sharp=bool(e.get("has_sharp")),
+            confidence=conf, has_sharp=sharp,
             actual_direction=e.get("direction", ""),
             min_edge=cfg.edge.min_edge,
             bimodal_floor=cfg.risk.bimodal_min_entry_price,

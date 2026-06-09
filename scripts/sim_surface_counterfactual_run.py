@@ -16,6 +16,7 @@ from src.infrastructure.data.tennis_surface_ratings_store import (
     _SURFACE_PHI_FALLBACK_THRESHOLD,
 )
 from src.models.position import Position
+from src.strategy.enrichment.tennis_dispatch import _extract_location
 from src.strategy.enrichment.tennis_dispatch_surface import make_surface_aware_dispatch
 
 from scripts.sim_realistic_replay import (
@@ -44,6 +45,31 @@ from scripts.sim_surface_counterfactual import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _backfill_event_tournaments(
+    entries: list[dict], idx_to_event: dict[int, str], event_tournaments: dict[str, str],
+) -> None:
+    """Eşlenemeyen event'lere turnuva: Polymarket Gamma event başlığından.
+
+    Canlı bot turnuvayı TARANAN (girilmemiş dahil) moneyline marketten alır; arşivde
+    sadece girilenler var. Gamma başlığı aynı bilgiyi verir (Odds API DEĞİL, ücretsiz).
+    """
+    from src.infrastructure.apis.gamma_client import GammaClient
+    gc = GammaClient()
+    done: set[str] = set()
+    for idx, ev_id in idx_to_event.items():
+        if ev_id in event_tournaments or ev_id in done:
+            continue
+        done.add(ev_id)
+        m = gc.fetch_closed_market_by_condition(entries[idx].get("condition_id", ""))
+        events = (m or {}).get("events") or []
+        title = (events[0] or {}).get("title") or "" if events else ""
+        loc = _extract_location(title)
+        if loc:
+            event_tournaments[ev_id] = loc
+        else:
+            logger.warning("Gamma event başlığından turnuva çıkarılamadı: %s", title[:60])
 
 
 def _replay_one(row: dict, token_id: str | None, kw: dict) -> tuple[ReplayResult | None, str]:
@@ -135,7 +161,8 @@ def main() -> None:
         matches, _CUTOFF_DATE, _SURFACE_PHI_FALLBACK_THRESHOLD,
     )
     print(f"Reytingler hazır ({len(matches)} maçtan). Değerlendirme başlıyor...")
-    _, event_tournaments = synth_event_links(entries)
+    idx_to_event, event_tournaments = synth_event_links(entries)
+    _backfill_event_tournaments(entries, idx_to_event, event_tournaments)
     resolver = _build_resolver(cfg, event_tournaments)
     enrich_model = make_surface_aware_dispatch(by_surface)
     calib = load_calibration(_CALIBRATION_PATH)

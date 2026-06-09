@@ -138,13 +138,17 @@ def test_cutoff_snapshots_surface_split_separate_ratings():
         _match("20260501", "Hard", "Alice A", "Bob B"),
         _match("20260510", "Clay", "Bob B", "Alice A"),
     ]
-    _, by_surface = build_cutoff_snapshots(
+    flat, by_surface = build_cutoff_snapshots(
         matches, cutoff_yyyymmdd="20260606", surface_phi_fallback=1000.0,
     )
     assert by_surface["Hard"]["Alice A"].rating.mu > by_surface["Hard"]["Bob B"].rating.mu
     assert by_surface["Clay"]["Bob B"].rating.mu > by_surface["Clay"]["Alice A"].rating.mu
     # Serve verisi her iki yüzeyde de oyuncuya bağlanmış (model fallback'i için)
     assert "Hard" in by_surface["Hard"]["Alice A"].serve_by_surface
+    # KRİTİK (canlı pariteyi taklit): hiç çim maçı olmayan oyuncu çim listesinde
+    # YİNE DE var — genel (overall) reytingine düşer (load_surface_ratings davranışı)
+    assert "Alice A" in by_surface["Grass"]
+    assert by_surface["Grass"]["Alice A"].rating.mu == pytest.approx(flat["Alice A"].rating.mu)
 
 
 def test_event_link_set_handicap_gets_tournament_from_moneyline_same_players():
