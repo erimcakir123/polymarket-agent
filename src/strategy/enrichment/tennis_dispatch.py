@@ -255,6 +255,12 @@ def enrich_with_tennis_dispatch(
             return bm_result
         # BM yok → model fallback (aşağı düş).
 
+    # SPEC-Z28: Match O/U → bahisçi totals konsensüsü (moneyline gibi BM-first).
+    # AMA model fallback YOK — bahisçi yoksa atla. Kanıt: kendi modelimiz O/U'da
+    # %31 isabet (-$45). Bahisçi tenis totals veriyor (Pinnacle dahil 6-13 kitap).
+    if market_type == "tennis_match_totals":
+        return bookmaker_enricher(market)
+
     # Model akışı (alt market'ler buradan başlar; ML için BM fail fallback'i).
     if not ratings:
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)

@@ -214,3 +214,32 @@ def test_surface_inferred_for_grand_slam():
     assert _infer_surface("Roland Garros QF") == "Clay"
     assert _infer_surface("US Open R1") == "Hard"
     assert _infer_surface("ATP 250 generic") == "Hard"
+
+
+def test_tennis_match_totals_uses_bookmaker_when_available():
+    """SPEC-Z28: Match O/U + BM totals var → BM döner (source=bookmaker)."""
+    m = _market("Alice vs Bob: Match O/U 22.5", market_type="tennis_match_totals")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich, ratings=ratings)
+    assert result.probability is not None
+    assert result.probability.source == "bookmaker"
+    assert abs(result.probability.bookmaker_prob - 0.55) < 1e-6
+
+
+def test_tennis_match_totals_skips_when_no_bookmaker_no_model_fallback():
+    """SPEC-Z28: Match O/U + BM yok → atla (modele DÜŞMEZ)."""
+    m = _market("Alice vs Bob: Match O/U 22.5", market_type="tennis_match_totals")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings)
+    assert result.probability is None  # model fiyatlayabilirdi ama düşmüyoruz
+
+
+def test_tennis_match_totals_calls_bookmaker_exactly_once():
+    """SPEC-Z28: Match O/U BM-first — bookmaker tam 1 kez çağrılır."""
+    m = _market("Alice vs Bob: Match O/U 22.5", market_type="tennis_match_totals")
+    calls: list[MarketData] = []
+    def _spy(market: MarketData) -> EnrichResult:
+        calls.append(market)
+        return _fake_bookmaker_enrich(market)
+    enrich_with_tennis_dispatch(m, _spy, ratings={})
+    assert len(calls) == 1
