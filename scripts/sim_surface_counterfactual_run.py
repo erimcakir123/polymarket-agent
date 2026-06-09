@@ -122,9 +122,13 @@ def _print_report(rows: list[dict], replays: dict[int, tuple], actual: dict[str,
         new_s = f"{row['new_prob']:.2f}" if row["new_prob"] is not None else "  — "
         act_s = f"{act:+7.2f}$" if act is not None else "   (üst)"
         if d.action == "SKIP":
-            skip_reasons[d.reason] = skip_reasons.get(d.reason, 0) + 1
+            # surface_or_model şemsiyesini gerçek sebebe aç (zemin_yok / model_...)
+            reason = d.reason
+            if reason == "surface_or_model":
+                reason = row.get("fail") or reason
+            skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
             print(f"{hhmm}  {q:<46} eski {old_s} yeni {new_s} zemin {row['surface']:<12}"
-                  f" GİRMEZ[{d.reason}]  gerçek {act_s}  sim   0.00$")
+                  f" GİRMEZ[{reason}]  gerçek {act_s}  sim   0.00$")
             continue
         res, why = replays.get(idx, (None, "?"))
         if res is None:

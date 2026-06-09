@@ -323,6 +323,16 @@ def evaluate_entries(entries: list[dict], cfg, resolver, enrich_model, calib) ->
         conf = bp.confidence if bp is not None else (e.get("confidence") or "")
         sharp = bp.has_sharp if bp is not None else bool(e.get("has_sharp"))
         surface_lbl = surface or "?"
+        # Skip sebebi ayrıştırması (rapor için): zemin mi yok, model mi emin değil?
+        if new_prob is None:
+            if surface is None:
+                fail_lbl = "zemin_yok"
+            elif res.fail_reason is not None:
+                fail_lbl = res.fail_reason.value
+            else:
+                fail_lbl = "model_fiyatlamadı"
+        else:
+            fail_lbl = ""
         decision = decide_gate(
             market_type=mtype, new_prob=new_prob, yes_price=yes_price,
             confidence=conf, has_sharp=sharp,
@@ -339,5 +349,6 @@ def evaluate_entries(entries: list[dict], cfg, resolver, enrich_model, calib) ->
         out.append({
             "entry": e, "market_type": mtype, "yes_price": yes_price,
             "new_prob": new_prob, "surface": surface_lbl, "decision": decision,
+            "fail": fail_lbl,
         })
     return out
