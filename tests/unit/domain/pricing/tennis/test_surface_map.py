@@ -1,5 +1,5 @@
 from src.domain.pricing.tennis.match_record import MatchRecord
-from src.domain.pricing.tennis.surface_map import build_surface_map
+from src.domain.pricing.tennis.surface_map import build_surface_map, normalize_name
 
 
 def _rec(name, surface):
@@ -19,9 +19,20 @@ def test_build_surface_map_normalizes_and_picks():
     assert m["rome"] == "Clay"
 
 
-def test_build_surface_map_majority_when_mixed():
-    assert build_surface_map([_rec("X Open", "Hard"), _rec("X Open", "Hard"),
-                              _rec("X Open", "Clay")])["x open"] == "Hard"
+def test_build_surface_map_excludes_ambiguous_city():
+    # aynı çekirdek hem Grass hem Hard → belirsiz → dışlanır
+    m = build_surface_map([_rec("Nottingham", "Grass"), _rec("Nottingham CH", "Hard")])
+    assert "nottingham" not in m
+
+
+def test_build_surface_map_strips_level_tags():
+    m = build_surface_map([_rec("M25 Cattolica", "Clay"), _rec("Ilkley CH", "Grass")])
+    assert m["cattolica"] == "Clay"
+    assert m["ilkley"] == "Grass"
+
+
+def test_normalize_strips_apostrophe():
+    assert normalize_name("Queen's Club") == "queens club"
 
 
 def test_build_surface_map_skips_unknown_surface():
