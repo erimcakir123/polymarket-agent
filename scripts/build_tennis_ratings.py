@@ -37,7 +37,7 @@ def build_ratings(cache_dir: Path, output_path: Path) -> None:
         return
 
     surface_map = build_surface_map(all_matches)
-    save_surface_map(surface_map)
+    save_surface_map(surface_map, Path(output_path).parent / "tennis_surface_map.json")
     logger.info("Saved surface map (%d tournaments)", len(surface_map))
 
     all_matches.sort(key=lambda m: m.tourney_date)
