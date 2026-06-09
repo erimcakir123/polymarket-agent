@@ -150,6 +150,7 @@ def build_agent(state: RuntimeState) -> Agent:
         wiki=WikipediaSurfaceClient(),
         overrides=load_overrides(_ovr_path),
         save_fn=lambda ov: save_overrides(ov, _ovr_path),
+        reload_fn=lambda: load_overrides(_ovr_path),
         ttl_days=cfg.tennis.surface_unknown_recheck_days,
     )
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})

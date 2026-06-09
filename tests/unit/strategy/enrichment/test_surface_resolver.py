@@ -71,3 +71,20 @@ def test_set_handicap_no_event_link_no_garbage_wiki():
     assert r.resolve(m) is None
     assert w.calls == 0                      # NO garbage wiki query
     assert "set handicap" not in r.unresolved  # no meaningless alert
+
+
+def test_refresh_overrides_picks_up_manual_edit():
+    from src.models.market import MarketData
+    from src.strategy.enrichment.surface_resolver import SurfaceResolver
+    store = {}  # simulates the file
+    def _reload(): return dict(store)
+    class _W:
+        def resolve_surface(self, n): return None
+    r = SurfaceResolver({}, wiki=_W(), overrides={}, reload_fn=_reload, now_iso="2026-06-10T00:00:00")
+    m = MarketData(condition_id="c", question="Stuttgart Open: A vs B", slug="s", yes_token_id="y",
+                   no_token_id="n", yes_price=0.5, no_price=0.5, liquidity=1, volume_24h=1,
+                   end_date_iso="2026-06-11", event_id="e1")
+    assert r.resolve(m) is None                 # başta override yok
+    store["stuttgart open"] = {"surface": "Grass", "checked_at": "2026-06-10T00:00:00"}  # elle eklendi
+    r.refresh_overrides()                        # döngü başı yeniden okuma
+    assert r.resolve(m) == "Grass"               # reload'sız uygulandı

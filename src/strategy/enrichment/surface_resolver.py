@@ -32,11 +32,13 @@ class SurfaceResolver:
         event_tournaments: dict[str, str] | None = None,
         ttl_days: int = _DEFAULT_TTL_DAYS,
         now_iso: str = "",
+        reload_fn: Callable[[], dict] | None = None,
     ) -> None:
         self._map = surface_map or {}
         self._wiki = wiki
         self._overrides = overrides if overrides is not None else {}
         self._save_fn = save_fn
+        self._reload_fn = reload_fn
         self._event = event_tournaments or {}
         self._ttl = ttl_days
         self._now = now_iso
@@ -44,6 +46,14 @@ class SurfaceResolver:
 
     def set_event_tournaments(self, mapping: dict[str, str]) -> None:
         self._event = mapping or {}
+
+    def refresh_overrides(self) -> None:
+        """Override dosyasını yeniden oku (elle eklenen override'lar reload'sız uygulansın).
+        reload_fn infra'dan enjekte edilir (factory); resolver infra import etmez."""
+        if self._reload_fn is not None:
+            fresh = self._reload_fn()
+            if isinstance(fresh, dict):
+                self._overrides = fresh
 
     def resolve(self, market: MarketData) -> str | None:
         name = _extract_location(market.question or "")

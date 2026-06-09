@@ -53,6 +53,7 @@ class EntryProcessor:
                    for m in scan_fresh
                    if getattr(m, "sport_tag", "") == "tennis" and m.event_id and _extract_location(m.question)}
             resolver.set_event_tournaments(_ev)
+            resolver.refresh_overrides()  # elle eklenen zemin override'ları reload'sız uygulansın
 
         # SPEC-Z26: zararla kapanan condition_id'leri defterden türet (tekrar-giriş
         # yasağı). Her heavy cycle yenilenir → reload sonrası kendiliğinden dolar.
