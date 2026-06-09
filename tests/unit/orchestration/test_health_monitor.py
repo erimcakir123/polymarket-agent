@@ -214,7 +214,19 @@ def test_surface_unknown_emits_alert():
         unresolved = {"obscure cup"}
     hm = HealthMonitor(notifier=None, surface_resolver=_R())
     alerts = hm._check_surface_unknown()
-    assert any(a.category == "SURFACE_UNKNOWN" and "obscure cup" in a.message for a in alerts)
+    assert any(
+        a.category.startswith("SURFACE_UNKNOWN") and "obscure cup" in a.message
+        for a in alerts
+    )
+
+
+def test_surface_unknown_distinct_categories_per_name():
+    from src.orchestration.health_monitor import HealthMonitor
+    class _R:
+        unresolved = {"birmingham", "obscure cup"}
+    alerts = HealthMonitor(notifier=None, surface_resolver=_R())._check_surface_unknown()
+    cats = {a.category for a in alerts}
+    assert len(cats) == 2  # her isim ayrı kategori → dedupe ikisini de geçirir
 
 
 def test_surface_unknown_no_resolver_no_alert():

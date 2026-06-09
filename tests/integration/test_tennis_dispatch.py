@@ -342,4 +342,16 @@ def test_extract_location_rejects_market_prefixes():
     assert _extract_location("Total Games: A vs B") is None
     # gerçek turnuva hâlâ çıkar:
     assert _extract_location("Ilkley: A vs B") == "Ilkley"
+
+
+def test_match_surface_short_token_no_false_match():
+    from src.strategy.enrichment.tennis_dispatch import _match_surface
+    smap = {"pau": "Hard", "ilkley": "Grass", "san miguel de tucuman": "Clay"}
+    # "Pau Pilot Open" → 'pau' 3 harf → token-subset eşleşmez (yanlış zemin yok)
+    assert _match_surface("Pau Pilot Open", smap) is None
+    # exact kısa şehir hâlâ çalışır:
+    assert _match_surface("Pau", smap) == "Hard"
+    # ≥4 harf legit subset hâlâ çalışır:
+    assert _match_surface("Ilkley Challenger", smap) == "Grass"
+    assert _match_surface("Tucuman", smap) == "Clay"
     assert _extract_location("Cattolica: A vs B") == "Cattolica"

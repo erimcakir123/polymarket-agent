@@ -322,7 +322,7 @@ class HealthMonitor:
         r = self.surface_resolver
         if r is None or not getattr(r, "unresolved", None):
             return []
-        return [Alert("warning", "SURFACE_UNKNOWN",
+        return [Alert("warning", f"SURFACE_UNKNOWN_{n}",
                       f"Zemin bilinmiyor: {n} — Google AI ile elle çöz/ekle")
                 for n in sorted(r.unresolved)]
 

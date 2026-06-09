@@ -62,6 +62,8 @@ class SurfaceResolver:
         now = self._now or self._runtime_now()
         cached = self._overrides.get(key)
         if cached:
+            # Bulunan zemin kalıcı kabul edilir (turnuva zemin değiştirirse — çok nadir,
+            # ör. Stuttgart 10 yılda bir — Sackmann harita yeniden-build'i yakalar). UNKNOWN ise TTL ile tekrar denenir.
             if cached["surface"] != "UNKNOWN":
                 return cached["surface"]
             if not _is_stale(cached.get("checked_at", ""), now, self._ttl):

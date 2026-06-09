@@ -1,4 +1,4 @@
-"""Tennis market dispatch — model anchor öncelik, moneyline fallback.
+"""Tennis market dispatch — bookmaker-first (ML), model fallback; alt market sadece model.
 
 Karar matrisi:
   sport != tennis              → bookmaker fallback
@@ -11,10 +11,11 @@ Karar matrisi:
 Alt market fallback YASAK — eski cascade bug (h2h fiyatını yapıştırma) bu modülün
 çözdüğü asıl sorundur.
 
-Tahminler (Polymarket veri yetersizliği nedeniyle question stringinden):
-- Surface: Hard default; Clay/Grass keyword'leri turnuva ismi geçerse
+Surface (zemin): enjekte edilen SurfaceResolver'dan gelir (Sackmann harita →
+Wikipedia → event-link). Çözülemezse default YOK — market atlanır + warning
+loglanır (yanlış zemin riskini önlemek için). Diğer çıkarımlar question'dan:
 - Best_of: 3 default; Grand Slam keyword'ü ile 5
-- line/handicap: market_type'a göre question regex (set/games/handicap)
+- line/handicap: market_type'a göre slug + question regex (set/games/handicap)
 """
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ _GRAND_SLAM_KEYWORDS = (
     "french open", "roland garros", "rolandgarros",
 )
 _MONEYLINE_TYPES = ("moneyline", "h2h", "")
+_MIN_SUBSET_TOKEN_LEN = 4  # token-subset eşleşmede en az bu uzunlukta paylaşılan kelime (kısa şehir-token yanlış eşleşmesini önler)
 # Default'lar config.yaml > tennis altında override edilebilir. Module-level
 # sabitler sadece config geçirilmediği durumlarda (test, legacy) fallback.
 # Gerçek değerler factory.py'de config'den geçirilir.
@@ -140,9 +142,13 @@ def _match_surface(name: str, surface_map: dict[str, str]) -> str | None:
     best_surf = None
     for mname, surf in surface_map.items():
         cw = set(mname.split())
-        if cw and (cw <= kw or kw <= cw):
-            if best_name is None or len(mname) > len(best_name):
-                best_name, best_surf = mname, surf
+        if not cw or not (cw <= kw or kw <= cw):
+            continue
+        shared = cw & kw
+        if not shared or max(len(t) for t in shared) < _MIN_SUBSET_TOKEN_LEN:
+            continue
+        if best_name is None or len(mname) > len(best_name):
+            best_name, best_surf = mname, surf
     return best_surf
 
 
