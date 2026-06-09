@@ -46,8 +46,7 @@ def _odds_query_params(markets: str = "h2h") -> dict:
 
 def _is_totals_market(market: MarketData) -> bool:
     """Totals (over/under) market mi? sports_market_type öncelik, slug fallback."""
-    declared = (market.sports_market_type or "").strip().lower()
-    if declared in ("totals", "tennis_match_totals"):
+    if (market.sports_market_type or "").strip().lower() == "totals":
         return True
     return "-total-" in (market.slug or "").lower()
 

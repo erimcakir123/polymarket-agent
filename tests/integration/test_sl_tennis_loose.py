@@ -40,13 +40,6 @@ def test_tennis_set_handicap_flat_sl_exempt():
     assert sl is None  # MUAF
 
 
-def test_tennis_match_totals_flat_sl_exempt():
-    """Tennis match_totals: aynı sebep, flat SL muaf."""
-    pos = _mk_pos("tennis", "tennis_match_totals")
-    sl = compute_stop_loss_pct(pos)
-    assert sl is None
-
-
 def test_basket_sl_unchanged():
     """Basket MONEYLINE SL DEĞERLERİ KORUNUR — hepsi 0.35 (NBA mirası).
 

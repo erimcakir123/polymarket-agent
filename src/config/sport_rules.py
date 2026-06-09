@@ -102,7 +102,6 @@ SPORT_RULES: dict[str, dict] = {
         "bimodal_market_types": [
             "tennis_set_totals",
             "tennis_set_handicap",
-            "tennis_match_totals",
         ],
     },
     "golf": {
@@ -234,7 +233,7 @@ def anchor_source(sport_tag: str, market_type: str) -> str:
 # alıyordu, WNBA Min-Phx $50 yandı).
 _UNIVERSAL_BIMODAL_MARKET_TYPES = frozenset({
     "totals", "total", "spread", "spreads", "handicap",
-    "tennis_set_handicap", "tennis_set_totals", "tennis_match_totals",
+    "tennis_set_handicap", "tennis_set_totals",
     "tennis_first_set_winner",
 })
 

@@ -39,7 +39,6 @@ scanner:
     - tennis_first_set_winner
     - tennis_set_handicap
     - tennis_set_totals
-    - tennis_match_totals
   allowed_sport_tags:
     # 2026-05-29 (unified paper lab Phase 3): basket + tenis (final portföy).
     # Phase 1'de daraltıldı, Phase 3'te tennis (atp/wta) eklendi.
@@ -75,9 +74,9 @@ edge:
   #   tennis_set_totals -$63 net, tennis_first_set_winner -$162 net.
   #   Sackmann modeli %16/%56 doğru, market %72/%69 → modele güvenilmez.
   # tennis_set_handicap (+$2), moneyline açık tutuluyor.
-  # 2026-06-09 (SPEC-Z28): tennis_match_totals MODEL'den çıkarıldı → bahisçi totals
-  #   konsensüsü (Odds API totals, Pinnacle dahil). Kendi modelimiz O/U'da %31 isabet
-  #   (-$45). Bahisçi yoksa atla. Eski "+$117" bir cascade bug'ıydı (h2h fiyatı O/U'ya).
+  # 2026-06-09 (SPEC-Z28): tennis_match_totals TAMAMEN KALDIRILDI (allowed_sports_market_types'tan
+  #   çıkarıldı). Kendi modelimiz O/U'da %38 isabet (-$45). Bahisçi totals tenis için sadece
+  #   büyük turnuvaları kapsıyor (akışımızın ~%8'i) → bahisçiye bağlamak da işe yaramaz. Market kapalı.
   exclude_combos:
     - {tour: atp, market_type: tennis_set_totals, confidence: A}
     - {tour: atp, market_type: tennis_set_totals, confidence: B}

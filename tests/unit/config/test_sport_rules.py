@@ -211,6 +211,6 @@ def test_anchor_source_tennis_match_totals_is_bookmaker() -> None:
     assert anchor_source("tennis", "tennis_match_totals") == "bookmaker"
 
 
-def test_match_totals_still_bimodal() -> None:
-    """SPEC-Z28: Match O/U binary çözülür → bimodal ($15) + SL muaf kalır."""
-    assert is_bimodal_market("tennis", "tennis_match_totals") is True
+def test_match_totals_no_longer_bimodal() -> None:
+    """SPEC-Z28: Match O/U kaldırıldı → bimodal listede yok."""
+    assert is_bimodal_market("tennis", "tennis_match_totals") is False

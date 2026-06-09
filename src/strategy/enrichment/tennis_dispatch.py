@@ -7,7 +7,6 @@ Karar matrisi:
   sport == tennis, model OK    → model döner (A confidence)
   sport == tennis, model fail VE moneyline → bookmaker fallback
   sport == tennis, model fail VE alt market → fail (bot trade etmez)
-  sport == tennis, tennis_match_totals → bookmaker (model fallback YOK — SPEC-Z28)
 
 Alt market fallback YASAK — eski cascade bug (h2h fiyatını yapıştırma) bu modülün
 çözdüğü asıl sorundur.
@@ -223,7 +222,7 @@ def enrich_with_tennis_dispatch(
       - ML + BM OK  → BM döner (BM-first)
       - ML + BM fail → model fallback (oyuncu/phi/rating tüm guard'lar)
       - Alt market  → sadece model (BM h2h dışı veri vermiyor; cascade bug önleme)
-      - Match O/U   → bahisçi totals (BM yoksa atla, model fallback YOK — SPEC-Z28)
+      - Match O/U   → allowed_types'ta YOK (SPEC-Z28 tam kaldırıldı)
 
     Veri kanıtı (2026-06-03, n=11 ML): source=bookmaker %83 WR / +$28,
     source=model %40 WR / -$9 → BM önceliklendirildi.
@@ -254,12 +253,6 @@ def enrich_with_tennis_dispatch(
         if bm_result.probability is not None:
             return bm_result
         # BM yok → model fallback (aşağı düş).
-
-    # SPEC-Z28: Match O/U → bahisçi totals konsensüsü (moneyline gibi BM-first).
-    # AMA model fallback YOK — bahisçi yoksa atla. Kanıt: kendi modelimiz O/U'da
-    # %31 isabet (-$45). Bahisçi tenis totals veriyor (Pinnacle dahil 6-13 kitap).
-    if market_type == "tennis_match_totals":
-        return bookmaker_enricher(market)
 
     # Model akışı (alt market'ler buradan başlar; ML için BM fail fallback'i).
     if not ratings:
