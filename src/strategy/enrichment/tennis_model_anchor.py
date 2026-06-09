@@ -12,7 +12,6 @@ from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats, point_win_on_serve
 from src.domain.pricing.tennis.set_handicap_pricer import price_set_handicap
 from src.domain.pricing.tennis.set_totals_pricer import price_set_total_over
-from src.domain.pricing.tennis.totals_pricer import price_total_over
 
 
 def _resolve_serve_with_fallback(
@@ -67,8 +66,6 @@ def compute_model_anchor(
     if mt == "tennis_set_handicap" and handicap is not None:
         set_p = set_win_prob(p_a, p_b)
         return price_set_handicap(set_p, best_of, handicap)
-    if mt in ("tennis_match_totals", "tennis_first_set_totals") and line is not None:
-        return price_total_over(p_a, p_b, best_of, line)
     if mt == "tennis_first_set_winner":
         return price_first_set_winner(p_a, p_b)
     if mt == "tennis_set_totals" and line is not None:

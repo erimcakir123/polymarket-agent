@@ -110,12 +110,10 @@ def test_extract_market_params_handicap():
 
 
 def test_extract_market_params_total():
-    """K1 regression: tennis_match_totals question'dan line parse edilir."""
+    """tennis_set_totals question'dan line parse edilir (match_totals artık bahisçide)."""
     from src.strategy.enrichment.tennis_dispatch import _extract_market_params
-    line, handicap = _extract_market_params(
-        "Over 22.5 games", "tennis_match_totals",
-    )
-    assert line == 22.5
+    line, handicap = _extract_market_params("Over 2.5 sets", "tennis_set_totals")
+    assert line == 2.5
     assert handicap is None
 
 
