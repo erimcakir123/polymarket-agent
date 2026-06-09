@@ -232,6 +232,7 @@ def test_tennis_match_totals_skips_when_no_bookmaker_no_model_fallback():
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
     result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings)
     assert result.probability is None  # model fiyatlayabilirdi ama düşmüyoruz
+    assert result.fail_reason is not None
 
 
 def test_tennis_match_totals_calls_bookmaker_exactly_once():

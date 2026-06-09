@@ -7,6 +7,7 @@ Karar matrisi:
   sport == tennis, model OK    → model döner (A confidence)
   sport == tennis, model fail VE moneyline → bookmaker fallback
   sport == tennis, model fail VE alt market → fail (bot trade etmez)
+  sport == tennis, tennis_match_totals → bookmaker (model fallback YOK — SPEC-Z28)
 
 Alt market fallback YASAK — eski cascade bug (h2h fiyatını yapıştırma) bu modülün
 çözdüğü asıl sorundur.
