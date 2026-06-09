@@ -78,8 +78,7 @@ def set_outcome_distribution(
 ) -> tuple[tuple[int, int, float], ...]:
     """Tek bir setin (a_games, b_games, probability) terminal dağılımı.
 
-    Single source of truth — set_win_prob, totals_pricer ve totals_pricer
-    içindeki _set_game_distribution buradan türer (DRY).
+    Single source of truth — set_win_prob ve set_totals_pricer buradan türer (DRY).
 
     Tiebreak 6-6: setin sonucu A 7-6 veya B 6-7. Tiebreak içi P(A) tiebreak_dp.
     """

@@ -113,8 +113,6 @@ def _infer_market_type(market: MarketData) -> str:
     slug = (market.slug or "").lower()
     if "set-handicap" in slug:
         return "tennis_set_handicap"
-    if "first-set" in slug and any(k in slug for k in ("over", "under", "total")):
-        return "tennis_first_set_totals"
     if "first-set" in slug:
         return "tennis_first_set_winner"
     if "set-total" in slug or "number-of-sets" in slug or "total-sets" in slug:
@@ -189,7 +187,7 @@ def _extract_market_params(
             except ValueError:
                 return None, None
         return None, None
-    if mt in ("tennis_match_totals", "tennis_first_set_totals", "tennis_set_totals"):
+    if mt in ("tennis_set_totals",):
         # Önce slug: "match-total-22pt5" → 22.5
         sm = _SLUG_TOTAL_RE.search(s)
         if sm:
