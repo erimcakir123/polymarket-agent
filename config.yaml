@@ -318,6 +318,7 @@ telegram:
       - CALIBRATION_AGE
       - STALE_PRICE_RATE
       - CONSECUTIVE_LOSSES
+      - NEW_LEAGUE_DETECTED  # 2026-06-10 kullanıcı: bu ligleri trade etmiyoruz, alarm istenmiyor
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)

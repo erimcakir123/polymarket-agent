@@ -116,7 +116,12 @@ def _infer_market_type(market: MarketData) -> str:
     return ""
 
 
-_NON_LOCATION_KEYWORDS = ("handicap", "total", "o/u", "over/under", "spread")
+# "winner"/"first set": "Set 1/2 Winner", "Match/Game Winner" market-tipi öneklerini
+# reddeder (hiçbir gerçek tenis turnuvası adı "winner" içermez) — aksi halde
+# turnuva sanılıp zemin çözülemez, sahte SURFACE_UNKNOWN alarmı + skip.
+_NON_LOCATION_KEYWORDS = (
+    "handicap", "total", "o/u", "over/under", "spread", "winner", "first set",
+)
 
 
 def _extract_location(question: str) -> str | None:

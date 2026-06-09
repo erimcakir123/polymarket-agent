@@ -355,3 +355,12 @@ def test_match_surface_short_token_no_false_match():
     assert _match_surface("Ilkley Challenger", smap) == "Grass"
     assert _match_surface("Tucuman", smap) == "Clay"
     assert _extract_location("Cattolica: A vs B") == "Cattolica"
+
+
+def test_extract_location_rejects_set_winner_market():
+    from src.strategy.enrichment.tennis_dispatch import _extract_location
+    assert _extract_location("Set 1 Winner: Mena vs Rodriguez") is None
+    assert _extract_location("Set 2 Winner: A vs B") is None
+    assert _extract_location("First Set Winner: A vs B") is None
+    # gerçek turnuva hâlâ çıkar:
+    assert _extract_location("Ilkley: A vs B") == "Ilkley"
