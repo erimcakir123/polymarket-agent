@@ -285,6 +285,7 @@ def build_agent(state: RuntimeState) -> Agent:
         muted_alert_categories=tg.alert.muted_alert_categories,
         odds_client=odds,
         odds_low_credit_threshold=tg.alert.odds_low_credit_threshold,
+        surface_resolver=tennis_surface_resolver,  # PLAN-Z30 g6: SURFACE_UNKNOWN alert
     )
     # SPEC-Z9 (2026-06-03): Polymarket roster drift detector — günde 1 /teams + /sports diff
     from src.orchestration.roster_drift_monitor import RosterDriftMonitor

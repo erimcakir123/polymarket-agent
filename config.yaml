@@ -300,7 +300,8 @@ telegram:
   chat_id: ""         # .env override
   alert:
     # Her trade için entry/exit telegram mesajı (yoğun trade'de sessize alabilirsin)
-    entry_exit: true
+    # 2026-06-09 (PLAN-Z30 g6): kullanıcı isteğiyle KAPALI — per-trade gürültü susturuldu.
+    entry_exit: false
     # HealthMonitor periyodik check sıklığı (saniye); 300 = 5dk
     health_check_interval_sec: 300
     # Son 1 saatte STALE_PRICE_REJECT >= bu eşik → warning
@@ -320,18 +321,18 @@ telegram:
     # 2026-06-09: Odds API kalan kredi < bu eşik → warning telegram (bitince critical).
     # Bahisçi-fiyatlı marketler (asıl kazanan) bu krediye bağlı; bitmeden haber ver.
     odds_low_credit_threshold: 50
-    # SPEC-Z10 (2026-06-03): Kategori-bazli alert mute. ACB/BSL/Lega scraper
-    # broken/stale alarmları kullanıcıyı gereksiz gerer çünkü bu lig'ler ML-only
-    # (totals/spreads exclude_combos ile kapalı) ve cache yok zaten — broken
-    # olması beklenen davranış. VTB cache başarılı build edildi, alarm anlamlı
-    # → muted listede YOK. Yeni HTML parser yazılınca ilgili lig listeden çıkar.
+    # SPEC-Z10 (2026-06-03) + PLAN-Z30 g6 (2026-06-09): Kategori-bazli alert mute.
+    # Prefix wildcard (SCRAPER_*) tüm scraper down/stale alarmlarını susturur —
+    # kullanıcı isteğiyle 2026-06-09: per-trade entry/exit + calibration-age +
+    # TÜM scraper + stale-price + ardışık-zarar gürültüsü kapatıldı. Geriye sadece
+    # kritik alarmlar kalır: ODDS_QUOTA_*, FORCE_CLOSE, günlük özet + yeni
+    # SURFACE_UNKNOWN (zemin çözülemedi → elle çöz). Kritik bir scraper alarmı
+    # geri istenirse SCRAPER_* satırını daraltıp ilgili kaynağı listeden çıkar.
     muted_alert_categories:
-      - SCRAPER_DOWN_acb_scraper
-      - SCRAPER_STALE_acb_scraper
-      - SCRAPER_DOWN_bsl_scraper
-      - SCRAPER_STALE_bsl_scraper
-      - SCRAPER_DOWN_lega_scraper
-      - SCRAPER_STALE_lega_scraper
+      - "SCRAPER_*"
+      - CALIBRATION_AGE
+      - STALE_PRICE_RATE
+      - CONSECUTIVE_LOSSES
 
 agent:
   cycle_max_consecutive_errors: 2  # programatik hata 2-strike sonrası bot otomatik durur (SPEC-A1)
