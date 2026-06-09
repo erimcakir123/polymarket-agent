@@ -73,6 +73,29 @@ def test_set_handicap_no_event_link_no_garbage_wiki():
     assert "set handicap" not in r.unresolved  # no meaningless alert
 
 
+def test_resolve_comma_variant_inherits_core_override():
+    # "Stuttgart Open, Qualification" → override anahtarı "stuttgart open"dan miras
+    w = _Wiki(None)
+    overrides = {"stuttgart open": {"surface": "Grass", "checked_at": "2026-06-10T00:00:00"}}
+    r = SurfaceResolver({}, wiki=w, overrides=overrides, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Stuttgart Open, Qualification: A vs B")) == "Grass"
+    assert w.calls == 0  # override yeterli, Wiki'ye gitmedi
+
+
+def test_resolve_comma_variant_falls_back_to_core_map():
+    r = SurfaceResolver({"makarska": "Clay"}, wiki=_Wiki(None), now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Makarska, Qualification: A vs B")) == "Clay"
+
+
+def test_resolve_comma_variant_unknown_alerts_core_name():
+    # Çözülemezse alarm ÇEKİRDEK adla atılır → kullanıcı bir kez override ekler,
+    # tüm ", Qualification" varyantları otomatik kapanır.
+    r = SurfaceResolver({}, wiki=_Wiki(None), overrides={}, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Obscure Open, Qualification: A vs B")) is None
+    assert "obscure open" in r.unresolved
+    assert "obscure open, qualification" not in r.unresolved
+
+
 def test_refresh_overrides_picks_up_manual_edit():
     from src.models.market import MarketData
     from src.strategy.enrichment.surface_resolver import SurfaceResolver

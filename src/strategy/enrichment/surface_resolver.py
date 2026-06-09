@@ -62,7 +62,19 @@ class SurfaceResolver:
         if not name:
             return None
         surf = _match_surface(name, self._map)
-        return surf if surf else self._via_wiki(name)
+        if surf:
+            return surf
+        # "Stuttgart Open, Qualification" gibi aşama-ekli adlar: virgül-öncesi
+        # çekirdeğe düş → ana tablonun override'ı/haritası varyantlara miras kalır,
+        # çözülemezse alarm da çekirdek adla atılır (tek override tüm varyantları kapatır).
+        if "," in name:
+            core = name.split(",", 1)[0].strip()
+            if core:
+                surf = _match_surface(core, self._map)
+                if surf:
+                    return surf
+                name = core
+        return self._via_wiki(name)
 
     def _via_wiki(self, name: str) -> str | None:
         if self._wiki is None:
