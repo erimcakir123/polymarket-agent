@@ -64,33 +64,33 @@ class SurfaceResolver:
         surf = _match_surface(name, self._map)
         if surf:
             return surf
-        # "Stuttgart Open, Qualification" gibi aşama-ekli adlar: virgül-öncesi
-        # çekirdeğe düş → ana tablonun override'ı/haritası varyantlara miras kalır,
-        # çözülemezse alarm da çekirdek adla atılır (tek override tüm varyantları kapatır).
-        if "," in name:
-            core = name.split(",", 1)[0].strip()
-            if core:
-                surf = _match_surface(core, self._map)
-                if surf:
-                    return surf
-                name = core
+        # "Stuttgart Open, Qualification" / "Libema Open (Doubles)" gibi aşama-ekli
+        # adlar: ek-öncesi çekirdeğe düş → ana tablonun override'ı/haritası varyantlara
+        # miras kalır, çözülemezse alarm da çekirdek adla atılır (tek override hepsini kapatır).
+        core = name.split(",", 1)[0].split("(", 1)[0].strip()
+        if core and core != name:
+            surf = _match_surface(core, self._map)
+            if surf:
+                return surf
+            name = core
         return self._via_wiki(name)
 
     def _via_wiki(self, name: str) -> str | None:
-        if self._wiki is None:
-            self.unresolved.add(name.lower())
-            return None
+        # Override kontrolü Wikipedia'dan BAĞIMSIZ: istemci yokken/çökükken bile
+        # elle eklenen düzeltmeler uygulanır (2026-06-10).
         key = name.lower().strip()
         now = self._now or self._runtime_now()
         cached = self._overrides.get(key)
-        if cached:
-            # Bulunan zemin kalıcı kabul edilir (turnuva zemin değiştirirse — çok nadir,
-            # ör. Stuttgart 10 yılda bir — Sackmann harita yeniden-build'i yakalar). UNKNOWN ise GÜNLÜK tekrar denenir (TTL=1g).
-            if cached["surface"] != "UNKNOWN":
-                return cached["surface"]
-            if not _is_stale(cached.get("checked_at", ""), now, self._ttl):
-                self.unresolved.add(key)
-                return None
+        if cached is not None and cached.get("surface") != "UNKNOWN":
+            return cached["surface"]
+        if self._wiki is None:
+            self.unresolved.add(key)
+            return None
+        # Bulunan zemin kalıcı kabul edilir (yukarıda döndü; turnuva zemin değiştirirse
+        # Sackmann harita yeniden-build'i yakalar). UNKNOWN ise GÜNLÜK tekrar denenir (TTL).
+        if cached and not _is_stale(cached.get("checked_at", ""), now, self._ttl):
+            self.unresolved.add(key)
+            return None
         surf = self._wiki.resolve_surface(name)
         self._overrides[key] = {"surface": surf or "UNKNOWN", "checked_at": now}
         if self._save_fn is not None:

@@ -96,6 +96,20 @@ def test_resolve_comma_variant_unknown_alerts_core_name():
     assert "obscure open, qualification" not in r.unresolved
 
 
+def test_resolve_paren_variant_inherits_core_override():
+    # "Libema Open (Doubles)" → çekirdek "libema open" override'ından çözülür
+    overrides = {"libema open": {"surface": "Grass", "checked_at": "2026-06-10T00:00:00"}}
+    r = SurfaceResolver({}, wiki=_Wiki(None), overrides=overrides, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Libema Open (Doubles): A/B vs C/D")) == "Grass"
+
+
+def test_resolve_override_works_without_wiki_client():
+    # Wikipedia istemcisi YOKKEN bile elle eklenen override uygulanmalı
+    overrides = {"stuttgart open": {"surface": "Grass", "checked_at": "2026-06-10T00:00:00"}}
+    r = SurfaceResolver({}, wiki=None, overrides=overrides, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Stuttgart Open: A vs B")) == "Grass"
+
+
 def test_refresh_overrides_picks_up_manual_edit():
     from src.models.market import MarketData
     from src.strategy.enrichment.surface_resolver import SurfaceResolver
