@@ -12,9 +12,12 @@ SurfaceResolver save_fn=None ile kurulur → override dosyasına dahi yazmaz.
 """
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 from src.domain.pricing.tennis.glicko import Rating, update_rating
 from src.domain.pricing.tennis.match_record import MatchRecord
@@ -160,3 +163,56 @@ def synth_event_links(entries: list[dict]) -> tuple[dict[int, str], dict[str, st
 def invert_series(series: list[tuple[float, float]]) -> list[tuple[float, float]]:
     """Sahip olunan taraf YES değilse fiyat serisi karşı tarafa çevrilir (1−p yaklaşımı)."""
     return [(t, round(1.0 - p, 4)) for t, p in series]
+
+
+# ── Arşiv yükleme (I/O — script seviyesi, salt-okunur) ──
+
+def _read_jsonl(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # bozuk satır arşivde olabilir; sayım raporda görünür
+    return rows
+
+
+def load_tennis_entries(path: Path) -> list[dict]:
+    """Arşivden tenis entry'leri, kronolojik (SPEC-SIM2 görev 4)."""
+    entries = [
+        ev for ev in _read_jsonl(path)
+        if ev.get("kind") == "entry" and ev.get("sport_tag") == "tennis"
+    ]
+    entries.sort(key=lambda e: e.get("entry_timestamp") or "")
+    return entries
+
+
+def link_token_ids(
+    entries: list[dict], execs_path: Path, window_sec: int,
+) -> dict[int, str | None]:
+    """Her entry'ye token_id: ±window içindeki, boyutu eşit BUY execution'dan.
+
+    Eşleşmeyen → None (fiyat geçmişi çekilemez; rapor 'atlandı' listesine koyar).
+    """
+    buys = [
+        (datetime.fromisoformat(r["ts"]), float(r.get("target_size_usdc") or 0.0),
+         r.get("token_id"))
+        for r in _read_jsonl(execs_path)
+        if (r.get("side") or "").upper() == "BUY" and r.get("ts") and r.get("token_id")
+    ]
+    out: dict[int, str | None] = {}
+    for idx, e in enumerate(entries):
+        ts_raw = e.get("entry_timestamp")
+        if not ts_raw:
+            out[idx] = None
+            continue
+        entry_dt = datetime.fromisoformat(ts_raw)
+        best: tuple[float, str] | None = None
+        for ts, size, token in buys:
+            if abs(float(e.get("size_usdc") or 0.0) - size) > 0.01:
+                continue
+            dt = abs((ts - entry_dt).total_seconds())
+            if dt <= window_sec and (best is None or dt < best[0]):
+                best = (dt, token)
+        out[idx] = best[1] if best else None
+    return out

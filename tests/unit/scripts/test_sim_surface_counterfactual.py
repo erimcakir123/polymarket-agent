@@ -10,6 +10,8 @@ from scripts.sim_surface_counterfactual import (
     build_cutoff_snapshots,
     decide_gate,
     invert_series,
+    link_token_ids,
+    load_tennis_entries,
     synth_event_links,
 )
 
@@ -169,3 +171,41 @@ def test_invert_series_no_side_prices_and_entry():
     assert invert_series([(100.0, 0.61), (160.0, 0.97)]) == [
         (100.0, 0.39), (160.0, 0.03),
     ]
+
+
+def _jsonl(tmp_path, name, rows):
+    import json
+    p = tmp_path / name
+    p.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    return p
+
+
+def test_load_tennis_entries_filters_kind_and_sport(tmp_path):
+    p = _jsonl(tmp_path, "events.jsonl", [
+        {"kind": "entry", "sport_tag": "tennis", "slug": "b",
+         "entry_timestamp": "2026-06-07T10:00:00+00:00"},
+        {"kind": "final", "sport_tag": "tennis", "slug": "x"},
+        {"kind": "entry", "sport_tag": "basketball", "slug": "y"},
+        {"kind": "entry", "sport_tag": "tennis", "slug": "a",
+         "entry_timestamp": "2026-06-06T09:00:00+00:00"},
+    ])
+    out = load_tennis_entries(p)
+    assert [e["slug"] for e in out] == ["a", "b"]  # kronolojik
+
+
+def test_link_token_id_matches_buy_exec_by_time_and_size(tmp_path):
+    entries = [
+        {"entry_timestamp": "2026-06-06T10:58:36+00:00", "size_usdc": 50.0},
+        {"entry_timestamp": "2026-06-06T12:00:00+00:00", "size_usdc": 15.0},
+    ]
+    execs = _jsonl(tmp_path, "execs.jsonl", [
+        {"ts": "2026-06-06T10:58:37+00:00", "side": "BUY",
+         "target_size_usdc": 50.0, "token_id": "tokA"},
+        {"ts": "2026-06-06T10:59:00+00:00", "side": "SELL",
+         "target_size_usdc": 50.0, "token_id": "tokSELL"},
+        {"ts": "2026-06-06T18:00:00+00:00", "side": "BUY",
+         "target_size_usdc": 15.0, "token_id": "tokFAR"},  # pencere dışı
+    ])
+    links = link_token_ids(entries, execs, window_sec=180)
+    assert links[0] == "tokA"
+    assert links[1] is None
