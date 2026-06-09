@@ -35,6 +35,7 @@ from src.orchestration.stock_queue import StockConfig, StockQueue
 from src.orchestration.tennis_start_enricher import TennisStartEnricher
 from src.infrastructure.data.calibration_store import load_calibration as load_tennis_calibration
 from src.infrastructure.data.tennis_ratings_store import load_ratings as load_tennis_ratings
+from src.infrastructure.data.tennis_surface_map_store import load_surface_map
 from src.strategy.entry.gate import EntryGate, GateConfig
 from src.strategy.entry.mlb_submarket_engine_protocol import MlbSubmarketEngineProtocol
 from src.strategy.enrichment.odds_enricher import enrich_market
@@ -138,6 +139,7 @@ def build_agent(state: RuntimeState) -> Agent:
             len(tennis_surface_ratings.get("Grass", {})),
         )
     tennis_calibration = load_tennis_calibration(Path("data/tennis_calibration.json"))
+    tennis_surface_map = load_surface_map(Path("data/tennis_surface_map.json"))
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
 
     # SPEC-Z21 (2026-06-06): basketbol ratings/efficiencies/rest-days/calibration
@@ -178,6 +180,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 max_phi_for_trade=cfg.tennis.max_phi_for_trade,
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
+                surface_map=tennis_surface_map,
             )
     else:
         def _tennis_dispatched(market):
@@ -187,6 +190,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 max_phi_for_trade=cfg.tennis.max_phi_for_trade,
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
+                surface_map=tennis_surface_map,
             )
 
     # Gate: enricher + manipulation_check closure'ları.

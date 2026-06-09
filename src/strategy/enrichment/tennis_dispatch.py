@@ -18,8 +18,11 @@ Tahminler (Polymarket veri yetersizliği nedeniyle question stringinden):
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.pricing.tennis.calibration import CalibrationCurve
@@ -218,6 +221,7 @@ def enrich_with_tennis_dispatch(
     max_phi_for_trade: float = _DEFAULT_MAX_PHI_FOR_TRADE,
     low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
+    surface_map: dict[str, str] | None = None,
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -288,7 +292,10 @@ def enrich_with_tennis_dispatch(
         )
 
     best_of = _infer_best_of(market.question)
-    surface = _infer_surface(market.question, {}) or "Hard"  # TODO PLAN-Z29 g5: gerçek surface_map + None skip
+    surface = _infer_surface(market.question, surface_map or {})
+    if surface is None:
+        logger.warning("Tenis zemin bilinmiyor, atlandı: %s", (market.question or "")[:60])
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )

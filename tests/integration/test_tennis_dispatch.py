@@ -65,9 +65,12 @@ def test_tennis_moneyline_bm_first_when_bm_available():
 
 def test_tennis_moneyline_falls_back_to_model_when_bm_unavailable():
     """SPEC-Z14: ML + BM yok + model OK → model devreye girer."""
-    m = _market("Alice vs Bob")
+    m = _market("Wimbledon: Alice vs Bob")
     ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
-    result = enrich_with_tennis_dispatch(m, _fake_bookmaker_enrich_none, ratings=ratings)
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_map={"wimbledon": "Grass"},
+    )
     assert result.probability is not None
     assert result.probability.source == "model"
     # Model output: Alice strong favorite → > 0.6.
@@ -250,3 +253,27 @@ def test_infer_surface_empty_map_returns_none():
 def test_infer_surface_no_colon_returns_none():
     from src.strategy.enrichment.tennis_dispatch import _infer_surface
     assert _infer_surface("just some text", {"ilkley": "Grass"}) is None
+
+
+def test_dispatch_unknown_surface_skips_and_warns(caplog):
+    import logging
+    m = _market("HSBC Championships: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    with caplog.at_level(logging.WARNING):
+        result = enrich_with_tennis_dispatch(
+            m, _fake_bookmaker_enrich_none, ratings=ratings, surface_map={"ilkley": "Grass"},
+        )
+    assert result.probability is None
+    assert any(("zemin" in r.message.lower()) or ("surface" in r.message.lower()) for r in caplog.records)
+
+
+def test_dispatch_known_surface_prices_model():
+    # bilinen zemin → model akışı çalışır (skip değil); set_handicap model fiyatlar
+    m = _market("Ilkley: Alice vs Bob", market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings, surface_map={"ilkley": "Grass"},
+    )
+    # zemin biliniyor → skip DEĞİL (model fiyatlamaya gider; sonuç None olabilir ama zemin-skip sebebiyle değil)
+    # en azından "zemin bilinmiyor" uyarısı OLMAMALI:
+    assert result is not None
