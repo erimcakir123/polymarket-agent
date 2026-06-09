@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 _API = "https://en.wikipedia.org/w/api.php"
 _TIMEOUT = 10
+_HEADERS = {"User-Agent": "PolymarketAgent/2.0 (tennis surface lookup; erimcakir93@gmail.com)"}
 _SURFACE_RE = re.compile(r"\|\s*surface\s*=\s*(.+)", re.IGNORECASE)
 _SURFACES = ("Clay", "Grass", "Hard", "Carpet")
 
@@ -71,14 +72,21 @@ class WikipediaSurfaceClient:
         if not m:
             return None
         line = m.group(1).lower()
+        # Find which surface name appears first in the line (earliest position = current surface).
+        first_pos: int | None = None
+        first_surface: str | None = None
         for s in _SURFACES:
-            if s.lower() in line:
-                return "Hard" if s == "Carpet" else s
-        return None
+            pos = line.find(s.lower())
+            if pos != -1 and (first_pos is None or pos < first_pos):
+                first_pos = pos
+                first_surface = s
+        if first_surface is None:
+            return None
+        return "Hard" if first_surface == "Carpet" else first_surface
 
     def _get(self, params: dict) -> dict | None:
         try:
-            resp = self._http(_API, params=params, timeout=self._timeout)
+            resp = self._http(_API, params=params, headers=_HEADERS, timeout=self._timeout)
             if getattr(resp, "status_code", 0) >= 400:
                 logger.warning("Wikipedia returned %s", resp.status_code)
                 return None
