@@ -876,6 +876,36 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### SPEC-Z28 — Tenis Match O/U TAMAMEN kaldırıldı (2026-06-09)
+
+**Karar:** `tennis_match_totals` (Match O/U — maç toplam oyun alt/üst) market'i
+`allowed_sports_market_types`'tan çıkarıldı → bot bu market'e hiç girmez.
+
+**Neden:** Kendi modelimiz (Markov/serve) O/U'da kaybediyordu — bu session 5 tut /
+8 alt = %38 isabet, −$45; model sistematik olarak hep "Üst" diyordu. Kendi modelle
+fiyatlanan alt market'ler genelde zayıf (bkz. SPEC-Z14 BM-first kanıtı).
+
+**Neden "bahisçiye bağla" DEĞİL (önce denendi, sonra vazgeçildi):** Geriye-dönük test
+(13 gerçek O/U bahsi, historical Odds API totals): bahisçi tenis totals'ı yalnız
+**1/13 (%8)** maçta vardı — 12'si Challenger/250/ITF, bahisçi o seviyeyi fiyatlamıyor;
+kapsanan tek maçta çizgi bile uyuşmadı (21.5 vs 22.5). Moneyline bulgusuyla tutarlı
+(bahisçi sadece büyük turnuva ana tablosu). Bahisçiye bağlamak akışın %92'sini atlardı
+→ değer yok. Tam kaldırma daha temiz + aynı sonucu verir.
+
+**Etki:** Ölü model O/U pricer (`totals_pricer.py`) silindi; bahisçi-yönlendirme dalı
+ve `_is_totals_market` tenis özel-case'i geri alındı; `tennis_match_totals` bimodal
+listelerden çıkarıldı; dispatch'te `first_set_totals` (kullanılmayan) referansları
+temizlendi. KORUNDU: `TENNIS_MATCH_TOTALS` enum + `_infer_market_type` tespiti
+(forward-compat / cascade-bug koruması — Polymarket bu tipi gönderirse moneyline'a
+düşmesin, güvenli skip etsin). Maç-kazananı / set_handicap / set_totals değişmedi.
+
+**Kanıt/commit:** branch `feature/tennis-ou-bookmaker` → foundation (FF), tam test
+1945 passed/18 skipped. `scripts/backtest_tennis_ou_bookmaker.py` (bahisçi kapsama
+testi). Not: eski `tennis_match_totals (+$117)` rakamı 31 Mayıs öncesi cascade
+bug'ından (h2h fiyatı O/U'ya yapışması) gelen sahte kârdı.
+
+---
+
 ### SPEC-Z27 — Void/iade GERÇEK kâr/zarar yazar (SPEC-Z24 başabaş varsayımı düzeltildi) (2026-06-09)
 
 **Karar:** Polymarket maçı iptal edip marketi 0.5/0.5 ile çözdüğünde, void = gerçek
