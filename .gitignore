@@ -20,3 +20,8 @@ _backup_tennis_lab/
 # Gizli .env yedekleri ASLA git e girmesin (guvenlik)
 .env.bak*
 .env.*.bak
+
+# Basibos yedek/tek-kullanim dosyalari (git add -A ile kazara eklenmesin)
+data/positions.json.bak*
+scripts/_consolidate_losers_*.py
+lab_v2/data/force_close_alerts.json
