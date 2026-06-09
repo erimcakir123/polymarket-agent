@@ -28,26 +28,33 @@ class WikipediaSurfaceClient:
         self._timeout = timeout
 
     def resolve_surface(self, tournament_name: str) -> str | None:
-        title = self._search(tournament_name)
-        if not title:
-            return None
-        wikitext = self._fetch_section0(title)
-        if not wikitext:
-            return None
-        return self._parse_surface(wikitext)
+        for title in self._search_titles(tournament_name):
+            wikitext = self._fetch_section0(title)
+            if wikitext:
+                surf = self._parse_surface(wikitext)
+                if surf:
+                    return surf
+        return None
 
-    def _search(self, name: str) -> str | None:
+    def _search_titles(self, name: str) -> list[str]:
         data = self._get(
             {
                 "action": "query",
                 "list": "search",
                 "format": "json",
                 "srsearch": f"{name} tennis tournament",
-                "srlimit": "1",
+                "srlimit": "5",
             }
         )
         hits = (((data or {}).get("query") or {}).get("search") or [])
-        return hits[0]["title"] if hits else None
+        name_tokens = set(re.sub(r"[^a-z0-9 ]", " ", name.lower()).split())
+        titles = []
+        for h in hits:
+            title = h.get("title", "")
+            ttoks = set(re.sub(r"[^a-z0-9 ]", " ", title.lower()).split())
+            if name_tokens & ttoks:  # paylaşılan kelime şart (Lyon→'ATP Lyon Open' ✓, 'Open Sud de France' ✗)
+                titles.append(title)
+        return titles
 
     def _fetch_section0(self, title: str) -> str | None:
         data = self._get(
