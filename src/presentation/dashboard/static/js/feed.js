@@ -137,7 +137,7 @@
     _countdownPill(matchStartIso, matchLive) {
       const phase = this._matchPhase(matchStartIso, matchLive);
       if (phase === "live") return `<span class="feed-countdown live">LIVE</span>`;
-      if (phase === "resolving") return `<span class="feed-countdown ended">Bitti</span>`;
+      if (phase === "resolving") return `<span class="feed-countdown ended">Resolving</span>`;
       if (phase === "future") {
         const diff = new Date(matchStartIso).getTime() - Date.now();
         const mins = Math.floor(diff / MS_PER_MIN);
