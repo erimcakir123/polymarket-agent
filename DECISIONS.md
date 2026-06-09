@@ -906,6 +906,40 @@ bug'ından (h2h fiyatı O/U'ya yapışması) gelen sahte kârdı.
 
 ---
 
+### SPEC-Z30 — Tam zemin kapsaması: Wikipedia çözücü + event-linking + Telegram temizliği (2026-06-09)
+
+**Karar:** SPEC-Z29'un atlayacağı maçları (sponsor-adlı turnuvalar, çok-event şehirler, set handikaplar) üç ek katmanla kapattı.
+
+**Bileşen 1 — Wikipedia çözücü (infra):** `WikipediaSurfaceClient` — ücretsiz Wikipedia API (anahtarsız), httpx GET, User-Agent header zorunlu. Akış: arama → infobox wikitext → `| surface = [[X court|X]]` regex. Sonuç kalıcı override önbellek (`data/tennis_surface_overrides.json`): bulundu → kalıcı; UNKNOWN → `checked_at` damgalı, `surface_unknown_recheck_days` (default 3) TTL ile yeniden denenir; HTTP hata → önbelleğe yazma, None döndür + warning.
+
+**Bileşen 2 — SurfaceResolver (strategy):** Sackmann harita → override önbellek → Wikipedia → event-link zincirini tek enjekte bağımlılıkta paketler. `dispatch` artık `surface_map` param yerine `resolver.resolve(market)` çağırır. `_infer_surface` saf eşleştirici olarak kalır (infra import yok), resolver tarafından kullanılır.
+
+**Bileşen 3 — Event-linking (orchestration):** Set handikap başlığında turnuva adı yok → aynı `event_id`'yi paylaşan moneyline/set-totals market'ten `{event_id: tournament_name}` ön-haritası kurulur → resolver o haritadan turnuva adı alır → normal zincir uygulanır.
+
+**Bileşen 4 — Telegram temizliği + yeni alert:** Susturulan gürültü: `entry_exit: false`, `SCRAPER_*` prefix (tüm scraper kategorileri tek satırda), `CALIBRATION_AGE`, `STALE_PRICE_RATE`, `CONSECUTIVE_LOSSES`. Yeni alert: `SURFACE_UNKNOWN` — zemin hiçbir kaynaktan çözülemeyince "Zemin bilinmiyor: <turnuva>" Telegram mesajı (dedupe_window ile spam engellenir). Kritikler korundu: `ODDS_QUOTA_LOW/EXHAUSTED`, günlük özet.
+
+**Katman:** resolver infra import etmez (`is_stale` pure-local, `save_fn`/wiki enjekte) — mimari temiz.
+
+**Test:** 1945 passed/18 skipped. Worktree: `feature/tennis-surface-map`.
+
+---
+
+### SPEC-Z29 — Tenis zemin tespiti: Sackmann turnuva→zemin haritası (2026-06-09)
+
+**Karar:** Eskiyen sabit keyword listesi (`_CLAY_KEYWORDS`, `_GRASS_KEYWORDS`, `_DEFAULT_SURFACE`) kaldırıldı; yerine Sackmann geçmişinden otomatik üretilen `data/tennis_surface_map.json` (794 turnuva, `{normalize_ad: zemin}`) geldi.
+
+**Neden:** Turnuva sponsor adları sık değişiyor (Queen's: 5 isim, Rosmalen: 7); keyword listesi eskidikçe çim turnuvaları "Hard" sanılıyordu. Doğrulandı: HSBC/Ilkley/Birmingham → "Hard" (yanlış). Zemin sabittir, isim değil → harita doğru kaynak.
+
+**Harita üretimi:** `scripts/build_tennis_ratings.py` → tüm Sackmann maçları → `tourney_name` + `surface` → normalize (lowercase+strip) → her turnuva için en sık zemin → JSON yaz. Reyting build'iyle otomatik güncellenir.
+
+**`_infer_surface(question, surface_map)` yeni davranışı:** İlk `":"` öncesi metni "yer adayı" al → normalize → haritada ara (exact, sonra token-subset ≥4 harf). Bulursa döndür; haritada yoksa ya da yer çıkarılamazsa → `None`. Strateji katmanında `None` → skip + `logger.warning` ("zemin bilinmiyor: <turnuva>"). **Sessizce "Hard" YOK.**
+
+**Ek:** `_extract_location` + `_match_surface` ayrı saf fonksiyonlar (SPEC-Z30 SurfaceResolver bunları tekrar kullanır). `MatchRecord.tourney_name` alanı eklendi; loader parse eder.
+
+**Test:** 1945 passed/18 skipped. Worktree: `feature/tennis-surface-map`.
+
+---
+
 ### SPEC-Z27 — Void/iade GERÇEK kâr/zarar yazar (SPEC-Z24 başabaş varsayımı düzeltildi) (2026-06-09)
 
 **Karar:** Polymarket maçı iptal edip marketi 0.5/0.5 ile çözdüğünde, void = gerçek

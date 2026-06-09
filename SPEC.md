@@ -99,3 +99,5 @@ Bugünün tüm pozisyonlarını (16 açık + bağlanınca tek seferde ~1.00'a sa
 
 ### Güvenlik Sınırı (DEMİR)
 `positions.json`, `trade_events.jsonl`, `equity_history.jsonl`, `paper_executions.jsonl` ve diğer bot-state dosyalarına **YAZMAZ**. Ağ erişimi yalnızca `prices-history` GET. Çalışan bota dokunmaz. (Faz 2 = uygula; ayrı spec + yedek + onay.)
+
+---

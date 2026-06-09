@@ -38,7 +38,9 @@
 
 ## Aktif Planlar
 
-*Şu an aktif plan yok — boş duruyor.*
+*Şu an aktif plan yok.*
+
+---
 
 > NOT (2026-06-07): PLAN-DRYRUN-CLEANUP uygulandı AMA **GERİ ALINDI** — hatalıydı.
 > Watson moneyline'ı $50'lık (116 pay) gerçek bir kazanandı; dry-run penceresinde
