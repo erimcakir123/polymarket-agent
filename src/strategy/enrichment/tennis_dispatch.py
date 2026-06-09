@@ -124,19 +124,9 @@ def _extract_location(question: str) -> str | None:
     return loc
 
 
-def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
-    """Turnuva adından zemin (Clay/Grass/Hard). Bilinmiyor/belirsizse None →
-    caller skip+uyar. Çekirdek-şehir + kelime-token eşleştirme (PLAN-Z29).
-
-    Eşleşme sırası:
-      1. core(loc) exact map'te varsa → döner.
-      2. Token-subset: map key kelimeleri ⊆ loc kelimeleri veya tersi → eşleşir.
-         Birden fazla eşleşirse en uzun anahtar (deterministik; 'halle'⊄'challenger').
-    """
-    loc = _extract_location(question)
-    if loc is None:
-        return None
-    key = _core_name(loc)
+def _match_surface(name: str, surface_map: dict[str, str]) -> str | None:
+    """Turnuva ADINDAN zemin (çekirdek-şehir + token-subset, en uzun). PLAN-Z29 mantığı."""
+    key = _core_name(name)
     if not key:
         return None
     if key in surface_map:
@@ -144,12 +134,18 @@ def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
     kw = set(key.split())
     best_name = None
     best_surf = None
-    for name, surf in surface_map.items():
-        cw = set(name.split())
+    for mname, surf in surface_map.items():
+        cw = set(mname.split())
         if cw and (cw <= kw or kw <= cw):
-            if best_name is None or len(name) > len(best_name):
-                best_name, best_surf = name, surf
+            if best_name is None or len(mname) > len(best_name):
+                best_name, best_surf = mname, surf
     return best_surf
+
+
+def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
+    """Başlıktan zemin (pure). Bilinmiyorsa None. PLAN-Z29/Z30."""
+    loc = _extract_location(question)
+    return _match_surface(loc, surface_map) if loc else None
 
 
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)

@@ -313,3 +313,11 @@ def test_infer_surface_exact_still_first():
     from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"ilkley": "Grass"}
     assert _infer_surface("Ilkley: A vs B", smap) == "Grass"
+
+
+def test_match_surface_by_name():
+    from src.strategy.enrichment.tennis_dispatch import _match_surface
+    smap = {"ilkley": "Grass", "san miguel de tucuman": "Clay"}
+    assert _match_surface("Ilkley", smap) == "Grass"
+    assert _match_surface("Tucuman", smap) == "Clay"   # token-subset (kw ⊆ cw)
+    assert _match_surface("Unknown Cup", smap) is None
