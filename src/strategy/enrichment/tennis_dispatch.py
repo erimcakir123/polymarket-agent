@@ -125,17 +125,23 @@ def _extract_location(question: str) -> str | None:
 
 def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
     """Turnuva adından zemin (Clay/Grass/Hard). Bilinmiyorsa None — caller skip+uyar.
-    Sessiz 'Hard' default YOK (eski keyword listesi kaldırıldı, PLAN-Z29)."""
+    Sessiz 'Hard' default YOK (eski keyword listesi kaldırıldı, PLAN-Z29).
+    Eşleşme: exact → kelime-sınırlı en-uzun-anahtar (substring değil; 'halle'⊄'challenger')."""
     loc = _extract_location(question)
     if loc is None:
         return None
     key = loc.lower().strip()
     if key in surface_map:
         return surface_map[key]
+    best_name = None
+    best_surf = None
     for name, surf in surface_map.items():
-        if name and name in key:
-            return surf
-    return None
+        if not name:
+            continue
+        if re.search(r"\b" + re.escape(name) + r"\b", key):
+            if best_name is None or len(name) > len(best_name):
+                best_name, best_surf = name, surf
+    return best_surf
 
 
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)

@@ -277,3 +277,39 @@ def test_dispatch_known_surface_prices_model():
     # zemin biliniyor → skip DEĞİL (model fiyatlamaya gider; sonuç None olabilir ama zemin-skip sebebiyle değil)
     # en azından "zemin bilinmiyor" uyarısı OLMAMALI:
     assert result is not None
+
+
+def test_infer_surface_no_substring_inside_word():
+    """'halle' (Grass) 'challenger' İÇİNDE geçmesin (kelime-sınırı)."""
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"halle": "Grass", "merida": "Hard"}
+    # "Merida Challenger" → 'halle' kelime değil (challenger içinde); 'merida' kelime → Hard
+    assert _infer_surface("Merida Challenger: A vs B", smap) == "Hard"
+
+
+def test_infer_surface_short_key_not_inside_word():
+    """'linz' (Hard) 'bellinzona' İÇİNDE eşleşmesin; exact 'bellinzona' kazanır."""
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"linz": "Hard", "bellinzona": "Clay"}
+    assert _infer_surface("Bellinzona: A vs B", smap) == "Clay"
+
+
+def test_infer_surface_longest_key_wins_deterministic():
+    """Birden çok kelime-sınırı eşleşmesi → en UZUN anahtar (deterministik)."""
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"open": "Hard", "ilkley open": "Grass"}
+    assert _infer_surface("Ilkley Open: A vs B", smap) == "Grass"
+
+
+def test_infer_surface_multiword_key_word_boundary():
+    """'roland garros' tam kelime-dizisi eşleşir."""
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"roland garros": "Clay"}
+    assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
+
+
+def test_infer_surface_exact_still_first():
+    """Exact eşleşme önce (substring'e gerek yok)."""
+    from src.strategy.enrichment.tennis_dispatch import _infer_surface
+    smap = {"ilkley": "Grass"}
+    assert _infer_surface("Ilkley: A vs B", smap) == "Grass"
