@@ -39,6 +39,7 @@ def _row_to_record(row: dict) -> MatchRecord | None:
         numeric[key] = parsed
     return MatchRecord(
         tourney_id=row.get("tourney_id") or "",
+        tourney_name=row.get("tourney_name") or "",
         tourney_date=row.get("tourney_date") or "",
         surface=row.get("surface") or "Unknown",
         winner_name=(row.get("winner_name") or "").strip(),

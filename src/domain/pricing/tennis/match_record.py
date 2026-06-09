@@ -11,6 +11,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class MatchRecord:
     tourney_id: str
+    tourney_name: str
     tourney_date: str  # YYYYMMDD
     surface: str
     winner_name: str
