@@ -6,7 +6,17 @@ from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats
 from src.models.market import MarketData
 from src.strategy.enrichment.surface_resolver import SurfaceResolver
-from src.strategy.enrichment.tennis_dispatch import enrich_with_tennis_dispatch
+from src.strategy.enrichment.tennis_dispatch import (
+    _extract_location,
+    _match_surface,
+    enrich_with_tennis_dispatch,
+)
+
+
+def _infer_surface(question: str, surface_map: dict) -> str | None:
+    """Test helper: question→surface (eski production fonksiyonun gövdesi; resolver bunu primitive'lere bölerek kullanır)."""
+    loc = _extract_location(question)
+    return _match_surface(loc, surface_map) if loc else None
 
 
 def _market(question: str, sport: str = "tennis", market_type: str = "moneyline") -> MarketData:
@@ -207,7 +217,6 @@ def test_infer_market_type_declared_wins():
 
 def test_surface_inferred_for_grand_slam():
     """Map-bazlı: bilinen turnuva → doğru zemin; bilinmeyen → None (PLAN-Z29)."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"wimbledon": "Grass", "roland garros": "Clay", "us open": "Hard"}
     assert _infer_surface("Wimbledon final: A vs B", smap) == "Grass"
     assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
@@ -229,7 +238,6 @@ def test_tennis_match_totals_not_routed_to_bookmaker_and_skips():
 
 
 def test_infer_surface_known_tournament_from_map():
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"ilkley": "Grass", "cattolica": "Clay", "wimbledon": "Grass"}
     assert _infer_surface("Ilkley: Bu vs Rodesch", smap) == "Grass"
     assert _infer_surface("Cattolica: Bueno vs Forti", smap) == "Clay"
@@ -237,22 +245,18 @@ def test_infer_surface_known_tournament_from_map():
 
 
 def test_infer_surface_unknown_tournament_returns_none():
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     assert _infer_surface("HSBC Championships: A vs B", {"ilkley": "Grass"}) is None
 
 
 def test_infer_surface_player_matchup_no_location_returns_none():
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     assert _infer_surface("Bueno vs. Forti: Total Sets O/U 2.5", {"x": "Clay"}) is None
 
 
 def test_infer_surface_empty_map_returns_none():
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     assert _infer_surface("Ilkley: A vs B", {}) is None
 
 
 def test_infer_surface_no_colon_returns_none():
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     assert _infer_surface("just some text", {"ilkley": "Grass"}) is None
 
 
@@ -284,7 +288,6 @@ def test_dispatch_known_surface_prices_model():
 
 def test_infer_surface_no_substring_inside_word():
     """'halle' (Grass) 'challenger' İÇİNDE geçmesin (kelime-sınırı)."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"halle": "Grass", "merida": "Hard"}
     # "Merida Challenger" → 'halle' kelime değil (challenger içinde); 'merida' kelime → Hard
     assert _infer_surface("Merida Challenger: A vs B", smap) == "Hard"
@@ -302,28 +305,24 @@ def test_dispatch_uses_resolver():
 
 def test_infer_surface_short_key_not_inside_word():
     """'linz' (Hard) 'bellinzona' İÇİNDE eşleşmesin; exact 'bellinzona' kazanır."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"linz": "Hard", "bellinzona": "Clay"}
     assert _infer_surface("Bellinzona: A vs B", smap) == "Clay"
 
 
 def test_infer_surface_longest_key_wins_deterministic():
     """Birden çok kelime-sınırı eşleşmesi → en UZUN anahtar (deterministik)."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"open": "Hard", "ilkley open": "Grass"}
     assert _infer_surface("Ilkley Open: A vs B", smap) == "Grass"
 
 
 def test_infer_surface_multiword_key_word_boundary():
     """'roland garros' tam kelime-dizisi eşleşir."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"roland garros": "Clay"}
     assert _infer_surface("Roland Garros R3: A vs B", smap) == "Clay"
 
 
 def test_infer_surface_exact_still_first():
     """Exact eşleşme önce (substring'e gerek yok)."""
-    from src.strategy.enrichment.tennis_dispatch import _infer_surface
     smap = {"ilkley": "Grass"}
     assert _infer_surface("Ilkley: A vs B", smap) == "Grass"
 

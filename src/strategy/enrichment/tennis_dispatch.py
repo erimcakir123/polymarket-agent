@@ -146,12 +146,6 @@ def _match_surface(name: str, surface_map: dict[str, str]) -> str | None:
     return best_surf
 
 
-def _infer_surface(question: str, surface_map: dict[str, str]) -> str | None:
-    """Başlıktan zemin (pure). Bilinmiyorsa None. PLAN-Z29/Z30."""
-    loc = _extract_location(question)
-    return _match_surface(loc, surface_map) if loc else None
-
-
 _HANDICAP_RE = re.compile(r"[+-]\d+\.?\d*", re.IGNORECASE)
 # Question regex: "Over 22.5", "Total 22.5", "O/U 22.5" (Polymarket convention).
 _OVER_LINE_RE = re.compile(
