@@ -13,21 +13,39 @@ SurfaceResolver save_fn=None ile kurulur → override dosyasına dahi yazmaz.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
 from src.domain.pricing.tennis.glicko import Rating, update_rating
 from src.domain.pricing.tennis.match_record import MatchRecord
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats, aggregate_serve_stats
-from src.strategy.enrichment.tennis_dispatch import _extract_location
+from src.models.market import MarketData
+from src.strategy.enrichment.tennis_dispatch import _extract_location, _infer_market_type
+
+logger = logging.getLogger(__name__)
 
 _SURFACES = ("Hard", "Clay", "Grass")
 # Slug tabanı: atp|wta - oyuncu token'ları - YYYY-MM-DD (sonrası market eki).
 _SLUG_MATCH_RE = re.compile(r"^(?:atp|wta)-(.+?)-(\d{4}-\d{2}-\d{2})")
+
+# Reboot (2026-06-09 20:32) arşivi — önceki session'ın tamamı. Salt-okunur.
+_ARCHIVE_EVENTS = Path("logs/audit/trade_events.archive.20260609_203215.jsonl")
+_ARCHIVE_EXECS = Path("logs/audit/paper_executions.archive.20260609_203215.jsonl")
+_CACHE_DIR = Path("data/sackmann_cache")
+_SURFACE_MAP_PATH = Path("data/tennis_surface_map.json")
+_OVERRIDES_PATH = Path("data/tennis_surface_overrides.json")
+_CALIBRATION_PATH = Path("data/tennis_calibration.json")
+# Session 2026-06-06'da başlar; bu tarihten itibaren oynanan maçlar fit'e GİRMEZ
+# (lookahead yasağı — model maç sonucunu önceden 'bilemez').
+_CUTOFF_DATE = "20260606"
+_EXEC_WINDOW_SEC = 180
+_PROB_CLAMP = (0.01, 0.99)  # Position.anchor_probability validator sınırı
 
 # Bugünkü kurallarda Match O/U tamamen kaldırıldı (SPEC-Z28).
 _REMOVED_MARKET_TYPES = ("tennis_match_totals",)
@@ -215,4 +233,93 @@ def link_token_ids(
             if dt <= window_sec and (best is None or dt < best[0]):
                 best = (dt, token)
         out[idx] = best[1] if best else None
+    return out
+
+
+# ── Orkestrasyon (I/O — script seviyesi) ──
+
+def _load_sackmann_matches(cache_dir: Path) -> list[MatchRecord]:
+    from src.infrastructure.data.sackmann_csv_loader import load_matches_from_path
+    matches: list[MatchRecord] = []
+    for csv in sorted(cache_dir.glob("*.csv")):
+        try:
+            matches.extend(load_matches_from_path(csv))
+        except OSError as exc:
+            logger.warning("CSV okunamadı: %s (%s)", csv, exc)
+    return matches
+
+
+def _build_resolver(cfg, event_tournaments: dict[str, str]):
+    """Bugünkü zemin çözücü — factory.py ile birebir, AMA save_fn=None (salt-okunur)."""
+    from src.infrastructure.apis.wikipedia_surface_client import WikipediaSurfaceClient
+    from src.infrastructure.data.tennis_surface_map_store import load_surface_map
+    from src.infrastructure.data.tennis_surface_override_store import load_overrides
+    from src.strategy.enrichment.surface_resolver import SurfaceResolver
+    resolver = SurfaceResolver(
+        load_surface_map(_SURFACE_MAP_PATH),
+        wiki=WikipediaSurfaceClient(),
+        overrides=load_overrides(_OVERRIDES_PATH),
+        save_fn=None,   # DEMİR: override dosyasına yazmaz
+        reload_fn=None,
+        ttl_days=cfg.tennis.surface_unknown_recheck_days,
+    )
+    resolver.set_event_tournaments(event_tournaments)
+    return resolver
+
+
+def _bm_unavailable(_market: MarketData) -> EnrichResult:
+    """source=model trade'de o gün BM verisi yoktu → model yoluna zorla (SPEC kural 3)."""
+    return EnrichResult(probability=None, fail_reason=EnrichFailReason.EMPTY_BOOKMAKERS)
+
+
+def evaluate_entries(entries: list[dict], cfg, resolver, enrich_model, calib) -> list[dict]:
+    """Her entry için yeni tahmin + kapı kararı (replay'siz). Kronolojik event-guard."""
+    idx_to_event, _ = synth_event_links(entries)
+    event_positions: dict[str, set[str]] = defaultdict(set)
+    out: list[dict] = []
+    for idx, e in enumerate(entries):
+        yes_price = (
+            float(e["entry_price"]) if e.get("direction") == "BUY_YES"
+            else round(1.0 - float(e["entry_price"]), 4)
+        )
+        market = MarketData(
+            condition_id=e.get("condition_id", ""), question=e.get("question", ""),
+            slug=e.get("slug", ""), yes_token_id="", no_token_id="",
+            yes_price=yes_price, no_price=round(1.0 - yes_price, 4),
+            liquidity=0.0, volume_24h=0.0, end_date_iso="",
+            event_id=idx_to_event.get(idx), sport_tag="tennis",
+        )
+        mtype = _infer_market_type(market) or "moneyline"
+        surface = resolver.resolve(market)
+        if e.get("source") == "bookmaker":
+            new_prob, surface_lbl = e.get("bookmaker_prob"), "(bahisçi)"
+        else:
+            res = enrich_model(
+                market, _bm_unavailable, {},  # ratings param dispatch'te surface'a göre seçilir
+                calibration_curves=calib,
+                glicko_weight=cfg.risk.tennis_h2h_glicko_weight,
+                max_phi_for_trade=cfg.tennis.max_phi_for_trade,
+                low_tier_slug_prefixes=tuple(cfg.tennis.low_tier_slug_prefixes),
+                low_tier_question_keywords=tuple(cfg.tennis.low_tier_question_keywords),
+                surface_resolver=resolver,
+            )
+            new_prob = res.probability
+            surface_lbl = surface or "?"
+        decision = decide_gate(
+            market_type=mtype, new_prob=new_prob, yes_price=yes_price,
+            confidence=e.get("confidence", ""), has_sharp=bool(e.get("has_sharp")),
+            actual_direction=e.get("direction", ""),
+            min_edge=cfg.edge.min_edge,
+            bimodal_floor=cfg.risk.bimodal_min_entry_price,
+            ml_size_a=cfg.risk.fixed_bet_usdc["A"],
+            bimodal_size_a=cfg.risk.bimodal_bet_usdc["A"],
+            event_key=idx_to_event.get(idx, f"solo-{idx}"),
+            event_positions=event_positions,
+        )
+        if decision.action != "SKIP":
+            event_positions[idx_to_event.get(idx, f"solo-{idx}")].add(mtype)
+        out.append({
+            "entry": e, "market_type": mtype, "yes_price": yes_price,
+            "new_prob": new_prob, "surface": surface_lbl, "decision": decision,
+        })
     return out
