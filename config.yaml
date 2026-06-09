@@ -74,7 +74,10 @@ edge:
   # 2026-05-29 (Phase 3): tennis paper lab 97 trade analizi (post-spike-removal):
   #   tennis_set_totals -$63 net, tennis_first_set_winner -$162 net.
   #   Sackmann modeli %16/%56 doğru, market %72/%69 → modele güvenilmez.
-  # tennis_set_handicap (+$2), tennis_match_totals (+$117), moneyline açık tutuluyor.
+  # tennis_set_handicap (+$2), moneyline açık tutuluyor.
+  # 2026-06-09 (SPEC-Z28): tennis_match_totals MODEL'den çıkarıldı → bahisçi totals
+  #   konsensüsü (Odds API totals, Pinnacle dahil). Kendi modelimiz O/U'da %31 isabet
+  #   (-$45). Bahisçi yoksa atla. Eski "+$117" bir cascade bug'ıydı (h2h fiyatı O/U'ya).
   exclude_combos:
     - {tour: atp, market_type: tennis_set_totals, confidence: A}
     - {tour: atp, market_type: tennis_set_totals, confidence: B}
