@@ -292,6 +292,9 @@ def evaluate_entries(entries: list[dict], cfg, resolver, enrich_model, calib) ->
             event_id=idx_to_event.get(idx), sport_tag="tennis",
         )
         mtype = _infer_market_type(market) or "moneyline"
+        # KRİTİK: canlıda Polymarket sports_market_type gönderir; sim'de boş kalırsa
+        # model "tip bilinmiyor" deyip fiyatlamaz (2026-06-10 koşusunda 30 sahte skip).
+        market = market.model_copy(update={"sports_market_type": mtype})
         surface = resolver.resolve(market)
         if e.get("source") == "bookmaker":
             # BM-first ML kuralları o gün = bugün → giriş kararı DEĞİŞMEZ (fill
