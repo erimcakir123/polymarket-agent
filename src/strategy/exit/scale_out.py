@@ -36,6 +36,8 @@ def check_scale_out(
     entry_price: float,
     current_price: float,
     tiers: list[ScaleOutTier],
+    shares: float = 0.0,
+    min_profit_usdc: float = 0.0,
 ) -> ScaleOutDecision | None:
     """Return the next scale-out decision, or None if no tier fires.
 
@@ -43,6 +45,14 @@ def check_scale_out(
     entry_price:   original fill price (0 < entry < 1)
     current_price: latest market price
     tiers:         ordered list of ScaleOutTier (config.scale_out.tiers)
+    shares:        current remaining shares (for dollar-profit floor)
+    min_profit_usdc: dollar floor — suppress the tier when the locked profit
+                   would be below this. 0.0 disables the floor (default keeps
+                   pure progress-based behavior for callers that omit it).
+
+    Distance-based tier fires on price progress alone, but on small positions a
+    "good" % move still locks only cents. The dollar floor keeps the bot from
+    booking trivial profits: skip the sale until it is worth >= min_profit_usdc.
     """
     distance_to_resolution = 1.0 - entry_price
     if distance_to_resolution <= 0.0:
@@ -55,9 +65,15 @@ def check_scale_out(
         return None
 
     tier_cfg = tiers[next_tier_idx]
-    if progress >= tier_cfg.threshold or math.isclose(progress, tier_cfg.threshold):
-        return ScaleOutDecision(
-            tier=next_tier_idx + 1,
-            sell_pct=tier_cfg.sell_pct,
-        )
-    return None
+    if not (progress >= tier_cfg.threshold or math.isclose(progress, tier_cfg.threshold)):
+        return None
+
+    if min_profit_usdc > 0.0:
+        locked_profit = shares * tier_cfg.sell_pct * (current_price - entry_price)
+        if locked_profit < min_profit_usdc:
+            return None
+
+    return ScaleOutDecision(
+        tier=next_tier_idx + 1,
+        sell_pct=tier_cfg.sell_pct,
+    )

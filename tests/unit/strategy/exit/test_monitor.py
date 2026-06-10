@@ -67,6 +67,57 @@ def test_scale_out_tier2_after_tier1() -> None:
     assert r.exit_signal.tier == 2
 
 
+def test_scale_out_suppressed_when_locked_profit_below_dollar_floor() -> None:
+    # tier1 trigger (entry 0.40, current 0.64) but tiny position: locked =
+    # 10 * 0.40 * 0.24 = $0.96 < $1.5 floor → no scale-out signal.
+    p = _pos(current_price=0.64, entry_price=0.40, size_usdc=4, shares=10)
+    r = evaluate(p, scale_out_min_profit_usdc=1.5)
+    assert r.exit_signal is None
+
+
+def test_scale_out_fires_when_locked_profit_meets_dollar_floor() -> None:
+    # Same trigger, larger position: 100 * 0.40 * 0.24 = $9.60 >= $1.5 → fires.
+    p = _pos(current_price=0.64, entry_price=0.40, size_usdc=40, shares=100)
+    r = evaluate(p, scale_out_min_profit_usdc=1.5)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCALE_OUT
+    assert r.exit_signal.tier == 1
+
+
+# ── Bimodal hold-to-resolution (2026-06-10 kullanıcı kararı, sim kanıtı) ──
+
+def test_scale_out_skipped_for_bimodal_when_hold_flag_on() -> None:
+    """Set bahsi (bimodal) + hold bayrağı → kademe tetiklenmez, çözüme tutulur."""
+    p = _pos(
+        current_price=0.64, entry_price=0.40, size_usdc=15, shares=37,
+        sport_tag="tennis", sports_market_type="tennis_set_handicap",
+    )
+    r = evaluate(p, scale_out_hold_bimodal=True)
+    assert r.exit_signal is None
+
+
+def test_scale_out_fires_for_moneyline_when_hold_flag_on() -> None:
+    """Bayrak sadece bimodal'ı etkiler — moneyline kademesi aynen çalışır."""
+    p = _pos(
+        current_price=0.64, entry_price=0.40, size_usdc=50, shares=125,
+        sport_tag="tennis", sports_market_type="moneyline",
+    )
+    r = evaluate(p, scale_out_hold_bimodal=True)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCALE_OUT
+
+
+def test_scale_out_fires_for_bimodal_when_hold_flag_off() -> None:
+    """Bayrak kapalıyken (geriye uyum) bimodal kademesi eski davranışta."""
+    p = _pos(
+        current_price=0.64, entry_price=0.40, size_usdc=15, shares=37,
+        sport_tag="tennis", sports_market_type="tennis_set_handicap",
+    )
+    r = evaluate(p, scale_out_hold_bimodal=False)
+    assert r.exit_signal is not None
+    assert r.exit_signal.reason == ExitReason.SCALE_OUT
+
+
 # ── Flat stop-loss ──
 
 def test_flat_stop_loss_triggers() -> None:

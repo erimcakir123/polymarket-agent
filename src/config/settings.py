@@ -240,6 +240,13 @@ class ScaleOutConfig(BaseModel):
     # cap üst sınırı 0.80 → 0.75 (asimetrik favori riski). Bu alan legacy.
     high_entry_threshold: float = 0.70
     high_entry_upper: float = 0.80
+    # 2026-06-10 (kullanıcı kararı): dolar alt sınırı. Tier % bazlı tetiklense de,
+    # küçük pozisyonda kilitlenen kâr bu eşiğin altındaysa satış atlanır (bozuk para
+    # için parçalı çıkış yapma). 0.0 = sınır kapalı.
+    min_profit_usdc: float = 1.5
+    # 2026-06-10 (kullanıcı kararı, sim_bimodal_exit_policies kanıtı): bimodal
+    # pozisyonlarda (set bahisleri vb.) kademeli satış YOK — çözüme kadar tut.
+    hold_bimodal_to_resolution: bool = True
 
 
 class CircuitBreakerConfig(BaseModel):

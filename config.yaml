@@ -237,6 +237,14 @@ scale_out:
   # için aynı. 0.70-0.88 entry de standart 0.40/0.70 tier'larıyla işler.
   high_entry_threshold: 0.0
   high_entry_upper: 0.0
+  # 2026-06-10: Kilitlenecek kâr bu dolar eşiğinin altındaysa parçalı satış atlanır
+  # (küçük tenis pozisyonlarında $0.70 gibi bozuk para için çıkış yapma). 0.0 = kapalı.
+  min_profit_usdc: 1.5
+  # 2026-06-10 (kullanıcı kararı, scripts/sim_bimodal_exit_policies kanıtı):
+  # bimodal pozisyonlar (set bahisleri vb.) çözüme kadar tutulur, kademe YOK.
+  # 16-pozisyon backtest: TUT +$40.8 > tek-kademe (+$21/+$9) > 2-kademe teorik ≈$0;
+  # kaybeden bimodal'da kademe hiç ateşlenmedi, kazananda ince defter bid'ine sattı.
+  hold_bimodal_to_resolution: true
 
 circuit_breaker:
   # TEST MODU: CB devre dısı (2026-05-13). Multi-SL (graduated + flat + market_flip)

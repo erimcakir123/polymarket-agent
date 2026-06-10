@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from src.config.settings import BasketballExitConfig, PartialSlTier, ScaleOutConfig, ScaleOutTier
+from src.config.sport_rules import is_bimodal_market
 from src.config.sport_rules import BASKETBALL_TAGS, get_match_duration_hours
 from src.models.enums import ExitReason, SportsMarketType
 from src.models.position import Position
@@ -190,6 +191,8 @@ def evaluate(
     near_resolve_max_spread: float = 0.10,
     basketball_exit_cfg: BasketballExitConfig | None = None,
     scale_out_tiers: list[ScaleOutTier] | None = None,
+    scale_out_min_profit_usdc: float = 0.0,
+    scale_out_hold_bimodal: bool = False,
     partial_sl_tiers: list[PartialSlTier] | None = None,
     partial_sl_enabled: bool = True,
     graduated_sl_enabled: bool = True,
@@ -233,11 +236,21 @@ def evaluate(
 
     # 2. Scale-out (partial exit) — distance-based: progress = (cur-entry)/(1-entry).
     # High entry'de de tier 1+2 ikisi de aktif (whipsaw güvenliği için).
-    so = scale_out.check_scale_out(
+    # 2026-06-10 (kullanıcı kararı, 16-pozisyon backtest + canlı kanıt): bimodal
+    # pozisyonlar çözüme kadar tutulur — ince defterde kademe satışı kazananı
+    # kötü bid'e vergiliyor (Anisimova -$9), kaybeden bimodal'da hiç ateşlenmedi.
+    _smt = getattr(pos, "sports_market_type", None)
+    _market_type = (getattr(_smt, "value", None) or str(_smt or "")) if _smt else ""
+    skip_bimodal_scale_out = scale_out_hold_bimodal and is_bimodal_market(
+        pos.sport_tag or "", _market_type,
+    )
+    so = None if skip_bimodal_scale_out else scale_out.check_scale_out(
         scale_out_tier=pos.scale_out_tier,
         entry_price=pos.entry_price,
         current_price=pos.current_price,
         tiers=scale_out_tiers,
+        shares=pos.shares,
+        min_profit_usdc=scale_out_min_profit_usdc,
     )
     if so is not None:
         return MonitorResult(

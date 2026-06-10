@@ -70,6 +70,9 @@ Kâr alma tek mekanizma ile: 3-tier scale-out.
 - **Tier 2**: PnL ≥ %50 → kalan pozisyonun %50'sini sat
 - **Tier 3**: Resolution'a kadar hold
 
+**Bimodal istisnası (2026-06-10):** Bimodal pozisyonlar (set bahisleri, totals, spreads)
+scale-out'tan muaf — çözüme kadar tutulur (backtest kanıtı §6.6).
+
 (bkz. DECISIONS §6.6)
 
 ---
@@ -551,6 +554,24 @@ Kâr biriktikçe pozisyonun parçasını satmak.
 | 3 | Resolution / trailing | — | PnL-tetikli değil; §6.11-6.14 |
 
 **Geçiş:** `tier 0 → 1 → 2` sırayla. Tier atlanmaz; ileri gider veya aynı kalır.
+
+**Dolar alt sınırı (2026-06-10, kullanıcı kararı):** Tier % bazlı tetiklense bile,
+o satışta kilitlenecek kâr `config.scale_out.min_profit_usdc` (default $1.5) altındaysa
+satış atlanır, pozisyon tutulmaya devam eder. Sebep: bimodal sizing ile tenis
+pozisyonları küçük ($6-15); küçük pozisyonun %40'ı "anlamlı" bir fiyat hareketinde
+bile $0.70 gibi bozuk para kilitliyordu. Kilitlenecek kâr = `shares × sell_pct ×
+(current − entry)`. `min_profit_usdc = 0.0` → sınır kapalı (saf % davranış).
+
+**Bimodal istisnası (2026-06-10, kullanıcı kararı):** Bimodal pozisyonlarda
+(`is_bimodal_market` — set handicap/set totals/totals/spreads) scale-out tamamen
+ATLANIR, pozisyon çözüme kadar tutulur (`config.scale_out.hold_bimodal_to_resolution`,
+default true). Kanıt (`scripts/sim_bimodal_exit_policies`, 16 sonuçlanmış set bahsi):
+kaybeden bimodal'da fiyat kademe seviyesine HİÇ çıkmadı (kademe kayıpta sıfır koruma),
+kazananda ince emir defteri yüzünden tetik fiyatının altındaki bid'e satıldı (canlı:
+Anisimova +$14.4 yerine +$5.3). Politika kıyası: TUT +$40.8 > tek-kademe-geç +$21.2 >
+tek-kademe-erken +$9.4 > 2-kademe-teorik ≈ $0. SL zaten muaftı (§6.7 katman 2);
+bu istisnayla bimodal tam "gir → çözümü bekle" davranışına döner. Moneyline
+pozisyonlarında scale-out + partial SL aynen devam eder.
 
 ### 6.7 Flat Stop-Loss Helper (6-Katman Öncelik)
 

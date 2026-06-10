@@ -61,3 +61,33 @@ def test_zero_distance_edge_case_entry_at_one() -> None:
     # Defensive divide-by-zero guard
     d = check_scale_out(scale_out_tier=0, entry_price=1.0, current_price=1.0, tiers=_tiers())
     assert d is None
+
+
+def test_tier_suppressed_when_locked_dollar_profit_below_floor() -> None:
+    # entry=0.20, current=0.52 -> tier1 fires (progress=0.40), sell_pct=0.40.
+    # shares=10 -> locked = 10 * 0.40 * (0.52-0.20) = $1.28 < $1.5 floor -> suppressed.
+    d = check_scale_out(
+        scale_out_tier=0, entry_price=0.20, current_price=0.52,
+        tiers=_tiers(), shares=10.0, min_profit_usdc=1.5,
+    )
+    assert d is None
+
+
+def test_tier_fires_when_locked_dollar_profit_meets_floor() -> None:
+    # Same trigger, larger position: 20 * 0.40 * 0.32 = $2.56 >= $1.5 -> fires.
+    d = check_scale_out(
+        scale_out_tier=0, entry_price=0.20, current_price=0.52,
+        tiers=_tiers(), shares=20.0, min_profit_usdc=1.5,
+    )
+    assert d is not None
+    assert d.tier == 1
+
+
+def test_floor_disabled_when_min_profit_zero_fires_regardless_of_size() -> None:
+    # min_profit_usdc=0.0 (default) -> no dollar floor, tier fires on tiny position.
+    d = check_scale_out(
+        scale_out_tier=0, entry_price=0.20, current_price=0.52,
+        tiers=_tiers(), shares=1.0, min_profit_usdc=0.0,
+    )
+    assert d is not None
+    assert d.tier == 1

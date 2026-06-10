@@ -93,6 +93,8 @@ class ExitProcessor:
                 near_resolve_max_spread=self.deps.state.config.price_feed.max_spread_for_near_resolve,
                 basketball_exit_cfg=self.deps.state.config.exit_basketball,
                 scale_out_tiers=self.deps.state.config.scale_out.tiers,
+                scale_out_min_profit_usdc=self.deps.state.config.scale_out.min_profit_usdc,
+                scale_out_hold_bimodal=self.deps.state.config.scale_out.hold_bimodal_to_resolution,
                 partial_sl_tiers=self.deps.state.config.partial_sl.tiers,
                 partial_sl_enabled=self.deps.state.config.partial_sl.enabled,
                 graduated_sl_enabled=self.deps.state.config.graduated_sl.enabled,
