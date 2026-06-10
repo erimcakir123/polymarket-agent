@@ -133,4 +133,7 @@ class SurfaceResolver:
 
     @staticmethod
     def _runtime_now() -> str:
-        return datetime.now().isoformat()
+        # UTC-aware: override damgaları diğer yazarlarla (sim/elle ekleme) tutarlı olsun.
+        # Eski naive damgalar _is_stale'de TypeError→stale sayılır → kendiliğinden tazelenir.
+        from datetime import timezone  # noqa: PLC0415
+        return datetime.now(timezone.utc).isoformat()

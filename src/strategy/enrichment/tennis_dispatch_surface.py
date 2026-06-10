@@ -1,9 +1,8 @@
-"""LAB v2: Surface-aware tennis dispatch.
+"""Surface-aware tennis dispatch (üretim — factory yüzey dosyası varsa bunu kullanır).
 
-Wraps main enrich_with_tennis_dispatch — selects per-surface ratings dict
-based on market surface (Hard/Clay/Grass), then delegates to main dispatch.
-
-Main bot is NOT touched. This is loaded only via lab_v2/start.py monkey-patch.
+enrich_with_tennis_dispatch'i sarar: markete zemin çözer, o zeminin reyting
+dict'ini seçer, ana dispatch'e devreder. Yetki-dışı/tenis-dışı markette zemin
+ARAMAZ (sahte SURFACE_UNKNOWN önlenir). lab_v2 kökenli; 2026-06-02'den beri ana botta.
 """
 from __future__ import annotations
 

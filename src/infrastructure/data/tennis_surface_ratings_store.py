@@ -1,7 +1,7 @@
-"""LAB v2: Surface-specific tennis ratings loader.
+"""Surface-specific tennis ratings store (üretim — lab_v2 kökenli, 2026-06-10'da ana akışa alındı).
 
-Reads lab_v2/data/tennis_ratings_surface.json and returns a function that
-produces a per-surface PlayerSnapshot dict on demand.
+data/tennis_ratings_surface.json okur/yazar; yüzey başına PlayerSnapshot dict üretir.
+Dosya scripts/build_tennis_ratings.py tarafından genel karneyle AYNI anda kurulur.
 
 When surface-specific rating is too uncertain (phi >= threshold) OR player
 not found for that surface, falls back to "overall" rating.

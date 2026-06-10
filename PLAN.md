@@ -38,7 +38,23 @@
 
 ## Aktif Planlar
 
-*Şu an aktif plan yok.*
+### PLAN-CLEAN1: graduated_sl + circuit_breaker tam kaldırma (kapalı özellikler)
+
+- **Durum**: PROPOSED (kullanıcı 2026-06-10 silmeyi onayladı; uygulama AYRI oturuma
+  ertelendi — kapsam beklenenden geniş çıktı, "çalışanı bozma" önceliği)
+- **Tarih**: 2026-06-10
+- **Öncelik**: P2 (acil değil — ikisi de kapalı/etkisiz, zarar vermiyor)
+- **Etki (haritalandı)**: graduated_sl 24 dosyaya dokunuyor: monitor.evaluate imzası
+  (graduated_sl_enabled parametresi) → exit_processor, sim_realistic_replay(+testleri),
+  tennis_champion_audit, scripts/_espn_verify_grad_sl.py, 8+ test dosyası, enums
+  (ExitReason.GRADUATED_SL), settings/config. circuit_breaker: startup.py restore/save,
+  reboot.py state listesi, gate testi (skip), config.
+- **DİKKAT**: ExitReason.GRADUATED_SL enum'u ESKİ ARŞİV kayıtlarında geçiyor —
+  dashboard/readers arşiv okurken enum değerine ihtiyaç duyabilir; kaldırmadan önce
+  reader'ların ham string'le çalıştığı doğrulanmalı (yoksa enum "tarihsel değer" olarak kalır).
+- **Adımlar**: (1) reader/arşiv uyumluluk analizi; (2) circuit_breaker önce (küçük);
+  (3) graduated_sl: testleri sil → imza zincirini güncelle → suite; (4) reload.
+- **Kabul**: suite yeşil + arşiv sekmesi eski graduated_sl exit'lerini hâlâ doğru gösterir.
 
 ---
 

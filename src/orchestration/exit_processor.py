@@ -50,8 +50,9 @@ class ExitProcessor:
             espn_client=getattr(deps, "espn_client", None),
             executor=deps.executor,
         )
-        # 2026-06-01: force-close artık otomatik exit YAPMAZ — alarm + manuel review.
-        # Tek seferlik Telegram + dashboard kırmızı border (alert store flag).
+        # 2026-06-09: force-close TAMAMEN KAPALI (config force_close_timeouts: {}) —
+        # alarm da yok; pozisyon Polymarket resolve edene kadar tutulur (hiper-gerçekçi).
+        # Executor/store kodu, politika tekrar açılırsa diye duruyor (kullanıcı kararı).
         from src.infrastructure.persistence.force_close_alerts import (  # noqa: PLC0415
             ForceCloseAlertStore,
         )
