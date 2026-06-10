@@ -47,6 +47,36 @@ def test_build_creates_ratings_json(tmp_path):
     assert before_mtime == after_mtime, "Test production data/tennis_surface_map.json dosyasini kirletti!"
 
 
+def test_build_ratings_default_surface_output_next_to_ratings_production_untouched(tmp_path):
+    """2026-06-10 olayı: surface çıktısı üretim yoluna default'lanıyordu — pytest her
+    koşuda data/tennis_ratings_surface.json'ı 2 sahte oyuncuyla (Bob/Alice) ezip canlı
+    botun tenis modelini kör etti (531 skip). Surface dosyası output_path'in YANINA
+    yazılmalı, üretim dosyası kirlenmemeli."""
+    from pathlib import Path
+
+    from scripts.build_tennis_ratings import build_ratings
+
+    csv_path = tmp_path / "atp_matches_2026.csv"
+    csv_path.write_text(SAMPLE_CSV, encoding="utf-8")
+    out = tmp_path / "ratings.json"
+
+    production_surface = Path("data/tennis_ratings_surface.json")
+    before_mtime = production_surface.stat().st_mtime if production_surface.exists() else None
+
+    build_ratings(tmp_path, out)
+
+    tmp_surface = tmp_path / "tennis_ratings_surface.json"
+    assert tmp_surface.exists(), "surface ratings output_path'in yanina yazilmali"
+    data = json.loads(tmp_surface.read_text(encoding="utf-8"))
+    assert "Alice" in data
+    assert "Bob" in data
+
+    after_mtime = production_surface.stat().st_mtime if production_surface.exists() else None
+    assert before_mtime == after_mtime, (
+        "Test uretim data/tennis_ratings_surface.json dosyasini kirletti!"
+    )
+
+
 def test_build_ratings_writes_surface_map(tmp_path, monkeypatch):
     import scripts.build_tennis_ratings as _mod
     from scripts.build_tennis_ratings import build_ratings

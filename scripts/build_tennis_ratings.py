@@ -22,20 +22,27 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_CACHE_DIR = Path("data/sackmann_cache")
 _DEFAULT_OUTPUT = Path("data/tennis_ratings.json")
-_DEFAULT_SURFACE_OUTPUT = Path("data/tennis_ratings_surface.json")
+_SURFACE_FILENAME = "tennis_ratings_surface.json"
 _VALID_SURFACES = ("Hard", "Clay", "Grass")
 
 
 def build_ratings(
     cache_dir: Path,
     output_path: Path,
-    surface_output_path: Path = _DEFAULT_SURFACE_OUTPUT,
+    surface_output_path: Path | None = None,
 ) -> None:
     """CSV cache → TEK veri fotoğrafından HEM genel HEM yüzeye-özgü reytingler.
 
     PLAN-DATA1: iki dosya aynı anda kurulur (homojenlik) — eskiden yüzey dosyası
     ayrı lab scriptiyle elle kuruluyordu ve bayatlıyordu (2026-06-02'de kalmıştı).
+
+    surface_output_path verilmezse output_path'in YANINA yazılır. Üretim yolu
+    default'u 2026-06-10 olayıyla kaldırıldı: test tmp output verirken yüzey
+    çıktısı data/'ya gidiyor, canlı botun zemin karnesi 2 sahte oyuncuyla
+    eziliyordu (531 skip / 218 maç kör kaldı).
     """
+    if surface_output_path is None:
+        surface_output_path = Path(output_path).parent / _SURFACE_FILENAME
     csv_files = sorted(Path(cache_dir).glob("*.csv"))
     all_matches = []
     for csv in csv_files:
