@@ -41,6 +41,9 @@ def register_routes(app: Flask, config: AppConfig, logs_dir: Path) -> None:
             "stage_at": status.get("stage_at"),
             "next_heavy_at": status.get("next_heavy_at"),
             "light_alive": status.get("light_alive", False),
+            # 2026-06-10: session-start her refresh'te güncellensin — eskiden sadece
+            # sayfa yüklenirken gömülüyordu; günlerce açık sekme reboot'u görmüyordu.
+            "session_start_iso": readers.read_session_start(logs_dir),
         })
 
     @app.route("/api/summary")

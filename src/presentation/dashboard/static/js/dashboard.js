@@ -578,9 +578,12 @@
     "Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara",
   ];
   const _MS_PER_DAY = 86400000;
-  function _renderSessionStart() {
+  function _renderSessionStart(freshIso) {
     const el = document.querySelector(".session-start");
     if (!el) return;
+    // 2026-06-10: API'den gelen güncel değer gömülü değeri ezer — eskiden sadece
+    // sayfa yüklenirken gömülüyordu; günlerce açık sekme reboot'u görmüyordu ("3.6d").
+    if (freshIso) el.dataset.iso = freshIso;
     const iso = el.dataset.iso || "";
     if (!iso) { el.textContent = ""; el.title = ""; return; }
     const d = new Date(iso);
@@ -606,6 +609,7 @@
           API.stats(), API.sportRoi(), API.calibration(CHART_STATE.calibSport),
         ]);
         LAST.trades = Array.isArray(trades) ? trades : [];  // cache for tab clicks
+        _renderSessionStart(status.session_start_iso);  // reboot sonrası açık sekme de güncellensin
         RENDER.status(status);
         RENDER.metrics(summary.equity);
         RENDER.wlStats(stats);
