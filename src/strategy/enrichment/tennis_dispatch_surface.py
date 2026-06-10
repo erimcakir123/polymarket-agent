@@ -14,6 +14,7 @@ from src.domain.pricing.tennis.calibration import CalibrationCurve
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.models.market import MarketData
 from src.strategy.enrichment.tennis_dispatch import (
+    _is_low_tier_tennis,
     enrich_with_tennis_dispatch as _main_dispatch,
 )
 
@@ -44,7 +45,19 @@ def make_surface_aware_dispatch(
         ),
         surface_resolver=None,
     ) -> EnrichResult:
-        surface = surface_resolver.resolve(market) if surface_resolver is not None else None
+        # 2026-06-10: tenis-dışı veya yetki-dışı (ITF/Challenger) markette zemin
+        # ARANMAZ — bot bunları zaten oynamaz; boşa Wiki sorgusu + sahte
+        # SURFACE_UNKNOWN alarmı üretiyordu (03:22 "itf madrid" olayı).
+        sport = (market.sport_tag or "").lower()
+        skip_resolve = sport != "tennis" or _is_low_tier_tennis(
+            market.slug or "", market.question or "",
+            slug_prefixes=low_tier_slug_prefixes,
+            question_keywords=low_tier_question_keywords,
+        )
+        surface = (
+            surface_resolver.resolve(market)
+            if (surface_resolver is not None and not skip_resolve) else None
+        )
         chosen = ratings_by_surface.get(surface, fallback_ratings) if surface else fallback_ratings
         return _main_dispatch(
             market=market,
