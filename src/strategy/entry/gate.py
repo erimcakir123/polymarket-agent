@@ -75,7 +75,7 @@ def _is_bimodal_market_type(market: MarketData) -> bool:
 @dataclass
 class GateConfig:
     """Entry gate parametreleri (config.yaml'dan gelir)."""
-    min_edge: float = 0.06
+    min_edge: float = 0.05  # 2026-06-10: 0.06→0.05
     max_positions: int = 50
     max_positions_per_event: int = 3  # SPEC-J/K: ARCH Kural 8 gevşedi (max N / event_id)
     max_exposure_pct: float = 0.50  # SPEC-P: yumuşak cap, clipping yok

@@ -77,7 +77,7 @@ def test_no_match_start_returns_none() -> None:
 
 
 def test_a_conf_higher_threshold_still_works() -> None:
-    # A conf threshold = 0.10 × 1.25 = 0.125; raw 0.15 > 0.125 → OK
+    # A conf threshold = 0.10 × 1.00 = 0.10 (2026-05-15 rollback); raw 0.15 > 0.10 → OK
     sig = early_entry.evaluate(_market(yes=0.50, hours_ahead=12), _bm(prob=0.65, conf="A"))
     assert sig is not None
     assert sig.confidence == "A"

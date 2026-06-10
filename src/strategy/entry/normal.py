@@ -14,7 +14,7 @@ from src.models.signal import Signal
 def evaluate(
     market: MarketData,
     bm_prob: BookmakerProbability,
-    min_edge: float = 0.06,
+    min_edge: float = 0.05,  # 2026-06-10: 0.06→0.05
     spread: float = 0.0,
     slippage: float = 0.0,
 ) -> Signal | None:

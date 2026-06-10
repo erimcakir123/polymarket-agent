@@ -397,13 +397,13 @@ def test_evaluate_one_confidence_c_sets_skip_detail_num_bookmakers() -> None:
 
 def test_evaluate_one_no_edge_sets_skip_detail_edge_values() -> None:
     """no_edge → skip_detail contains edge/min/bm/yes values."""
-    # bm=0.63, yes=0.60 → raw_edge=0.03 < 0.06 → no signal
+    # bm=0.63, yes=0.60 → raw_edge=0.03 < 0.05 → no signal
     bm = _bm(prob=0.63, conf="B")
     gate = _make_gate(enricher=lambda m: _enrich(bm))
     result = gate._evaluate_one(_market(yp=0.60))
     assert result.skipped_reason == "no_edge"
     assert "edge=0.030" in result.skip_detail
-    assert "min=0.06" in result.skip_detail
+    assert "min=0.05" in result.skip_detail
     assert "bm=0.63" in result.skip_detail
     assert "yes=0.60" in result.skip_detail
 

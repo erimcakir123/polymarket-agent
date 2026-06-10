@@ -169,6 +169,29 @@ def test_resolve_player_name_unknown_returns_none():
     assert _resolve_player_name("Nadal", ratings) is None
 
 
+def test_resolve_player_name_hyphenated_first_name_matches():
+    """2026-06-10 canlı vaka: Polymarket 'Jan-Lennard Struff' (tireli) vs
+    Sackmann 'Jan Lennard Struff' (boşluklu) → eşleşmeli."""
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Jan Lennard Struff": _snap(1700, 0.64), "Alexander Bublik": _snap(1720, 0.66)}
+    assert _resolve_player_name("Jan-Lennard Struff", ratings) == "Jan Lennard Struff"
+
+
+def test_resolve_player_name_partial_name_single_candidate_matches():
+    """2026-06-10 canlı vaka: Polymarket 'Gabriela Ruse' (kısa ad) vs
+    Sackmann 'Elena Gabriela Ruse' (tam ad) → tek aday, eşleşmeli."""
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Elena Gabriela Ruse": _snap(1650, 0.62), "Elise Mertens": _snap(1750, 0.67)}
+    assert _resolve_player_name("Gabriela Ruse", ratings) == "Elena Gabriela Ruse"
+
+
+def test_resolve_player_name_partial_name_ambiguous_returns_none():
+    """Kısa ad 2+ oyuncuyla eşleşiyorsa → None (güvenli atlama korunur)."""
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+    ratings = {"Ana Maria Garcia": _snap(1600, 0.60), "Maria Garcia Lopez": _snap(1500, 0.58)}
+    assert _resolve_player_name("Maria Garcia", ratings) is None
+
+
 def test_infer_market_type_slug_fallback():
     """Polymarket sports_market_type'ı boş bırakırsa slug'tan çıkar.
 

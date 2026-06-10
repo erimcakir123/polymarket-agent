@@ -1,18 +1,21 @@
 """Edge hesabı (DECISIONS §6.3) — anchor P(YES) vs market price.
 
-v2 confidence multipliers: A=1.25 (daha ihtiyatlı), B=1.00 (baz). C girmez.
+Confidence multipliers: A=1.00, B=1.00 (2026-05-15 rollback — A cezası kaldırıldı).
+2026-06-10: domain default'u 1.25'te unutulmuştu (config'deki 1.00 buraya
+iletilmiyor) — A işlemler fiilen %25 şişik eşik görüyordu; DECISIONS'a eşitlendi.
+C girmez.
 """
 from __future__ import annotations
 
 from src.models.enums import Direction
 
-DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 1.25, "B": 1.00}
+DEFAULT_CONFIDENCE_MULTIPLIERS: dict[str, float] = {"A": 1.00, "B": 1.00}
 
 
 def calculate_edge(
     anchor_prob: float,
     market_yes_price: float,
-    min_edge: float = 0.06,
+    min_edge: float = 0.05,
     confidence: str = "B",
     confidence_multipliers: dict[str, float] | None = None,
     spread: float = 0.0,

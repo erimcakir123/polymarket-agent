@@ -74,24 +74,39 @@ def _infer_best_of(question: str) -> int:
     return _DEFAULT_BEST_OF
 
 
+def _normalize_player_name(name: str) -> str:
+    """Tire/boşluk yazım farkını eşitle: 'Jan-Lennard' ≡ 'Jan Lennard'."""
+    return name.replace("-", " ").lower().strip()
+
+
 def _resolve_player_name(
     name: str,
     ratings: dict[str, PlayerSnapshot],
 ) -> str | None:
     """Polymarket name → Sackmann full name eşleme.
 
-    Sıra: exact → case-insensitive exact → last-name substring (tek eşleşme).
-    Ambiguous (2+ aynı soyad) → None (güvenli, atla).
+    Sıra: exact → normalize (case + tire) exact → last-name token (tek eşleşme)
+    → token-alt-kümesi (kısa ad tam adın içinde, tek aday — 'Gabriela Ruse' →
+    'Elena Gabriela Ruse', 2026-06-10 vakası).
+    Ambiguous (2+ aday) → None (güvenli, atla).
     """
     if name in ratings:
         return name
-    name_low = name.lower().strip()
-    ci_match = [k for k in ratings if k.lower() == name_low]
+    name_low = _normalize_player_name(name)
+    ci_match = [k for k in ratings if _normalize_player_name(k) == name_low]
     if ci_match:
         return ci_match[0]
-    parts_match = [k for k in ratings if name_low in k.lower().split()]
+    parts_match = [k for k in ratings if name_low in _normalize_player_name(k).split()]
     if len(parts_match) == 1:
         return parts_match[0]
+    name_tokens = set(name_low.split())
+    if len(name_tokens) >= 2:
+        subset_match = [
+            k for k in ratings
+            if name_tokens <= set(_normalize_player_name(k).split())
+        ]
+        if len(subset_match) == 1:
+            return subset_match[0]
     return None
 
 

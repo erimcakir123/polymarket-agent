@@ -61,17 +61,21 @@ def test_no_edge_returns_none() -> None:
     assert normal.evaluate(m, bm) is None
 
 
-def test_a_confidence_higher_threshold() -> None:
+def test_a_confidence_no_extra_threshold_penalty() -> None:
+    """2026-05-15 rollback (DECISIONS §6.3): A çarpanı 1.25 → 1.00.
+
+    2026-06-10'da fark edildi: domain default'u 1.25'te unutulmuştu — A
+    işlemler fiilen %25 şişik eşik görüyordu. A artık B ile aynı eşiği görür.
+    """
     m = _market(yes_price=0.50)
-    # A conf threshold = 0.06 × 1.25 = 0.075
-    # raw=0.07 → HOLD
-    bm_a = _bm(prob=0.57, conf="A")
-    assert normal.evaluate(m, bm_a) is None
-    # raw=0.10 → BUY_YES
-    bm_a2 = _bm(prob=0.60, conf="A")
-    sig = normal.evaluate(m, bm_a2)
+    # raw=0.055 > threshold 0.05 × 1.00 → BUY_YES (eski 1.25 ile None olurdu)
+    bm_a = _bm(prob=0.555, conf="A")
+    sig = normal.evaluate(m, bm_a)
     assert sig is not None
     assert sig.confidence == "A"
+    # raw=0.03 < 0.05 → eşik hâlâ çalışıyor
+    bm_low = _bm(prob=0.53, conf="A")
+    assert normal.evaluate(m, bm_low) is None
 
 
 def test_signal_copies_sport_tag_and_event_id() -> None:

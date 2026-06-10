@@ -13,7 +13,7 @@ def test_load_config_missing_file_returns_defaults(tmp_path: Path) -> None:
     assert isinstance(cfg, AppConfig)
     assert cfg.mode == Mode.DRY_RUN
     assert cfg.initial_bankroll == 1000.0
-    assert cfg.edge.min_edge == 0.06
+    assert cfg.edge.min_edge == 0.05
 
 
 def test_load_config_valid_yaml_parses(tmp_path: Path) -> None:
@@ -107,7 +107,7 @@ def test_repo_config_yaml_parses() -> None:
     cfg = load_config()  # default Path("config.yaml")
     assert cfg.mode is not None
     assert cfg.initial_bankroll > 0
-    assert cfg.edge.min_edge == 0.06
+    assert cfg.edge.min_edge == 0.05
     # Phase 1 sonrası whitelist sadece basket
     for must_have in ("nba", "wnba", "ncaab", "wncaab", "cbb", "euroleague", "nbl"):
         assert must_have in cfg.scanner.allowed_sport_tags, f"{must_have} listede olmalı"

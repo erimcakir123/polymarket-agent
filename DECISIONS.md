@@ -479,7 +479,7 @@ Anchor probability (P(YES)) ile market YES fiyatı arasındaki fark; spread + sl
 | B | 1.00 | Baz |
 | C | — | Entry bloklanır |
 
-**Default `min_edge`:** `0.06` (config.yaml `edge.min_edge`)
+**Default `min_edge`:** `0.05` (config.yaml `edge.min_edge`) — 2026-06-10: 0.06→0.05 (kullanıcı kararı: %5-6 bandındaki fırsatlar kaçıyordu — aynı gün Potapova 0.057 / Montgomery 0.055 binde-üçle takılmıştı; PAPER modunda işlem hacmi artışı edge-kanıt birikimini hızlandırır)
 
 **Yön kararı:**
 

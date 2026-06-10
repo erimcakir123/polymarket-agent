@@ -66,7 +66,7 @@ scanner:
     - wta
 
 edge:
-  min_edge: 0.06
+  min_edge: 0.05   # 2026-06-10: 0.06→0.05 (kullanıcı kararı) — %5-6 bandı kaçıyordu, PAPER validasyon hızlansın
   confidence_multipliers:
     A: 1.00    # 19 Apr peak değer (önceki 1.25)
     B: 1.00
