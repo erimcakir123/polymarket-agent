@@ -213,3 +213,24 @@ def test_link_token_id_matches_buy_exec_by_time_and_size(tmp_path):
     links = link_token_ids(entries, execs, window_sec=180)
     assert links[0] == "tokA"
     assert links[1] is None
+
+
+def test_walk_forward_grass_eval_predicts_before_learning():
+    """PLAN-DATA2: değerlendirme sayacı yalnız tanıdık oyuncularla artar; tahmin
+    güncellemeden ÖNCE yapılır (A her zaman kazananı bilemez)."""
+    from scripts.research_surface_persistence import walk_forward_grass_eval
+    ms = []
+    # 2024: iki oyuncuyu da iyice tanıt (eşik 150 altına insinler — ~25 maç)
+    for i in range(20):
+        ms.append(_match(f"2024{(i//28)+5:02d}{(i%28)+1:02d}", "Hard", "Alice A", f"Filler {i}"))
+    for i in range(6):
+        ms.append(_match(f"202406{i+10:02d}", "Grass", "Alice A", "Bob B"))
+    for i in range(20):
+        ms.append(_match(f"2024{(i//28)+7:02d}{(i%28)+1:02d}", "Hard", "Bob B", f"Other {i}"))
+    # 2025 çim: Alice yine Bob'u yener — tanıdık çift → değerlendirilir
+    ms.append(_match("20250610", "Grass", "Alice A", "Bob B"))
+    res = walk_forward_grass_eval(ms)
+    assert res.overall.n == 1 and res.blend.n == 1 and res.switch.n == 1
+    assert res.first_eval_date == "20250610"
+    # log-loss sonlu (log(0) yok)
+    assert res.blend.logloss > 0.0
