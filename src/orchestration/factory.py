@@ -198,6 +198,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
                 surface_resolver=tennis_surface_resolver,
+                model_ml_disabled_surfaces=tuple(cfg.tennis.model_ml_disabled_surfaces),
             )
     else:
         def _tennis_dispatched(market):
@@ -208,6 +209,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 low_tier_slug_prefixes=_tennis_low_tier_slug_prefixes,
                 low_tier_question_keywords=_tennis_low_tier_question_keywords,
                 surface_resolver=tennis_surface_resolver,
+                model_ml_disabled_surfaces=tuple(cfg.tennis.model_ml_disabled_surfaces),
             )
 
     # Gate: enricher + manipulation_check closure'ları.

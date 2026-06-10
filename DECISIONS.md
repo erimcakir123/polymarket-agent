@@ -897,6 +897,27 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### Çim model-moneyline kapatıldı (2026-06-11, kullanıcı kararı)
+
+**Karar:** Zemini "Grass" çözülen tenis maçlarında model MONEYLINE fiyatlamaz
+(`config.yaml > tennis.model_ml_disabled_surfaces: ["Grass"]`, skip nedeni
+`model_surface_disabled`). **Etkilenmeyenler:** bahisçi-verili çim maçları
+(BM-first zaten önce döner — Queen's: 7/9, +$28) ve çim alt marketleri
+(set bahisleri %63 kazanım).
+
+**Kanıt (4-10 Haz, 82 kapanan tenis):** çim model-ML 30 maç → -$84.6; model
+%64 iddia / %53 teslim (giriş fiyatları ort. 54¢ → tampon yok); model-piyasa
+farklı favori dediğinde piyasa 9-3 önde (toprakta 4-4 berabere, toprak +$44).
+Kalıcılık testi (592 maç, 2025 çimi) çime-özel reytingin de çözüm olmadığını
+göstermişti (genel %64.4 vs çim-özel %64.2) → kaçınma tek rasyonel seçenek.
+Sebep yapısal: çim sezonu yılda ~5 hafta (oyuncu başına 5-10 maç veri) + servis
+ağırlıklı oyun stili reytingde temsil edilmiyor (Perricard vakası: -$49).
+
+**Geri açma:** çim sezonu 13 Tem'de bitiyor (liste fiilen etkisiz kalır);
+gelecek çim sezonu öncesi servis-ağırlıklı çim modeli lab çalışması yapılabilir.
+
+---
+
 ### SPEC-Z28 — Tenis Match O/U TAMAMEN kaldırıldı (2026-06-09)
 
 **Karar:** `tennis_match_totals` (Match O/U — maç toplam oyun alt/üst) market'i

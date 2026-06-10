@@ -32,6 +32,8 @@ def test_enrich_fail_reason_values_match_spec() -> None:
         "model_player_not_in_ratings",
         "model_data_missing",
         "model_market_unsupported",
+        # 2026-06-11: zemin bazlı model-ML kapatma (çim kararı)
+        "model_surface_disabled",
         # Basketball model anchor (Plan 1.C):
         "model_team_not_in_ratings",
         "model_basketball_data_missing",

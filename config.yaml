@@ -376,6 +376,12 @@ tennis:
   # eskiyse ve turnuva yeniden görünürse Wikipedia'dan yeniden doğrulanır (takvim değil
   # turnuvanın dönüşü tetikler); zemin değiştiyse otomatik güncellenir + bilgi mesajı.
   surface_found_recheck_days: 180
+  # 2026-06-11 (kullanıcı kararı): bu zeminlerde model MONEYLINE fiyatlamaz — skip
+  # nedeni model_surface_disabled. Bahisçili çim maçları (Queen's: 7/9, +$28) ve çim
+  # set bahisleri (%63 kazanım) ETKİLENMEZ. Kanıt (4-10 Haz, 30 kapanan çim model-ML):
+  # -$84.6, model %53 teslim / %64 iddia, model-piyasa anlaşmazlığında piyasa 9-3 önde.
+  # Çim sezonu bitince (13 Tem) liste fiilen etkisiz kalır; kaldırmak için boşalt: [].
+  model_ml_disabled_surfaces: ["Grass"]
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).

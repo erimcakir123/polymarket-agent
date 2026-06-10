@@ -256,6 +256,7 @@ def enrich_with_tennis_dispatch(
     low_tier_slug_prefixes: tuple[str, ...] = _DEFAULT_LOW_TIER_SLUG_PREFIXES,
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
     surface_resolver=None,
+    model_ml_disabled_surfaces: tuple[str, ...] = (),
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -330,6 +331,11 @@ def enrich_with_tennis_dispatch(
     if surface is None:
         logger.warning("Tenis zemin bilinmiyor, atlandı: %s", (market.question or "")[:60])
         return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_MISSING)
+    # 2026-06-11 (kullanıcı kararı): listedeki zeminde model MONEYLINE fiyatlamaz.
+    # Kanıt: çim model-ML 30 maç -$84.6 (%53 teslim vs %64 iddia; anlaşmazlıkta
+    # piyasa 9-3 önde). Bahisçi yolu (BM-first yukarıda) ve alt marketler sürer.
+    if is_moneyline and surface in model_ml_disabled_surfaces:
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_SURFACE_DISABLED)
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )

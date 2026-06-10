@@ -74,6 +74,58 @@ def test_tennis_moneyline_bm_first_when_bm_available():
     assert result.probability.source == "bookmaker"
 
 
+class _FixedSurfaceResolver:
+    """Test fake: her markete sabit zemin döner."""
+    def __init__(self, surface: str) -> None:
+        self._surface = surface
+
+    def resolve(self, market) -> str:
+        return self._surface
+
+
+def test_tennis_moneyline_grass_model_disabled_returns_surface_fail():
+    """2026-06-11 kullanıcı kararı: çimde model-ML OYNAMAZ (30 maç -$84.6, %53<%64).
+    BM yok + çim + ML + Grass disabled-listede → model fiyatlamaz."""
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    m = _market("Wimbledon: Alice vs Bob")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Grass"),
+        model_ml_disabled_surfaces=("Grass",),
+    )
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.MODEL_SURFACE_DISABLED
+
+
+def test_tennis_moneyline_clay_model_prices_when_grass_disabled():
+    """Disabled listesi sadece o zemini keser — toprak ML model aynen fiyatlanır."""
+    m = _market("Lyon: Alice vs Bob")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Clay"),
+        model_ml_disabled_surfaces=("Grass",),
+    )
+    assert result.probability is not None
+    assert result.probability.source == "model"
+
+
+def test_tennis_set_handicap_grass_still_prices_when_grass_ml_disabled():
+    """Kapsam SADECE moneyline: çim set bahisleri (%63 kazanım) modelle devam."""
+    m = _market("Set Handicap: Alice (-1.5) vs Bob (+1.5)",
+                market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Grass"),
+        model_ml_disabled_surfaces=("Grass",),
+    )
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    assert result.fail_reason != EnrichFailReason.MODEL_SURFACE_DISABLED
+    assert result.probability is not None
+
+
 def test_tennis_moneyline_falls_back_to_model_when_bm_unavailable():
     """SPEC-Z14: ML + BM yok + model OK → model devreye girer."""
     m = _market("Wimbledon: Alice vs Bob")

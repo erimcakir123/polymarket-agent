@@ -45,3 +45,7 @@ class TennisConfig(BaseModel):
             "M15", "M25", "W15", "W25",
         ]
     )
+    # 2026-06-11 (kullanıcı kararı): bu zeminlerde model MONEYLINE fiyatlamaz —
+    # bahisçili maçlar (Queen's tipi) ve set bahisleri etkilenmez. Kanıt: çim
+    # model-ML 30 maç -$84.6, model %53 teslim / %64 iddia, anlaşmazlıkta piyasa 9-3.
+    model_ml_disabled_surfaces: List[str] = Field(default_factory=lambda: ["Grass"])

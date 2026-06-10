@@ -43,6 +43,7 @@ def make_surface_aware_dispatch(
             "ITF", "Futures", "Challenger", "M15", "M25", "W15", "W25",
         ),
         surface_resolver=None,
+        model_ml_disabled_surfaces: tuple[str, ...] = (),
     ) -> EnrichResult:
         # 2026-06-10: tenis-dışı veya yetki-dışı (ITF/Challenger) markette zemin
         # ARANMAZ — bot bunları zaten oynamaz; boşa Wiki sorgusu + sahte
@@ -68,6 +69,7 @@ def make_surface_aware_dispatch(
             low_tier_slug_prefixes=low_tier_slug_prefixes,
             low_tier_question_keywords=low_tier_question_keywords,
             surface_resolver=surface_resolver,
+            model_ml_disabled_surfaces=model_ml_disabled_surfaces,
         )
 
     return enrich
