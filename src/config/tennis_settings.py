@@ -32,6 +32,10 @@ class TennisConfig(BaseModel):
     # aşarsa genel (overall) reytinge düşülür — orta bant bloklanmaz, genel karneyle
     # oynar (çim akışı veri gecikmesinden bağımsız açık kalır).
     surface_phi_fallback: float = 100.0
+    # 2026-06-10 "görünce-tazele" (kullanıcı: 6 ay): BULUNDU damgalı zemin kaydı bu
+    # yaştan eskiyse VE turnuva marketlerde yeniden görünürse Wikipedia'dan sessizce
+    # yeniden doğrulanır; değiştiyse güncellenir + Telegram bilgisi (Berlin senaryosu).
+    surface_found_recheck_days: int = 180
     low_tier_slug_prefixes: List[str] = Field(
         default_factory=lambda: ["itf-", "challenger-", "futures-"]
     )

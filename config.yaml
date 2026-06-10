@@ -364,6 +364,10 @@ tennis:
   # tahminci → 150'den 100'e çekildi. Yüzey reytingi phi'si bu eşiği aşarsa genel reytinge
   # düşülür — orta bant bloklanmaz, çim akışı veri gecikmesinden bağımsız açık kalır.
   surface_phi_fallback: 100.0
+  # 2026-06-10 "görünce-tazele" (kullanıcı kararı 6 ay): BULUNDU zemin kaydı bu yaştan
+  # eskiyse ve turnuva yeniden görünürse Wikipedia'dan yeniden doğrulanır (takvim değil
+  # turnuvanın dönüşü tetikler); zemin değiştiyse otomatik güncellenir + bilgi mesajı.
+  surface_found_recheck_days: 180
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).

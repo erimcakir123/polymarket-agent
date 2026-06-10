@@ -110,6 +110,53 @@ def test_resolve_override_works_without_wiki_client():
     assert r.resolve(_mkt("Stuttgart Open: A vs B")) == "Grass"
 
 
+def test_found_fresh_within_ttl_no_wiki_recheck():
+    # 6 aydan TAZE "BULUNDU" kaydı: turnuva görünse de Wiki'ye gidilmez
+    w = _Wiki("Clay")
+    overrides = {"berlin open": {"surface": "Grass", "checked_at": "2026-03-01T00:00:00"}}
+    r = SurfaceResolver({}, wiki=w, overrides=overrides,
+                        found_recheck_days=180, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Berlin Open: A vs B")) == "Grass"
+    assert w.calls == 0
+
+
+def test_found_stale_rechecks_and_restamps_same_surface():
+    # 6 aydan ESKİ kayıt + turnuva yeniden göründü → Wiki doğrular, aynıysa damga tazelenir
+    w = _Wiki("Grass")
+    saved = []
+    overrides = {"berlin open": {"surface": "Grass", "checked_at": "2025-06-01T00:00:00"}}
+    r = SurfaceResolver({}, wiki=w, overrides=overrides,
+                        save_fn=lambda ov: saved.append(dict(ov)),
+                        found_recheck_days=180, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Berlin Open: A vs B")) == "Grass"
+    assert w.calls == 1
+    assert saved[-1]["berlin open"]["checked_at"] == "2026-06-10T00:00:00"
+    assert not r.surface_changes
+
+
+def test_found_stale_surface_changed_updates_and_records():
+    # Turnuva zemin DEĞİŞTİRMİŞ (Berlin senaryosu): kayıt güncellenir + değişim not edilir
+    w = _Wiki("Clay")
+    saved = []
+    overrides = {"berlin open": {"surface": "Grass", "checked_at": "2025-06-01T00:00:00"}}
+    r = SurfaceResolver({}, wiki=w, overrides=overrides,
+                        save_fn=lambda ov: saved.append(dict(ov)),
+                        found_recheck_days=180, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Berlin Open: A vs B")) == "Clay"
+    assert saved[-1]["berlin open"]["surface"] == "Clay"
+    assert r.surface_changes["berlin open"] == ("Grass", "Clay")
+
+
+def test_found_stale_wiki_uncertain_keeps_old_surface():
+    # Wiki çelişkili/bulunamadı → ESKİ bilgi korunur (eski bilgi > hiç bilgi)
+    w = _Wiki(None)
+    overrides = {"berlin open": {"surface": "Grass", "checked_at": "2025-06-01T00:00:00"}}
+    r = SurfaceResolver({}, wiki=w, overrides=overrides,
+                        found_recheck_days=180, now_iso="2026-06-10T00:00:00")
+    assert r.resolve(_mkt("Berlin Open: A vs B")) == "Grass"
+    assert "berlin open" not in r.unresolved  # sahte alarm yok
+
+
 def test_refresh_overrides_picks_up_manual_edit():
     from src.models.market import MarketData
     from src.strategy.enrichment.surface_resolver import SurfaceResolver

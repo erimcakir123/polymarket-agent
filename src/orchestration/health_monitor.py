@@ -320,11 +320,25 @@ class HealthMonitor:
         Dedupe send_alerts'te (kategori+severity, 30dk) — tekrar spam yok.
         """
         r = self.surface_resolver
-        if r is None or not getattr(r, "unresolved", None):
+        if r is None:
             return []
-        return [Alert("warning", f"SURFACE_UNKNOWN_{n}",
+        alerts: list[Alert] = []
+        # 2026-06-10 görünce-tazele: zemin DEĞİŞTİ bilgisi (tek seferlik — drenajlı).
+        changes = dict(getattr(r, "surface_changes", {}) or {})
+        if changes:
+            r.surface_changes.clear()
+            alerts.extend(
+                Alert("info", f"SURFACE_CHANGED_{n}",
+                      f"Turnuva zemini değişmiş: {n} {old}→{new} (otomatik güncellendi)")
+                for n, (old, new) in sorted(changes.items())
+            )
+        if getattr(r, "unresolved", None):
+            alerts.extend(
+                Alert("warning", f"SURFACE_UNKNOWN_{n}",
                       f"Zemin bilinmiyor: {n} — Google AI ile elle çöz/ekle")
-                for n in sorted(r.unresolved)]
+                for n in sorted(r.unresolved)
+            )
+        return alerts
 
     # ── Daily summary (atexit veya cron'dan çağrılır) ──
 
