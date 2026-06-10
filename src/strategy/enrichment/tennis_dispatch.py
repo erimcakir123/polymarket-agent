@@ -257,6 +257,7 @@ def enrich_with_tennis_dispatch(
     low_tier_question_keywords: tuple[str, ...] = _DEFAULT_LOW_TIER_QUESTION_KEYWORDS,
     surface_resolver=None,
     model_ml_disabled_surfaces: tuple[str, ...] = (),
+    model_min_prob_by_surface: dict[str, float] | None = None,
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -339,7 +340,7 @@ def enrich_with_tennis_dispatch(
     line, handicap = _extract_market_params(
         market.question, market_type, slug=market.slug or "",
     )
-    return enrich_tennis_from_model(
+    result = enrich_tennis_from_model(
         player_a=player_a,
         player_b=player_b,
         market_type=market_type,
@@ -351,3 +352,15 @@ def enrich_with_tennis_dispatch(
         handicap=handicap,
         glicko_weight=glicko_weight,
     )
+    # 2026-06-11 (kullanıcı: "kesin bulursak girelim"): listedeki zeminde model
+    # bir tarafa min_prob altı güven veriyorsa girilmez. Geriye-dönük (22 set
+    # bahsi): ≥%70 → 17 işlem +$38.3; %60-70 bandı → 5 işlem -$6.7.
+    surface_min_prob = (model_min_prob_by_surface or {}).get(surface)
+    if surface_min_prob is not None and result.probability is not None:
+        p_yes = result.probability.probability
+        if max(p_yes, 1.0 - p_yes) < surface_min_prob:
+            return EnrichResult(
+                probability=None,
+                fail_reason=EnrichFailReason.MODEL_CONFIDENCE_BELOW_SURFACE_MIN,
+            )
+    return result

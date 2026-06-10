@@ -111,6 +111,39 @@ def test_tennis_moneyline_clay_model_prices_when_grass_disabled():
     assert result.probability.source == "model"
 
 
+def test_tennis_grass_model_blocked_below_surface_min_prob():
+    """2026-06-11 kullanıcı kararı ('kesin bulursak girelim'): çimde model bir
+    tarafa en az eşik kadar güven vermiyorsa girilmez. Eşik 0.99 ile mekanizma
+    deterministik test edilir (hiçbir gerçek çıktı %99'a ulaşmaz → blok).
+    Üretim değeri (0.70) config'te; geriye-dönük: ≥%70 17 işlem +$38.3."""
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    m = _market("Set Handicap: Alice (-1.5) vs Bob (+1.5)",
+                market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1510, 0.61), "Bob": _snap(1500, 0.60)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Grass"),
+        model_min_prob_by_surface={"Grass": 0.99},
+    )
+    assert result.probability is None
+    assert result.fail_reason == EnrichFailReason.MODEL_CONFIDENCE_BELOW_SURFACE_MIN
+
+
+def test_tennis_clay_model_not_blocked_by_grass_min_prob():
+    """Eşik zemine özgü: Grass eşiği toprak fiyatlamasına dokunmaz."""
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    m = _market("Set Handicap: Alice (-1.5) vs Bob (+1.5)",
+                market_type="tennis_set_handicap")
+    ratings = {"Alice": _snap(1510, 0.61), "Bob": _snap(1500, 0.60)}
+    result = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Clay"),
+        model_min_prob_by_surface={"Grass": 0.70},
+    )
+    assert result.fail_reason != EnrichFailReason.MODEL_CONFIDENCE_BELOW_SURFACE_MIN
+    assert result.probability is not None
+
+
 def test_tennis_set_handicap_grass_still_prices_when_grass_ml_disabled():
     """Kapsam SADECE moneyline: çim set bahisleri (%63 kazanım) modelle devam."""
     m = _market("Set Handicap: Alice (-1.5) vs Bob (+1.5)",

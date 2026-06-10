@@ -382,6 +382,11 @@ tennis:
   # -$84.6, model %53 teslim / %64 iddia, model-piyasa anlaşmazlığında piyasa 9-3 önde.
   # Çim sezonu bitince (13 Tem) liste fiilen etkisiz kalır; kaldırmak için boşalt: [].
   model_ml_disabled_surfaces: ["Grass"]
+  # 2026-06-11 (kullanıcı: "kesin bulursak girelim"): çimde model bir tarafa en az
+  # %70 vermiyorsa girilmez (fiilen çim set bahisleri — ML zaten kapalı). Geriye-dönük
+  # 22 set bahsi: ≥%70 → 17 işlem +$38.3; %60-70 bandı → 5 işlem -$6.7. Skip nedeni:
+  # model_confidence_below_surface_min. Kaldırmak için: {} yap.
+  model_min_prob_by_surface: {"Grass": 0.70}
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).

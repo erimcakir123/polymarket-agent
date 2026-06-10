@@ -916,6 +916,15 @@ ağırlıklı oyun stili reytingde temsil edilmiyor (Perricard vakası: -$49).
 **Geri açma:** çim sezonu 13 Tem'de bitiyor (liste fiilen etkisiz kalır);
 gelecek çim sezonu öncesi servis-ağırlıklı çim modeli lab çalışması yapılabilir.
 
+**Ek kural — çim %70 güven barı (2026-06-11, kullanıcı: "kesin bulursak girelim"):**
+Çimde model bir tarafa en az %70 vermiyorsa hiç girilmez
+(`tennis.model_min_prob_by_surface: {"Grass": 0.70}`, skip nedeni
+`model_confidence_below_surface_min`; ML zaten kapalı olduğundan fiilen çim set
+bahislerine uygulanır). Geriye-dönük kanıt (22 set bahsi): ≥%70 → 17 işlem
++$38.3; %60-70 bandı → 5 işlem -$6.7. Örnek: Tiafoe SH (%64.5) artık girilmez;
+Minaur (%80)/Anisimova (%78)/Mertens (%74) girilir. Diğer zeminler gate'in
+genel %60 barında (model_min_anchor_distance_from_half=0.10) kalır.
+
 ---
 
 ### SPEC-Z28 — Tenis Match O/U TAMAMEN kaldırıldı (2026-06-09)

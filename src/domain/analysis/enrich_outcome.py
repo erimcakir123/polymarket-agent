@@ -25,6 +25,9 @@ class EnrichFailReason(str, Enum):
     # 2026-06-11: zemin bazlı model-ML kapatma (çim kararı — config
     # tennis.model_ml_disabled_surfaces). Bahisçi yolu etkilenmez.
     MODEL_SURFACE_DISABLED = "model_surface_disabled"
+    # 2026-06-11: zemin bazlı min güven ("kesin bulursak girelim" — çimde model
+    # bir tarafa en az %70 vermiyorsa girilmez; tennis.model_min_prob_by_surface).
+    MODEL_CONFIDENCE_BELOW_SURFACE_MIN = "model_confidence_below_surface_min"
     # Basketball model anchor (Plan 1.C):
     MODEL_TEAM_NOT_IN_RATINGS = "model_team_not_in_ratings"
     MODEL_BASKETBALL_DATA_MISSING = "model_basketball_data_missing"

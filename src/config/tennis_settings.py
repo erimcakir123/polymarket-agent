@@ -49,3 +49,9 @@ class TennisConfig(BaseModel):
     # bahisçili maçlar (Queen's tipi) ve set bahisleri etkilenmez. Kanıt: çim
     # model-ML 30 maç -$84.6, model %53 teslim / %64 iddia, anlaşmazlıkta piyasa 9-3.
     model_ml_disabled_surfaces: List[str] = Field(default_factory=lambda: ["Grass"])
+    # 2026-06-11 (kullanıcı: "kesin bulursak girelim"): bu zeminlerde model bir
+    # tarafa en az bu olasılığı vermiyorsa hiç girilmez (fiilen çim set bahisleri).
+    # Geriye-dönük 22 set bahsi: ≥%70 17 işlem +$38.3; %60-70 bandı 5 işlem -$6.7.
+    model_min_prob_by_surface: dict[str, float] = Field(
+        default_factory=lambda: {"Grass": 0.70}
+    )
