@@ -104,9 +104,16 @@ def load_surface_ratings(
 
 def load_all_surfaces(
     path: Path,
+    phi_fallback: float = _SURFACE_PHI_FALLBACK_THRESHOLD,
 ) -> dict[str, dict[str, PlayerSnapshot]]:
-    """Hard, Clay, Grass icin 3 ayri dict — dispatch surface'a gore secer."""
-    return {s: load_surface_ratings(path, s) for s in _DEFAULT_VALID_SURFACES}
+    """Hard, Clay, Grass icin 3 ayri dict — dispatch surface'a gore secer.
+
+    phi_fallback: yüzey reytinginin phi'si bu eşiğin üstündeyse overall'a düşülür.
+    2026-06-10 kalıcılık testi (592 tur-seviyesi 2025 çim maçı): genel karne çimde
+    en iyi tahminci → eşik config'den 100'e çekildi (orta bant bloklanmak yerine
+    genel karneyle oynar). Config: tennis.surface_phi_fallback.
+    """
+    return {s: load_surface_ratings(path, s, phi_fallback) for s in _DEFAULT_VALID_SURFACES}
 
 
 def save_all_surfaces(

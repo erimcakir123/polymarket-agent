@@ -131,7 +131,10 @@ def build_agent(state: RuntimeState) -> Agent:
     tennis_surface_ratings = None
     if _surface_ratings_path.exists():
         from src.infrastructure.data.tennis_surface_ratings_store import load_all_surfaces
-        tennis_surface_ratings = load_all_surfaces(_surface_ratings_path)
+        # 2026-06-10: phi_fallback config'den (kalıcılık testi kanıtıyla 150→100).
+        tennis_surface_ratings = load_all_surfaces(
+            _surface_ratings_path, cfg.tennis.surface_phi_fallback,
+        )
         logger.info(
             "Tennis SURFACE-specific Glicko aktif: Hard=%d Clay=%d Grass=%d oyuncu",
             len(tennis_surface_ratings.get("Hard", {})),

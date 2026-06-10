@@ -360,6 +360,10 @@ tennis:
   # PLAN-DATA1 (2026-06-10): Sackmann CSV cache bu yaştan eskiyse tazelenir (eski sabit 3 gündü;
   # 8 Haz güncellemesi kıl payı kaçtı → günlük). Açılışta + döngüde günde 1 kez kontrol edilir.
   sackmann_max_age_days: 1
+  # 2026-06-10 kalıcılık testi (592 tur-seviyesi 2025 çim maçı): genel karne çimde en iyi
+  # tahminci → 150'den 100'e çekildi. Yüzey reytingi phi'si bu eşiği aşarsa genel reytinge
+  # düşülür — orta bant bloklanmaz, çim akışı veri gecikmesinden bağımsız açık kalır.
+  surface_phi_fallback: 100.0
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).

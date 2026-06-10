@@ -28,6 +28,10 @@ class TennisConfig(BaseModel):
     max_phi_for_trade: float = 100.0
     surface_unknown_recheck_days: int = 1
     sackmann_max_age_days: int = 1
+    # 2026-06-10 kalıcılık testi kanıtıyla 150→100: yüzey reytingi phi'si bu eşiği
+    # aşarsa genel (overall) reytinge düşülür — orta bant bloklanmaz, genel karneyle
+    # oynar (çim akışı veri gecikmesinden bağımsız açık kalır).
+    surface_phi_fallback: float = 100.0
     low_tier_slug_prefixes: List[str] = Field(
         default_factory=lambda: ["itf-", "challenger-", "futures-"]
     )

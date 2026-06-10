@@ -41,3 +41,17 @@ def test_save_all_surfaces_grass_phi_fallback_to_overall(tmp_path):
     loaded = load_all_surfaces(path)
     # Grass phi 200 ≥ 150 → overall'a düşmeli (mevcut load davranışı)
     assert loaded["Grass"]["Bob B"].rating.mu == 1500.0
+
+
+def test_load_all_surfaces_respects_config_phi_fallback(tmp_path):
+    path = tmp_path / "surface.json"
+    overall = {"Cara C": Rating(mu=1550.0, phi=60.0, sigma=0.06)}
+    by_surface = {"Hard": {}, "Clay": {},
+                  "Grass": {"Cara C": Rating(mu=1480.0, phi=120.0, sigma=0.06)}}
+    save_all_surfaces(overall, by_surface, {}, path)
+    # Eşik 100: çim phi 120 ≥ 100 → genel reytinge düşer (yeni config davranışı)
+    loaded = load_all_surfaces(path, phi_fallback=100.0)
+    assert loaded["Grass"]["Cara C"].rating.mu == 1550.0
+    # Eşik 150 (eski): çim reytingi kullanılırdı
+    loaded_old = load_all_surfaces(path, phi_fallback=150.0)
+    assert loaded_old["Grass"]["Cara C"].rating.mu == 1480.0
