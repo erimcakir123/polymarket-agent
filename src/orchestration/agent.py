@@ -82,8 +82,11 @@ class Agent:
         # MagicMock deps'lerde config attribute olmayabilir → güvenli default 60 tick.
         self._health_tick: int = 0
         # SPEC-Z9 2026-06-03: roster drift check timestamp (time-based 12h throttle)
-        from datetime import datetime  # noqa: PLC0415 — type hint local
+        from datetime import datetime, timezone  # noqa: PLC0415 — type hint local
         self._drift_last_check_at: datetime | None = None
+        # PLAN-DATA1 2026-06-10: Sackmann günlük tazeleme damgası. Boot'ta factory
+        # zaten refresh etti → ilk döngü-içi kontrol 24 saat sonra.
+        self._sackmann_last_check_at: datetime | None = datetime.now(timezone.utc)
         try:
             cfg_alert = deps.state.config.telegram.alert
             light_sec = max(1, int(deps.state.config.cycle.light_interval_sec))
@@ -138,6 +141,7 @@ class Agent:
 
             try:
                 if tick.run_heavy:
+                    self._maybe_sackmann_daily_refresh()
                     self._entry.run_heavy()
                     # SPEC-M: Heavy sonrasi en yakin maca kadar saatleri hesapla,
                     # cycle_manager bir sonraki interval'i bu bilgiyle secsin.
@@ -204,6 +208,29 @@ class Agent:
             if max_ticks is not None and ticks >= max_ticks:
                 break
             time.sleep(self.deps.cycle_manager.sleep_seconds())
+
+    def _maybe_sackmann_daily_refresh(self) -> None:
+        """PLAN-DATA1 (2026-06-10): günde 1 kez Sackmann cache tazelik kontrolü.
+
+        Bot reload'suz haftalarca çalışsa da veri güncel kalır (eskiden sadece
+        açılışta kontrol vardı → 8 Haz güncellemesi kıl payı kaçmıştı). Cache
+        taze ise no-op (<1sn); bayatsa indirme + çift-karne rebuild (~1-2dk,
+        heavy cycle başında bloklar — açılıştaki davranışla aynı).
+        Exception isolated — refresh fail → cycle bozulmaz, mevcut veriyle devam.
+        """
+        from datetime import datetime, timezone  # noqa: PLC0415
+        from src.orchestration.factory_refresh_hooks import (  # noqa: PLC0415
+            _maybe_invoke_sackmann_refresh,
+            is_daily_check_due,
+        )
+        now = datetime.now(timezone.utc)
+        if not is_daily_check_due(self._sackmann_last_check_at, now):
+            return
+        self._sackmann_last_check_at = now
+        try:
+            _maybe_invoke_sackmann_refresh(self.deps.state.config)
+        except Exception as e:
+            logger.warning("Günlük Sackmann tazeleme başarısız: %s", e)
 
     def _maybe_check_roster_drift(self) -> None:
         """SPEC-Z9 (2026-06-03): günde 1 Polymarket /teams + /sports diff.

@@ -107,3 +107,42 @@ def load_all_surfaces(
 ) -> dict[str, dict[str, PlayerSnapshot]]:
     """Hard, Clay, Grass icin 3 ayri dict — dispatch surface'a gore secer."""
     return {s: load_surface_ratings(path, s) for s in _DEFAULT_VALID_SURFACES}
+
+
+def save_all_surfaces(
+    overall: dict[str, Rating],
+    by_surface: dict[str, dict[str, Rating]],
+    serve_by_player: dict[str, dict[str, PlayerServeStats]],
+    path: Path,
+) -> None:
+    """Yüzey reytinglerini load_all_surfaces'ın okuduğu formatta yaz (PLAN-DATA1).
+
+    Format lab_v2 build çıktısıyla birebir: {name: {overall, Hard, Clay, Grass, serve}}.
+    Atomic yazım: önce .tmp, sonra replace (yarım dosya riski yok).
+    """
+    def _r(r: Rating | None) -> dict:
+        r = r or Rating()
+        return {"mu": r.mu, "phi": r.phi, "sigma": r.sigma}
+
+    names = set(overall)
+    for d in by_surface.values():
+        names.update(d)
+    out: dict[str, dict] = {}
+    for name in names:
+        blob: dict = {"overall": _r(overall.get(name))}
+        for surf in _DEFAULT_VALID_SURFACES:
+            blob[surf] = _r(by_surface.get(surf, {}).get(name))
+        serve = serve_by_player.get(name)
+        if serve:
+            blob["serve"] = {
+                surf: {
+                    "serve_pts_won_pct": s.serve_pts_won_pct,
+                    "return_pts_won_pct": s.return_pts_won_pct,
+                    "n_points": s.n_points,
+                }
+                for surf, s in serve.items()
+            }
+        out[name] = blob
+    tmp = Path(path).with_suffix(".tmp")
+    tmp.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)

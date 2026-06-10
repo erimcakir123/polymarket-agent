@@ -20,10 +20,14 @@ class TennisConfig(BaseModel):
       bazen "atp-" / "wta-" slug + question'da gerçek tier yazıyor).
     surface_unknown_recheck_days: UNKNOWN damgalı turnuva zemini bu kadar gün
       sonra Wikipedia'dan tekrar sorgulanır (TTL — varsayılan günlük).
+    sackmann_max_age_days: Sackmann CSV cache bu yaştan eskiyse tazelenir
+      (PLAN-DATA1: 3→1 gün; kaynak ~2-3 haftada bir güncellenir, günlük kontrol
+      bedava ve 8 Haz tipi kıl-payı kaçırmaları önler).
     """
     model_config = ConfigDict(extra="ignore")
     max_phi_for_trade: float = 100.0
     surface_unknown_recheck_days: int = 1
+    sackmann_max_age_days: int = 1
     low_tier_slug_prefixes: List[str] = Field(
         default_factory=lambda: ["itf-", "challenger-", "futures-"]
     )

@@ -9,22 +9,33 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
-from src.domain.pricing.tennis.glicko import Rating, update_rating
+from src.domain.pricing.tennis.glicko import fit_ratings
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import aggregate_serve_stats
 from src.domain.pricing.tennis.surface_map import build_surface_map
 from src.infrastructure.data.sackmann_csv_loader import load_matches_from_path
 from src.infrastructure.data.tennis_ratings_store import save_ratings
 from src.infrastructure.data.tennis_surface_map_store import save_surface_map
+from src.infrastructure.data.tennis_surface_ratings_store import save_all_surfaces
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CACHE_DIR = Path("data/sackmann_cache")
 _DEFAULT_OUTPUT = Path("data/tennis_ratings.json")
+_DEFAULT_SURFACE_OUTPUT = Path("data/tennis_ratings_surface.json")
+_VALID_SURFACES = ("Hard", "Clay", "Grass")
 
 
-def build_ratings(cache_dir: Path, output_path: Path) -> None:
-    """All CSVs in cache_dir → aggregate stats + Glicko loop → save JSON."""
+def build_ratings(
+    cache_dir: Path,
+    output_path: Path,
+    surface_output_path: Path = _DEFAULT_SURFACE_OUTPUT,
+) -> None:
+    """CSV cache → TEK veri fotoğrafından HEM genel HEM yüzeye-özgü reytingler.
+
+    PLAN-DATA1: iki dosya aynı anda kurulur (homojenlik) — eskiden yüzey dosyası
+    ayrı lab scriptiyle elle kuruluyordu ve bayatlıyordu (2026-06-02'de kalmıştı).
+    """
     csv_files = sorted(Path(cache_dir).glob("*.csv"))
     all_matches = []
     for csv in csv_files:
@@ -44,12 +55,7 @@ def build_ratings(cache_dir: Path, output_path: Path) -> None:
     logger.info("Building ratings from %d matches", len(all_matches))
 
     serve_stats = aggregate_serve_stats(all_matches)
-    ratings: dict[str, Rating] = defaultdict(Rating)
-    for m in all_matches:
-        w = ratings[m.winner_name]
-        loser_r = ratings[m.loser_name]
-        ratings[m.winner_name] = update_rating(w, [loser_r], [1.0])
-        ratings[m.loser_name] = update_rating(loser_r, [w], [0.0])
+    ratings = fit_ratings([(m.winner_name, m.loser_name) for m in all_matches])
 
     serve_by_player: dict[str, dict] = defaultdict(dict)
     for (player, surface), stats in serve_stats.items():
@@ -61,6 +67,19 @@ def build_ratings(cache_dir: Path, output_path: Path) -> None:
     }
     save_ratings(snapshot, output_path)
     logger.info("Saved %d player ratings to %s", len(snapshot), output_path)
+
+    by_surface = {
+        surf: fit_ratings([
+            (m.winner_name, m.loser_name) for m in all_matches if m.surface == surf
+        ])
+        for surf in _VALID_SURFACES
+    }
+    save_all_surfaces(ratings, by_surface, dict(serve_by_player), surface_output_path)
+    logger.info(
+        "Saved surface ratings to %s (Hard=%d Clay=%d Grass=%d)",
+        surface_output_path,
+        len(by_surface["Hard"]), len(by_surface["Clay"]), len(by_surface["Grass"]),
+    )
 
 
 def main() -> None:

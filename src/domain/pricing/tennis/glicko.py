@@ -120,3 +120,18 @@ def update_rating(
         phi=new_phi * _SCALE,
         sigma=new_sigma,
     )
+
+
+def fit_ratings(results: list[tuple[str, str]]) -> dict[str, Rating]:
+    """Kronolojik (kazanan, kaybeden) çiftlerinden Glicko fit (PLAN-DATA1 DRY).
+
+    build_tennis_ratings + sim/araştırma scriptlerinin ortak döngüsü — saf fonksiyon.
+    Çiftler ÇAĞIRAN tarafından tarihe göre sıralanmış olmalı.
+    """
+    ratings: dict[str, Rating] = {}
+    for winner, loser in results:
+        w = ratings.get(winner, Rating())
+        loser_r = ratings.get(loser, Rating())
+        ratings[winner] = update_rating(w, [loser_r], [1.0])
+        ratings[loser] = update_rating(loser_r, [w], [0.0])
+    return ratings

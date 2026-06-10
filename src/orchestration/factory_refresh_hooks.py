@@ -6,6 +6,7 @@ Basketball refresh hook'ları factory_basketball.py'da.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.config.settings import AppConfig
@@ -16,23 +17,35 @@ from src.infrastructure.data.sackmann_refresher import (
 
 logger = logging.getLogger(__name__)
 
+_DAILY_CHECK_PERIOD_HOURS = 24.0  # PLAN-DATA1: döngü-içi kontrol sıklığı (günde 1)
 
-def maybe_refresh_sackmann_on_startup(cache_dir: Path) -> None:
+
+def is_daily_check_due(
+    last_check: datetime | None,
+    now: datetime,
+    period_hours: float = _DAILY_CHECK_PERIOD_HOURS,
+) -> bool:
+    """Saf karar: son kontrolden bu yana periyot doldu mu? (PLAN-DATA1 g4)."""
+    return last_check is None or (now - last_check) >= timedelta(hours=period_hours)
+
+
+def maybe_refresh_sackmann_on_startup(cache_dir: Path, max_age_days: int = 1) -> None:
     """Refresh Sackmann CSV + rebuild ratings if cache stale (tennis aktif iken).
 
     Synchronous; bot agent build_deps öncesi blocking çalışır. Stale değilse
     early return (1sn altı). İlk başlatma stale → ~1-2dk download + rebuild.
     Network fail → log WARNING, mevcut cache ile devam.
+    PLAN-DATA1: rebuild artık HEM genel HEM yüzey karne dosyasını aynı veriden kurar.
     """
-    if not is_cache_stale(cache_dir):
+    if not is_cache_stale(cache_dir, max_age_days):
         logger.info("Sackmann cache fresh — skipping startup refresh")
         return
     logger.info("Sackmann cache stale — refreshing before agent start")
-    refreshed = refresh_if_stale(cache_dir)
+    refreshed = refresh_if_stale(cache_dir, max_age_days)
     if not refreshed:
         logger.warning("Sackmann refresh attempted but no files downloaded")
         return
-    logger.info("Rebuilding tennis_ratings.json from refreshed CSVs...")
+    logger.info("Rebuilding tennis ratings (flat + surface) from refreshed CSVs...")
     try:
         from scripts.build_tennis_ratings import main as rebuild_main  # noqa: PLC0415
         rebuild_main()
@@ -46,7 +59,9 @@ def _maybe_invoke_sackmann_refresh(cfg: AppConfig) -> None:
     tags_lc = {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])}
     if not ({"atp", "wta"} & tags_lc):
         return
-    maybe_refresh_sackmann_on_startup(Path("data/sackmann_cache"))
+    maybe_refresh_sackmann_on_startup(
+        Path("data/sackmann_cache"), cfg.tennis.sackmann_max_age_days,
+    )
 
 
 def _maybe_invoke_calibration_refresh() -> None:

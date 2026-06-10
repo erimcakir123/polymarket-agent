@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.domain.analysis.enrich_outcome import EnrichFailReason, EnrichResult
-from src.domain.pricing.tennis.glicko import Rating, update_rating
+from src.domain.pricing.tennis.glicko import Rating, fit_ratings
 from src.domain.pricing.tennis.match_record import MatchRecord
 from src.domain.pricing.tennis.player_snapshot import PlayerSnapshot
 from src.domain.pricing.tennis.serve_metrics import PlayerServeStats, aggregate_serve_stats
@@ -109,13 +109,8 @@ def decide_gate(
 
 
 def _fit_glicko(matches: list[MatchRecord]) -> dict[str, Rating]:
-    """Kronolojik Glicko fit (build_tennis_ratings.build_ratings ile aynı döngü)."""
-    ratings: dict[str, Rating] = defaultdict(Rating)
-    for m in matches:
-        w, loser_r = ratings[m.winner_name], ratings[m.loser_name]
-        ratings[m.winner_name] = update_rating(w, [loser_r], [1.0])
-        ratings[m.loser_name] = update_rating(loser_r, [w], [0.0])
-    return dict(ratings)
+    """Kronolojik Glicko fit — domain `fit_ratings`'e ince sarmalayıcı (DRY)."""
+    return fit_ratings([(m.winner_name, m.loser_name) for m in matches])
 
 
 def build_cutoff_snapshots(

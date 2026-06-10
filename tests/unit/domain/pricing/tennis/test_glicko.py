@@ -49,3 +49,11 @@ def test_no_games_only_drifts_rd():
     r_new = update_rating(r, opponents=[], outcomes=[])
     assert r_new.mu == r.mu
     assert r_new.phi >= r.phi
+
+
+def test_fit_ratings_winner_above_loser_chronological():
+    from src.domain.pricing.tennis.glicko import fit_ratings
+    ratings = fit_ratings([("A", "B"), ("A", "B"), ("A", "C")])
+    assert ratings["A"].mu > ratings["B"].mu
+    assert ratings["A"].mu > ratings["C"].mu
+    assert ratings["A"].phi < Rating().phi  # maç gördükçe belirsizlik düşer

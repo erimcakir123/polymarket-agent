@@ -357,6 +357,9 @@ tennis:
   max_phi_for_trade: 100.0
   # UNKNOWN damgalı turnuva zemini bu kadar gün sonra Wikipedia'dan tekrar sorgulanır (TTL).
   surface_unknown_recheck_days: 1
+  # PLAN-DATA1 (2026-06-10): Sackmann CSV cache bu yaştan eskiyse tazelenir (eski sabit 3 gündü;
+  # 8 Haz güncellemesi kıl payı kaçtı → günlük). Açılışta + döngüde günde 1 kez kontrol edilir.
+  sackmann_max_age_days: 1
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).
