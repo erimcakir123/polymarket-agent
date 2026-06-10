@@ -281,3 +281,21 @@ def test_odds_quota_no_data_or_no_client_no_alert(tmp_path: Path) -> None:
         tmp_path, odds_client=_StubOdds(None), odds_low_credit_threshold=50,
     )._check_odds_quota() == []
     assert _make_monitor(tmp_path)._check_odds_quota() == []  # odds_client=None default
+
+
+def test_surface_changed_info_emitted_once_then_drained():
+    """2026-06-10 görünce-tazele: zemin değişimi TEK SEFER bilgi olarak gider,
+    sonraki kontrolde tekrar üretilmez (drenaj)."""
+    class _R:
+        unresolved = set()
+        surface_changes = {"berlin open": ("Grass", "Clay")}
+    r = _R()
+    hm = HealthMonitor(notifier=None, surface_resolver=r)
+    alerts = hm._check_surface_unknown()
+    assert any(
+        a.category == "SURFACE_CHANGED_berlin open" and "Grass→Clay" in a.message
+        and a.severity == "info"
+        for a in alerts
+    )
+    assert r.surface_changes == {}              # drenaj yapıldı
+    assert hm._check_surface_unknown() == []    # ikinci turda tekrar yok
