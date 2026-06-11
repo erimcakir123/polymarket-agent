@@ -111,6 +111,9 @@ class RiskConfig(BaseModel):
     model_min_anchor_distance_from_half: float = 0.10
     # SPEC-X (2026-05-24): bimodal market'ler için entry alt sınır.
     bimodal_min_entry_price: float = 0.20
+    # 2026-06-11 (kullanıcı: "tennis sadece"): TENİS bimodal güven barı — girilen
+    # tarafa anchor < bu → girilmez. Basket O/U/spread bilinçli kapsam dışı.
+    tennis_bimodal_min_side_confidence: float = 0.70
     consecutive_loss_cooldown: int = 3
     cooldown_cycles: int = 2
     stop_loss_pct: float = 0.30

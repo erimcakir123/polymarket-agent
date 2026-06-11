@@ -56,6 +56,11 @@ def _is_bimodal_market(market: MarketData) -> bool:
     return is_bimodal_market(market.sport_tag or "", str(t))
 
 
+# 2026-06-11: tenis bimodal güven barı için sport eşleşmesi (gamma tag "tennis",
+# atp/wta yedek etiketler).
+_TENNIS_SPORT_TAGS = frozenset({"tennis", "atp", "wta"})
+
+
 def _is_bimodal_market_type(market: MarketData) -> bool:
     """SPEC-X (2026-05-24): bimodal market type check — market_type only.
 
@@ -113,6 +118,9 @@ class GateConfig:
     # Bu fiyatın altındaki entry'ler "piyasa kararını vermiş" sayılır — ultra-low guard
     # zaten anında tetikleneceği için baştan reddedilir.
     bimodal_min_entry_price: float = 0.20
+    # 2026-06-11 (kullanıcı: "tennis sadece"): TENİS bimodal markette girilen
+    # tarafa anchor < bu güveni veriyorsa girilmez. Basket O/U kapsam dışı.
+    tennis_bimodal_min_side_confidence: float = 0.70
     # Consensus
     consensus_enabled: bool = True
     consensus_min_price: float = 0.65
@@ -310,6 +318,28 @@ class EntryGate:
                 cid, None, "bimodal_entry_live",
                 skip_detail="market is live",
                 manipulation=manip,
+            )
+
+        # 6d. TENİS bimodal güven barı (2026-06-11 kullanıcı: "tüm set 2-0
+        # farkları 70 üstü olsun — basketball değil, tennis sadece"): tenis set
+        # bahsinde girilen tarafa anchor < eşik → girilmez. Geriye-dönük:
+        # ≥%70 17 işlem +$38.3, %60-70 bandı 5 işlem -$6.7. model_fair (6a) =
+        # girilen tarafın anchor güveni. Basket O/U/spread bilinçli kapsam DIŞI.
+        # NOT: _is_bimodal_market_type tenis set tiplerini kapsamaz (totals/spread
+        # only) — sport-aware _is_bimodal_market kullanılır (tennis_set_* dahil,
+        # sizing'dekiyle aynı sarmalayıcı).
+        if (
+            (market.sport_tag or "").lower() in _TENNIS_SPORT_TAGS
+            and _is_bimodal_market(market)
+            and model_fair < self.config.tennis_bimodal_min_side_confidence
+        ):
+            detail = (
+                f"side_conf={model_fair:.3f}, "
+                f"min={self.config.tennis_bimodal_min_side_confidence}"
+            )
+            return GateResult(
+                cid, None, "bimodal_confidence_below_min",
+                skip_detail=detail, manipulation=manip,
             )
 
         # 7. Position sizing — SPEC-P sabit-tier + SPEC-U bimodal-aware.

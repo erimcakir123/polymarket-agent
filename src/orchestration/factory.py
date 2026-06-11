@@ -238,6 +238,7 @@ def build_agent(state: RuntimeState) -> Agent:
         entry_price_slippage_buffer=cfg.risk.entry_price_slippage_buffer,
         model_min_anchor_distance_from_half=cfg.risk.model_min_anchor_distance_from_half,
         bimodal_min_entry_price=cfg.risk.bimodal_min_entry_price,
+        tennis_bimodal_min_side_confidence=cfg.risk.tennis_bimodal_min_side_confidence,
         # Consensus
         consensus_enabled=cfg.consensus.enabled,
         consensus_min_price=cfg.consensus.min_price,

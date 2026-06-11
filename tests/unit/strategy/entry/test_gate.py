@@ -557,6 +557,76 @@ def test_gate_bimodal_market_entry_below_floor_skipped() -> None:
     assert result.skipped_reason == "bimodal_entry_below_floor"
 
 
+def test_gate_tennis_set_confidence_below_min_buy_yes_blocked() -> None:
+    """2026-06-11 kullanıcı kararı ('tüm setler %70 üstü — tennis sadece'):
+    tenis set bahsinde girilen tarafa anchor < %70 → girilmez. bm=0.65."""
+    market = _bimodal_market(
+        slug="atp-set-handicap-2026", yp=0.55,
+        sport_tag="tennis", sports_market_type="tennis_set_handicap",
+    )
+    bm = BookmakerProbability(
+        probability=0.65, confidence="A",
+        bookmaker_prob=0.65, num_bookmakers=5.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason == "bimodal_confidence_below_min"
+
+
+def test_gate_tennis_set_confidence_below_min_buy_no_blocked() -> None:
+    """BUY_NO yönü: bm=0.35 → NO tarafına güven 0.65 < 0.70 → blok."""
+    market = _bimodal_market(
+        slug="wta-set-handicap-2026", yp=0.45,
+        sport_tag="tennis", sports_market_type="tennis_set_handicap",
+    )
+    bm = BookmakerProbability(
+        probability=0.35, confidence="A",
+        bookmaker_prob=0.35, num_bookmakers=5.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason == "bimodal_confidence_below_min"
+
+
+def test_gate_tennis_set_confidence_at_or_above_min_passes() -> None:
+    """Güven ≥ %70 → bar takılmaz (bm=0.75, BUY_YES)."""
+    market = _bimodal_market(
+        slug="atp-set-handicap-2026", yp=0.65,
+        sport_tag="tennis", sports_market_type="tennis_set_handicap",
+    )
+    bm = BookmakerProbability(
+        probability=0.75, confidence="A",
+        bookmaker_prob=0.75, num_bookmakers=5.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_confidence_below_min"
+
+
+def test_gate_basketball_totals_not_affected_by_tennis_confidence_bar() -> None:
+    """Kullanıcı kapsamı: 'basketball total under değil, tennis sadece' —
+    basket O/U %65 güvenle bara TAKILMAZ."""
+    market = _bimodal_market(
+        slug="wnba-total-2026", yp=0.55,
+        sport_tag="wnba", sports_market_type="totals",
+    )
+    bm = BookmakerProbability(
+        probability=0.65, confidence="A",
+        bookmaker_prob=0.65, num_bookmakers=10.0, has_sharp=True,
+    )
+    gate = _make_gate(enricher=lambda m: _enrich(bm))
+    result = gate._evaluate_one(market)
+    assert result.skipped_reason != "bimodal_confidence_below_min"
+
+
+def test_gate_moneyline_not_affected_by_bimodal_confidence_bar() -> None:
+    """Bar sadece tenis bimodal: moneyline'da %65 güvenli giriş aynen çalışır."""
+    gate = _make_gate(enricher=lambda m: _enrich(_bm(prob=0.65, conf="A")))
+    result = gate._evaluate_one(_market(yp=0.55))
+    assert result.skipped_reason != "bimodal_confidence_below_min"
+    assert result.signal is not None
+
+
 def test_gate_bimodal_market_entry_at_floor_not_blocked_by_floor() -> None:
     """Sınır: entry_price = 0.20 → floor blokuna takılmaz (strict less-than).
 

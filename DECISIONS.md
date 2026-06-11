@@ -925,6 +925,15 @@ bahislerine uygulanır). Geriye-dönük kanıt (22 set bahsi): ≥%70 → 17 iş
 Minaur (%80)/Anisimova (%78)/Mertens (%74) girilir. Diğer zeminler gate'in
 genel %60 barında (model_min_anchor_distance_from_half=0.10) kalır.
 
+**Genelleme (aynı gün, kullanıcı: "tüm set 2-0 farkları 70 üstü — tennis sadece,
+basketball değil"):** Gate seviyesinde TENİS bimodal güven barı —
+`risk.tennis_bimodal_min_side_confidence: 0.70`, skip nedeni
+`bimodal_confidence_below_min`. TÜM zeminlerdeki tenis set bahislerinde girilen
+tarafa anchor < %70 → girilmez (kaynak fark etmez). Basket O/U/spread bilinçli
+kapsam DIŞI (kullanıcı kararı). Yukarıdaki dispatch-seviye çim barı savunma
+katmanı olarak kalır (aynı eşik). Kurala uymayan tek açık pozisyon (Tiafoe SH
+%64.5) 2026-06-11'de manuel kapatıldı (pnl $0, fiyat girişle aynıydı).
+
 ---
 
 ### SPEC-Z28 — Tenis Match O/U TAMAMEN kaldırıldı (2026-06-09)
