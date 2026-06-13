@@ -77,6 +77,29 @@ def test_build_ratings_default_surface_output_next_to_ratings_production_untouch
     )
 
 
+def test_recent_results_merged_into_ratings_not_serve(tmp_path):
+    """Taze sonuç Glicko reytingini değiştirir, servis istatistiğine girmez."""
+    from scripts.build_tennis_ratings import build_ratings
+    from src.domain.pricing.tennis.harvested_result import HarvestedResult
+    import json
+
+    csv_path = tmp_path / "atp_matches_2026.csv"
+    csv_path.write_text(SAMPLE_CSV, encoding="utf-8")
+    out = tmp_path / "ratings.json"
+
+    # Bob taze sonuçta Alice'i yener (CSV'de Alice kazanıyordu)
+    recent = [HarvestedResult(winner="Bob", loser="Alice", surface="Hard", date="20260612")]
+    build_ratings(tmp_path, out, recent_results=recent)
+
+    data = json.loads(out.read_text(encoding="utf-8"))
+    # Taze galibiyetle Bob'un mu'su CSV-only halinden YUKSEK olmalı (CSV-only ~1337)
+    assert data["Bob"]["rating"]["mu"] > 1340
+    # Servis: taze sonuç serve agregasyonuna GİRMEZ → CSV'deki değerle birebir aynı
+    # (Bob CSV'de loser olarak serve verisi var; recent_results bunu değiştirmemeli)
+    csv_only_bob_serve = {"Hard": {"serve_pts_won_pct": 0.5333333333333333, "return_pts_won_pct": 0.3125, "n_points": 155}}
+    assert data["Bob"].get("serve") == csv_only_bob_serve
+
+
 def test_build_ratings_writes_surface_map(tmp_path, monkeypatch):
     import scripts.build_tennis_ratings as _mod
     from scripts.build_tennis_ratings import build_ratings

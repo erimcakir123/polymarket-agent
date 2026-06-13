@@ -30,6 +30,7 @@ def build_ratings(
     cache_dir: Path,
     output_path: Path,
     surface_output_path: Path | None = None,
+    recent_results: list | None = None,  # list[HarvestedResult]
 ) -> None:
     """CSV cache → TEK veri fotoğrafından HEM genel HEM yüzeye-özgü reytingler.
 
@@ -61,8 +62,13 @@ def build_ratings(
     all_matches.sort(key=lambda m: m.tourney_date)
     logger.info("Building ratings from %d matches", len(all_matches))
 
-    serve_stats = aggregate_serve_stats(all_matches)
-    ratings = fit_ratings([(m.winner_name, m.loser_name) for m in all_matches])
+    recent = recent_results or []
+    # Taze (kazanan, kaybeden) çiftleri — Sackmann'dan SONRA (daha yeni, kronoloji korunur).
+    overall_pairs = [(m.winner_name, m.loser_name) for m in all_matches] + [
+        (r.winner, r.loser) for r in recent
+    ]
+    serve_stats = aggregate_serve_stats(all_matches)  # taze sonuç serve'e GIRMEZ
+    ratings = fit_ratings(overall_pairs)
 
     serve_by_player: dict[str, dict] = defaultdict(dict)
     for (player, surface), stats in serve_stats.items():
@@ -76,9 +82,10 @@ def build_ratings(
     logger.info("Saved %d player ratings to %s", len(snapshot), output_path)
 
     by_surface = {
-        surf: fit_ratings([
-            (m.winner_name, m.loser_name) for m in all_matches if m.surface == surf
-        ])
+        surf: fit_ratings(
+            [(m.winner_name, m.loser_name) for m in all_matches if m.surface == surf]
+            + [(r.winner, r.loser) for r in recent if r.surface == surf]
+        )
         for surf in _VALID_SURFACES
     }
     save_all_surfaces(ratings, by_surface, dict(serve_by_player), surface_output_path)
@@ -91,7 +98,11 @@ def build_ratings(
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    build_ratings(_DEFAULT_CACHE_DIR, _DEFAULT_OUTPUT)
+    from src.infrastructure.data.tennis_results_store import load_results
+    recent = load_results(Path("data/tennis_recent_results.jsonl"))
+    if recent:
+        logger.info("Taze sonuç birleştiriliyor: %d maç", len(recent))
+    build_ratings(_DEFAULT_CACHE_DIR, _DEFAULT_OUTPUT, recent_results=recent)
 
 
 if __name__ == "__main__":
