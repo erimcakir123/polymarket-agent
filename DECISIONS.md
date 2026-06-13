@@ -897,6 +897,26 @@ Bimodal market'ler (totals + spread/spreads) için entry kapısında iki ek kont
 
 ---
 
+### Tenis Taze Sonuç Hasadı + Bayatlık Koruması (2026-06-13, kullanıcı kararı)
+
+**Karar:** Tenis Glicko reytingleri her gün Polymarket çözülmüş marketlerinden toplanan taze maç sonuçlarıyla güncellenir; reyting verisi 4 günden eskiyse model bahsi yapılmaz.
+
+**Neden:** Reytingler tek kaynaktan (Sackmann CSV, 2-3 haftada bir) besleniyordu → 4-13 Haz'da 11-19 gün bayattı. Model, son 10 günde formda olan oyuncuyu göremiyor; piyasa görüyor. Otopsi (web araştırması, 20 kayıp maç): kayıpların ~%70'i bayat-form (Taro Daniel sıcak elemeci 2 seribaşı devirdi, Kasintseva kariyer yılı, Anisimova sakat — hepsini biz ters oynadık). Model-kaynak ML 15W-25L -$357. Kaynak: model-piyasa ANLAŞMAZLIK bahisleri (yeni dönem 0W-6L); piyasanın tek üstünlüğü güncellik.
+
+**Tasarım (5 katman, spec/plan: docs/superpowers/2026-06-13-tennis-fresh-results-harvest):**
+- **Hasat:** botun gördüğü tenis marketlerinden (skip + trade logları, 14 gün backfill) SADECE moneyline çözülenler → kazanan/kaybeden (Glicko skor istemez). Polymarket bedava; Odds API'ye dokunulmaz. Challenger dahil tam evren.
+- **KRİTİK:** sadece moneyline hasat edilir — set handikabı/totals maç-kazananını TERS verir (favori 2-0 yapamazsa NO); smoke testi yakaladı.
+- **Dedupe:** condition_id bazlı (maç ömür boyu 1 kez; cross-run-day çift sayım + fazla gamma fetch önlenir).
+- **Birleştirme:** `build_tennis_ratings` taze (kazanan,kaybeden) çiftlerini Glicko fit'ine ekler (genel + zemin), servis istatistiğine DOKUNMAZ.
+- **Bayatlık koruması:** en yeni maç > 4 gün eski → `MODEL_DATA_STALE`, model fiyatlamaz, bahisçi yoluna düşer. Günlük hasat çalışınca normalde tetiklenmez (emniyet kemeri).
+- **Tetik:** startup blocking hook (Sackmann gibi); rebuild sonrası düz+yüzey reyting yeniden yüklenir; `_model_stale` dispatch closure'larına geçirilir.
+
+**Config:** `tennis.staleness_threshold_days: 4`, `tennis.backfill_days: 14`. Yeni dosyalar: harvested_result (domain), data_freshness (domain), tennis_results_store (infra), tennis_seen_markets + tennis_results_harvester (orch). 2100 test yeşil. Smoke (gerçek veri): Taro Daniel/Kasintseva/Galan/Cigarran/Jovic doğru yakalandı.
+
+**Açık uçlar:** zemin coverage eksik (Lyon/Bratislava "Unknown" → sadece genel reytinge katkı, zemin reytingine değil — kabul, çim zaten genel'e düşüyordu); bu bir TEDAVİ değil SINAV — model edge'i tamir sonrası "anlaşmazlıkta kim haklı" ölçümüyle yeniden değerlendirilecek.
+
+---
+
 ### Çim model-moneyline kapatıldı (2026-06-11, kullanıcı kararı)
 
 **Karar:** Zemini "Grass" çözülen tenis maçlarında model MONEYLINE fiyatlamaz
