@@ -258,6 +258,7 @@ def enrich_with_tennis_dispatch(
     surface_resolver=None,
     model_ml_disabled_surfaces: tuple[str, ...] = (),
     model_min_prob_by_surface: dict[str, float] | None = None,
+    model_data_stale: bool = False,
 ) -> EnrichResult:
     """Tennis market enrichment — SPEC-Z14 (2026-06-03) BM-first, model fallback.
 
@@ -297,6 +298,11 @@ def enrich_with_tennis_dispatch(
         if bm_result.probability is not None:
             return bm_result
         # BM yok → model fallback (aşağı düş).
+
+    # 2026-06-13 (bayatlık koruması): reyting verisi eskiyse model fiyatlamaz.
+    # BM-first yukarıda zaten döndü; buraya gelen = model gerekiyor → stale ise skip.
+    if model_data_stale:
+        return EnrichResult(probability=None, fail_reason=EnrichFailReason.MODEL_DATA_STALE)
 
     # Model akışı (alt market'ler buradan başlar; ML için BM fail fallback'i).
     if not ratings:

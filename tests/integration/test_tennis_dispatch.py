@@ -472,3 +472,24 @@ def test_extract_location_rejects_set_winner_market():
     assert _extract_location("First Set Winner: A vs B") is None
     # gerçek turnuva hâlâ çıkar:
     assert _extract_location("Ilkley: A vs B") == "Ilkley"
+
+
+def test_stale_data_blocks_model_pricing_but_not_bookmaker():
+    """Bayat veri → model fiyatlamaz; bahisçi verisi varsa o döner."""
+    from src.domain.analysis.enrich_outcome import EnrichFailReason
+    m = _market("Lyon: Alice vs Bob")
+    ratings = {"Alice": _snap(1750, 0.66), "Bob": _snap(1500, 0.58)}
+    # BM yok + stale → MODEL_DATA_STALE
+    res = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich_none, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Clay"), model_data_stale=True,
+    )
+    assert res.probability is None
+    assert res.fail_reason == EnrichFailReason.MODEL_DATA_STALE
+    # BM VAR + stale → bahisçi döner (stale bahisçiyi etkilemez)
+    res2 = enrich_with_tennis_dispatch(
+        m, _fake_bookmaker_enrich, ratings=ratings,
+        surface_resolver=_FixedSurfaceResolver("Clay"), model_data_stale=True,
+    )
+    assert res2.probability is not None
+    assert res2.probability.source == "bookmaker"

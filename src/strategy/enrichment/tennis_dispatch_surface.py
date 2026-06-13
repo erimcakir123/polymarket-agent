@@ -45,6 +45,7 @@ def make_surface_aware_dispatch(
         surface_resolver=None,
         model_ml_disabled_surfaces: tuple[str, ...] = (),
         model_min_prob_by_surface: dict[str, float] | None = None,
+        model_data_stale: bool = False,
     ) -> EnrichResult:
         # 2026-06-10: tenis-dışı veya yetki-dışı (ITF/Challenger) markette zemin
         # ARANMAZ — bot bunları zaten oynamaz; boşa Wiki sorgusu + sahte
@@ -72,6 +73,7 @@ def make_surface_aware_dispatch(
             surface_resolver=surface_resolver,
             model_ml_disabled_surfaces=model_ml_disabled_surfaces,
             model_min_prob_by_surface=model_min_prob_by_surface,
+            model_data_stale=model_data_stale,
         )
 
     return enrich
