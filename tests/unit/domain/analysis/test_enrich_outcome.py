@@ -36,6 +36,8 @@ def test_enrich_fail_reason_values_match_spec() -> None:
         "model_surface_disabled",
         # 2026-06-11: zemin bazlı min güven (çim %70 kuralı)
         "model_confidence_below_surface_min",
+        # 2026-06-13: bayat reyting verisi → model bahsi yapma
+        "model_data_stale",
         # Basketball model anchor (Plan 1.C):
         "model_team_not_in_ratings",
         "model_basketball_data_missing",
