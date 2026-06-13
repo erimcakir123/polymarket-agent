@@ -55,3 +55,6 @@ class TennisConfig(BaseModel):
     model_min_prob_by_surface: dict[str, float] = Field(
         default_factory=lambda: {"Grass": 0.70}
     )
+    # 2026-06-13: taze sonuç hasadı + bayatlık koruması (spec 2026-06-13).
+    staleness_threshold_days: int = 4   # reyting > bu gün eski → model bahsi yok
+    backfill_days: int = 14             # ilk hasat penceresi

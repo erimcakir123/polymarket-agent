@@ -159,6 +159,47 @@ def build_agent(state: RuntimeState) -> Agent:
     )
     tennis_active = bool({"atp", "wta"} & {t.lower() for t in (cfg.scanner.allowed_sport_tags or [])})
 
+    # 2026-06-13: taze sonuç hasadı (startup blocking — Sackmann gibi) + bayatlık flag.
+    from datetime import datetime, timedelta, timezone
+
+    from src.domain.pricing.tennis.data_freshness import is_ratings_stale
+    from src.infrastructure.data.tennis_results_store import load_results
+    from src.orchestration.factory_refresh_hooks import maybe_harvest_and_rebuild
+    from src.strategy.enrichment.tennis_dispatch import _resolve_player_name
+
+    _now = datetime.now(timezone.utc)
+    _today = _now.strftime("%Y%m%d")
+    _since = (_now - timedelta(days=cfg.tennis.backfill_days)).strftime("%Y%m%d")
+    if tennis_active:
+        try:
+            added = maybe_harvest_and_rebuild(
+                gamma_client=gamma,
+                resolve_name=lambda n: _resolve_player_name(n, tennis_ratings),
+                surface_map=tennis_surface_map,
+                store_path=Path("data/tennis_recent_results.jsonl"),
+                log_paths=[
+                    Path("logs/runtime/skipped_trades.jsonl"),
+                    Path("logs/audit/trade_events.jsonl"),
+                ],
+                today_yyyymmdd=_today,
+                since_yyyymmdd=_since,
+            )
+            if added > 0:
+                # rebuild HEM düz HEM yüzey reytingini değiştirdi → ikisini de tazele
+                from src.infrastructure.data.tennis_surface_ratings_store import load_all_surfaces
+                tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
+                if tennis_surface_ratings is not None:
+                    tennis_surface_ratings = load_all_surfaces(
+                        _surface_ratings_path, cfg.tennis.surface_phi_fallback,
+                    )
+        except Exception as exc:  # noqa: BLE001 — hasat best-effort, bot çökmez
+            logger.warning("Tenis taze hasat başarısız: %s", exc)
+    _recent = load_results(Path("data/tennis_recent_results.jsonl"))
+    _newest = max((r.date for r in _recent), default=None)
+    _model_stale = is_ratings_stale(_newest, _today, cfg.tennis.staleness_threshold_days)
+    if _model_stale:
+        logger.warning("Tenis reyting verisi BAYAT (en yeni=%s) — model bahsi kapalı", _newest)
+
     # SPEC-Z21 (2026-06-06): basketbol ratings/efficiencies/rest-days/calibration
     # yüklemesi kaldırıldı — model yok, basketbol bahisçiyle fiyatlanır.
     if tennis_ratings:
@@ -200,6 +241,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 surface_resolver=tennis_surface_resolver,
                 model_ml_disabled_surfaces=tuple(cfg.tennis.model_ml_disabled_surfaces),
                 model_min_prob_by_surface=dict(cfg.tennis.model_min_prob_by_surface),
+                model_data_stale=_model_stale,
             )
     else:
         def _tennis_dispatched(market):
@@ -212,6 +254,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 surface_resolver=tennis_surface_resolver,
                 model_ml_disabled_surfaces=tuple(cfg.tennis.model_ml_disabled_surfaces),
                 model_min_prob_by_surface=dict(cfg.tennis.model_min_prob_by_surface),
+                model_data_stale=_model_stale,
             )
 
     # Gate: enricher + manipulation_check closure'ları.

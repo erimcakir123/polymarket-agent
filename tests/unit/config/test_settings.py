@@ -161,3 +161,10 @@ def test_force_close_timeouts_yaml_override_parses(tmp_path: Path) -> None:
     cfg = load_config(p)
     assert cfg.risk.force_close_timeouts["nba_match_winner"] == 180
     assert cfg.risk.force_close_timeouts["default"] == 300
+
+
+def test_tennis_freshness_config_defaults() -> None:
+    from src.config.tennis_settings import TennisConfig
+    c = TennisConfig()
+    assert c.staleness_threshold_days == 4
+    assert c.backfill_days == 14

@@ -392,6 +392,10 @@ tennis:
   # 22 set bahsi: ≥%70 → 17 işlem +$38.3; %60-70 bandı → 5 işlem -$6.7. Skip nedeni:
   # model_confidence_below_surface_min. Kaldırmak için: {} yap.
   model_min_prob_by_surface: {"Grass": 0.70}
+  # 2026-06-13: taze sonuç hasadı. Reyting verisi bu günden eskiyse model bahsi
+  # yapılmaz (bayatlık koruması); ilk hasat son backfill_days gününü tarar.
+  staleness_threshold_days: 4
+  backfill_days: 14
   # Polymarket slug bu prefix'lerden biri ile başlıyorsa low-tier (yetki dışı).
   low_tier_slug_prefixes: ["itf-", "challenger-", "futures-"]
   # Question metninde geçerse low-tier (Polymarket bazen "atp-" slug + question'da tier yazıyor).
