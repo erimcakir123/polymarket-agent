@@ -44,6 +44,12 @@ def harvest_results(
             logger.info("Harvest fetch tavanı (%d) — kalan atlandı", max_fetches)
             break
         question = m.get("question") or ""
+        # SADECE moneyline (maç-kazanır) hasat edilir. Set handikabı/set totals
+        # gibi alt marketler farklı çözülür (favori 2-0 yapamazsa NO) → maç
+        # kazananını TERS verir. _extract_location alt marketlerde None döner.
+        loc = _extract_location(question)
+        if loc is None:
+            continue
         a_raw, b_raw = extract_teams(question)
         if not a_raw or not b_raw:
             continue
@@ -56,8 +62,7 @@ def harvest_results(
         if pair is None:
             continue
         winner, loser = pair
-        loc = _extract_location(question)
-        surface = (_match_surface(loc, surface_map) if loc else None) or "Unknown"
+        surface = _match_surface(loc, surface_map) or "Unknown"
         if cid:
             already_keys.add(cid)
         out.append(HarvestedResult(

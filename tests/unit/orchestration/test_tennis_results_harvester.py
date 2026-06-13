@@ -52,6 +52,27 @@ def test_skips_unresolvable_name():
     assert out == []
 
 
+def test_set_handicap_submarket_is_not_harvested():
+    """KRİTİK: set handikabı marketi maç-kazanan TERS verebilir → hiç hasat edilmez."""
+    seen = [{"condition_id": "0xsh", "question": "Set Handicap: Medvedev (-1.5) vs Boogaard (+1.5)", "ts": "2026-06-11T18:00:00+00:00"}]
+    gamma = _FakeGamma({"0xsh": _resolved('["0","1"]')})  # NO çözüldü (Medvedev 2-0 yapamadı)
+    out = harvest_results(
+        seen, gamma, resolve_name=lambda n: n.split()[-1], surface_map={},
+        already_keys=set(), today_yyyymmdd="20260613",
+    )
+    assert out == []  # alt market hiç hasat edilmez
+
+
+def test_total_sets_submarket_is_not_harvested():
+    seen = [{"condition_id": "0xts", "question": "Medvedev vs Boogaard: Total Sets O/U 2.5", "ts": "2026-06-11T18:00:00+00:00"}]
+    gamma = _FakeGamma({"0xts": _resolved('["1","0"]')})
+    out = harvest_results(
+        seen, gamma, resolve_name=lambda n: n.split()[-1], surface_map={},
+        already_keys=set(), today_yyyymmdd="20260613",
+    )
+    assert out == []
+
+
 def test_skips_already_harvested_condition_id_without_fetching():
     fetched = {"count": 0}
     class _CountingGamma:
