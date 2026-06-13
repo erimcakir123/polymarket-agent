@@ -76,3 +76,49 @@ def _maybe_invoke_calibration_refresh() -> None:
         calibration_path=Path("data/calibration_curves.json"),
         trades_path=Path("logs/audit/trade_events.jsonl"),
     )
+
+
+def maybe_harvest_and_rebuild(
+    *,
+    gamma_client,
+    resolve_name,
+    surface_map: dict,
+    store_path: Path,
+    log_paths: list[Path],
+    today_yyyymmdd: str,
+    since_yyyymmdd: str | None = None,
+    collect_fn=None,
+    harvest_fn=None,
+    rebuild_fn=None,
+) -> int:
+    """Taze sonuç hasadı → depo → reyting rebuild. Eklenen sonuç sayısını döner.
+
+    collect/harvest/rebuild DI ile (test). Default'lar gerçek implementasyonlar.
+    since_yyyymmdd: backfill penceresi (bu tarihten eski market elenir).
+    Yeni sonuç yoksa rebuild atlanır (boşuna iş yok).
+    """
+    from src.infrastructure.data.tennis_results_store import (
+        append_results,
+        harvested_keys,
+    )
+    from src.orchestration.tennis_results_harvester import harvest_results
+    from src.orchestration.tennis_seen_markets import collect_seen_tennis_markets
+
+    collect = collect_fn or collect_seen_tennis_markets
+    harvest = harvest_fn or harvest_results
+
+    seen = collect(log_paths, since_yyyymmdd=since_yyyymmdd) if collect_fn is None else collect(log_paths)
+    if not seen:
+        return 0
+    results = harvest(
+        seen, gamma_client, resolve_name=resolve_name, surface_map=surface_map,
+        already_keys=harvested_keys(store_path), today_yyyymmdd=today_yyyymmdd,
+    )
+    added = append_results(results, store_path)
+    if added > 0 and rebuild_fn is not None:
+        rebuild_fn()
+    elif added > 0:
+        from scripts.build_tennis_ratings import main as rebuild_main
+        rebuild_main()
+    logger.info("Tenis taze hasat: %d yeni sonuç eklendi", added)
+    return added
