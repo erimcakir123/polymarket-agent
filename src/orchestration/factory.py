@@ -188,7 +188,7 @@ def build_agent(state: RuntimeState) -> Agent:
                 # rebuild HEM düz HEM yüzey reytingini değiştirdi → ikisini de tazele
                 from src.infrastructure.data.tennis_surface_ratings_store import load_all_surfaces
                 tennis_ratings = load_tennis_ratings(Path("data/tennis_ratings.json"))
-                if tennis_surface_ratings is not None:
+                if _surface_ratings_path.exists():
                     tennis_surface_ratings = load_all_surfaces(
                         _surface_ratings_path, cfg.tennis.surface_phi_fallback,
                     )

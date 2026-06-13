@@ -19,6 +19,7 @@ class HarvestedResult:
     loser: str
     surface: str  # "Hard" | "Clay" | "Grass" | "Unknown"
     date: str     # YYYYMMDD
+    condition_id: str = ""  # Polymarket condition_id — dedupe anahtarı (boşsa match_key'e düşer)
 
     def match_key(self) -> str:
         return f"{self.date}|{self.winner}|{self.loser}"

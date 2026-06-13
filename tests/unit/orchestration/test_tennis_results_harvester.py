@@ -33,6 +33,7 @@ def test_harvests_resolved_match_with_resolved_names_and_surface():
     assert out[0].winner == "Daniel Elahi Galan"
     assert out[0].loser == "Marco Trungelliti"
     assert out[0].surface == "Clay"
+    assert out[0].condition_id == "0xa"
 
 
 def test_skips_unresolved_market():
@@ -51,11 +52,16 @@ def test_skips_unresolvable_name():
     assert out == []
 
 
-def test_skips_already_harvested_key():
+def test_skips_already_harvested_condition_id_without_fetching():
+    fetched = {"count": 0}
+    class _CountingGamma:
+        def fetch_closed_market_by_condition(self, _cid):
+            fetched["count"] += 1
+            return _resolved('["1","0"]')
     seen = [{"condition_id": "0xa", "question": "Lyon: Galan vs Trungelliti", "ts": "2026-06-11T18:00:00+00:00"}]
-    gamma = _FakeGamma({"0xa": _resolved('["1","0"]')})
     out = harvest_results(
-        seen, gamma, resolve_name=lambda n: n.split()[-1], surface_map={"lyon": "Clay"},
-        already_keys={"20260613|Galan|Trungelliti"}, today_yyyymmdd="20260613",
+        seen, _CountingGamma(), resolve_name=lambda n: n.split()[-1], surface_map={"lyon": "Clay"},
+        already_keys={"0xa"}, today_yyyymmdd="20260613",
     )
     assert out == []
+    assert fetched["count"] == 0  # zaten hasat → gamma'ya hic gidilmedi

@@ -43,3 +43,12 @@ def test_load_skips_corrupt_line(tmp_path):
     p.write_text('{"winner":"A","loser":"B","surface":"Clay","date":"20260612"}\nBOZUK\n', encoding="utf-8")
     out = load_results(p)
     assert len(out) == 1 and out[0].winner == "A"
+
+
+def test_dedupes_by_condition_id_across_different_dates(tmp_path):
+    p = tmp_path / "res.jsonl"
+    r1 = HarvestedResult(winner="Alice", loser="Bob", surface="Clay", date="20260613", condition_id="0xa")
+    r2 = HarvestedResult(winner="Alice", loser="Bob", surface="Clay", date="20260614", condition_id="0xa")  # ayni mac, farkli run-gunu
+    append_results([r1], p)
+    append_results([r2], p)
+    assert len(load_results(p)) == 1  # condition_id ile dedupe → tek kayit

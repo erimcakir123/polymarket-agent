@@ -1,4 +1,4 @@
-"""Taze tenis sonuçları jsonl deposu — append-only + maç-anahtarı dedupe.
+"""Taze tenis sonuçları jsonl deposu — append-only + condition_id dedupe.
 
 Infrastructure: dosya I/O sınırda; domain HarvestedResult döner. Bozuk satır
 atlanır + log (ARCH_GUARD Kural 12).
@@ -12,6 +12,11 @@ from pathlib import Path
 from src.domain.pricing.tennis.harvested_result import HarvestedResult
 
 logger = logging.getLogger(__name__)
+
+
+def _dedupe_key(r: HarvestedResult) -> str:
+    """condition_id varsa onunla dedupe; yoksa (legacy) maç-anahtarına düş."""
+    return r.condition_id or r.match_key()
 
 
 def load_results(path: Path) -> list[HarvestedResult]:
@@ -28,6 +33,7 @@ def load_results(path: Path) -> list[HarvestedResult]:
             out.append(HarvestedResult(
                 winner=d["winner"], loser=d["loser"],
                 surface=d.get("surface", "Unknown"), date=d["date"],
+                condition_id=d.get("condition_id", ""),
             ))
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("tennis_results_store: bozuk satır atlandı: %s", e)
@@ -35,7 +41,8 @@ def load_results(path: Path) -> list[HarvestedResult]:
 
 
 def harvested_keys(path: Path) -> set[str]:
-    return {r.match_key() for r in load_results(path)}
+    """Hasat edilmiş dedupe anahtarları — condition_id (yoksa maç-anahtarı)."""
+    return {_dedupe_key(r) for r in load_results(path)}
 
 
 def append_results(results: list[HarvestedResult], path: Path) -> int:
@@ -46,12 +53,13 @@ def append_results(results: list[HarvestedResult], path: Path) -> int:
     added = 0
     with open(p, "a", encoding="utf-8") as f:
         for r in results:
-            if r.match_key() in existing:
+            if _dedupe_key(r) in existing:
                 continue
-            existing.add(r.match_key())
+            existing.add(_dedupe_key(r))
             f.write(json.dumps({
                 "winner": r.winner, "loser": r.loser,
                 "surface": r.surface, "date": r.date,
+                "condition_id": r.condition_id,
             }, ensure_ascii=False) + "\n")
             added += 1
     return added

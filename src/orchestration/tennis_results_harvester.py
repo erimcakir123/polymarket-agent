@@ -37,6 +37,9 @@ def harvest_results(
     out: list[HarvestedResult] = []
     fetches = 0
     for m in seen_markets:
+        cid = m.get("condition_id") or ""
+        if cid and cid in already_keys:
+            continue  # zaten hasat edildi → gamma'ya gitme (tekrar-hasat + fazla fetch önlenir)
         if fetches >= max_fetches:
             logger.info("Harvest fetch tavanı (%d) — kalan atlandı", max_fetches)
             break
@@ -47,17 +50,18 @@ def harvest_results(
         win_a, win_b = resolve_name(a_raw), resolve_name(b_raw)
         if not win_a or not win_b:
             continue
-        market = gamma_client.fetch_closed_market_by_condition(m.get("condition_id"))
+        market = gamma_client.fetch_closed_market_by_condition(cid)
         fetches += 1
         pair = winner_loser_from_resolution(market or {}, win_a, win_b)
         if pair is None:
             continue
         winner, loser = pair
-        key = f"{today_yyyymmdd}|{winner}|{loser}"
-        if key in already_keys:
-            continue
         loc = _extract_location(question)
         surface = (_match_surface(loc, surface_map) if loc else None) or "Unknown"
-        already_keys.add(key)
-        out.append(HarvestedResult(winner=winner, loser=loser, surface=surface, date=today_yyyymmdd))
+        if cid:
+            already_keys.add(cid)
+        out.append(HarvestedResult(
+            winner=winner, loser=loser, surface=surface,
+            date=today_yyyymmdd, condition_id=cid,
+        ))
     return out
