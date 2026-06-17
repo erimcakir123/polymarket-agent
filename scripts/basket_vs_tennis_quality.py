@@ -9,8 +9,10 @@ import json
 import httpx
 import sys
 import glob
+import os
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -124,10 +126,13 @@ def analyze_set(label, trades):
 
 
 # === TENNIS - 90 trade tum donem (24-28 May) ===
+_tennis_audit = Path(
+    os.getenv("TENNIS_LAB_DIR", str(Path(__file__).resolve().parent.parent.parent / "tennis-lab"))
+) / "logs" / "audit"
 tennis_paths = [
-    r"c:/Users/erimc/OneDrive/Desktop/CLAUDE PROJELER/tennis-lab/logs/audit/trade_history.archive.20260526_172100.jsonl",
-    r"c:/Users/erimc/OneDrive/Desktop/CLAUDE PROJELER/tennis-lab/logs/audit/trade_history.archive.20260527_130608.jsonl",
-    r"c:/Users/erimc/OneDrive/Desktop/CLAUDE PROJELER/tennis-lab/logs/audit/trade_history.jsonl",
+    str(_tennis_audit / "trade_history.archive.20260526_172100.jsonl"),
+    str(_tennis_audit / "trade_history.archive.20260527_130608.jsonl"),
+    str(_tennis_audit / "trade_history.jsonl"),
 ]
 tennis_trades = []
 for p in tennis_paths:
@@ -145,7 +150,7 @@ tennis_closed = [
 analyze_set(f"TENNIS-LAB (Sackmann/Glicko2 model) - {len(tennis_closed)} closed trade", tennis_closed)
 
 # === BASKETBALL - ana bot audit, 24-28 May, sport_tag=nba|wnba ===
-ana_audit = r"c:/Users/erimc/OneDrive/Desktop/CLAUDE PROJELER/Polymarket Agent 2.0/logs/audit"
+ana_audit = str(Path(__file__).resolve().parent.parent / "logs" / "audit")
 all_basket = []
 # All audit archive + current
 for p in sorted(glob.glob(f"{ana_audit}/trade_history*.jsonl")):

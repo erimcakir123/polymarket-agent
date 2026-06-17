@@ -37,6 +37,9 @@ class EntryProcessor:
 
     def run_heavy(self) -> None:
         """Stock-first heavy cycle."""
+        if self.deps.state.trading_control.paused:
+            logger.info("Trading PAUSED (Telegram /pause) — yeni giriş açılmıyor")
+            return
         mode = self.deps.state.config.mode.value
         self.deps.bot_status_writer.write_stage(mode=mode, cycle="heavy", stage="scanning")
 

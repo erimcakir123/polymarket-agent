@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.config.settings import AppConfig
+from src.domain.control.trading_control import TradingControl
 from src.domain.guards.blacklist import Blacklist
 from src.domain.portfolio import snapshot as portfolio_snapshot
 from src.domain.portfolio.manager import PortfolioManager
@@ -47,6 +48,8 @@ class RuntimeState:
     positions_store: JsonStore
     breaker_store: JsonStore
     blacklist_store: JsonStore
+    trading_control: TradingControl
+    trading_control_store: JsonStore
 
 
 def bootstrap(
@@ -77,9 +80,12 @@ def bootstrap(
     breaker_store = JsonStore(logs / "circuit_breaker_state.json")
     blacklist_store = JsonStore(logs / "blacklist.json")
 
+    trading_control_store = JsonStore(logs / "trading_control.json")
+
     portfolio = _restore_portfolio(positions_store, config.initial_bankroll)
     breaker = _restore_breaker(breaker_store, config)
     blacklist = _restore_blacklist(blacklist_store)
+    trading_control = _restore_trading_control(trading_control_store)
 
     logger.info(
         "Bootstrap complete: mode=%s bankroll=$%.2f positions=%d realized=$%.2f "
@@ -97,6 +103,8 @@ def bootstrap(
         positions_store=positions_store,
         breaker_store=breaker_store,
         blacklist_store=blacklist_store,
+        trading_control=trading_control,
+        trading_control_store=trading_control_store,
     )
 
 
@@ -157,6 +165,14 @@ def _restore_blacklist(store: JsonStore) -> Blacklist:
         except Exception as e:
             logger.warning("Blacklist restore failed (%s), starting fresh", e)
     return Blacklist()
+
+
+def _restore_trading_control(store: JsonStore) -> TradingControl:
+    """data/trading_control.json'dan paused durumunu restore et. Yoksa not-paused."""
+    data = store.load(default=None)
+    if isinstance(data, dict):
+        return TradingControl.from_dict(data)
+    return TradingControl()
 
 
 def persist(state: RuntimeState) -> None:

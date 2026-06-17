@@ -95,3 +95,47 @@ def test_default_on_stop_is_replaceable_lambda() -> None:
     poller.set_on_stop(real_cb)
     poller._handle({"update_id": 1, "message": {"text": "/stop", "chat": {"id": 123}}})
     real_cb.assert_called_once()
+
+
+def _poller_full(calls):
+    return TelegramCommandPoller(
+        bot_token="tok", chat_id="123",
+        on_stop=lambda: calls.append("stop"),
+        on_pause=lambda: calls.append("pause"),
+        on_resume=lambda: calls.append("resume"),
+        on_status=lambda: "STATUS-TEXT",
+        http_post=lambda *a, **k: None,
+    )
+
+
+def test_pause_command_dispatches():
+    calls = []
+    _poller_full(calls)._handle(_make_update(1, "/pause", "123"))
+    assert calls == ["pause"]
+
+
+def test_resume_command_dispatches():
+    calls = []
+    _poller_full(calls)._handle(_make_update(1, "/resume", "123"))
+    assert calls == ["resume"]
+
+
+def test_status_command_replies_with_text():
+    sent = {}
+    p = _poller_full([])
+    p._http_post = lambda url, json, timeout: sent.update(json)
+    p._handle(_make_update(1, "/status", "123"))
+    assert sent["text"] == "STATUS-TEXT"
+
+
+def test_set_handlers_binds_pause_resume_status():
+    calls = []
+    poller = TelegramCommandPoller(bot_token="tok", chat_id="123", on_stop=lambda: None)
+    poller.set_handlers(
+        on_pause=lambda: calls.append("pause"),
+        on_resume=lambda: calls.append("resume"),
+        on_status=lambda: "S",
+    )
+    poller._http_post = lambda *a, **k: None
+    poller._handle(_make_update(1, "/pause", "123"))
+    assert calls == ["pause"]

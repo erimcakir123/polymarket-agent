@@ -28,12 +28,18 @@ class TelegramCommandPoller:
         bot_token: str,
         chat_id: str,
         on_stop: Callable[[], None],
+        on_pause: Callable[[], None] | None = None,
+        on_resume: Callable[[], None] | None = None,
+        on_status: Callable[[], str] | None = None,
         http_get: Callable[..., Any] | None = None,
         http_post: Callable[..., Any] | None = None,
     ) -> None:
         self._token = bot_token
         self._chat_id = chat_id
         self._on_stop = on_stop
+        self._on_pause = on_pause
+        self._on_resume = on_resume
+        self._on_status = on_status
         self._http_get = http_get or requests.get
         self._http_post = http_post or requests.post
         self._offset: int = 0
@@ -47,6 +53,17 @@ class TelegramCommandPoller:
         Constructor'a no-op lambda verilir, gerçek callback set_on_stop ile gelir.
         """
         self._on_stop = callback
+
+    def set_handlers(
+        self,
+        on_pause: Callable[[], None],
+        on_resume: Callable[[], None],
+        on_status: Callable[[], str],
+    ) -> None:
+        """Factory wiring: agent metodlarını (/pause /resume /status) bağla."""
+        self._on_pause = on_pause
+        self._on_resume = on_resume
+        self._on_status = on_status
 
     def start(self) -> None:
         if self._running:
@@ -92,6 +109,16 @@ class TelegramCommandPoller:
             logger.info("Telegram /stop received from chat %s", chat_id)
             self._send_reply("Bot durduruluyor...")
             self._on_stop()
+        elif text == "/pause" and self._on_pause is not None:
+            logger.info("Telegram /pause received")
+            self._on_pause()
+            self._send_reply("⏸ Yeni giriş durduruldu (çıkışlar sürüyor).")
+        elif text == "/resume" and self._on_resume is not None:
+            logger.info("Telegram /resume received")
+            self._on_resume()
+            self._send_reply("▶ Yeni girişe devam.")
+        elif text == "/status" and self._on_status is not None:
+            self._send_reply(self._on_status())
 
     def _send_reply(self, text: str) -> None:
         try:

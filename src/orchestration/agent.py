@@ -118,6 +118,31 @@ class Agent:
         if self.deps.price_feed is not None:
             self.deps.price_feed.stop()
 
+    def request_pause(self) -> None:
+        """Telegram /pause — yeni giriş açmayı durdur (kalıcı). Çıkışlar sürer."""
+        self.deps.state.trading_control.pause()
+        self.deps.state.trading_control_store.save(self.deps.state.trading_control.to_dict())
+        logger.info("Trading PAUSED via Telegram")
+
+    def request_resume(self) -> None:
+        """Telegram /resume — yeni girişe devam (kalıcı)."""
+        self.deps.state.trading_control.resume()
+        self.deps.state.trading_control_store.save(self.deps.state.trading_control.to_dict())
+        logger.info("Trading RESUMED via Telegram")
+
+    def status_summary(self) -> str:
+        """Telegram /status — kısa durum metni."""
+        p = self.deps.state.portfolio
+        paused = self.deps.state.trading_control.paused
+        return (
+            f"📊 <b>Durum</b>\n"
+            f"Mod: {self.deps.state.config.mode.value}\n"
+            f"Açık pozisyon: {p.count()}\n"
+            f"Realized PnL: ${p.realized_pnl:.2f}\n"
+            f"Bankroll: ${p.bankroll:.2f}\n"
+            f"Trading: {'⏸ DURAKLATILDI' if paused else '▶ aktif'}"
+        )
+
     def run(self, max_ticks: int | None = None) -> None:
         """Ana döngü. max_ticks=None → sonsuza kadar; test için sayılı tick."""
         self._start_ws_if_needed()

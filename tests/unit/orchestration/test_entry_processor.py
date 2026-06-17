@@ -4,6 +4,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from src.domain.control.trading_control import TradingControl
 from src.domain.portfolio.manager import PortfolioManager
 from src.models.market import MarketData
 from src.models.signal import Signal
@@ -75,6 +76,7 @@ def _make_deps(gate_config=None, bankroll=1000.0, portfolio_positions=None):
         state=SimpleNamespace(
             config=SimpleNamespace(mode=SimpleNamespace(value="dry_run")),
             portfolio=portfolio,
+            trading_control=TradingControl(),
         ),
         scanner=MagicMock(),
         stock=MagicMock(),
@@ -207,6 +209,7 @@ def test_entry_processor_enforces_max_positions_per_event_in_batch():
         state=SimpleNamespace(
             config=SimpleNamespace(mode=SimpleNamespace(value="dry_run")),
             portfolio=portfolio,
+            trading_control=TradingControl(),
         ),
         scanner=MagicMock(),
         stock=MagicMock(),
@@ -286,6 +289,7 @@ def test_entry_processor_propagates_event_live_to_position():
         state=SimpleNamespace(
             config=SimpleNamespace(mode=SimpleNamespace(value="dry_run")),
             portfolio=portfolio,
+            trading_control=TradingControl(),
         ),
         scanner=MagicMock(),
         stock=MagicMock(),
@@ -338,6 +342,7 @@ def test_run_heavy_dispatches_model_signals_when_engine_present() -> None:
     deps.stock.config.jit_batch_multiplier = 2
     deps.state.portfolio.count.return_value = 0
     deps.state.portfolio.positions = {}
+    deps.state.trading_control.paused = False
     deps.gate.config.max_positions = 50
     deps.bot_status_writer.write_stage.return_value = None
 
@@ -380,6 +385,7 @@ def test_run_heavy_skips_process_signals_when_engine_none() -> None:
     deps.stock.config.jit_batch_multiplier = 2
     deps.state.portfolio.count.return_value = 0
     deps.state.portfolio.positions = {}
+    deps.state.trading_control.paused = False
     deps.gate.config.max_positions = 50
     deps.bot_status_writer.write_stage.return_value = None
     deps.mlb_submarket_engine = None
